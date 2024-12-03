@@ -1,4 +1,4 @@
-// UNSUPPORTED: gpu
+// REQUIRES: aspect-usm_device_allocations
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
@@ -72,7 +72,10 @@ int main() {
   });
   e2.wait();
 
-  if (*test_src_ptr != dst_val) {
+  int res_val = 0;
+  q.copy(test_src_ptr, &res_val, 1).wait();
+
+  if (res_val != dst_val) {
     return -1;
   }
 

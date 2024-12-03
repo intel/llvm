@@ -53,6 +53,13 @@ int main(int argc, char **argv) {
   sycl::queue Q;
   sycl::device Device = Q.get_device();
 
+#ifdef RUN_KERNELS
+  if (!testSupported(Q)) {
+    std::cout << "Building for IL is not supported. Skipping!" << std::endl;
+    return 0;
+  }
+#endif
+
   { // Compile and run a trivial OpenCL kernel.
     std::cout << "Test case1\n";
     sycl::ext::intel::experimental::online_compiler<

@@ -138,7 +138,7 @@ bool test(queue q) {
       cgh.parallel_for<KernelID<CaseNum>>(
           nd_range<1>(global_range, local_range),
           // This test requires an explicit specification of the subgroup size
-          [=](nd_item<1> item) [[intel::reqd_sub_group_size(VL)]] {
+          [=](nd_item<1> item) [[sycl::reqd_sub_group_size(VL)]] {
             sycl::group<1> g = item.get_group();
             sycl::sub_group sg = item.get_sub_group();
 

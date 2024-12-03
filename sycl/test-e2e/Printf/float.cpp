@@ -9,7 +9,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated variadic printf testing once the option is removed.
-// RUN: %{build} -o %t.nonvar.out -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
+// RUN: %{build} -o %t.nonvar.out -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -Wno-#warnings
 // RUN: %{run} %t.nonvar.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
 //        support is considered stable.

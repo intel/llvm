@@ -11,7 +11,7 @@
 // CHECK: alloca %localVarTypes
 // CHECK: attributes #[[ATTR]] = {{.*}} "mux-orig-fn"="_ZTS4TestILi1ELi4EiE"
 
-#include "sycl.hpp"
+#include <sycl/sycl.hpp>
 
 template <int dims, int size, typename T = int> struct Test;
 

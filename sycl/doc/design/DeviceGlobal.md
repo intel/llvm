@@ -414,7 +414,7 @@ Each device code module that references one or more device global variables
 has an associated "SYCL/device globals" property set.  The name of each
 property in this set is the `sycl-unique-id` string of a `device_global`
 variable that is contained by the module.  The value of each property has
-property type `PI_PROPERTY_TYPE_BYTE_ARRAY` and contains a structure with the
+property type `SYCL_PROPERTY_TYPE_BYTE_ARRAY` and contains a structure with the
 following fields:
 
 ```
@@ -467,19 +467,19 @@ Several changes are needed to the DPC++ runtime
 #### Initializing the device global variables in device code
 
 When a DPC++ application submits a kernel, the runtime constructs a
-`pi_program` containing this kernel that is compiled for the target device, if
-such a `pi_program` does not yet exist.  If the kernel resides in a device code
-module that calls into a shared library, the runtime identifies a set of device
-code modules that need to be online-linked together in order to construct the
-`pi_program`.
+`ur_program_handle_t` containing this kernel that is compiled for the target
+device, if such a handle does not yet exist.  If the kernel resides in a device
+code module that calls into a shared library, the runtime identifies a set of
+device code modules that need to be online-linked together in order to
+construct the `ur_program_handle_t`.
 
-After creating a `pi_program` and before invoking any kernel it contains, the
-runtime does the following:
+After creating a `ur_program_handle_t` and before invoking any kernel it
+contains, the runtime does the following:
 
 * Scan the entries of the "SYCL/device globals" property sets of each device
-  code module that contributes to the the `pi_program` to get information about
-  each device global variable that is used by the `pi_program`.  This
-  information is added to device global database.
+  code module that contributes to the the `ur_program_handle_t` to get
+  information about each device global variable that is used by the
+  `ur_program_handle_t`.  This information is added to device global database.
 
 * For each device global variable that is not decorated with the
   `device_image_scope` property:
@@ -492,12 +492,12 @@ runtime does the following:
 
     - Regardless of whether the USM buffer has already been created for the
       variable, the runtime initializes the `usmptr` member in the *device
-      instance* of the variable by using a new [PI interface][7] which copies
-      data from the host to a global variable in a `pi_program`.  It is a
-      simple matter to use this interface to overwrite the `usmptr` member with
-      the address of the USM buffer.
+      instance* of the variable by using a new [UR interface][7] which copies
+      data from the host to a global variable in a `ur_program_handle_t`.  It is
+      a simple  matter to use this interface to overwrite the `usmptr` member
+      with the address of the USM buffer.
 
-[7]: <#new-pi-interface-to-copy-to-or-from-a-module-scope-variable>
+[7]: <#new-ur-interface-to-copy-to-or-from-a-module-scope-variable>
 
 Note that the runtime does not need to initialize the `val` member variable of
 device global variables that are decorated with `device_image_scope` because
@@ -535,16 +535,16 @@ member.
 If the variable is decorated with the `device_image_scope` property, the
 variable's value exists directly in the device code module, not in a USM
 buffer.  The runtime first uses the variable's unique string identifier to see
-if there is a `pi_program` that contains the variable.  If there is more than
-one such `pi_program`, the runtime diagnoses an error by throwing
-`errc::invalid`.  If there is no such `pi_program`, the runtime scans all
+if there is a `ur_program_handle_t that contains the variable.  If there is
+more than one such program handle, the runtime diagnoses an error by throwing
+`errc::invalid`.  If there is no such program handle, the runtime scans all
 "SYCL/device globals" property sets to find the device code module that
 contains this variable and uses its normal mechanism for creating a
-`pi_program` from this device code module.  (The algorithm for creating device
-code modules in the `sycl-post-link` tool ensures that there will be no more
-than one module that contains the variable.)  Finally, the runtime uses the
-new [PI interface][7] to copy to or from the contents of the variable in this
-`pi_program`.
+`ur_program_handle_t` from this device code module.  (The algorithm for
+creating device code modules in the `sycl-post-link` tool ensures that there
+will be no more than one module that contains the variable.)  Finally, the
+runtime uses the new [UR interface][7] to copy to or from the contents of the
+variable in this program.
 
 It is possible that a device global variable with `device_image_scope` is not
 referenced by _any_ kernel, in which case the variable's unique string will not
@@ -556,42 +556,44 @@ In all cases, the runtime uses `sizeof(T)` to determine if the copy operation
 will read or write beyond the end of the device global variable's storage.  If
 so, the runtime diagnoses an error by throwing `errc::invalid`.
 
-#### New PI interface to copy to or from a module scope variable
+#### New UR interface to copy to or from a module scope variable
 
-As noted above, we need new PI interfaces that can copy data to or from an
-instance of a device global variable in a `pi_program`.  This functionality is
-exposed as two new PI interfaces:
+As noted above, we need new UR interfaces that can copy data to or from an
+instance of a device global variable in a `ur_program_handle_t`.  This
+functionality is exposed as two new UR interfaces:
 
 ```
-pi_result piextEnqueueDeviceGlobalVariableRead(
-    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingRead,
-    size_t Count, size_t Offset, void *Dst, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventsWaitList, pi_event *Event);
+ur_result_t urEnqueueDeviceGlobalVariableRead(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
+    bool blockingRead, size_t count, size_t offset, void *pDst,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent);
 
-pi_result piextEnqueueDeviceGlobalVariableWrite(
-    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingWrite,
-    size_t Count, size_t Offset, const void *Src, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventsWaitList, pi_event *Event);
+ur_result_t urEnqueueDeviceGlobalVariableWrite(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
+    bool blockingWrite, size_t count, size_t offset, const void *pSrc,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent)
 ```
 
-The `piextEnqueueDeviceGlobalVariableRead` function reads `Count` bytes at
-byte-offset `Offset` from a device global variable in `Program` identified by
-the name `Name`. The read data is stored in `Dst`. Likewise, the
-`piextEnqueueDeviceGlobalVariableWrite` function reads `Count` bytes from `Dst`
-and stores them at byte-offset `Offset` in the device global variable in
-`Program` identified by the name `Name`.
+The `urEnqueueDeviceGlobalVariableRead` function reads `count` bytes at
+byte-offset `offset` from a device global variable in `hProgram` identified by
+the name `name`. The read data is stored in `pDst`. Likewise, the
+`urEnqueueDeviceGlobalVariableWrite` function reads `count` bytes from `pSrc`
+and stores them at byte-offset `offset` in the device global variable in
+`hProgram` identified by the name `name`.
 
-Both functions will enqueue the associated memory command on `Queue` where it
-will first wait for `NumEventsInWaitList` events in `EventsWaitList` to finish.
-`Event` will be populated with the event associated with resulting enqueued
-command. If either `BlockingRead` or `BlockingWrite` is `true` the call will
-block on the host until the enqueued command finishes execution.
+Both functions will enqueue the associated memory command on `hQueue` where it
+will first wait for `numEventsInWaitList` events in `phEventWaitList,` to
+finish.  `hEvent` will be populated with the event associated with resulting
+enqueued command. If either `blockingRead` or `blockingWrite` is `true` the
+call will block on the host until the enqueued command finishes execution.
 
 For `device_global` variables the `Name` parameter in calls to these functions
 is the same as the associated `sycl-unique-id` string.
 
-The Level Zero backend has existing APIs that can implement these PI
-interfaces.  The plugin first calls [`zeModuleGetGlobalPointer()`][8] to get a
+The Level Zero backend has existing APIs that can implement these UR
+interfaces.  The adapter first calls [`zeModuleGetGlobalPointer()`][8] to get a
 device pointer for the variable and then calls
 [`zeCommandListAppendMemoryCopy()`][9] to copy to or from that pointer.
 However, the documentation (and implementation) of `zeModuleGetGlobalPointer()`
@@ -628,13 +630,13 @@ This must be changed to say something along these lines:
 The OpenCL backend has a proposed extension
 [`cl_intel_global_variable_access`][10] that defines functions
 `clEnqueueReadGlobalVariableINTEL()` and `clEnqueueWriteGlobalVariableINTEL()`
-which can be easily used to implement these PI interfaces.  This DPC++ design
+which can be easily used to implement these UR interfaces.  This DPC++ design
 depends upon implementation of that OpenCL extension.
 
 [10]: <opencl-extensions/cl_intel_global_variable_access.asciidoc>
 
 The CUDA backend has existing APIs `cuModuleGetGlobal()` and `cuMemcpyAsync()`
-which can be used to implement these PI interfaces.
+which can be used to implement these UR interfaces.
 
 
 ## Design choices

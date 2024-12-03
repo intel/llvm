@@ -15,7 +15,7 @@
 
 using namespace sycl;
 
-TEST(HasExtensionID, HasExtensionCallsCorrectPluginMethods) {
+TEST(HasExtensionID, HasExtensionCallsCorrectAdapterMethods) {
   sycl::unittest::UrMock<> Mock;
 
   sycl::platform Plt = sycl::platform();

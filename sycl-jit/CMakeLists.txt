@@ -9,19 +9,23 @@ set(SYCL_JIT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # directories, similar to how clang/CMakeLists.txt does it.
 set(LLVM_SPIRV_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/../llvm-spirv/include")
 
-# Set library-wide warning options.
-set(SYCL_JIT_WARNING_FLAGS -Wall -Wextra)
+if (NOT WIN32 AND NOT CYGWIN)
+  # Set library-wide warning options.
+  set(SYCL_JIT_WARNING_FLAGS -Wall -Wextra)
 
-option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL kernel JIT library" ON)
-if(SYCL_JIT_ENABLE_WERROR)
-  list(APPEND SYCL_JIT_WARNING_FLAGS -Werror)
-endif(SYCL_JIT_ENABLE_WERROR)
+  option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL kernel JIT library" ON)
+  if(SYCL_JIT_ENABLE_WERROR)
+    list(APPEND SYCL_JIT_WARNING_FLAGS -Werror)
+  endif(SYCL_JIT_ENABLE_WERROR)
+endif()
 
-if(WIN32)
-  message(WARNING "Kernel JIT not yet supported on Windows")
-else(WIN32)
-  add_subdirectory(common)
-  add_subdirectory(jit-compiler)
-  add_subdirectory(passes)
+
+add_subdirectory(common)
+add_subdirectory(jit-compiler)
+add_subdirectory(passes)
+
+# Loadable plugins for opt aren't supported on Windows,
+# so we can't execute the tests.
+if (NOT WIN32 AND NOT CYGWIN)
   add_subdirectory(test)
-endif(WIN32)
+endif()

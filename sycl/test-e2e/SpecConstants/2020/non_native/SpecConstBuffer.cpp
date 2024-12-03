@@ -6,6 +6,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 const static sycl::specialization_id<int> SpecConst{42};
@@ -20,5 +21,5 @@ int main() {
   });
   Q.wait();
   return 0;
-  // CHECK: urMemRelease
+  // CHECK: <--- urMemRelease
 }

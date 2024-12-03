@@ -12,6 +12,8 @@
 #include <sycl/detail/export.hpp> // __SYCL_EXPORT
 #include <sycl/device.hpp>
 
+#include <detail/compiler.hpp> // sycl_device_binaries
+
 #include <numeric> // std::accumulate
 #include <string>
 #include <vector>
@@ -30,6 +32,15 @@ SYCL_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
               const std::vector<std::string> &RegisteredKernelNames);
 
 bool SYCL_Compilation_Available();
+
+std::string userArgsAsString(const std::vector<std::string> &UserArguments);
+
+sycl_device_binaries
+SYCL_JIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
+                  const std::vector<std::string> &UserArgs, std::string *LogPtr,
+                  const std::vector<std::string> &RegisteredKernelNames);
+
+bool SYCL_JIT_Compilation_Available();
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

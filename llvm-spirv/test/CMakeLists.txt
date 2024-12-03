@@ -68,7 +68,7 @@ if(NOT SPIRV_TOOLS_SPIRV_AS_FOUND)
 endif()
 
 if(NOT SPIRV_TOOLS_SPIRV_DIS_FOUND)
-  message(WARNING "spirv-as not found! SPIR-V disassembly tests will not be run.")
+  message(WARNING "spirv-dis not found! SPIR-V disassembly tests will not be run.")
   set(SPIRV_TOOLS_SPIRV_DIS_FOUND False)
 endif()
 

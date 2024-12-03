@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp> // __spv namespace
-#include <optional>                   // std::optional
-#include <string_view>                // std::string_view
-#include <utility>                    // std::pair
+#include <optional>                     // std::optional
+#include <string_view>                  // std::string_view
+#include <sycl/__spirv/spirv_types.hpp> // __spv namespace
+#include <utility>                      // std::pair
 
 namespace sycl {
 inline namespace _V1 {
@@ -80,6 +80,28 @@ inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
   case sycl::ext::oneapi::experimental::matrix::layout::dynamic:
     return __spv::MatrixLayout::Dynamic;
   }
+}
+
+template<typename Ta, typename Tb, typename Tc>
+constexpr uint32_t CalculateMatrixOperand() {
+  if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
+                std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value &&
+                std::is_same<Tc, float>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixAAndBBFloat16ComponentsINTEL);
+  if constexpr (std::is_signed<Ta>::value && std::is_unsigned<Tb>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixASignedComponentsKHR);
+  if constexpr (std::is_unsigned<Ta>::value && std::is_signed<Tb>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixBSignedComponentsKHR);
+  if constexpr (std::is_signed<Ta>::value && std::is_signed<Tb>::value) {
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixASignedComponentsKHR) +
+           static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixBSignedComponentsKHR);
+  }
+  return 0;
 }
 
 } // namespace detail

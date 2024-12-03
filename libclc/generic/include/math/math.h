@@ -11,7 +11,7 @@
 
 #include "as_type.h"
 #include "config.h"
-#include "func.h"
+#include <clc/clcfunc.h>
 
 #define SNAN 0x001
 #define QNAN 0x002

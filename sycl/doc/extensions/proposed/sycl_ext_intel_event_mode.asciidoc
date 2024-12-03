@@ -1,0 +1,165 @@
+= sycl_ext_intel_event_mode
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+:common_ref_sem: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions]
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+On some backends, calling `wait()` on an `event` will synchronize using a
+busy-waiting implementation. Though this comes at a low latency for the
+synchronization of the event, it has the downside of consuming high amounts of
+CPU time for no meaningful work.  This extension introduces a new property for
+SYCL commands that allow users to pick modes for the associated events, one of
+these modes being a "low-power" event. These new low-power events will, if
+possible, yield the thread that the `wait()` member function is called on and
+only wake up occasionally to check if the event has finished. This reduces the
+time the CPU spends checking finish condition of the wait, at the cost of
+latency.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_EVENT_MODE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Event mode property
+
+This extension adds a new property `event_mode` which can be used with the
+`submit_with_event` free function from
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions],
+allowing the user some control over how the resulting event is created and
+managed.
+
+```
+namespace sycl::ext::intel::experimental {
+
+enum class event_mode_enum { none, low_power };
+
+struct event_mode {
+  event_mode(event_mode_enum mode);
+
+  event_mode_enum value;
+};
+
+using event_mode_key = event_mode;
+
+} // namespace sycl::ext::intel::experimental
+```
+
+
+=== Low power event mode
+
+Passing the `event_mode` property with `event_mode_enum::low_power` to
+`submit_with_event` will act as a hint to the `event` created from the
+corresponding commands to do low-power synchronization. If the backend is able
+to handle low-power events, calling `event::wait()` or `event::wait_and_throw()`
+will cause the thread to yield and only do occasional wake-ups to check the
+event progress.
+
+[_Note:_ The low-power event mode currently only has an effect on `barrier` and
+`partial_barrier` commands enqueued on queues that return
+`backend::ext_oneapi_level_zero` from `queue::get_backend()`.
+_{endnote}_]
+
+
+=== New property usage example
+
+As an example of how to use the new `event_mode` property using the
+`event_mode_enum::low_power` mode, see the following code:
+
+```
+#include <sycl/sycl.hpp>
+
+namespace oneapiex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+
+int main() {
+  sycl::queue Q;
+
+  // Submit some work to the queue.
+  oneapiex::submit(Q, [&](sycl::handler &CGH) {...});
+
+  // Submit a command with the low-power event mode.
+  oneapiex::properties Props{intelex::event_mode{intelex::event_mode_enum::low_power}};
+  sycl::event E = oneapiex::submit_with_event(Q, Props, [&](sycl::handler &CGH) {
+    ...
+  });
+
+  // Waiting for the resulting event will use low-power waiting if possible.
+  E.wait();
+}
+```

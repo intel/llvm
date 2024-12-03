@@ -113,7 +113,7 @@ an application can use to indicate that the matrix data is loaded or
 stored in VNNI "packed" format.
 
 ```c++
-namespace sycl::ext::oneapi::experimental::matrix::layout {
+namespace sycl::ext::oneapi::experimental::matrix {
 
 enum class layout {
   ext_intel_packed
@@ -170,6 +170,37 @@ void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
     size_t stride);
+
+// Overloads for offset store
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> base_dest, size_t row_index,
+    size_t col_index, size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> base_dest, size_t row_index,
+    size_t col_index, size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT>
+          base_dest, size_t row_index, size_t col_index, size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT>
+          base_dest, size_t row_index, size_t col_index, size_t stride);
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```
@@ -244,19 +275,19 @@ supporting the out of bounds checked APIs that are defined in this section.
 In this section, we refer to the memory buffer where a `joint_matrix`
 is loaded from or stored to as the global matrix. This global matrix
 is also interpreted as a two-dimensional memory region as follows, where
-`GlobalRows` is number of rows in the global matrix, `GlobalCols` is number of
-columns in the global matrix, `Stride` is number of columns that include
+`global_rows` is number of rows in the global matrix, `global_cols` is number of
+columns in the global matrix, `stride` is number of columns that include
 the out of bounds data (depicted as x here).
 
 ```
-  GlobalCols
+  global_cols
  <----------->
  dddddddddddddxxx  ^
- dddddddddddddxxx  | GlobalRows
+ dddddddddddddxxx  | global_rows
  dddddddddddddxxx  v
  xxxxxxxxxxxxxxxx
  <-------------->
-      Stride
+      stride
 ```
 
 In the diagram above, the global matrix has 13 columns and 3
@@ -293,15 +324,15 @@ checking, namely `joint_matrix_fill`, `joint_matrix_load`, and
 the global memory matrix, which is different from the APIs that do not
 do bounds checking. Those non-bounds-checking APIs take a pointer to
 the base of the joint matrix.
-* The coordinates `RowIndex` and `ColIndex` into the global matrix to
+* The coordinates `row_index` and `col_index` into the global matrix to
 calculate the  pointer offset to load/store are given as separate
 arguments.
 * These variants take extra arguments to determine the global bounds
-`GlobalRows` and `GlobalCols` of the global matrix.
+`global_rows` and `global_cols` of the global matrix.
 
 To illustrate the out-of-bounds checking, consider the global matrix
-shown above which has 13 columns and 3 rows (`GlobalRows=3` and
-`GlobalCols=13`), where the joint matrix size is 8 columns by 2 rows defined as
+shown above which has 13 columns and 3 rows (`global_rows=3` and
+`global_cols=13`), where the joint matrix size is 8 columns by 2 rows defined as
 ```
 joint_matrix<sub_group, bfloat16, use::b, 2, 8, layout::row_major> sub_b;
 ```
@@ -311,14 +342,14 @@ both dimensions. This is shown below, where capital letters correspond
 to the elements that are accessed by this joint matrix load:
 
 ```
-  GlobalCols
+  global_cols
  <----------->
  dddddddddddddxxx  ^
- dddddddddddddxxx  | GlobalRows
+ dddddddddddddxxx  | global_rows
  ddddddddDDDDDXXX  v
  xxxxxxxxXXXXXXXX
  <-------------->
-      Stride
+      stride
 ```
 
 If the joint matrix is loaded via `joint_matrix_load_checked` using
@@ -335,8 +366,8 @@ namespace sycl::ext::intel::experimental::matrix {
 template <typename Group, typename T, size_t Rows, size_t Cols,
           use Use, layout Layout, typename Tv>
 void joint_matrix_fill_checked(Group g, joint_matrix<Group, T, Use, Rows,
-          Cols, Layout> &m, Tv v, size_t GlobalRows, size_t GlobalCols,
-          size_t RowIndex, size_t ColIndex);
+          Cols, Layout> &m, Tv v, size_t global_rows, size_t global_cols,
+          size_t row_index, size_t col_index);
 
 // Only available when std::is_same_v<T1, std::remove_const_t<T2>>
 template <typename Group, typename T1, typename T2,
@@ -344,9 +375,9 @@ template <typename Group, typename T1, typename T2,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   multi_ptr<T2, Space, IsDecorated> base_src, size_t Stride,
-   layout Layout, size_t GlobalRows, size_t GlobalCols,
-   size_t RowIndex, size_t ColIndex);
+   multi_ptr<T2, Space, IsDecorated> base_src, size_t stride,
+   layout Layout, size_t global_rows, size_t global_cols,
+   size_t row_index, size_t col_index);
 
 // Only available when Layout != layout::dynamic
 // and when std::is_same_v<T1, std::remove_const_t<T2>>
@@ -356,8 +387,8 @@ template <typename Group, typename T1, typename T2,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
-   multi_ptr<T2, Space, IsDecorated> base_src, size_t Stride,
-   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+   multi_ptr<T2, Space, IsDecorated> base_src, size_t stride,
+   size_t global_rows, size_t global_cols, size_t row_index, size_t col_index);
 
 // Only available when std::is_same_v<T1, std::remove_const_t<T2>>
 template <typename Group, typename T1, typename T2,
@@ -365,8 +396,8 @@ template <typename Group, typename T1, typename T2,
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
    ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_src,
-   size_t Stride, layout Layout, size_t GlobalRows, size_t GlobalCols,
-   size_t RowIndex, size_t ColIndex);
+   size_t stride, layout Layout, size_t global_rows, size_t global_cols,
+   size_t row_index, size_t col_index);
 
 // Only available when Layout != layout::dynamic
 // and when std::is_same_v<T1, std::remove_const_t<T2>>
@@ -375,55 +406,55 @@ template <typename Group, typename T1, typename T2, size_t Rows,
 void joint_matrix_load_checked(Group g,
    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
    ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_src,
-   size_t Stride, size_t GlobalRows, size_t GlobalCols,
-   size_t RowIndex, size_t ColIndex);
+   size_t stride, size_t global_rows, size_t global_cols,
+   size_t row_index, size_t col_index);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res, 
-   multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride, layout Layout,
-   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+   multi_ptr<T, Space, IsDecorated> base_dest, size_t stride, layout Layout,
+   size_t global_rows, size_t global_cols, size_t row_index, size_t col_index);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
-   multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride,
-   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+   multi_ptr<T, Space, IsDecorated> base_dest, size_t stride,
+   size_t global_rows, size_t global_cols, size_t row_index, size_t col_index);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
-   multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride,
-   size_t GlobalRows, size_t GlobalCols, size_t RowIndex, size_t ColIndex);
+   multi_ptr<T, Space, IsDecorated> base_dest, size_t stride,
+   size_t global_rows, size_t global_cols, size_t row_index, size_t col_index);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           typename PropertyListT>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res, 
    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
-   size_t Stride, layout Layout, size_t GlobalRows, size_t GlobalCols,
-   size_t RowIndex, size_t ColIndex);
+   size_t stride, layout Layout, size_t global_rows, size_t global_cols,
+   size_t row_index, size_t col_index);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, typename PropertyListT>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
-   size_t Stride, size_t GlobalRows, size_t GlobalCols,
-   size_t RowIndex, size_t ColIndex);
+   size_t stride, size_t global_rows, size_t global_cols,
+   size_t row_index, size_t col_index);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, typename PropertyListT>
 void joint_matrix_store_checked(Group g,
    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
-   size_t Stride, size_t GlobalRows, size_t GlobalCols,
-   size_t RowIndex, size_t ColIndex);
+   size_t stride, size_t global_rows, size_t global_cols,
+   size_t row_index, size_t col_index);
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```
@@ -445,12 +476,12 @@ the following queries to get these requirements:
 |Tells the required alignment (in bytes) of the base pointer for
 `joint_matrix_load_checked` and `joint_matrix_store_checked`.
 |`ext::intel::experimental::info::device::matrix_checked_rowindex_multiple_of<T>`|
-`size_t`|Returns a value, of which `RowIndex` must be multiple of;
+`size_t`|Returns a value, of which `row_index` must be multiple of;
 where `T` is the element type of the matrix. When using the matrices
 with the machine learning types, `T` should be the element type
 (e.g. `precision::tf32`) not the storage type.
 |`ext::intel::experimental::info::device::matrix_checked_globalcols_multiple_of<T>`|
-`size_t` | Returns a value, of which `GlobalCols` must be multiple of;
+`size_t` | Returns a value, of which `global_cols` must be multiple of;
 where `T` is the element type of the matrix. When using the matrices
 with the machine learning types, `T` should be the element type
 (e.g. `precision::tf32`) not the storage type.
@@ -462,14 +493,19 @@ The checked APIs are currently available in devices with the architecture
 `architecture::intel_gpu_pvc`. The following restrictions apply to
 these checked APIs:
 
+- The `stride` parameter has the following restrictions:
+
+* The value `stride * sizeof(T1)` must be a multiple of 8, and
+* The value of `stride * sizeof(T1)` must not exceed `2^24^`.
+
 - The base pointer must be 4 bytes aligned.
 
-- For 8 bits data type, `RowIndex` must be a multiple of 4. For 16 bits
-data type, `RowIndex` must be a multiple of 2. So `RowIndex` must be a
+- For 8 bits data type, `row_index` must be a multiple of 4. For 16 bits
+data type, `row_index` must be a multiple of 2. So `row_index` must be a
 multiple of 4 divided by size of the element type (`4/sizeof(T)`).
 
-- For 8 bits data type, `GlobalCols` must be a multiple of 4. For 16 bits
-data type, `GlobalCols` must be a multiple of 2. So `GlobalCols` must be a
+- For 8 bits data type, `global_cols` must be a multiple of 4. For 16 bits
+data type, `global_cols` must be a multiple of 2. So `global_cols` must be a
 multiple of 4 divided by size of the element type (`4/sizeof(T)`).
 
 === New Device Information Descriptor

@@ -8,8 +8,9 @@
 
 #pragma once
 
-#include <sycl/detail/ur.hpp>
 #include <ur_api.h>
+
+#include <memory>
 
 namespace sycl {
 inline namespace _V1 {

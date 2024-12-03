@@ -141,6 +141,10 @@ enum NodeType : unsigned {
   VALL_NONZERO,
   VANY_NONZERO,
 
+  // Floating point approximate reciprocal operation
+  FRECIPE,
+  FRSQRTE
+
   // Intrinsic operations end =============================================
 };
 } // end namespace LoongArchISD
@@ -216,6 +220,17 @@ public:
   Register
   getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
+  bool isFsqrtCheap(SDValue Operand, SelectionDAG &DAG) const override {
+    return true;
+  }
+
+  SDValue getSqrtEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
+                          int &RefinementSteps, bool &UseOneConstNR,
+                          bool Reciprocal) const override;
+
+  SDValue getRecipEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
+                           int &RefinementSteps) const override;
+
   ISD::NodeType getExtendForAtomicOps() const override {
     return ISD::SIGN_EXTEND;
   }
@@ -259,6 +274,8 @@ public:
 
   bool shouldAlignPointerArgs(CallInst *CI, unsigned &MinSize,
                               Align &PrefAlign) const override;
+
+  bool isFPImmVLDILegal(const APFloat &Imm, EVT VT) const;
 
 private:
   /// Target-specific function used to lower LoongArch calling conventions.
@@ -335,6 +352,8 @@ private:
   bool isEligibleForTailCallOptimization(
       CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
       const SmallVectorImpl<CCValAssign> &ArgLocs) const;
+
+  bool softPromoteHalfType() const override { return true; }
 };
 
 } // end namespace llvm

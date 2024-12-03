@@ -73,7 +73,7 @@ int main() {
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[OFFSET_CALC]], ptr addrspace(4) align 8 %[[ARG_BASE1]], i64 24, i1 false)
 
 // Initialize field 'a'
-// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 3
+// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds nuw %struct.derived, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 3
 // CHECK: %[[LOAD_A:[0-9]+]] = load i32, ptr addrspace(4) %[[ARG_A]], align 4
 // CHECK: store i32 %[[LOAD_A]], ptr addrspace(4) %[[GEP_A]]
 

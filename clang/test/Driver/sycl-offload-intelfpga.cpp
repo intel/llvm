@@ -7,7 +7,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-HEADERS-INTELFPGA %s
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-HEADERS-INTELFPGA %s
-// CHK-HEADERS-INTELFPGA: clang{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// CHK-HEADERS-INTELFPGA: clang{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 
 /// -fintelfpga implies -g and -MMD
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga -Xshardware %s 2>&1 \
@@ -24,7 +24,7 @@
 // RUN:   %clangxx -### -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-HOST-DEVICE %s
 // CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fintelfpga"
-// CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fintelfpga"{{.*}} "-fsycl-is-host"
+// CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fintelfpga"
 
 /// FPGA target implies -fsycl-range-rounding=disable
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
@@ -32,7 +32,7 @@
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
-// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-range-rounding=disable"
 
 /// FPGA target implies -emit-only-kernels-as-entry-points in sycl-post-link
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
@@ -45,7 +45,7 @@
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING-MULTI %s
 // CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-range-rounding=disable"{{.*}}
 // CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
 
 /// -fintelfpga with -reuse-exe=
@@ -272,10 +272,10 @@
 // When using -fintelfpga, we unbundle the device libraries instead of using
 // the LLVM-IR .bc files.
 // RUN: %clangxx -fintelfpga -ccc-print-phases \
-// RUN:          --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:          -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:  | FileCheck -check-prefix UNBUNDLE_DEVICELIB %s
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga -ccc-print-phases \
-// RUN:          --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:          -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:  | FileCheck -check-prefix UNBUNDLE_DEVICELIB %s
 // UNBUNDLE_DEVICELIB: [[#DEVLIB:]]: input, "{{.*}}libsycl-itt-user-wrappers{{.*}}", object
 // UNBUNDLE_DEVICELIB: [[#DEVLIB+1]]: clang-offload-unbundler, {[[#DEVLIB]]}, object

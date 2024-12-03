@@ -3,13 +3,18 @@
 
 #include "../graph_common.hpp"
 
+#include <cmath>
+
 int main() {
   queue Queue{};
 
   using T = int;
 
   const T ModValue = 7;
-  std::vector<T> DataA(Size * Size), DataB(Size * Size), DataC(Size * Size);
+
+  const size_t SizeX = std::sqrt(Size);
+  const size_t SizeY = SizeX;
+  std::vector<T> DataA(Size), DataB(Size), DataC(Size);
 
   std::iota(DataA.begin(), DataA.end(), 1);
   std::iota(DataB.begin(), DataB.end(), 10);
@@ -18,7 +23,7 @@ int main() {
   // Create reference data for output
   std::vector<T> ReferenceA(DataA), ReferenceB(DataB), ReferenceC(DataC);
   for (size_t i = 0; i < Iterations; i++) {
-    for (size_t j = 0; j < Size * Size; j++) {
+    for (size_t j = 0; j < Size; j++) {
       ReferenceA[j] = ReferenceB[j];
       ReferenceA[j] += ModValue;
       ReferenceB[j] = ReferenceA[j];
@@ -28,11 +33,11 @@ int main() {
   }
 
   // Make the buffers 2D so we can test the rect copy path
-  buffer BufferA{DataA.data(), range<2>(Size, Size)};
+  buffer BufferA{DataA.data(), range<2>(SizeX, SizeY)};
   BufferA.set_write_back(false);
-  buffer BufferB{DataB.data(), range<2>(Size, Size)};
+  buffer BufferB{DataB.data(), range<2>(SizeX, SizeY)};
   BufferB.set_write_back(false);
-  buffer BufferC{DataC.data(), range<2>(Size, Size)};
+  buffer BufferC{DataC.data(), range<2>(SizeX, SizeY)};
   BufferC.set_write_back(false);
   {
     exp_ext::command_graph Graph{
@@ -52,7 +57,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccA = BufferA.get_access(CGH);
-          CGH.parallel_for(range<2>(Size, Size),
+          CGH.parallel_for(range<2>(SizeX, SizeY),
                            [=](item<2> id) { AccA[id] += ModValue; });
         },
         NodeA);
@@ -62,7 +67,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccB = BufferB.get_access(CGH);
-          CGH.parallel_for(range<2>(Size, Size),
+          CGH.parallel_for(range<2>(SizeX, SizeY),
                            [=](item<2> id) { AccB[id] += ModValue; });
         },
         NodeA);
@@ -82,7 +87,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccB = BufferB.get_access(CGH);
-          CGH.parallel_for(range<2>(Size, Size),
+          CGH.parallel_for(range<2>(SizeX, SizeY),
                            [=](item<2> id) { AccB[id] += (ModValue + 1); });
         },
         NodeC);
@@ -109,9 +114,9 @@ int main() {
   host_accessor HostAccB(BufferB);
   host_accessor HostAccC(BufferC);
 
-  for (size_t i = 0; i < Size; i++) {
-    for (size_t j = 0; j < Size; j++) {
-      const size_t index = i * Size + j;
+  for (size_t i = 0; i < SizeX; i++) {
+    for (size_t j = 0; j < SizeY; j++) {
+      const size_t index = i * SizeY + j;
       assert(check_value(index, ReferenceA[index], HostAccA[i][j], "HostAccA"));
       assert(check_value(index, ReferenceB[index], HostAccB[i][j], "HostAccB"));
       assert(check_value(index, ReferenceC[index], HostAccC[i][j], "HostAccC"));

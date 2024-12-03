@@ -23,6 +23,6 @@
 // HOST-DAG: #define SYCL_EXTERNAL
 // HOST-DAG: #define __DPCPP_SYCL_EXTERNAL
 #include <sycl/sycl.hpp>
-#include "ext/oneapi/bfloat16.hpp"
-#include "ext/intel/esimd.hpp"
-#include "ext/oneapi/experimental/complex/complex.hpp"
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/complex/complex.hpp>

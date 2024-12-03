@@ -2,7 +2,7 @@
 
 ## Rationale behind caching
 
-During SYCL program execution SYCL runtime will create internal objects
+During SYCL program execution, the SYCL runtime will create internal objects
 representing kernels and programs, it may also invoke JIT compiler to bring
 kernels in a program to executable state. Those runtime operations are quite
 expensive, and in some cases caching approach can be employed to eliminate
@@ -65,7 +65,7 @@ examples below illustrate scenarios where such optimization is possible.
   });
 ```
 
-In both cases SYCL runtime will need to build the program and kernels multiple
+In both cases, the SYCL runtime will need to build the program and kernels multiple
 times, which may involve JIT compilation and take quite a lot of time.
 
 In order to eliminate this waste of run-time we introduce a kernel and program
@@ -97,42 +97,27 @@ The cache is split into two levels:
 
 ### In-memory cache
 
-The cache stores underlying PI objects behind `sycl::program` and `sycl::kernel`
-user-level objects in a per-context data storage. The storage consists of two
-maps: one is for programs and the other is for kernels.
+The cache stores the underlying UR objects behind `sycl::program` and `sycl::kernel`
+user-level objects in a per-context data storage. The storage consists of three 
+maps: one is for programs and the other two are for kernels.
 
 The programs map's key consists of four components:
 
-- kernel set id<sup>[1](#what-is-ksid)</sup>,
+- ID of the device image containing the program,
 - specialization constants values,
-- the device this program is built for,
-- build options id <sup>[2](#what-is-bopts)</sup>.
+- the set of devices this program is built for.
 
 The kernels map's key consists of two components:
 
 - the program the kernel belongs to,
 - kernel name<sup>[3](#what-is-kname)</sup>.
 
-(what-is-ksid)=
-<a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
-binary image the kernel is contained in.
+The third map, called Fast Kernel Cache, is used as an optimization to reduce the
+number of lookups in the kernels map. Its key consists of the following components:
 
-(what-is-bopts)=
-<a name="what-is-bopts">2</a>: The concatenation of build options (both compile
-and link options) set in application or environment variables. There are three
-sources of build options that the cache is aware of:
-
-- from device image (pi_device_binary_struct::CompileOptions,
-  pi_device_binary_struct::LinkOptions);
-- environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
-  SYCL_PROGRAM_LINK_OPTIONS);
-- options passed through SYCL API.
-
-Note: Backend runtimes used by SYCL can have extra environment or configurations
-values (e.g. IGC has
-[igc_flags.def](https://github.com/intel/intel-graphics-compiler/blob/7f91dd6b9f2ca9c1a8ffddd04fa86461311c4271/IGC/common/igc_flags.def)
-which affect JIT process). Changing such configuration will invalidate cache and
-manual cache cleanup should be done.
+- specialization constants values,
+- the UR handle of the device this kernel is built for,
+- kernel name<sup>[3](#what-is-kname)</sup>.
 
 (what-is-kname)=
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
@@ -141,7 +126,7 @@ which is provided to methods of `sycl::handler` (e.g. `parallel_for` or
 
 ### Persistent cache
 
-The cache works behind in-memory cache and stores the same underlying PI
+The cache works behind in-memory cache and stores the same underlying UR
 object behind `sycl::program` user-level objects in a per-context data storage.
 The storage is organized as a map for storing device code image. It uses
 different keys to address difference in SYCL objects ids between applications
@@ -177,20 +162,33 @@ values for `info::platform::name`, `info::device::name`,
 differentiate different HW and SW installed on the same host as well as SW/HW
 upgrades.
 
+(what-is-bopts)=
 <a name="what-is-bopts">3</a>: Hash for the concatenation of build options (both
 compile and link options) set in application or environment variables. There are
 three sources of build options:
 
-- from device image (pi_device_binary_struct::CompileOptions,
-  pi_device_binary_struct::LinkOptions);
+- from device image (sycl_device_binary_struct::CompileOptions,
+  sycl_device_binary_struct::LinkOptions);
 - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
   SYCL_PROGRAM_LINK_OPTIONS);
 - options passed through SYCL API.
 
 ## Cache configuration
 
-The environment variables which affect cache behavior are described in
-[EnvironmentVariables.md](../EnvironmentVariables.md).
+The following environment variables affect the cache behavior:
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
+| `SYCL_CACHE_PERSISTENT` | '1' or '0' | Controls persistent device compiled code cache. Turns it on if set to '1' and turns it off if set to '0'. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is off. |
+| `SYCL_CACHE_IN_MEM` | '1' or '0' | Enable ('1') or disable ('0') in-memory caching of device compiled code. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is '1'. |
+| `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` | Positive integer  | `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` accepts an integer that specifies the maximum size of the in-memory program cache in bytes. Eviction is performed when the cache size exceeds the threshold. The default value is 0 which means that eviction is disabled.  |
+| `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches persistent cache eviction off when the variable is set. |
+| `SYCL_CACHE_MAX_SIZE` | Positive integer | Persistent cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
+| `SYCL_CACHE_THRESHOLD` | Positive integer | Persistent cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
+| `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in bytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Applicable only for persistent cache. Default value is 0 to cache all images. |
+| `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in bytes which is cached. Caching big kernels may overload the disk very fast. Applicable only for persistent cache. Default value is 1 GB. |
+
 
 ## Implementation details
 
@@ -248,7 +246,7 @@ queue). Possibility of enqueueing multiple cacheable kernels simultaneously
 from multiple threads requires us to provide thread-safety for the caching
 mechanisms.
 
-It is worth of noting that we don't cache the PI resource (kernel or program)
+It is worth of noting that we don't cache the UR resource (kernel or program)
 by itself. Instead we augment the resource with the status of build process.
 Hence, what is cached is a wrapper structure `BuildResult` which contains three
 information fields - pointer to built resource, build error (if applicable) and
@@ -296,7 +294,7 @@ class implements RAII to make code look cleaner a bit. Now, GetCache function
 will return the mapping to be employed that includes the 3 components: kernel
 name, device as well as any specialization constants values. These get added to
 `BuildResult` and are cached. The `BuildResult` structure is specialized with
-either `PiKernel` or `PiProgram`<sup>[1](#remove-pointer)</sup>.
+either `ur_kernel_handle_t` or `ur_program_handle_t`<sup>[1](#remove-pointer)</sup>.
 
 ### Hash function
 
@@ -351,7 +349,7 @@ The device code image are stored on file system using structure below:
 
 - `<cache_root>` - root directory storing cache files, that depends on
   environment variables (see SYCL_CACHE_DIR description in the
-  [EnvironmentVariables.md](../EnvironmentVariables.md));
+  [Cache configuration](#cache-configuration));
 - `<device_hash>` - hash out of device information used to identify target
   device;
 - `<device_image_hash>` - hash made out of device image used as input for the
@@ -408,10 +406,12 @@ LRU (least recently used) strategy both for in-memory and persistent cache.
 
 #### In-memory cache eviction
 
-It is initiated on program/kernel maps access/add item operation. When cache
-size exceeds storage threshold the items which are least recently used are
-deleted.
-TODO: add detailed description of in-memory cache eviction mechanism.
+Eviction in in-memory cache is disabled by default but can be controlled by SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
+environment variable. The threshold is set in bytes and when the cache size exceeds the threshold the eviction process is initiated. The eviction process is based on LRU strategy. The cache is walked through and the least recently used items are deleted until the cache size is below the threshold.
+To implement eviction for in-memory cache efficiently, we store the programs in a linked-list, called the eviction list. When the program is first added to the cache, it is also added to the back of the eviction list. When a program is fetched from cache, we move the program to the end of the eviction list. This way, we ensure that the programs at the beginning of the eviction list are always the least recently used.
+When adding a new program to cache, we check if the size of the program cache exceeds the threshold, if so, we iterate through the eviction list starting from the front and delete the programs until the cache size is below the threshold. When a program is deleted from the cache, we also evict its corresponding kernels from both of the kernel caches.
+
+***If the application runs out-of-memory,*** either due to cache eviction being disabled or the cache eviction threshold being too high, we will evict all the items from program and kernel caches.
 
 #### Persistent cache eviction
 
@@ -439,8 +439,8 @@ The caching isn't done when:
 - Employ the same built object for multiple devices of the same ISA,
   capabilities and so on. *NOTE:* It's not really known if it's possible to
   check if two distinct devices are *exactly* the same. Probably this should be
-  an improvement request for plugins. By now it is assumed that two devices with
-  the same device id <a name="what-is-did">2</a> are the same.
+  an improvement request for the UR adapters. By now it is assumed that two
+  devices with the same device id <a name="what-is-did">2</a> are the same.
 - Improve testing: cover real use-cases. See currently covered cases
   [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
 - Implement tool for exploring cache items (initially it is possible using OS

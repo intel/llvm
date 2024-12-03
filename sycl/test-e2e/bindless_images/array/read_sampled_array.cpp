@@ -616,9 +616,9 @@ int main() {
 
   unsigned int seed = 0;
   std::cout << "Running 1D Sampled Image Array Tests!\n";
-  bool result1D = runAll<2>({64, 32}, {16, 16}, 20, seed);
+  bool result1D = runAll<2>({16, 16}, {8, 8}, 20, seed);
   std::cout << "Running 2D Sampled Image Array Tests!\n";
-  bool result2D = runAll<3>({64, 32, 16}, {16, 16, 4}, 20, seed);
+  bool result2D = runAll<3>({16, 8, 4}, {8, 8, 2}, 20, seed);
 
   if (result1D && result2D) {
     std::cout << "All tests passed!\n";

@@ -19,13 +19,13 @@
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 -nogpulib\
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS %s
-// CHK-ACTIONS: "-cc1" "-triple" "amdgcn-amd-amdhsa" "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-target-cpu" "gfx906"{{.*}} "-std=c++11"{{.*}}
+// CHK-ACTIONS: "-cc1" "-triple" "amdgcn-amd-amdhsa" "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-target-cpu" "gfx906"{{.*}} "-std=c++11"{{.*}}
 // CHK-ACTIONS-NOT: "-mllvm -sycl-opt"
 // CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-compile-opts=--offload-arch=gfx906" "-target=amdgcn" "-kind=sycl"{{.*}}
 
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
-// RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
+// RUN: -fsycl-targets=amdgcn-amd-amdhsa -fsycl-device-lib=all -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 // CHK-PHASES-NO-CC: 0: input, "{{.*}}", c++, (host-sycl)
 // CHK-PHASES-NO-CC: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -37,17 +37,19 @@
 // CHK-PHASES-NO-CC: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASES-NO-CC: 8: assembler, {7}, object, (host-sycl)
 // CHK-PHASES-NO-CC: 9: linker, {4}, ir, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 10: sycl-post-link, {9}, ir, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 11: file-table-tform, {10}, ir, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 12: backend, {11}, assembler, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 13: assembler, {12}, object, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 14: linker, {13}, image, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 15: linker, {14}, hip-fatbin, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 16: foreach, {11, 15}, hip-fatbin, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 17: file-table-tform, {10, 16}, tempfiletable, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 18: clang-offload-wrapper, {17}, object, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 19: offload, "device-sycl (amdgcn-amd-amdhsa:gfx906)" {18}, object
-// CHK-PHASES-NO-CC: 20: linker, {8, 19}, image, (host-sycl)
+// CHK-PHASES-NO-CC: 10: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 11: linker, {9, 10}, ir, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 13: file-table-tform, {12}, ir, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 14: backend, {13}, assembler, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 15: assembler, {14}, object, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 16: linker, {15}, image, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 17: linker, {16}, hip-fatbin, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 18: foreach, {13, 17}, hip-fatbin, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 19: file-table-tform, {12, 18}, tempfiletable, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 20: clang-offload-wrapper, {19}, object, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 21: offload, "device-sycl (amdgcn-amd-amdhsa:gfx906)" {20}, object
+// CHK-PHASES-NO-CC: 22: linker, {8, 21}, image, (host-sycl)
 
 /// Check that we only unbundle an archive once.
 // RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -nogpulib \

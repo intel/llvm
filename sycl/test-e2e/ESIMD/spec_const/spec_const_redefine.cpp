@@ -17,6 +17,7 @@
 
 #include "../esimd_test_utils.hpp"
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include <vector>
@@ -91,7 +92,7 @@ int main(int argc, char **argv) {
 }
 
 // --- Check that only two JIT compilation happened:
-// CHECK-COUNT-2: ---> urProgramBuildExp
-// CHECK-NOT: ---> urProgramBuildExp
+// CHECK-COUNT-2: <--- urProgramBuildExp
+// CHECK-NOT: <--- urProgramBuildExp
 // --- Check that the test completed with expected results:
 // CHECK: passed

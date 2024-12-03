@@ -42,7 +42,7 @@ source project. One of the examples is
 Features parity between this project and downstream projects is not guaranteed.
 
 Project documentation is available at:
-[DPC++ Documentation](https://intel.github.io/llvm-docs/).
+[DPC++ Documentation](https://intel.github.io/llvm/).
 
 ### How to use DPC++
 

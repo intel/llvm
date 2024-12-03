@@ -1,7 +1,16 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-NOEXT
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+; Verify that even though we use the fract instruction with untyped pointers enabled,
+; the SPV binary is valid and we get exactly the same output IR after the reverse translation.
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; TODO: enable back once spirv-tools are updated
+; R/UN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-EXT
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -9,15 +18,17 @@ source_filename = "math_builtin_float_half.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spirv64-unknown-unknown"
 
-; CHECK-SPIRV: 3 TypeFloat [[HALF:[0-9]+]] 16
-; CHECK-SPIRV: 4 TypePointer [[HALFPTR:[0-9]+]] 7 [[HALF]]
-; CHECK-SPIRV: 4 TypeVector [[HALFV2:[0-9]+]] [[HALF]] 2
-; CHECK-SPIRV: 4 TypePointer [[HALFV2PTR:[0-9]+]] 7 [[HALFV2]]
-; CHECK-SPIRV: 4 Constant [[HALF]] [[CONST:[0-9]+]] 14788
-; CHECK-SPIRV: 4 Variable [[HALFPTR]] [[ADDR:[0-9]+]] 7
-; CHECK-SPIRV: 4 Variable [[HALFV2PTR]] [[ADDR2:[0-9]+]] 7
-; CHECK-SPIRV: 7 ExtInst [[HALF]] [[#]] 1 fract [[CONST]] [[ADDR]]
-; CHECK-SPIRV: 7 ExtInst [[HALFV2]] [[#]] 1 fract [[#]] [[ADDR2]]
+; CHECK-SPIRV: TypeFloat [[HALF:[0-9]+]] 16
+; CHECK-SPIRV-NOEXT: TypePointer [[HALFPTR:[0-9]+]] 7 [[HALF]]
+; CHECK-SPIRV-EXT: TypeUntypedPointerKHR [[HALFPTR:[0-9]+]] 7
+; CHECK-SPIRV: TypeVector [[HALFV2:[0-9]+]] [[HALF]] 2
+; CHECK-SPIRV: TypePointer [[HALFV2PTR:[0-9]+]] 7 [[HALFV2]]
+; CHECK-SPIRV: Constant [[HALF]] [[CONST:[0-9]+]] 14788
+; CHECK-SPIRV-NOEXT: Variable [[HALFPTR]] [[ADDR:[0-9]+]] 7
+; CHECK-SPIRV-EXT: UntypedVariableKHR [[HALFPTR]] [[ADDR:[0-9]+]] 7 [[HALF]]
+; CHECK-SPIRV: Variable [[HALFV2PTR]] [[ADDR2:[0-9]+]] 7
+; CHECK-SPIRV: ExtInst [[HALF]] [[#]] 1 fract [[CONST]] [[ADDR]]
+; CHECK-SPIRV: ExtInst [[HALFV2]] [[#]] 1 fract [[#]] [[ADDR2]]
 
 ; CHECK-LLVM: %addr = alloca half
 ; CHECK-LLVM: %addr2 = alloca <2 x half>

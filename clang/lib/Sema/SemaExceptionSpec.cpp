@@ -1399,6 +1399,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::SYCLBuiltinFieldTypeExprClass:
   case Expr::SYCLBuiltinNumBasesExprClass:
   case Expr::SYCLBuiltinBaseTypeExprClass:
+  case Expr::HLSLOutArgExprClass:
     // These expressions can never throw.
     return CT_Cannot;
 
@@ -1435,6 +1436,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Stmt::ObjCAutoreleasePoolStmtClass:
   case Stmt::ObjCForCollectionStmtClass:
   case Stmt::OMPAtomicDirectiveClass:
+  case Stmt::OMPAssumeDirectiveClass:
   case Stmt::OMPBarrierDirectiveClass:
   case Stmt::OMPCancelDirectiveClass:
   case Stmt::OMPCancellationPointDirectiveClass:
@@ -1595,6 +1597,8 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
 
   case Stmt::SYCLUniqueStableNameExprClass:
   case Stmt::SYCLUniqueStableIdExprClass:
+    return CT_Cannot;
+  case Stmt::OpenACCAsteriskSizeExprClass:
     return CT_Cannot;
   case Stmt::NoStmtClass:
     llvm_unreachable("Invalid class for statement");

@@ -154,18 +154,26 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if isinstance(script, lit.Test.Result):
             return script
 
-        devices_for_test = self.select_devices_for_test(test)
-        if not devices_for_test:
-            return lit.Test.Result(
-                lit.Test.UNSUPPORTED, "No supported devices to run the test on"
-            )
+        devices_for_test = []
+        triples = set()
+        if test.config.test_mode == "build-only":
+            if "build-and-run-mode" in test.requires or "true" in test.unsupported:
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED, "Test unsupported for this environment"
+                )
+            triples = {"spir64"}
+        else:
+            devices_for_test = self.select_devices_for_test(test)
+            if not devices_for_test:
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED, "No supported devices to run the test on"
+                )
+
+            for sycl_device in devices_for_test:
+                (backend, _) = sycl_device.split(":")
+                triples.add(get_triple(test, backend))
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
-        triples = set()
-        for sycl_device in devices_for_test:
-            (backend, _) = sycl_device.split(":")
-            triples.add(get_triple(test, backend))
-
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
         # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
         # -that new tests by default would runnable there (unless they have
@@ -185,11 +193,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
         else:
             substitutions.append(("%{l0_leak_check}", "env UR_L0_LEAKS_DEBUG=1"))
-
-        compilation_cmd_pthread = (
-            "%clangxx -pthread -fsycl -fsycl-targets=%{sycl_triple} %s"
-        )
-        substitutions.append(("%{build_pthread_inc}", compilation_cmd_pthread))
 
         def get_extra_env(sycl_devices):
             # Note: It's possible that the system has a device from below but
@@ -227,6 +230,17 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if not isinstance(directive, lit.TestRunner.CommandDirective):
                 new_script.append(directive)
                 continue
+
+            # Filter commands based on split-mode
+            is_run_line = any(
+                i in directive.command
+                for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
+            )
+
+            if (is_run_line and test.config.test_mode == "build-only") or (
+                not is_run_line and test.config.test_mode == "run-only"
+            ):
+                directive.command = ""
 
             if "%{run}" not in directive.command:
                 new_script.append(directive)
@@ -283,7 +297,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if len(devices_for_test) > 1:
+        if len(devices_for_test) > 1 or test.config.test_mode == "build-only":
             return result
 
         # Single device - might be an XFAIL.

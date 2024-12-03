@@ -40,7 +40,7 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
                      {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
@@ -80,7 +80,7 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
                      {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
@@ -109,7 +109,7 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
 template <typename T, size_t SROWS, size_t SCOLS, use Use, class name>
 class ewops_ab {};
 template <typename T, size_t SROWS, size_t SCOLS, use Use, layout Layout,
-          size_t VF>
+          size_t VF, typename Tv = T>
 void test_ewops_ab() {
   if constexpr (Use == use::a)
     std::cout << "Test A ";
@@ -122,41 +122,43 @@ void test_ewops_ab() {
 
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_add>>(
-      T(5.0), T(2.0), 7.0, [](auto l, auto r) { return l + r; });
+      Tv(5.0), Tv(2.0), 7.0, [](auto l, auto r) { return l + r; });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_sub>>(
-      T(5.0), T(2.0), 3.0, [](auto l, auto r) { return l - r; });
+      Tv(5.0), Tv(2.0), 3.0, [](auto l, auto r) { return l - r; });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_mul>>(
-      T(5.0), T(2.0), 10.0, [](auto l, auto r) { return l * r; });
+      Tv(5.0), Tv(2.0), 10.0, [](auto l, auto r) { return l * r; });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_div>>(
-      T(5.0), T(2.0), 2.5, [](auto l, auto r) { return l / r; });
+      Tv(5.0), Tv(2.0), 2.5, [](auto l, auto r) { return l / r; });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_logical>>(
-      T(5.0), T(5.0), 5.0, [](auto l, auto r) { return l == r ? l : T(1.0); });
+      Tv(5.0), Tv(5.0), 5.0,
+      [](auto l, auto r) { return l == r ? l : Tv(1.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_eq>>(
-      T(5.0), T(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
+      Tv(5.0), Tv(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_ne>>(
-      T(5.0), T(5.0), 1.0, [](auto l, auto r) { return l != r ? l : T(1.0); });
+      Tv(5.0), Tv(5.0), 1.0,
+      [](auto l, auto r) { return l != r ? l : Tv(1.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_gt>>(
-      T(5.0), T(2.0), 3.0,
-      [](auto l, auto r) { return l > r ? T(3.0) : T(2.0); });
+      Tv(5.0), Tv(2.0), 3.0,
+      [](auto l, auto r) { return l > r ? Tv(3.0) : Tv(2.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_lt>>(
-      T(5.0), T(2.0), 2.0,
-      [](auto l, auto r) { return l < r ? T(3.0) : T(2.0); });
+      Tv(5.0), Tv(2.0), 2.0,
+      [](auto l, auto r) { return l < r ? Tv(3.0) : Tv(2.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_ge>>(
-      T(5.0), T(2.0), 3.0,
-      [](auto l, auto r) { return l >= r ? T(3.0) : T(2.0); });
+      Tv(5.0), Tv(2.0), 3.0,
+      [](auto l, auto r) { return l >= r ? Tv(3.0) : Tv(2.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_le>>(
-      T(5.0), T(2.0), 2.0,
-      [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
+      Tv(5.0), Tv(2.0), 2.0,
+      [](auto l, auto r) { return l <= r ? Tv(3.0) : Tv(2.0); });
 }
 
 // Avoid same kernel name for different types and numbers of columns

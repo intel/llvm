@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -o %t_vnni.out -DVNNI -ffp-model=precise
+// RUN: %{build} -o %t_vnni.out -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out
 
-// RUN: %{build} -o %t.out -ffp-model=precise
+// RUN: %{build} -o %t.out %fp-model-precise
 // RUN: %{run} %t.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.

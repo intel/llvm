@@ -67,6 +67,9 @@
 #include <string>
 #include <tuple>
 
+// For device image compression.
+#include <llvm/Support/Compression.h>
+
 #define OPENMP_OFFLOAD_IMAGE_VERSION "1.0"
 
 using namespace llvm;
@@ -139,6 +142,25 @@ static cl::list<std::string> Inputs(cl::Positional, cl::OneOrMore,
                                     cl::desc("<input files>"),
                                     cl::cat(ClangOffloadWrapperCategory));
 
+// CLI options for device image compression.
+static cl::opt<bool> OffloadCompressDevImgs(
+    "offload-compress", cl::init(false), cl::Optional,
+    cl::desc("Enable device image compression using ZSTD."),
+    cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<int>
+    OffloadCompressLevel("offload-compression-level", cl::init(10),
+                         cl::Optional,
+                         cl::desc("ZSTD Compression level. Default: 10"),
+                         cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<int>
+    OffloadCompressThreshold("offload-compression-threshold", cl::init(512),
+                             cl::Optional,
+                             cl::desc("Threshold (in bytes) over which to "
+                                      "compress images. Default: 512"),
+                             cl::cat(ClangOffloadWrapperCategory));
+
 // Binary image formats supported by this tool. The support basically means
 // mapping string representation given at the command line to a value from this
 // enum. No format checking is performed.
@@ -146,8 +168,9 @@ enum BinaryImageFormat {
   none,   // image kind is not determined
   native, // image kind is native
   // portable image kinds go next
-  spirv, // SPIR-V
-  llvmbc // LLVM bitcode
+  spirv,          // SPIR-V
+  llvmbc,         // LLVM bitcode
+  compressed_none // compressed image with unknown format
 };
 
 /// Sets offload kind.
@@ -265,6 +288,8 @@ static StringRef formatToString(BinaryImageFormat Fmt) {
     return "llvmbc";
   case BinaryImageFormat::native:
     return "native";
+  case BinaryImageFormat::compressed_none:
+    return "compressed_none";
   }
   llvm_unreachable("bad format");
 
@@ -1083,10 +1108,66 @@ private:
           return FBinOrErr.takeError();
         Fbin = *FBinOrErr;
       } else {
-        Fbin = addDeviceImageToModule(
-            ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
-            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
-            Img.Tgt);
+
+        // If '--offload-compress' option is specified and zstd is not
+        // available, throw an error.
+        if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
+          return createStringError(
+              inconvertibleErrorCode(),
+              "'--offload-compress' option is specified but zstd "
+              "is not available. The device image will not be "
+              "compressed.");
+        }
+
+        // Don't compress if the user explicitly specifies the binary image
+        // format or if the image is smaller than OffloadCompressThreshold
+        // bytes.
+        if (Kind != OffloadKind::SYCL || !OffloadCompressDevImgs ||
+            Img.Fmt != BinaryImageFormat::none ||
+            !llvm::compression::zstd::isAvailable() ||
+            static_cast<int>(Bin->getBufferSize()) < OffloadCompressThreshold) {
+          Fbin = addDeviceImageToModule(
+              ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
+              Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+              Img.Tgt);
+        } else {
+
+          // Compress the image using zstd.
+          SmallVector<uint8_t, 512> CompressedBuffer;
+#if LLVM_ENABLE_EXCEPTIONS
+          try {
+#endif
+            llvm::compression::zstd::compress(
+                ArrayRef<unsigned char>(
+                    (const unsigned char *)(Bin->getBufferStart()),
+                    Bin->getBufferSize()),
+                CompressedBuffer, OffloadCompressLevel);
+#if LLVM_ENABLE_EXCEPTIONS
+          } catch (const std::exception &ex) {
+            return createStringError(inconvertibleErrorCode(),
+                                     std::string("Failed to compress the device image: \n") +
+                                     std::string(ex.what()));
+          }
+#endif
+          if (Verbose)
+            errs() << "[Compression] Original image size: "
+                   << Bin->getBufferSize() << "\n"
+                   << "[Compression] Compressed image size: "
+                   << CompressedBuffer.size() << "\n"
+                   << "[Compression] Compression level used: "
+                   << OffloadCompressLevel << "\n";
+
+          // Add the compressed image to the module.
+          Fbin = addDeviceImageToModule(
+              ArrayRef<char>((const char *)CompressedBuffer.data(),
+                             CompressedBuffer.size()),
+              Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+              Img.Tgt);
+
+          // Change image format to compressed_none.
+          Ffmt = ConstantInt::get(Type::getInt8Ty(C),
+                                  BinaryImageFormat::compressed_none);
+        }
       }
 
       if (Kind == OffloadKind::SYCL) {
@@ -1277,6 +1358,9 @@ public:
 
     ObjcopyPath = *ObjcopyPathOrErr;
   }
+
+  BinaryWrapper(const BinaryWrapper &BW) = delete;
+  BinaryWrapper &operator=(const BinaryWrapper &BW) = delete;
 
   ~BinaryWrapper() {
     if (TempFiles.empty())

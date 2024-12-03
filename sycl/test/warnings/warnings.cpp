@@ -4,6 +4,7 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+
 int main() {
   vec<long, 4> newVec;
   queue myQueue;
@@ -39,4 +40,4 @@ template class device_image<bundle_state::input>;
 template class device_image<bundle_state::object>;
 template class device_image<bundle_state::executable>;
 
-}
+} // namespace sycl

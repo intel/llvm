@@ -1,5 +1,5 @@
-// https://github.com/intel/llvm/issues/14324
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14324
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -13,6 +13,7 @@
 //      call to ext_oneapi_set_external_event.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 
@@ -33,11 +34,18 @@ int main() {
 
   int Failed = 0;
 
-  Failed += Check(Q, "single_task", [&]() { return Q.single_task([]() {}); });
+  // Check that a valid event is returned on the empty queue.
+  Q.ext_oneapi_get_last_event().wait();
 
+  // Check that a valid event is returned after enqueuing work without events.
+  sycl::ext::oneapi::experimental::single_task(Q, []() {});
+  Q.ext_oneapi_get_last_event().wait();
+
+  // Check event equivalences - This is an implementation detail, but useful
+  // for checking behavior.
+  Failed += Check(Q, "single_task", [&]() { return Q.single_task([]() {}); });
   Failed += Check(Q, "parallel_for",
                   [&]() { return Q.parallel_for(32, [](sycl::id<1>) {}); });
-
   Failed += Check(Q, "host_task", [&]() {
     return Q.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
   });

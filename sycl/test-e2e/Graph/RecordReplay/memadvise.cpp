@@ -10,13 +10,13 @@
 // impact results but only performances, we verify
 // that a node is correctly added by checking UR function calls.
 
-// CHECK: urCommandBufferAppendUSMAdviseExp
+// CHECK: <--- urCommandBufferAppendUSMAdviseExp
 // CHECK-SAME: .hCommandBuffer = 0x[[#%x,COMMAND_BUFFER:]]
 // CHECK-SAME: .pMemory = 0x[[#%x,PTR:]]
 // CHECK-SAME: .size = 400
 // CHECK-SAME: .pSyncPoint = {{.*}} (0x[[#%x,ADVISE_SYNC_POINT:]])
 
-// CHECK: urCommandBufferAppendKernelLaunchExp(
+// CHECK: <--- urCommandBufferAppendKernelLaunchExp(
 // CHECK-SAME: .hCommandBuffer = 0x[[#%x,COMMAND_BUFFER]]
 // CHECK-SAME: .hKernel = 0x[[#%x,KERNEL:]]
 // CHECK-SAME: .workDim = 1

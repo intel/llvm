@@ -10,7 +10,7 @@
 // REQUIRES: aspect-ext_intel_matrix, gpu
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out -DINIT_LIST -DVNNI -ffp-model=precise
+// RUN: %{build} -o %t.out -DINIT_LIST -DVNNI %fp-model-precise
 // RUN: %{run} %t.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.

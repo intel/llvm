@@ -8,10 +8,11 @@
 // Finds and adds  sycl_explicit_simd attributes to wrapper functions that wrap
 // ESIMD kernel functions
 
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/IR/Module.h"
 
 #define DEBUG_TYPE "LowerESIMDKernelAttrs"
 
@@ -34,7 +35,20 @@ PreservedAnalyses
 SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool Modified = false;
   for (Function &F : M) {
-    if (llvm::esimd::isESIMD(F)) {
+    bool ShouldConsiderESIMD = llvm::esimd::isESIMD(F);
+    if (!ShouldConsiderESIMD) {
+      for (Instruction &I : instructions(F)) {
+        auto *CI = dyn_cast_or_null<CallInst>(&I);
+        if (!CI)
+          continue;
+        auto *CalledF = CI->getCalledFunction();
+        if (CalledF && !esimd::stripMangling(CalledF->getName()).empty()) {
+          ShouldConsiderESIMD = true;
+          break;
+        }
+      }
+    }
+    if (ShouldConsiderESIMD) {
       // TODO: Keep track of traversed functions to avoid repeating traversals
       // over same function.
       sycl::utils::traverseCallgraphUp(

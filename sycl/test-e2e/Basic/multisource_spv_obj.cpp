@@ -11,22 +11,22 @@
 // Separate kernel sources and host code sources
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.kernel.o %t.main.o -o %t.fat
-// RUN: %{run} %t.fat
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.kernel.o %t.main.o -Wno-unused-command-line-argument -o %t1.fat
+// RUN: %{run} %t1.fat
 
 // Multiple sources with kernel code
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.init.o -DINIT_KERNEL
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.calc.o -DCALC_KERNEL
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -o %t.fat
-// RUN: %{run} %t.fat
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -Wno-unused-command-line-argument -o %t2.fat
+// RUN: %{run} %t2.fat
 
 // Multiple sources with kernel code, mixed SPIR-V and LLVM-IR objects
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.init.o -DINIT_KERNEL
 // RUN: %{build} -fsycl-device-obj=llvmir -c -o %t.calc.o -DCALC_KERNEL
 // RUN: %{build} -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -o %t.fat
-// RUN: %{run} %t.fat
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -Wno-unused-command-line-argument -o %t3.fat
+// RUN: %{run} %t3.fat
 
 #include <sycl/detail/core.hpp>
 

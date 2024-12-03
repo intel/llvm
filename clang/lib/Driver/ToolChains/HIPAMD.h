@@ -110,6 +110,8 @@ public:
   void checkTargetID(const llvm::opt::ArgList &DriverArgs) const override;
   Tool *SelectTool(const JobAction &JA) const override;
 
+  SYCLInstallationDetector SYCLInstallation;
+
 protected:
   Tool *buildLinker() const override;
 

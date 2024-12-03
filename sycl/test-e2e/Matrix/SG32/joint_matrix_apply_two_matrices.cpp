@@ -10,7 +10,7 @@
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 
-// RUN: %{build} -ffp-model=precise -o %t.out
+// RUN: %{build} %fp-model-precise -o %t.out
 // RUN: %{run} %t.out
 
 #include "../common.hpp"

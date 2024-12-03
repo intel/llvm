@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fcxx-exceptions -verify -fsyntax-only -std=c++23 -triple spir64 -aux-triple x86_64 -fsycl-allow-all-features-in-constexpr %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fcxx-exceptions -verify -fsyntax-only -std=c++23 -triple spir64 -aux-triple x86_64 %s
 
 // The test checks that all SYCL device code limitations are lifted in
 // manifestly constant-evaluated expressions under an option.

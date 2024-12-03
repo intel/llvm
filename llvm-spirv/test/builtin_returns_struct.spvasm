@@ -1,0 +1,52 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Int8
+               OpCapability GenericPointer
+               OpCapability Linkage
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpSource OpenCL_CPP 100000
+               OpName %a "a"
+               OpName %p "p"
+               OpName %foo "foo"
+               OpName %e "e"
+               OpName %math "math"
+               OpName %ov "ov"
+               OpDecorate %foo LinkageAttributes "foo" Export
+       %uint = OpTypeInt 32 0
+      %uchar = OpTypeInt 8 0
+%_ptr_Generic_uchar = OpTypePointer Generic %uchar
+          %5 = OpTypeFunction %uint %uint %_ptr_Generic_uchar
+       %bool = OpTypeBool
+  %_struct_7 = OpTypeStruct %uint %uint
+     %uint_1 = OpConstant %uint 1
+   %uchar_42 = OpConstant %uchar 42
+         %10 = OpConstantNull %uint
+        %foo = OpFunction %uint None %5
+          %a = OpFunctionParameter %uint
+          %p = OpFunctionParameter %_ptr_Generic_uchar
+         %19 = OpLabel
+               OpBranch %20
+         %20 = OpLabel
+          %e = OpPhi %uint %a %19 %math %21
+         %16 = OpIAddCarry %_struct_7 %e %uint_1
+       %math = OpCompositeExtract %uint %16 0
+         %17 = OpCompositeExtract %uint %16 1
+         %ov = OpINotEqual %bool %17 %10
+               OpBranchConditional %ov %22 %21
+         %21 = OpLabel
+               OpStore %p %uchar_42 Aligned 1
+               OpBranch %20
+         %22 = OpLabel
+               OpReturnValue %math
+               OpFunctionEnd
+
+; CHECK: %[[#Var:]] = alloca %structtype, align 8
+; CHECK: call spir_func void @_Z17__spirv_IAddCarryii(ptr sret(%structtype) %[[#Var:]]
+; CHECK: %[[#Load:]] = load %structtype, ptr %[[#Var]], align 4
+; CHECK-2: extractvalue %structtype %[[#Load:]]

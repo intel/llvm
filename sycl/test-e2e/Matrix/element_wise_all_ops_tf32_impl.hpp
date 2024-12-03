@@ -35,7 +35,7 @@ void matrix_verify_op(big_matrix<Ts, M, K> &A, const float ref, OP op) {
      cgh.parallel_for<kernel_name>(
          r, [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-                [[intel::reqd_sub_group_size(SG_SZ)]]
+                [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
@@ -64,6 +64,11 @@ static constexpr size_t MATRIX_K = TK * 2;
 float A[MATRIX_M][MATRIX_K];
 
 int main() {
+  queue q;
+  if (!is_type_supported_by_device(q, matrix_type::tf32)) {
+    std::cout << "Joint Matrix TF32 is not supported by this device.\n";
+    return 0;
+  }
 
   big_matrix<float, MATRIX_M, MATRIX_K> MA((float *)&A);
 

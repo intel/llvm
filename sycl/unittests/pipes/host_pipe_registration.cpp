@@ -12,8 +12,8 @@
 #include <detail/device_binary_image.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
 
@@ -29,29 +29,21 @@ class PipeID;
 using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
                                                   default_pipe_properties>;
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
                                    "test_host_pipe_unique_id");
 
-  UrPropertySet PropSet;
-  UrProperty HostPipeInfo =
+  MockPropertySet PropSet;
+  MockProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
-                 UrArray<UrProperty>{std::move(HostPipeInfo)});
+                 std::vector<MockProperty>{std::move(HostPipeInfo)});
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
-
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
@@ -123,8 +115,8 @@ protected:
   queue q;
 };
 
-static sycl::unittest::UrImage Img = generateDefaultImage();
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 TEST_F(PipeTest, Basic) {
   // Fake extension

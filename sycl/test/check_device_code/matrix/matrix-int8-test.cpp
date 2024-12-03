@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -O2 -S -emit-llvm -o - %s | FileCheck %s
 
-// CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 12, 48, 0, 3, 0)
-// CHECK-DAG: target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2)
-// CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 48, 12, 2, 3, 1)
+// CHECK-DAG: target("spirv.CooperativeMatrixKHR", i8, 3, 12, 48, 0)
+// CHECK-DAG: target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2)
+// CHECK-DAG: target("spirv.CooperativeMatrixKHR", i8, 3, 48, 12, 1)
 
 // CHECK: !{!"matrix_type::sint32,use::accumulator,12,12;matrix_type::sint8,use::a,12,48;matrix_type::sint8,use::b,48,12"}
 // CHECK: !{!"matrix_type::sint8,matrix_type::sint8,matrix_type::sint32,matrix_type::sint32,12,48,12"}
@@ -27,7 +27,7 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 // int8_t B[MATRIX_K / 4][MATRIX_N * 4];
 // int32_t C[MATRIX_M][MATRIX_N];
 
-SYCL_EXTERNAL [[intel::reqd_sub_group_size(SG_SZ)]] void
+SYCL_EXTERNAL [[sycl::reqd_sub_group_size(SG_SZ)]] void
 matrix_multiply(size_t NUM_COLS_C, size_t NUM_COLS_A,
                 sycl::accessor<int8_t, 2, access::mode::read_write> accA,
                 sycl::accessor<int8_t, 2, access::mode::read_write> accB,

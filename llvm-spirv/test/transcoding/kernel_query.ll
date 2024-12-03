@@ -17,8 +17,15 @@
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
-; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spv.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o %t.spv.txt
+; RUN: FileCheck < %t.spv.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
@@ -57,7 +64,8 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: TypeVoid [[VoidTy:[0-9]+]]
 ; CHECK-SPIRV: TypeStruct [[NDRangeTy:[0-9]+]] [[Int32Ty]] {{$}}
 ; CHECK-SPIRV: TypePointer [[NDRangePtrTy:[0-9]+]] 7 [[NDRangeTy]]
-; CHECK-SPIRV: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrGenTy:[0-9]+]] 8
 ; CHECK-SPIRV: TypeFunction [[BlockKerTy:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
 
 ; Function Attrs: convergent noinline nounwind optnone

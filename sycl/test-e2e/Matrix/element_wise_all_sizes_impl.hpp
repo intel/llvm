@@ -46,7 +46,7 @@ void matrix_verify_add(const T1 val1, const T1 val2, const T1 result) {
      cgh.parallel_for<kernel_name>(
          r, [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-                [[intel::reqd_sub_group_size(SG_SZ)]]
+                [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);

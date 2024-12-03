@@ -18,7 +18,7 @@
 #include <sycl/queue.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stream.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 

@@ -1,10 +1,10 @@
-// REQUIRES: linux
-// RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
-// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O0 -g -o %t
-// RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
-// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O0 -g -o %t
-// RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-SHARED %s
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
+// RUN: %force_device_asan_rt %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O0 -g -o %t2.out
+// RUN: %force_device_asan_rt %{run} not %t2.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
+// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O0 -g -o %t3.out
+// RUN: %force_device_asan_rt %{run} not %t3.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-SHARED %s
 #include <sycl/usm.hpp>
 
 constexpr size_t N = 64;

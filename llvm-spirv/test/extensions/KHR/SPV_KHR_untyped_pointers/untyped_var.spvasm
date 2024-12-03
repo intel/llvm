@@ -1,0 +1,34 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.6 -o %t.spv %s
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s
+
+; CHECK: @var = internal addrspace(3) global i32 undef
+; CHECK: call spir_func void @0(ptr addrspace(3) @var)
+
+OpCapability Addresses
+OpCapability Kernel
+OpCapability UntypedPointersKHR
+OpExtension "SPV_KHR_untyped_pointers"
+OpMemoryModel Physical64 OpenCL
+OpEntryPoint Kernel %main "main" %var
+OpName %var "var"
+%void = OpTypeVoid
+%int = OpTypeInt 32 0
+%ptr = OpTypeUntypedPointerKHR Workgroup
+%var = OpUntypedVariableKHR %ptr Workgroup %int
+%void_fn = OpTypeFunction %void
+%ptr_fn = OpTypeFunction %void %ptr
+%foo = OpFunction %void None %ptr_fn
+%param = OpFunctionParameter %ptr
+%first = OpLabel
+OpReturn
+OpFunctionEnd
+%main = OpFunction %void None %void_fn
+%entry = OpLabel
+%call = OpFunctionCall %void %foo %var
+OpReturn
+OpFunctionEnd

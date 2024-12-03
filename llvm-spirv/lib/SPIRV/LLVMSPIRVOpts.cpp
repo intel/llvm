@@ -40,6 +40,7 @@
 
 #include "LLVMSPIRVOpts.h"
 
+#include "SPIRVEnum.h"
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/IntrinsicInst.h>
@@ -53,8 +54,8 @@ void TranslatorOpts::enableAllExtensions() {
 #undef EXT
 }
 
-bool TranslatorOpts::isUnknownIntrinsicAllowed(IntrinsicInst *II) const
-    noexcept {
+bool TranslatorOpts::isUnknownIntrinsicAllowed(
+    IntrinsicInst *II) const noexcept {
   if (!SPIRVAllowUnknownIntrinsics.has_value())
     return false;
   const auto &IntrinsicPrefixList = SPIRVAllowUnknownIntrinsics.value();
@@ -73,4 +74,18 @@ bool TranslatorOpts::isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
 void TranslatorOpts::setSPIRVAllowUnknownIntrinsics(
     TranslatorOpts::ArgList IntrinsicPrefixList) noexcept {
   SPIRVAllowUnknownIntrinsics = IntrinsicPrefixList;
+}
+
+std::vector<std::string> TranslatorOpts::getAllowedSPIRVExtensionNames(
+    std::function<bool(SPIRV::ExtensionID)> &Filter) const {
+  std::vector<std::string> AllowExtNames;
+  AllowExtNames.reserve(ExtStatusMap.size());
+  for (const auto &It : ExtStatusMap) {
+    if (!It.second || !Filter(It.first))
+      continue;
+    std::string ExtName;
+    SPIRVMap<ExtensionID, std::string>::find(It.first, &ExtName);
+    AllowExtNames.emplace_back(ExtName);
+  }
+  return AllowExtNames;
 }

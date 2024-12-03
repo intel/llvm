@@ -5,7 +5,7 @@
 // RUN: %{build} -O3 -DSOURCE3 -c -o %t3.o
 // RUN: rm -f %t.a
 // RUN: llvm-ar crv %t.a %t1.o %t2.o
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -O3 %t3.o %t.a -o %t1.exe
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -O3 %t3.o %t.a -Wno-unused-command-line-argument -o %t1.exe
 // RUN: %{run} %t1.exe
 
 // Check the repacked case as it can behave differently.
@@ -13,7 +13,7 @@
 // RUN: echo addlib %t.a >> %t.txt
 // RUN: echo save >> %t.txt
 // RUN: cat %t.txt | llvm-ar -M
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -O3 %t3.o %t_repacked.a -o %t2.exe
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -O3 %t3.o %t_repacked.a -Wno-unused-command-line-argument -o %t2.exe
 // RUN: %{run} %t2.exe
 
 #include <iostream>

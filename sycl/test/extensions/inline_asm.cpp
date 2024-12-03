@@ -38,8 +38,8 @@ int main() {
       auto B = BufB.get_access<sycl::access::mode::read>(cgh);
       auto C = BufC.get_access<sycl::access::mode::write>(cgh);
       cgh.parallel_for<class FillBuffer>(
-          sycl::range<1>{DEFAULT_PROBLEM_SIZE}, [=
-      ](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+          sycl::range<1>{DEFAULT_PROBLEM_SIZE},
+          [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(8)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
             asm volatile(
                 ".decl P1 v_type=P num_elts=8\n"
@@ -58,10 +58,10 @@ int main() {
                 : "+rw"(C[wiID])
                 : "rw"(A[wiID]), "rw"(B[wiID]));
 #else
-          C[wiID] = 0;
-          for (int i = 0; i < A[wiID]; ++i) {
-            C[wiID] = C[wiID] + B[wiID];
-          }
+            C[wiID] = 0;
+            for (int i = 0; i < A[wiID]; ++i) {
+              C[wiID] = C[wiID] + B[wiID];
+            }
 #endif
           });
     });

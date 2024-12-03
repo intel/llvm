@@ -47,9 +47,9 @@
 #endif
 
 #include <fstream>
-#include <image.hpp>
 #include <random>
 
+#include <sycl/image.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>

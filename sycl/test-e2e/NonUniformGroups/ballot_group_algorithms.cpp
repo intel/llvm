@@ -9,8 +9,8 @@
 // REQUIRES: aspect-ext_oneapi_ballot_group
 
 // Fails in Nightly testing on the self-hosted CUDA runner:
-// https://github.com/intel/llvm/issues/12995.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12995
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>

@@ -13,6 +13,7 @@
 
 // This test checks the device code generated for vec<bfloat16> math builtins.
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 
 using namespace sycl;

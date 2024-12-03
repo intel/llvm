@@ -79,12 +79,15 @@ int main() {
   result |= test<uint16_t>();
   result |= test<uint8_t>();
   result |= test<sycl::half>();
+  result |= test<bf16>();
 
   result |= test<float, true>();
   result |= test<uint32_t, true>();
 
   result |= test<uint16_t, false, true>();
   result |= test<uint8_t, false, true>();
+  result |= test<sycl::half, false, true>();
+  result |= test<bf16, false, true>();
 
   std::cout << (result ? "FAILED" : "passed") << std::endl;
   return 0;

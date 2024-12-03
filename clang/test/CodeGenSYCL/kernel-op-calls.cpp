@@ -11,7 +11,7 @@ class Functor1 {
 public:
  Functor1(){}
 
- [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const {}
+ [[sycl::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const {}
 
  [[sycl::work_group_size_hint(1, 2, 3)]] void operator()(sycl::id<2> id) const {}
 

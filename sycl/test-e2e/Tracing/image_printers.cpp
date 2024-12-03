@@ -3,11 +3,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Test image-specific printers of the Plugin Interace
+// Test the image-specific printers of UR tracing.
 //
-// CHECK: ---> urMemImageCreate(
+// CHECK: <--- urMemImageCreate(
 // CHECK-SAME:   image_desc w/h/d : 4 / 4 / 1  --  arrSz/row/slice : 0 / 64 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-// CHECK: ---> urEnqueueMemBufferReadRect(
+// CHECK: <--- urEnqueueMemBufferReadRect(
 // CHECK-SAME:   ur_rect_offset_t x/y/z : 0/0/0
 // CHECK-SAME:   ur_rect_region_t width/height/depth : 4/4/1
 

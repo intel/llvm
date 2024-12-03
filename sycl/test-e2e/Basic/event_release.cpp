@@ -29,8 +29,8 @@ int main() {
   // Buffer destruction triggers execution graph cleanup, check that both
   // events (one for launching the kernel and one for memory transfer to host)
   // are released.
-  // CHECK: urEventRelease
-  // CHECK: urEventRelease
+  // CHECK: <--- urEventRelease
+  // CHECK: <--- urEventRelease
   assert(Val == Gold);
   // CHECK: End of main scope
   std::cout << "End of main scope" << std::endl;

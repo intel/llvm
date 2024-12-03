@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <stdlib.h>
 #include <sycl/detail/core.hpp>

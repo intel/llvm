@@ -88,7 +88,7 @@ template <class SpmdT, class SimdElemT, bool IsUniform> bool test(queue q) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<TestID<SpmdT, SimdElemT, IsUniform>>(
-          Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(VL)]] {
+          Range, [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(VL)]] {
             sub_group sg = ndi.get_sub_group();
             SpmdT val = (SpmdT)sg.get_group_linear_id(); // 0 .. GroupSize-1
             SimdElemT res = 0;

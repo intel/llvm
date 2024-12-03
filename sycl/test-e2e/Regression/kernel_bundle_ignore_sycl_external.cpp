@@ -8,6 +8,7 @@
 // UNSUPPORTED: ze_debug && windows
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class KernelName;
 

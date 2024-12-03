@@ -196,7 +196,7 @@
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
 
 /// ###########################################################################
-/// test behavior of libsycl-sanitizer.o linking when -fsanitize=address is available
+/// test behavior of libsycl-asan.bc linking when -fsanitize=address is available
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -fsanitize=address -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend -fsanitize=address -### 2>&1 \
@@ -226,8 +226,94 @@
 // SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf.bc"
 // SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
 // SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-sanitizer.bc"
+// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-asan.bc"
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
 // SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}} "-only-needed"
-// SYCL_DEVICE_ASAN_MACRO-SAME: "{{.*}}libsycl-sanitizer.bc"
+// SYCL_DEVICE_ASAN_MACRO-SAME: "{{.*}}libsycl-asan.bc"
+
+/// ###########################################################################
+/// test behavior of linking libsycl-asan-pvc for PVC target AOT compilation when asan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device 12.60.7" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// SYCL_DEVICE_LIB_ASAN_PVC: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-complex.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-imf.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-cassert.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-cstring.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-complex.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-imf.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libsycl-asan-pvc.bc"
+
+/// ###########################################################################
+/// test behavior of linking libsycl-asan-cpu for CPU target AOT compilation when asan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_CPU
+// SYCL_DEVICE_LIB_ASAN_CPU: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-complex.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-imf.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-cassert.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-cstring.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-complex.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-imf.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libsycl-asan-cpu.bc"
+
+/// ###########################################################################
+/// test behavior of linking libsycl-asan-dg2 for DG2 target AOT compilation when asan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device dg2" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 \
+// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 \
+// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device dg2" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 \
+// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// SYCL_DEVICE_LIB_ASAN_DG2: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-complex.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-imf.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-cassert.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-cstring.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-complex.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-imf.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-asan-dg2.bc"

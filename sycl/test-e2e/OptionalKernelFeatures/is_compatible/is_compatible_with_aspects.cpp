@@ -1,10 +1,11 @@
 // requires: cpu, gpu, accelerator
 // UNSUPPORTED: hip
 // FIXME: enable the test back, see intel/llvm#8146
-// RUN: %{build} -Wno-error=incorrect-sub-group-size -O0 -o %t.out
+// RUN: %{build} -Wno-error=incorrect-sub-group-size %O0 -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 [[sycl::device_has(sycl::aspect::cpu)]] void foo(){};
 [[sycl::device_has(sycl::aspect::gpu)]] void bar(){};

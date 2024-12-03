@@ -10,7 +10,7 @@
 // Automatically generated file, do not edit!
 //
 
-#include <func.h>
+#include <clc/clcfunc.h>
 #include <spirv/spirv_types.h>
 
 #ifndef CLC_SPIRV_BINDING

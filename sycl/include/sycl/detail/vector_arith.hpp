@@ -10,7 +10,6 @@
 
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
@@ -113,7 +112,7 @@ template <typename DataT, int NumElements>
 class vec_arith : public vec_arith_common<DataT, NumElements> {
 protected:
   using vec_t = vec<DataT, NumElements>;
-  using ocl_t = detail::select_cl_scalar_integral_signed_t<DataT>;
+  using ocl_t = detail::fixed_width_signed<sizeof(DataT)>;
   template <typename T> using vec_data = vec_helper<T>;
 
   // operator!.

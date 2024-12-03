@@ -11,7 +11,7 @@
 // RUN: %{run} %t.2.out
 
 // Check if the test sill passes with O0
-// RUN: %{build} -O0 -o %t.3.out
+// RUN: %{build} %O0 -o %t.3.out
 // RUN: %{run} %t.3.out
 
 // Checks validity of SLM frame offsets in case of complex call graph with two
@@ -111,7 +111,8 @@ INLINE_CTL void foo(int local_id, T *out, unsigned base) {
 int main(void) {
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   std::cout << "force_inline=" << force_inline << "\n";
   auto ctxt = q.get_context();
 

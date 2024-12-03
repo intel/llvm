@@ -1,4 +1,4 @@
-// RUN: %{build_pthread_inc} -o %t.out
+// RUN: %{build} %threads_lib -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
@@ -19,8 +19,9 @@ int main() {
 
   using T = int;
 
-  const unsigned NumThreads = std::thread::hardware_concurrency();
-  const unsigned SubmitsPerThread = 128;
+  const unsigned HwThreads = std::thread::hardware_concurrency();
+  const unsigned NumThreads = std::min(HwThreads, static_cast<unsigned>(4));
+  const unsigned SubmitsPerThread = 8;
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
 
   std::iota(DataA.begin(), DataA.end(), 1);

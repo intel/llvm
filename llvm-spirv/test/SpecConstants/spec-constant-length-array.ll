@@ -1,6 +1,11 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -spirv-text -o - %t.bc | FileCheck %s --check-prefix CHECK-SPV
+; RUN: llvm-spirv -spirv-text -o - %t.bc | FileCheck %s --check-prefixes=CHECK-SPV,CHECK-SPV-TYPED-PTR
 ; RUN: llvm-spirv -o %t.spv %t.bc
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s --check-prefix CHECK-LLVM
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers -spirv-text -o - %t.bc | FileCheck %s --check-prefixes=CHECK-SPV,CHECK-SPV-UNTYPED-PTR
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv %t.bc
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s --check-prefix CHECK-LLVM
 
@@ -20,10 +25,11 @@
 ; CHECK-SPV-DAG: SpecConstant [[#I8_TY]] [[#LENGTH_2:]]
 
 ; CHECK-SPV-DAG: TypeFloat [[#FLOAT_TY:]] 32
-; CHECK-SPV-DAG: TypePointer [[#FLOAT_PTR_TY:]] [[#FUNCTION_SC:]] [[#FLOAT_TY]]
+; CHECK-SPV-TYPED-PTR-DAG: TypePointer [[#FLOAT_PTR_TY:]] [[#FUNCTION_SC:]] [[#FLOAT_TY]]
+; CHECK-SPV-UNTYPED-PTR-DAG: TypeUntypedPointerKHR [[#PTR_TY:]] [[#FUNCTION_SC:]]
 ; CHECK-SPV-DAG: TypeArray [[#ARR_TY_0:]] [[#FLOAT_TY]] [[#LENGTH_0]]
 ; CHECK-SPV-DAG: TypePointer [[#ARR_PTR_TY_0:]] [[#FUNCTION_SC]] [[#ARR_TY_0]]
-; CHECK-SPV-DAG: TypePointer [[#I8_PTR_TY:]] [[#FUNCTION_SC]] [[#I8_TY]]
+; CHECK-SPV-TYPED-PTR-DAG: TypePointer [[#I8_PTR_TY:]] [[#FUNCTION_SC]] [[#I8_TY]]
 ; CHECK-SPV-DAG: TypeArray [[#ARR_TY_1:]] [[#I8_TY]] [[#LENGTH_1]]
 ; CHECK-SPV-DAG: TypePointer [[#ARR_PTR_TY_1:]] [[#FUNCTION_SC]] [[#ARR_TY_1]]
 ; CHECK-SPV-DAG: TypeFloat [[#DOUBLE_TY:]] 64
@@ -51,12 +57,14 @@ define spir_kernel void @test() {
   ; CHECK-LLVM: %[[ALLOCA1:.*]] = alloca [2 x i8], align 2
   ; CHECK-LLVM: %[[ALLOCA2:.*]] = alloca [4 x %struct_type], align 16
 
-  ; CHECK-SPV: Bitcast [[#FLOAT_PTR_TY]] [[#]] [[#SCLA_0]]
+  ; CHECK-SPV-TYPED-PTR: Bitcast [[#FLOAT_PTR_TY]] [[#]] [[#SCLA_0]]
+  ; CHECK-SPV-UNTYPED-PTR: Bitcast [[#PTR_TY]] [[#]] [[#SCLA_0]]
 
   ; CHECK-LLVM: %[[VAR0:.*]] = bitcast ptr %[[ALLOCA0]] to ptr
   %scla0 = alloca float, i64 %length0, align 4
 
-  ; CHECK-SPV: Bitcast [[#I8_PTR_TY]] [[#]] [[#SCLA_1]]
+  ; CHECK-SPV-TYPED-PTR: Bitcast [[#I8_PTR_TY]] [[#]] [[#SCLA_1]]
+  ; CHECK-SPV-UNTYPED-PTR: Bitcast [[#PTR_TY]] [[#]] [[#SCLA_1]]
 
   ; CHECK-LLVM: %[[VAR1:.*]] = bitcast ptr %[[ALLOCA1]] to ptr
   %scla1 = alloca i8, i32 %length1, align 2

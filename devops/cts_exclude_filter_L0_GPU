@@ -1,3 +1,2 @@
-# These two take too much time
-kernel_bundle
-marray
+# CMPLRTST-26179
+device

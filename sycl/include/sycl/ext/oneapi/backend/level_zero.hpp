@@ -9,8 +9,7 @@
 #pragma once
 
 #include <sycl/async_handler.hpp>                           // for async_han...
-#include <sycl/backend.hpp>                                 // for backend_i...
-#include <sycl/backend_types.hpp>                           // for backend
+#include <sycl/backend.hpp>                                 // for backend
 #include <sycl/buffer.hpp>                                  // for buffer_al...
 #include <sycl/buffer.hpp>                                  // for buffer
 #include <sycl/context.hpp>                                 // for context
@@ -25,7 +24,6 @@
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
 #include <sycl/image.hpp>                                   // for image
 #include <sycl/kernel.hpp>                                  // for kernel
-#include <sycl/kernel_bundle.hpp>                           // for kernel_bu...
 #include <sycl/kernel_bundle_enums.hpp>                     // for bundle_state
 #include <sycl/platform.hpp>                                // for platform
 #include <sycl/properties/image_properties.hpp>             // for image
@@ -40,6 +38,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+template <bundle_state State> class kernel_bundle;
+
 namespace ext::oneapi::level_zero::detail {
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  ur_native_handle_t NativeHandle);
@@ -83,8 +84,6 @@ inline std::optional<sycl::device> find_matching_descendent_device(
           return maybe_device;
       }
     }
-
-    assert(false && "Unexpected partitioning scheme for a Level-Zero device!");
   }
 
   return {};

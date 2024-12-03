@@ -142,6 +142,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::ArraySectionExprClass:
   case Expr::OMPArrayShapingExprClass:
   case Expr::OMPIteratorExprClass:
+  case Expr::HLSLOutArgExprClass:
     return Cl::CL_LValue;
 
     // C++ [expr.prim.general]p1: A string literal is an lvalue.
@@ -475,6 +476,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     return ClassifyInternal(Ctx, cast<CoroutineSuspendExpr>(E)->getResumeExpr());
   case Expr::SYCLUniqueStableNameExprClass:
   case Expr::SYCLUniqueStableIdExprClass:
+  case Expr::OpenACCAsteriskSizeExprClass:
     return Cl::CL_PRValue;
     break;
 
@@ -490,12 +492,13 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
 /// ClassifyDecl - Return the classification of an expression referencing the
 /// given declaration.
 static Cl::Kinds ClassifyDecl(ASTContext &Ctx, const Decl *D) {
-  // C++ [expr.prim.general]p6: The result is an lvalue if the entity is a
-  //   function, variable, or data member and a prvalue otherwise.
+  // C++ [expr.prim.id.unqual]p3: The result is an lvalue if the entity is a
+  // function, variable, or data member, or a template parameter object and a
+  // prvalue otherwise.
   // In C, functions are not lvalues.
   // In addition, NonTypeTemplateParmDecl derives from VarDecl but isn't an
-  // lvalue unless it's a reference type (C++ [temp.param]p6), so we need to
-  // special-case this.
+  // lvalue unless it's a reference type or a class type (C++ [temp.param]p8),
+  // so we need to special-case this.
 
   if (const auto *M = dyn_cast<CXXMethodDecl>(D)) {
     if (M->isImplicitObjectMemberFunction())
@@ -707,7 +710,8 @@ static Cl::ModifiableType IsModifiable(ASTContext &Ctx, const Expr *E,
     return Cl::CM_ConstAddrSpace;
 
   // Arrays are not modifiable, only their elements are.
-  if (CT->isArrayType())
+  if (CT->isArrayType() &&
+      !(Ctx.getLangOpts().HLSL && CT->isConstantArrayType()))
     return Cl::CM_ArrayType;
   // Incomplete types are not modifiable.
   if (CT->isIncompleteType())

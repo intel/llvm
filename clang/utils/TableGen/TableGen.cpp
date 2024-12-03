@@ -76,6 +76,7 @@ enum ActionType {
   GenArmVectorType,
   GenArmNeonSema,
   GenArmNeonTest,
+  GenArmImmCheckTypes,
   GenArmMveHeader,
   GenArmMveBuiltinDef,
   GenArmMveBuiltinSema,
@@ -237,6 +238,10 @@ cl::opt<ActionType> Action(
                    "Generate ARM NEON sema support for clang"),
         clEnumValN(GenArmNeonTest, "gen-arm-neon-test",
                    "Generate ARM NEON tests for clang"),
+        clEnumValN(
+            GenArmImmCheckTypes, "gen-arm-immcheck-types",
+            "Generate arm_immcheck_types.inc (immediate range check types)"
+            " for clang"),
         clEnumValN(GenArmSveHeader, "gen-arm-sve-header",
                    "Generate arm_sve.h for clang"),
         clEnumValN(GenArmSveBuiltins, "gen-arm-sve-builtins",
@@ -315,7 +320,7 @@ ClangComponent("clang-component",
                cl::desc("Only use warnings from specified component"),
                cl::value_desc("component"), cl::Hidden);
 
-bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
+bool ClangTableGenMain(raw_ostream &OS, const RecordKeeper &Records) {
   switch (Action) {
   case PrintRecords:
     OS << Records;           // No argument, dump all contents
@@ -474,6 +479,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenArmNeonTest:
     EmitNeonTest(Records, OS);
+    break;
+  case GenArmImmCheckTypes:
+    EmitImmCheckTypes(Records, OS);
     break;
   case GenArmMveHeader:
     EmitMveHeader(Records, OS);

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/ur.hpp>
@@ -55,6 +55,8 @@ private:
   addressing_mode MAddrMode;
   filtering_mode MFiltMode;
   property_list MPropList;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

@@ -104,9 +104,6 @@ struct restrict_key {
 
 inline constexpr restrict_key::value_t restrict;
 
-template<>
-struct is_property_key<restrict_key> : std::true_type {};
-
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
   restrict_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
@@ -131,9 +128,6 @@ struct alignment_key {
 
 template<int K>
 inline constexpr alignment_key::value_t<K> alignment;
-
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::alignment_key> : std::true_type {};
 
 template<typename T, typename PropertyListT>
 struct is_property_key_of<

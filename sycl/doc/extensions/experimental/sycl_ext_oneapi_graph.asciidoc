@@ -58,6 +58,7 @@ Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
 Andrey Alekseenko, KTH Royal Institute of Technology +
 Fábio Mestre, Codeplay +
+Konrad Kusiak, Codeplay +
 
 == Dependencies
 
@@ -1975,12 +1976,20 @@ Removing this restriction is something we may look at for future revisions of
 
 The command submission functions defined in
 link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
-can be used to add nodes to a graph when creating a graph from queue recording.
+can be used adding nodes to a graph when creating a graph from queue recording.
+New methods are also defined that enable submitting an executable graph, 
+e.g. directly to a queue without returning an event.
+
+==== sycl_ext_oneapi_free_function_kernels
+
+`sycl_ext_oneapi_free_function_kernels`, defined in 
+link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
+can be used with SYCL Graphs. 
 
 == Examples and Usage Guide
 
 Detailed code examples and usage guidelines are provided in the
-link:../../SYCLGraphUsageGuide.md[SYCL Graph Usage Guide].
+link:../../syclgraph/SYCLGraphUsageGuide.md[SYCL Graph Usage Guide].
 
 == Future Direction [[future-direction]]
 

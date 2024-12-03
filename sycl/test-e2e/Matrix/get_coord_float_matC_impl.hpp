@@ -39,7 +39,7 @@ void matrix_sum_rows(big_matrix<T, Rows, Cols> &C, T *sum_rows) {
                      {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            // The submatrix API has to be accessed by all the workitems in a

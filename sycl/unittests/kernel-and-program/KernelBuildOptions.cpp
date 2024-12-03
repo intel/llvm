@@ -11,8 +11,8 @@
 #define __SYCL_INTERNAL_API
 #endif
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -71,28 +71,29 @@ static void setupCommonMockAPIs(sycl::unittest::UrMock<> &Mock) {
                                            &redefinedProgramBuild);
 }
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
+  std::vector<MockOffloadEntry> Entries =
+      makeEmptyKernels({"BuildOptsTestKernel"});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "-compile-img",                      // Compile options
-              "-link-img",                         // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "-compile-img",                      // Compile options
+                      "-link-img",                         // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-sycl::unittest::UrImage Img = generateDefaultImage();
-sycl::unittest::UrImageArray<1> ImgArray{&Img};
+sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::unittest::UrMock<> Mock;
@@ -118,4 +119,21 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
 
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   EXPECT_EQ(BuildOpts, "-link-img");
+}
+
+TEST(KernelBuildOptions, ESIMDParallelForBasic) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  setupCommonMockAPIs(Mock);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+
+  Queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<BuildOptsTestKernel>(
+        sycl::range{1024}, [=](sycl::id<1>) /* SYCL_ESIMD_KERNEL */ {});
+  });
+
+  EXPECT_EQ(BuildOpts,
+            "-compile-img -vc-codegen -disable-finalizer-msg -link-img");
 }

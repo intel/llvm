@@ -1,10 +1,10 @@
-// REQUIRES: linux
-// RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -O1 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck %s
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t1.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O1 -g -o %t2.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
+// RUN: env SYCL_PREFER_UR=1 %{run} not %t3.out 2>&1 | FileCheck %s
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

@@ -22,7 +22,6 @@ int main(int argc, char **argv, char *env[]) {
       cl::desc("Available tracing modes:"),
       cl::values(
           // TODO graph dot
-          // clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
           clEnumValN(UR, "ur.call", "Trace Unified Runtime calls"),
           clEnumValN(ZE, "level_zero", "Trace Level Zero calls"),
           clEnumValN(CU, "cuda", "Trace CUDA Driver API calls"),
