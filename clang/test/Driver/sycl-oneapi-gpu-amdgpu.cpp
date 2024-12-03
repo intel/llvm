@@ -137,21 +137,21 @@
 // BAD_AMD_INPUT: error: SYCL target is invalid: 'amd_gpu_bad'
 
 // Check the SYCL triple for AMD GPUs.
-// RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -### \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa -### \
 // RUN: -Xsycl-target-backend --offload-arch=gfx908 \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=AMD-TRIPLE
 // AMD-TRIPLE: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 
 // Check if SYCL triples with 'Environment' component are rejected for AMD GPUs.
-// RUN: not %clangxx -c -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
   // RUN: FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
 // BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'amdgcn-amd-amdhsa-sycl'
 
 // Check for invalid SYCL triple for AMD GPUs.
-// RUN: not %clangxx -c -fsycl -fsycl-targets=amdgcn -### %s 2>&1 | \
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
