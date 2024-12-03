@@ -189,10 +189,10 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
                   ///< this particular command instance.
 ) {
   bool InterruptBasedEventsEnabled =
-      EnqueueExtProp
-          ? (EnqueueExtProp->flags & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) ||
-                Queue->InterruptBasedEventsEnabled
-          : Queue->InterruptBasedEventsEnabled;
+      EnqueueExtProp ? (EnqueueExtProp->flags &
+                        UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) ||
+                           Queue->InterruptBasedEventsEnabled
+                     : Queue->InterruptBasedEventsEnabled;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
