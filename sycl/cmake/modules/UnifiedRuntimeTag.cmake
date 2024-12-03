@@ -1,7 +1,7 @@
-# commit eb076da108a49ef1426f38690547a71905f58015
-# Merge: d8d8ee90 46832dfd
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 29 15:54:31 2024 +0000
-#     Merge pull request #2396 from kswiecicki/init-results-fix
-#     [L0] Add nullopt check before init results access
-set(UNIFIED_RUNTIME_TAG "ewan/cuda_update_local_size")
+# commit 2bea25d7d5404ce82f36caf91c359f65b25187d7
+# Merge: 0b5d8f9e e578228a
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Dec 3 12:41:16 2024 +0000
+#     Merge pull request #2298 from Bensuo/ewan/cuda_update_local_size
+#     Improve CUDA/HIP local argument handling
+set(UNIFIED_RUNTIME_TAG 2bea25d7d5404ce82f36caf91c359f65b25187d7)
