@@ -1,5 +1,6 @@
 #include <sycl/sycl.hpp>
 
+#include <detail/device_image_impl.hpp>
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
@@ -397,6 +398,76 @@ TEST(DynamicLinking, KernelBundleMutualDepBuildIndirect) {
   runCommonMutualDepTestChecks();
 }
 
+template <sycl::bundle_state State>
+std::shared_ptr<sycl::detail::device_image_impl>
+getImage(const sycl::kernel_bundle<State> &KernelBundle,
+         const sycl::kernel_id &KernelID) {
+  auto It =
+      std::find_if(KernelBundle.begin(), KernelBundle.end(),
+                   [&](auto Image) { return Image.has_kernel(KernelID); });
+  EXPECT_NE(It, KernelBundle.end());
+  return sycl::detail::getSyclObjImpl(*It);
+}
+
+template <sycl::bundle_state State>
+void runSpecConstChecksUnlinked(
+    const sycl::kernel_bundle<State> &KernelBundle) {
+  EXPECT_EQ(KernelBundle.template get_specialization_constant<SpecConst1>(),
+            10);
+  EXPECT_EQ(KernelBundle.template get_specialization_constant<SpecConst2>(),
+            20);
+  //  Kernel bundles store spec constant values even if they're not part of any
+  //  images, check image spec const blobs.
+  std::shared_ptr<sycl::detail::device_image_impl> ImgA =
+      getImage(KernelBundle,
+               sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelA>());
+  std::vector<unsigned char> &BlobA = ImgA->get_spec_const_blob_ref();
+  int SpecConstVal1 = *reinterpret_cast<int *>(BlobA.data());
+  EXPECT_EQ(SpecConstVal1, 10);
+  std::shared_ptr<sycl::detail::device_image_impl> ImgB =
+      getImage(KernelBundle,
+               sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelB>());
+  std::vector<unsigned char> &BlobB = ImgB->get_spec_const_blob_ref();
+  int SpecConstVal2 = *reinterpret_cast<int *>(BlobB.data());
+  EXPECT_EQ(SpecConstVal2, 20);
+}
+
+void runSpecConstChecksLinked(
+    const sycl::kernel_bundle<sycl::bundle_state::executable> &KernelBundle) {
+  EXPECT_EQ(KernelBundle.get_specialization_constant<SpecConst1>(), 10);
+  EXPECT_EQ(KernelBundle.get_specialization_constant<SpecConst2>(), 20);
+  // Kernel bundles store spec constant values even if they're not part of any
+  // images, check image spec const blobs.
+  std::shared_ptr<sycl::detail::device_image_impl> ImgA =
+      getImage(KernelBundle,
+               sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelA>());
+  std::shared_ptr<sycl::detail::device_image_impl> ImgB =
+      getImage(KernelBundle,
+               sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelB>());
+  EXPECT_EQ(ImgA, ImgB);
+  const std::vector<unsigned char> &Blob = ImgA->get_spec_const_blob_ref();
+  const sycl::detail::device_image_impl::SpecConstMapT &SpecConstMap =
+      ImgA->get_spec_const_data_ref();
+
+  auto It = SpecConstMap.find("SC1");
+  ASSERT_NE(It, SpecConstMap.end());
+  const std::vector<sycl::detail::device_image_impl::SpecConstDescT>
+      &SpecConstDesc1 = It->second;
+  EXPECT_EQ(SpecConstDesc1.size(), 1u);
+  int SpecConstVal1 = *reinterpret_cast<const int *>(
+      Blob.data() + SpecConstDesc1[0].BlobOffset);
+  EXPECT_EQ(SpecConstVal1, 10);
+
+  It = SpecConstMap.find("SC2");
+  ASSERT_NE(It, SpecConstMap.end());
+  const std::vector<sycl::detail::device_image_impl::SpecConstDescT>
+      &SpecConstDesc2 = It->second;
+  EXPECT_EQ(SpecConstDesc2.size(), 1u);
+  int SpecConstVal2 = *reinterpret_cast<const int *>(
+      Blob.data() + SpecConstDesc2[0].BlobOffset);
+  EXPECT_EQ(SpecConstVal2, 20);
+}
+
 TEST(DynamicLinking, KernelBundleSpecConstsCompileLink) {
   sycl::unittest::UrMock<> Mock;
   setupRuntimeLinkingMock();
@@ -415,13 +486,13 @@ TEST(DynamicLinking, KernelBundleSpecConstsCompileLink) {
 
   InputKB.set_specialization_constant<SpecConst1>(10);
   InputKB.set_specialization_constant<SpecConst2>(20);
+  runSpecConstChecksUnlinked(InputKB);
+
   sycl::kernel_bundle ObjectKB = sycl::compile(InputKB);
-  EXPECT_EQ(ObjectKB.get_specialization_constant<SpecConst1>(), 10);
-  EXPECT_EQ(ObjectKB.get_specialization_constant<SpecConst2>(), 20);
+  runSpecConstChecksUnlinked(ObjectKB);
 
   sycl::kernel_bundle LinkedKB = sycl::link({ObjectKB});
-  EXPECT_EQ(LinkedKB.get_specialization_constant<SpecConst1>(), 10);
-  EXPECT_EQ(LinkedKB.get_specialization_constant<SpecConst2>(), 20);
+  runSpecConstChecksLinked(LinkedKB);
 }
 
 TEST(DynamicLinking, KernelBundleSpecConstsBuild) {
@@ -442,8 +513,8 @@ TEST(DynamicLinking, KernelBundleSpecConstsBuild) {
 
   InputKB.set_specialization_constant<SpecConst1>(10);
   InputKB.set_specialization_constant<SpecConst2>(20);
+  runSpecConstChecksUnlinked(InputKB);
   sycl::kernel_bundle BuiltKB = sycl::build(InputKB);
-  EXPECT_EQ(BuiltKB.get_specialization_constant<SpecConst1>(), 10);
-  EXPECT_EQ(BuiltKB.get_specialization_constant<SpecConst2>(), 20);
+  runSpecConstChecksLinked(BuiltKB);
 }
 } // anonymous namespace
