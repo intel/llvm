@@ -579,27 +579,24 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
                     CounterBasedEventEnabled, InterruptBasedEventEnabled);
   if (Cache->empty()) {
     logger::info("Cache empty (Host Visible: {}, Profiling: {}, Counter: {}, "
-                 "Device: {})",
-                 HostVisible, WithProfiling, CounterBasedEventEnabled, Device);
+                 "Interrupt: {}, Device: {})",
+                 HostVisible, WithProfiling, CounterBasedEventEnabled,
+                 InterruptBasedEventEnabled, Device);
     return nullptr;
   }
 
   auto It = Cache->begin();
   ur_event_handle_t Event = *It;
-  if (Event->CounterBasedEventsEnabled != CounterBasedEventEnabled) {
-    return nullptr;
-  }
-  if (Event->InterruptBasedEventsEnabled != InterruptBasedEventEnabled) {
-    return nullptr;
-  }
+
   Cache->erase(It);
   // We have to reset event before using it.
   Event->reset();
 
   logger::info("Using {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
-               "Device: {}) from cache {}",
+               "Interrupt: {}, Device: {}) from cache {}",
                Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
-               Event->CounterBasedEventsEnabled, Device, Cache);
+               Event->CounterBasedEventsEnabled,
+               Event->InterruptBasedEventsEnabled, Cache);
 
   return Event;
 }
