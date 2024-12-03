@@ -202,9 +202,9 @@ public:
     auto Prefix = [](DiagnosticSeverity Severity) -> llvm::StringLiteral {
       switch (Severity) {
       case llvm::DiagnosticSeverity::DS_Error:
-        return "ERROR";
+        return "ERROR:";
       case llvm::DiagnosticSeverity::DS_Warning:
-        return "WARNING";
+        return "WARNING:";
       default:
         return "NOTE:";
       }
