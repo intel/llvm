@@ -23,8 +23,14 @@ Tensor Mapping APIs
 Motivation
 --------------------------------------------------------------------------------
 
-Used to target the CUDA entry points cuTensorMapEncodeIm2col and
-cuTensorMapEncodeTiled.
+Used to target the CUDA entry points ``cuTensorMapEncodeIm2col`` and
+``cuTensorMapEncodeTiled``.
+
+For some tensor core operations on ``sm_90+`` Nvidia devices, a tensor
+descriptor must be built on the host and passed to the kernel. The interfaces
+mentioned above, and mapped to UR in this extension, provide the APIs necessary
+to create these tensor descriptor objects, that can then be passed to the
+kernels.
 
 API
 --------------------------------------------------------------------------------
@@ -61,7 +67,7 @@ Changelog
 Support
 --------------------------------------------------------------------------------
 
-This is only supported in the CUDA adapter.
+This extension is only supported on the ``UR_PLATFORM_BACKEND_CUDA`` backend.
 
 Contributors
 --------------------------------------------------------------------------------
