@@ -10,208 +10,272 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::cuda;
 using namespace sycl::ext::oneapi::experimental;
 
-// CHECK-OPAQUE: tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL half
 sycl::ext::oneapi::experimental::cuda::ldg(const half *);
-// CHECK-OPAQUE: tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL float
 sycl::ext::oneapi::experimental::cuda::ldg(const float *);
-// CHECK-OPAQUE: tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL double
 sycl::ext::oneapi::experimental::cuda::ldg(const double *);
 
-// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<half, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<half, 2> *);
-// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
-// CHECK-OPAQUE: tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr nonnull %{{.*}}, i32 2)
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<half, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<half, 3> *);
-// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
-// CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr nonnull %{{.*}}, i32 4)
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load half, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<half, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<half, 4> *);
-// CHECK-OPAQUE: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<float, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<float, 2> *);
-// CHECK-OPAQUE: tail call <2 x float> @llvm.nvvm.ldg.global.f.v2f32.p0(ptr %{{.*}}, i32 8)
-// CHECK-OPAQUE: tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr nonnull %{{.*}}, i32 4)
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<float, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<float, 3> *);
-// CHECK-OPAQUE: tail call <4 x float> @llvm.nvvm.ldg.global.f.v4f32.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load float, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<float, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<float, 4> *);
-// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<double, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<double, 2> *);
-// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr nonnull %{{.*}}, i32 8)
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<double, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<double, 3> *);
-// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call <2 x double> @llvm.nvvm.ldg.global.f.v2f64.p0(ptr nonnull %{{.*}}, i32 16)
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load double, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<double, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<double, 4> *);
 
 // Unsigned variants are identical to signed variants, but this leads to
 // correct behavior.
 
-// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL char
 sycl::ext::oneapi::experimental::cuda::ldg(const char *);
-// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL signed char
 sycl::ext::oneapi::experimental::cuda::ldg(const signed char *);
-// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL short
 sycl::ext::oneapi::experimental::cuda::ldg(const short *);
-// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL int
 sycl::ext::oneapi::experimental::cuda::ldg(const int *);
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL long
 sycl::ext::oneapi::experimental::cuda::ldg(const long *);
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL long long
 sycl::ext::oneapi::experimental::cuda::ldg(const long long *);
 
-// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL unsigned char
 sycl::ext::oneapi::experimental::cuda::ldg(const unsigned char *);
-// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL unsigned short
 sycl::ext::oneapi::experimental::cuda::ldg(const unsigned short *);
-// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL unsigned int
 sycl::ext::oneapi::experimental::cuda::ldg(const unsigned int *);
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL unsigned long
 sycl::ext::oneapi::experimental::cuda::ldg(const unsigned long *);
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
 template SYCL_EXTERNAL unsigned long long
 sycl::ext::oneapi::experimental::cuda::ldg(const unsigned long long *);
 
-// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<char, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<char, 2> *);
-// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
-// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull %{{.*}}, i32 1)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<char, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<char, 3> *);
-// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<signed char, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<signed char, 2> *);
-// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
-// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull %{{.*}}, i32 1)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<signed char, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<signed char, 3> *);
-// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<short, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<short, 2> *);
-// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
-// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr nonnull %{{.*}}, i32 2)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<short, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<short, 3> *);
-// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<int, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<int, 2> *);
-// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
-// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr nonnull %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<int, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<int, 3> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<long, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long, 2> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<long, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long, 3> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<long long, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long long, 2> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<long long, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long long, 3> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<long, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long, 4> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<long long, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<long long, 4> *);
 
-// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned char, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned char, 2> *);
-// CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)
-// CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr nonnull %{{.*}}, i32 1)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned char, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned char, 3> *);
-// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned short, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(
     const sycl::vec<unsigned short, 2> *);
-// CHECK-OPAQUE: tail call <2 x i16> @llvm.nvvm.ldg.global.i.v2i16.p0(ptr %{{.*}}, i32 4)
-// CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr nonnull %{{.*}}, i32 2)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned short, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(
     const sycl::vec<unsigned short, 3> *);
-// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned int, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned int, 2> *);
 
-// CHECK-OPAQUE: tail call <2 x i32> @llvm.nvvm.ldg.global.i.v2i32.p0(ptr %{{.*}}, i32 8)
-// CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr nonnull %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned int, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned int, 3> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned long, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long, 2> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned long, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long, 3> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned long long, 2>
 sycl::ext::oneapi::experimental::cuda::ldg(
     const sycl::vec<unsigned long long, 2> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr nonnull %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}!invariant.load
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned long long, 3>
 sycl::ext::oneapi::experimental::cuda::ldg(
     const sycl::vec<unsigned long long, 3> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned long, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned long, 4> *);
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr %{{.*}}, i32 16)
-// CHECK-OPAQUE: tail call <2 x i64> @llvm.nvvm.ldg.global.i.v2i64.p0(ptr nonnull %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i64, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned long long, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(
     const sycl::vec<unsigned long long, 4> *);
 
-// CHECK-OPAQUE: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<char, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<char, 4> *);
-// CHECK-OPAQUE: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<signed char, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<signed char, 4> *);
-// CHECK-OPAQUE: tail call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<short, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<short, 4> *);
-// CHECK-OPAQUE: tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<int, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<int, 4> *);
 
-// CHECK-OPAQUE: tail call <4 x i8> @llvm.nvvm.ldg.global.i.v4i8.p0(ptr %{{.*}}, i32 4)
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i8, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned char, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned char, 4> *);
-// CHECK-OPAQUE: tail call <4 x i16> @llvm.nvvm.ldg.global.i.v4i16.p0(ptr %{{.*}}, i32 8)
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i16, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned short, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(
     const sycl::vec<unsigned short, 4> *);
-// CHECK-OPAQUE: tail call <4 x i32> @llvm.nvvm.ldg.global.i.v4i32.p0(ptr %{{.*}}, i32 16)
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
+// CHECK-OPAQUE: load i32, ptr addrspace(1) %{{.*}}
 template SYCL_EXTERNAL sycl::vec<unsigned int, 4>
 sycl::ext::oneapi::experimental::cuda::ldg(const sycl::vec<unsigned int, 4> *);
