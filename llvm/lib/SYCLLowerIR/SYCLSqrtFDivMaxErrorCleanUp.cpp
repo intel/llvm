@@ -54,23 +54,23 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
         // attribute, but it's not a concern of the pass, so just do an early
         // exit here if the attribute is not attached.
         if (!II->getAttributes().hasFnAttr("fpbuiltin-max-error"))
-          return PreservedAnalyses::none();
+          return PreservedAnalyses::all();
         StringRef MaxError = II->getAttributes().getFnAttr(
             "fpbuiltin-max-error").getValueAsString();
 
         if (ID == llvm::Intrinsic::fpbuiltin_sqrt) {
           if (MaxError != SQRT_ERROR)
-            return PreservedAnalyses::none();
+            return PreservedAnalyses::all();
           WorkListSqrt.push_back(II);
         }
         else if (ID == llvm::Intrinsic::fpbuiltin_fdiv) {
           if (MaxError != FDIV_ERROR)
-            return PreservedAnalyses::none();
+            return PreservedAnalyses::all();
           WorkListFDiv.push_back(II);
         } else {
           // Another llvm.fpbuiltin.* intrinsic was found - the module is
           // already not backward compatible.
-          return PreservedAnalyses::none();
+          return PreservedAnalyses::all();
         }
       }
     }
@@ -78,7 +78,7 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
 
   // No intrinsics at all - do an early exist.
   if (WorkListSqrt.empty() && WorkListFDiv.empty())
-    return PreservedAnalyses::none();
+    return PreservedAnalyses::all();
 
   // If @sqrt, @_Z4sqrt*, @llvm.sqrt. or fdiv present in the module - do
   // nothing.
@@ -92,12 +92,12 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
           if (SqrtF->getName() == "sqrt" ||
               SqrtF->getName().starts_with("_Z4sqrt") ||
               SqrtF->getIntrinsicID() == llvm::Intrinsic::sqrt)
-            return PreservedAnalyses::none();
+            return PreservedAnalyses::all();
         }
         if (auto *FPI = dyn_cast<FPMathOperator>(&II)) {
           auto Opcode = FPI->getOpcode();
           if (Opcode == Instruction::FDiv)
-            return PreservedAnalyses::none();
+            return PreservedAnalyses::all();
         }
       }
     }
@@ -160,10 +160,6 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     Decl->dropAllReferences();
     Decl->eraseFromParent();
   }
-
-    return PreservedAnalyses::none();
-  if (InstsToRemove.empty())
-    return PreservedAnalyses::none();
 
   return PreservedAnalyses::all();
 }
