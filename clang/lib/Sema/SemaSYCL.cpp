@@ -3625,8 +3625,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
 
+    SourceLocation LL = NewBody ? NewBody->getBeginLoc() : SourceLocation();
+    SourceLocation LR = NewBody ? NewBody->getEndLoc() : SourceLocation();
+
     return CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
-                                FPOptionsOverride(), {}, {});
+                                FPOptionsOverride(), LL, LR);
   }
 
   void annotateHierarchicalParallelismAPICalls() {
@@ -7180,4 +7183,13 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << KernelAttr;
   }
+}
+
+void SemaSYCL::handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL) {
+  ParsedType PT = AL.getTypeArg();
+  TypeSourceInfo *TSI = nullptr;
+  (void)SemaRef.GetTypeFromParser(PT, &TSI);
+  assert(TSI && "no type source info for attribute argument");
+  D->addAttr(::new (SemaRef.Context)
+                 SYCLKernelEntryPointAttr(SemaRef.Context, AL, TSI));
 }

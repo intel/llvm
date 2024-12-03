@@ -1,7 +1,7 @@
-# commit e0f22b54080411537e8a12fe42f06dbac5e7a2d2
-# Merge: ab3cc0b7 6ba65403
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 26 13:32:11 2024 +0000
-#     Merge pull request #2351 from nrspruit/mcl_1_1
-#     [L0] Add support for the MCL 1.1 apis thru the spec extensions
+# commit 2bea25d7d5404ce82f36caf91c359f65b25187d7
+# Merge: 0b5d8f9e e578228a
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Dec 3 12:41:16 2024 +0000
+#     Merge pull request #2298 from Bensuo/ewan/cuda_update_local_size
+#     Improve CUDA/HIP local argument handling
 set(UNIFIED_RUNTIME_TAG ca0a0e3e3b3ad933605a35850ebc11bbf5d5f367)

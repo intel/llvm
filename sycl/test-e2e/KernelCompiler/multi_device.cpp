@@ -5,6 +5,7 @@
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 // Test to check that bundle is buildable from OpenCL source if there are
 // multiple devices in the context.
