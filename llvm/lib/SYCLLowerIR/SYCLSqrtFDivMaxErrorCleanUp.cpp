@@ -76,7 +76,7 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
       }
     }
   }
-
+/*
   // No intrinsics at all - do an early exist.
   if (WorkListSqrt.empty() && WorkListFDiv.empty())
     return PreservedAnalyses::all();
@@ -103,7 +103,6 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
       }
     }
   }
-/*
   // Replace @llvm.fpbuiltin.sqrt call with @llvm.sqrt. llvm-spirv will handle
   // it later.
   SmallSet<Function *, 2> DeclToRemove;
