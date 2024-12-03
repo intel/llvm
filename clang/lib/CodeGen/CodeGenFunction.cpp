@@ -1789,6 +1789,9 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     if (SyclOptReport.HasOptReportInfo(FD)) {
       llvm::OptimizationRemarkEmitter ORE(Fn);
       for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
+        // Temporarily apply arg location to ensure SourceLocToDebugLoc
+        // picks up the expected file.
+        ApplyDebugLocation TempApplyLoc(*this, ORI.value().KernelArgLoc);
         llvm::DiagnosticLocation DL =
             SourceLocToDebugLoc(ORI.value().KernelArgLoc);
         StringRef NameInDesc = ORI.value().KernelArgDescName;

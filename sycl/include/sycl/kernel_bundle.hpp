@@ -14,8 +14,9 @@
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/string_view.hpp>
-#include <sycl/detail/ur.hpp>           // for cast
-#include <sycl/device.hpp>              // for device
+#include <sycl/detail/ur.hpp> // for cast
+#include <sycl/device.hpp>    // for device
+#include <sycl/handler.hpp>
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
@@ -1128,6 +1129,37 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 }
 
 } // namespace ext::oneapi::experimental
+
+template <auto &SpecName>
+void handler::set_specialization_constant(
+    typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+
+  setStateSpecConstSet();
+
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+
+  detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+      KernelBundleImplPtr)
+      .set_specialization_constant<SpecName>(Value);
+}
+
+template <auto &SpecName>
+typename std::remove_reference_t<decltype(SpecName)>::value_type
+handler::get_specialization_constant() const {
+
+  if (isStateExplicitKernelBundle())
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Specialization constants cannot be read after "
+                          "explicitly setting the used kernel bundle");
+
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+
+  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+             KernelBundleImplPtr)
+      .get_specialization_constant<SpecName>();
+}
 
 } // namespace _V1
 } // namespace sycl
