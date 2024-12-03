@@ -396,9 +396,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                                          DepsList.data(), DepsList.size(),
                                          &NodeParams));
 
-    if (LocalSize != 0)
-      hKernel->clearLocalSize();
-
     // Get sync point and register the node with it.
     auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
     if (pSyncPoint) {

@@ -20,12 +20,14 @@ struct urAdapterGetInfoTest : uur::runtime::urAdapterTest,
 
 std::unordered_map<ur_adapter_info_t, size_t> adapter_info_size_map = {
     {UR_ADAPTER_INFO_BACKEND, sizeof(ur_adapter_backend_t)},
+    {UR_ADAPTER_INFO_VERSION, sizeof(uint32_t)},
     {UR_ADAPTER_INFO_REFERENCE_COUNT, sizeof(uint32_t)},
 };
 
 INSTANTIATE_TEST_SUITE_P(
     urAdapterGetInfo, urAdapterGetInfoTest,
-    ::testing::Values(UR_ADAPTER_INFO_BACKEND, UR_ADAPTER_INFO_REFERENCE_COUNT),
+    ::testing::Values(UR_ADAPTER_INFO_BACKEND, UR_ADAPTER_INFO_VERSION,
+                      UR_ADAPTER_INFO_REFERENCE_COUNT),
     [](const ::testing::TestParamInfo<ur_adapter_info_t> &info) {
         std::stringstream ss;
         ss << info.param;
