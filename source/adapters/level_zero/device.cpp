@@ -1157,8 +1157,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
-    return ReturnValue(false);
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
     const auto ZeDeviceBlockArrayFlags =

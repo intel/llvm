@@ -1192,20 +1192,12 @@ ur_queue_handle_t_::ur_queue_handle_t_(
     }
     return std::atoi(UrRet) != 0;
   }();
-  static const bool useInterruptBasedEvents = [] {
-    const char *UrRet = std::getenv("UR_L0_USE_INTERRUPT_BASED_EVENTS");
-    if (!UrRet) {
-      return true;
-    }
-    return std::atoi(UrRet) != 0;
-  }();
   this->CounterBasedEventsEnabled =
       UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
       useDriverCounterBasedEvents &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
-  this->InterruptBasedEventsEnabled = useInterruptBasedEvents &&
-                                      isLowPowerEvents() && isInOrderQueue() &&
-                                      Device->useDriverInOrderLists();
+  this->InterruptBasedEventsEnabled =
+      isLowPowerEvents() && isInOrderQueue() && Device->useDriverInOrderLists();
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
