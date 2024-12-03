@@ -15,10 +15,10 @@ template <typename Tc, size_t M, size_t N>
 bool apply_verify(Tc *C, Tc *D, Tc *ref) {
   Tc *refcopy = (Tc *)std::malloc(M * N * sizeof(Tc));
   memcpy(refcopy, ref, M * N * sizeof(Tc));
-  matrix_apply(M, N, ref, [](Tc x) { return mul2(x); });
+  matrix_apply(M, N, ref, mul2<Tc>);
   bool res = matrix_compare(M, N, D, ref);
 
-  matrix_apply(M, N, refcopy, [](Tc x) { return add5(x); });
+  matrix_apply(M, N, refcopy, add5<Tc>);
   res &= matrix_compare(M, N, C, refcopy);
   return res;
 }

@@ -180,8 +180,7 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                     << ", Epsilon: " << FLOAT_EPSILON << "\n";
           return false;
         }
-      } else if constexpr (exact || std::is_same_v<T1, int32_t> ||
-                           std::is_same_v<T1, int8_t>) {
+      } else if constexpr (exact || std::is_integral_v<T1>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
           std::cout << "Incorrect result in matrix."
                     << "i: " << i << ", j: " << j
