@@ -190,7 +190,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
 ) {
   bool InterruptBasedEventsEnabled =
       EnqueueExtProp
-          ? (EnqueueExtProp->flags & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) |
+          ? (EnqueueExtProp->flags & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) ||
                 Queue->InterruptBasedEventsEnabled
           : Queue->InterruptBasedEventsEnabled;
   // Lock automatically releases when this goes out of scope.
