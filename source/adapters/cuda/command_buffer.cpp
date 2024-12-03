@@ -522,9 +522,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                                         DepsList.data(), DepsList.size(),
                                         &NodeParams));
 
-    if (LocalSize != 0)
-      hKernel->clearLocalSize();
-
     // Add signal node if external return event is used.
     CUgraphNode SignalNode = nullptr;
     if (phEvent) {
