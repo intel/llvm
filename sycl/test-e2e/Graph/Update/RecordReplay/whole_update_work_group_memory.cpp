@@ -8,6 +8,6 @@
 // XFAIL: level_zero
 // XFAIL-TRACKER: OFNAAO-422
 
-#define GRAPH_E2E_EXPLICIT
+#define GRAPH_E2E_RECORD_REPLAY
 
-#include "../../Inputs/whole_update_local_acc.cpp"
+#include "../../Inputs/whole_update_work_group_memory.cpp"

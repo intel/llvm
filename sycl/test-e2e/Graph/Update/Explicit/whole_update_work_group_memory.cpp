@@ -10,4 +10,4 @@
 
 #define GRAPH_E2E_EXPLICIT
 
-#include "../../Inputs/whole_update_local_acc.cpp"
+#include "../../Inputs/whole_update_work_group_memory.cpp"
