@@ -457,8 +457,9 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
                   ///< this particular command instance.
 ) {
   bool InterruptBased =
-      EnqueueExtProp &&
-      (EnqueueExtProp->flags & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS);
+      EnqueueExtProp
+          ? (EnqueueExtProp->flags & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS)
+          : false;
   if (InterruptBased) {
     // Create the event with interrupt-based properties
     return static_cast<ur_result_t (*)(
@@ -470,7 +471,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
         ur_queue_handle_t, uint32_t, const ur_event_handle_t *,
         ur_event_handle_t *, bool)>(EnqueueEventsWaitWithBarrier)(
         Queue, NumEventsInWaitList, EventWaitList, OutEvent,
-        Queue ? Queue->InterruptBasedEventsEnabled : false);
+        Queue->InterruptBasedEventsEnabled || false);
   }
 }
 

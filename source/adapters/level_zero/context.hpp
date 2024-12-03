@@ -374,9 +374,10 @@ private:
     EVENT_FLAG_HOST_VISIBLE = UR_BIT(0),
     EVENT_FLAG_WITH_PROFILING = UR_BIT(1),
     EVENT_FLAG_COUNTER = UR_BIT(2),
-    EVENT_FLAG_DEVICE = UR_BIT(3), // if set, subsequent bits are device id
+    EVENT_FLAG_INTERRUPT = UR_BIT(3),
+    EVENT_FLAG_DEVICE = UR_BIT(5), // if set, subsequent bits are device id
     MAX_EVENT_FLAG_BITS =
-        4, // this is used as an offset for embedding device id
+        6, // this is used as an offset for embedding device id
   };
 
   // Mutex to control operations on event caches.
@@ -388,7 +389,8 @@ private:
 
   // Get the cache of events for a provided scope and profiling mode.
   EventCache *getEventCache(bool HostVisible, bool WithProfiling,
-                            ur_device_handle_t Device, bool Counter) {
+                            ur_device_handle_t Device, bool Counter,
+                            bool Interrupt) {
 
     size_t index = 0;
     if (HostVisible) {
@@ -399,6 +401,9 @@ private:
     }
     if (Counter) {
       index |= EVENT_FLAG_COUNTER;
+    }
+    if (Interrupt) {
+      index |= EVENT_FLAG_INTERRUPT;
     }
     if (Device) {
       index |= EVENT_FLAG_DEVICE | (*Device->Id << MAX_EVENT_FLAG_BITS);
