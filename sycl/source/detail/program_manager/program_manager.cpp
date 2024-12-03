@@ -2694,6 +2694,14 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   device_image_impl::SpecConstMapT NewSpecConstMap;
   mergeImageData(Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap);
 
+  {
+    std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+    for (const device_image_plain &Img : ImgWithDeps) {
+      NativePrograms.insert(
+          {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
+    }
+  }
+
   auto BinImg = getSyclObjImpl(MainImg)->get_bin_image_ref();
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
