@@ -44,14 +44,6 @@ protected:
     if (Triple.isOSBinFormatCOFF() && Triple.isAArch64())
       GTEST_SKIP();
 
-    // SystemZ is not supported yet.
-    if (Triple.isSystemZ())
-      GTEST_SKIP();
-
-    // 32-bit X86 is not supported yet.
-    if (Triple.isX86() && Triple.isArch32Bit())
-      GTEST_SKIP();
-
     // Failing on Windows builder.
     // JIT session error: Symbols not found: [ __ImageBase ]
     // unknown file: error: SEH exception with code 0x3221225477 thrown in the test body.
@@ -59,6 +51,13 @@ protected:
     if (Triple.isX86())
       GTEST_SKIP();
 #endif
+    // SystemZ is not supported yet.
+    if (Triple.isSystemZ())
+      GTEST_SKIP();
+
+    // 32-bit X86 is not supported yet.
+    if (Triple.isX86() && Triple.isArch32Bit())
+      GTEST_SKIP();
 
     if (Triple.isPPC())
       GTEST_SKIP();
