@@ -21,14 +21,12 @@
 #include <sycl/device.hpp>                                  // for device
 #include <sycl/event.hpp>                                   // for event
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
-#include <sycl/handler.hpp>                                 // for buffer
 #include <sycl/image.hpp>                                   // for image
 #include <sycl/kernel.hpp>                                  // for kernel
 #include <sycl/kernel_bundle.hpp>                           // for kernel_b...
 #include <sycl/kernel_bundle_enums.hpp>                     // for bundle_s...
 #include <sycl/platform.hpp>                                // for platform
 #include <sycl/property_list.hpp>                           // for property...
-#include <sycl/queue.hpp>                                   // for queue
 #include <sycl/range.hpp>                                   // for range
 
 #include <variant> // for variant
@@ -46,6 +44,8 @@ typedef struct _ze_module_handle_t *ze_module_handle_t;
 
 namespace sycl {
 inline namespace _V1 {
+class queue;
+
 namespace detail {
 
 // Forward declarations

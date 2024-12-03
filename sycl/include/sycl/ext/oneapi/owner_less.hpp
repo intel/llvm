@@ -17,7 +17,6 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp> // for command_graph
 #include <sycl/ext/oneapi/weak_object.hpp>        // for weak_object
 #include <sycl/kernel.hpp>                        // for kernel
-#include <sycl/kernel_bundle.hpp>                 // for kernel_id
 #include <sycl/kernel_bundle_enums.hpp>           // for bundle_state
 #include <sycl/platform.hpp>                      // for platform
 #include <sycl/properties/image_properties.hpp>   // for sampled_i...
@@ -26,6 +25,10 @@
 
 namespace sycl {
 inline namespace _V1 {
+class kernel_id;
+template <bundle_state State> class kernel_bundle;
+template <bundle_state State> class device_image;
+
 namespace ext::oneapi {
 
 namespace detail {
