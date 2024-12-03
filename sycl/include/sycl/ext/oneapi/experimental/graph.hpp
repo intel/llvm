@@ -465,7 +465,7 @@ public:
                          const property_list &PropList = {})
       : modifiable_command_graph(SyclQueue, PropList) {}
 
-// Temporary implementation of ext_oneapi_owner_before, shoudl be removed during
+// Temporary implementation of ext_oneapi_owner_before, should be removed during
 // the next ABI break window.
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool ext_oneapi_owner_before(
@@ -494,7 +494,7 @@ template <>
 class command_graph<graph_state::executable>
     : public detail::executable_command_graph {
 public:
-// Temporary implementation of ext_oneapi_owner_before, shoudl be removed during
+// Temporary implementation of ext_oneapi_owner_before, should be removed during
 // the next ABI break window.
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool ext_oneapi_owner_before(
