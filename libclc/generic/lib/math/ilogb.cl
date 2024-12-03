@@ -21,10 +21,9 @@
  * THE SOFTWARE.
  */
 
-#include <clc/clc.h>
-
 #include "math.h"
-#include <clcmacro.h>
+#include <clc/clc.h>
+#include <clc/clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF int ilogb(float x) {
     uint ux = as_uint(x);

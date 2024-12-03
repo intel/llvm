@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <core/clc_core.h>
 #include <spirv/spirv.h>
 #include "../../include/libdevice.h"
