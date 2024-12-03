@@ -416,8 +416,8 @@ void runSpecConstChecksUnlinked(
             10);
   EXPECT_EQ(KernelBundle.template get_specialization_constant<SpecConst2>(),
             20);
-  //  Kernel bundles store spec constant values even if they're not part of any
-  //  images, check image spec const blobs.
+  // Kernel bundles store spec constant values even if they're not part of any
+  // images, check image spec const blobs.
   std::shared_ptr<sycl::detail::device_image_impl> ImgA =
       getImage(KernelBundle,
                sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelA>());
