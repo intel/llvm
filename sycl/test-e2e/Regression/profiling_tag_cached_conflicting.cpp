@@ -14,7 +14,8 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14053
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 
 int main() {
   sycl::queue Q{sycl::property::queue::in_order()};
