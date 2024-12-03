@@ -17,15 +17,18 @@
 #include <llvm/Support/Error.h>
 
 #include <memory>
+#include <string>
 
 namespace jit_compiler {
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-                  const llvm::opt::InputArgList &UserArgList);
+                  const llvm::opt::InputArgList &UserArgList,
+                  std::string &BuildLog);
 
 llvm::Error linkDeviceLibraries(llvm::Module &Module,
-                                const llvm::opt::InputArgList &UserArgList);
+                                const llvm::opt::InputArgList &UserArgList,
+                                std::string &BuildLog);
 
 using PostLinkResult = std::pair<RTCBundleInfo, std::unique_ptr<llvm::Module>>;
 llvm::Expected<PostLinkResult>
