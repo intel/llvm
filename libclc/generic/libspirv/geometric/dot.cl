@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
 
 #define _CLC_GEN_DOT(DECLSPEC, TYPE)                                           \

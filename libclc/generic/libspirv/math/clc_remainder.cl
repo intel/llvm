@@ -8,7 +8,7 @@
 
 #include <spirv/spirv.h>
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <config.h>
 #include <math/clc_remainder.h>
 #include <math/math.h>

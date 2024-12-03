@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <core/clc_core.h>
 
 _CLC_OVERLOAD _CLC_DEF char __clc_add_sat(char x, char y) {

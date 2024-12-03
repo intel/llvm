@@ -9,7 +9,7 @@
 #include <spirv/spirv.h>
 
 #include "../../include/libdevice.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 
 #define __CLC_FUNCTION __spirv_ocl_native_exp10
 #define __CLC_BUILTIN __nv_fast_exp10

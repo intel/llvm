@@ -20,12 +20,11 @@
  * THE SOFTWARE.
  */
 
-#include <core/clc_core.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <config.h>
+#include <core/clc_core.h>
 #include <math/math.h>
+#include <spirv/spirv.h>
 
 struct fp {
   ulong mantissa;

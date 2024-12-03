@@ -13,7 +13,7 @@
 #define __CLC_BODY <fdim.inc>
 #include <clc/math/gentype.inc>
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 
 #ifdef cl_khr_fp16
 

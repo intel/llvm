@@ -8,7 +8,7 @@
 
 #include "mangle_common.h"
 #include <spirv/spirv.h>
-#include <utils.h>
+#include <clc/utils.h>
 
 #define FUNCNAME(IN, OUT)                                                      \
   __CLC_XCONCAT(__CLC_XCONCAT(_Z18__spirv_ocl_sincos, IN), OUT)

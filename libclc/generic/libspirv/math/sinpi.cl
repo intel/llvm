@@ -9,7 +9,7 @@
 #include <spirv/spirv.h>
 
 #include "sincospiF_piby4.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <math/math.h>
 #ifdef cl_khr_fp64
 #include "sincosD_piby4.h"
