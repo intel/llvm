@@ -343,6 +343,10 @@ private:
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
 
+  std::mutex m_DeviceLibImagesMutex;
+
+  std::unordered_map<unsigned, RTDeviceBinaryImageUPtr> m_DeviceLibImages;
+
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
   ///       when C++20 is enabled for the runtime library.

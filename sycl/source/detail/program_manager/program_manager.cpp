@@ -752,7 +752,8 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+static inline void
+CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
@@ -1772,9 +1773,25 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    // Treat the image as empty one
-    if (EntriesB == EntriesE)
+    // Treat the image as empty one or devicelib images
+    if (EntriesB == EntriesE) {
+      std::unique_ptr<RTDeviceBinaryImage> Img =
+          std::make_unique<RTDeviceBinaryImage>(RawImg);
+      const RTDeviceBinaryImage::PropertyRange &DeviceLibMetaProp =
+          Img->getDeviceLibMetaData();
+      if (DeviceLibMetaProp.isAvailable()) {
+        std::lock_guard<std::mutex> DeviceLibImagesGuard(
+            m_DeviceLibImagesMutex);
+        unsigned DeviceLibMetaData =
+            DeviceBinaryProperty(*(DeviceLibMetaProp.begin())).asUint32();
+        // Add device library image to device image map only when current
+        // key has not been inserted.
+        if (m_DeviceLibImages.find(DeviceLibMetaData) ==
+            m_DeviceLibImages.end())
+          m_DeviceLibImages[DeviceLibMetaData] = std::move(Img);
+      }
       continue;
+    }
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
     if (isDeviceImageCompressed(RawImg))

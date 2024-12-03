@@ -46,6 +46,8 @@
   "SYCL/specialization constants default values"
 /// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
+/// PropertySetRegistry::SYCL_DEVICELIB_METADATA defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_DEVICELIB_METADATA "SYCL/devicelib metadata"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
 /// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h

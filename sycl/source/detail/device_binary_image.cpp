@@ -180,6 +180,7 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   SpecConstDefaultValuesMap.init(
       Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  DeviceLibMetaData.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
   KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
   AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
   ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
