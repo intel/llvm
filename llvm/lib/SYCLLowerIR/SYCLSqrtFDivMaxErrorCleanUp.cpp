@@ -103,7 +103,7 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
       }
     }
   }
-
+/*
   // Replace @llvm.fpbuiltin.sqrt call with @llvm.sqrt. llvm-spirv will handle
   // it later.
   SmallSet<Function *, 2> DeclToRemove;
@@ -166,6 +166,6 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     Decl->dropAllReferences();
     Decl->eraseFromParent();
   }
-
+*/
   return PreservedAnalyses::all();
 }
