@@ -161,5 +161,9 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     Decl->eraseFromParent();
   }
 
+    return PreservedAnalyses::none();
+  if (InstsToRemove.empty())
+    return PreservedAnalyses::none();
+
   return PreservedAnalyses::all();
 }
