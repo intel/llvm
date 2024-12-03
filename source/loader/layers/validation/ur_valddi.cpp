@@ -182,7 +182,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_ADAPTER_INFO_REFERENCE_COUNT < propName) {
+        if (UR_ADAPTER_INFO_VERSION < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
