@@ -10,7 +10,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:*
+// XFAIL: run-mode
 
 #include "common.hpp"
 

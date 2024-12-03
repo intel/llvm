@@ -41,11 +41,11 @@ sycl/include/sycl/detail/ur.hpp @intel/unified-runtime-reviewers
 sycl/source/detail/posix_ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/windows_ur.cpp @intel/unified-runtime-reviewers
-sycl/test-e2e/Plugin/ @intel/unified-runtime-reviewers
+sycl/test-e2e/Adapters/ @intel/unified-runtime-reviewers
 
 # Win Proxy Loader
-sycl/pi_win_proxy_loader @intel/llvm-reviewers-runtime
-sycl/test-e2e/Plugin/dll-detach-order.cpp @intel/llvm-reviewers-runtime
+sycl/ur_win_proxy_loader @intel/llvm-reviewers-runtime
+sycl/test-e2e/Adapters/dll-detach-order.cpp @intel/llvm-reviewers-runtime
 
 # CUDA specific runtime implementations
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
@@ -169,12 +169,12 @@ sycl/test-e2e/LLVMIntrinsicLowering/ @intel/dpcpp-spirv-reviewers
 
 # Sanitizer
 clang/lib/Driver/SanitizerArgs.cpp @intel/dpcpp-sanitizers-review
-libdevice/sanitizer_utils.cpp @intel/dpcpp-sanitizers-review
-libdevice/include/asan_libdevice.hpp @intel/dpcpp-sanitizers-review
-libdevice/include/sanitizer_utils.hpp @intel/dpcpp-sanitizers-review
-llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
-sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
-llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
-llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
-llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
+libdevice/include/asan_rtl.hpp @intel/dpcpp-sanitizers-review
+libdevice/include/sanitizer_defs.hpp @intel/dpcpp-sanitizers-review
+libdevice/sanitizer/ @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
+llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
+sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
