@@ -12,6 +12,24 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
+// Helper function for testing weak_object and owner_less for different graph
+// types
+template <typename T>
+void TestGraphTypeInMaps(const T &Graph1, const T &Graph2) {
+  weak_object<T> WeakGraph1 = Graph1;
+  weak_object<T> WeakGraph2 = Graph2;
+
+  // Use the graph type directly in a map
+  std::map<T, int, owner_less<T>> GraphMap;
+  ASSERT_NO_THROW(GraphMap.insert({Graph1, 1}));
+  ASSERT_NO_THROW(GraphMap.insert({Graph2, 2}));
+
+  // Use the weak_object graph type in a map
+  std::map<weak_object<T>, int, owner_less<T>> WeakGraphMap;
+  ASSERT_NO_THROW(WeakGraphMap.insert({WeakGraph1, 1}));
+  ASSERT_NO_THROW(WeakGraphMap.insert({WeakGraph2, 2}));
+}
+
 // Test creating and using ext::oneapi::weak_object and owner_less for
 // command_graph class in a map
 TEST_F(CommandGraphTest, OwnerLessGraph) {
@@ -20,30 +38,16 @@ TEST_F(CommandGraphTest, OwnerLessGraph) {
       experimental::command_graph<experimental::graph_state::modifiable>;
   using ExecutableGraphT =
       experimental::command_graph<experimental::graph_state::executable>;
+  experimental::command_graph Graph2{Queue.get_context(), Dev};
 
-  // Test graph objects using the default template parameter
-  weak_object<experimental::command_graph<>> DefaultWeakGraph = Graph;
-  std::map<weak_object<experimental::command_graph<>>, int,
-           owner_less<experimental::command_graph<>>>
-      DefaultGraphMap;
+  // Test the default template parameter command_graph explicitly
+  TestGraphTypeInMaps<experimental::command_graph<>>(Graph, Graph2);
 
-  ASSERT_NO_THROW(DefaultGraphMap.insert({DefaultWeakGraph, 1}));
+  TestGraphTypeInMaps<ModifiableGraphT>(Graph, Graph2);
 
-  // Test graph objects in the modifiable state
-  weak_object<ModifiableGraphT> WeakGraph = Graph;
-  std::map<weak_object<ModifiableGraphT>, int, owner_less<ModifiableGraphT>>
-      ModifiableGraphMap;
-
-  ASSERT_NO_THROW(ModifiableGraphMap.insert({WeakGraph, 1}));
-
-  // Test graph objects in the executable state
   auto ExecGraph = Graph.finalize();
-
-  weak_object<ExecutableGraphT> WeakGraphExec = ExecGraph;
-  std::map<weak_object<ExecutableGraphT>, int, owner_less<ExecutableGraphT>>
-      ExecGraphMap;
-
-  ASSERT_NO_THROW(ExecGraphMap.insert({WeakGraphExec, 1}));
+  auto ExecGraph2 = Graph2.finalize();
+  TestGraphTypeInMaps<ExecutableGraphT>(ExecGraph, ExecGraph2);
 }
 
 TEST_F(CommandGraphTest, AddNode) {

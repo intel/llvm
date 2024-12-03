@@ -238,7 +238,10 @@ private:
 namespace detail {
 // Templateless modifiable command-graph base class.
 class __SYCL_EXPORT modifiable_command_graph
-    : public sycl::detail::OwnerLessBase<modifiable_command_graph> {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public sycl::detail::OwnerLessBase<modifiable_command_graph>
+#endif
+{
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
@@ -401,7 +404,10 @@ inline
 
 // Templateless executable command-graph base class.
 class __SYCL_EXPORT executable_command_graph
-    : public sycl::detail::OwnerLessBase<executable_command_graph> {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public sycl::detail::OwnerLessBase<executable_command_graph>
+#endif
+{
 public:
   /// An executable command-graph is not user constructable.
   executable_command_graph() = delete;
@@ -459,6 +465,21 @@ public:
                          const property_list &PropList = {})
       : modifiable_command_graph(SyclQueue, PropList) {}
 
+// Temporary implementation of ext_oneapi_owner_before, shoudl be removed during
+// the next ABI break window.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<
+          command_graph<graph_state::modifiable>> &Other) const noexcept {
+    return this->impl.owner_before(
+        ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+  bool ext_oneapi_owner_before(
+      const command_graph<graph_state::modifiable> &Other) const noexcept {
+    return this->impl.owner_before(sycl::detail::getSyclObjImpl(Other));
+  }
+#endif
+
 private:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
@@ -472,6 +493,21 @@ private:
 template <>
 class command_graph<graph_state::executable>
     : public detail::executable_command_graph {
+public:
+// Temporary implementation of ext_oneapi_owner_before, shoudl be removed during
+// the next ABI break window.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<
+          command_graph<graph_state::executable>> &Other) const noexcept {
+    return this->impl.owner_before(
+        ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+  bool ext_oneapi_owner_before(
+      const command_graph<graph_state::executable> &Other) const noexcept {
+    return this->impl.owner_before(sycl::detail::getSyclObjImpl(Other));
+  }
+#endif
 protected:
   friend command_graph<graph_state::executable>
   detail::modifiable_command_graph::finalize(const sycl::property_list &) const;
