@@ -803,6 +803,12 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
     }
 
     auto getSpecialVirtualFn = [&](StringRef name) -> llvm::Constant * {
+      // There is no guarantee that special function for handling pure virtual
+      // calls will be provided by a SYCL backend compiler and therefore we
+      // simply emit nullptr here.
+      if (CGM.getLangOpts().SYCLIsDevice)
+        return llvm::ConstantPointerNull::get(CGM.GlobalsInt8PtrTy);
+
       // FIXME(PR43094): When merging comdat groups, lld can select a local
       // symbol as the signature symbol even though it cannot be accessed
       // outside that symbol's TU. The relative vtables ABI would make
@@ -831,16 +837,9 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
 
     // Pure virtual member functions.
     if (cast<CXXMethodDecl>(GD.getDecl())->isPureVirtual()) {
-      if (!PureVirtualFn) {
-        // There is no guarantee that special function for handling pure virtual
-        // calls will be provided by a SYCL backend compiler and therefore we
-        // simply emit nullptr here.
-        if (CGM.getLangOpts().SYCLIsDevice)
-          PureVirtualFn = llvm::ConstantPointerNull::get(CGM.GlobalsInt8PtrTy);
-        else
-          PureVirtualFn =
-              getSpecialVirtualFn(CGM.getCXXABI().GetPureVirtualCallName());
-      }
+      if (!PureVirtualFn)
+        PureVirtualFn =
+            getSpecialVirtualFn(CGM.getCXXABI().GetPureVirtualCallName());
       fnPtr = PureVirtualFn;
 
     // Deleted virtual member functions.
