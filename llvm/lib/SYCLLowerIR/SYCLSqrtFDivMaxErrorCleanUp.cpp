@@ -31,6 +31,7 @@ static constexpr char FDIV_ERROR[] = "2.5";
 PreservedAnalyses
 SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
                                      ModuleAnalysisManager &MAM) {
+  SmallVector<std::pair<Instruction*, Instruction*>, 16> Replaces;
   SmallVector<IntrinsicInst *, 16> WorkListSqrt;
   SmallVector<IntrinsicInst *, 16> WorkListFDiv;
 
@@ -122,10 +123,11 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     Attrs = Attrs.removeFnAttribute(Sqrt->getContext(), "fpbuiltin-max-error");
     NewSqrt->setAttributes(Attrs);
     NewSqrt->copyMetadata(*Sqrt);
-    FPMathOperator *FPOp = cast<FPMathOperator>(Sqrt);
-    FastMathFlags FMF = FPOp->getFastMathFlags();
-    NewSqrt->setFastMathFlags(FMF);
-    Sqrt->replaceAllUsesWith(NewSqrt);
+    if (FPMathOperator *FPOp = dyn_cast<FPMathOperator>(Sqrt)) {
+      FastMathFlags FMF = FPOp->getFastMathFlags();
+      NewSqrt->setFastMathFlags(FMF);
+    }
+    Replaces.emplace_back(std::make_pair(Sqrt, NewSqrt));
     InstsToRemove.push_back(Sqrt);
   }
 
@@ -140,12 +142,16 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
 
     // Copy FP flags and metadata. Replace old call with a new instruction.
     cast<Instruction>(NewFDiv)->copyMetadata(*FDiv);
-    FPMathOperator *FPOp = cast<FPMathOperator>(FDiv);
-    FastMathFlags FMF = FPOp->getFastMathFlags();
-    NewFDiv->setFastMathFlags(FMF);
-    FDiv->replaceAllUsesWith(NewFDiv);
+    if (FPMathOperator *FPOp = dyn_cast<FPMathOperator>(FDiv)) {
+      FastMathFlags FMF = FPOp->getFastMathFlags();
+      NewFDiv->setFastMathFlags(FMF);
+    }
+    Replaces.emplace_back(std::make_pair(FDiv, NewFDiv));
     InstsToRemove.push_back(FDiv);
   }
+
+  for (const auto &InstPair : Replaces)
+    InstPair.first->replaceAllUsesWith(InstPair.second);
 
   // Clear instructions.
   for (auto *Inst : llvm::reverse(InstsToRemove)) {
