@@ -103,8 +103,8 @@ implementation uses to execute groups of SYCL work-items.
 A given group of SYCL work-items with execution scope _S_ must execute in
 exactly one execution domain associated with the same execution scope.
 An implementation may execute multiple groups of SYCL work-items in a single
-execution domain concurrently, as reflected by the return values of other
-device queries (e.g., `max_num_sub_groups`).
+execution domain concurrently, up to the amount of concurrency reported by
+the device query.
 
 The representation of specific hardware architectures in terms of execution
 domains is tied to the execution model exposed by an implementation and is
@@ -148,6 +148,9 @@ namespace sycl::ext::oneapi::info::device {
 temmplate <execution_scope ExecutionScope>
 struct num_execution_domains;
 
+template <execution_scope ExecutionScope>
+struct max_concurrent_groups;
+
 }
 ----
 
@@ -163,6 +166,16 @@ ext::oneapi::info::device::num_execution_domains`
 |Return the total number of execution domains associated with the execution
 scope specified by the `ExecutionScope` template parameter.
 
+|`template <execution_scope ExecutionScope>
+ext::oneapi::info::device::max_concurrent_groups`
+|`size_t`
+|Return the maximum number of concurrent groups that can be executed in each
+execution domain associated with the execution scope specified by the
+`ExecutionScope` template parameter.
+The number of concurrent groups that can be executed for a specific kernel may
+be less than this number, as reflected by the values returned by other
+kernel-specific queries.
+
 |===
 
 
@@ -173,68 +186,75 @@ This section is non-normative and applies only to the {dpcpp} implementation.
 The table below explains how {dpcpp} calculates the number of execution domains
 for different combinations of device, backend, and execution scope.
 
-[%header,cols="1,5,5,10"]
+[%header,cols="1,5,5,10,10"]
 |===
 |Device Type
 |Backend(s)
 |Execution Scope
 |Number of Domains
+|Concurrency
 
 |Any
 |Any
 |`root_group`
+|1
 |1
 
 |CPU
 |OpenCL
 |`work_group`
 |Number of logical cores.
+|1
 
 |CPU
 |OpenCL
 |`sub_group`
 |Number of logical cores.
+|1
 
 |CPU
 |OpenCL
 |`work_item`
 |Number of logical cores * native SIMD width for 32-bit data types.
+|1
 
 |Intel GPU
 |Any
 |`work_group`
 |Number of Xe cores.
+|Number of vector engines * number of hardware threads.
 
 |Intel GPU
 |Any
 |`sub_group`
 |Number of Xe cores * number of vector engines.
+|Number of hardware threads.
 
 |Intel GPU
 |Any
 |`work_item`
-|Number of Xe cores * number of vector engines * native SIMD width.
+|Number of Xe cores * number of vector engines * number of hardware threads * 32.
+|1
 
 |NVIDIA GPU
 |Any
 |`work_group`
 |Number of streaming multiprocessors (SMs).
+|Number of blocks per SM.
 
 |NVIDIA GPU
 |Any
 |`sub_group`
 |Number of SMs * number of warp schedulers per SM.
+|Maximum number of warps per warp scheduler.
 
 |NVIDIA GPU
 |Any
 |`work_item`
-|Number of FP32 CUDA cores.
+|Number of SMs * maximum threads per SM.
+|1
 
 |===
-
-It is important to remember that the values returned by these queries reflect
-hardware resources, and it is a user's responsibility to understand how to use
-these numbers appropriately when choosing a launch configuration.
 
 
 == Issues
