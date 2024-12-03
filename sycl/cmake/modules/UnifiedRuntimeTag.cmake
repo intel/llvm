@@ -4,4 +4,4 @@
 # Date:   Tue Dec 3 12:41:16 2024 +0000
 #     Merge pull request #2298 from Bensuo/ewan/cuda_update_local_size
 #     Improve CUDA/HIP local argument handling
-set(UNIFIED_RUNTIME_TAG ca0a0e3e3b3ad933605a35850ebc11bbf5d5f367)
+set(UNIFIED_RUNTIME_TAG 0e46d99e69335c43688c50dc4d0653ad7d945f03)
