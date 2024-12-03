@@ -4,9 +4,30 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 
-struct urEnqueueEventsWaitWithBarrierTest : uur::urMultiQueueTest {
+enum class BarrierType {
+    Normal,
+    ExtLowPower,
+};
+
+std::ostream &operator<<(std::ostream &os, BarrierType barrierType) {
+    switch (barrierType) {
+    case BarrierType::Normal:
+        os << "Normal";
+        break;
+    case BarrierType::ExtLowPower:
+        os << "ExtLowPower";
+        break;
+    default:
+        os << "Unknown";
+        break;
+    }
+    return os;
+}
+
+struct urEnqueueEventsWaitWithBarrierTest
+    : uur::urMultiQueueTestWithParam<BarrierType> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTestWithParam::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
                                          nullptr, &src_buffer));
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
@@ -24,7 +45,23 @@ struct urEnqueueEventsWaitWithBarrierTest : uur::urMultiQueueTest {
         if (dst_buffer) {
             EXPECT_SUCCESS(urMemRelease(dst_buffer));
         }
-        urMultiQueueTest::TearDown();
+        urMultiQueueTestWithParam::TearDown();
+    }
+
+    ur_result_t EnqueueBarrier(ur_queue_handle_t queue, uint32_t num_events,
+                               const ur_event_handle_t *event_list,
+                               ur_event_handle_t *wait_event) {
+        BarrierType barrier = getParam();
+        if (barrier == BarrierType::ExtLowPower) {
+            struct ur_exp_enqueue_ext_properties_t props = {
+                UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr,
+                UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS};
+            return urEnqueueEventsWaitWithBarrierExt(queue, &props, num_events,
+                                                     event_list, wait_event);
+        }
+
+        return urEnqueueEventsWaitWithBarrier(queue, num_events, event_list,
+                                              wait_event);
     }
 
     const size_t count = 1024;
@@ -34,7 +71,10 @@ struct urEnqueueEventsWaitWithBarrierTest : uur::urMultiQueueTest {
     std::vector<uint32_t> input;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierTest);
+UUR_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierTest,
+                 ::testing::Values(BarrierType::Normal,
+                                   BarrierType::ExtLowPower),
+                 uur::deviceTestWithParamPrinter<BarrierType>);
 
 struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
     void SetUp() override {
@@ -67,8 +107,7 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, Success) {
     ur_event_handle_t waitEvent = nullptr;
     ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue1, src_buffer, dst_buffer, 0, 0,
                                           size, 0, nullptr, &event1));
-    EXPECT_SUCCESS(
-        urEnqueueEventsWaitWithBarrier(queue2, 1, &event1, &waitEvent));
+    EXPECT_SUCCESS(EnqueueBarrier(queue2, 1, &event1, &waitEvent));
     EXPECT_SUCCESS(urQueueFlush(queue2));
     EXPECT_SUCCESS(urQueueFlush(queue1));
     EXPECT_SUCCESS(urEventWait(1, &waitEvent));
@@ -86,8 +125,7 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, Success) {
                                            input.data(), 0, nullptr, nullptr));
     EXPECT_SUCCESS(urEnqueueMemBufferCopy(queue2, src_buffer, dst_buffer, 0, 0,
                                           size, 0, nullptr, &event2));
-    EXPECT_SUCCESS(
-        urEnqueueEventsWaitWithBarrier(queue1, 1, &event2, &waitEvent));
+    EXPECT_SUCCESS(EnqueueBarrier(queue1, 1, &event2, &waitEvent));
     EXPECT_SUCCESS(urQueueFlush(queue2));
     EXPECT_SUCCESS(urQueueFlush(queue1));
     EXPECT_SUCCESS(urEventWait(1, &waitEvent));
@@ -99,27 +137,23 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, Success) {
 }
 
 TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullHandleQueue) {
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urEnqueueEventsWaitWithBarrier(nullptr, 0, nullptr, nullptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                     EnqueueBarrier(nullptr, 0, nullptr, nullptr));
 }
 
 TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullPtrEventWaitList) {
-    ASSERT_EQ_RESULT(
-        urEnqueueEventsWaitWithBarrier(queue1, 1, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 1, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ur_event_handle_t validEvent;
     ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 0, nullptr, &validEvent));
 
-    ASSERT_EQ_RESULT(
-        urEnqueueEventsWaitWithBarrier(queue1, 0, &validEvent, nullptr),
-        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 0, &validEvent, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ur_event_handle_t inv_evt = nullptr;
-    ASSERT_EQ_RESULT(
-        urEnqueueEventsWaitWithBarrier(queue1, 1, &inv_evt, nullptr),
-        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 1, &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ASSERT_SUCCESS(urEventRelease(validEvent));
 }

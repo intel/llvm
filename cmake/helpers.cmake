@@ -63,6 +63,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL Linux)
     check_cxx_compiler_flag("-fstack-clash-protection" CXX_HAS_FSTACK_CLASH_PROTECTION)
 endif()
 
+if (UR_USE_CFI AND UR_USE_ASAN)
+    message(WARNING "Both UR_USE_CFI and UR_USE_ASAN are ON. "
+        "Due to build errors, this is unsupported; CFI checks will be disabled")
+    set(UR_USE_CFI OFF)
+endif()
+
 if (UR_USE_CFI)
     set(SAVED_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
     set(CMAKE_REQUIRED_FLAGS "-flto -fvisibility=hidden")
@@ -71,6 +77,13 @@ if (UR_USE_CFI)
 else()
     # If CFI checking is disabled, pretend we don't support it
     set(CXX_HAS_CFI_SANITIZE OFF)
+endif()
+
+set(CFI_FLAGS "")
+if (CFI_HAS_CFI_SANITIZE)
+    # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
+    # guarantee. -fsanitize=cfi depends on -flto
+    set(CFI_FLAGS "-flto -fsanitize=cfi -fno-sanitize=cfi-icall -fsanitize-ignorelist=${CMAKE_SOURCE_DIR}/sanitizer-ignorelist.txt")
 endif()
 
 function(add_ur_target_compile_options name)
@@ -89,9 +102,8 @@ function(add_ur_target_compile_options name)
             -fPIC
             -fstack-protector-strong
             -fvisibility=hidden
-            # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
-            # guarantee. -fsanitize=cfi depends on -flto
-            $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
+
+            ${CFI_FLAGS}
             $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
             $<$<BOOL:${CXX_HAS_FSTACK_CLASH_PROTECTION}>:-fstack-clash-protection>
 
@@ -129,7 +141,7 @@ function(add_ur_target_link_options name)
     if(NOT MSVC)
         if (NOT APPLE)
             target_link_options(${name} PRIVATE
-                $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
+                ${CFI_FLAGS}
                 "LINKER:-z,relro,-z,now,-z,noexecstack"
             )
             if (UR_DEVELOPER_MODE)
