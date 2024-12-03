@@ -205,12 +205,8 @@ public:
         return "ERROR";
       case llvm::DiagnosticSeverity::DS_Warning:
         return "WARNING";
-      case llvm::DiagnosticSeverity::DS_Note:
-        return "NOTE:";
-      case llvm::DiagnosticSeverity::DS_Remark:
-        return "REMARK:";
       default:
-        llvm_unreachable("Unhandled case");
+        return "NOTE:";
       }
     }(DI.getSeverity());
     LogPrinter << Prefix;
