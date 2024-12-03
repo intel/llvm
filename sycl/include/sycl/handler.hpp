@@ -44,7 +44,6 @@
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
@@ -142,6 +141,7 @@ inline namespace _V1 {
 
 // Forward declaration
 
+template <bundle_state State> class kernel_bundle;
 class handler;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
@@ -163,6 +163,7 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
+class kernel_bundle_impl;
 class work_group_memory_impl;
 class handler_impl;
 class kernel_impl;
@@ -1719,36 +1720,15 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value);
 
-    setStateSpecConstSet();
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-        KernelBundleImplPtr)
-        .set_specialization_constant<SpecName>(Value);
-  }
-
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
-  get_specialization_constant() const {
-
-    if (isStateExplicitKernelBundle())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Specialization constants cannot be read after "
-                            "explicitly setting the used kernel bundle");
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-               KernelBundleImplPtr)
-        .get_specialization_constant<SpecName>();
-  }
+  get_specialization_constant() const;
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);

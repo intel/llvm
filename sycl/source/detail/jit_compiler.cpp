@@ -1242,12 +1242,13 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
 
-  if (Result.failed()) {
-    throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
+  if (LogPtr) {
+    LogPtr->append(Result.getBuildLog());
   }
 
-  // TODO: We currently don't have a meaningful build log.
-  (void)LogPtr;
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getBuildLog());
+  }
 
   return createDeviceBinaryImage(Result.getBundleInfo());
 }
