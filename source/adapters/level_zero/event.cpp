@@ -156,7 +156,7 @@ static const bool InOrderBarrierBySignal = [] {
   return (UrRet ? std::atoi(UrRet) : true);
 }();
 
-ur_result_t EnqueueEventsWaitWithBarrier(
+ur_result_t urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
@@ -166,9 +166,33 @@ ur_result_t EnqueueEventsWaitWithBarrier(
                         ///< the numEventsInWaitList must be 0, indicating that
                         ///< all previously enqueued commands must be complete.
     ur_event_handle_t
-        *OutEvent, ///< [in,out][optional] return an event object that
-                   ///< identifies this particular command instance.
-    bool InterruptBasedEventsEnabled) {
+        *OutEvent ///< [in,out][optional] return an event object that identifies
+                  ///< this particular command instance.
+) {
+  return ur::level_zero::urEnqueueEventsWaitWithBarrierExt(
+      Queue, nullptr, NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
+ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    const ur_exp_enqueue_ext_properties_t
+        *EnqueueExtProp, ///< [in][optional] pointer to the extended enqueue
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                        ///< pointer to a list of events that must be complete
+                        ///< before this command can be executed. If nullptr,
+                        ///< the numEventsInWaitList must be 0, indicating that
+                        ///< all previously enqueued commands must be complete.
+    ur_event_handle_t
+        *OutEvent ///< [in,out][optional] return an event object that identifies
+                  ///< this particular command instance.
+) {
+  bool InterruptBasedEventsEnabled =
+      EnqueueExtProp
+          ? (EnqueueExtProp->flags & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) |
+                Queue->InterruptBasedEventsEnabled
+          : Queue->InterruptBasedEventsEnabled;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -419,60 +443,6 @@ ur_result_t EnqueueEventsWaitWithBarrier(
     *OutEvent = ResultEvent;
   }
   return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urEnqueueEventsWaitWithBarrier(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating that
-                        ///< all previously enqueued commands must be complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
-  return static_cast<ur_result_t (*)(
-      ur_queue_handle_t, uint32_t, const ur_event_handle_t *,
-      ur_event_handle_t *, bool)>(EnqueueEventsWaitWithBarrier)(
-      Queue, NumEventsInWaitList, EventWaitList, OutEvent,
-      Queue == nullptr ? false : Queue->InterruptBasedEventsEnabled);
-}
-
-ur_result_t urEnqueueEventsWaitWithBarrierExt(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    const ur_exp_enqueue_ext_properties_t
-        *EnqueueExtProp, ///< [in][optional] pointer to the extended enqueue
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating that
-                        ///< all previously enqueued commands must be complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
-  bool InterruptBased =
-      EnqueueExtProp
-          ? (EnqueueExtProp->flags & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS)
-          : false;
-  if (InterruptBased) {
-    // Create the event with interrupt-based properties
-    return static_cast<ur_result_t (*)(
-        ur_queue_handle_t, uint32_t, const ur_event_handle_t *,
-        ur_event_handle_t *, bool)>(EnqueueEventsWaitWithBarrier)(
-        Queue, NumEventsInWaitList, EventWaitList, OutEvent, true);
-  } else {
-    return static_cast<ur_result_t (*)(
-        ur_queue_handle_t, uint32_t, const ur_event_handle_t *,
-        ur_event_handle_t *, bool)>(EnqueueEventsWaitWithBarrier)(
-        Queue, NumEventsInWaitList, EventWaitList, OutEvent,
-        Queue->InterruptBasedEventsEnabled || false);
-  }
 }
 
 ur_result_t urEventGetInfo(
