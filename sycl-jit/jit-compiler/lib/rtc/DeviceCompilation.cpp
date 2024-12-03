@@ -205,15 +205,11 @@ public:
     auto Prefix = [](DiagnosticSeverity Severity) -> llvm::StringLiteral {
       switch (Severity) {
       case llvm::DiagnosticSeverity::DS_Error:
-        return "ERROR";
+        return "ERROR:";
       case llvm::DiagnosticSeverity::DS_Warning:
-        return "WARNING";
-      case llvm::DiagnosticSeverity::DS_Note:
-        return "NOTE:";
-      case llvm::DiagnosticSeverity::DS_Remark:
-        return "REMARK:";
+        return "WARNING:";
       default:
-        llvm_unreachable("Unhandled case");
+        return "NOTE:";
       }
     }(DI.getSeverity());
     LogPrinter << Prefix;
