@@ -841,7 +841,7 @@ unsigned int llvm::getSYCLDeviceLibMeta(std::string &DeviceLibFn) {
       if (DeviceLibFn == Fn) {
         DeviceLibMeta = static_cast<unsigned int>(Ext);
         if (DeviceLibFn == "libsycl-native-bfloat16.bc")
-          DeviceLibMeta |= 0x80000000ULL;
+          DeviceLibMeta |= 0x80000000;
         break;
       }
     }
