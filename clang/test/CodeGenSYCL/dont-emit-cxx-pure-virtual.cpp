@@ -1,4 +1,4 @@
-// There ios no guarantee that special symbol @__cxa_pure_virtual is suppored
+// There is no guarantee that special symbol @__cxa_pure_virtual is supported
 // by SYCL backend compiler, so we need to make sure that we don't emit it
 // during SYCL device compilation.
 //
