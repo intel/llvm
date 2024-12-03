@@ -596,7 +596,7 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
                "Interrupt: {}, Device: {}) from cache {}",
                Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
                Event->CounterBasedEventsEnabled,
-               Event->InterruptBasedEventsEnabled, Cache);
+               Event->InterruptBasedEventsEnabled, Device, Cache);
 
   return Event;
 }
