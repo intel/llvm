@@ -506,10 +506,27 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       list(APPEND build_flags -D__unix__)
     endif()
 
-    add_libclc_builtin_set(libspirv-${arch_suffix}
+    string( TOUPPER "CLC_${MACRO_ARCH}" CLC_TARGET_DEFINE )
+
+    list( APPEND build_flags
+      -D__CLC_INTERNAL
+      -D${CLC_TARGET_DEFINE}
+      # All libclc builtin libraries see CLC headers
+      -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+      # FIXME: Fix libclc to not require disabling this noisy warning
+      -Wno-bitwise-conditional-parentheses
+    )
+
+    if( NOT "${cpu}" STREQUAL "" )
+      list( APPEND build_flags -mcpu=${cpu} )
+    endif()
+
+    add_libclc_builtin_set(
+      CLC_INTERNAL
+      ARCH ${ARCH}
+      ARCH_SUFFIX clc-${arch_suffix}
       TRIPLE ${clang_triple}
-      TARGET_ENV libspirv
-      COMPILE_OPT ${build_flags}
+      COMPILE_FLAGS ${build_flags}
       OPT_FLAGS ${opt_flags}
       LIB_FILES ${clc_lib_files}
     )
