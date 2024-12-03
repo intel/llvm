@@ -142,6 +142,7 @@
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/SYCLSqrtFDivMaxErrorCleanUp.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
