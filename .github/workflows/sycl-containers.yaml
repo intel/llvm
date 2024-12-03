@@ -39,6 +39,10 @@ jobs:
             file: ubuntu2204_base
             tag: latest
             build_args: ""
+          - name: Base Ubuntu 24.04 Docker image
+            file: ubuntu2404_base
+            tag: latest
+            build_args: ""
           - name: Build Ubuntu Docker image
             file: ubuntu2204_build
             tag: latest
