@@ -106,6 +106,7 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
   // Replace @llvm.fpbuiltin.sqrt call with @llvm.sqrt. llvm-spirv will handle
   // it later.
   SmallSet<Function *, 2> DeclToRemove;
+  SmallVector<IntrinsicInst *, 16> InstsToRemove;
   for (auto *Sqrt : WorkListSqrt) {
     DeclToRemove.insert(Sqrt->getCalledFunction());
     IRBuilder Builder(Sqrt);
@@ -125,8 +126,7 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     FastMathFlags FMF = FPOp->getFastMathFlags();
     NewSqrt->setFastMathFlags(FMF);
     Sqrt->replaceAllUsesWith(NewSqrt);
-    Sqrt->dropAllReferences();
-    Sqrt->eraseFromParent();
+    InstsToRemove.push_back(Sqrt);
   }
 
   // Replace @llvm.fpbuiltin.fdiv call with fdiv.
@@ -144,8 +144,13 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     FastMathFlags FMF = FPOp->getFastMathFlags();
     NewFDiv->setFastMathFlags(FMF);
     FDiv->replaceAllUsesWith(NewFDiv);
-    FDiv->dropAllReferences();
-    FDiv->eraseFromParent();
+    InstsToRemove.push_back(FDiv);
+  }
+
+  // Clear instructions.
+  for (auto *Inst : llvm::reverse(InstsToRemove)) {
+    Inst->dropAllReferences();
+    Inst->eraseFromParent();
   }
 
   // Clear old declarations.
