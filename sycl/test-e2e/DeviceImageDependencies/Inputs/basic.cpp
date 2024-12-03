@@ -4,8 +4,8 @@
 #include <sycl/kernel_bundle.hpp>
 
 #include <cassert>
-#include <iostream>
 #include <functional>
+#include <iostream>
 
 using namespace sycl;
 
