@@ -241,7 +241,9 @@ descriptor against the limitations outlined below. If the given descriptor is
 deemed invalid, then a `sycl::exception` will be thrown with error code 
 `sycl::errc::invalid`.
 
-For all image types, the value of `num_channels` must be `1`, `2`, or `4`.
+The value of `num_channels` supported by all image types and backends
+is  `1`, `2`, or `4`.
+Some backends also support `num_channels` to be `3`.
 
 For the `standard` image type, the value of `num_levels` and `array_size` must
 both be `1`.
@@ -813,6 +815,16 @@ public:
       const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc);
+
+  // Device to device copy with offsets and extent
+  void ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent)
 };
 
 class queue {
@@ -954,6 +966,34 @@ public:
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       const std::vector<event> &DepEvents);
+
+  // Device to device copy with offsets and extent
+  void ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent)
+  void ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent
+    event DepEvent)
+  void ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent
+    const std::vector<event> &DepEvents)
 };
 }
 ```
@@ -1997,674 +2037,48 @@ void release_external_semaphore(external_semaphore semaphoreHandle,
 === 1D image read/write
 
 ```cpp
-// Set up device, queue, and context
-sycl::device device;
-sycl::queue queue(device);
-sycl::context context = queue.get_context();
+#include <sycl/sycl.hpp>
 
-// Initialize input data
-constexpr size_t width = 512;
-std::vector<float> dataIn(width);
-std::vector<float> dataOut(width);
-for (int i = 0; i < width; i++) {
-  dataIn[i] = static_cast<float>(i);
-}
-
-// Image descriptor - can use the same for both images
-sycl::ext::oneapi::experimental::image_descriptor desc(
-    sycl::range{width}, 1,
-    sycl::ext::oneapi::experimental::image_channel_type::fp32);
-
-try {
-  // Extension: returns the device pointer to the allocated memory
-  sycl::ext::oneapi::experimental::image_mem imgMemoryIn(desc, queue);
-  sycl::ext::oneapi::experimental::image_mem imgMemoryOut(desc, queue);
-
-  // Extension: create the image and return the handle
-  sycl::ext::oneapi::experimental::unsampled_image_handle imgIn =
-      sycl::ext::oneapi::experimental::create_image(imgMemoryIn, desc, queue);
-  sycl::ext::oneapi::experimental::unsampled_image_handle imgOut =
-      sycl::ext::oneapi::experimental::create_image(imgMemoryOut, desc, queue);
-
-  // Extension: copy over data to device
-  q.ext_oneapi_copy(dataIn.data(), imgMemoryIn, desc);
-
-  // Bindless images require manual synchronization
-  // Wait for copy operation to finish
-  q.wait_and_throw();
-
-  q.submit([&](sycl::handler &cgh) {
-    // No need to request access, handles captured by value
-
-    cgh.parallel_for(width, [=](sycl::id<1> id) {
-      // Extension: read image data from handle
-      float pixel = sycl::ext::oneapi::experimental::fetch_image<float>(
-          imgIn, int(id[0]));
-
-      // Extension: write to image data using handle
-      sycl::ext::oneapi::experimental::write_image(imgOut, int(id[0]), pixel);
-    });
-  });
-
-  // Using image handles requires manual synchronization
-  q.wait_and_throw();
-
-  // Copy data written to imgOut to host
-  q.ext_oneapi_copy(imgMemoryOut, dataOut.data(), desc);
-
-  // Cleanup
-  sycl::ext::oneapi::experimental::destroy_image_handle(imgIn, queue);
-  sycl::ext::oneapi::experimental::destroy_image_handle(imgOut, queue);
-} catch (sycl::exception e) {
-  std::cerr << "SYCL exception caught: " << e.what();
-  exit(-1);
-}
-
-// Validate that `dataIn` correctly transferred to `dataOut`
-bool validated = (dataIn == dataOut);
+include::../../../test-e2e/bindless_images/examples/example_1_1D_read_write.cpp[lines=9..-1]
 ```
 
 === Reading from a dynamically sized array of 2D images
 
 
 ```cpp
-// Set up device, queue, and context
-sycl::device device;
-sycl::queue queue(device);
-sycl::context context = queue.get_context();
+#include <sycl/sycl.hpp>
 
-// declare image data
-size_t numImages = 5;
-size_t width = 8;
-size_t height = 8;
-size_t numPixels = width * height;
-std::vector<float> dataIn(numPixels);
-std::vector<float> dataOut(numPixels);
-std::vector<float> dataExpected(numPixels);
-for (int i = 0; i < width; i++) {
-  for (int j = 0; j < height; j++) {
-    int index = j + (height * i);
-    dataIn[index] = index;
-    dataExpected[index] = index * numImages;
-  }
-}
-
-// Image descriptor - can use the same for all images
-sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, 1,
-    sycl::ext::oneapi::experimental::image_channel_type::fp32);
-
-try {
-
-  // Allocate each image and save the handles
-  std::vector<sycl::ext::oneapi::experimental::image_mem> imgAllocations;
-  for (int i = 0; i < numImages; i++) {
-    // Extension: move-construct device allocated memory
-    imgAllocations.emplace_back(
-        sycl::ext::oneapi::experimental::image_mem{desc, queue});
-  }
-
-  // Copy over data to device for each image
-  for (int i = 0; i < numImages; i++) {
-    // Extension: copy over data to device
-    q.ext_oneapi_copy(dataIn.data(), imgAllocations[i], desc);
-  }
-
-  // Wait for copy operations to finish
-  q.wait_and_throw();
-
-  // Create the images and return the handles
-  std::vector<sycl::ext::oneapi::experimental::unsampled_image_handle>
-      imgHandles;
-  for (int i = 0; i < numImages; i++) {
-    // Extension: create the image and return the handle
-    sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle =
-        sycl::ext::oneapi::experimental::create_image(imgAllocations[i],
-                                                      desc, queue);
-    imgHandles.push_back(imgHandle);
-  }
-
-  sycl::buffer outBuf{dataOut.data(), sycl::range{height, width}};
-  sycl::buffer imgHandlesBuf{imgHandles.data(), sycl::range{numImages}};
-  q.submit([&](sycl::handler &cgh) {
-    sycl::accessor outAcc{outBuf, cgh, sycl::write_only};
-    sycl::accessor imgHandleAcc{imgHandlesBuf, cgh, sycl::read_only};
-
-    cgh.parallel_for(
-        sycl::nd_range<2>{{width, height}, {width, height}},
-        [=](sycl::nd_item<2> it) {
-          size_t dim0 = it.get_local_id(0);
-          size_t dim1 = it.get_local_id(1);
-
-          // Sum each image by reading via its handle
-          float sum = 0;
-          for (int i = 0; i < numImages; i++) {
-            // Extension: read image data from handle
-            sum += (sycl::ext::oneapi::experimental::fetch_image<float>(
-                imgHandleAcc[i], sycl::vec<int, 2>(dim0, dim1)));
-          }
-          outAcc[sycl::id{dim1, dim0}] = sum;
-        });
-  });
-
-  // Using image handles requires manual synchronization
-  q.wait_and_throw();
-
-  // Cleanup
-  for (int i = 0; i < numImages; i++) {
-    sycl::ext::oneapi::experimental::destroy_image_handle(imgHandles[i], queue);
-  }
-} catch (sycl::exception e) {
-  std::cerr << "SYCL exception caught: " << e.what();
-  exit(-1);
-}
-
-// Validate that `dataOut` is correct
-bool validated = (dataOut == dataExpected);
+include::../../../test-e2e/bindless_images/examples/example_2_2D_dynamic_read.cpp[lines=9..-1]
 ```
 
 === Reading a 1D mipmap with anisotropic filtering and levels
 ```cpp
-// Set up device, queue, and context
-sycl::device device;
-sycl::queue queue(device);
-sycl::context context = q.get_context();
+#include <sycl/sycl.hpp>
 
-// declare image data
-constexpr size_t width = 16;
-unsigned int num_levels = 2;
-std::vector<float> dataIn1(width);
-std::vector<float> dataIn2(width / 2);
-std::vector<float> dataOut(width);
-std::vector<float> dataExpected(width);
-int j = 0;
-for (int i = 0; i < width; i++) {
-  dataExpected[i] = static_cast<float>(i + (j + 10));
-  if (i % 2)
-    j++;
-  dataIn1[i] = static_cast<float>(i);
-  if (i < (N / 2))
-    dataIn2[i] = static_cast<float>(i + 10);
-}
-
-try {
-
-  // Image descriptor -- number of levels
-  sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width}, 1,
-      sycl::ext::oneapi::experimental::image_channel_type::fp32,
-      sycl::ext::oneapi::experimental::image_type::mipmap, num_levels);
-
-  // Allocate the mipmap
-  sycl::ext::oneapi::experimental::image_mem mip_mem(desc, queue);
-
-  // Retrieve level 0
-  sycl::ext::oneapi::experimental::image_mem_handle img_mem1 = 
-      mip_mem.get_mip_level_mem_handle(0)
-
-  // Copy over data to level 0
-  q.ext_oneapi_copy(dataIn1.data(), img_mem1, desc);
-
-  // Copy over data to level 1
-  q.ext_oneapi_copy(dataIn2.data(), mip_mem.get_mip_level_mem_handle(1), 
-                    desc.get_mip_level_desc(1));
-  q.wait_and_throw();
-
-  // Extended sampler object to take in mipmap attributes
-  sycl::ext::oneapi::experimental::bindless_image_sampler samp(
-      addressing_mode::mirrored_repeat,
-      coordinate_normalization_mode::normalized, filtering_mode::nearest,
-      mipmap_filtering_mode::nearest, 0.0f, (float)num_levels, 8.0f);
-
-  // Create a sampled image handle to represent the mipmap
-  sycl::ext::oneapi::experimental::sampled_image_handle mipHandle =
-      sycl::ext::oneapi::experimental::create_image(mip_mem, samp, desc, queue);
-  q.wait_and_throw();
-
-  sycl::buffer<float, 1> buf((float *)dataOut.data(), width);
-  q.submit([&](handler &cgh) {
-    auto outAcc = buf.get_access<access_mode::write>(cgh, width);
-
-    cgh.parallel_for<image_addition>(width, [=](id<1> id) {
-      float sum = 0;
-      float x = (static_cast<float>(id[0]) + 0.5f) / static_cast<float>(width);
-      // Read mipmap level 0 with anisotropic filtering
-      // and level 1 with level filtering
-      float px1 = sycl::ext::oneapi::experimental::sample_mipmap<float>(
-          mipHandle, x, 0.0f, 0.0f);
-      float px2 = sycl::ext::oneapi::experimental::sample_mipmap<float>(
-          mipHandle, x, 1.0f);
-
-      sum = px1 + px2;
-      outAcc[id] = sum;
-    });
-  });
-
-  q.wait_and_throw();
-
-  // Cleanup
-  sycl::ext::oneapi::experimental::destroy_image_handle(mipHandle, queue);
-
-} catch (sycl::exception e) {
-  std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-  exit(-1);
-} catch (...) {
-  std::cerr << "Unknown exception caught!\n";
-  exit(-1);
-}
-
-// Validate that `dataOut` is correct
-bool validated = (dataOut == dataExpected);
+include::../../../test-e2e/bindless_images/examples/example_3_1D_mipmap_anisotropic_filtering_and_levels.cpp[lines=9..-1]
 ```
 
 === 1D image array read/write
 ```cpp
-using VecType = sycl::vec<float, 4>;
+#include <sycl/sycl.hpp>
 
-sycl::device dev;
-sycl::queue q(dev);
-auto ctxt = q.get_context();
-
-// declare image data
-constexpr size_t width = 5;
-constexpr size_t array_size = 2;
-constexpr size_t N = width;
-std::vector<VecType> out(N * array_size);
-std::vector<float> expected(N * array_size);
-std::vector<float> outBuf(N);
-std::vector<VecType> dataIn1(N * array_size);
-std::vector<VecType> dataIn2(N * array_size);
-
-for (int i = 0; i < N * array_size; i++) {
-  // Populate input data (to-be image arrays)
-  dataIn1[i] = VecType(i);
-  dataIn2[i] = VecType(2*i);
-}
-
-// Populate expected output
-for (int i = 0; i < width; i++) {
-  for (int l = 0; l < array_size; l++) {
-    expected[l * N + i] = dataIn1[l * N + i][0] + dataIn2[l * N + i][0];
-  }
-}
-
-try {
-  // Extension: image descriptor -- number of layers
-  sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width}, 4, sycl::image_channel_type::fp32,
-      sycl::ext::oneapi::experimental::image_type::array, 1, array_size);
-
-  // Extension: allocate image array memory on device
-  sycl::ext::oneapi::experimental::image_mem arrayMem1(desc, dev, ctxt);
-  sycl::ext::oneapi::experimental::image_mem arrayMem2(desc, dev, ctxt);
-  sycl::ext::oneapi::experimental::image_mem outMem(desc, dev, ctxt);
-
-  // Extension: copy over data to device
-  q.ext_oneapi_copy(dataIn1.data(), arrayMem1.get_handle(), desc);
-  q.ext_oneapi_copy(dataIn2.data(), arrayMem2.get_handle(), desc);
-  q.wait_and_throw();
-
-  // Extension: create a unsampled image handles to represent the image arrays
-  sycl::ext::oneapi::experimental::unsampled_image_handle arrayHandle1 =
-      sycl::ext::oneapi::experimental::create_image(arrayMem1, desc, dev,
-                                                    ctxt);
-  sycl::ext::oneapi::experimental::unsampled_image_handle arrayHandle2 =
-      sycl::ext::oneapi::experimental::create_image(arrayMem2, desc, dev,
-                                                    ctxt);
-  sycl::ext::oneapi::experimental::unsampled_image_handle outHandle =
-      sycl::ext::oneapi::experimental::create_image(outMem, desc, dev,
-                                                    ctxt);
-
-  q.submit([&](sycl::handler &cgh) {
-
-    cgh.parallel_for<kernel>(N, [=](sycl::id<1> id) {
-      float sum1 = 0;
-      float sum2 = 0;
-      
-      // Extension: read image layers 0 and 1
-      VecType px1 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle1, int(id[0]), 0);
-      VecType px2 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle1, int(id[0]), 1);
-
-      // Extension: read image layers 0 and 1
-      VecType px3 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle2, int(id[0]), 0);
-      VecType px4 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
-          arrayHandle2, int(id[0]), 1);
-
-      sum1 = px1[0] + px3[0];
-      sum2 = px2[0] + px4[0];
-
-      // Extension: write to image layers with handle
-      sycl::ext::oneapi::experimental::write_image_array<VecType>(
-          outHandle, int(id[0]), 0, VecType(sum1));
-      sycl::ext::oneapi::experimental::write_image_array<VecType>(
-          outHandle, int(id[0]), 1, VecType(sum2));
-    });
-  });
-
-  q.wait_and_throw();
-
-  // Extension: copy data from device to host
-  q.ext_oneapi_copy(outMem.get_handle(), out.data(), desc);
-  q.wait_and_throw();
-
-  // Extension: cleanup
-  sycl::ext::oneapi::experimental::destroy_image_handle(arrayHandle1, dev, ctxt);
-  sycl::ext::oneapi::experimental::destroy_image_handle(arrayHandle2, dev, ctxt);
-  sycl::ext::oneapi::experimental::destroy_image_handle(outHandle, dev, ctxt);
-
-} catch (sycl::exception e) {
-  std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-  std::cout << "Test failed!" << std::endl;
-  exit(1);
-} catch (...) {
-  std::cerr << "Unknown exception caught!\n";
-  std::cout << "Test failed!" << std::endl;
-  exit(2);
-}
-
-// collect and validate output
-bool validated = true;
-for (int i = 0; i < N * array_size; i++) {
-  bool mismatch = false;
-  if (out[i][0] != expected[i]) {
-    mismatch = true;
-    validated = false;
-  }
-}
-if (validated) {
-  return 0;
-}
-
-return 1;
+include::../../../test-e2e/bindless_images/examples/example_4_1D_array_read_write.cpp[lines=9..-1]
 ```
 
 === Sampling a cubemap
 
 ```c++
-#include <iostream>
 #include <sycl/sycl.hpp>
 
-int main() {
-
-  namespace syclexp = sycl::ext::oneapi::experimental;
-
-  sycl::device dev;
-  sycl::queue q(dev);
-  auto ctxt = q.get_context();
-
-  // declare image data
-  // width and height must be equal
-  size_t width = 8;
-  size_t height = 8;
-  size_t N = width * height;
-  std::vector<float> out(N);
-  std::vector<float> expected(N);
-  std::vector<sycl::float4> dataIn1(N * 6);
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      for (int k = 0; k < 6; k++) {
-        dataIn1[i + width * (j + height * k)] = {i + width * (j + height * k),
-                                                 0, 0, 0};
-      }
-    }
-  }
-
-  int j = 0;
-  for (int i = N - 1; i >= 0; i--) {
-    expected[j] = (float)i;
-    j++;
-  }
-
-  // Extension: image descriptor - Cubemap
-  syclexp::image_descriptor desc(
-      {width, height}, 4,
-      sycl::image_channel_type::fp32, syclexp::image_type::cubemap, 1, 6);
-
-  syclexp::bindless_image_sampler samp(
-      sycl::addressing_mode::clamp_to_edge,
-      sycl::coordinate_normalization_mode::normalized,
-      sycl::filtering_mode::nearest, syclexp::cubemap_filtering_mode::seamless);
-
-  try {
-    // Extension: allocate memory on device and create the handle
-    syclexp::image_mem imgMem(desc, dev, ctxt);
-
-    // Extension: create the image and return the handle
-    syclexp::sampled_image_handle imgHandle =
-        syclexp::create_image(imgMem, samp, desc, dev, ctxt);
-
-    // Extension: copy over data to device (handler variant)
-    q.submit([&](sycl::handler &cgh) {
-      cgh.ext_oneapi_copy(dataIn1.data(), imgMem.get_handle(), desc);
-    });
-    q.wait_and_throw();
-
-    sycl::buffer<float, 2> buf((float *)out.data(),
-                               sycl::range<2>{height, width});
-    q.submit([&](sycl::handler &cgh) {
-      auto outAcc = buf.get_access<sycl::access_mode::write>(
-          cgh, sycl::range<2>{height, width});
-
-      // Emanating vector scans one face
-      cgh.parallel_for<kernel>(
-          sycl::nd_range<2>{{width, height}, {width, height}},
-          [=](sycl::nd_item<2> it) {
-            size_t dim0 = it.get_local_id(0);
-            size_t dim1 = it.get_local_id(1);
-
-            // Direction Vector
-            // x -- largest magnitude
-            // y -- shifted between [-0.99, 0.99] + offset
-            // z -- shifted between [-0.99, 0.99] + offset
-            //
-            // [-0.99, 0.99] -- maintains x as largest magnitude
-            //
-            // 4 elems == [-1, -0.5, 0, 0.5] -- need offset to bring uniformity
-            // +0.25 = [-0.75, -0.25, 0.25, 0.75]
-            float fdim0 = 1.f;
-            float fdim1 = (((float(dim0) / (float)width) * 1.98) - 0.99) +
-                          (1.f / (float)width);
-            float fdim2 = (((float(dim1) / (float)height) * 1.98) - 0.99) +
-                          (1.f / (float)height);
-
-            // Extension: read texture cubemap data from handle
-            sycl::float4 px = syclexp::sample_cubemap<sycl::float4>(
-                imgHandle, sycl::float3(fdim0, fdim1, fdim2));
-
-            outAcc[sycl::id<2>{dim0, dim1}] = px[0];
-          });
-    });
-    q.wait_and_throw();
-
-    // Extension: cleanup
-    syclexp::destroy_image_handle(imgHandle, dev, ctxt);
-  } catch (sycl::exception e) {
-    std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    return 1;
-  } catch (...) {
-    std::cerr << "Unknown exception caught!\n";
-    return 2;
-  }
-
-  // collect and validate output
-  bool validated = true;
-  for (int i = 0; i < N; i++) {
-    bool mismatch = false;
-    if (out[i] != expected[i]) {
-      mismatch = true;
-      validated = false;
-    }
-    if (mismatch) {
-      std::cout << "Result mismatch! Expected: " << expected[i]
-                << ", Actual: " << out[i] << std::endl;
-    }
-  }
-  if (validated) {
-    std::cout << "Test passed!" << std::endl;
-    return 0;
-  }
-
-  std::cout << "Test failed!" << std::endl;
-  return 3;
-}
+include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp[lines=9..-1]
 ```
 
 === Using imported memory and semaphore objects
 
 ```c++
-// Set up device, queue, and context
-sycl::device device;
-sycl::queue queue(device);
-sycl::context context = queue.get_context();
+#include <sycl/sycl.hpp>
 
-size_t width = /* passed from external API */;
-size_t height = /* passed from external API */;
-
-unsigned int num_channels = 1;
-    /* mapped from external API */
-    /* we assume there is one channel */;
-
-sycl::ext::oneapi::experimental::image_channel_type channel_type = 
-    /* mapped from external API */
-    /* we assume sycl::image_channel_type::unsigned_int32 */;
-
-// Image descriptor - mapped to external API image layout
-sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, num_channels, channel_type);
-
-size_t img_size_in_bytes = width * height * sizeof(uint32_t);
-
-int external_input_image_file_descriptor = /* passed from external API */
-int external_output_image_file_descriptor = /* passed from external API */
-
-// Extension: populate external memory descriptors
-sycl::ext::oneapi::experimental::external_mem_descriptor<
-    sycl::ext::oneapi::experimental::resource_fd>
-    input_ext_mem_desc{
-      external_input_image_file_descriptor,
-      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
-      img_size_in_bytes};
-
-sycl::ext::oneapi::experimental::external_mem_descriptor<
-    sycl::ext::oneapi::experimental::resource_fd>
-    output_ext_mem_desc{
-      external_output_image_file_descriptor,
-      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
-      img_size_in_bytes};
-
-// An external API semaphore will signal this semaphore before our SYCL commands
-// can begin execution
-int wait_semaphore_file_descriptor = /* passed from external API */;
-
-// An external API will wait on this semaphore to be signalled by us before it 
-// can execute some commands
-int done_semaphore_file_descriptor = /* passed from external API */;
-
-// Extension: populate external semaphore descriptor.
-//            We assume POSIX file descriptor resource types
-sycl::ext::oneapi::experimental::external_semaphore_descriptor<
-    sycl::ext::oneapi::experimental::resource_fd>
-    wait_external_semaphore_desc{wait_semaphore_file_descriptor,
-    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
-
-sycl::ext::oneapi::experimental::external_semaphore_descriptor<
-    sycl::ext::oneapi::experimental::resource_fd>
-    done_external_semaphore_desc{done_semaphore_file_descriptor,
-    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
-
-try {
-  // Extension: import external semaphores
-  sycl::ext::oneapi::experimental::external_semaphore
-      wait_external_semaphore =
-          sycl::ext::oneapi::experimental::import_external_semaphore(
-              wait_external_semaphore_desc, queue);
-
-  sycl::ext::oneapi::experimental::external_semaphore
-      done_external_semaphore =
-          sycl::ext::oneapi::experimental::import_external_semaphore(
-              done_external_semaphore_desc, queue);
-
-  // Extension: import external memory from descriptors
-  sycl::ext::oneapi::experimental::external_mem
-      input_external_mem =
-          sycl::ext::oneapi::experimental::import_external_memory(
-              input_ext_mem_desc, queue);
-
-  sycl::ext::oneapi::experimental::external_mem
-      output_external_mem =
-          sycl::ext::oneapi::experimental::import_external_memory(
-              output_ext_mem_desc, queue);
-
-  // Extension: map imported external memory to image memory
-  sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_image_memory(
-          input_external_mem, desc, queue);
-  sycl::ext::oneapi::experimental::image_mem_handle output_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_image_memory(
-          output_external_mem, desc, queue);
-
-  // Extension: create images from mapped memory and return the handles
-  sycl::ext::oneapi::experimental::unsampled_image_handle img_input =
-      sycl::ext::oneapi::experimental::create_image(
-          input_mapped_mem_handle, desc, queue);
-  sycl::ext::oneapi::experimental::unsampled_image_handle img_output =
-      sycl::ext::oneapi::experimental::create_image(
-          output_mapped_mem_handle, desc, queue);
-
-  // Extension: wait for imported semaphore
-  q.ext_oneapi_wait_external_semaphore(wait_external_semaphore)
-
-  // Submit our kernel that depends on imported "wait_semaphore_file_descriptor"
-  q.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<>(
-        sycl::nd_range<2>{{width, height}, {32, 32}},
-        [=](sycl::nd_item<2> it) {
-          size_t dim0 = it.get_global_id(0);
-          size_t dim1 = it.get_global_id(1);
-
-          // Extension: read image data from handle to imported image
-          uint32_t pixel =
-              sycl::ext::oneapi::experimental::fetch_image<uint32_t>(
-                  img_input, sycl::vec<int, 2>(dim0, dim1));
-
-          // Modify the data before writing back
-          pixel *= 10;
-
-          // Extension: write image data using handle to imported image
-          sycl::ext::oneapi::experimental::write_image(
-              img_output, sycl::vec<int, 2>(dim0, dim1), pixel);
-        });
-  });
-
-  // Extension: signal imported semaphore
-  q.ext_oneapi_signal_external_semaphore(done_external_semaphore)
-
-  // The external API can now use the semaphore it exported to 
-  // "done_semaphore_file_descriptor" to schedule its own command submissions
-
-  q.wait_and_throw();  
-
-  // Extension: destroy all external resources
-  sycl::ext::oneapi::experimental::release_external_memory(
-      input_external_mem, queue);
-  sycl::ext::oneapi::experimental::release_external_memory(
-      output_external_mem, queue);
-  sycl::ext::oneapi::experimental::release_external_semaphore(
-      wait_external_semaphore, queue);
-  sycl::ext::oneapi::experimental::release_external_semaphore(
-      done_external_semaphore, queue);
-  sycl::ext::oneapi::experimental::destroy_image_handle(img_input, queue);
-  sycl::ext::oneapi::experimental::destroy_image_handle(img_output, queue);
-} catch (sycl::exception e) {
-  std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-  exit(-1);
-} catch (...) {
-  std::cerr << "Unknown exception caught!\n";
-  exit(-1);
-}
+include::../../../test-e2e/bindless_images/examples/example_6_import_memory_and_semaphores.cpp[lines=8..-1]
 ```
 
 == Implementation notes
@@ -2694,6 +2108,12 @@ There are dimension specific limitations:
        allocate 2D USM image memory.
 * 3D - No support at the moment. Possible support in non CUDA backends in the 
        future.
+
+=== 3 channel format support
+
+The ability to create an image with 3 channels depends on the backend.
+There is currently no way to query a backend whether it supports this feature.
+This query should be added in a later revision of the proposal.
 
 === Not supported yet
 
@@ -2903,4 +2323,9 @@ These features still need to be handled:
 |6.1|2024-09-09| - Update for image-array sub-region copy support.
 |6.2|2024-09-26| - Added addressing mode `ext_oneapi_clamp_to_border` value,
                    equivalent to `clamp`, to match with external APIs.
+|6.3|2024-10-02| - Add support for `image_mem_handle` to `image_mem_handle`
+                   sub-region copies.
+|6.4|2024-10-15| - Fix bindless spec examples and include examples in bindless
+                   spec using asciidoc include.
+|6.5|2024-10-22| - Allow 3-channel image formats on some backends.
 |======================

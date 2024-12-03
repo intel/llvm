@@ -17,7 +17,6 @@
 #include <sycl/detail/stl_type_traits.hpp> // for iterator_to_const_type_t
 #include <sycl/detail/ur.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/types.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -46,7 +45,7 @@ public:
   buffer_impl(size_t SizeInBytes, size_t, const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
-
+    verifyProps(Props);
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
       throw sycl::exception(
           make_error_code(errc::invalid),
@@ -57,7 +56,7 @@ public:
               const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
-
+    verifyProps(Props);
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::exception(
@@ -71,7 +70,7 @@ public:
               const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
-
+    verifyProps(Props);
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::exception(
@@ -86,7 +85,7 @@ public:
               const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator, bool IsConstPtr)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
-
+    verifyProps(Props);
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::exception(
@@ -103,6 +102,7 @@ public:
               std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
               bool IsConstPtr)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
+    verifyProps(Props);
     if (Props.has_property<
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::exception(
@@ -152,6 +152,8 @@ public:
   void addInteropObject(std::vector<ur_native_handle_t> &Handles) const;
 
   std::vector<ur_native_handle_t> getNativeVector(backend BackendName) const;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

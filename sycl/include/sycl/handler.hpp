@@ -16,6 +16,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/reduction_forward.hpp>
@@ -42,7 +43,6 @@
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
@@ -66,18 +66,7 @@
 // 41(!!!) includes of SYCL headers + 10 includes of standard headers.
 // 3300+ lines of code
 
-// SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
-#if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
-#define __SYCL_NONCONST_FUNCTOR__
-#endif
-
-// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
-//                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAMTYPE KernelType
-#else
 #define _KERNELFUNCPARAMTYPE const KernelType &
-#endif
 #define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
 #if defined(__SYCL_UNNAMED_LAMBDA__)
@@ -151,6 +140,7 @@ inline namespace _V1 {
 
 // Forward declaration
 
+template <bundle_state State> class kernel_bundle;
 class handler;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
@@ -162,6 +152,8 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
+template <typename, typename>
+class work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -170,6 +162,8 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
+class kernel_bundle_impl;
+class work_group_memory_impl;
 class handler_impl;
 class kernel_impl;
 class queue_impl;
@@ -227,22 +221,6 @@ __SYCL_EXPORT void *getValueFromDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base
         &DynamicParamBase);
 
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-template <typename T> struct NotIntMsg;
-
-template <int Dims> struct NotIntMsg<range<Dims>> {
-  constexpr static const char *Msg =
-      "Provided range is out of integer limits. Pass "
-      "`-fno-sycl-id-queries-fit-in-int' to disable range check.";
-};
-
-template <int Dims> struct NotIntMsg<id<Dims>> {
-  constexpr static const char *Msg =
-      "Provided offset is out of integer limits. Pass "
-      "`-fno-sycl-id-queries-fit-in-int' to disable offset check.";
-};
-#endif
-
 // Helper for merging properties with ones defined in an optional kernel functor
 // getter.
 template <typename KernelType, typename PropertiesT, typename Cond = void>
@@ -264,70 +242,6 @@ struct GetMergedKernelProperties<
   using type = ext::oneapi::experimental::detail::merged_properties_t<
       PropertiesT, get_method_properties>;
 };
-
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-template <typename T, typename ValT>
-typename std::enable_if_t<std::is_same<ValT, size_t>::value ||
-                          std::is_same<ValT, unsigned long long>::value>
-checkValueRangeImpl(ValT V) {
-  static constexpr size_t Limit =
-      static_cast<size_t>((std::numeric_limits<int>::max)());
-  if (V > Limit)
-    throw sycl::exception(make_error_code(errc::nd_range), NotIntMsg<T>::Msg);
-}
-#endif
-
-template <int Dims, typename T>
-typename std::enable_if_t<std::is_same_v<T, range<Dims>> ||
-                          std::is_same_v<T, id<Dims>>>
-checkValueRange(const T &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  for (size_t Dim = 0; Dim < Dims; ++Dim)
-    checkValueRangeImpl<T>(V[Dim]);
-
-  {
-    unsigned long long Product = 1;
-    for (size_t Dim = 0; Dim < Dims; ++Dim) {
-      Product *= V[Dim];
-      // check value now to prevent product overflow in the end
-      checkValueRangeImpl<T>(Product);
-    }
-  }
-#else
-  (void)V;
-#endif
-}
-
-template <int Dims>
-void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  checkValueRange<Dims>(R);
-  checkValueRange<Dims>(O);
-
-  for (size_t Dim = 0; Dim < Dims; ++Dim) {
-    unsigned long long Sum = R[Dim] + O[Dim];
-
-    checkValueRangeImpl<range<Dims>>(Sum);
-  }
-#else
-  (void)R;
-  (void)O;
-#endif
-}
-
-template <int Dims, typename T>
-typename std::enable_if_t<std::is_same_v<T, nd_range<Dims>>>
-checkValueRange(const T &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  checkValueRange<Dims>(V.get_global_range());
-  checkValueRange<Dims>(V.get_local_range());
-  checkValueRange<Dims>(V.get_offset());
-
-  checkValueRange<Dims>(V.get_global_range(), V.get_offset());
-#else
-  (void)V;
-#endif
-}
 
 template <int Dims> class RoundedRangeIDGenerator {
   id<Dims> Id;
@@ -532,30 +446,6 @@ private:
                             "a single kernel or explicit memory operation.");
   }
 
-  constexpr static int AccessTargetMask = 0x7ff;
-  /// According to section 4.7.6.11. of the SYCL specification, a local accessor
-  /// must not be used in a SYCL kernel function that is invoked via single_task
-  /// or via the simple form of parallel_for that takes a range parameter.
-  template <typename KernelName, typename KernelType>
-  void throwOnLocalAccessorMisuse() const {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
-      const detail::kernel_param_desc_t ParamDesc =
-          detail::getKernelParamDesc<NameT>(I);
-      const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
-      const access::target AccTarget =
-          static_cast<access::target>(ParamDesc.info & AccessTargetMask);
-      if ((Kind == detail::kernel_param_kind_t::kind_accessor) &&
-          (AccTarget == target::local))
-        throw sycl::exception(
-            make_error_code(errc::kernel_argument),
-            "A local accessor must not be used in a SYCL kernel function "
-            "that is invoked via single_task or via the simple form of "
-            "parallel_for that takes a range parameter.");
-    }
-  }
-
   /// Extracts and prepares kernel arguments from the lambda using information
   /// from the built-ins or integration header.
   void extractArgsAndReqsFromLambda(
@@ -667,8 +557,8 @@ private:
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
   void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
-    set_arg(ArgIndex, std::move(Arg));
-    setArgsHelper(++ArgIndex, std::move(Args)...);
+    set_arg(ArgIndex, std::forward<T>(Arg));
+    setArgsHelper(++ArgIndex, std::forward<Ts>(Args)...);
   }
 
   void setArgsHelper(int) {}
@@ -705,6 +595,8 @@ private:
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
+
+  void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
 
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -780,6 +672,11 @@ private:
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
+
+  // TODO: Legacy symbol, remove when ABI breaking is allowed.
+  void verifyUsedKernelBundle(const std::string &KernelName) {
+    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
+  }
 
   /// Stores lambda to the template-free object
   ///
@@ -1197,12 +1094,14 @@ private:
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 KernelType KernelFunc) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse<KernelName, KernelType>();
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
                             "a range must fit within size_t");
+#endif
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
@@ -1266,7 +1165,6 @@ private:
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CGType::Kernel);
-      setNDRangeUsed(false);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
@@ -1289,7 +1187,6 @@ private:
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CGType::Kernel);
-      setNDRangeUsed(false);
 #endif
 #else
       (void)KernelFunc;
@@ -1314,7 +1211,6 @@ private:
             typename PropertiesT>
   void parallel_for_impl(nd_range<Dims> ExecutionRange, PropertiesT Props,
                          _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1332,6 +1228,7 @@ private:
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     detail::checkValueRange<Dims>(ExecutionRange);
@@ -1340,7 +1237,6 @@ private:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
 #endif
   }
 
@@ -1353,17 +1249,19 @@ private:
   /// \param Kernel is a SYCL kernel function.
   /// \param Properties is the properties.
   template <int Dims, typename PropertiesT>
-  void parallel_for_impl(range<Dims> NumWorkItems, PropertiesT Props,
-                         kernel Kernel) {
+  void parallel_for_impl([[maybe_unused]] range<Dims> NumWorkItems,
+                         [[maybe_unused]] PropertiesT Props,
+                         [[maybe_unused]] kernel Kernel) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     processLaunchProperties<PropertiesT>(Props);
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
+#endif
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1376,17 +1274,19 @@ private:
   /// \param Properties is the properties.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims, typename PropertiesT>
-  void parallel_for_impl(nd_range<Dims> NDRange, PropertiesT Props,
-                         kernel Kernel) {
+  void parallel_for_impl([[maybe_unused]] nd_range<Dims> NDRange,
+                         [[maybe_unused]] PropertiesT Props,
+                         [[maybe_unused]] kernel Kernel) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     processLaunchProperties(Props);
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
+#endif
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -1405,7 +1305,6 @@ private:
   void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
                                            PropertiesT Props,
                                            _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1417,6 +1316,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
@@ -1424,7 +1324,6 @@ private:
     setNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1447,7 +1346,6 @@ private:
                                            range<Dims> WorkGroupSize,
                                            PropertiesT Props,
                                            _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1460,6 +1358,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
@@ -1728,8 +1627,6 @@ private:
   void single_task_lambda_impl(PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
     (void)Props;
-    throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1737,6 +1634,8 @@ private:
 
     kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
+    throwOnKernelParameterMisuse<KernelName, KernelType>();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -1812,36 +1711,15 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value);
 
-    setStateSpecConstSet();
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-        KernelBundleImplPtr)
-        .set_specialization_constant<SpecName>(Value);
-  }
-
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
-  get_specialization_constant() const {
-
-    if (isStateExplicitKernelBundle())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Specialization constants cannot be read after "
-                            "explicitly setting the used kernel bundle");
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-               KernelBundleImplPtr)
-        .get_specialization_constant<SpecName>();
-  }
+  get_specialization_constant() const;
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
@@ -1935,6 +1813,16 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(
+      int ArgIndex,
+      ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
+    // slice the base class object out of Arg
+    detail::work_group_memory_impl &ArgImpl = Arg;
+    setArgHelper(ArgIndex, ArgImpl);
+  }
+
   // set_arg for graph dynamic_parameters
   template <typename T>
   void set_arg(int argIndex,
@@ -1953,9 +1841,8 @@ public:
   ///
   /// \param Args are argument values to be set.
   template <typename... Ts> void set_args(Ts &&...Args) {
-    setArgsHelper(0, std::move(Args)...);
+    setArgsHelper(0, std::forward<Ts>(Args)...);
   }
-
   /// Defines and invokes a SYCL kernel function as a function object type.
   ///
   /// If it is a named function object and the function object type is
@@ -2004,11 +1891,13 @@ public:
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  ext_codeplay_enqueue_native_command(FuncT &&Func) {
+  ext_codeplay_enqueue_native_command([[maybe_unused]] FuncT &&Func) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
             sycl_ext_codeplay_enqueue_native_command>();
     ext_codeplay_enqueue_native_command_impl(Func);
+#endif
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -2029,7 +1918,6 @@ public:
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
@@ -2040,6 +1928,7 @@ public:
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
@@ -2047,7 +1936,6 @@ public:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
 #endif
   }
 
@@ -2136,16 +2024,18 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    kernel Kernel) {
+  void parallel_for([[maybe_unused]] range<Dims> NumWorkItems,
+                    [[maybe_unused]] id<Dims> WorkItemOffset,
+                    [[maybe_unused]] kernel Kernel) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
+#endif
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -2169,7 +2059,6 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
@@ -2177,6 +2066,7 @@ public:
     (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -2205,7 +2095,6 @@ public:
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
@@ -2215,13 +2104,13 @@ public:
     (void)NumWorkItems;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2245,9 +2134,6 @@ public:
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
@@ -2256,13 +2142,15 @@ public:
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(Kernel);
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2285,9 +2173,6 @@ public:
             int Dims>
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
                     _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
@@ -2296,13 +2181,15 @@ public:
     (void)NDRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(Kernel);
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2329,9 +2216,6 @@ public:
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
@@ -2340,6 +2224,9 @@ public:
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(Kernel);
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     detail::checkValueRange<Dims>(NumWorkGroups);
@@ -2370,9 +2257,6 @@ public:
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
@@ -2382,6 +2266,9 @@ public:
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(Kernel);
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     nd_range<Dims> ExecRange =
@@ -2451,8 +2338,10 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
+#endif
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2464,8 +2353,10 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
+#endif
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2477,8 +2368,10 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
+#endif
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2514,8 +2407,10 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
+#endif
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2567,8 +2462,10 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             std::shared_ptr<T_Dst> Dst) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (Src.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Src);
+#endif
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2595,8 +2492,10 @@ public:
   void
   copy(std::shared_ptr<T_Src> Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (Dst.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Dst);
+#endif
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2624,8 +2523,10 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             T_Dst *Dst) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (Src.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Src);
+#endif
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2657,8 +2558,10 @@ public:
   void
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (Dst.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Dst);
+#endif
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2699,10 +2602,12 @@ public:
             accessor<T_Dst, Dims_Dst, AccessMode_Dst, AccessTarget_Dst,
                      IsPlaceholder_Dst>
                 Dst) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (Src.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Src);
     if (Dst.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Dst);
+#endif
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget_Src),
@@ -2745,8 +2650,10 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void
   update_host(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Acc) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (Acc.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Acc);
+#endif
 
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
@@ -2777,8 +2684,10 @@ public:
   fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
            Dst,
        const T &Pattern) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (Dst.is_placeholder())
       checkIfPlaceholderIsBoundToHandler(Dst);
+#endif
 
     throwIfActionIsCreated();
     setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
@@ -2983,9 +2892,12 @@ public:
   /// \param NumBytes is a number of bytes to copy.
   /// \param DestOffset is the offset into \p Dest to copy to.
   template <typename T, typename PropertyListT>
-  void memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
-              const void *Src, size_t NumBytes = sizeof(T),
-              size_t DestOffset = 0) {
+  void memcpy([[maybe_unused]] ext::oneapi::experimental::device_global<
+                  T, PropertyListT> &Dest,
+              [[maybe_unused]] const void *Src,
+              [[maybe_unused]] size_t NumBytes = sizeof(T),
+              [[maybe_unused]] size_t DestOffset = 0) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
             sycl_ext_oneapi_device_global>();
@@ -3005,6 +2917,7 @@ public:
     }
 
     memcpyToDeviceGlobal(&Dest, Src, IsDeviceImageScoped, NumBytes, DestOffset);
+#endif
   }
 
   /// Copies data from a device_global to USM memory.
@@ -3016,10 +2929,12 @@ public:
   /// \param NumBytes is a number of bytes to copy.
   /// \param SrcOffset is the offset into \p Src to copy from.
   template <typename T, typename PropertyListT>
-  void
-  memcpy(void *Dest,
-         const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
-         size_t NumBytes = sizeof(T), size_t SrcOffset = 0) {
+  void memcpy([[maybe_unused]] void *Dest,
+              [[maybe_unused]] const ext::oneapi::experimental::device_global<
+                  T, PropertyListT> &Src,
+              [[maybe_unused]] size_t NumBytes = sizeof(T),
+              [[maybe_unused]] size_t SrcOffset = 0) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfGraphAssociated<
         ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
             sycl_ext_oneapi_device_global>();
@@ -3040,6 +2955,7 @@ public:
 
     memcpyFromDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
                            SrcOffset);
+#endif
   }
 
   /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
@@ -3147,7 +3063,7 @@ public:
   /// incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
+  /// \param SrcOffset is an offset from the source origin measured in pixels
   ///                   (pixel size determined by \p SrcImgDesc )
   /// \param SrcImgDesc is the source image descriptor
   /// \param Dest is a USM pointer to the destination memory.
@@ -3192,6 +3108,32 @@ public:
   ext_oneapi_copy(const ext::oneapi::experimental::image_mem_handle Src,
                   ext::oneapi::experimental::image_mem_handle Dest,
                   const ext::oneapi::experimental::image_descriptor &ImageDesc);
+
+  /// Copies data from device to device memory, where \p Src and \p Dest
+  /// are opaque image memory handles. Allows for a sub-region copy, where
+  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc
+  /// An exception is thrown if either \p Src or \p Dest is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  void ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
 
   /// Copies data from one memory region to another, where \p Src and \p Dest
   /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
@@ -3268,7 +3210,6 @@ public:
 private:
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;
-
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::string MKernelName;
@@ -3376,6 +3317,7 @@ private:
                                  size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
+  friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;
 
   bool DisableRangeRounding();
 
@@ -3564,21 +3506,6 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
-  template <typename T, int Dims, access::mode AccessMode,
-            access::target AccessTarget,
-            access::placeholder IsPlaceholder = access::placeholder::false_t,
-            typename PropertyListT = property_list>
-  void checkIfPlaceholderIsBoundToHandler(
-      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
-          Acc) {
-    auto *AccBase = reinterpret_cast<detail::AccessorBaseHost *>(&Acc);
-    detail::AccessorImplHost *Req = detail::getSyclObjImpl(*AccBase).get();
-    if (HasAssociatedAccessor(Req, AccessTarget))
-      throw sycl::exception(make_error_code(errc::kernel_argument),
-                            "placeholder accessor must be bound by calling "
-                            "handler::require() before it can be used.");
-  }
-
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {
     Default = 0,
@@ -3594,6 +3521,56 @@ private:
   // Set using cuda thread block cluster launch flag and set the launch bounds.
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
 
+  // Various checks that are only meaningful for host compilation, because they
+  // result in runtime errors (i.e. exceptions being thrown). To save time
+  // during device compilations (by reducing amount of templates we have to
+  // instantiate), those are only available during host compilation pass.
+#ifndef __SYCL_DEVICE_ONLY__
+  constexpr static int AccessTargetMask = 0x7ff;
+  /// According to section 4.7.6.11. of the SYCL specification, a local accessor
+  /// must not be used in a SYCL kernel function that is invoked via single_task
+  /// or via the simple form of parallel_for that takes a range parameter.
+  template <typename KernelName, typename KernelType>
+  void throwOnKernelParameterMisuse() const {
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
+      const detail::kernel_param_desc_t ParamDesc =
+          detail::getKernelParamDesc<NameT>(I);
+      const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
+      const access::target AccTarget =
+          static_cast<access::target>(ParamDesc.info & AccessTargetMask);
+      if ((Kind == detail::kernel_param_kind_t::kind_accessor) &&
+          (AccTarget == target::local))
+        throw sycl::exception(
+            make_error_code(errc::kernel_argument),
+            "A local accessor must not be used in a SYCL kernel function "
+            "that is invoked via single_task or via the simple form of "
+            "parallel_for that takes a range parameter.");
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
+        throw sycl::exception(
+            make_error_code(errc::kernel_argument),
+            "A work group memory object must not be used in a SYCL kernel "
+            "function that is invoked via single_task or via the simple form "
+            "of parallel_for that takes a range parameter.");
+    }
+  }
+
+  template <typename T, int Dims, access::mode AccessMode,
+            access::target AccessTarget,
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void checkIfPlaceholderIsBoundToHandler(
+      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+          Acc) {
+    auto *AccBase = reinterpret_cast<detail::AccessorBaseHost *>(&Acc);
+    detail::AccessorImplHost *Req = detail::getSyclObjImpl(*AccBase).get();
+    if (HasAssociatedAccessor(Req, AccessTarget))
+      throw sycl::exception(make_error_code(errc::kernel_argument),
+                            "placeholder accessor must be bound by calling "
+                            "handler::require() before it can be used.");
+  }
+
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
   void throwIfGraphAssociated() const {
@@ -3608,9 +3585,12 @@ private:
                                 "for use with the SYCL Graph extension.");
     }
   }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Set that an ND Range was used during a call to parallel_for
   void setNDRangeUsed(bool Value);
+#endif
 
   inline void internalProfilingTagImpl() {
     throwIfActionIsCreated();

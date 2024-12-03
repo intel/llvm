@@ -355,7 +355,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
-                              const SubmitPostProcessF *PostProcess) {
+                              const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
@@ -374,7 +374,9 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  if (PostProcess) {
+  if (SubmitInfo.PostProcessorFunc()) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+
     bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;
 
@@ -385,7 +387,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                              Handler.MKernelName.c_str());
     finalizeHandler(Handler, Event);
 
-    (*PostProcess)(IsKernel, KernelUsesAssert, Event);
+    PostProcess(IsKernel, KernelUsesAssert, Event);
   } else
     finalizeHandler(Handler, Event);
 
@@ -416,7 +418,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
         CGH.depends_on(DepEvents);
         HandlerFunc(CGH);
       },
-      Self, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+      Self, /*CodeLoc*/ {}, /*SubmissionInfo*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
@@ -455,6 +457,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent,
                   EventImpl);
         EventImpl->setHandle(UREvent);
+        EventImpl->setEnqueued();
       }
 
       if (isInOrder()) {
@@ -803,6 +806,33 @@ void queue_impl::doUnenqueuedCommandCleanup(
     tryToCleanup(MExtGraphDeps);
   else
     tryToCleanup(MDefaultGraphDeps);
+}
+
+void queue_impl::verifyProps(const property_list &Props) const {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/queue_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/properties/queue_properties.def>
+    default:
+      return false;
+    }
+  };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                CheckPropertiesWithData);
 }
 
 } // namespace detail

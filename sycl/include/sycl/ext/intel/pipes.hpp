@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp> // for ConstantPipeStorage
+#include <sycl/__spirv/spirv_types.hpp> // for ConstantPipeStorage
 #include <sycl/exception.hpp>         // for make_error_code, errc, exception
 
 #include <stddef.h> // for size_t

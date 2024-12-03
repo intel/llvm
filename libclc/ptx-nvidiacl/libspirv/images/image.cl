@@ -3110,7 +3110,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 3, j8, v4j32,
                                                 COORD_INPUT_3D, COORD_PARAMS_3D,
                                                 GRAD_INPUT_3D, dXx, dXy, dXz,
                                                 dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 1, f16, v4j32,
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 1, f16, v4f32,
                                                 COORD_INPUT_1D, COORD_PARAMS_1D,
                                                 GRAD_INPUT_1D, dX, dY)
 _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 2, f16, v4f32,
@@ -3165,7 +3165,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 2, i, i32, Dv2_f, float2 coord,
                                           COORD_PARAMS_2D, S3_S3_, 2, dX.x,
                                           dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 3, i, i32, Dv3_f, float3 coord,
-                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          COORD_PARAMS_3D, S3_S3_, 3, dX.x,
                                           dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 1, Dv2_i, v2i32, f, float coord,
                                           COORD_PARAMS_1D, S3_S3_, , dX, dY)
@@ -3174,7 +3174,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 2, Dv2_i, v2i32, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 3, Dv2_i, v2i32, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 1, Dv4_i, v4i32, f, float coord,
                                           coord, S3_S3_, , dX, dY)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_f,
@@ -3182,7 +3182,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 3, Dv4_i, v4i32, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // UInt
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 1, j, j32, f, float coord,
@@ -3191,7 +3191,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 2, j, j32, Dv2_f, float2 coord,
                                           COORD_PARAMS_2D, S3_S3_, 2, dX.x,
                                           dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 3, j, j32, Dv3_f, float3 coord,
-                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          COORD_PARAMS_3D, S3_S3_, 3, dX.x,
                                           dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 1, Dv2_j, v2j32, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
@@ -3201,7 +3201,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 1, Dv4_j, v4j32, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3210,7 +3210,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Float
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 1, f, f32, f, float coord,
@@ -3219,7 +3219,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 2, f, f32, Dv2_f, float2 coord,
                                           COORD_PARAMS_2D, S3_S3_, 2, dX.x,
                                           dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 3, f, f32, Dv3_f, float3 coord,
-                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          COORD_PARAMS_3D, S3_S3_, 3, dX.x,
                                           dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 1, Dv2_f, v2f32, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
@@ -3229,7 +3229,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 2, Dv2_f, v2f32, S0_,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 3, Dv2_f, v2f32, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 1, Dv4_f, v4f32, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3238,7 +3238,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 3, Dv4_f, v4f32, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Short
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 1, s, i16, f, float coord,
@@ -3247,7 +3247,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 2, s, i16, Dv2_f, float2 coord,
                                           COORD_PARAMS_2D, S3_S3_, 2, dX.x,
                                           dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 3, s, i16, Dv3_f, float3 coord,
-                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          COORD_PARAMS_3D, S3_S3_, 3, dX.x,
                                           dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 1, Dv2_s, v2i16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
@@ -3257,7 +3257,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 3, Dv2_s, v2i16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 1, Dv4_s, v4i16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3266,7 +3266,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 3, Dv4_s, v4i16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Unsigned Short
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 1, t, j16, f, float coord,
@@ -3276,7 +3276,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 2, t, j16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 3, t, j16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S3_S3_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 1, Dv2_t, v2j16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3285,7 +3285,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 2, Dv2_t, v2j16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 3, Dv2_t, v2j16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 1, Dv4_t, v4j16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3294,7 +3294,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 2, Dv4_t, v4j16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 3, Dv4_t, v4j16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Char
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 1, a, i8, f, float coord,
@@ -3303,7 +3303,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 2, a, i8, Dv2_f, float2 coord,
                                           COORD_PARAMS_2D, S3_S3_, 2, dX.x,
                                           dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 3, a, i8, Dv3_f, float3 coord,
-                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          COORD_PARAMS_3D, S3_S3_, 3, dX.x,
                                           dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 1, Dv2_a, v2i8, f, float coord,
                                           COORD_PARAMS_1D, S3_S3_, , dX, dY)
@@ -3312,7 +3312,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 3, Dv2_a, v2i8, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 1, Dv4_a, v4i8, f, float coord,
                                           COORD_PARAMS_1D, S3_S3_, , dX, dY)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f,
@@ -3320,7 +3320,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 3, Dv4_a, v4i8, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Unsigned Char
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 1, h, j8, f, float coord,
@@ -3329,7 +3329,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 2, h, j8, Dv2_f, float2 coord,
                                           COORD_PARAMS_2D, S3_S3_, 2, dX.x,
                                           dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 3, h, j8, Dv3_f, float3 coord,
-                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          COORD_PARAMS_3D, S3_S3_, 3, dX.x,
                                           dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 1, Dv2_h, v2j8, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
@@ -3339,7 +3339,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 2, Dv2_h, v2j8, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 3, Dv2_h, v2j8, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 1, Dv4_h, v4j8, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3348,7 +3348,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 2, Dv4_h, v4j8, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 3, Dv4_h, v4j8, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Half
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 1, DF16_, f16, f, float coord,
@@ -3358,7 +3358,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 2, DF16_, f16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 3, DF16_, f16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S3_S3_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3367,7 +3367,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f,
                                           float coord, COORD_PARAMS_1D, S3_S3_,
                                           , dX, dY)
@@ -3376,7 +3376,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_f,
                                           2, dX.x, dX.y, dY.x, dY.y)
 _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_f,
                                           float3 coord, COORD_PARAMS_3D, S4_S4_,
-                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+                                          3, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 #undef COORD_PARAMS_1D
 #undef COORD_PARAMS_2D

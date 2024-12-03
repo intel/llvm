@@ -74,7 +74,6 @@ list(APPEND CLANG_TEST_DEPS
   clang-offload-deps
   clang-offload-extract
   clang-import-test
-  clang-rename
   clang-refactor
   clang-diff
   clang-installapi
@@ -132,6 +131,7 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-dwarfdump
     llvm-ifs
     llvm-lto2
+    llvm-mc
     llvm-modextract
     llvm-nm
     llvm-objcopy

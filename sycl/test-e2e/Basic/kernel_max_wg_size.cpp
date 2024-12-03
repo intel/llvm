@@ -5,12 +5,15 @@
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc
 // REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // UNSUPPORTED: cuda || hip
+// UNSUPPORTED-INTENDED: This extension is currently implemented in DPC++ only
+// for Intel GPU devices and only when using the Level Zero backend or OpenCL
+// backend.
 
-// clang-format off
 #include <sycl/detail/core.hpp>
-#include <sycl/usm.hpp>
+
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
-// clang-format on
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

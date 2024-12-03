@@ -6,6 +6,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 const static sycl::specialization_id<int> SpecConst{42};

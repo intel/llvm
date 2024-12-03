@@ -61,7 +61,7 @@ using namespace llvm;
 namespace llvm {
 class IntrinsicInst;
 class IRBuilderBase;
-}
+} // namespace llvm
 
 namespace SPIRV {
 
@@ -189,6 +189,7 @@ enum SPIRAddressSpace {
   SPIRAS_GlobalHost,
   SPIRAS_Input,
   SPIRAS_Output,
+  SPIRAS_CodeSectionINTEL,
   SPIRAS_Count,
 };
 
@@ -199,6 +200,8 @@ template <> inline void SPIRVMap<SPIRAddressSpace, std::string>::init() {
   add(SPIRAS_Local, "Local");
   add(SPIRAS_Generic, "Generic");
   add(SPIRAS_Input, "Input");
+  add(SPIRAS_CodeSectionINTEL, "CodeSectionINTEL");
+
   add(SPIRAS_GlobalDevice, "GlobalDevice");
   add(SPIRAS_GlobalHost, "GlobalHost");
 }
@@ -215,6 +218,7 @@ inline void SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind>::init() {
   add(SPIRAS_Input, StorageClassInput);
   add(SPIRAS_GlobalDevice, StorageClassDeviceOnlyINTEL);
   add(SPIRAS_GlobalHost, StorageClassHostOnlyINTEL);
+  add(SPIRAS_CodeSectionINTEL, StorageClassCodeSectionINTEL);
 }
 typedef SPIRVMap<SPIRAddressSpace, SPIRVStorageClassKind> SPIRSPIRVAddrSpaceMap;
 
@@ -552,6 +556,19 @@ inline unsigned findFirstPtr(const Container &Args) {
   return PtArg - Args.begin();
 }
 
+// Utility function to check if a type is a TypedPointerType
+inline bool isTypedPointerType(llvm::Type *Ty) {
+  return llvm::isa<llvm::TypedPointerType>(Ty);
+}
+
+template <typename Container>
+inline unsigned findFirstPtrType(const Container &Args) {
+  auto PtArg = std::find_if(Args.begin(), Args.end(), [](Type *T) {
+    return T->isPointerTy() || isTypedPointerType(T);
+  });
+  return PtArg - Args.begin();
+}
+
 bool isSupportedTriple(Triple T);
 void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr);
 void addFnAttr(CallInst *Call, Attribute::AttrKind Attr);
@@ -800,13 +817,14 @@ Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V,
 //  an integer pointer type.
 /// \param Len is the length of the array.
 /// \param V is the value to fill the array.
-Value *getScalarOrArrayConstantInt(Instruction *P, Type *T, unsigned Len,
-                                   uint64_t V, bool IsSigned = false);
+Value *getScalarOrArrayConstantInt(BasicBlock::iterator P, Type *T,
+                                   unsigned Len, uint64_t V,
+                                   bool IsSigned = false);
 
 /// Get the array from GEP.
 /// \param V is a GEP whose pointer operand is a pointer to an array of size
 /// \param Size.
-Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos);
+Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos);
 
 void dumpUsers(Value *V, StringRef Prompt = "");
 
@@ -919,7 +937,7 @@ std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
 PointerType *getInt8PtrTy(PointerType *T);
 
 /// Cast a value to a i8* by inserting a cast instruction.
-Value *castToInt8Ptr(Value *V, Instruction *Pos);
+Value *castToInt8Ptr(Value *V, BasicBlock::iterator Pos);
 
 template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
 #define _SPIRV_OP(x) add(#x, OpType##x);

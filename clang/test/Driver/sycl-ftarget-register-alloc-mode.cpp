@@ -2,7 +2,7 @@
 
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:auto %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=AUTO_AOT %s
+// RUN:   | FileCheck -check-prefix=AUTO_AOT %s -DDEVICE=pvc
 
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:large %s 2>&1 \
@@ -18,19 +18,27 @@
 
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc" %s 2>&1 \
-// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
+
+// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN:    -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
+
+// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN:    -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device 0x0BD5" %s 2>&1 \
-// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device 12.60.7" %s 2>&1 \
-// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=12.60.7
 
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc,mtl-s" %s 2>&1 \
-// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
 // RUN: %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
@@ -88,7 +96,7 @@
 // NO_PVC-NOT: -device_options
 // NO_PVC-NOT: -ze-opt-large-register-file
 
-// AUTO_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch={{.*}},kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode{{.*}}"
+// AUTO_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch={{.*}},kind=sycl,compile-opts=-device_options [[DEVICE]] -ze-intel-enable-auto-large-GRF-mode{{.*}}"
 
 // LARGE_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=,kind=sycl,compile-opts=-device_options pvc -ze-opt-large-register-file"
 

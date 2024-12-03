@@ -20,7 +20,7 @@ from lit.llvm.subst import ToolSubst, FindTool
 config.name = "SYCL"
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".c", ".cpp"]
+config.suffixes = [".cpp"]
 
 config.excludes = ["Inputs"]
 
@@ -36,6 +36,21 @@ config.recursiveExpansionLimit = 10
 # To be filled by lit.local.cfg files.
 config.required_features = []
 config.unsupported_features = []
+
+# test-mode: Set if tests should run normally or only build/run
+match lit_config.params.get("test-mode", "full"):
+    case "run-only":
+        config.test_mode = "run-only"
+        config.available_features.add("run-mode")
+    case "build-only":
+        config.test_mode = "build-only"
+        config.sycl_devices = []
+    case "full":
+        config.test_mode = "full"
+        config.available_features.add("run-mode")
+        config.available_features.add("build-and-run-mode")
+    case _:
+        lit_config.error("Invalid argument for test-mode")
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
@@ -75,6 +90,7 @@ llvm_config.with_system_environment(
     [
         "PATH",
         "OCL_ICD_FILENAMES",
+        "OCL_ICD_VENDORS",
         "CL_CONFIG_DEVICES",
         "SYCL_DEVICE_ALLOWLIST",
         "SYCL_CONFIG_FILE_NAME",
@@ -281,6 +297,18 @@ sp = subprocess.getstatusoutput(
 if sp[0] == 0:
     config.available_features.add("preview-breaking-changes-supported")
 
+# Check if clang is built with ZSTD and compression support.
+fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+ps = subprocess.Popen(
+    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+)
+op = ps.communicate(input=b"")
+if ps.wait() == 0:
+    config.available_features.add("zstd")
+
 # Check for CUDA SDK
 check_cuda_file = "cuda_include.cpp"
 with open_check_file(check_cuda_file) as fp:
@@ -430,10 +458,6 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
-        if "Intel(R) Data Center GPU Max 1100" in line:
-            config.available_features.add("gpu-intel-pvc-1T")
-        if "gfx90a" in line:
-            config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")
@@ -529,42 +553,6 @@ if "cuda:gpu" in config.sycl_devices:
     else:
         config.cuda_libs_dir = os.path.join(os.environ["CUDA_PATH"], r"lib64")
         config.cuda_include = os.path.join(os.environ["CUDA_PATH"], "include")
-
-# FIXME: This needs to be made per-device as well, possibly with a helper.
-if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
-    if not config.amd_arch:
-        lit_config.error(
-            "Cannot run tests for HIP without an offload-arch. Please "
-            + "specify one via the 'amd_arch' parameter or 'AMD_ARCH' CMake "
-            + "variable."
-        )
-    llvm_config.with_system_environment("ROCM_PATH")
-    config.available_features.add("hip_amd")
-    arch_flag = (
-        "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
-    )
-    config.substitutions.append(
-        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
-    )
-elif "hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
-    config.available_features.add("hip_nvidia")
-    arch_flag = ""
-else:
-    arch_flag = ""
-
-if lit_config.params.get("compatibility_testing", False):
-    config.substitutions.append(("%clangxx", " true "))
-    config.substitutions.append(("%clang", " true "))
-else:
-    config.substitutions.append(
-        (
-            "%clangxx",
-            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
-        )
-    )
-    config.substitutions.append(
-        ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
-    )
 
 config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 
@@ -668,6 +656,8 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
+# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
+arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
@@ -720,6 +710,15 @@ for sycl_device in config.sycl_devices:
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace("info::device::sub_group_sizes: ", "")
             dev_sg_sizes.append(sg_sizes_str.strip().split(" "))
+        if re.match(r" *DeviceID*", line):
+            gpu_intel_pvc_1T_device_id = "3034"
+            gpu_intel_pvc_2T_device_id = "3029"
+            _, device_id = line.strip().split(":", 1)
+            device_id = device_id.strip()
+            if device_id == gpu_intel_pvc_1T_device_id:             
+                config.available_features.add("gpu-intel-pvc-1T")
+            if device_id == gpu_intel_pvc_2T_device_id:
+                config.available_features.add("gpu-intel-pvc-2T")
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
@@ -780,11 +779,46 @@ for sycl_device in config.sycl_devices:
     # Use short names for LIT rules.
     features.add(be)
 
+    if be == "hip" and config.hip_platform == "AMD":
+        if not config.amd_arch:
+            # Guaranteed to be a single element in the set
+            arch = [x for x in architecture_feature][0]
+            amd_arch_prefix = "arch-amd_gpu_"
+            if amd_arch_prefix not in arch or len(architecture_feature) != 1:
+                lit_config.error(
+                    "Cannot detect architecture for AMD HIP device, specify it explicitly"
+                )
+            config.amd_arch = arch.replace(amd_arch_prefix, "")
+        llvm_config.with_system_environment("ROCM_PATH")
+        config.available_features.add("hip_amd")
+        arch_flag = (
+            "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
+        )
+        config.substitutions.append(
+            ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
+        )
+    elif be == "hip" and config.hip_platform == "NVIDIA":
+        config.available_features.add("hip_nvidia")
+
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
         config.intel_driver_ver[sycl_device] = intel_driver_ver
     else:
         config.intel_driver_ver[sycl_device] = {}
+
+if lit_config.params.get("compatibility_testing", False):
+    config.substitutions.append(("%clangxx", " true "))
+    config.substitutions.append(("%clang", " true "))
+else:
+    config.substitutions.append(
+        (
+            "%clangxx",
+            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
+        )
+    )
+    config.substitutions.append(
+        ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
+    )
 
 # Set timeout for a single test
 try:

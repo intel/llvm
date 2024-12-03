@@ -47,7 +47,7 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
       sycl::detail::getSyclObjImpl(SyclContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
 #ifndef NDEBUG
-  size_t InfoOutputSize;
+  size_t InfoOutputSize = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
       ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
       0, nullptr, &InfoOutputSize);

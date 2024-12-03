@@ -17,6 +17,7 @@
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/info/info_desc.hpp>
+#include <sycl/queue.hpp>
 
 #include <cassert>
 #include <memory>
@@ -33,7 +34,7 @@ class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a UrKernel
   ///
-  /// This constructor is used for plug-in interoperability. It always marks
+  /// This constructor is used for UR adapter interoperability. It always marks
   /// kernel as being created from source.
   ///
   /// \param Kernel is a valid UrKernel instance

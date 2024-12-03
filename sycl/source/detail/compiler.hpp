@@ -31,6 +31,9 @@
 #define __SYCL_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
 #define __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
+// JIT compilation targets for CUDA & HIP devices.
+#define __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64 "llvm_nvptx64"
+#define __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN "llvm_amdgcn"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
@@ -115,7 +118,8 @@ enum sycl_device_binary_type : uint8_t {
   SYCL_DEVICE_BINARY_TYPE_NONE = 0,   // undetermined
   SYCL_DEVICE_BINARY_TYPE_NATIVE = 1, // specific to a device
   SYCL_DEVICE_BINARY_TYPE_SPIRV = 2,
-  SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3
+  SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3,
+  SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE = 4
 };
 
 // Device binary descriptor version supported by this library.

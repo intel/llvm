@@ -75,7 +75,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
         // loop localrange
         [=](nd_item<2> it)
 #ifdef SG_SZ
-            [[intel::reqd_sub_group_size(SG_SZ)]]
+            [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif // SG_SZ
         {
           // sg::load and sg::store expect decorations to be ON

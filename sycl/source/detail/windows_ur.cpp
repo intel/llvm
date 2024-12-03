@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/backend.hpp>
 #include <sycl/detail/defines.hpp>
 
 #include <cassert>

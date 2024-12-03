@@ -643,6 +643,15 @@ declare float @log2f(float)
 ; CHECK: declare x86_fp80 @log2l(x86_fp80) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
 declare x86_fp80 @log2l(x86_fp80)
 
+; CHECK: declare i32 @ilogb(double) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare i32 @ilogb(double)
+
+; CHECK: declare i32 @ilogbf(float) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare i32 @ilogbf(float)
+
+; CHECK: declare i32 @ilogbl(x86_fp80) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare i32 @ilogbl(x86_fp80)
+
 ; CHECK: declare double @logb(double) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
 declare double @logb(double)
 
@@ -829,6 +838,16 @@ declare float @remquof(float, float, ptr)
 
 ; CHECK: declare x86_fp80 @remquol(x86_fp80, x86_fp80, ptr nocapture) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
 declare x86_fp80 @remquol(x86_fp80, x86_fp80, ptr)
+
+
+; CHECK: declare double @fdim(double, double) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare double @fdim(double, double)
+
+; CHECK: declare float @fdimf(float, float) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare float @fdimf(float, float)
+
+; CHECK: declare x86_fp80 @fdiml(x86_fp80, x86_fp80) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare x86_fp80 @fdiml(x86_fp80, x86_fp80)
 
 ; CHECK: declare noundef i32 @rename(ptr nocapture noundef readonly, ptr nocapture noundef readonly) [[NOFREE_NOUNWIND]]
 declare i32 @rename(ptr, ptr)
@@ -1105,6 +1124,15 @@ declare void @__cxa_throw(ptr, ptr, ptr)
 
 ; CHECK: declare void @_ZSt9terminatev() [[NOFREE_COLD_NORETURN:#[0-9]+]]
 declare void @_ZSt9terminatev()
+
+; CHECK: declare void @sincos(double, ptr nocapture writeonly, ptr nocapture writeonly) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare void @sincos(double, ptr, ptr)
+
+; CHECK: declare void @sincosf(float, ptr nocapture writeonly, ptr nocapture writeonly) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare void @sincosf(float, ptr, ptr)
+
+; CHECK: declare void @sincosl(x86_fp80, ptr nocapture writeonly, ptr nocapture writeonly) [[NOFREE_NOUNWIND_WILLRETURN_WRITEONLY]]
+declare void @sincosl(x86_fp80, ptr, ptr)
 
 ; memset_pattern{4,8,16} aren't available everywhere.
 ; CHECK-DARWIN: declare void @memset_pattern4(ptr nocapture writeonly, ptr nocapture readonly, i64) [[ARGMEMONLY_NOFREE_NOUNWIND_WILLRETURN]]

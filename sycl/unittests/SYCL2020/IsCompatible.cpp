@@ -1,7 +1,7 @@
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -22,30 +22,22 @@ MOCK_INTEGRATION_HEADER(TestKernelCPUValidReqdWGSize3D)
 MOCK_INTEGRATION_HEADER(TestKernelGPU)
 MOCK_INTEGRATION_HEADER(TestKernelACC)
 
-static sycl::unittest::UrImage
+static sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     const std::vector<sycl::aspect> &Aspects, const std::vector<int> &ReqdWGSize = {}) {
+                     const std::vector<sycl::aspect> &Aspects,
+                     const std::vector<int> &ReqdWGSize = {}) {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addDeviceRequirementsProps(PropSet, Aspects, ReqdWGSize);
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
-
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::UrImage Imgs[7] = {
+static sycl::unittest::MockDeviceImage Imgs[7] = {
     // Images for validating checks based on max_work_group_size + aspects
     generateDefaultImage({"TestKernelCPU"}, {sycl::aspect::cpu},
                          {32}), // 32 <= 256 (OK)
@@ -64,7 +56,7 @@ static sycl::unittest::UrImage Imgs[7] = {
     generateDefaultImage({"TestKernelGPU"}, {sycl::aspect::gpu}),
     generateDefaultImage({"TestKernelACC"}, {sycl::aspect::accelerator})};
 
-static sycl::unittest::UrImageArray<7> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<7> ImgArray{Imgs};
 
 static ur_result_t redefinedDeviceGetInfoCPU(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);

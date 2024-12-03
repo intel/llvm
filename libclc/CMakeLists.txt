@@ -34,8 +34,14 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   r600/lib/SOURCES;
   r600/libspirv/SOURCES;
   spirv/lib/SOURCES;
-  spirv64/lib/SOURCES
-  native_cpu-unknown-linux/libspirv/SOURCES
+  spirv64/lib/SOURCES;
+  native_cpu-unknown-linux/libspirv/SOURCES;
+  # CLC internal libraries
+  clc/lib/generic/SOURCES;
+  clc/lib/clspv/SOURCES;
+  clc/lib/clspv64/SOURCES;
+  clc/lib/spirv/SOURCES;
+  clc/lib/spirv64/SOURCES;
 )
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
@@ -83,10 +89,10 @@ else()
   endif()
 
   if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
-    setup_host_tool( clang CLANG clang_exe clang_target )
-    setup_host_tool( llvm-as LLVM_AS llvm-as_exe llvm-as_target )
-    setup_host_tool( llvm-link LLVM_LINK llvm-link_exe llvm-link_target )
-    setup_host_tool( opt OPT opt_exe opt_target )
+    get_host_tool_path( clang CLANG clang_exe clang_target )
+    get_host_tool_path( llvm-as LLVM_AS llvm-as_exe llvm-as_target )
+    get_host_tool_path( llvm-link LLVM_LINK llvm-link_exe llvm-link_target )
+    get_host_tool_path( opt OPT opt_exe opt_target )
   endif()
 endif()
 
@@ -113,17 +119,19 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
 endif()
 
 foreach( tool IN ITEMS clang opt llvm-as llvm-link )
-  if( NOT EXISTS "${${tool}_exe}" AND NOT TARGET "${${tool}_target}" )
+  if( NOT EXISTS "${${tool}_exe}" AND "${tool}_target" STREQUAL "" )
     message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
   endif()
 endforeach()
 
 # llvm-spirv is an optional dependency, used to build spirv-* targets.
-find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-
-if( LLVM_SPIRV AND NOT TARGET libclc::llvm-spirv )
-  add_executable( libclc::llvm-spirv IMPORTED GLOBAL )
-  set_target_properties( libclc::llvm-spirv PROPERTIES IMPORTED_LOCATION ${LLVM_SPIRV} )
+# It may be provided in-tree or externally.
+if( TARGET llvm-spirv )
+  get_host_tool_path( llvm-spirv LLVM_SPIRV llvm-spirv_exe llvm-spirv_target )
+else()
+  find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+  set( llvm-spirv_exe "${LLVM_SPIRV}" )
+  set( llvm-spirv_target )
 endif()
 
 # List of all targets. Note that some are added dynamically below.
@@ -151,15 +159,33 @@ endif()
 
 # spirv-mesa3d and spirv64-mesa3d targets can only be built with the (optional)
 # llvm-spirv external tool.
-if( TARGET libclc::llvm-spirv )
+if( llvm-spirv_exe )
   list( APPEND LIBCLC_TARGETS_ALL  spirv-mesa3d- spirv64-mesa3d- )
 endif()
 
 option( LIBCLC_GENERATE_REMANGLED_VARIANTS
   "Generate remangled variants of enabled libclc targets." OFF )
 
+# Verify that the user hasn't requested mesa3d targets without an available
+# llvm-spirv tool.
+if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
+  if( NOT llvm-spirv_exe )
+    message( FATAL_ERROR "SPIR-V targets requested, but spirv-tools is not installed" )
+  endif()
+endif()
+
+add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
+add_custom_target(libopencl-builtins COMMENT "Build libclc builtins")
+
 if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
   set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
+else()
+  foreach(TARGET_TO_BUILD ${LIBCLC_TARGETS_TO_BUILD})
+    if (NOT ${TARGET_TO_BUILD} IN_LIST LIBCLC_TARGETS_ALL)
+      message ( FATAL_ERROR "Unknown target in LIBCLC_TARGETS_TO_BUILD: \"${TARGET_TO_BUILD}\"\n"
+                            "Valid targets are: ${LIBCLC_TARGETS_ALL}\n")
+    endif()
+  endforeach()
 endif()
 
 option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
@@ -170,16 +196,8 @@ endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
-# Verify that the user hasn't requested mesa3d targets without an available
-# llvm-spirv tool.
-if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
-  if( NOT TARGET libclc::llvm-spirv )
-    message( FATAL_ERROR "SPIR-V targets requested, but spirv-tools is not installed" )
-  endif()
-endif()
-
-add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
-add_custom_target(libclc-builtins COMMENT "Build libclc builtins")
+# Construct LLVM version define
+set( LLVM_VERSION_DEFINE "-DHAVE_LLVM=0x${LLVM_VERSION_MAJOR}0${LLVM_VERSION_MINOR}" )
 
 set(LIBCLC_TARGET_TO_TEST)
 
@@ -237,8 +255,10 @@ if( ENABLE_RUNTIME_SUBNORMAL )
        RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/${file}.ll
     )
-    install( FILES $<TARGET_PROPERTY:${file},TARGET_FILE> ARCHIVE
-      DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+    install(
+      FILES $<TARGET_PROPERTY:${file},TARGET_FILE>
+      DESTINATION "${CMAKE_INSTALL_DATADIR}/clc"
+    )
   endforeach()
 endif()
 
@@ -327,19 +347,48 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       " configuration, some SYCL programs may fail to build.")
   endif()
 
-  set( lib_files )
-  set( lib_gen_files )
-  libclc_configure_lib_source(lib_files lib_gen_files
-    LIB_DIR lib
+  set( clc_lib_files )
+  libclc_configure_lib_source(
+    clc_lib_files
+    CLC_INTERNAL
+    LIB_ROOT_DIR clc
     DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
-    DEPS convert-clc.cl )
+  )
 
-  set( libspirv_files )
+  set( opencl_lib_files )
+  set( opencl_gen_files )
+
+  if( NOT ARCH STREQUAL spirv AND NOT ARCH STREQUAL spirv64 )
+    if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
+      list( APPEND opencl_gen_files clspv-convert.cl )
+    elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
+      list( APPEND opencl_gen_files convert-clc.cl )
+      list( APPEND opencl_lib_files generic/libspirv/subnormal_use_default.ll )
+    endif()
+  endif()
+
+  libclc_configure_lib_source(
+    opencl_lib_files
+    DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
+  )
+
+  set( libspirv_lib_files )
   set( libspirv_gen_files )
-  libclc_configure_lib_source(libspirv_files libspirv_gen_files
+
+  if( NOT ARCH STREQUAL spirv AND NOT ARCH STREQUAL spirv64 )
+    if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
+      list( APPEND libspirv_gen_files clspv-convert.cl )
+    elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
+      list( APPEND libspirv_gen_files convert-spirv.cl convert-core.cl )
+      list( APPEND libspirv_lib_files generic/libspirv/subnormal_use_default.ll )
+    endif()
+  endif()
+
+  libclc_configure_lib_source(
+    libspirv_lib_files
     LIB_DIR libspirv
     DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
-    DEPS convert-spirv.cl convert-core.cl)
+  )
 
   foreach( d ${${t}_devices} )
     get_libclc_device_info(
@@ -351,27 +400,23 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     )
 
     # Some targets don't have a specific GPU to target
-    set( flags )
+    set( build_flags )
     if( d STREQUAL none OR ARCH STREQUAL spirv OR ARCH STREQUAL spirv64 )
       # FIXME: Ideally we would not be tied to a specific PTX ISA version
       if( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
         # Disables NVVM reflection to defer to after linking
-        list( APPEND flags -Xclang -target-feature -Xclang +ptx72
+        list( APPEND build_flags -Xclang -target-feature -Xclang +ptx72
              -march=sm_86 -mllvm --nvvm-reflect-enable=false)
       elseif( ARCH STREQUAL amdgcn )
         # AMDGCN needs libclc to be compiled to high bc version since all atomic
         # clang builtins need to be accessible
-        list( APPEND flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
+        list( APPEND build_flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
       elseif( IS_NATIVE_CPU_ARCH )
-        list( APPEND flags -Xclang -fsycl-is-native-cpu )
+        list( APPEND build_flags -Xclang -fsycl-is-native-cpu )
         if( ARCH  STREQUAL x86_64 )
-          list( APPEND flags ${LIBCLC_NATIVECPU_FLAGS_X86_64})
+          list( APPEND build_flags ${LIBCLC_NATIVECPU_FLAGS_X86_64})
         endif()
       endif()
-    endif()
-
-    if( NOT "${cpu}" STREQUAL "" )
-      list( APPEND flags -mcpu=${cpu} )
     endif()
 
     message( STATUS "  device: ${d} ( ${${d}_aliases} )" )
@@ -391,9 +436,19 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set ( has_distinct_generic_addrspace TRUE )
     if ( ARCH STREQUAL spirv OR ARCH STREQUAL spirv64 )
       set( opt_flags -O3 )
+      list( APPEND build_flags -DCLC_SPIRV )
       set( spvflags --spirv-max-version=1.1 )
+      set( MACRO_ARCH SPIRV32 )
+      if( ARCH STREQUAL spirv64 )
+        set( MACRO_ARCH SPIRV64 )
+      endif()
     elseif( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
       set( opt_flags -O3 )
+      list( APPEND build_flags -DCLC_CLSPV )
+      set( MACRO_ARCH CLSPV32 )
+      if( ARCH STREQUAL clspv64 )
+        set( MACRO_ARCH CLSPV64 )
+      endif()
     elseif( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
       set( opt_flags -O3 "--nvvm-reflect-enable=false" )
       set( has_distinct_generic_addrspace FALSE )
@@ -404,11 +459,12 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( has_distinct_generic_addrspace FALSE )
     else()
       set( opt_flags -O3 )
+      set( MACRO_ARCH ${ARCH} )
     endif()
 
     # Enable SPIR-V builtin function declarations, so they don't
     # have to be explicity declared in the soruce.
-    list( APPEND flags -Xclang -fdeclare-spirv-builtins)
+    list( APPEND build_flags -Xclang -fdeclare-spirv-builtins)
     set( LIBCLC_ARCH_OBJFILE_DIR "${LIBCLC_OBJFILE_DIR}/${arch_suffix}" )
     file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
 
@@ -426,7 +482,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     if( supports_generic_addrspace )
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
       if( has_distinct_generic_addrspace )
-        list( APPEND flags -D__CLC_DISTINCT_GENERIC_ADDRSPACE__ )
+        list( APPEND build_flags -D__CLC_DISTINCT_GENERIC_ADDRSPACE__ )
       endif()
     else()
       # Explictly disable opencl_c_generic_address_space (it may be enabled
@@ -436,47 +492,60 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_pipes" )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_device_enqueue" )
     endif()
-    list( APPEND flags -cl-std=CL3.0 "-Xclang" ${CL_3_0_EXTENSIONS} )
+    list( APPEND build_flags -cl-std=CL3.0 "-Xclang" ${CL_3_0_EXTENSIONS} )
 
     # Add platform specific flags
     if(WIN32)
-      list(APPEND flags -D_WIN32)
+      list(APPEND build_flags -D_WIN32)
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-      list(APPEND flags -D__APPLE__)
+      list(APPEND build_flags -D__APPLE__)
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-      list(APPEND flags -D__unix__ -D__linux__)
+      list(APPEND build_flags -D__unix__ -D__linux__)
     else()
       # Assume some UNIX system otherwise
-      list(APPEND flags -D__unix__)
-    endif()
-
-    set(spirv_flags ${flags})
-    if( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
-      list(APPEND spirv_flags -Xclang -fcuda-short-ptr -mllvm -nvptx-short-ptr)
+      list(APPEND build_flags -D__unix__)
     endif()
 
     add_libclc_builtin_set(libspirv-${arch_suffix}
       TRIPLE ${clang_triple}
       TARGET_ENV libspirv
-      COMPILE_OPT ${spirv_flags}
+      COMPILE_OPT ${build_flags}
       OPT_FLAGS ${opt_flags}
-      FILES ${libspirv_files}
+      LIB_FILES ${clc_lib_files}
+    )
+
+    list( APPEND build_flags
+      -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
+    )
+
+    add_libclc_builtin_set(
+      ARCH ${ARCH}
+      ARCH_SUFFIX libspirv-${arch_suffix}
+      TRIPLE ${clang_triple}
+      TARGET_ENV libspirv-
+      COMPILE_FLAGS ${build_flags}
+      OPT_FLAGS ${opt_flags}
+      LIB_FILES ${libspirv_lib_files}
       GEN_FILES ${libspirv_gen_files}
       ALIASES ${${d}_aliases}
-      GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
-      PARENT_TARGET libspirv-builtins)
+      PARENT_TARGET libspirv-builtins
+      # Link in the CLC builtins and internalize their symbols
+      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
+    )
 
-    add_libclc_builtin_set(clc-${arch_suffix}
+    add_libclc_builtin_set(
+      ARCH ${ARCH}
+      ARCH_SUFFIX ${arch_suffix}
       TRIPLE ${clang_triple}
-      TARGET_ENV clc
-      COMPILE_OPT ${flags}
+      COMPILE_FLAGS ${build_flags}
       OPT_FLAGS ${opt_flags}
-      FILES ${lib_files}
-      GEN_FILES ${lib_gen_files}
-      LIB_DEP libspirv-${arch_suffix}
+      LIB_FILES ${opencl_lib_files}
+      GEN_FILES ${opencl_gen_files}
       ALIASES ${${d}_aliases}
-      GENERATE_TARGET "generate_convert_clc.cl"
-      PARENT_TARGET libclc-builtins)
+      PARENT_TARGET libopencl-builtins
+      # Link in the CLC builtins and internalize their symbols
+      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
+    )
   endforeach( d )
 endforeach( t )
 

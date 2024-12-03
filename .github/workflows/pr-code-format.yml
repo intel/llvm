@@ -7,6 +7,9 @@ on:
   pull_request:
     branches:
       - main
+      - sycl
+      - sycl-devops-pr/**
+      - sycl-rel-**
       - 'users/**'
 
 jobs:
@@ -32,7 +35,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v44
+        uses: tj-actions/changed-files@v45
         with:
           separator: ","
           skip_initial_fetch: true

@@ -14,10 +14,10 @@
 
 #if defined(__SYCL_NATIVE_CPU__)
 
-#include "CL/__spirv/spirv_ops.hpp"
 #include "device.h"
 #include <cstdint>
-#include <sycl/types.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/vector.hpp>
 
 // including state definition from Native CPU UR adapter
 #include "nativecpu_state.hpp"
@@ -65,13 +65,13 @@ __spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
   __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
-    return *Ptr;                                                               \
+    return Ptr[__spirv_SubgroupLocalInvocationId()];                           \
   }                                                                            \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL void                                     \
   __spirv_SubgroupBlockWriteINTEL<Type>(PType OCL_GLOBAL * ptr,                \
                                         Type v) noexcept {                     \
-    *(Type *)ptr = v;                                                          \
+    ((Type*)ptr)[__spirv_SubgroupLocalInvocationId()]  = v;                    \
   }
 
 #define DefSubgroupBlockINTEL_vt(Type, VT_name)                                \

@@ -2,20 +2,22 @@
 //
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
-// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -o %t.out -ldl -Wl,-rpath=%T
+// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%T
 
-// RUN: %{compile} -DRUN_FIRST
-// RUN: %{run} %t.out
+// RUN: %{compile} -o %t1.out -DRUN_FIRST
+// RUN: %{run} %t1.out
 
-// RUN: %{compile} -DRUN_MIDDLE_BEFORE
-// RUN: %{run} %t.out
+// RUN: %{compile} -o %t2.out -DRUN_MIDDLE_BEFORE
+// RUN: %{run} %t2.out
 
-// RUN: %{compile} -DRUN_MIDDLE_AFTER
-// RUN: %{run} %t.out
+// RUN: %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
+// RUN: %{run} %t3.out
 
 // This causes SEG. FAULT.
-// RUNx: %{compile} -DRUN_LAST
-// RUNx: %{run} %t.out
+// Enable the lines below when the issue is fixed:
+// https://github.com/intel/llvm/issues/16031
+// %{compile} -o %t4.out -DRUN_LAST
+// %{run} %t4.out
 
 #include <sycl/detail/core.hpp>
 

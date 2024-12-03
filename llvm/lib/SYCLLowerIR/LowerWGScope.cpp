@@ -1001,6 +1001,8 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   FunctionCallee FC =
       M.getOrInsertFunction(Name, Attr, RetTy, ScopeTy, ScopeTy, SemanticsTy);
   assert(FC.getCallee() && "spirv intrinsic creation failed");
+  if (TT.isSPIROrSPIRV())
+    cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
 
   IRBuilder<> Bld(Ctx);
   Bld.SetInsertPoint(&Before);
@@ -1011,5 +1013,7 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
                    asUInt(spirv::MemorySemantics::WorkgroupMemory));
   auto BarrierCall = Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
   BarrierCall->addFnAttr(llvm::Attribute::Convergent);
+  if (TT.isSPIROrSPIRV())
+    BarrierCall->setCallingConv(CallingConv::SPIR_FUNC);
   return BarrierCall;
 }

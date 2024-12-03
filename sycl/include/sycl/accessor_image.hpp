@@ -12,20 +12,21 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <int Dim, typename T> struct IsValidCoordDataT;
-template <typename T> struct IsValidCoordDataT<1, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<opencl::cl_int, opencl::cl_float>>::type::value;
+template <int Dim, typename T, bool AllowFP = true> struct IsValidCoordDataT;
+template <typename T, bool AllowFP> struct IsValidCoordDataT<1, T, AllowFP> {
+  constexpr static bool value =
+      std::is_same_v<T, opencl::cl_int> ||
+      (AllowFP && std::is_same_v<T, opencl::cl_float>);
 };
-template <typename T> struct IsValidCoordDataT<2, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 2>,
-                           vec<opencl::cl_float, 2>>>::type::value;
+template <typename T, bool AllowFP> struct IsValidCoordDataT<2, T, AllowFP> {
+  constexpr static bool value =
+      std::is_same_v<T, vec<opencl::cl_int, 2>> ||
+      (AllowFP && std::is_same_v<T, vec<opencl::cl_float, 2>>);
 };
-template <typename T> struct IsValidCoordDataT<3, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 4>,
-                           vec<opencl::cl_float, 4>>>::type::value;
+template <typename T, bool AllowFP> struct IsValidCoordDataT<3, T, AllowFP> {
+  constexpr static bool value =
+      std::is_same_v<T, vec<opencl::cl_int, 4>> ||
+      (AllowFP && std::is_same_v<T, vec<opencl::cl_float, 4>>);
 };
 
 template <int Dim, typename T> struct IsValidUnsampledCoord2020DataT;
@@ -448,12 +449,12 @@ public:
   // (accessTarget == access::target::image && accessMode == access::mode::read)
   // || (accessTarget == access::target::host_image && ( accessMode ==
   // access::mode::read || accessMode == access::mode::read_write))
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (detail::is_genint_v<CoordT>) &&
-                ((IsImageAcc && IsImageAccessReadOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyRead))>>
+  template <
+      typename CoordT, int Dims = Dimensions,
+      typename = std::enable_if_t<
+          (IsValidCoordDataT<Dims, CoordT, /* AllowFP = */ false>::value) &&
+          ((IsImageAcc && IsImageAccessReadOnly) ||
+           (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(MImageObj, Coords);
@@ -470,7 +471,7 @@ public:
   // access::mode::read || accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
+                (IsValidCoordDataT<Dims, CoordT>::value) &&
                 ((IsImageAcc && IsImageAccessReadOnly) ||
                  (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
@@ -494,10 +495,10 @@ public:
   // accessMode == access::mode::read_write))
   template <
       typename CoordT, int Dims = Dimensions,
-      typename = std::enable_if_t<(Dims > 0) && (detail::is_genint_v<CoordT>) &&
-                                  (IsValidCoordDataT<Dims, CoordT>::value) &&
-                                  ((IsImageAcc && IsImageAccessWriteOnly) ||
-                                   (IsHostImageAcc && IsImageAccessAnyWrite))>>
+      typename = std::enable_if_t<
+          (IsValidCoordDataT<Dims, CoordT, /* AllowFP = */ false>::value) &&
+          ((IsImageAcc && IsImageAccessWriteOnly) ||
+           (IsHostImageAcc && IsImageAccessAnyWrite))>>
   void write(const CoordT &Coords, const DataT &Color) const {
 #ifdef __SYCL_DEVICE_ONLY__
     __invoke__ImageWrite<OCLImageTy, CoordT, DataT>(MImageObj, Coords, Color);
@@ -546,23 +547,21 @@ public:
       size_t Idx)
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
 
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value)>>
+  template <
+      typename CoordT, int Dims = Dimensions,
+      typename = std::enable_if_t<(IsValidCoordDataT<Dims, CoordT>::value)>>
   DataT read(const CoordT &Coords) const {
     return MBaseAcc.read(getAdjustedCoords(Coords));
   }
 
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
+            typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
     return MBaseAcc.read(getAdjustedCoords(Coords), Smpl);
   }
 
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
+            typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
   void write(const CoordT &Coords, const DataT &Color) const {
     return MBaseAcc.write(getAdjustedCoords(Coords), Color);
   }

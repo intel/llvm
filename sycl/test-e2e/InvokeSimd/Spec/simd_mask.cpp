@@ -14,7 +14,6 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
-#include <sycl/detail/boost/mp11.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
@@ -30,7 +29,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(VL)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;
@@ -141,18 +140,22 @@ int main() {
             << "\n";
   bool passed = true;
   const bool SupportsDouble = dev.has(aspect::fp64);
-  using namespace sycl::detail::boost::mp11;
   using MaskTypes =
       std::tuple<char, char16_t, char32_t, wchar_t, signed char, signed short,
                  signed int, signed long, signed long long, unsigned char,
                  unsigned short, unsigned int, unsigned long,
                  unsigned long long, float, double>;
-  tuple_for_each(MaskTypes{}, [&](auto &&x) {
-    using T = std::remove_reference_t<decltype(x)>;
-    if (std::is_same_v<T, double> && !SupportsDouble)
-      return;
-    passed &= !test<T>(q);
-  });
+  std::apply(
+      [&](auto &&...xs) {
+        auto f = [&](auto &&x) {
+          using T = std::remove_reference_t<decltype(x)>;
+          if (std::is_same_v<T, double> && !SupportsDouble)
+            return;
+          passed &= !test<T>(q);
+        };
+        ((f(std::forward<decltype(xs)>(xs)), ...));
+      },
+      MaskTypes{});
   std::cout << (passed ? "Test passed\n" : "TEST FAILED\n");
   return passed ? 0 : 1;
 }
