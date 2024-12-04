@@ -1,7 +1,6 @@
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 #include <core/clc_core.h>
-
-#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF char sub_sat(char x, char y) {
   return __clc_sub_sat(x, y);

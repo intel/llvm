@@ -18,6 +18,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 #define __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,       \
                                      ADDR_SPACE, ADDR_SPACE_NV, ORDER)         \
   switch (scope) {                                                             \
+  case Invocation:                                                             \
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
     if (__clc_nvvm_reflect_arch() >= 600) {                                    \
@@ -46,6 +47,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 #define __CLC_NVVM_ATOMIC_IMPL_ACQUIRE_FENCE(TYPE, TYPE_NV, TYPE_MANGLED_NV,   \
                                              OP, ADDR_SPACE, ADDR_SPACE_NV)    \
   switch (scope) {                                                             \
+  case Invocation:                                                             \
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
     if (__clc_nvvm_reflect_arch() >= 600) {                                    \

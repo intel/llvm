@@ -8,6 +8,7 @@
 // Test checks that persistent cache works correctly with multiple devices.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 

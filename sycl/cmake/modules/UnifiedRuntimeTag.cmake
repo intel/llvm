@@ -1,7 +1,7 @@
-# commit 1675f053176f0860388aa67fd009750a7e03b2c2
-# Merge: 0ea47d7c 22ca5ee2
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 19 14:41:15 2024 +0000
-#     Merge pull request #2337 from aarongreig/aaron/fixCoreFuncMacroWindows
-#     Fix the CL_CORE_FUNCTION macro on windows.
-set(UNIFIED_RUNTIME_TAG 1675f053176f0860388aa67fd009750a7e03b2c2)
+# commit 3fdf7e3998b029fbf6cdb584e552a71a678f3146
+# Merge: c34ea46276a9 353d30678b2c
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Wed Dec 4 15:08:55 2024 +0000
+#     Merge pull request #2413 from againull/max_dir_length_win
+#     [L0] Shorten the dir name for the fecthed repo to avoid hitting Windows max limit
+set(UNIFIED_RUNTIME_TAG 3fdf7e3998b029fbf6cdb584e552a71a678f3146)
