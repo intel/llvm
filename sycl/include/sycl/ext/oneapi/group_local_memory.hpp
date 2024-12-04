@@ -9,18 +9,13 @@
 
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/type_traits.hpp>        // for is_group
-#include <sycl/exception.hpp>                 // for exception
-#include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
-#include <sycl/group.hpp>                     // for workGroupBarrier
+#include <sycl/detail/sycl_local_mem_builtins.hpp> // for __sycl_allocateLocalMemory
+#include <sycl/detail/type_traits.hpp>             // for is_group
+#include <sycl/exception.hpp>                      // for exception
+#include <sycl/ext/intel/usm_pointers.hpp>         // for multi_ptr
+#include <sycl/group.hpp>                          // for workGroupBarrier
 
 #include <type_traits> // for enable_if_t
-
-#ifdef __SYCL_DEVICE_ONLY__
-// Request a fixed-size allocation in local address space at kernel scope.
-extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
-__sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
-#endif
 
 namespace sycl {
 inline namespace _V1 {

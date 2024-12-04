@@ -1986,6 +1986,16 @@ e.g. directly to a queue without returning an event.
 link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
 can be used with SYCL Graphs. 
 
+==== sycl_ext_oneapi_work_group_scratch_memory
+
+The new property defined by
+link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[sycl_ext_oneapi_work_group_scratch_memory]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
 == Examples and Usage Guide
 
 Detailed code examples and usage guidelines are provided in the
