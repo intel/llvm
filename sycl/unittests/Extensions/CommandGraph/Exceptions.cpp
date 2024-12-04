@@ -393,6 +393,27 @@ TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
+// sycl_ext_oneapi_work_group_scratch_memory isn't supported with SYCL graphs
+TEST_F(CommandGraphTest, WorkGroupScratchMemoryCheck) {
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) {
+            CGH.parallel_for(
+                range<1>{1},
+                ext::oneapi::experimental::properties{
+                    ext::oneapi::experimental::work_group_scratch_size(
+                        sizeof(int))},
+                [=](item<1> idx) {});
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // Set up some nodes in the graph
   auto NodeA = Graph.add(

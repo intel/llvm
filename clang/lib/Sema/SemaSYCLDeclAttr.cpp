@@ -3109,6 +3109,21 @@ void SemaSYCL::handleSYCLRegisterNumAttr(Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (Context) SYCLRegisterNumAttr(Context, AL, RegNo));
 }
 
+void SemaSYCL::handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL) {
+  if (!AL.checkExactlyNumArgs(SemaRef, 0))
+    return;
+  if (auto *CRD = dyn_cast<CXXRecordDecl>(D);
+      !CRD || !(CRD->isClass() || CRD->isStruct())) {
+    SemaRef.Diag(AL.getRange().getBegin(),
+                 diag::err_attribute_wrong_decl_type_str)
+        << AL << AL.isRegularKeywordAttribute() << "classes";
+    return;
+  }
+
+  D->addAttr(SYCLScopeAttr::Create(SemaRef.getASTContext(),
+                                   SYCLScopeAttr::Level::WorkGroup, AL));
+}
+
 void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   const auto *AddIRFuncAttr = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
 
