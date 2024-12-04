@@ -217,6 +217,11 @@ public:
 
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
+  std::vector<ur_program_handle_t>
+  getDeviceLibReqPrograms(const ContextImplPtr Context,
+                          std::vector<ur_device_handle_t> &Devices,
+                          uint32_t DeviceLibReqMask);
+
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
   /// \param NativePrg the UR program associated with the kernel.

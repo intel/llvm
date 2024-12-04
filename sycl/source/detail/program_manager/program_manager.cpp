@@ -1171,8 +1171,8 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
 // TODO device libraries may use scpecialization constants, manifest files, etc.
 // To support that they need to be delivered in a different container - so that
 // sycl_device_binary_struct can be created for each of them.
-static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
-                          ur_program_handle_t &Prog) {
+static bool loadDeviceLibLegacy(const ContextImplPtr Context, const char *Name,
+                                ur_program_handle_t &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
   std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
                      std::ifstream::in | std::ifstream::binary);
@@ -1189,6 +1189,14 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
 
   Prog =
       createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
+  return Prog != nullptr;
+}
+
+static bool loadDeviceLib(const ContextImplPtr Context,
+                          ur_program_handle_t &Prog,
+                          const unsigned char *DeviceLibImageBuffer,
+                          size_t DeviceLibImageSize) {
+  Prog = createSpirvProgram(Context, DeviceLibImageBuffer, DeviceLibImageSize);
   return Prog != nullptr;
 }
 
@@ -1272,9 +1280,13 @@ static ur_result_t doCompile(const AdapterPtr &Adapter,
 static ur_program_handle_t
 loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
                       std::vector<ur_device_handle_t> &Devices,
-                      bool UseNativeLib) {
+                      bool UseNativeLib, bool LegacyMode = true,
+                      const unsigned char *DeviceLibImageBuffer = nullptr,
+                      size_t DeviceLibImageSize = 0) {
 
-  auto LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
+  const char *LibFileName = nullptr;
+  if (LegacyMode)
+    LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
   auto LockedCache = Context->acquireCachedLibPrograms();
   auto &CachedLibPrograms = LockedCache.get();
   // Collect list of devices to compile the library for. Library was already
@@ -1311,10 +1323,21 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
   bool IsProgramCreated = !URProgram;
 
   // Create UR program for device lib if we don't have it yet.
-  if (!URProgram && !loadDeviceLib(Context, LibFileName, URProgram)) {
-    EraseProgramForDevices();
-    throw exception(make_error_code(errc::build),
-                    std::string("Failed to load ") + LibFileName);
+  if (LegacyMode) {
+    if (!URProgram && !loadDeviceLibLegacy(Context, LibFileName, URProgram)) {
+      EraseProgramForDevices();
+      throw exception(make_error_code(errc::build),
+                      std::string("Failed to load ") + LibFileName);
+    }
+  } else {
+    if (!URProgram && !loadDeviceLib(Context, URProgram, DeviceLibImageBuffer,
+                                     DeviceLibImageSize)) {
+      EraseProgramForDevices();
+      const char *ExtStr = getDeviceLibExtensionStr(Extension);
+      throw exception(
+          make_error_code(errc::build),
+          std::string("Failed to load fallback device library for ") + ExtStr);
+    }
   }
 
   // Insert URProgram into the cache for all devices that we compiled it for.
@@ -1573,9 +1596,9 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
 }
 
 static std::vector<ur_program_handle_t>
-getDeviceLibPrograms(const ContextImplPtr Context,
-                     std::vector<ur_device_handle_t> &Devices,
-                     uint32_t DeviceLibReqMask) {
+getDeviceLibProgramsLegacy(const ContextImplPtr Context,
+                           std::vector<ur_device_handle_t> &Devices,
+                           uint32_t DeviceLibReqMask) {
   std::vector<ur_program_handle_t> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
@@ -1658,6 +1681,83 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   return Programs;
 }
 
+std::vector<ur_program_handle_t> ProgramManager::getDeviceLibReqPrograms(
+    const ContextImplPtr Context, std::vector<ur_device_handle_t> &Devices,
+    uint32_t DeviceLibReqMask) {
+
+  std::vector<ur_program_handle_t> Programs;
+
+  // Check whether a specified extension is supported by ALL devices.
+  auto checkExtForDevices = [&Context, &Devices](const char *ExtStr) -> bool {
+    bool ExtAvailable = true;
+    for (auto SingleDevice : Devices) {
+      std::string DevExtList =
+          Context->getPlatformImpl()
+              ->getDeviceImpl(SingleDevice)
+              ->get_device_info_string(
+                  UrInfoCode<info::device::extensions>::value);
+      if (DevExtList.npos == DevExtList.find(ExtStr)) {
+        ExtAvailable = false;
+        break;
+      }
+    }
+    return ExtAvailable;
+  };
+
+  const bool fp64Support = checkExtForDevices("cl_khr_fp64");
+
+  size_t Idx = 0;
+  std::vector<DeviceLibExt> ReqDeviceLibExts;
+  while (DeviceLibReqMask != 0) {
+    if (DeviceLibReqMask & 1) {
+      DeviceLibExt ExtReq = static_cast<DeviceLibExt>(
+          static_cast<uint32_t>(DeviceLibExt::cl_intel_devicelib_assert) + Idx);
+      ReqDeviceLibExts.push_back(ExtReq);
+    }
+    ++Idx;
+    DeviceLibReqMask = DeviceLibReqMask >> 1;
+  }
+
+  std::vector<unsigned> ReqExtMetaKeys;
+  for (auto Ext : ReqDeviceLibExts) {
+    if ((Ext == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
+         Ext == DeviceLibExt::cl_intel_devicelib_complex_fp64 ||
+         Ext == DeviceLibExt::cl_intel_devicelib_imf_fp64) &&
+        !fp64Support) {
+      continue;
+    }
+    auto ExtName = getDeviceLibExtensionStr(Ext);
+    bool InhibitNativeImpl = false;
+    if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
+      InhibitNativeImpl = strstr(Env, ExtName) != nullptr;
+    }
+    bool ExtReqAvailable = checkExtForDevices(ExtName);
+    unsigned ExtMetaKey = static_cast<unsigned>(Ext);
+    if (ExtReqAvailable && !InhibitNativeImpl) {
+      if (Ext == DeviceLibExt::cl_intel_devicelib_bfloat16) {
+        ExtMetaKey = ExtMetaKey | 0x80000000;
+      } else
+        continue;
+    }
+    ReqExtMetaKeys.push_back(ExtMetaKey);
+  }
+
+  if (ReqExtMetaKeys.size() > 0) {
+    std::lock_guard<std::mutex> DeviceLibImagesGuard(m_DeviceLibImagesMutex);
+    for (auto Key : ReqExtMetaKeys) {
+      if (m_DeviceLibImages.find(Key) != m_DeviceLibImages.end()) {
+        bool IsNative = ((Key & 0x80000000) > 0);
+        DeviceLibExt Ext = static_cast<DeviceLibExt>(Key & 0x7FFFFFFF);
+        Programs.push_back(loadDeviceLibFallback(
+            Context, Ext, Devices, IsNative, false,
+            m_DeviceLibImages[Key]->getRawData().BinaryStart,
+            m_DeviceLibImages[Key]->getSize()));
+      }
+    }
+  }
+  return Programs;
+}
+
 // Check if device image is compressed.
 static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
 
@@ -1691,7 +1791,11 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   std::vector<ur_program_handle_t> LinkPrograms;
   if (LinkDeviceLibs) {
-    LinkPrograms = getDeviceLibPrograms(Context, Devices, DeviceLibReqMask);
+    LinkPrograms = getDeviceLibReqPrograms(Context, Devices, DeviceLibReqMask);
+    if (LinkPrograms.size() == 0) {
+      LinkPrograms =
+          getDeviceLibProgramsLegacy(Context, Devices, DeviceLibReqMask);
+    }
   }
 
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
