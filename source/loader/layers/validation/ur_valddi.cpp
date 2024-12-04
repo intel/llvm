@@ -182,7 +182,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_ADAPTER_INFO_REFERENCE_COUNT < propName) {
+        if (UR_ADAPTER_INFO_VERSION < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -518,7 +518,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP < propName) {
+        if (UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 

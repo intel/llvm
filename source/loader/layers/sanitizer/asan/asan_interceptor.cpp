@@ -938,7 +938,8 @@ ContextInfo::~ContextInfo() {
     assert(Result == UR_RESULT_SUCCESS);
 
     // check memory leaks
-    if (getAsanInterceptor()->isNormalExit()) {
+    if (getAsanInterceptor()->getOptions().DetectLeaks &&
+        getAsanInterceptor()->isNormalExit()) {
         std::vector<AllocationIterator> AllocInfos =
             getAsanInterceptor()->findAllocInfoByContext(Handle);
         for (const auto &It : AllocInfos) {

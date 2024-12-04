@@ -967,6 +967,9 @@ typedef enum ur_adapter_info_t {
                                          ///< The reference count returned should be considered immediately stale.
                                          ///< It is unsuitable for general use in applications. This feature is
                                          ///< provided for identifying memory leaks.
+    UR_ADAPTER_INFO_VERSION = 2,         ///< [uint32_t] Specifies the adapter version, initial value of 1 and
+                                         ///< incremented unpon major changes, e.g. when multiple versions of an
+                                         ///< adapter may exist in parallel.
     /// @cond
     UR_ADAPTER_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -988,7 +991,7 @@ typedef enum ur_adapter_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///         + `::UR_ADAPTER_INFO_VERSION < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1705,6 +1708,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,      ///< [::ur_bool_t] returns true if the device supports enqueueing of native
                                                                      ///< work
     UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,                    ///< [::ur_bool_t] returns true if the device supports low-power events.
+    UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,         ///< [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
+                                                                     ///< of Intel GPU 2D block array capabilities
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1730,7 +1735,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP < propName`
+///         + `::UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -7427,6 +7432,27 @@ urEnqueueWriteHostPipe(
                                               ///< If phEventWaitList and phEvent are not NULL, phEvent must not refer to
                                               ///< an element of the phEventWaitList array.
 );
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental device descriptor for querying Intel device 2D block array capabilities
+#if !defined(__GNUC__)
+#pragma region 2d_block_array_capabilities_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intel GPU 2D block array capabilities
+typedef uint32_t ur_exp_device_2d_block_array_capability_flags_t;
+typedef enum ur_exp_device_2d_block_array_capability_flag_t {
+    UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD = UR_BIT(0),  ///< Load instructions are supported
+    UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE = UR_BIT(1), ///< Store instructions are supported
+    /// @cond
+    UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_device_2d_block_array_capability_flag_t;
+/// @brief Bit Mask for validating ur_exp_device_2d_block_array_capability_flags_t
+#define UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAGS_MASK 0xfffffffc
 
 #if !defined(__GNUC__)
 #pragma endregion

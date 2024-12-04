@@ -312,6 +312,8 @@ class AsanInterceptor {
     ur_result_t registerSpirKernels(ur_program_handle_t Program);
 
   private:
+    // m_Options may be used in other places, place it at the top
+    AsanOptions m_Options;
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
@@ -336,8 +338,6 @@ class AsanInterceptor {
     ur_shared_mutex m_AllocationMapMutex;
 
     std::unique_ptr<Quarantine> m_Quarantine;
-
-    AsanOptions m_Options;
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
     ur_shared_mutex m_AdaptersMutex;

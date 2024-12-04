@@ -88,6 +88,7 @@ AsanOptions::AsanOptions() {
     SetBoolOption("detect_locals", DetectLocals);
     SetBoolOption("detect_privates", DetectPrivates);
     SetBoolOption("print_stats", PrintStats);
+    SetBoolOption("detect_leaks", DetectLeaks);
 
     auto KV = OptionsEnvMap->find("quarantine_size_mb");
     if (KV != OptionsEnvMap->end()) {
