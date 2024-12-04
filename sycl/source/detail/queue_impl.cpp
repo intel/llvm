@@ -308,8 +308,9 @@ void queue_impl::addEvent(const event &Event) {
       addSharedEvent(Event);
   }
   // As long as the queue supports urQueueFinish we only need to store events
-  // for unenqueued commands and host tasks.
-  else if (MEmulateOOO || EImpl->getHandle() == nullptr) {
+  // for undiscarded, unenqueued commands and host tasks.
+  else if (MEmulateOOO ||
+           (EImpl->getHandle() == nullptr && !EImpl->isDiscarded())) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
