@@ -22,7 +22,8 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_fabs.h>
-#include <spirv/spirv.h>
+#include <clc/relational/clc_isinf.h>
+#include <clc/relational/clc_isnan.h>
 
 #include "sincos_helpers.h"
 #include "tables.h"
@@ -49,9 +50,8 @@ _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, float, __clc_tan, float);
 #ifdef cl_khr_fp64
 #include "sincosD_piby4.h"
 
-_CLC_DEF _CLC_OVERLOAD double __clc_tan(double x)
-{
-    double y = __spirv_ocl_fabs(x);
+_CLC_DEF _CLC_OVERLOAD double __clc_tan(double x) {
+  double y = __clc_fabs(x);
 
   double r, rr;
   int regn;
@@ -66,7 +66,8 @@ _CLC_DEF _CLC_OVERLOAD double __clc_tan(double x)
   int2 t = as_int2(regn & 1 ? tt.y : tt.x);
   t.hi ^= (x < 0.0) << 31;
 
-    return __spirv_IsNan(x) || __spirv_IsInf(x) ? as_double(QNANBITPATT_DP64) : as_double(t);
+  return __clc_isnan(x) || __clc_isinf(x) ? as_double(QNANBITPATT_DP64)
+                                          : as_double(t);
 }
 _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_tan, double);
 
