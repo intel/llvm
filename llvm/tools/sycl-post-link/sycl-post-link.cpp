@@ -313,11 +313,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   // When the split mode is none, the required work group size will be added
   // to the whole module, which will make the runtime unable to
   // launch the other kernels in the module that have different
-  // required work group sizes or no requried work group sizes. So we need to
+  // required work group sizes or no required work group sizes. So we need to
   // remove the required work group size metadata in this case.
   if (SplitMode == module_split::SPLIT_NONE)
     PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
-                   "reqd_work_group_size_uint64_t");
+                   PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {

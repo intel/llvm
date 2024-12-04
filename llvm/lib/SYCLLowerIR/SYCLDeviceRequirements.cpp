@@ -142,7 +142,8 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   // reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
   // window, this can be changed back to reqd_work_group_size.
   if (ReqdWorkGroupSize.has_value())
-    Requirements["reqd_work_group_size_uint64_t"] = *ReqdWorkGroupSize;
+    Requirements[util::PropertySetRegistry::PROPERTY_REQD_WORK_GROUP_SIZE] =
+        *ReqdWorkGroupSize;
 
   if (JointMatrix.has_value())
     Requirements["joint_matrix"] = *JointMatrix;

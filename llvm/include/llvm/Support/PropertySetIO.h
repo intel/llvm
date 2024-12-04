@@ -211,6 +211,9 @@ public:
   static constexpr char SYCL_HOST_PIPES[] = "SYCL/host pipes";
   static constexpr char SYCL_VIRTUAL_FUNCTIONS[] = "SYCL/virtual functions";
 
+  static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =
+      "reqd_work_group_size_uint64_t";
+
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .
   template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
@@ -235,10 +238,7 @@ public:
     if (PropertySetIt == PropSetMap.end())
       return;
     auto &PropertySet = PropertySetIt->second;
-    auto PropIt = PropertySet.find(PropName);
-    if (PropIt == PropertySet.end())
-      return;
-    PropertySet.erase(PropIt);
+    PropertySet.erase(PropertySet.find(PropName));
   }
 
   /// Parses from the given \p Buf a property set registry.
