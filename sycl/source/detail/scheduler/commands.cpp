@@ -3596,7 +3596,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
         MQueue->getHandleRef(), RawEvents.size(),
         RawEvents.size() ? &RawEvents[0] : nullptr, &Event);
-    SetEventHandleOrDiscard();
+    MEvent->setHandle(Event);
     return Result;
   }
   }
