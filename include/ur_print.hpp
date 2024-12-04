@@ -195,6 +195,9 @@ template <>
 inline ur_result_t printFlag<ur_usm_migration_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
+inline ur_result_t printFlag<ur_exp_device_2d_block_array_capability_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
 inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
@@ -328,6 +331,7 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, enum ur_execution_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_usm_migration_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_device_2d_block_array_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_image_copy_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_external_mem_type_t value);
@@ -2665,6 +2669,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
         os << "UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP";
         break;
+    case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
+        os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -4469,6 +4476,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << (const void *)(tptr) << " (";
 
         os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
+        const ur_exp_device_2d_block_array_capability_flags_t *tptr = (const ur_exp_device_2d_block_array_capability_flags_t *)ptr;
+        if (sizeof(ur_exp_device_2d_block_array_capability_flags_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_exp_device_2d_block_array_capability_flags_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        ur::details::printFlag<ur_exp_device_2d_block_array_capability_flag_t>(os,
+                                                                               *tptr);
 
         os << ")";
     } break;
@@ -9441,6 +9461,64 @@ inline ur_result_t printFlag<ur_usm_migration_flag_t>(std::ostream &os, uint32_t
             first = false;
         }
         os << UR_USM_MIGRATION_FLAG_DEFAULT;
+    }
+    if (val != 0) {
+        std::bitset<32> bits(val);
+        if (!first) {
+            os << " | ";
+        }
+        os << "unknown bit flags " << bits;
+    } else if (first) {
+        os << "0";
+    }
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_device_2d_block_array_capability_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_device_2d_block_array_capability_flag_t value) {
+    switch (value) {
+    case UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD:
+        os << "UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD";
+        break;
+    case UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE:
+        os << "UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_device_2d_block_array_capability_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_device_2d_block_array_capability_flag_t>(std::ostream &os, uint32_t flag) {
+    uint32_t val = flag;
+    bool first = true;
+
+    if ((val & UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) == (uint32_t)UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) {
+        val ^= (uint32_t)UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD;
+    }
+
+    if ((val & UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE) == (uint32_t)UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE) {
+        val ^= (uint32_t)UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
     }
     if (val != 0) {
         std::bitset<32> bits(val);

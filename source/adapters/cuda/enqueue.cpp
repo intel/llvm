@@ -493,9 +493,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2], LocalSize,
         CuStream, const_cast<void **>(ArgIndices.data()), nullptr));
 
-    if (LocalSize != 0)
-      hKernel->clearLocalSize();
-
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
@@ -672,9 +669,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     UR_CHECK_ERROR(cuLaunchKernelEx(&launch_config, CuFunc,
                                     const_cast<void **>(ArgIndices.data()),
                                     nullptr));
-
-    if (LocalSize != 0)
-      hKernel->clearLocalSize();
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());

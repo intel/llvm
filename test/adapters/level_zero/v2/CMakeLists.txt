@@ -25,6 +25,7 @@ function(add_unittest name)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
     )
 endfunction()
 

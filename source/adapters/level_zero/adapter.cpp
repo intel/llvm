@@ -256,6 +256,9 @@ Behavior Summary:
 */
 ur_adapter_handle_t_::ur_adapter_handle_t_()
     : logger(logger::get_logger("level_zero")) {
+  ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
+  ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
+  ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
@@ -331,9 +334,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       logger::debug("\nzeInit with flags value of {}\n",
                     static_cast<int>(L0InitFlags));
       GlobalAdapter->ZeInitResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
-      if (*GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
-        logger::debug("\nzeInit failed with {}\n",
-                      *GlobalAdapter->ZeInitResult);
+      if (GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
+        logger::debug("\nzeInit failed with {}\n", GlobalAdapter->ZeInitResult);
       }
 
       bool useInitDrivers = false;
@@ -376,17 +378,17 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
               ZE_CALL_NOCHECK(GlobalAdapter->initDriversFunctionPtr,
                               (&GlobalAdapter->ZeInitDriversCount, nullptr,
                                &GlobalAdapter->InitDriversDesc));
-          if (*GlobalAdapter->ZeInitDriversResult == ZE_RESULT_SUCCESS) {
+          if (GlobalAdapter->ZeInitDriversResult == ZE_RESULT_SUCCESS) {
             GlobalAdapter->InitDriversSupported = true;
           } else {
             logger::debug("\nzeInitDrivers failed with {}\n",
-                          *GlobalAdapter->ZeInitDriversResult);
+                          GlobalAdapter->ZeInitDriversResult);
           }
         }
       }
 
-      if (*GlobalAdapter->ZeInitResult == ZE_RESULT_SUCCESS ||
-          *GlobalAdapter->ZeInitDriversResult == ZE_RESULT_SUCCESS) {
+      if (GlobalAdapter->ZeInitResult == ZE_RESULT_SUCCESS ||
+          GlobalAdapter->ZeInitDriversResult == ZE_RESULT_SUCCESS) {
         GlobalAdapter->ZeResult = ZE_RESULT_SUCCESS;
       } else {
         GlobalAdapter->ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
@@ -450,7 +452,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       GlobalAdapter->ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
     }
 
-    ur_result_t err = initPlatforms(platforms, *GlobalAdapter->ZesResult);
+    ur_result_t err = initPlatforms(platforms, GlobalAdapter->ZesResult);
     if (err == UR_RESULT_SUCCESS) {
       result = std::move(platforms);
     } else {

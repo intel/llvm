@@ -40,24 +40,23 @@ class Benchmark:
             ld_library=ld_library
         ).stdout.decode()
 
-    def create_data_path(self, name):
-        data_path = os.path.join(self.directory, "data", name)
-
-        if options.rebuild and Path(data_path).exists():
-           shutil.rmtree(data_path)
+    def create_data_path(self, name, skip_data_dir = False):
+        if skip_data_dir:
+            data_path = os.path.join(self.directory, name)
+        else:
+            data_path = os.path.join(self.directory, 'data', name)
+            if options.rebuild and Path(data_path).exists():
+                shutil.rmtree(data_path)
 
         Path(data_path).mkdir(parents=True, exist_ok=True)
 
         return data_path
 
-    def download(self, name, url, file, untar = False):
-        self.data_path = self.create_data_path(name)
-        return download(self.data_path, url, file, True)
+    def download(self, name, url, file, untar = False, unzip = False, skip_data_dir = False):
+        self.data_path = self.create_data_path(name, skip_data_dir)
+        return download(self.data_path, url, file, untar, unzip)
 
     def name(self):
-        raise NotImplementedError()
-
-    def unit(self):
         raise NotImplementedError()
 
     def lower_is_better(self):
