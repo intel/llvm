@@ -22,11 +22,6 @@ set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_obj-new-offload lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
-set(clang $<TARGET_FILE:clang>)
-set(llvm-ar $<TARGET_FILE:llvm-ar>)
-set(llvm-link $<TARGET_FILE:llvm-link>)
-set(llvm-opt $<TARGET_FILE:opt>)
-
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
   "spir64_x86_64-unknown-unknown,"
@@ -55,6 +50,7 @@ set(compile_opts
   # we declare all functions as 'static'.
   -Wno-undefined-internal
   -sycl-std=2020
+  --target=${LLVM_HOST_TRIPLE}
   )
 
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
@@ -146,7 +142,8 @@ function(compile_lib_ext filename)
 
   add_custom_command(
     OUTPUT ${devicelib-file}
-    COMMAND ${clang} ${ARG_OPTS}
+    COMMAND ${clang_exe} -I ${PROJECT_BINARY_DIR}/include
+            ${ARG_OPTS}
             ${CMAKE_CURRENT_SOURCE_DIR}/${ARG_SRC} -o ${devicelib-file}
     MAIN_DEPENDENCY ${ARG_SRC}
     DEPENDS ${ARG_DEPENDENCIES}
@@ -224,20 +221,26 @@ function(add_devicelibs filename)
   endforeach()
 endfunction()
 
-# Set up the dependency lists for the libdevice libraries
-set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
-set(complex_obj_deps device_complex.h device.h sycl-compiler)
-set(cmath_obj_deps device_math.h device.h sycl-compiler)
-set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h sycl-compiler)
-set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
-set(bfloat16_obj_deps sycl-headers sycl-compiler)
+# For native builds, sycl-compiler will already include everything we need.
+# For cross builds, we also need native versions of the tools.
+set(sycl-compiler_deps
+  sycl-compiler ${clang_target} ${append-file_target}
+  ${clang-offload-bundler_target} ${clang-offload-packager_target}
+  ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
+  ${sycl-post-link_target})
+set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
+set(complex_obj_deps device_complex.h device.h ${sycl-compiler_deps})
+set(cmath_obj_deps device_math.h device.h ${sycl-compiler_deps})
+set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
+set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
+set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
 if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
   set(asan_obj_deps
     device.h atomic.hpp spirv_vars.h
     ${UR_SANITIZER_INCLUDE_DIR}/asan/asan_libdevice.hpp
     include/asan_rtl.hpp
     include/spir_global_var.hpp
-    sycl-compiler)
+    ${sycl-compiler_deps})
 
   set(sanitizer_generic_compile_opts ${compile_opts}
                             -fno-sycl-instrument-device-code
@@ -427,6 +430,7 @@ set(imf_fp64_fallback_src ${imf_fallback_src_dir}/imf_fp64_fallback.cpp)
 set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
 
 set(imf_host_cxx_flags -c
+  --target=${LLVM_HOST_TRIPLE}
   -D__LIBDEVICE_HOST_IMPL__
 )
 
@@ -520,13 +524,13 @@ function(add_lib_imf name)
 
   add_custom_command(
     OUTPUT ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix}
-    COMMAND ${clang} ${compile_opts} ${ARG_EXTRA_OPTS}
+    COMMAND ${clang_exe} ${compile_opts} ${ARG_EXTRA_OPTS}
             -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
             ${imf_${ARG_DTYPE}_fallback_src}
             -o
             ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix}
             DEPENDS ${imf_fallback_${ARG_DTYPE}_deps}
-            get_imf_fallback_${ARG_DTYPE} sycl-compiler
+            get_imf_fallback_${ARG_DTYPE} ${sycl-compiler_deps}
     VERBATIM)
 
   add_custom_target(${ARG_TGT_NAME}
@@ -620,7 +624,7 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
     endif()
     add_custom_command(
       OUTPUT ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
-      COMMAND ${clang} ${${ftype}_host_compile_opts}
+      COMMAND ${clang_exe} ${${ftype}_host_compile_opts}
               ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
               -o ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
       MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
@@ -637,7 +641,7 @@ foreach(ftype IN ITEMS obj obj-new-offload)
     DEPENDS ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}})
   add_custom_command(
     OUTPUT ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
-    COMMAND ${llvm-ar} rcs
+    COMMAND ${llvm-ar_exe} rcs
             ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
             ${${ftype}_binary_dir}/imf-fp32-host.${${ftype}-suffix}
             ${${ftype}_binary_dir}/fallback-imf-fp32-host.${${ftype}-suffix}
@@ -648,7 +652,7 @@ foreach(ftype IN ITEMS obj obj-new-offload)
     DEPENDS imf_fp32_host_${ftype} imf_fallback_fp32_host_${ftype}
     DEPENDS imf_fp64_host_${ftype} imf_fallback_fp64_host_${ftype}
     DEPENDS imf_bf16_host_${ftype} imf_fallback_bf16_host_${ftype}
-    DEPENDS sycl-compiler
+    DEPENDS ${llvm-ar_target}
     VERBATIM)
   add_dependencies(libsycldevice-obj imf_host_${ftype})
 

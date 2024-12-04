@@ -69,7 +69,7 @@ if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DI
 
   # Import required tools
   if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
-    foreach( tool IN ITEMS clang llvm-as llvm-link opt )
+    foreach( tool IN ITEMS clang llvm-as llvm-link llvm-spirv opt )
       find_program( LLVM_TOOL_${tool} ${tool} PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
       set( ${tool}_exe ${LLVM_TOOL_${tool}} )
       set( ${tool}_target )
@@ -92,6 +92,7 @@ else()
     get_host_tool_path( clang CLANG clang_exe clang_target )
     get_host_tool_path( llvm-as LLVM_AS llvm-as_exe llvm-as_target )
     get_host_tool_path( llvm-link LLVM_LINK llvm-link_exe llvm-link_target )
+    get_host_tool_path( llvm-spirv LLVM_SPIRV llvm-spirv_exe llvm-spirv_target )
     get_host_tool_path( opt OPT opt_exe opt_target )
   endif()
 endif()
@@ -113,13 +114,15 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
 
   # If we've requested a custom binary directory, there are some otherwise
   # optional tools which we want to ensure are present.
-  if( NOT TARGET libclc::llvm-spirv OR NOT TARGET libclc::libclc-remangler )
-    message( FATAL_ERROR "libclc toolchain incomplete!" )
-  endif()
+  foreach( tool IN ITEMS llvm-spirv libclc-remangler )
+    if( NOT EXISTS "${${tool}_exe}" AND "${${tool}_target}" STREQUAL "" )
+      message( FATAL_ERROR "libclc toolchain incomplete!" )
+    endif()
+  endforeach()
 endif()
 
 foreach( tool IN ITEMS clang opt llvm-as llvm-link )
-  if( NOT EXISTS "${${tool}_exe}" AND "${tool}_target" STREQUAL "" )
+  if( NOT EXISTS "${${tool}_exe}" AND "${${tool}_target}" STREQUAL "" )
     message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
   endif()
 endforeach()
