@@ -4247,6 +4247,7 @@
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
+?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@H@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z

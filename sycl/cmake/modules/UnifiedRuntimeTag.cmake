@@ -1,7 +1,7 @@
-# commit 2bea25d7d5404ce82f36caf91c359f65b25187d7
-# Merge: 0b5d8f9e e578228a
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Dec 3 12:41:16 2024 +0000
-#     Merge pull request #2298 from Bensuo/ewan/cuda_update_local_size
-#     Improve CUDA/HIP local argument handling
-set(UNIFIED_RUNTIME_TAG 2bea25d7d5404ce82f36caf91c359f65b25187d7)
+# commit 5acc8240aefc020112cc69c0769ea62f8b64c6d7
+# Merge: 7ee29785cf0 41ad797c3993
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Wed Dec 4 11:52:09 2024 +0000
+#     Merge pull request #2403 from Naghasan/work_group_static_reland
+#     Add new launch property to support work_group_scratch_memory
+set(UNIFIED_RUNTIME_TAG 5acc8240aefc020112cc69c0769ea62f8b64c6d7)

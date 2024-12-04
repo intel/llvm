@@ -2427,7 +2427,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
-    const RTDeviceBinaryImage *BinImage, const std::string &KernelName) {
+    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2446,6 +2447,17 @@ static ur_result_t SetKernelParamsAndLaunch(
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+
+  std::optional<int> ImplicitLocalArg =
+      ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    Adapter->call<UrApiKind::urKernelSetArgLocal>(
+        Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
+  }
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
 
@@ -2474,9 +2486,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
-    std::vector<ur_exp_launch_property_t> property_list;
-
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
     launch_property_value_cluster_range.clusterDim[0] =
         NDRDesc.ClusterDimensions[0];
@@ -2494,13 +2505,20 @@ static ur_result_t SetKernelParamsAndLaunch(
       property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
                                launch_property_value_cooperative});
     }
-
+  }
+  // If there is no implicit arg, let the driver handle it via a property
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+    property_list.push_back(
+        {UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY, WorkGroupMemorySize});
+  }
+  if (!property_list.empty()) {
     ur_event_handle_t UREvent = nullptr;
     ur_result_t Error =
         Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
-            Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
-            LocalSize, property_list.size(), property_list.data(),
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
+            property_list.size(), property_list.data(), RawEvents.size(),
+            RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEventImpl ? &UREvent : nullptr);
     if (OutEventImpl) {
       OutEventImpl->setHandle(UREvent);
@@ -2692,7 +2710,8 @@ void enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch, const RTDeviceBinaryImage *BinImage) {
+    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
+    const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2784,7 +2803,8 @@ void enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch, BinImage, KernelName);
+        KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
+        BinImage, KernelName);
 
     const AdapterPtr &Adapter = Queue->getAdapter();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -3176,7 +3196,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                      SyclKernel, KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch, BinImage);
+                     ExecKernel->MKernelUsesClusterLaunch,
+                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
