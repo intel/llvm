@@ -87,18 +87,18 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
       continue;
     for (auto &BB : F) {
       for (auto &II : BB) {
-        if (auto *CI = dyn_cast_or_null<CallInst>(&II)) {
+        if (auto *CI = dyn_cast<CallInst>(&II)) {
           auto *SqrtF = CI->getCalledFunction();
           if (SqrtF->getName() == "sqrt" ||
               SqrtF->getName().starts_with("_Z4sqrt") ||
               SqrtF->getIntrinsicID() == llvm::Intrinsic::sqrt)
             return PreservedAnalyses::all();
         }
-        if (auto *FPI = dyn_cast_or_null<FPMathOperator>(&II)) {
+/*        if (auto *FPI = dyn_cast<FPMathOperator>(&II)) {
           auto Opcode = FPI->getOpcode();
           if (Opcode == Instruction::FDiv)
-            return PreservedAnalyses::all();
-        }
+            return PreservedAnalyses::all();*/
+//        }
       }
     }
   }
