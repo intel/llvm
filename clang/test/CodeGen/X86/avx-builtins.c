@@ -11,6 +11,7 @@
 
 
 #include <immintrin.h>
+#include "builtin_test_helpers.h"
 
 // NOTE: This should match the tests in llvm/test/CodeGen/X86/avx-intrinsics-fast-isel.ll
 
@@ -52,14 +53,14 @@ __m256 test_mm256_and_ps(__m256 A, __m256 B) {
 
 __m256d test_mm256_andnot_pd(__m256d A, __m256d B) {
   // CHECK-LABEL: test_mm256_andnot_pd
-  // CHECK: xor <4 x i64> %{{.*}}, <i64 -1, i64 -1, i64 -1, i64 -1>
+  // CHECK: xor <4 x i64> %{{.*}}, splat (i64 -1)
   // CHECK: and <4 x i64>
   return _mm256_andnot_pd(A, B);
 }
 
 __m256 test_mm256_andnot_ps(__m256 A, __m256 B) {
   // CHECK-LABEL: test_mm256_andnot_ps
-  // CHECK: xor <8 x i32> %{{.*}}, <i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1>
+  // CHECK: xor <8 x i32> %{{.*}}, splat (i32 -1)
   // CHECK: and <8 x i32>
   return _mm256_andnot_ps(A, B);
 }
@@ -1740,18 +1741,21 @@ __m256d test_mm256_setzero_pd(void) {
   // CHECK: store <4 x double> zeroinitializer
   return _mm256_setzero_pd();
 }
+TEST_CONSTEXPR(match_m256d(_mm256_setzero_pd(), +0.0, +0.0, +0.0, +0.0));
 
 __m256 test_mm256_setzero_ps(void) {
   // CHECK-LABEL: test_mm256_setzero_ps
   // CHECK: store <8 x float> zeroinitializer
   return _mm256_setzero_ps();
 }
+TEST_CONSTEXPR(match_m256(_mm256_setzero_ps(), +0.0f, +0.0f, +0.0f, +0.0f, +0.0f, +0.0f, +0.0f, +0.0f));
 
 __m256i test_mm256_setzero_si256(void) {
   // CHECK-LABEL: test_mm256_setzero_si256
   // CHECK: store <4 x i64> zeroinitializer
   return _mm256_setzero_si256();
 }
+TEST_CONSTEXPR(match_m256i(_mm256_setzero_si256(), 0, 0, 0, 0));
 
 __m256d test_mm256_shuffle_pd(__m256d A, __m256d B) {
   // CHECK-LABEL: test_mm256_shuffle_pd
@@ -2097,19 +2101,3 @@ float test_mm256_cvtss_f32(__m256 __a)
   // CHECK: extractelement <8 x float> %{{.*}}, i32 0
   return _mm256_cvtss_f32(__a);
 }
-
-// Test constexpr handling.
-#if defined(__cplusplus) && (__cplusplus >= 201103L)
-
-void test_constexpr() {
-  constexpr __m256d v_mm256_setzero_pd = _mm256_setzero_pd();
-  static_assert(v_mm256_setzero_pd[0] == +0.0 && v_mm256_setzero_pd[1] == +0.0 && v_mm256_setzero_pd[2] == +0.0 && v_mm256_setzero_pd[3] == +0.0);
-
-  constexpr __m256 v_mm256_setzero_ps = _mm256_setzero_ps();
-  static_assert(v_mm256_setzero_ps[0] == +0.0f && v_mm256_setzero_ps[1] == +0.0f && v_mm256_setzero_ps[2] == +0.0f && v_mm256_setzero_ps[3] == +0.0f && v_mm256_setzero_ps[4] == +0.0f && v_mm256_setzero_ps[5] == +0.0f && v_mm256_setzero_ps[6] == +0.0f && v_mm256_setzero_ps[7] == +0.0f);
-
-  constexpr __m256i v_mm256_setzero_si256 = _mm256_setzero_si256();
-  static_assert(v_mm256_setzero_si256[0] == 0x0000000000000000ULL && v_mm256_setzero_si256[1] == 0x0000000000000000ULL && v_mm256_setzero_si256[2] == 0x0000000000000000ULL && v_mm256_setzero_si256[3] == 0x0000000000000000ULL);
-}
-
-#endif

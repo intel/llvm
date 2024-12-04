@@ -1082,7 +1082,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               nullptr,
               // TODO: Extract from handler
               UR_KERNEL_CACHE_CONFIG_DEFAULT, CG->MKernelIsCooperative,
-              CG->MKernelUsesClusterLaunch);
+              CG->MKernelUsesClusterLaunch, CG->MKernelWorkGroupMemorySize);
           ScheduledEvents.push_back(NewEvent);
         } else if (!NodeImpl->isEmpty()) {
           // Empty nodes are node processed as other nodes, but only their
@@ -1512,7 +1512,10 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   PtrDescs.reserve(MaskedArgs.size());
   ValueDescs.reserve(MaskedArgs.size());
 
-  ur_exp_command_buffer_update_kernel_launch_desc_t UpdateDesc;
+  ur_exp_command_buffer_update_kernel_launch_desc_t UpdateDesc{};
+  UpdateDesc.stype =
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC;
+  UpdateDesc.pNext = nullptr;
 
   // Collect arg descriptors and fill kernel launch descriptor
   using sycl::detail::kernel_param_kind_t;

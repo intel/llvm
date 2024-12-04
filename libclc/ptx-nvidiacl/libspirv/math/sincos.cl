@@ -9,7 +9,7 @@
 #include <spirv/spirv.h>
 
 #include "../../include/libdevice.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 
 #define __CLC_SINCOS_IMPL(ADDRSPACE, BUILTIN, FP_TYPE, ARG_TYPE)               \
   _CLC_OVERLOAD _CLC_DEF ARG_TYPE __spirv_ocl_sincos(                          \

@@ -38,19 +38,18 @@ config.required_features = []
 config.unsupported_features = []
 
 # test-mode: Set if tests should run normally or only build/run
-match lit_config.params.get("test-mode", "full"):
-    case "run-only":
-        config.test_mode = "run-only"
-        config.available_features.add("run-mode")
-    case "build-only":
-        config.test_mode = "build-only"
-        config.sycl_devices = []
-    case "full":
-        config.test_mode = "full"
-        config.available_features.add("run-mode")
-        config.available_features.add("build-and-run-mode")
-    case _:
-        lit_config.error("Invalid argument for test-mode")
+config.test_mode = lit_config.params.get("test-mode", "full")
+if config.test_mode == "full":
+    config.available_features.add("run-mode")
+    config.available_features.add("build-and-run-mode")
+elif config.test_mode == "run-only":
+    lit_config.note("run-only test mode enabled, only executing tests")
+    config.available_features.add("run-mode")
+elif config.test_mode == "build-only":
+    lit_config.note("build-only test mode enabled, only compiling tests")
+    config.sycl_devices = []
+else:
+    lit_config.error("Invalid argument for test-mode")
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
