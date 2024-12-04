@@ -261,12 +261,13 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     return errorTo<RTCResult>(std::move(Error), "Device linking failed");
   }
 
-  auto BundleInfoOrError = performPostLink(*Module, UserArgList);
-  if (!BundleInfoOrError) {
-    return errorTo<RTCResult>(BundleInfoOrError.takeError(),
+  auto PostLinkResultOrError = performPostLink(std::move(Module), UserArgList);
+  if (!PostLinkResultOrError) {
+    return errorTo<RTCResult>(PostLinkResultOrError.takeError(),
                               "Post-link phase failed");
   }
-  auto BundleInfo = std::move(*BundleInfoOrError);
+  RTCBundleInfo BundleInfo;
+  std::tie(BundleInfo, Module) = std::move(*PostLinkResultOrError);
 
   auto BinaryInfoOrError =
       translation::KernelTranslator::translateBundleToSPIRV(
