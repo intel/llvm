@@ -1,7 +1,7 @@
-# commit 5acc8240aefc020112cc69c0769ea62f8b64c6d7
-# Merge: 7ee29785cf0 41ad797c3993
+# commit 3fdf7e3998b029fbf6cdb584e552a71a678f3146
+# Merge: c34ea46276a9 353d30678b2c
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Dec 4 11:52:09 2024 +0000
-#     Merge pull request #2403 from Naghasan/work_group_static_reland
-#     Add new launch property to support work_group_scratch_memory
-set(UNIFIED_RUNTIME_TAG 5acc8240aefc020112cc69c0769ea62f8b64c6d7)
+# Date:   Wed Dec 4 15:08:55 2024 +0000
+#     Merge pull request #2413 from againull/max_dir_length_win
+#     [L0] Shorten the dir name for the fecthed repo to avoid hitting Windows max limit
+set(UNIFIED_RUNTIME_TAG 3fdf7e3998b029fbf6cdb584e552a71a678f3146)
