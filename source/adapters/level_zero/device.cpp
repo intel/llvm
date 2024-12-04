@@ -1518,10 +1518,10 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
 
   static const bool UseDriverInOrderLists = [&] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
-        1, 3, L0_DRIVER_INORDER_MIN_VERSION);
+    // bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
+    //     1, 3, L0_DRIVER_INORDER_MIN_VERSION);
     if (!UrRet)
-      return CompatibleDriver;
+      return false;
     return std::atoi(UrRet) != 0;
   }();
 
