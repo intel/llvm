@@ -32,25 +32,31 @@ int main() {
   Base *Obj = sycl::malloc_shared<Base>(1, Q);
 
   Q.single_task<Constructor>([=]() {
-    // Even though at LLVM IR level this kernel does reference 'Base::foo'
-    // and 'Base::bar' through global variable containing `vtable` for `Base`,
-    // we do not consider the kernel to be using `fp64` optional feature.
-    new (Obj) Base;
-  }).wait();
+     // Even though at LLVM IR level this kernel does reference 'Base::foo'
+     // and 'Base::bar' through global variable containing `vtable` for `Base`,
+     // we do not consider the kernel to be using `fp64` optional feature.
+     new (Obj) Base;
+   }).wait();
 
-  Q.single_task<Use>(syclext::properties{syclext::assume_indirect_calls}, [=]() {
-    // This kernel is not considered to be using any optional features, because
-    // virtual functions in default set do not use any.
-    Obj->foo();
-  }).wait();
+  Q.single_task<Use>(syclext::properties{syclext::assume_indirect_calls},
+                     [=]() {
+                       // This kernel is not considered to be using any optional
+                       // features, because virtual functions in default set do
+                       // not use any.
+                       Obj->foo();
+                     })
+      .wait();
 
   if (Q.get_device().has(sycl::aspect::fp64)) {
-    Q.single_task<UseFP64>(syclext::properties{syclext::assume_indirect_calls_to<set_fp64>},
-        [=]() {
-      // This kernel is considered to be using 'fp64' optional feature, because
-      // there is a virtual function in 'set_fp64' which uses double.
-      Obj->bar();
-    }).wait();
+    Q.single_task<UseFP64>(
+         syclext::properties{syclext::assume_indirect_calls_to<set_fp64>},
+         [=]() {
+           // This kernel is considered to be using 'fp64' optional feature,
+           // because there is a virtual function in 'set_fp64' which uses
+           // double.
+           Obj->bar();
+         })
+        .wait();
   }
 
   int nfails = 0;

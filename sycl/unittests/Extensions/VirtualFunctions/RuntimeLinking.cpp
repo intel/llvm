@@ -370,7 +370,7 @@ TEST(VirtualFunctions, DummyImages) {
 
   CapturedLinkingData.clear();
 
-  EXPECT_EQ(Plt.get_devices().size(), 2);
+  EXPECT_EQ(Plt.get_devices().size(), 2u);
   sycl::queue Q2(sycl::aspect_selector({}, {sycl::aspect::fp64}));
 
   // We now repeat what we did launching KernelH but on another
