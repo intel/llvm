@@ -15,15 +15,22 @@ int main() {
     uint32_t A = 42;
 
     sycl_queue.submit([&](sycl::handler &cgh) {
-        sycl::local_accessor<uint32_t, 1> local_mem(local_size, cgh);
+        sycl::local_accessor<uint32_t, 1> local_mem_A(local_size, cgh);
+        sycl::local_accessor<uint32_t, 1> local_mem_B(local_size * 2, cgh);
+
         cgh.parallel_for<class saxpy_usm_local_mem>(
             sycl::nd_range<1>{{array_size}, {local_size}},
             [=](sycl::nd_item<1> itemId) {
                 auto i = itemId.get_global_linear_id();
                 auto local_id = itemId.get_local_linear_id();
-                local_mem[local_id] = i;
-                Z[i] = A * X[i] + Y[i] + local_mem[local_id] +
-                       itemId.get_local_range(0);
+
+                local_mem_A[local_id] = i;
+                local_mem_B[local_id * 2] = -i;
+                local_mem_B[(local_id * 2) + 1] = itemId.get_local_range(0);
+
+                Z[i] = A * X[i] + Y[i] + local_mem_A[local_id] +
+                       local_mem_B[local_id * 2] +
+                       local_mem_B[(local_id * 2) + 1];
             });
     });
     return 0;

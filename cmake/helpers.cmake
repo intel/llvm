@@ -63,6 +63,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL Linux)
     check_cxx_compiler_flag("-fstack-clash-protection" CXX_HAS_FSTACK_CLASH_PROTECTION)
 endif()
 
+if (UR_USE_CFI AND UR_USE_ASAN)
+    message(WARNING "Both UR_USE_CFI and UR_USE_ASAN are ON. "
+        "Due to build errors, this is unsupported; CFI checks will be disabled")
+    set(UR_USE_CFI OFF)
+endif()
+
 if (UR_USE_CFI)
     set(SAVED_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
     set(CMAKE_REQUIRED_FLAGS "-flto -fvisibility=hidden")

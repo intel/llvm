@@ -99,9 +99,6 @@ class SyclBenchmark(Benchmark):
     def extra_env_vars(self) -> dict:
         return {}
 
-    def unit(self):
-        return "ms"
-
     def setup(self):
         self.benchmark_bin = os.path.join(self.directory, 'sycl-bench-build', self.bench_name)
 
@@ -134,7 +131,8 @@ class SyclBenchmark(Benchmark):
                             passed=(row[1]=="PASS"),
                             command=command,
                             env=env_vars,
-                            stdout=row))
+                            stdout=row,
+                            unit="ms"))
         self.done = True
         return res_list
 
