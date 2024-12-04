@@ -116,11 +116,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-<<<<<<< HEAD
   set(UNIFIED_RUNTIME_REPO "https://github.com/ianayl/unified-runtime.git")
-=======
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
->>>>>>> 6d2fa74a6e6dcb95757fd1df568b5815eb3402f3
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
