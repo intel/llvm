@@ -29,6 +29,7 @@ if(UR_BUILD_ADAPTER_L0)
         target_link_libraries(test-adapter-level_zero PRIVATE
             LevelZeroLoader
             LevelZeroLoader-Headers
+            ComputeRuntimeLevelZero-Headers
         )
 
         target_include_directories(test-adapter-level_zero PRIVATE

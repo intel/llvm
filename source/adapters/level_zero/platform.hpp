@@ -107,5 +107,11 @@ struct ur_platform_handle_t_ : public _ur_platform {
     ze_result_t (*zexCommandListUpdateMutableCommandWaitEventsExp)(
         ze_command_list_handle_t, uint64_t, uint32_t,
         ze_event_handle_t *) = nullptr;
+    ze_result_t (*zexCommandListUpdateMutableCommandKernelsExp)(
+        ze_command_list_handle_t, uint32_t, uint64_t *,
+        ze_kernel_handle_t *) = nullptr;
+    ze_result_t (*zexCommandListGetNextCommandIdWithKernelsExp)(
+        ze_command_list_handle_t, const ze_mutable_command_id_exp_desc_t *,
+        uint32_t, ze_kernel_handle_t *, uint64_t *) = nullptr;
   } ZeMutableCmdListExt;
 };

@@ -169,15 +169,6 @@ struct ur_context_handle_t_ : _ur_object {
   // holding the current pool usage counts.
   ur_mutex ZeEventPoolCacheMutex;
 
-  // Mutex to control operations on event caches.
-  ur_mutex EventCacheMutex;
-
-  // Caches for events.
-  using EventCache = std::vector<std::list<ur_event_handle_t>>;
-  EventCache EventCaches{4};
-  std::vector<std::unordered_map<ur_device_handle_t, size_t>>
-      EventCachesDeviceMap{4};
-
   // Initialize the PI context.
   ur_result_t initialize();
 
@@ -313,36 +304,45 @@ struct ur_context_handle_t_ : _ur_object {
   ze_context_handle_t getZeHandle() const;
 
 private:
+  enum EventFlags {
+    EVENT_FLAG_HOST_VISIBLE = UR_BIT(0),
+    EVENT_FLAG_WITH_PROFILING = UR_BIT(1),
+    EVENT_FLAG_COUNTER = UR_BIT(2),
+    EVENT_FLAG_DEVICE = UR_BIT(3), // if set, subsequent bits are device id
+    MAX_EVENT_FLAG_BITS =
+        4, // this is used as an offset for embedding device id
+  };
+
+  // Mutex to control operations on event caches.
+  ur_mutex EventCacheMutex;
+
+  // Caches for events.
+  using EventCache = std::list<ur_event_handle_t>;
+  std::vector<EventCache> EventCaches;
+
   // Get the cache of events for a provided scope and profiling mode.
-  auto getEventCache(bool HostVisible, bool WithProfiling,
-                     ur_device_handle_t Device) {
+  EventCache *getEventCache(bool HostVisible, bool WithProfiling,
+                            ur_device_handle_t Device, bool Counter) {
+
+    size_t index = 0;
     if (HostVisible) {
-      if (Device) {
-        auto EventCachesMap =
-            WithProfiling ? &EventCachesDeviceMap[0] : &EventCachesDeviceMap[1];
-        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
-          EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
-        }
-        return &EventCaches[(*EventCachesMap)[Device]];
-      } else {
-        return WithProfiling ? &EventCaches[0] : &EventCaches[1];
-      }
-    } else {
-      if (Device) {
-        auto EventCachesMap =
-            WithProfiling ? &EventCachesDeviceMap[2] : &EventCachesDeviceMap[3];
-        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
-          EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
-        }
-        return &EventCaches[(*EventCachesMap)[Device]];
-      } else {
-        return WithProfiling ? &EventCaches[2] : &EventCaches[3];
-      }
+      index |= EVENT_FLAG_HOST_VISIBLE;
     }
+    if (WithProfiling) {
+      index |= EVENT_FLAG_WITH_PROFILING;
+    }
+    if (Counter) {
+      index |= EVENT_FLAG_COUNTER;
+    }
+    if (Device) {
+      index |= EVENT_FLAG_DEVICE | (*Device->Id << MAX_EVENT_FLAG_BITS);
+    }
+
+    if (index >= EventCaches.size()) {
+      EventCaches.resize(index + 1);
+    }
+
+    return &EventCaches[index];
   }
 };
 

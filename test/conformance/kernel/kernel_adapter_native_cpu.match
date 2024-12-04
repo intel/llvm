@@ -38,6 +38,9 @@ urKernelRetainTest.InvalidNullHandleKernel/*
 urKernelSetArgLocalTest.Success/*
 urKernelSetArgLocalTest.InvalidNullHandleKernel/*
 urKernelSetArgLocalTest.InvalidKernelArgumentIndex/*
+urKernelSetArgLocalMultiTest.Basic/*
+urKernelSetArgLocalMultiTest.ReLaunch/*
+urKernelSetArgLocalMultiTest.Overwrite/*
 urKernelSetArgMemObjTest.Success/*
 urKernelSetArgMemObjTest.InvalidNullHandleKernel/*
 urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/*

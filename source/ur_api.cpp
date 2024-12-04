@@ -410,7 +410,7 @@ ur_result_t UR_APICALL urAdapterGetLastError(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///         + `::UR_ADAPTER_INFO_VERSION < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -771,7 +771,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP < propName`
+///         + `::UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
