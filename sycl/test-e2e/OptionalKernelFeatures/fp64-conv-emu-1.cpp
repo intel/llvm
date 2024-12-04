@@ -1,3 +1,5 @@
+// REQUIRES: ocloc
+//
 // We require a certain HW here, because we specifically want to exercise AOT
 // compilation and not JIT fallback. However, to make this test run in more
 // environments (and therefore cover more scenarios), the list of HW is bigger
