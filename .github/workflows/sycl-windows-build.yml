@@ -10,6 +10,9 @@ on:
       build_ref:
         type: string
         required: false
+      build_configure_extra_args:
+        type: string
+        required: false
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -22,6 +25,10 @@ on:
         description: 'Artifacts retention period'
         type: string
         default: 3
+      compiler:
+        type: string
+        required: false
+        default: "cl"
 
     outputs:
       build_conclusion:
@@ -50,12 +57,18 @@ on:
         type: choice
         options:
           - 3
+      compiler:
+        type: choice
+        options:
+          - cl
+          - icx
+          
 permissions: read-all
 
 jobs:
   build:
     name: Build + LIT
-    runs-on: [Windows, build]
+    runs-on: [Windows, build-test]
     environment: WindowsCILock
     # TODO use cached checkout
     outputs:
@@ -64,12 +77,36 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
+    - name: oneAPI setup
+      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      run: |
+        $batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+
+        $githubEnvFilePath = $env:GITHUB_ENV
+
+        $envBefore = Get-ChildItem Env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
+
+        $envVars = & cmd.exe /c "call `"$batchFilePath`" && set" | Out-String
+
+        $envAfter = $envVars -split "`r`n" | Where-Object { $_ -match "^(.*?)=(.*)$" }
+
+        foreach ($envVar in $envAfter) {
+            if ($envVar -match "^(.*?)=(.*)$") {
+                $name = $matches[1]
+                $value = $matches[2]
+                $envBeforeVar = $envBefore | Where-Object { $_ -like "$name=*" }
+                if (-not $envBeforeVar -or $envBeforeVar -ne "$name=$value") {
+                    Add-Content -Path $githubEnvFilePath -Value "$name=$value"
+                }
+            }
+        }
     - name: Set env
       run: |
         git config --system core.longpaths true
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - uses: actions/checkout@v4
       with:
         path: src
@@ -78,25 +115,27 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
     - name: Configure
+      env:
+         ARGS: ${{ inputs.build_configure_extra_args }}
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       run: |
         mkdir build
+        fsutil.exe file setCaseSensitiveInfo build enable
         mkdir install
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-defaults ^
-          --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
+          --ci-defaults %ARGS% ^
+          --cmake-opt="-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
-          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache" ^
+          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=ccache" ^
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" ^
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
     - name: Build
       id: build
-      shell: bash
       run: |
         cmake --build build --target sycl-toolchain
     - name: check-llvm
