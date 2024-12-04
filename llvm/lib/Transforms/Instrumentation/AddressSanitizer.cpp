@@ -1333,11 +1333,25 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
 
   if (!HasESIMD)
     for (Function &F : M) {
-      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-        continue;
-
       if (!F.hasFnAttribute(Attribute::SanitizeAddress) ||
           F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+        continue;
+
+      if (F.getName().contains("__sycl_service_kernel__")) {
+        F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+        continue;
+      }
+
+      // Skip referenced-indirectly function as we insert access to shared
+      // local memory (SLM) __AsanLaunchInfo and access to SLM in
+      // referenced-indirectly function isn't supported yet in
+      // intel-graphics-compiler.
+      if (F.hasFnAttribute("referenced-indirectly")) {
+        F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+        continue;
+      }
+
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
         continue;
 
       SpirFixupKernels.emplace_back(&F);
@@ -3682,16 +3696,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (F.getName().starts_with("__asan_")) return false;
   if (F.isPresplitCoroutine())
     return false;
-
-  if (TargetTriple.isSPIROrSPIRV()) {
-    if (F.getName().contains("__sycl_service_kernel__"))
-      return false;
-    // Skip referenced-indirectly function as we insert access to shared local
-    // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
-    // function isn't supported yet in intel-graphics-compiler.
-    if (F.hasFnAttribute("referenced-indirectly"))
-      return false;
-  }
 
   bool FunctionModified = false;
 
