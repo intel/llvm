@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_task_sequence -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
@@ -9,7 +9,7 @@
 
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_task_sequence,+SPV_KHR_untyped_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
@@ -54,12 +54,15 @@
 
 ; CHECK-SPIRV: TypeInt [[#IntTy:]] 32 0
 ; CHECK-SPIRV: TypeTaskSequenceINTEL [[#TypeTS:]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeStruct [[#StructTS:]] [[#TypeTS]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[#Ptr:]] 7
 ; CHECK-SPIRV: TypeFunction [[#FuncTy:]] [[#IntTy]] [[#IntTy]] [[#IntTy]]
-; CHECK-SPIRV: TypePointer [[#PtrTS:]] 7 [[#TypeTS]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[#PtrTS:]] 7 [[#TypeTS]]
 
 ; <id> Result Type <id> Result <id> Function Literal Pipelined Literal UseStallEnableClusters Literal GetCapacity Literal AsyncCapacity
 ; CHECK-SPIRV: TaskSequenceCreateINTEL [[#TypeTS]] [[#CreateRes:]] [[#FuncId:]] 10 4294967295 17 1
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#PtrTS]] [[#GEP:]]
+; CHECK-SPIRV-TYPED-PTR: InBoundsPtrAccessChain [[#PtrTS]] [[#GEP:]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedInBoundsPtrAccessChainKHR [[#Ptr]] [[#GEP:]] [[#StructTS]]
 ; CHECK-SPIRV: Store [[#GEP]] [[#CreateRes]]
 
 ; CHECK-SPIRV: Load [[#IntTy]] [[#LoadIntVar:]]

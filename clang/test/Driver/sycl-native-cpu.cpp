@@ -24,3 +24,9 @@
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -### 2>&1 | FileCheck -check-prefix=CHECK-NONATIVECPU %s
 // CHECK-NONATIVECPU-NOT: "-D" "__SYCL_NATIVE_CPU__"
+
+// Checking that coverage testing options are accepted by native_cpu, and that device and host compilation invocations receive the same options
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Werror -fno-profile-instr-generate -fprofile-instr-generate -fno-coverage-mapping -fcoverage-mapping -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_COV_INVO
+// CHECK_COV_INVO:{{.*}}clang{{.*}}-fsycl-is-device{{.*}}"-fsycl-is-native-cpu" "-D" "__SYCL_NATIVE_CPU__"{{.*}}"-fprofile-instrument=clang"{{.*}}"-fcoverage-mapping" "-fcoverage-compilation-dir={{.*}}"
+// CHECK_COV_INVO:{{.*}}clang{{.*}}"-fsycl-is-host"{{.*}}"-fprofile-instrument=clang"{{.*}}"-fcoverage-mapping" "-fcoverage-compilation-dir={{.*}}"
+
