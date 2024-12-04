@@ -29,7 +29,7 @@ config.test_source_root = os.path.join(os.path.dirname(__file__), 'binding')
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.test_run_dir, 'test')
 
-libclc_inc = os.path.join(config.libclc_root, 'generic', 'include')
+libclc_inc = os.path.join(config.libclc_root, 'libspirv', 'include')
 
 target = lit_config.params.get('target', '')
 builtins = lit_config.params.get('builtins', '')

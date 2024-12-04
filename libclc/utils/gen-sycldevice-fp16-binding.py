@@ -244,7 +244,7 @@ Typical usage:
 //
 //===----------------------------------------------------------------------===//
 
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 #ifdef cl_khr_fp16
 #ifdef __CLC_HAS_FLOAT16

@@ -23,7 +23,7 @@
 #include "../../libspirv/math/tables.h"
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
