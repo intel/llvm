@@ -598,10 +598,13 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
  */
 bool canBeInOrder(ur_context_handle_t Context,
                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
+  const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
   // In-order command-lists are not available in old driver version.
+  bool DriverInOrderRequested = UrRet ? std::atoi(UrRet) != 0 : false;
   bool CompatibleDriver = Context->getPlatform()->isDriverVersionNewerOrSimilar(
       1, 3, L0_DRIVER_INORDER_MIN_VERSION);
-  return CompatibleDriver
+  bool CanUseDriverInOrderLists = CompatibleDriver && DriverInOrderRequested;
+  return CanUseDriverInOrderLists
              ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
              : false;
 }
