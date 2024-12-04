@@ -239,6 +239,10 @@ public:
       return;
     auto &PropertySet = PropertySetIt->second;
     PropertySet.erase(PropertySet.find(PropName));
+    auto PropIt = PropertySet.find(PropName);
+    if (PropIt == PropertySet.end())
+      return;
+    PropertySet.erase(PropIt);
   }
 
   /// Parses from the given \p Buf a property set registry.
