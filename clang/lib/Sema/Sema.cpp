@@ -1849,7 +1849,9 @@ public:
         if (!S.SYCL().checkAllowedSYCLInitializer(VD) &&
             !S.SYCL()
                  .isTypeDecoratedWithDeclAttribute<
-                     SYCLGlobalVariableAllowedAttr>(VD->getType())) {
+                     SYCLGlobalVariableAllowedAttr>(VD->getType()) &&
+            !S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
+                VD->getType())) {
           S.Diag(Loc, diag::err_sycl_restrict)
               << SemaSYCL::KernelConstStaticVariable;
           return;
