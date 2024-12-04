@@ -10412,6 +10412,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_exp_launch_property_id
     case UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION:
         os << "UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION";
         break;
+    case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
+        os << "UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -10447,6 +10450,13 @@ inline ur_result_t printUnion(
         os << ".cooperative = ";
 
         os << (params.cooperative);
+
+        break;
+    case UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY:
+
+        os << ".workgroup_mem_size = ";
+
+        os << (params.workgroup_mem_size);
 
         break;
     default:
@@ -15114,6 +15124,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ".workDim = ";
 
     os << *(params->pworkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkOffset = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkOffset));
 
     os << ", ";
     os << ".pGlobalWorkSize = ";
