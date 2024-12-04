@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <utils.h>
+#include <clc/utils.h>
 
 #ifndef __CLC_SW_FUNC
 #define __CLC_SW_FUNC __CLC_XCONCAT(__clc_, __CLC_FUNC)

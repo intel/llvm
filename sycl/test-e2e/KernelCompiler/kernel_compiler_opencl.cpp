@@ -34,6 +34,7 @@
 // CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 auto constexpr CLSource = R"===(
 __kernel void my_kernel(__global int *in, __global int *out) {

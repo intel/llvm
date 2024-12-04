@@ -19,6 +19,7 @@
 #include <fstream>
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 sycl::kernel_bundle<sycl::bundle_state::executable>

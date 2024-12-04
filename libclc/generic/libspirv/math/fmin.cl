@@ -8,7 +8,7 @@
 
 #include <spirv/spirv.h>
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_fmin, __builtin_fminf, float, float);
 

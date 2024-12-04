@@ -8,7 +8,7 @@
 
 #include <spirv/spirv.h>
 
-#include "clcmacro.h"
+#include <clc/clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_rsqrt(float x) {
   return 1.0f / __spirv_ocl_sqrt(x);

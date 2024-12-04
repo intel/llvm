@@ -202,7 +202,6 @@ bool types::isDerivedFromC(ID Id) {
   case TY_PP_ObjCXX:
   case TY_PP_ObjCXX_Alias:
   case TY_ObjCXX:
-  case TY_RenderScript:
   case TY_PP_CHeader:
   case TY_CHeader:
   case TY_CLHeader:
@@ -352,7 +351,6 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("ll", TY_LLVM_IR)
       .Case("mi", TY_PP_ObjC)
       .Case("mm", TY_ObjCXX)
-      .Case("rs", TY_RenderScript)
       .Case("adb", TY_Ada)
       .Case("ads", TY_Ada)
       .Case("asm", TY_PP_Asm)

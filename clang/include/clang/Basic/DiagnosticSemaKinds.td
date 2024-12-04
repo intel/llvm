@@ -863,6 +863,10 @@ def warn_cstruct_memaccess : Warning<
   "%1 call is a pointer to record %2 that is not trivial to "
   "%select{primitive-default-initialize|primitive-copy}3">,
   InGroup<NonTrivialMemaccess>;
+def warn_cxxstruct_memaccess : Warning<
+  "first argument in call to "
+  "%0 is a pointer to non-trivially copyable type %1">,
+  InGroup<NonTrivialMemaccess>;
 def note_nontrivial_field : Note<
   "field is non-trivial to %select{copy|default-initialize}0">;
 def err_non_trivial_c_union_in_invalid_context : Error<
@@ -9199,6 +9203,8 @@ def err_cuda_host_shared : Error<
     "%select{__device__|__global__|__host__|__host__ __device__}0 functions">;
 def err_cuda_nonstatic_constdev: Error<"__constant__, __device__, and "
     "__managed__ are not allowed on non-static local variables">;
+def err_cuda_grid_constant_not_allowed : Error<
+  "__grid_constant__ is only allowed on const-qualified kernel parameters">;
 def err_cuda_ovl_target : Error<
   "%select{__device__|__global__|__host__|__host__ __device__}0 function %1 "
   "cannot overload %select{__device__|__global__|__host__|__host__ __device__}2 function %3">;
@@ -10200,6 +10206,9 @@ def err_lifetimebound_no_object_param : Error<
 def err_lifetimebound_ctor_dtor : Error<
   "'lifetimebound' attribute cannot be applied to a "
   "%select{constructor|destructor}0">;
+def err_lifetimebound_void_return_type : Error<
+  "'lifetimebound' attribute cannot be applied to a parameter of a function "
+  "that returns void">;
 
 // CHECK: returning address/reference of stack memory
 def warn_ret_stack_addr_ref : Warning<
@@ -10291,7 +10300,7 @@ def warn_new_dangling_initializer_list : Warning<
   "will be destroyed at the end of the full-expression">,
   InGroup<DanglingInitializerList>;
 def warn_dangling_pointer_assignment : Warning<
-   "object backing the pointer %0 "
+   "object backing %select{|the pointer }0%1 "
    "will be destroyed at the end of the full-expression">,
    InGroup<DanglingAssignment>;
 
@@ -12547,6 +12556,11 @@ def err_sycl_external_global : Error<
 def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
+def err_sycl_wg_scope : Error<
+  "SYCL work group scope only applies to class with a trivial "
+  "%select{default constructor|destructor}0">;
+def err_sycl_field_with_wg_scope : Error<
+  "non-static data member is of a type with a SYCL work group scope attribute applied to it">;
 def err_sycl_virtual_types : Error<
   "no class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
@@ -12998,7 +13012,18 @@ def err_acc_num_arg_conflict
 def err_acc_clause_in_clause_region
     : Error<"loop with a '%0' clause may not exist in the region of a '%1' "
             "clause%select{| on a 'kernels' compute construct}2">;
-
+def err_acc_gang_reduction_conflict
+    : Error<"%select{OpenACC 'gang' clause with a 'dim' value greater than "
+            "1|OpenACC 'reduction' clause}0 cannot "
+            "appear on the same 'loop' construct as a %select{'reduction' "
+            "clause|'gang' clause with a 'dim' value greater than 1}0">;
+def err_acc_gang_reduction_numgangs_conflict
+    : Error<"OpenACC '%0' clause cannot appear on the same 'loop' construct "
+            "as a '%1' clause inside a compute construct with a "
+            "'num_gangs' clause with more than one argument">;
+def err_reduction_op_mismatch
+    : Error<"OpenACC 'reduction' variable must have the same operator in all "
+            "nested constructs (%0 vs %1)">;
 // AMDGCN builtins diagnostics
 def err_amdgcn_global_load_lds_size_invalid_value : Error<"invalid size value">;
 def note_amdgcn_global_load_lds_size_valid_value : Note<"size must be 1, 2, or 4">;

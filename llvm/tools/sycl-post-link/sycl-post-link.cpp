@@ -29,6 +29,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/AsanKernelMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
@@ -831,6 +832,13 @@ processInputModule(std::unique_ptr<Module> M) {
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
   if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
+
+  // AddressSanitizer specific passes
+  if (isModuleUsingAsan(*M)) {
+    // Fix attributes and metadata of the global variable
+    // "__AsanKernelMetadata"
+    Modified |= runModulePass<AsanKernelMetadataPass>(*M);
+  }
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
