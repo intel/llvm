@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clcmacro.h"
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF char __spirv_ocl_clz(char x) {

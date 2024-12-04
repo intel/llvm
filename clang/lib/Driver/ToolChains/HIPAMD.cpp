@@ -207,7 +207,7 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (JA.getType() == types::TY_LLVM_BC)
     return constructLlvmLinkCommand(C, JA, Inputs, Output, Args);
 
-  if (getToolChain().getTriple().isSPIRV())
+  if (getToolChain().getEffectiveTriple().isSPIRV())
     return constructLinkAndEmitSpirvCommand(C, JA, Inputs, Output, Args);
 
   return constructLldCommand(C, JA, Inputs, Output, Args);
@@ -274,12 +274,14 @@ void HIPAMDToolChain::addClangTargetOptions(
     CC1Args.push_back("-fapply-global-visibility-to-externs");
   }
 
-  // For SPIR-V we embed the command-line into the generated binary, in order to
-  // retrieve it at JIT time and be able to do target specific compilation with
-  // options that match the user-supplied ones.
-  if (getTriple().isSPIRV() &&
-      !DriverArgs.hasArg(options::OPT_fembed_bitcode_marker))
-    CC1Args.push_back("-fembed-bitcode=marker");
+  if (getEffectiveTriple().isSPIRV()) {
+    // For SPIR-V we embed the command-line into the generated binary, in order
+    // to retrieve it at JIT time and be able to do target specific compilation
+    // with options that match the user-supplied ones.
+    if (!DriverArgs.hasArg(options::OPT_fembed_bitcode_marker))
+      CC1Args.push_back("-fembed-bitcode=marker");
+    return; // No DeviceLibs for SPIR-V.
+  }
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
     SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
@@ -438,8 +440,7 @@ HIPAMDToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   if (DriverArgs.hasArg(options::OPT_nogpulib) ||
-      (getTriple().getArch() == llvm::Triple::spirv64 &&
-       getTriple().getVendor() == llvm::Triple::AMD))
+      getGPUArch(DriverArgs) == "amdgcnspirv")
     return {};
   ArgStringList LibraryPaths;
 
@@ -515,8 +516,8 @@ HIPAMDToolChain::getDeviceLibs(
 void HIPAMDToolChain::checkTargetID(
     const llvm::opt::ArgList &DriverArgs) const {
   auto PTID = getParsedTargetID(DriverArgs);
-  if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
+  if (PTID.OptionalTargetID && !PTID.OptionalGPUArch &&
+      PTID.OptionalTargetID != "amdgcnspirv")
     getDriver().Diag(clang::diag::err_drv_bad_target_id)
         << *PTID.OptionalTargetID;
-  }
 }
