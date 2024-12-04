@@ -238,7 +238,6 @@ public:
     if (PropertySetIt == PropSetMap.end())
       return;
     auto &PropertySet = PropertySetIt->second;
-    PropertySet.erase(PropertySet.find(PropName));
     auto PropIt = PropertySet.find(PropName);
     if (PropIt == PropertySet.end())
       return;
