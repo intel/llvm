@@ -11,8 +11,20 @@ entry:
   ret void
 }
 
+; "Construction" kernels which reference vtables but do not actually
+; perform any virtual calls should not have aspects propagated to them.
 ; CHECK-NOT: @construct({{.*}}){{.*}}!sycl_used_aspects
 define weak_odr dso_local spir_kernel void @construct(ptr addrspace(1) noundef align 8 %_arg_StorageAcc) {
+entry:
+  store ptr addrspace(1) getelementptr inbounds inrange(-16, 8) (i8, ptr addrspace(1) @vtable, i64 16), ptr addrspace(1) %_arg_StorageAcc, align 8
+  ret void
+}
+
+; Note: after SYCLVirtualFunctionAnalysis pass, the construction kernels will have 
+; "calls-indirectly" attribute, but even so they should not have aspects propagated 
+; to them (as the construction kernels have no virtual calls).
+; CHECK-NOT: @construct2({{.*}}){{.*}}!sycl_used_aspects
+define weak_odr dso_local spir_kernel void @construct2(ptr addrspace(1) noundef align 8 %_arg_StorageAcc) #1 {
 entry:
   store ptr addrspace(1) getelementptr inbounds inrange(-16, 8) (i8, ptr addrspace(1) @vtable, i64 16), ptr addrspace(1) %_arg_StorageAcc, align 8
   ret void
@@ -21,6 +33,7 @@ entry:
 ; CHECK: ![[#aspects]] = !{i32 6}
 
 attributes #0 = { "indirectly-callable"="set-foo" }
+attributes #1 = { "calls-indirectly"="set-foo" }
 
 !sycl_aspects = !{!0}
 !0 = !{!"fp64", i32 6}
