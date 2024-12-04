@@ -1,8 +1,16 @@
-// REQUIRES: ocloc, linux, arch-intel_gpu_dg2_g10
+// REQUIRES: ocloc
+//
+// We require a certain HW here, because we specifically want to exercise AOT
+// compilation and not JIT fallback. However, to make this test run in more
+// environments (and therefore cover more scenarios), the list of HW is bigger
+// than just a single target.
+//
+// REQUIRES: arch-intel_gpu_dg2_g10 || arch-intel_gpu_dg2_g11 || arch-intel_gpu_dg2_g12 || arch-intel_gpu_pvc || arch-intel_gpu_mtl_h || arch-intel_gpu_mtl_u
+//
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-REASON: FP64 emulation is an Intel specific feature.
 
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 -fsycl-fp64-conv-emu -O0 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10,intel_gpu_dg2_g11,intel_gpu_dg2_g12,intel_gpu_pvc,intel_gpu_mtl_h,intel_gpu_mtl_u -fsycl-fp64-conv-emu -O0 %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
