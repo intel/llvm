@@ -2509,7 +2509,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   // If there is no implicit arg, let the driver handle it via a property
   if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
     property_list.push_back(
-        {UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY, {WorkGroupMemorySize}});
+        {UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY, {{WorkGroupMemorySize}}});
   }
   if (!property_list.empty()) {
     ur_event_handle_t UREvent = nullptr;
