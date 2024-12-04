@@ -806,6 +806,56 @@ private:
   }
 };
 
+// SYCL_CACHE_MAX_SIZE accepts an integer that specifies
+// the maximum size of the on-disk Program cache.
+// Cache eviction is performed when the cache size exceeds the threshold.
+// The thresholds are specified in bytes.
+// The default value is "0" which means that eviction is disabled.
+template <> class SYCLConfig<SYCL_CACHE_MAX_SIZE> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_MAX_SIZE>;
+
+public:
+  static int get() { return getCachedValue(); }
+  static void reset() { (void)getCachedValue(true); }
+
+  static int getProgramCacheSize() { return getCachedValue(); }
+
+  static bool isPersistentCacheEvictionEnabled() {
+    return getProgramCacheSize() > 0;
+  }
+
+private:
+  static int getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+
+      // Disable eviction by default.
+      if (!ValStr)
+        return 0;
+
+      int CacheSize = 0;
+      try {
+        CacheSize = std::stoi(ValStr);
+        if (CacheSize < 0)
+          throw INVALID_CONFIG_EXCEPTION(BaseT, "Value must be non-negative");
+      } catch (...) {
+        std::string Msg =
+            std::string{"Invalid input to SYCL_CACHE_MAX_SIZE. Please try "
+                        "a positive integer."};
+        throw exception(make_error_code(errc::runtime), Msg);
+      }
+
+      return CacheSize;
+    };
+
+    static auto EvictionThresholds = Parser();
+    if (ResetCache)
+      EvictionThresholds = Parser();
+
+    return EvictionThresholds;
+  }
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail

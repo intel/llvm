@@ -214,6 +214,20 @@ public:
     if (traceEnabled)
       std::cerr << "[kernel_compiler Persistent Cache]: " << msg << std::endl;
   }
+
+private:
+  // Check if cache_size.lock file is present in the cache root directory.
+  // If not, create it and populate it with the size of the cache directory.
+  static void repopulateCacheSizeFile(const std::string &CacheRoot);
+
+  // Update the cache size file and trigger cache eviction if needed.
+  static void
+  updateCacheFileSizeAndTriggerEviction(const std::string &CacheRoot,
+                                        size_t CacheSize);
+
+  // Evict LRU items from the cache to make space for new items.
+  static void evictItemsFromCache(const std::string &CacheRoot,
+                                  size_t CacheSize, size_t MaxCacheSize);
 };
 } // namespace detail
 } // namespace _V1

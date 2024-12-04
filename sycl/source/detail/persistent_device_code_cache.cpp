@@ -178,6 +178,183 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
   return Result;
 }
 
+// Check if cache_size.lock file is present in the cache root directory.
+// If not, create it and populate it with the size of the cache directory.
+void PersistentDeviceCodeCache::repopulateCacheSizeFile(
+    const std::string &CacheRoot) {
+  const std::string CacheSizeFileName = "cache_size.txt";
+  const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
+
+  // If the cache size file is not present, calculate the size of the cache size
+  // directory and write it to the file.
+  if (!OSUtil::isPathPresent(CacheSizeFile)) {
+    PersistentDeviceCodeCache::trace(
+        "Cache size file not present. Creating one.");
+    // Calculate the size of the cache directory.
+    size_t CacheSize = OSUtil::getDirectorySize(CacheRoot);
+
+    std::cerr << "Cache size: " << CacheSize << std::endl;
+
+    // Take the lock to write the cache size to the file.
+    {
+      LockCacheItem Lock{CacheSizeFile};
+      if (!Lock.isOwned()) {
+        // If some other process is writing the cache size, do not write it.
+        PersistentDeviceCodeCache::trace("Didnot create the cache size file. "
+                                         "Some other process is creating one.");
+        return;
+      } else {
+        std::ofstream FileStream{CacheSizeFile};
+        FileStream << CacheSize;
+        FileStream.close();
+      }
+    }
+  }
+}
+
+void PersistentDeviceCodeCache::evictItemsFromCache(
+    const std::string &CacheRoot, size_t CacheSize, size_t MaxCacheSize) {
+  PersistentDeviceCodeCache::trace("Cache eviction triggered.");
+
+  // Create a file eviction_in_progress.lock to indicate that eviction is in
+  // progress. This file is used to prevent two processes from evicting the
+  // cache at the same time.
+  LockCacheItem Lock{CacheRoot + "eviction_in_progress"};
+  if (!Lock.isOwned()) {
+    // If some other process is evicting the cache, return.
+    PersistentDeviceCodeCache::trace(
+        "Another process is evicting the cache. Returning.");
+    return;
+  }
+
+  // Get the list of all files in the cache directory along with their last
+  // access time.
+  auto FilesWithAccessTime = OSUtil::getFilesWithAccessTime(CacheRoot);
+
+  // Sort the files in the cache directory based on their last access time.
+  std::sort(FilesWithAccessTime.begin(), FilesWithAccessTime.end(),
+            [](const std::pair<time_t, std::string> &A,
+               const std::pair<time_t, std::string> &B) {
+              return A.first < B.first;
+            });
+
+  // Evict files from the cache directory until the cache size is less than the
+  // threshold.
+  size_t CurrCacheSize = CacheSize;
+  for (const auto &File : FilesWithAccessTime) {
+
+    // Remove .bin/.src/.lock extension from the file name.
+    const std::string FileNameWOExt =
+        File.second.substr(0, File.second.find_last_of("."));
+    const std::string BinFile = FileNameWOExt + ".bin";
+    const std::string SrcFile = FileNameWOExt + ".src";
+
+    while (OSUtil::isPathPresent(BinFile) && OSUtil::isPathPresent(SrcFile)) {
+
+      // This is used to prevent race between processes trying to read the file
+      // while it is being evicted.
+      if (LockCacheItem::isLocked(FileNameWOExt + "_reader")) {
+        // If some other process is reading the file, spin and wait.
+        continue;
+      }
+
+      // Take a lock on the file to prevent other processes from reading the
+      // file.
+      LockCacheItem Lock{FileNameWOExt};
+
+      auto RemoveFileAndSubtractSize =
+          [&CurrCacheSize](const std::string &FileName) {
+            auto FileSize = OSUtil::getFileSize(FileName);
+            if (std::remove(FileName.c_str())) {
+              PersistentDeviceCodeCache::trace("Failed to remove file: " +
+                                               FileName);
+            } else {
+              PersistentDeviceCodeCache::trace("File removed: " + FileName);
+              CurrCacheSize -= FileSize;
+            }
+          };
+
+      RemoveFileAndSubtractSize(SrcFile);
+      RemoveFileAndSubtractSize(BinFile);
+    }
+
+    // If the cache size is less than the threshold, break.
+    if (CurrCacheSize <= MaxCacheSize)
+      break;
+  }
+
+  // Update the cache size file with the new cache size.
+  {
+    const std::string CacheSizeFileName = "cache_size.txt";
+    const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
+    while (true) {
+      LockCacheItem Lock{CacheSizeFile};
+      if (!Lock.isOwned()) {
+        // If some other process is writing the cache size, spin lock.
+        continue;
+      } else {
+        std::fstream FileStream;
+        FileStream.open(CacheSizeFile, std::ios::out | std::ios::trunc);
+        FileStream << CurrCacheSize;
+        FileStream.close();
+
+        PersistentDeviceCodeCache::trace(
+            "Updating the cache size file after eviction. New size: " +
+            std::to_string(CurrCacheSize));
+        break;
+      }
+    }
+  }
+}
+
+// Update the cache size file and trigger cache eviction if needed.
+void PersistentDeviceCodeCache::updateCacheFileSizeAndTriggerEviction(
+    const std::string &CacheRoot, size_t ItemSize) {
+
+  const std::string CacheSizeFileName = "cache_size.txt";
+  const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
+  size_t CurrentCacheSize = 0;
+  // Read the cache size from the file.
+  while (true) {
+    LockCacheItem Lock{CacheSizeFile};
+    if (!Lock.isOwned()) {
+      // If some other process is writing the cache size, spin lock.
+      continue;
+    } else {
+      PersistentDeviceCodeCache::trace("Updating the cache size file.");
+      std::fstream FileStream;
+      FileStream.open(CacheSizeFile, std::ios::in);
+
+      // Read the cache size from the file;
+      std::string line;
+      if (std::getline(FileStream, line)) {
+        CurrentCacheSize = std::stoull(line);
+      }
+      FileStream.close();
+
+      CurrentCacheSize += ItemSize;
+
+      // Write the updated cache size to the file.
+      FileStream.open(CacheSizeFile, std::ios::out | std::ios::trunc);
+      std::cerr << "Current cache size: " << CurrentCacheSize << std::endl;
+      FileStream << CurrentCacheSize;
+      FileStream.close();
+      break;
+    }
+  }
+
+  // Check if the cache size exceeds the threshold and trigger cache eviction if
+  // needed.
+  if (!SYCLConfig<SYCL_CACHE_MAX_SIZE>::isPersistentCacheEvictionEnabled())
+    return;
+
+  size_t MaxCacheSize = SYCLConfig<SYCL_CACHE_MAX_SIZE>::getProgramCacheSize();
+  if (CurrentCacheSize > MaxCacheSize) {
+    // Trigger cache eviction.
+    evictItemsFromCache(CacheRoot, CurrentCacheSize, MaxCacheSize);
+  }
+}
+
 /* Stores built program in persistent cache. We will put the binary for each
  * device in the list to a separate file.
  */
@@ -190,8 +367,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
   if (!areImagesCacheable(Imgs))
     return;
 
+  repopulateCacheSizeFile(getRootDir());
+
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   auto BinaryData = getProgramBinaryData(NativePrg, Devices);
+
+  // Total size of the item that we just wrote to the cache.
+  size_t TotalSize = 0;
   for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
     // If we don't have binary for the device, skip it.
     if (BinaryData[DeviceIndex].empty())
@@ -202,9 +384,11 @@ void PersistentDeviceCodeCache::putItemToDisc(
     if (DirName.empty())
       return;
 
+    std::string FileName;
+    bool IsWriteSuccess = false;
     try {
       OSUtil::makeDir(DirName.c_str());
-      std::string FileName = getUniqueFilename(DirName);
+      FileName = getUniqueFilename(DirName);
       LockCacheItem Lock{FileName};
       if (Lock.isOwned()) {
         std::string FullFileName = FileName + ".bin";
@@ -212,6 +396,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
         trace("device binary has been cached: " + FullFileName);
         writeSourceItem(FileName + ".src", Devices[DeviceIndex], SortedImgs,
                         SpecConsts, BuildOptionsString);
+        IsWriteSuccess = true;
       } else {
         PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
       }
@@ -224,7 +409,16 @@ void PersistentDeviceCodeCache::putItemToDisc(
           std::string("error outputting persistent cache: ") +
           std::strerror(errno));
     }
+
+    if (IsWriteSuccess) {
+      TotalSize += OSUtil::getFileSize(FileName + ".src");
+      TotalSize += OSUtil::getFileSize(FileName + ".bin");
+    }
   }
+
+  // Update the cache size file and trigger cache eviction if needed.
+  if (TotalSize)
+    updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
 }
 
 void PersistentDeviceCodeCache::putCompiledKernelToDisc(
@@ -291,6 +485,11 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     std::string FileName{Path + "/" + std::to_string(i)};
     while (OSUtil::isPathPresent(FileName + ".bin") ||
            OSUtil::isPathPresent(FileName + ".src")) {
+
+      // Create a file, <file_name>_reader.lock, to indicate that the file is
+      // being read. This file is used to prevent another process from evicting
+      // the cache entry while it is being read.
+      LockCacheItem Lock{FileName + "_reader"};
 
       if (!LockCacheItem::isLocked(FileName) &&
           isCacheItemSrcEqual(FileName + ".src", Devices[DeviceIndex],
@@ -379,8 +578,8 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
     trace("Failed to write to binary file " + FileName);
 }
 
-/* Read built binary from persistent cache. Each persistent cache file contains
- * binary for a single device. Format: BinarySize, Binary
+/* Read built binary from persistent cache. Each persistent cache file
+ * contains binary for a single device. Format: BinarySize, Binary
  */
 std::vector<char>
 PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
@@ -401,8 +600,8 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
 }
 
 /* Writing cache item key sources to be used for reliable identification
- * Format: Four pairs of [size, value] for device, build options, specialization
- * constant values, device code SPIR-V images.
+ * Format: Four pairs of [size, value] for device, build options,
+ * specialization constant values, device code SPIR-V images.
  */
 void PersistentDeviceCodeCache::writeSourceItem(
     const std::string &FileName, const device &Device,

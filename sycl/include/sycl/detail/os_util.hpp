@@ -15,6 +15,7 @@
 #include <cstdlib>    // for size_t
 #include <string>     // for string
 #include <sys/stat.h> // for stat
+#include <vector>     // for vector
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -88,6 +89,16 @@ public:
     return !stat(Path.c_str(), &Stat);
 #endif
   }
+
+  // Get size of directory in bytes.
+  static size_t getDirectorySize(const std::string &Path);
+
+  // Get size of file in bytes.
+  static size_t getFileSize(const std::string &Path);
+
+  // Get list of all files in the directory along with its last access time.
+  static std::vector<std::pair<time_t, std::string>>
+  getFilesWithAccessTime(const std::string &Path);
 };
 
 } // namespace detail

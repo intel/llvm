@@ -10,7 +10,6 @@
 
 #include <cassert>
 #include <limits>
-
 #if __GNUC__ && __GNUC__ < 8
 // Don't include <filesystem> for GCC versions less than 8
 #else
@@ -275,6 +274,67 @@ int OSUtil::makeDir(const char *Dir) {
   std::filesystem::create_directories(path.make_preferred());
 #endif
   return 0;
+}
+
+// Get size of a directory in bytes.
+size_t OSUtil::getDirectorySize(const std::string &Path) {
+
+  size_t Size = 0;
+#if __GNUC__ && __GNUC__ < 8
+  // Should we worry about this case?
+  assert(false && "getDirectorySize is not implemented for GCC < 8");
+#else
+  // Use C++17 filesystem API to get the size of the directory.
+  for (const auto &entry :
+       std::filesystem::recursive_directory_iterator(Path)) {
+    if (entry.is_regular_file())
+      Size += entry.file_size();
+  }
+#endif
+  return Size;
+}
+
+// Get size of file in bytes.
+size_t OSUtil::getFileSize(const std::string &Path) {
+  size_t Size = 0;
+#if __GNUC__ && __GNUC__ < 8
+  // Should we worry about this case?
+  assert(false && "getFileSize is not implemented for GCC < 8");
+#else
+  std::filesystem::path FilePath(Path);
+  if (std::filesystem::exists(FilePath) &&
+      std::filesystem::is_regular_file(FilePath))
+    Size = std::filesystem::file_size(FilePath);
+#endif
+  return Size;
+}
+
+// Get list of all files in the directory along with its last access time.
+std::vector<std::pair<time_t, std::string>>
+OSUtil::getFilesWithAccessTime(const std::string &Path) {
+  std::vector<std::pair<time_t, std::string>> Files;
+#if __GNUC__ && __GNUC__ < 8
+  // Should we worry about this case?
+  assert(false && "getFilesWithAccessTime is not implemented for GCC < 8");
+#else
+  for (const auto &entry :
+       std::filesystem::recursive_directory_iterator(Path)) {
+    if (entry.is_regular_file()) {
+#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
+      struct stat StatBuf;
+      if (stat(entry.path().c_str(), &StatBuf) == 0)
+        Files.push_back({StatBuf.st_atime, entry.path().string()});
+#elif defined(__SYCL_RT_OS_WINDOWS)
+      WIN32_FILE_ATTRIBUTE_DATA FileData;
+      if (GetFileAttributesEx(entry.path().c_str(), GetFileExInfoStandard,
+                              &FileData))
+        Files.push_back(
+            {FileData.ftLastAccessTime.dwLowDateTime, entry.path().string()});
+#endif // __SYCL_RT_OS
+    }
+  }
+#endif
+  return Files;
 }
 
 } // namespace detail
