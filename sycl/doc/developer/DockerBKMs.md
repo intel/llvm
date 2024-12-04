@@ -36,8 +36,10 @@ identical for Docker and Podman. Choose whatever is available on your system.
 
 The following containers are publicly available for DPC++ compiler development:
 
-- `ghcr.io/intel/llvm/ubuntu2204_base`: contains basic environment setup for
-   building DPC++ compiler from source.
+- `ghcr.io/intel/llvm/ubuntu2204_base`: contains basic Ubuntu 22.04 environment
+   setup for building DPC++ compiler from source.
+- `ghcr.io/intel/llvm/ubuntu2404_base`: contains basic Ubuntu 24.04 environment
+   setup for building DPC++ compiler from source.
 - `ghcr.io/intel/llvm/ubuntu2204_intel_drivers`: contains everything from the
    base container + pre-installed Intel drivers.
    The image comes in four flavors/tags:

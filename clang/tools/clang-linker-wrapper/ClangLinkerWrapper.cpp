@@ -334,12 +334,10 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
   return *Path;
 }
 
-/// We will defer LTO to the target's linker if we are not doing JIT and it is
-/// supported by the toolchain.
 bool linkerSupportsLTO(const ArgList &Args) {
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   return Triple.isNVPTX() || Triple.isAMDGPU() ||
-         Args.getLastArgValue(OPT_linker_path_EQ).ends_with("ld.lld");
+         Args.getLastArgValue(OPT_linker_path_EQ).ends_with("lld");
 }
 
 /// Returns the hashed value for a constant string.
@@ -1543,13 +1541,11 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   };
 
   // Forward all of the `--offload-opt` and similar options to the device.
-  if (linkerSupportsLTO(Args)) {
-    CmdArgs.push_back("-flto");
-    for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
-      CmdArgs.append(
-          {"-Xlinker",
-           Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
-  }
+  CmdArgs.push_back("-flto");
+  for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
+    CmdArgs.append(
+        {"-Xlinker",
+         Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
 
   if (!Triple.isNVPTX())
     CmdArgs.push_back("-Wl,--no-undefined");
@@ -1700,7 +1696,6 @@ void diagnosticHandler(const DiagnosticInfo &DI) {
   switch (DI.getSeverity()) {
   case DS_Error:
     WithColor::error(errs(), LinkerExecutable) << ErrStorage << "\n";
-    LTOError = true;
     break;
   case DS_Warning:
     WithColor::warning(errs(), LinkerExecutable) << ErrStorage << "\n";
@@ -2370,15 +2365,8 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         HasNonSYCLOffloadKinds = true;
     }
 
-    // First link and remove all the input files containing bitcode if
-    // the target linker does not support it natively.
+    // Write any remaining device inputs to an output file.
     SmallVector<StringRef> InputFiles;
-    if (!linkerSupportsLTO(LinkerArgs))
-      if (Error Err = linkBitcodeFiles(Input, InputFiles, LinkerArgs))
-        return Err;
-
-    // Write any remaining device inputs to an output file for the
-    // linker.
     for (const OffloadFile &File : Input) {
       auto FileNameOrErr = writeOffloadFile(File);
       if (!FileNameOrErr)

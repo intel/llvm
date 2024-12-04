@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
 
 int __ocml_ilogb_f32(float);
