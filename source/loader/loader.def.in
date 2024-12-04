@@ -312,6 +312,7 @@ EXPORTS
 	urPrintExpCommandBufferUpdateMemobjArgDesc
 	urPrintExpCommandBufferUpdatePointerArgDesc
 	urPrintExpCommandBufferUpdateValueArgDesc
+	urPrintExpDevice_2dBlockArrayCapabilityFlags
 	urPrintExpEnqueueExtFlags
 	urPrintExpEnqueueExtProperties
 	urPrintExpEnqueueNativeCommandFlags

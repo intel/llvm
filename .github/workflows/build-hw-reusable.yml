@@ -82,8 +82,6 @@ jobs:
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
     - name: Configure CMake
-      # CFI sanitization seems to fail on our CUDA nodes
-      # https://github.com/oneapi-src/unified-runtime/issues/2309
       run: >
         cmake
         -B${{github.workspace}}/build
@@ -96,7 +94,6 @@ jobs:
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_CONFORMANCE_TEST_LOADER=${{ matrix.adapter.other_name != '' && 'ON' || 'OFF' }}
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
-        -DUR_USE_CFI=${{ matrix.adapter.name == 'CUDA' && 'OFF' || 'ON' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++

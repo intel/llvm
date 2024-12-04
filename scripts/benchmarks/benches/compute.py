@@ -19,7 +19,7 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return
 
-        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "c80ddec9f0b4905bcbeb0f264f710093dc70340d")
+        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "df38bc342641d7e83fbb4fe764a23d21d734e07b")
         build_path = create_build_path(self.directory, 'compute-benchmarks-build')
 
         configure_command = [
@@ -59,14 +59,16 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, 'Device', 'Device', 1024),
             ExecImmediateCopyQueue(self, 1, 1, 'Device', 'Host', 1024),
             VectorSum(self),
-            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1),
-            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1),
+            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1, 1),
+            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
+            MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
+            MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
         ]
 
         if options.ur is not None:
@@ -76,6 +78,13 @@ class ComputeBench(Suite):
             ]
 
         return benches
+
+def parse_unit_type(compute_unit):
+    if "[count]" in compute_unit:
+        return "instr"
+    elif "[us]" in compute_unit:
+        return "μs"
+    return "unknown"
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
@@ -89,9 +98,6 @@ class ComputeBenchmark(Benchmark):
 
     def extra_env_vars(self) -> dict:
         return {}
-
-    def unit(self):
-        return "μs"
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.directory, 'compute-benchmarks-build', 'bin', self.bench_name)
@@ -108,22 +114,32 @@ class ComputeBenchmark(Benchmark):
         env_vars.update(self.extra_env_vars())
 
         result = self.run_bench(command, env_vars)
-        (label, mean) = self.parse_output(result)
-        return [ Result(label=self.name(), value=mean, command=command, env=env_vars, stdout=result) ]
+        parsed_results = self.parse_output(result)
+        ret = []
+        for label, mean, unit in parsed_results:
+            extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
+            ret.append(Result(label=self.name() + extra_label, value=mean, command=command, env=env_vars, stdout=result, unit=parse_unit_type(unit)))
+        return ret
 
     def parse_output(self, output):
         csv_file = io.StringIO(output)
         reader = csv.reader(csv_file)
         next(reader, None)
-        data_row = next(reader, None)
-        if data_row is None:
+        results = []
+        while True:
+            data_row = next(reader, None)
+            if data_row is None:
+                break
+            try:
+                label = data_row[0]
+                mean = float(data_row[1])
+                unit = data_row[7]
+                results.append((label, mean, unit))
+            except (ValueError, IndexError) as e:
+                raise ValueError(f"Error parsing output: {e}")
+        if len(results) == 0:
             raise ValueError("Benchmark output does not contain data.")
-        try:
-            label = data_row[0]
-            mean = float(data_row[1])
-            return (label, mean)
-        except (ValueError, IndexError) as e:
-            raise ValueError(f"Error parsing output: {e}")
+        return results
 
     def teardown(self):
         return
@@ -249,6 +265,7 @@ class StreamMemory(ComputeBenchmark):
             f"--memoryPlacement={self.placement}",
             "--useEvents=0",
             "--contents=Zeros",
+            "--multiplier=1",
         ]
 
 class VectorSum(ComputeBenchmark):
@@ -267,22 +284,23 @@ class VectorSum(ComputeBenchmark):
         ]
 
 class MemcpyExecute(ComputeBenchmark):
-    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations, srcUSM, dstUSM):
+    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations, srcUSM, dstUSM, useEvent):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
         self.iterations = iterations
         self.srcUSM = srcUSM
         self.dstUSM = dstUSM
+        self.useEvents = useEvent
         super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
 
     def name(self):
-        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
+        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}" + (" without events" if not self.useEvents else "")
 
     def bin_args(self) -> list[str]:
         return [
             "--Ioq=1",
-            "--UseEvents=1",
+            f"--UseEvents={self.useEvents}",
             "--MeasureCompletion=1",
             "--UseQueuePerThread=1",
             f"--AllocSize={self.allocSize}",

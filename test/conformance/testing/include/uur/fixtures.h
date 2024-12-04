@@ -519,6 +519,28 @@ struct urMultiQueueTest : urContextTest {
     ur_queue_handle_t queue2 = nullptr;
 };
 
+template <class T>
+struct urMultiQueueTestWithParam : urContextTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urQueueCreate(this->context, this->device, 0, &queue1));
+        ASSERT_SUCCESS(urQueueCreate(this->context, this->device, 0, &queue2));
+    }
+
+    void TearDown() override {
+        if (queue1 != nullptr) {
+            EXPECT_SUCCESS(urQueueRelease(queue1));
+        }
+        if (queue2 != nullptr) {
+            EXPECT_SUCCESS(urQueueRelease(queue2));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+    }
+
+    ur_queue_handle_t queue1 = nullptr;
+    ur_queue_handle_t queue2 = nullptr;
+};
+
 template <size_t MinDevices = 2>
 struct urMultiDeviceContextTestTemplate : urPlatformTest {
     void SetUp() override {
