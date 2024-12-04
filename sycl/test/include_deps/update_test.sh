@@ -2,6 +2,7 @@ HEADERS=(
     sycl/detail/defines_elementary.hpp
     sycl/detail/export.hpp
 
+    sycl/backend.hpp
     sycl/buffer.hpp
     sycl/accessor.hpp
 
