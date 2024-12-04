@@ -319,6 +319,22 @@ ur_result_t ur_platform_handle_t_::initialize() {
     ZeMutableCmdListExt.Supported |=
         ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp !=
         nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp =
+        (ze_pfnCommandListUpdateMutableCommandKernelsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandKernelsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp !=
+        nullptr;
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp =
+        (ze_pfnCommandListGetNextCommandIdWithKernelsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListGetNextCommandIdWithKernelsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp !=
+        nullptr;
   } else {
     ZeMutableCmdListExt.Supported |=
         (ZE_CALL_NOCHECK(
@@ -353,6 +369,21 @@ ur_result_t ur_platform_handle_t_::initialize() {
                   &ZeMutableCmdListExt
                        .zexCommandListUpdateMutableCommandWaitEventsExp))) ==
          0);
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListUpdateMutableCommandKernelsExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListUpdateMutableCommandKernelsExp))) == 0);
+
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListGetNextCommandIdWithKernelsExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListGetNextCommandIdWithKernelsExp))) == 0);
   }
   return UR_RESULT_SUCCESS;
 }

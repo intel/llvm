@@ -58,7 +58,7 @@ if(UR_BUILD_ADAPTER_L0)
         # 'utils' target from 'level-zero-loader' includes path which is prefixed
         # in the source directory, this breaks the installation of 'utils' target.
         set_target_properties(utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ze_loader utils
+        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers ze_loader utils
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -109,6 +109,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero PRIVATE
@@ -203,6 +204,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero_v2 PRIVATE

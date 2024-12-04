@@ -1093,10 +1093,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case UR_DEVICE_INFO_ASYNC_BARRIER: {
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
+    bool Is2DBlockIOSupported = false;
+    if (cl_adapter::checkDeviceExtensions(
+            cl_adapter::cast<cl_device_id>(hDevice),
+            {"cl_intel_subgroup_2d_block_io"},
+            Is2DBlockIOSupported) != UR_RESULT_SUCCESS ||
+        !Is2DBlockIOSupported) {
+      return ReturnValue(
+          static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
+    }
+    return ReturnValue(UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD |
+                       UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
   }
-
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
     size_t ExtSize = 0;

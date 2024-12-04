@@ -111,9 +111,9 @@ struct ProgramInfo {
     ur_program_handle_t Handle;
     std::atomic<int32_t> RefCount = 1;
 
-    // lock this mutex if following fields are accessed
-    ur_shared_mutex Mutex;
+    // Program is built only once, so we don't need to lock it
     std::unordered_set<std::shared_ptr<AllocInfo>> AllocInfoForGlobals;
+    std::unordered_set<std::string> InstrumentedKernels;
 
     explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
         [[maybe_unused]] auto Result =
@@ -126,6 +126,8 @@ struct ProgramInfo {
             getContext()->urDdiTable.Program.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
+
+    bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
 };
 
 struct ContextInfo {
@@ -187,6 +189,11 @@ struct DeviceGlobalInfo {
     uptr Addr;
 };
 
+struct SpirKernelInfo {
+    uptr KernelName;
+    uptr Size;
+};
+
 class AsanInterceptor {
   public:
     explicit AsanInterceptor();
@@ -200,8 +207,7 @@ class AsanInterceptor {
                                AllocType Type, void **ResultPtr);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
-    ur_result_t registerProgram(ur_context_handle_t Context,
-                                ur_program_handle_t Program);
+    ur_result_t registerProgram(ur_program_handle_t Program);
 
     ur_result_t unregisterProgram(ur_program_handle_t Program);
 
@@ -266,8 +272,10 @@ class AsanInterceptor {
 
     std::shared_ptr<KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {
         std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-        assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
-        return m_KernelMap[Kernel];
+        if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
+            return m_KernelMap[Kernel];
+        }
+        return nullptr;
     }
 
     const AsanOptions &getOptions() { return m_Options; }
@@ -298,7 +306,12 @@ class AsanInterceptor {
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
 
+    ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
+    ur_result_t registerSpirKernels(ur_program_handle_t Program);
+
   private:
+    // m_Options may be used in other places, place it at the top
+    AsanOptions m_Options;
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
@@ -323,8 +336,6 @@ class AsanInterceptor {
     ur_shared_mutex m_AllocationMapMutex;
 
     std::unique_ptr<Quarantine> m_Quarantine;
-
-    AsanOptions m_Options;
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
     ur_shared_mutex m_AdaptersMutex;

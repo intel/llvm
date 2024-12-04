@@ -256,6 +256,11 @@ ${x}CommandBufferAppendKernelLaunchExp. The command can then be updated
 to use the new kernel handle by passing it to
 ${x}CommandBufferUpdateKernelLaunchExp.
 
+.. important::
+    When updating the kernel handle of a command all required arguments to the
+    new kernel must be provided in the update descriptor. Failure to do so will
+    result in undefined behavior.
+
 .. parsed-literal::
 
     // Create a command-buffer with update enabled.
