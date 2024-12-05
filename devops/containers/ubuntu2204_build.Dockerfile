@@ -24,10 +24,9 @@ gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null && \
 # Add rocm repo
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.1.1 jammy main" \
 | tee --append /etc/apt/sources.list.d/rocm.list && \
-printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' | tee /etc/apt/preferences.d/rocm-pin-600 && \
-apt update
+printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' | tee /etc/apt/preferences.d/rocm-pin-600
 # Install the kernel driver
-RUN apt install -yqq rocm-dev && \
+RUN apt update && apt install -yqq rocm-dev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
