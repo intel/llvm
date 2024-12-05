@@ -3,6 +3,7 @@
 //
 // `Group algorithms are not supported on host device.` on Nvidia.
 // XFAIL: hip_nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14973
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

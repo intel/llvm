@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16204
 
 // The test checks that multiple calls to the same template instantiation of a
 // group local memory function result in separate allocations, even with device

@@ -3,6 +3,7 @@
 
 // Group algorithms are not supported on NVidia.
 // XFAIL: hip_nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14973
 
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().

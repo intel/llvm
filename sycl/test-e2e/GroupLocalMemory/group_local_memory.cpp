@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16204
 
 #include <sycl/detail/core.hpp>
 

@@ -2,6 +2,8 @@
 // RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16197
+
 //==--------------- queue.cpp - SYCL queue test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

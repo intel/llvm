@@ -4,6 +4,8 @@
 // hip_nvidia has problems constructing queues due to `No device of requested
 // type available`.
 // XFAIL: hip_nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16199
+
 //==-------- queue_old_interop.cpp - SYCL queue OpenCL interop test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
