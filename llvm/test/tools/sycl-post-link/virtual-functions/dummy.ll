@@ -16,7 +16,7 @@
 ; CHECK-FP64-DUMMY-NEXT: entry:
 ; CHECK-FP64-DUMMY-NEXT: ret void
 
-; CHECK-FP64-DUMMY-PROPS: dummy=1
+; CHECK-FP64-DUMMY-PROPS: dummy-image=1
 
 define spir_func void @foo() #1 {
   %x = alloca float
