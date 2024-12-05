@@ -101,10 +101,10 @@ static sycl::unittest::MockDeviceImageArray<1> EAMImgArray{&EAMImg};
 static sycl::unittest::MockDeviceImageArray<1> EAM2ImgArray{&EAM2Img};
 static sycl::unittest::MockDeviceImageArray<1> EAM3ImgArray{&EAM3Img};
 
-// ur_program_handle_t address is used as a key for ProgramManager::NativePrograms
-// storage. redefinedProgramLinkCommon makes ur_program_handle_t address equal to 0x1.
-// Make sure that size of Bin is different for device images used in these tests
-// and greater than 1.
+// ur_program_handle_t address is used as a key for
+// ProgramManager::NativePrograms storage. redefinedProgramLinkCommon makes
+// ur_program_handle_t address equal to 0x1. Make sure that size of Bin is
+// different for device images used in these tests and greater than 1.
 inline ur_result_t redefinedProgramCreateEAM(void *pParams) {
   auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
   static size_t UrProgramAddr = 2;
@@ -214,13 +214,12 @@ std::vector<std::unique_ptr<mock::dummy_handle_t_>> UsedProgramHandles;
 std::vector<std::unique_ptr<mock::dummy_handle_t_>> ProgramHandlesToReuse;
 inline ur_result_t setFixedProgramPtr(void *pParams) {
   auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
-  if (ProgramHandlesToReuse.size())
-  {
-    auto it = ProgramHandlesToReuse.begin()+1;
-    std::move(ProgramHandlesToReuse.begin(), it, std::back_inserter(UsedProgramHandles));
+  if (ProgramHandlesToReuse.size()) {
+    auto it = ProgramHandlesToReuse.begin() + 1;
+    std::move(ProgramHandlesToReuse.begin(), it,
+              std::back_inserter(UsedProgramHandles));
     ProgramHandlesToReuse.erase(ProgramHandlesToReuse.begin(), it);
-  }
-  else
+  } else
     UsedProgramHandles.push_back(
         std::make_unique<mock::dummy_handle_t_>(sizeof(unsigned)));
   **params.pphProgram =
@@ -239,13 +238,13 @@ inline ur_result_t releaseFixedProgramPtr(void *pParams) {
     if (it == UsedProgramHandles.end())
       return UR_RESULT_SUCCESS;
     std::move(it, it + 1, std::back_inserter(ProgramHandlesToReuse));
-    UsedProgramHandles.erase(it, it +1);
+    UsedProgramHandles.erase(it, it + 1);
   }
   return UR_RESULT_SUCCESS;
 }
 
 inline ur_result_t customProgramRetain(void *pParams) {
- // do nothing
+  // do nothing
   return UR_RESULT_SUCCESS;
 }
 
@@ -305,7 +304,7 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     mock::getCallbacks().set_replace_callback("urProgramRelease",
                                               &releaseFixedProgramPtr);
     mock::getCallbacks().set_replace_callback("urProgramRetain",
-                                            &customProgramRetain);
+                                              &customProgramRetain);
 
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
