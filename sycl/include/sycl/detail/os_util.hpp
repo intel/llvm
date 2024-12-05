@@ -99,6 +99,8 @@ public:
   // Get list of all files in the directory along with its last access time.
   static std::vector<std::pair<time_t, std::string>>
   getFilesWithAccessTime(const std::string &Path);
+
+  static size_t DirSizeVar;
 };
 
 } // namespace detail

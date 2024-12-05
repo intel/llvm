@@ -26,6 +26,7 @@
 #include <cstring>
 #include <dlfcn.h>
 #include <fstream>
+#include <ftw.h>    // for ftw - file tree walk
 #include <libgen.h> // for dirname
 #include <link.h>
 #include <linux/limits.h> // for PATH_MAX
@@ -276,22 +277,25 @@ int OSUtil::makeDir(const char *Dir) {
   return 0;
 }
 
+size_t OSUtil::DirSizeVar = 0;
 // Get size of a directory in bytes.
 size_t OSUtil::getDirectorySize(const std::string &Path) {
 
-  size_t Size = 0;
-#if __GNUC__ && __GNUC__ < 8
-  // Should we worry about this case?
-  assert(false && "getDirectorySize is not implemented for GCC < 8");
-#else
-  // Use C++17 filesystem API to get the size of the directory.
-  for (const auto &entry :
-       std::filesystem::recursive_directory_iterator(Path)) {
-    if (entry.is_regular_file())
-      Size += entry.file_size();
-  }
+  DirSizeVar = 0;
+// Use ftw for Linux and darwin as they support posix.
+#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
+  auto SumSize =
+          [](const char *Fpath, const struct stat *StatBuf, int TypeFlag) {
+            if (TypeFlag == FTW_F)
+              DirSizeVar += StatBuf->st_size;
+            return 0;
+          };
+
+  if (ftw(Path.c_str(),SumSize, 1) == -1)
+    std::cerr << "Failed to get directory size: " << Path << std::endl;
 #endif
-  return Size;
+
+  return DirSizeVar;
 }
 
 // Get size of file in bytes.

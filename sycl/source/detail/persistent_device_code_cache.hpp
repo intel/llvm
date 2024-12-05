@@ -118,9 +118,6 @@ private:
       const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
       const SerializedObj &SpecConsts, const std::string &BuildOptionsString);
 
-  /* Returns the path to directory storing persistent device code cache.*/
-  static std::string getRootDir();
-
   /* Form string representing device version */
   static std::string getDeviceIDString(const device &Device);
 
@@ -152,6 +149,9 @@ private:
       1024 * 1024 * 1024;
 
 public:
+  /* Returns the path to directory storing persistent device code cache.*/
+  static std::string getRootDir();
+
   /* Check if on-disk cache enabled.
    */
   static bool isEnabled();
@@ -228,6 +228,11 @@ private:
   // Evict LRU items from the cache to make space for new items.
   static void evictItemsFromCache(const std::string &CacheRoot,
                                   size_t CacheSize, size_t MaxCacheSize);
+
+  // Check if eviction is enabled.
+  static bool isEvictionEnabled() {
+    return SYCLConfig<SYCL_CACHE_MAX_SIZE>::isPersistentCacheEvictionEnabled();
+  }
 };
 } // namespace detail
 } // namespace _V1

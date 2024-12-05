@@ -135,6 +135,12 @@ public:
     SYCLCachePersistentChanged = true;
   }
 
+  // Set SYCL_CACHE_MAX_SIZE.
+  void SetDiskCacheEvictionEnv(const char *NewValue) {
+    set_env("SYCL_CACHE_MAX_SIZE", NewValue);
+    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_MAX_SIZE>::reset();
+  }
+
   void AppendToSYCLCacheDirEnv(const char *SubDir) {
     std::string NewSYCLCacheDirPath{RootSYCLCacheDir};
     if (NewSYCLCacheDirPath.back() != '\\' && NewSYCLCacheDirPath.back() != '/')
@@ -142,6 +148,24 @@ public:
     NewSYCLCacheDirPath += SubDir;
     set_env("SYCL_CACHE_DIR", NewSYCLCacheDirPath.c_str());
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
+  }
+
+  // Get the list of binary files in the cache directory.
+  std::vector<std::string> getBinaryFileNames(std::string CachePath) {
+
+    std::vector<std::string> FileNames;
+    std::error_code EC;
+    for (llvm::sys::fs::directory_iterator DirIt(CachePath, EC);
+         DirIt != llvm::sys::fs::directory_iterator(); DirIt.increment(EC)) {
+      // Check if the file is a binary file.
+      std::string filename = DirIt->path();
+      if (filename.find(".bin") != std::string::npos) {
+        // Just return the file name without the path.
+        FileNames.push_back(filename.substr(filename.find_last_of("/\\") + 1));
+      }
+    }
+
+    return FileNames;
   }
 
   void ResetSYCLCacheDirEnv() {
@@ -169,6 +193,9 @@ public:
       SetSYCLCachePersistentEnv(SYCLCachePersistentBefore
                                     ? SYCLCachePersistentBefore->c_str()
                                     : nullptr);
+
+    // Reset SYCL_CACHE_MAX_SIZE.
+    SetDiskCacheEvictionEnv(nullptr);
     ResetSYCLCacheDirEnv();
   }
 
@@ -518,6 +545,99 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 #endif //_WIN32
+
+// Unit tests for testing eviction in persistent cache.
+TEST_P(PersistentDeviceCodeCache, BasicEviction) {
+
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  // Disable eviction for the time being.
+  SetDiskCacheEvictionEnv("0");
+
+  std::string BuildOptions{"--eviction"};
+  // Put 3 items to the cache.
+  // Sleeping for 1 second between each put to ensure that the items are
+  // written to the cache with different timestamps. After that, we will
+  // have three binary files in the cache with different timestamps. This is
+  // required to keep this unit test deterministic.
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+
+  // Retrieve 0.bin from the cache.
+  auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      {Dev}, {&Img}, {}, BuildOptions);
+
+  // Get the number of binary files in the cached item folder.
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      Dev, {&Img}, {}, BuildOptions);
+  auto BinFiles = getBinaryFileNames(ItemDir);
+
+  EXPECT_EQ(BinFiles.size(), static_cast<size_t>(3))
+      << "Missing binary files. Eviction should not have happened.";
+
+  // Get Cache size and size of each entry. Set eviction threshold so that
+  // just one item is evicted.
+  size_t CurrentCacheSize = 0;
+  size_t SizeOfOneEntry =
+      (size_t)(detail::OSUtil::getDirectorySize(CacheRoot)) + 10;
+
+  // Set SYCL_CACHE_MAX_SIZE.
+  SetDiskCacheEvictionEnv(std::to_string(SizeOfOneEntry).c_str());
+
+  // Put 4th item to the cache. This should trigger eviction. Only the first
+  // item should be evicted.
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+
+  // We should have three binary files: 0.bin, 2.bin, 3.bin.
+  BinFiles = getBinaryFileNames(ItemDir);
+  EXPECT_EQ(BinFiles.size(), static_cast<size_t>(3))
+      << "Eviction failed. Wrong number of binary files in the cache.";
+
+  // Check that 1.bin was evicted.
+  for (const auto &File : BinFiles) {
+    EXPECT_NE(File, "1.bin")
+        << "Eviction failed. 1.bin should have been evicted.";
+  }
+
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+}
+
+// Unit test for testing size file creation and update, concurrently.
+TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheFileSize) {
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  // Insanely large value to not trigger eviction. This test just checks
+  // for deadlocks/crashes when updating the size file concurrently.
+  SetDiskCacheEvictionEnv("10000000");
+  ConcurentReadWriteCache(1, 50);
+}
+
+// Unit test for adding and evicting cache, concurrently.
+TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheEviction) {
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  SetDiskCacheEvictionEnv("1000");
+  ConcurentReadWriteCache(2, 40);
+}
 
 INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
                          PersistentDeviceCodeCache,

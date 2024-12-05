@@ -182,6 +182,11 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
 // If not, create it and populate it with the size of the cache directory.
 void PersistentDeviceCodeCache::repopulateCacheSizeFile(
     const std::string &CacheRoot) {
+
+  // No need to store cache size if eviction is disabled.
+  if (!isEvictionEnabled())
+    return;
+
   const std::string CacheSizeFileName = "cache_size.txt";
   const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
 
@@ -192,8 +197,6 @@ void PersistentDeviceCodeCache::repopulateCacheSizeFile(
         "Cache size file not present. Creating one.");
     // Calculate the size of the cache directory.
     size_t CacheSize = OSUtil::getDirectorySize(CacheRoot);
-
-    std::cerr << "Cache size: " << CacheSize << std::endl;
 
     // Take the lock to write the cache size to the file.
     {
@@ -311,6 +314,10 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
 void PersistentDeviceCodeCache::updateCacheFileSizeAndTriggerEviction(
     const std::string &CacheRoot, size_t ItemSize) {
 
+  // No need to store cache size if eviction is disabled.
+  if (!isEvictionEnabled())
+    return;
+
   const std::string CacheSizeFileName = "cache_size.txt";
   const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
   size_t CurrentCacheSize = 0;
@@ -336,7 +343,6 @@ void PersistentDeviceCodeCache::updateCacheFileSizeAndTriggerEviction(
 
       // Write the updated cache size to the file.
       FileStream.open(CacheSizeFile, std::ios::out | std::ios::trunc);
-      std::cerr << "Current cache size: " << CurrentCacheSize << std::endl;
       FileStream << CurrentCacheSize;
       FileStream.close();
       break;
@@ -345,9 +351,6 @@ void PersistentDeviceCodeCache::updateCacheFileSizeAndTriggerEviction(
 
   // Check if the cache size exceeds the threshold and trigger cache eviction if
   // needed.
-  if (!SYCLConfig<SYCL_CACHE_MAX_SIZE>::isPersistentCacheEvictionEnabled())
-    return;
-
   size_t MaxCacheSize = SYCLConfig<SYCL_CACHE_MAX_SIZE>::getProgramCacheSize();
   if (CurrentCacheSize > MaxCacheSize) {
     // Trigger cache eviction.
