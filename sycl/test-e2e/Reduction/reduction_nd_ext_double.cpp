@@ -6,7 +6,7 @@
 // work group size not bigger than 1` on Nvidia.
 
 // XFAIL: hip_nvidia
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14973 
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14973
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // used with 'double' type.
 
