@@ -14,7 +14,6 @@
 #include <sycl/async_handler.hpp>             // for async_handler
 #include <sycl/backend_types.hpp>             // for backend, backe...
 #include <sycl/buffer.hpp>                    // for buffer
-#include <sycl/context.hpp>                   // for context
 #include <sycl/detail/assert_happened.hpp>    // for AssertHappened
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
@@ -22,12 +21,13 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
-#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/device.hpp>                    // for device
-#include <sycl/device_selector.hpp>           // for device_selector
-#include <sycl/event.hpp>                     // for event
-#include <sycl/exception.hpp>                 // for make_error_code
-#include <sycl/exception_list.hpp>            // for defaultAsyncHa...
+#include <sycl/detail/optional.hpp>
+#include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
+#include <sycl/device.hpp>                 // for device
+#include <sycl/device_selector.hpp>        // for device_selector
+#include <sycl/event.hpp>                  // for event
+#include <sycl/exception.hpp>              // for make_error_code
+#include <sycl/exception_list.hpp>         // for defaultAsyncHa...
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
 #include <sycl/ext/oneapi/experimental/graph.hpp>       // for command_graph...
@@ -55,11 +55,8 @@
 // these macros are #undef immediately.
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAM(a) KernelType a
-#else
+
 #define _KERNELFUNCPARAM(a) const KernelType &a
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -81,6 +78,30 @@ class queue_impl;
 inline event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
+
+// Function to postprocess submitted command
+// Arguments:
+// bool IsKernel - true if the submitted command was kernel, false otherwise
+// bool KernelUsesAssert - true if submitted kernel uses assert, only
+//                         meaningful when IsKernel is true
+// event &Event - event after which post processing should be executed
+using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
+
+struct SubmissionInfoImpl;
+
+class __SYCL_EXPORT SubmissionInfo {
+public:
+  SubmissionInfo();
+
+  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
+  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
+
+  std::shared_ptr<detail::queue_impl> &SecondaryQueue();
+  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
+
+private:
+  std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
+};
 } // namespace detail
 
 namespace ext ::oneapi ::experimental {
@@ -340,28 +361,7 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-#if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &TlsCodeLocCapture](
-                           bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert && !device_has(aspect::accelerator)) {
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is
-        // performed by program manager class
-        // Fallback assert isn't supported for FPGA
-        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
-                            TlsCodeLocCapture.query());
-      }
-    };
-
-    return submit_impl_and_postprocess(CGF, TlsCodeLocCapture.query(),
-                                       PostProcess,
-                                       TlsCodeLocCapture.isToplevel());
-#else
-    return submit_impl(CGF, TlsCodeLocCapture.query(),
-                       TlsCodeLocCapture.isToplevel());
-#endif // __SYCL_USE_FALLBACK_ASSERT
+    return submit_with_event(CGF, /*SecondaryQueuePtr=*/nullptr, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -379,30 +379,7 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-#if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &SecondaryQueue, &TlsCodeLocCapture](
-                           bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert && !device_has(aspect::accelerator)) {
-        // Only secondary queues on devices need to be added to the assert
-        // capture.
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is
-        // performed by program manager class
-        // Fallback assert isn't supported for FPGA
-        submitAssertCapture(*this, E, &SecondaryQueue,
-                            TlsCodeLocCapture.query());
-      }
-    };
-
-    return submit_impl_and_postprocess(CGF, SecondaryQueue,
-                                       TlsCodeLocCapture.query(), PostProcess,
-                                       TlsCodeLocCapture.isToplevel());
-#else
-    return submit_impl(CGF, SecondaryQueue, TlsCodeLocCapture.query(),
-                       TlsCodeLocCapture.isToplevel());
-#endif // __SYCL_USE_FALLBACK_ASSERT
+    return submit_with_event(CGF, &SecondaryQueue, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -2770,23 +2747,84 @@ private:
       queue &Q, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
-  /// A template-free version of submit.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// TODO: Unused. Remove these when ABI-break window is open.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-  /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
-
-  /// A template-free version of submit_without_event.
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc);
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
+  event
+  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                              const detail::code_location &CodeLoc,
+                              const detail::SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(
+      std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
+      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
+  event
+  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                              queue secondQueue,
+                              const detail::code_location &CodeLoc,
+                              const detail::SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(
+      std::function<void(handler &)> CGH, queue secondQueue,
+      const detail::code_location &CodeLoc,
+      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+  /// A template-free versions of submit.
+  event submit_with_event_impl(std::function<void(handler &)> CGH,
+                               const detail::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc);
+
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(std::function<void(handler &)> CGH,
+                                 const detail::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return a SYCL event object for the submitted command group.
+  template <typename T>
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event>
+  submit_with_event(
+      T CGF, queue *SecondaryQueuePtr,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::SubmissionInfo SI{};
+    if (SecondaryQueuePtr)
+      SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
+#if __SYCL_USE_FALLBACK_ASSERT
+    SI.PostProcessorFunc() =
+        [this, &SecondaryQueuePtr,
+         &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
+          if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+              KernelUsesAssert && !device_has(aspect::accelerator)) {
+            // __devicelib_assert_fail isn't supported by Device-side Runtime
+            // Linking against fallback impl of __devicelib_assert_fail is
+            // performed by program manager class
+            // Fallback assert isn't supported for FPGA
+            submitAssertCapture(*this, E, SecondaryQueuePtr,
+                                TlsCodeLocCapture.query());
+          }
+        };
+#endif // __SYCL_USE_FALLBACK_ASSERT
+    return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
+                                  TlsCodeLocCapture.isToplevel());
+  }
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -2796,52 +2834,17 @@ private:
   template <typename T>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
   submit_without_event(T CGF, const detail::code_location &CodeLoc) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     // If post-processing is needed, fall back to the regular submit.
     // TODO: Revisit whether we can avoid this.
-    submit(CGF, TlsCodeLocCapture.query());
+    submit_with_event(CGF, nullptr, CodeLoc);
 #else
-    submit_without_event_impl(CGF, TlsCodeLocCapture.query(),
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::SubmissionInfo SI{};
+    submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                               TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
-
-  // Function to postprocess submitted command
-  // Arguments:
-  // bool IsKernel - true if the submitted command was kernel, false otherwise
-  // bool KernelUsesAssert - true if submitted kernel uses assert, only
-  //                         meaningful when IsKernel is true
-  // event &Event - event after which post processing should be executed
-  using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
-
-  /// A template-free version of submit.
-  /// \param CGH command group function/handler
-  /// \param CodeLoc code location
-  ///
-  /// This method stores additional information within event_impl class instance
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    const detail::code_location &CodeLoc,
-                                    const SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    const detail::code_location &CodeLoc,
-                                    const SubmitPostProcessF &PostProcess,
-                                    bool IsTopCodeLoc);
-  /// A template-free version of submit.
-  /// \param CGH command group function/handler
-  /// \param secondQueue fallback queue
-  /// \param CodeLoc code location
-  ///
-  /// This method stores additional information within event_impl class instance
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    queue secondQueue,
-                                    const detail::code_location &CodeLoc,
-                                    const SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    queue secondQueue,
-                                    const detail::code_location &CodeLoc,
-                                    const SubmitPostProcessF &PostProcess,
-                                    bool IsTopCodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.
@@ -3064,13 +3067,8 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     });
   };
 
-  if (SecondaryQueue) {
-    CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
-    CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
-  } else {
-    CopierEv = Self.submit_impl(CopierCGF, CodeLoc);
-    CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc);
-  }
+  CopierEv = Self.submit_with_event(CopierCGF, SecondaryQueue, CodeLoc);
+  CheckerEv = Self.submit_with_event(CheckerCGF, SecondaryQueue, CodeLoc);
 
   return CheckerEv;
 }

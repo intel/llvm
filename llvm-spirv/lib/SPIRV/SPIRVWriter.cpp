@@ -758,8 +758,7 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
       !BM->shouldEmitFunctionPtrAddrSpace())
     return transPointerType(ET, SPIRAS_Private);
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
-      !(ET->isTypeArray() || ET->isTypeVector() || ET->isTypeStruct() ||
-        ET->isTypeImage() || ET->isTypeSampler() || ET->isTypePipe())) {
+      !(ET->isTypeArray() || ET->isTypeVector() || ET->isSPIRVOpaqueType())) {
     TranslatedTy = BM->addUntypedPointerKHRType(
         SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
   } else {
@@ -1339,7 +1338,8 @@ SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
           Ops = getVec(PtrTy->getId(), Ops);
         }
       }
-      return BM->addPtrAccessChainInst(ExpectedType, Ops, nullptr, true);
+      return BM->addPtrAccessChainInst(ExpectedType, std::move(Ops), nullptr,
+                                       true);
     }
   }
 
@@ -1471,7 +1471,7 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
           Ops = getVec(PtrTy->getId(), Ops);
         }
       }
-      return BM->addPtrAccessChainInst(TranslatedTy, Ops, nullptr,
+      return BM->addPtrAccessChainInst(TranslatedTy, std::move(Ops), nullptr,
                                        GEP->isInBounds());
     }
     auto *Inst = ConstUE->getAsInstruction();
@@ -2213,13 +2213,19 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                              MemoryAccessNoAliasINTELMaskMask);
     if (MemoryAccess.front() == 0)
       MemoryAccess.clear();
-    return mapValue(
-        V,
-        BM->addLoadInst(
-            transValue(LD->getPointerOperand(), BB), MemoryAccess, BB,
-            BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)
-                ? transType(LD->getType())
-                : nullptr));
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
+      SPIRVValue *Source = transValue(LD->getPointerOperand(), BB);
+      SPIRVType *PtrElTy = Source->getType()->getPointerElementType();
+      SPIRVType *LoadTy = transType(LD->getType());
+      // For special types (images, pipes, etc.) do not use explicit load type,
+      // but rather use the source type (calculated in SPIRVLoad constructor)
+      if (LoadTy->isTypeUntypedPointerKHR() && PtrElTy->isSPIRVOpaqueType()) {
+        LoadTy = nullptr;
+      }
+      return mapValue(V, BM->addLoadInst(Source, MemoryAccess, BB, LoadTy));
+    }
+    return mapValue(V, BM->addLoadInst(transValue(LD->getPointerOperand(), BB),
+                                       MemoryAccess, BB));
   }
 
   if (BinaryOperator *B = dyn_cast<BinaryOperator>(V)) {
@@ -2238,7 +2244,14 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
           auto *FrexpResult = transValue(RV, BB);
           SPIRVValue *IntFromFrexpResult =
               static_cast<SPIRVExtInst *>(FrexpResult)->getArgValues()[1];
-          IntFromFrexpResult = BM->addLoadInst(IntFromFrexpResult, {}, BB);
+          SPIRVType *LoadTy = nullptr;
+
+          if (IntFromFrexpResult->isUntypedVariable())
+            LoadTy = static_cast<SPIRVUntypedVariableKHR *>(IntFromFrexpResult)
+                         ->getDataType();
+
+          IntFromFrexpResult =
+              BM->addLoadInst(IntFromFrexpResult, {}, BB, LoadTy);
 
           std::vector<SPIRVId> Operands = {FrexpResult->getId(),
                                            IntFromFrexpResult->getId()};
@@ -2312,11 +2325,17 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                       BM->addInstTemplate(OpVariableLengthArrayINTEL,
                                           {Length->getId()}, BB, TranslatedTy));
     }
-    SPIRVType *VarTy =
-        V->getType()->getPointerAddressSpace() == SPIRAS_Generic
-            ? BM->addPointerType(StorageClassFunction,
-                                 TranslatedTy->getPointerElementType())
-            : TranslatedTy;
+    SPIRVType *VarTy = TranslatedTy;
+    if (V->getType()->getPointerAddressSpace() == SPIRAS_Generic) {
+      // TODO: refactor addPointerType and addUntypedPointerKHRType in one
+      // method if possible.
+      if (TranslatedTy->isTypeUntypedPointerKHR())
+        VarTy = BM->addUntypedPointerKHRType(StorageClassFunction);
+      else
+        VarTy = BM->addPointerType(StorageClassFunction,
+                                   TranslatedTy->getPointerElementType());
+    }
+
     SPIRVValue *Var = BM->addVariable(
         VarTy,
         VarTy->isTypeUntypedPointerKHR() ? transType(Alc->getAllocatedType())
@@ -2457,7 +2476,13 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
         // Idx = 1
         SPIRVValue *IntFromFrexpResult =
             static_cast<SPIRVExtInst *>(Val)->getArgValues()[1];
-        IntFromFrexpResult = BM->addLoadInst(IntFromFrexpResult, {}, BB);
+        SPIRVType *LoadTy = nullptr;
+        if (IntFromFrexpResult->isUntypedVariable())
+          LoadTy = static_cast<SPIRVUntypedVariableKHR *>(IntFromFrexpResult)
+                       ->getDataType();
+
+        IntFromFrexpResult =
+            BM->addLoadInst(IntFromFrexpResult, {}, BB, LoadTy);
         return mapValue(V, IntFromFrexpResult);
       }
     }
@@ -2481,7 +2506,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(V)) {
     auto *PointerOperand = GEP->getPointerOperand();
-    std::vector<SPIRVWord> Ops = {transValue(PointerOperand, BB)->getId()};
+    auto *SPVPointerOperand = transValue(PointerOperand, BB);
+    std::vector<SPIRVWord> Ops = {SPVPointerOperand->getId()};
     for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
       Ops.push_back(transValue(GEP->getOperand(I + 1), BB)->getId());
 
@@ -2524,7 +2550,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     // GEP can return a vector of pointers, in this case GEP will calculate
     // addresses for each pointer in the vector
     SPIRVType *TranslatedTy = transScavengedType(GEP);
-    if (TranslatedTy->isTypeUntypedPointerKHR()) {
+    if (TranslatedTy->isTypeUntypedPointerKHR() ||
+        SPVPointerOperand->getType()->isTypeUntypedPointerKHR()) {
       llvm::Type *Ty = Scavenger->getScavengedType(PointerOperand);
       SPIRVType *PtrTy = nullptr;
       if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
@@ -2532,8 +2559,13 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
         Ops = getVec(PtrTy->getId(), Ops);
       }
     }
-    return mapValue(
-        V, BM->addPtrAccessChainInst(TranslatedTy, Ops, BB, GEP->isInBounds()));
+    if (SPVPointerOperand->getType()->isTypeUntypedPointerKHR())
+      // Untyped pointer as an input operand implies we should use untyped
+      // access chain instructions. Replace return type to do that.
+      TranslatedTy = SPVPointerOperand->getType();
+
+    return mapValue(V, BM->addPtrAccessChainInst(TranslatedTy, std::move(Ops),
+                                                 BB, GEP->isInBounds()));
   }
 
   if (auto *Ext = dyn_cast<ExtractElementInst>(V)) {
@@ -3055,7 +3087,8 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
         Opcode == Instruction::FRem ||
-        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp) &&
+        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
+          BV->isExtInst()) &&
          BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
       FastMathFlags FMF = BVF->getFastMathFlags();
       SPIRVWord M{0};
@@ -3082,8 +3115,51 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
           }
         }
       }
-      if (M != 0)
+      // Handle nofpclass attribute. Nothing to do if fast math flag is already
+      // set.
+      if ((BV->isExtInst() &&
+           static_cast<SPIRVExtInst *>(BV)->getExtSetKind() ==
+               SPIRVEIS_OpenCL) &&
+          BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6) &&
+          !(M & FPFastMathModeFastMask)) {
+        auto *F = cast<CallInst>(V)->getCalledFunction();
+        auto FAttrs = F->getAttributes();
+        AttributeSet RetAttrs = FAttrs.getRetAttrs();
+        if (RetAttrs.hasAttribute(Attribute::NoFPClass)) {
+          FPClassTest RetTest =
+              RetAttrs.getAttribute(Attribute::NoFPClass).getNoFPClass();
+          // Only Nan and Inf tests are representable in SPIR-V now.
+          bool ToAddNoNan = RetTest & fcNan;
+          bool ToAddNoInf = RetTest & fcInf;
+          if (ToAddNoNan || ToAddNoInf) {
+            const auto *FT = F->getFunctionType();
+            const size_t NumParams = FT->getNumParams();
+            for (size_t I = 0; I != NumParams; ++I) {
+              if (!FT->getParamType(I)->isFloatTy())
+                continue;
+              if (!F->hasParamAttribute(I, Attribute::NoFPClass)) {
+                ToAddNoNan = false;
+                ToAddNoInf = false;
+                break;
+              }
+              FPClassTest ArgTest =
+                  FAttrs.getParamAttr(I, Attribute::NoFPClass).getNoFPClass();
+              ToAddNoNan = ToAddNoNan && static_cast<bool>(ArgTest & fcNan);
+              ToAddNoInf = ToAddNoInf && static_cast<bool>(ArgTest & fcInf);
+            }
+          }
+          if (ToAddNoNan)
+            M |= FPFastMathModeNotNaNMask;
+          if (ToAddNoInf)
+            M |= FPFastMathModeNotInfMask;
+        }
+      }
+      if (M != 0) {
         BV->setFPFastMathMode(M);
+        if (Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
+            BV->isExtInst())
+          BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+      }
     }
   }
   if (Instruction *Inst = dyn_cast<Instruction>(V)) {
@@ -4239,7 +4315,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       Zero = BM->addConstant(ResTy, 0);
       APInt MinusOneValue(ResTy->getIntegerBitWidth(), 0, 1);
       MinusOneValue.setAllBits();
-      MinusOne = BM->addConstant(ResTy, MinusOneValue);
+      MinusOne = BM->addConstant(ResTy, std::move(MinusOneValue));
     }
 
     Op OC1 = (IID == Intrinsic::scmp) ? OpSLessThanEqual : OpULessThanEqual;
@@ -5322,6 +5398,12 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
         }
         BM->addExtension(
             ExtensionID::SPV_EXT_relaxed_printf_string_address_space);
+      }
+    } else if (DemangledName.find("__spirv_ocl_prefetch") != StringRef::npos) {
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
+        return BM->addUntypedPrefetchKHRInst(
+            transScavengedType(CI),
+            BM->getIds(transValue(getArguments(CI), BB)), BB);
       }
     }
 
@@ -6409,8 +6491,11 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
 
     // Input - integer input of any width or 'byval' pointer to this integer
     SPIRVValue *Input = transValue(*OpItr, BB);
+    SPIRVType *LoadTy = nullptr;
+    if (Input->isUntypedVariable())
+      LoadTy = static_cast<SPIRVUntypedVariableKHR *>(Input)->getDataType();
     if (OpItr->getType()->isPointerTy())
-      Input = BM->addLoadInst(Input, {}, BB);
+      Input = BM->addLoadInst(Input, {}, BB, LoadTy);
     OpItr++;
 
     std::vector<SPIRVWord> Literals;
@@ -6500,8 +6585,11 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
 
     // Input - integer input of any width or 'byval' pointer to this integer
     SPIRVValue *Input = transValue(*OpItr, BB);
+    SPIRVType *LoadTy = nullptr;
+    if (Input->isUntypedVariable())
+      LoadTy = static_cast<SPIRVUntypedVariableKHR *>(Input)->getDataType();
     if (OpItr->getType()->isPointerTy())
-      Input = BM->addLoadInst(Input, {}, BB);
+      Input = BM->addLoadInst(Input, {}, BB, LoadTy);
     OpItr++;
 
     std::vector<SPIRVWord> Literals;
@@ -6577,8 +6665,11 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
 
     // InA - integer input of any width or 'byval' pointer to this integer
     SPIRVValue *InA = transValue(*OpItr, BB);
+    SPIRVType *LoadTy = nullptr;
+    if (InA->isUntypedVariable())
+      LoadTy = static_cast<SPIRVUntypedVariableKHR *>(InA)->getDataType();
     if (OpItr->getType()->isPointerTy())
-      InA = BM->addLoadInst(InA, {}, BB);
+      InA = BM->addLoadInst(InA, {}, BB, LoadTy);
     OpItr++;
 
     std::vector<SPIRVWord> Literals;
@@ -6586,9 +6677,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
 
     // InB - integer input of any width or 'byval' pointer to this integer
     SPIRVValue *InB = transValue(*OpItr, BB);
+    LoadTy = nullptr;
+    if (InB->isUntypedVariable())
+      LoadTy = static_cast<SPIRVUntypedVariableKHR *>(InB)->getDataType();
     if (OpItr->getType()->isPointerTy()) {
       std::vector<SPIRVWord> Mem;
-      InB = BM->addLoadInst(InB, Mem, BB);
+      InB = BM->addLoadInst(InB, Mem, BB, LoadTy);
     }
     OpItr++;
 
@@ -6668,7 +6762,10 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
           transValue(CI->getArgOperand(0)->stripPointerCasts(), BB);
       SPIRVId ScopeId = transValue(CI->getArgOperand(1), BB)->getId();
       SPIRVValue *Delta = transValue(CI->getArgOperand(3), BB);
-      SPIRVValue *Composite0 = BM->addLoadInst(InValue, {}, BB);
+      SPIRVType *LoadTy = nullptr;
+      if (InValue->isUntypedVariable())
+        LoadTy = static_cast<SPIRVUntypedVariableKHR *>(InValue)->getDataType();
+      SPIRVValue *Composite0 = BM->addLoadInst(InValue, {}, BB, LoadTy);
       Type *MemberTy = St->getElementType(0);
       SPIRVType *ElementTy = transType(MemberTy);
       SPIRVValue *Element0 =

@@ -51,7 +51,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 
-using namespace std;
 using namespace SPIRVDebug::Operand;
 
 namespace SPIRV {
@@ -153,8 +152,10 @@ SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
 }
 
 void SPIRVToLLVMDbgTran::transDbgInfo(const SPIRVValue *SV, Value *V) {
-  // A constant sampler does not have a corresponding SPIRVInstruction.
-  if (SV->getOpCode() == OpConstantSampler)
+  // Constant samplers and composites do not have a corresponding
+  // SPIRVInstruction, but they may be mapped to an LLVM Instruction.
+  if (SV->getOpCode() == OpConstantSampler ||
+      SV->getOpCode() == OpConstantComposite)
     return;
 
   if (Instruction *I = dyn_cast<Instruction>(V)) {
@@ -1806,7 +1807,7 @@ DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {
   return *BuilderMap[DebugInst->getId()];
 }
 
-SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
+SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const std::string &FileName) {
   auto Loc = FileName.find_last_of("/\\");
   if (Loc != std::string::npos) {
     BaseName = FileName.substr(Loc + 1);
@@ -1835,7 +1836,7 @@ SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
   auto KindPos = Text.find(SPIRVDebug::ChecksumKindPrefx);
   if (KindPos != StringRef::npos) {
     auto ColonPos = Text.find(":", KindPos);
-    KindPos += string("//__").size();
+    KindPos += std::string("//__").size();
     auto KindStr = Text.substr(KindPos, ColonPos - KindPos);
     auto Checksum = Text.substr(ColonPos).ltrim(':');
     if (auto Kind = DIFile::getChecksumKind(KindStr)) {

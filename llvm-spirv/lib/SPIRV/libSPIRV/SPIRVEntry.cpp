@@ -89,6 +89,10 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
   if (OpCode == internal::OpTypeJointMatrixINTELv2)
     OpCode = internal::OpTypeJointMatrixINTEL;
 
+  // OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4
+  if (OpCode == OpAtomicCompareExchangeWeak)
+    OpCode = OpAtomicCompareExchange;
+
   OpToFactoryMapTy::const_iterator Loc = OpToFactoryMap.find(OpCode);
   if (Loc != OpToFactoryMap.end())
     return Loc->second();

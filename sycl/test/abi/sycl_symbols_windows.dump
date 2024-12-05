@@ -67,6 +67,7 @@
 ??$get_info@Ugpu_hw_threads_per_eu@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Ugpu_slices@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Ugpu_subslices_per_slice@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
+??$get_info@Uhas_2d_block_io_support@device@info@esimd@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uimage_row_pitch_align@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ
@@ -156,6 +157,7 @@
 ??$get_info_impl@Ugpu_slices@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Ugpu_subslices_per_slice@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uhalf_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@Uhas_2d_block_io_support@device@info@esimd@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uhost_unified_memory@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uimage2d_max_height@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uimage2d_max_width@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
@@ -278,6 +280,9 @@
 ??0SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@V?$range@$02@23@PEAXHHV?$id@$02@23@W4image_channel_type@23@W4image_channel_order@23@Uimage_sampler@23@AEBVproperty_list@23@@Z
+??0SubmissionInfo@detail@_V1@sycl@@QEAA@XZ
+??0SubmissionInfo@detail@_V1@sycl@@QEAA@AEBV0123@@Z
+??0SubmissionInfo@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@VUnsampledImageAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ??0UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
@@ -462,6 +467,7 @@
 ??1LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
 ??1SYCLCategory@detail@_V1@sycl@@UEAA@XZ
 ??1SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
+??1SubmissionInfo@detail@_V1@sycl@@QEAA@XZ
 ??1UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
 ??1accelerator_selector@_V1@sycl@@UEAA@XZ
 ??1buffer_plain@detail@_V1@sycl@@QEAA@XZ
@@ -525,6 +531,8 @@
 ??4OSUtil@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??4SubmissionInfo@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4SubmissionInfo@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4accelerator_selector@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
@@ -638,9 +646,13 @@
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
 ?HasAssociatedAccessor@handler@_V1@sycl@@AEBA_NPEAVAccessorImplHost@detail@23@W4target@access@23@@Z
+?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
+?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
 ?PushBack@exception_list@_V1@sycl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@_V1@sycl@@AEAAXAEBVexception_ptr@std@@@Z
 ?RangeRoundingTrace@handler@_V1@sycl@@AEAA_NXZ
+?SecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
+?SecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
 ?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXVinterop_handle@_V1@sycl@@@Z@std@@@Z
 ?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXXZ@std@@@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$00@12@V312@0@Z
@@ -3731,6 +3743,8 @@
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
+?compile_impl@?$online_compiler@$00@experimental@intel@ext@_V1@sycl@@CA?AV?$vector@EV?$allocator@E@std@@@std@@Vstring_view@detail@56@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@8@U?$pair@HH@8@W4device_type@info@56@Vdevice_arch@23456@_N0AEAPEAX6@Z
+?compile_impl@?$online_compiler@$0A@@experimental@intel@ext@_V1@sycl@@CA?AV?$vector@EV?$allocator@E@std@@@std@@Vstring_view@detail@56@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@8@U?$pair@HH@8@W4device_type@info@56@Vdevice_arch@23456@_N0AEAPEAX6@Z
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?complete_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA?AVevent@56@AEBVproperty_list@56@@Z
 ?computeFallbackKernelBounds@handler@_V1@sycl@@AEAA?AV?$id@$01@23@_K0@Z
@@ -4045,6 +4059,7 @@
 ?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
+?get_pipe_name_impl@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AVstring@detail@56@PEBX@Z
 ?get_pitch@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$01@34@XZ
 ?get_platform@context@_V1@sycl@@QEBA?AVplatform@23@XZ
 ?get_platform@device@_V1@sycl@@QEBA?AVplatform@23@XZ
@@ -4072,6 +4087,8 @@
 ?has@device@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has@platform@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has_context@exception@_V1@sycl@@QEBA_NXZ
+?has_extension@detail@opencl@_V1@sycl@@YA_NAEBVdevice@34@Vstring_view@134@@Z
+?has_extension@detail@opencl@_V1@sycl@@YA_NAEBVplatform@34@Vstring_view@134@@Z
 ?has_extension@device@_V1@sycl@@AEBA_NVstring_view@detail@23@@Z
 ?has_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?has_extension@opencl@_V1@sycl@@YA_NAEBVdevice@23@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
@@ -4190,6 +4207,7 @@
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KV423@AEBUcode_location@detail@23@@Z
 ?prepare_for_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
 ?prepare_for_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVqueue@45@@Z
+?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEBAXVstring_view@267@_N@Z
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@_N@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
@@ -4231,6 +4249,7 @@
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
+?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@H@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z
@@ -4272,8 +4291,10 @@
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@@Z
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
+?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBVSubmissionInfo@detail@23@AEBUcode_location@823@_N@Z
 ?submit_without_event_impl@queue@_V1@sycl@@AEAAXV?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_without_event_impl@queue@_V1@sycl@@AEAAXV?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@_N@Z
+?submit_without_event_impl@queue@_V1@sycl@@AEAAXV?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBVSubmissionInfo@detail@23@AEBUcode_location@723@_N@Z
 ?supportsUSMFill2D@handler@_V1@sycl@@AEAA_NXZ
 ?supportsUSMMemcpy2D@handler@_V1@sycl@@AEAA_NXZ
 ?supportsUSMMemset2D@handler@_V1@sycl@@AEAA_NXZ

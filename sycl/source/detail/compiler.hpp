@@ -31,6 +31,9 @@
 #define __SYCL_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
 #define __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
+// JIT compilation targets for CUDA & HIP devices.
+#define __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64 "llvm_nvptx64"
+#define __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN "llvm_amdgcn"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
@@ -63,6 +66,8 @@
 #define __SYCL_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
 /// PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
+/// PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG "SYCL/implicit local arg"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.

@@ -207,7 +207,7 @@ namespace clang {
       return Common->PartialSpecializations;
     }
     ArrayRef<Decl> getPartialSpecializations(FunctionTemplateDecl::Common *) {
-      return std::nullopt;
+      return {};
     }
 
     template<typename DeclTy>
@@ -1038,7 +1038,7 @@ void ASTDeclWriter::VisitFieldDecl(FieldDecl *D) {
   else if (D->BitField)
     Record.AddStmt(D->getBitWidth());
 
-  if (!D->getDeclName())
+  if (!D->getDeclName() || D->isPlaceholderVar(Writer.getLangOpts()))
     Record.AddDeclRef(Context.getInstantiatedFromUnnamedFieldDecl(D));
 
   if (D->getDeclContext() == D->getLexicalDeclContext() &&
@@ -1521,6 +1521,12 @@ void ASTDeclWriter::VisitCXXRecordDecl(CXXRecordDecl *D) {
     } else {
       Record.push_back(0);
     }
+    // For lambdas inside canonical FunctionDecl remember the mapping.
+    if (auto FD = llvm::dyn_cast_or_null<FunctionDecl>(D->getDeclContext());
+        FD && FD->isCanonicalDecl()) {
+      Writer.FunctionToLambdasMap[Writer.GetDeclRef(FD)].push_back(
+          Writer.GetDeclRef(D));
+    }
   } else {
     Record.push_back(CXXRecNotTemplate);
   }
@@ -1778,6 +1784,18 @@ void ASTDeclWriter::VisitClassTemplateSpecializationDecl(
   Record.push_back(!!ArgsWritten);
   if (ArgsWritten)
     Record.AddASTTemplateArgumentListInfo(ArgsWritten);
+
+  // Mention the implicitly generated C++ deduction guide to make sure the
+  // deduction guide will be rewritten as expected.
+  //
+  // FIXME: Would it be more efficient to add a callback register function
+  // in sema to register the deduction guide?
+  if (Writer.isWritingStdCXXNamedModules()) {
+    auto Name = Context.DeclarationNames.getCXXDeductionGuideName(
+        D->getSpecializedTemplate());
+    for (auto *DG : D->getDeclContext()->noload_lookup(Name))
+      Writer.GetDeclRef(DG->getCanonicalDecl());
+  }
 
   Code = serialization::DECL_CLASS_TEMPLATE_SPECIALIZATION;
 }
