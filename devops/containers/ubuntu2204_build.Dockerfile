@@ -41,5 +41,7 @@ RUN usermod -aG irc sycl
 
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
+USER sycl
+
 ENTRYPOINT ["/docker_entrypoint.sh"]
 
