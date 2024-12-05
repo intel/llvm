@@ -84,7 +84,7 @@ std::string_view DeviceBinaryProperty::asStringView() const {
   assert(Prop->ValSize > 0 && "property size mismatch");
   // Byte array stores its size in first 8 bytes
   size_t Shift = Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY ? 8 : 0;
-  return {ur::cast<const char *>(Prop->ValAddr) + Shift, Prop->ValSize};
+  return {ur::cast<const char *>(Prop->ValAddr) + Shift, Prop->ValSize - Shift};
 }
 
 void RTDeviceBinaryImage::PropertyRange::init(sycl_device_binary Bin,

@@ -748,8 +748,9 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // when the dummy image does not support the device requirements, we
       // know the corresponding image providing virtual functions was not
       // linked and we must link the dummy image.
-      if (doesDevSupportDeviceRequirements(Dev, *BinImage) + isDummyImage == 1)
+      if (doesDevSupportDeviceRequirements(Dev, *BinImage) ^ isDummyImage)
         DeviceImagesToLink.insert(BinImage);
+
     }
   }
 
