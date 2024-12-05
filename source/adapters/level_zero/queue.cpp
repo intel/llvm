@@ -2398,7 +2398,11 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
   uint32_t QueueIndex, QueueOrdinal;
   auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
 
-  if (ImmCmdLists[Index] != Queue->CommandListMap.end())
+  if ((ImmCmdLists[Index] != Queue->CommandListMap.end()) &&
+      (!Queue->CounterBasedEventsEnabled ||
+       (Queue->CounterBasedEventsEnabled &&
+        (ImmCmdLists[Index]->second.ZeQueueDesc.flags &
+         ZE_COMMAND_QUEUE_FLAG_IN_ORDER))))
     return ImmCmdLists[Index];
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
