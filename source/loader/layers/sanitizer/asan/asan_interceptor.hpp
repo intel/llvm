@@ -334,8 +334,10 @@ class AsanInterceptor {
 
     std::shared_ptr<ProgramInfo> getProgramInfo(ur_program_handle_t Program) {
         std::shared_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
-        assert(m_ProgramMap.find(Program) != m_ProgramMap.end());
-        return m_ProgramMap[Program];
+        if (m_ProgramMap.find(Program) != m_ProgramMap.end()) {
+            return m_ProgramMap[Program];
+        }
+        return nullptr;
     }
 
     std::shared_ptr<KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {

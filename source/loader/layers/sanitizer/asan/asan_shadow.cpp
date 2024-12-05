@@ -250,6 +250,7 @@ ur_result_t ShadowMemoryGPU::ReleaseShadow(std::shared_ptr<AllocInfo> AI) {
             getContext()->logger.debug("urVirtualMemUnmap: {} ~ {}",
                                        (void *)MappedPtr,
                                        (void *)(MappedPtr + PageSize - 1));
+            VirtualMemMaps.erase(MappedPtr);
         }
     }
 
