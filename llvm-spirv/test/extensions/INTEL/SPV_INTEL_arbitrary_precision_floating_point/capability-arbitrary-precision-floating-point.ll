@@ -416,6 +416,11 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.r.bc
 ; RUN: llvm-dis < %t.r.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; Test with untyped pointers enabled.
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_arbitrary_precision_floating_point,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-dis < %t.r.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
 ; CHECK-SPIRV: 2 Capability Kernel
 ; CHECK-SPIRV: 2 Capability ArbitraryPrecisionIntegersINTEL
 ; CHECK-SPIRV: 2 Capability ArbitraryPrecisionFloatingPointINTEL

@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <spirv/spirv.h>
-
-#include "utils.h"
 #include <../../include/libdevice.h>
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <clc/utils.h>
+#include <spirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_nextafter
 #define __CLC_BUILTIN __nv_nextafter

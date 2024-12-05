@@ -1,7 +1,7 @@
-# commit 38ee6ce2a0400573c0c7c5da782bc32ff578fcc4
-# Merge: c7086f7f 91b6db04
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Mon Nov 25 11:04:37 2024 +0000
-#     Merge pull request #2303 from nrspruit/zeInitDrivers
-#     [L0] Implement Support for zeInitDrivers
+# commit 5f4a5a27e8192ee41ce21c8fb140d770c779af78
+# Merge: 4111306dc9d2 039cf144f535
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Thu Dec 5 10:49:58 2024 +0000
+#     Merge pull request #2334 from winstonzhang-intel/interrupt-based
+#     [L0] Interrupt-based event implementation
 set(UNIFIED_RUNTIME_TAG uwe/tbb_integration)

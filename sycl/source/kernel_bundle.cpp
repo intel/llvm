@@ -195,11 +195,11 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
       !checkAllDevicesHaveAspect(Devs, aspect::online_linker))
     return false;
 
-  const std::vector<device_image_plain> DeviceImages =
+  const std::vector<DevImgPlainWithDeps> DeviceImages =
       detail::ProgramManager::getInstance()
           .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
 
-  return (bool)DeviceImages.size();
+  return !DeviceImages.empty();
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -229,17 +229,19 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   if (!DeviceHasRequireAspectForState)
     return false;
 
-  const std::vector<device_image_plain> DeviceImages =
+  const std::vector<DevImgPlainWithDeps> DeviceImagesWithDeps =
       detail::ProgramManager::getInstance()
           .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
 
   std::set<kernel_id, LessByNameComp> CombinedKernelIDs;
-  for (const device_image_plain &DeviceImage : DeviceImages) {
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl =
-        getSyclObjImpl(DeviceImage);
+  for (const DevImgPlainWithDeps &DeviceImageWithDeps : DeviceImagesWithDeps) {
+    for (const device_image_plain &DeviceImage : DeviceImageWithDeps) {
+      const std::shared_ptr<device_image_impl> &DeviceImageImpl =
+          getSyclObjImpl(DeviceImage);
 
-    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
-                             DeviceImageImpl->get_kernel_ids_ptr()->end());
+      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                               DeviceImageImpl->get_kernel_ids_ptr()->end());
+    }
   }
 
   const bool AllKernelIDsRepresented =

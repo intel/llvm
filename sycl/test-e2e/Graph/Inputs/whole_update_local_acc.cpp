@@ -28,8 +28,6 @@ int main() {
   std::iota(DataA.begin(), DataA.end(), 10);
   std::iota(DataB.begin(), DataB.end(), 10);
 
-  std::vector<T> ReferenceA(DataA), ReferenceB(DataB);
-
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
 
   T *PtrA = malloc_device<T>(Size, Queue);
@@ -59,10 +57,10 @@ int main() {
   Queue.wait_and_throw();
 
   for (size_t i = 0; i < Size; i++) {
-    T RefA = 10 + i + (i * 2) + LocalSize / 2;
+    T RefA = 10 + i + Iterations * ((i * 2) + (LocalSize / 2));
     T RefB = 10 + i;
-    check_value(i, RefA, ReferenceA[i], "PtrA");
-    check_value(i, RefB, ReferenceB[i], "PtrB");
+    assert(check_value(i, RefA, DataA[i], "PtrA"));
+    assert(check_value(i, RefB, DataB[i], "PtrB"));
   }
 
   // Update GraphExecA using whole graph update
@@ -81,10 +79,10 @@ int main() {
   Queue.wait_and_throw();
 
   for (size_t i = 0; i < Size; i++) {
-    T RefA = 10 + i + (i * 2) + LocalSize / 2;
-    T RefB = 10 + i + (i * 2) + LocalSize;
-    check_value(i, RefA, ReferenceA[i], "PtrA");
-    check_value(i, RefB, ReferenceB[i], "PtrB");
+    T RefA = 10 + i + Iterations * ((i * 2) + (LocalSize / 2));
+    T RefB = 10 + i + Iterations * ((i * 2) + LocalSize);
+    assert(check_value(i, RefA, DataA[i], "PtrA"));
+    assert(check_value(i, RefB, DataB[i], "PtrB"));
   }
 
   free(PtrA, Queue);

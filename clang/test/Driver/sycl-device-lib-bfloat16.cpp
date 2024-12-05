@@ -18,6 +18,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
 // RUN:   "-device pvc" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
 // Test that unless all targets support bfloat16, AOT compilation uses the
 // fallback library.

@@ -1,4 +1,7 @@
+#pragma once
+
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>

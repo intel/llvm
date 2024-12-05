@@ -8,7 +8,6 @@
 #pragma once
 
 #include <sycl/builtins.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
@@ -21,6 +20,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+class context;
+
 ///
 // Explicit USM
 ///

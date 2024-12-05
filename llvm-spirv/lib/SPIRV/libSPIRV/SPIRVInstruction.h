@@ -1622,6 +1622,16 @@ private:
   SPIRVId Matrix;
 };
 
+class SPIRVSizeOfInstBase : public SPIRVInstTemplateBase {
+protected:
+  VersionNumber getRequiredSPIRVVersion() const override {
+    return VersionNumber::SPIRV_1_1;
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVSizeOfInstBase, OpSizeOf, true, 4, false>
+    SPIRVSizeOf;
+
 class SPIRVUnary : public SPIRVInstTemplateBase {
 protected:
   void validate() const override {

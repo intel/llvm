@@ -119,6 +119,11 @@ InstallIGFX () {
   # This can help us avoid using the risky force-depends-version option in dpkg command.
   #
   # Of course, this also installed the libopencl-clang so that we can copy and use later as a temporariy workaround.
+  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  UBUNTU_VER="u22\.04"
+  if [ "$IS_IGC_DEV" == "Yes" ] || [ "$L0_TAG" == "latest" ]; then
+     UBUNTU_VER="u24\.04"
+  fi
   get_release intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
@@ -126,16 +131,20 @@ InstallIGFX () {
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
   # Perform the checksum conditionally and then get the release
-  sha256sum -c *.sum  && \
+  # Skip the ww45 checksum because the igc_dev driver was manually updated
+  # so the package versions don't exactly match.
+  if [ ! -f "ww45.sum" ]; then
+      sha256sum -c *.sum
+  fi
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
     | wget -qi -
   get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*u22\.04.*deb" \
+    | grep ".*$UBUNTU_VER.*deb" \
     | wget -qi -
   dpkg -i *.deb && rm *.deb *.sum
-  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
     # Dev IGC deb package did not include libopencl-clang

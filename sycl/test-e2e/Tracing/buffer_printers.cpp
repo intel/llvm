@@ -6,7 +6,7 @@
 #include <sycl/detail/core.hpp>
 #include <vector>
 
-// Test image-specific printers of the Plugin Interace
+// Test the buffer-specific printers of UR tracing.
 //
 //CHECK: <--- urEnqueueMemBufferCopyRect(
 //CHECK-SAME: .srcOrigin = (struct ur_rect_offset_t){.x = 64, .y = 5, .z = 0}

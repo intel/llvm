@@ -18,7 +18,7 @@ sycl::detail::SpinLock GlobalLock;
 
 bool HasZEPrinter = false;
 
-std::string getCurrentDSODir() {
+static std::string getCurrentDSODir() {
   auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
   Dl_info Info;
   int RetCode = dladdr(CurrentFunc, &Info);

@@ -58,18 +58,15 @@ private:
 
 class RTCResult {
 public:
-  explicit RTCResult(const char *ErrorMessage)
-      : Failed{true}, BundleInfo{}, ErrorMessage{ErrorMessage} {}
+  explicit RTCResult(const char *BuildLog)
+      : Failed{true}, BundleInfo{}, BuildLog{BuildLog} {}
 
-  explicit RTCResult(RTCBundleInfo &&BundleInfo)
-      : Failed{false}, BundleInfo{std::move(BundleInfo)}, ErrorMessage{} {}
+  RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
+      : Failed{false}, BundleInfo{std::move(BundleInfo)}, BuildLog{BuildLog} {}
 
   bool failed() const { return Failed; }
 
-  const char *getErrorMessage() const {
-    assert(failed() && "No error message present");
-    return ErrorMessage.c_str();
-  }
+  const char *getBuildLog() const { return BuildLog.c_str(); }
 
   const RTCBundleInfo &getBundleInfo() const {
     assert(!failed() && "No bundle info");
@@ -79,7 +76,7 @@ public:
 private:
   bool Failed;
   RTCBundleInfo BundleInfo;
-  sycl::detail::string ErrorMessage;
+  sycl::detail::string BuildLog;
 };
 
 extern "C" {

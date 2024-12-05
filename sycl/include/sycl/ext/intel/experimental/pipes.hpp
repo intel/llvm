@@ -46,9 +46,40 @@ protected:
   pipe_base() = default;
   ~pipe_base() = default;
 
+  __SYCL_EXPORT static sycl::detail::string
+  get_pipe_name_impl(const void *HostPipePtr);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  static std::string get_pipe_name(const void *HostPipePtr) {
+    return {get_pipe_name_impl(HostPipePtr).c_str()};
+  }
+#else
   __SYCL_EXPORT static std::string get_pipe_name(const void *HostPipePtr);
+#endif
+
   __SYCL_EXPORT static bool wait_non_blocking(const event &E);
 };
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// We want all "new" uses/recompilation to use the "inline" version, yet we
+// still need to provide an exported symbol for the code that was compiled
+// before that. Make sure we use "inline" everywhere except when compiling
+// `pipes.cpp` so that we'd still provide this backward-compatibility ABI symbol
+// via `pipes.cpp` TU.
+#ifdef __SYCL_PIPES_CPP
+// Magic combination found by trial and error:
+__SYCL_EXPORT
+#ifdef WIN32
+inline
+#endif
+#else
+inline
+#endif
+    std::string
+    pipe_base::get_pipe_name(const void *HostPipePtr) {
+  return {get_pipe_name_impl(HostPipePtr).c_str()};
+}
+#endif
 
 template <class _name, class _dataT, int32_t _min_capacity = 0,
           class _propertiesT = decltype(oneapi::experimental::properties{}),

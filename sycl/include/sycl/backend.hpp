@@ -23,7 +23,6 @@
 #include <sycl/exception.hpp>                 // for make_error_code
 #include <sycl/feature_test.hpp>              // for SYCL_BACKEND_OP...
 #include <sycl/image.hpp>                     // for image, image_al...
-#include <sycl/kernel_bundle.hpp>             // for kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
 #include <sycl/platform.hpp>                  // for platform, get_n...
 #include <sycl/queue.hpp>                     // for queue, get_native
@@ -56,6 +55,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+template <bundle_state State> class kernel_bundle;
 class property_list;
 
 namespace detail {
@@ -141,6 +141,7 @@ auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
   int32_t IsImmCmdList;
   ur_native_handle_t Handle = Obj.getNative(IsImmCmdList);
   backend_return_t<BackendName, queue> RetVal;
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   if constexpr (BackendName == backend::ext_oneapi_level_zero)
     RetVal = IsImmCmdList
                  ? backend_return_t<BackendName, queue>{reinterpret_cast<
@@ -148,6 +149,7 @@ auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
                  : backend_return_t<BackendName, queue>{
                        reinterpret_cast<ze_command_queue_handle_t>(Handle)};
   else
+#endif
     RetVal = reinterpret_cast<backend_return_t<BackendName, queue>>(Handle);
 
   return RetVal;

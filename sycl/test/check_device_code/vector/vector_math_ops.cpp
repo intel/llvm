@@ -269,7 +269,7 @@ SYCL_EXTERNAL auto TestMinus(vec<int, 4> a) { return -a; }
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META79:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i8>, ptr [[A]], align 16, !tbaa [[TBAA11]], !noalias [[META79]]
-// CHECK-NEXT:    [[NOT_I:%.*]] = xor <16 x i8> [[TMP0]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
+// CHECK-NEXT:    [[NOT_I:%.*]] = xor <16 x i8> [[TMP0]], splat (i8 -1)
 // CHECK-NEXT:    store <16 x i8> [[NOT_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !tbaa [[TBAA11]], !alias.scope [[META79]]
 // CHECK-NEXT:    ret void
 //

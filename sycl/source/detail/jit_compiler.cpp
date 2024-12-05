@@ -1021,7 +1021,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
       CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
-      false /* KernelUsesClusterLaunch*/));
+      false /* KernelUsesClusterLaunch*/, 0 /* KernelWorkGroupMemorySize */));
   return FusedCG;
 }
 
@@ -1211,17 +1211,21 @@ sycl_device_binaries jit_compiler::compileSYCL(
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
     const std::vector<std::string> &RegisteredKernelNames) {
 
-  // TODO: Handle template instantiation.
-  if (!RegisteredKernelNames.empty()) {
-    throw sycl::exception(
-        sycl::errc::build,
-        "Property `sycl::ext::oneapi::experimental::registered_kernel_names` "
-        "is not yet supported for the `sycl_jit` source language");
+  // RegisteredKernelNames may contain template specializations, so we just put
+  // them in main() which ensures they are instantiated.
+  std::ostringstream ss;
+  ss << SYCLSource << '\n';
+  ss << "int main() {\n";
+  for (const std::string &KernelName : RegisteredKernelNames) {
+    ss << "  (void)" << KernelName << ";\n";
   }
+  ss << "  return 0;\n}\n" << std::endl;
+
+  std::string FinalSource = ss.str();
 
   std::string SYCLFileName = Id + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
-                                          SYCLSource.c_str()};
+                                          FinalSource.c_str()};
 
   std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
   IncludeFilesView.reserve(IncludePairs.size());
@@ -1238,12 +1242,13 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
 
-  if (Result.failed()) {
-    throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
+  if (LogPtr) {
+    LogPtr->append(Result.getBuildLog());
   }
 
-  // TODO: We currently don't have a meaningful build log.
-  (void)LogPtr;
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getBuildLog());
+  }
 
   return createDeviceBinaryImage(Result.getBundleInfo());
 }

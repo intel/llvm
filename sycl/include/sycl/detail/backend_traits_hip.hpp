@@ -14,11 +14,9 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/queue.hpp>
 
 typedef int HIPdevice;
@@ -30,6 +28,9 @@ typedef void *HIPdeviceptr;
 
 namespace sycl {
 inline namespace _V1 {
+
+class context;
+
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program

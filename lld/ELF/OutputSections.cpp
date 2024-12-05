@@ -151,9 +151,10 @@ void OutputSection::commitSection(InputSection *isec) {
   } else {
     // Otherwise, check if new type or flags are compatible with existing ones.
     if ((flags ^ isec->flags) & SHF_TLS)
-      error("incompatible section flags for " + name + "\n>>> " +
-            toString(isec) + ": 0x" + utohexstr(isec->flags) +
-            "\n>>> output section " + name + ": 0x" + utohexstr(flags));
+      ErrAlways(ctx) << "incompatible section flags for " << name << "\n>>> "
+                     << isec << ": 0x" << utohexstr(isec->flags)
+                     << "\n>>> output section " << name << ": 0x"
+                     << utohexstr(flags);
   }
 
   isec->parent = this;
@@ -624,7 +625,7 @@ encodeOneCrel(Ctx &ctx, raw_svector_ostream &os,
     if (d) {
       SectionBase *section = d->section;
       assert(section->isLive());
-      addend = sym.getVA(addend) - section->getOutputSection()->addr;
+      addend = sym.getVA(ctx, addend) - section->getOutputSection()->addr;
     } else {
       // Encode R_*_NONE(symidx=0).
       symidx = type = addend = 0;
@@ -882,7 +883,11 @@ void OutputSection::checkDynRelAddends(Ctx &ctx) {
     // for input .rel[a].<sec> sections which we simply pass through to the
     // output. We skip over those and only look at the synthetic relocation
     // sections created during linking.
-    const auto *sec = dyn_cast<RelocationBaseSection>(sections[i]);
+    if (!SyntheticSection::classof(sections[i]) ||
+        !is_contained({ELF::SHT_REL, ELF::SHT_RELA, ELF::SHT_RELR},
+                      sections[i]->type))
+      return;
+    const auto *sec = cast<RelocationBaseSection>(sections[i]);
     if (!sec)
       return;
     for (const DynamicReloc &rel : sec->relocs) {

@@ -403,6 +403,10 @@ struct RTCBundleInfo {
   RTCBundleBinaryInfo BinaryInfo;
   FrozenSymbolTable SymbolTable;
   FrozenPropertyRegistry Properties;
+
+  RTCBundleInfo() = default;
+  RTCBundleInfo(RTCBundleInfo &&) = default;
+  RTCBundleInfo &operator=(RTCBundleInfo &&) = default;
 };
 
 } // namespace jit_compiler

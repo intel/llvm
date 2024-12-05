@@ -19,6 +19,7 @@ extern int __oclc_amdgpu_reflect(__constant char *);
                                    OUT_ORDER)                                  \
   {                                                                            \
     switch (IN_SCOPE) {                                                        \
+    case Invocation:                                                           \
     case Subgroup:                                                             \
       OUT_SCOPE = __HIP_MEMORY_SCOPE_WAVEFRONT;                                \
       break;                                                                   \

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_acos

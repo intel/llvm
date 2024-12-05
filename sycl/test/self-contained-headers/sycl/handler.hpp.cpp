@@ -8,9 +8,10 @@
 // TODO: the test should be expanded to use various methods of the class. Due
 // to their template nature we may not test all code paths until we trigger
 // instantiation of a corresponding method.
+// TODO: methods related to specialization constants were moved into
+// kernel_bundle.hpp and therefore handler.hpp is known *not* to be
+// self-contained.
 
 #include <sycl/handler.hpp>
-
-class kernel_name;
 
 void foo(sycl::handler &h) {}

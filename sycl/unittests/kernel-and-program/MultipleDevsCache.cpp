@@ -86,7 +86,8 @@ static ur_result_t redefinedKernelRelease(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-class MultipleDeviceCacheTest : public ::testing::Test {
+class MultipleDeviceCacheTest
+    : public testing::TestWithParam<std::array<size_t, NumDevices>> {
 public:
   MultipleDeviceCacheTest() : Mock{}, Plt{sycl::platform()} {}
 
@@ -109,17 +110,25 @@ protected:
 
 // Test that program is retained for each subset of the list of devices and that
 // number of urKernelRelease calls is correct.
-TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
+TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
   {
+    // Reset counters
+    RetainCounter = 0;
+    KernelReleaseCounter = 0;
+
     std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
     sycl::context Context(Devices);
     sycl::queue Queue(Context, Devices[0]);
     assert(Devices.size() == NumDevices &&
            Context.get_devices().size() == NumDevices);
 
+    auto DeviceIndexes = GetParam();
     auto KernelID = sycl::get_kernel_id<MultipleDevsCacheTestKernel>();
     auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-        Queue.get_context(), {KernelID});
+        Queue.get_context(),
+        {Devices[DeviceIndexes[0]], Devices[DeviceIndexes[1]],
+         Devices[DeviceIndexes[2]]},
+        {KernelID});
     assert(Bundle.get_devices().size() == NumDevices);
 
     // Internally we create a kernel_bundle for the device associated with the
@@ -178,3 +187,9 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
   // when handle is returned to the caller).
   EXPECT_EQ(KernelReleaseCounter, 4) << "Expect 4 piKernelRelease calls";
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    MultipleDeviceCacheInstance, MultipleDeviceCacheTest,
+    testing::Values(std::array<size_t, NumDevices>{0, 1, 2},
+                    std::array<size_t, NumDevices>{1, 0, 2},
+                    std::array<size_t, NumDevices>{2, 1, 0}));

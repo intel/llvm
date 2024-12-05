@@ -121,6 +121,7 @@ public:
 
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
+  uint32_t MKernelWorkGroupMemorySize = 0;
 
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};

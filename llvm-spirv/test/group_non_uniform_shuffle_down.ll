@@ -1,6 +1,12 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck --check-prefix CHECK-SPIRV %s
+; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR %s
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck --check-prefix CHECK-LLVM %s
+
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -spirv-text -o - | FileCheck --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR %s
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck --check-prefix CHECK-LLVM %s
@@ -10,7 +16,8 @@
 ; CHECK-SPIRV-DAG: Constant [[#I32]] [[#CONST_I32_8:]] 8
 ; CHECK-SPIRV-DAG: TypeFloat [[#HALF:]] 16
 ; CHECK-SPIRV-DAG: TypeStruct [[#S_HALF:]] [[#HALF]]
-; CHECK-SPIRV-DAG: TypePointer [[#PTR_S_HALF:]] {{[0-9]+}} [[#S_HALF]]
+; CHECK-SPIRV-TYPED-PTR-DAG: TypePointer [[#PTR_S_HALF:]] {{[0-9]+}} [[#S_HALF]]
+; CHECK-SPIRV-UNTYPED-PTR-DAG: TypeUntypedPointerKHR [[#PTR:]] [[#]]
 
 target triple = "spir64-unknown-unknown"
 
@@ -25,8 +32,10 @@ entry:
   ret void
 }
 
-; CHECK-SPIRV: Variable {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV: Variable [[#PTR_S_HALF]] [[#VAR_0:]]
+; CHECK-SPIRV-TYPED-PTR: Variable {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-TYPED-PTR: Variable [[#PTR_S_HALF]] [[#VAR_0:]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[#PTR]] [[#VAR_0:]] [[#HALF]]
 ; CHECK-SPIRV: Load [[#S_HALF]] [[#COMP_0:]] [[#VAR_0]]
 ; CHECK-SPIRV: CompositeExtract [[#HALF]] [[#ELEM_0:]] [[#COMP_0]] 0
 ; CHECK-SPIRV: GroupNonUniformShuffleDown [[#HALF]] [[#ELEM_1:]] [[#CONST_I32_3]] [[#ELEM_0]] [[#CONST_I32_8]]

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <utils.h>
+#include <clc/utils.h>
 
 // TODO: Enable half precision when the sw routine is implemented.
 #if __CLC_FPSIZE > 16

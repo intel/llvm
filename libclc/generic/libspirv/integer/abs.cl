@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <core/clc_core.h>
+#include <clc/internal/clc.h>
+#include <clc/integer/clc_abs.h>
 #include <spirv/spirv.h>
 
 #define __CLC_BODY <abs.inc>

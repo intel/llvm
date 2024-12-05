@@ -9,7 +9,7 @@
 // RUN: %if cpu %{ %{run} %t.out &> %t.cpu.txt ; FileCheck %s --input-file %t.cpu.txt %}
 //
 // Since this is a multi-threaded application enable memory tracking and
-// deferred release feature in the Level Zero plugin to avoid releasing memory
+// deferred release feature in the Level Zero adapter to avoid releasing memory
 // too early. This is necessary because currently SYCL RT sets indirect access
 // flag for all kernels and the Level Zero runtime doesn't support deferred
 // release yet.

@@ -8,7 +8,7 @@
 
 #include <spirv/spirv.h>
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_smoothstep(float edge0, float edge1,
                                                     float x) {

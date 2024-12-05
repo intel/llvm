@@ -32,6 +32,7 @@
 #include <complex>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 class Kernel;

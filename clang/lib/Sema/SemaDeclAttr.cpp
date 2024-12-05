@@ -3131,7 +3131,7 @@ bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, Decl *D,
         if (HasPriority)
           DuplicateAttr = true;
         HasPriority = true;
-        int Digit;
+        unsigned Digit;
         if (AttrStr.getAsInteger(0, Digit))
           return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
                  << Unsupported << None << AttrStr << TargetVersion;
@@ -3285,7 +3285,7 @@ bool Sema::checkTargetClonesAttrString(
           HasDefault = true;
         } else if (AttrStr.consume_front("priority=")) {
           IsPriority = true;
-          int Digit;
+          unsigned Digit;
           if (AttrStr.getAsInteger(0, Digit))
             return Diag(CurLoc, diag::warn_unsupported_target_attribute)
                    << Unsupported << None << Str << TargetClones;
@@ -4807,6 +4807,15 @@ static void handleManagedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->addAttr(::new (S.Context) HIPManagedAttr(S.Context, AL));
   if (!D->hasAttr<CUDADeviceAttr>())
     D->addAttr(CUDADeviceAttr::CreateImplicit(S.Context));
+}
+
+static void handleGridConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (D->isInvalidDecl())
+    return;
+  // Whether __grid_constant__ is allowed to be used will be checked in
+  // Sema::CheckFunctionDeclaration as we need complete function decl to make
+  // the call.
+  D->addAttr(::new (S.Context) CUDAGridConstantAttr(S.Context, AL));
 }
 
 static void handleGNUInlineAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -6696,6 +6705,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLSimd:
     handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLKernelEntryPoint:
+    S.SYCL().handleKernelEntryPointAttr(D, AL);
+    break;
   case ParsedAttr::AT_SYCLSpecialClass:
     handleSimpleAttribute<SYCLSpecialClassAttr>(S, D, AL);
     break;
@@ -6704,6 +6716,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_SYCLDevice:
     S.SYCL().handleSYCLDeviceAttr(D, AL);
+    break;
+  case ParsedAttr::AT_SYCLScope:
+    S.SYCL().handleSYCLScopeAttr(D, AL);
     break;
   case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
     S.SYCL().handleSYCLDeviceIndirectlyCallableAttr(D, AL);
@@ -6741,6 +6756,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_CUDADevice:
     handleDeviceAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_CUDAGridConstant:
+    handleGridConstantAttr(S, D, AL);
     break;
   case ParsedAttr::AT_HIPManaged:
     handleManagedAttr(S, D, AL);

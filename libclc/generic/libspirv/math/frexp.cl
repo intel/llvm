@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <spirv/spirv.h>
-#include <utils.h>
-#include <clcmacro.h>
+#include <clc/utils.h>
+#include <clc/clcmacro.h>
 
 #define __CLC_BODY <frexp.inc>
 #define __CLC_ADDRESS_SPACE private
