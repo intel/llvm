@@ -1,5 +1,6 @@
 // TODO: enable when Jira ticket resolved
 // XFAIL: *
+// XFAIL-TRACKER: https://jira.devtools.intel.com/browse/GSD-4509
 //
 // Check that full compilation works:
 // RUN: %clangxx -DIMPL_SUBGROUP -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %S/../tuple_vadd.cpp -o %t.out
