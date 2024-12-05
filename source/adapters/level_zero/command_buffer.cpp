@@ -215,7 +215,8 @@ ur_result_t createSyncPointAndGetZeEvents(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr /*Queue*/,
                       false /*IsMultiDevice*/, HostVisible, &LaunchEvent,
                       false /*CounterBasedEventEnabled*/,
-                      !CommandBuffer->IsProfilingEnabled));
+                      !CommandBuffer->IsProfilingEnabled,
+                      false /*InterruptBasedEventEnabled*/));
   LaunchEvent->CommandType = CommandType;
   ZeLaunchEvent = LaunchEvent->ZeEvent;
 
@@ -683,13 +684,15 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
     if (Device->hasMainCopyEngine()) {
       UR_CALL(EventCreate(Context, nullptr /*Queue*/, false, false,
                           &CopyFinishedEvent, UseCounterBasedEvents,
-                          !EnableProfiling));
+                          !EnableProfiling,
+                          false /*InterruptBasedEventEnabled*/));
     }
 
     if (EnableProfiling) {
       UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                           false /*HostVisible*/, &ComputeFinishedEvent,
-                          UseCounterBasedEvents, !EnableProfiling));
+                          UseCounterBasedEvents, !EnableProfiling,
+                          false /*InterruptBasedEventEnabled*/));
     }
   }
 
@@ -698,7 +701,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   if (WaitEventPath) {
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &WaitEvent,
-                        false /*CounterBasedEventEnabled*/, !EnableProfiling));
+                        false /*CounterBasedEventEnabled*/, !EnableProfiling,
+                        false /*InterruptBasedEventEnabled*/));
   }
 
   // Create ZeCommandListResetEvents only if counter-based events are not being
@@ -710,7 +714,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   if (!UseCounterBasedEvents) {
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &AllResetEvent,
-                        false /*CounterBasedEventEnabled*/, !EnableProfiling));
+                        false /*CounterBasedEventEnabled*/, !EnableProfiling,
+                        false /*InterruptBasedEventEnabled*/));
 
     UR_CALL(createMainCommandList(Context, Device, false, false, false,
                                   ZeCommandListResetEvents));
@@ -718,7 +723,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
     // The ExecutionFinishedEvent is only waited on by ZeCommandListResetEvents.
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &ExecutionFinishedEvent,
-                        false /*CounterBasedEventEnabled*/, !EnableProfiling));
+                        false /*CounterBasedEventEnabled*/, !EnableProfiling,
+                        false /*InterruptBased*/));
   }
 
   try {
