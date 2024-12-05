@@ -68,12 +68,13 @@ jobs:
             tests_selector: e2e
             extra_lit_opts: --param gpu-intel-gen12=True
 
-          - name: OCL CPU (AMD)
-            runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001
-            target_devices: opencl:cpu
-            tests_selector: e2e
+          # These CPU configurations repeat each other
+          # - name: OCL CPU (AMD)
+          #   runner: '["Linux", "amdgpu"]'
+          #   image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+          #   image_options: -u 1001
+          #   target_devices: opencl:cpu
+          #   tests_selector: e2e
 
           - name: OCL CPU (Intel/GEN12)
             runner: '["Linux", "gen12"]'
@@ -82,12 +83,13 @@ jobs:
             target_devices: opencl:cpu
             tests_selector: e2e
 
-          - name: OCL CPU (Intel/Arc)
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001
-            target_devices: opencl:cpu
-            tests_selector: e2e
+          # These CPU configurations repeat each other
+          # - name: OCL CPU (Intel/Arc)
+          #   runner: '["Linux", "arc"]'
+          #   image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+          #   image_options: -u 1001
+          #   target_devices: opencl:cpu
+          #   tests_selector: e2e
 
           - name: SYCL-CTS on OCL CPU
             runner: '["Linux", "gen12"]'
