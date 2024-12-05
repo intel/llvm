@@ -388,7 +388,7 @@ protected:
 #ifdef __SYCL_GRAPH_IMPL_CPP
 // Magic combination found by trial and error:
 __SYCL_EXPORT
-#if WIN32
+#if _WIN32
 inline
 #endif
 #else

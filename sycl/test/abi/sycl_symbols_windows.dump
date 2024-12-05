@@ -3743,6 +3743,8 @@
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
+?compile_impl@?$online_compiler@$00@experimental@intel@ext@_V1@sycl@@CA?AV?$vector@EV?$allocator@E@std@@@std@@Vstring_view@detail@56@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@8@U?$pair@HH@8@W4device_type@info@56@Vdevice_arch@23456@_N0AEAPEAX6@Z
+?compile_impl@?$online_compiler@$0A@@experimental@intel@ext@_V1@sycl@@CA?AV?$vector@EV?$allocator@E@std@@@std@@Vstring_view@detail@56@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@8@U?$pair@HH@8@W4device_type@info@56@Vdevice_arch@23456@_N0AEAPEAX6@Z
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?complete_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA?AVevent@56@AEBVproperty_list@56@@Z
 ?computeFallbackKernelBounds@handler@_V1@sycl@@AEAA?AV?$id@$01@23@_K0@Z

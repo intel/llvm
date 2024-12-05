@@ -1,7 +1,7 @@
-# commit 3ad235dee9588152a58980bb73c8827a3d03a9e8
-# Merge: c7cd88de 6390f637
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Dec 4 18:17:07 2024 +0000
-#     Merge pull request #2389 from againull/indirect_fix
-#     [L0] Set exec info for all L0 kernels in UR kernel
-set(UNIFIED_RUNTIME_TAG 3ad235dee9588152a58980bb73c8827a3d03a9e8)
+# commit a172cde4bc2857dcf74b0b2907a5b0f90566e808 (HEAD, origin/main, origin/HEAD)
+# Merge: 1851eff47b0a cde0d4c820b0
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Thu Dec 5 12:29:44 2024 +0000
+#   Merge pull request #2249 from zhaomaosu/use-device-usm-for-rtl-data
+#   [DeviceASAN] Use device usm to sync asan runtime data instead of shared usm
+set(UNIFIED_RUNTIME_TAG a172cde4bc2857dcf74b0b2907a5b0f90566e808)
