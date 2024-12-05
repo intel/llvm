@@ -20,10 +20,12 @@
  * THE SOFTWARE.
  */
 
-#include "../clcmacro.h"
 #include "config.h"
 #include "math.h"
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
+#include <clc/relational/clc_isinf.h>
+#include <clc/relational/clc_isnan.h>
 #include <clc/shared/clc_clamp.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_ldexp(float x, int n) {
