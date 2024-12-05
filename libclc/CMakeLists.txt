@@ -532,15 +532,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${clc_lib_files}
     )
 
-    list( APPEND opencl_build_flags
-      ${build_flags}
-      -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
-      # FIXME: OpenCL bindings shouldn't depend on libspirv
-      -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
-    )
-
+    set( spirv_build_flags ${build_flags} )
     list( APPEND spirv_build_flags
-      ${build_flags}
       -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
       -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
     )
@@ -558,6 +551,13 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       PARENT_TARGET libspirv-builtins
       # Link in the CLC builtins and internalize their symbols
       INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
+    )
+
+    set( opencl_build_flags ${build_flags} )
+    list( APPEND opencl_build_flags
+      -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
+      # FIXME: OpenCL bindings shouldn't depend on libspirv
+      -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
     )
 
     add_libclc_builtin_set(
