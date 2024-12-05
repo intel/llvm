@@ -842,12 +842,6 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOpts);
     appendLinkEnvironmentVariablesThatAppend(LinkOpts);
-<<<<<<< HEAD
-    // getOrCreateURProgram adds NativePrg to NativePrograms storage.
-    auto [NativePrg, DeviceCodeWasInCache] = getOrCreateURProgram(
-        Img, AllImages, Context, {Device}, CompileOpts + LinkOpts, SpecConsts);
-=======
->>>>>>> sycl
 
     auto [NativePrg, DeviceCodeWasInCache] =
         getOrCreateURProgram(MainImg, ImgWithDeps.getAll(), Context, Devs,
@@ -890,19 +884,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         if (UseDeviceLibs)
           DeviceLibReqMask |= getDeviceLibReqMask(*BinImg);
 
-<<<<<<< HEAD
-        SerializedObj ImgSpecConsts =
-            DeviceImageImpl->get_spec_const_blob_ref();
-
-        // adds NativePrg to NativePrograms
-        ur_program_handle_t NativePrg =
-            createURProgram(*BinImg, Context, {Device});
-
-        if (BinImg->supportsSpecConstants())
-          setSpecializationConstants(DeviceImageImpl, NativePrg, Adapter);
-=======
         ur_program_handle_t NativePrg = createURProgram(*BinImg, Context, Devs);
->>>>>>> sycl
 
         if (BinImg->supportsSpecConstants()) {
           enableITTAnnotationsIfNeeded(NativePrg, Adapter);
@@ -914,16 +896,6 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         ProgramsToLink.push_back(NativePrg);
       }
     }
-<<<<<<< HEAD
-    std::vector<ur_device_handle_t> Devs = {
-        getSyclObjImpl(Device).get()->getHandleRef()};
-    ;
-    // build adds BuiltProgram to NativePrograms storage
-    ProgramPtr BuiltProgram = build(
-        std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts, Devs,
-        DeviceLibReqMask, ProgramsToLink,
-        /*CreatedFromBinary*/ Img.getFormat() != SYCL_DEVICE_BINARY_TYPE_SPIRV);
-=======
 
     std::vector<ur_device_handle_t> URDevices;
     for (auto Dev : Devs)
@@ -935,7 +907,6 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
               /*CreatedFromBinary*/ MainImg.getFormat() !=
                   SYCL_DEVICE_BINARY_TYPE_SPIRV);
 
->>>>>>> sycl
     // Those extra programs won't be used anymore, just the final linked result
     for (ur_program_handle_t Prg : ProgramsToLink)
       Adapter->call<UrApiKind::urProgramRelease>(Prg);
@@ -943,19 +914,13 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-<<<<<<< HEAD
       // NativePrograms map does not intend to keep reference to program handle,
       // so keys in the map can be invalid (reference count went to zero and the
       // underlying program disposed of). Protecting from incorrect values by
       // removal of map entries with same handle (obviously invalid entries).
       std::ignore = NativePrograms.erase(BuiltProgram.get());
-      NativePrograms.insert({BuiltProgram.get(), &Img});
-      for (RTDeviceBinaryImage *LinkedImg : DeviceImagesToLink) {
-        NativePrograms.insert({BuiltProgram.get(), LinkedImg});
-=======
       for (const RTDeviceBinaryImage *Img : ImgWithDeps) {
         NativePrograms.insert({BuiltProgram.get(), Img});
->>>>>>> sycl
       }
     }
 
@@ -2757,6 +2722,11 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+    // NativePrograms map does not intend to keep reference to program handle,
+    // so keys in the map can be invalid (reference count went to zero and the
+    // underlying program disposed of). Protecting from incorrect values by
+    // removal of map entries with same handle (obviously invalid entries).
+    std::ignore = NativePrograms.erase(LinkedProg);
     for (const device_image_plain &Img : ImgWithDeps) {
       NativePrograms.insert(
           {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
@@ -2799,86 +2769,6 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
   std::vector<unsigned char> SpecConstBlob;
   device_image_impl::SpecConstMapT SpecConstMap;
 
-<<<<<<< HEAD
-  const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
-  const RTDeviceBinaryImage &Img = *ImgPtr;
-
-  SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
-
-  // TODO: Unify this code with getBuiltPIProgram
-  auto BuildF = [this, &Context, &Img, &Devs, &CompileOpts, &LinkOpts,
-                 &InputImpl, SpecConsts] {
-    ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-    const AdapterPtr &Adapter = ContextImpl->getAdapter();
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Adapter);
-    // Should always come last!
-    appendCompileEnvironmentVariablesThatAppend(CompileOpts);
-    appendLinkEnvironmentVariablesThatAppend(LinkOpts);
-
-    // Device is not used when creating program from SPIRV, so passing only one
-    // device is OK.
-    // getOrCreateURProgram adds NativePrg to NativePrograms storage (no extra
-    // ref).
-    auto [NativePrg, DeviceCodeWasInCache] = getOrCreateURProgram(
-        Img, {&Img}, Context, Devs, CompileOpts + LinkOpts, SpecConsts);
-
-    if (!DeviceCodeWasInCache &&
-        InputImpl->get_bin_image_ref()->supportsSpecConstants())
-      setSpecializationConstants(InputImpl, NativePrg, Adapter);
-
-    UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
-    auto programRelease =
-        programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
-    ProgramPtr ProgramManaged(NativePrg, programRelease);
-
-    // Link a fallback implementation of device libraries if they are not
-    // supported by a device compiler.
-    // Pre-compiled programs are supposed to be already linked.
-    // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
-    // no fallback device library will be linked.
-    uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
-        !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
-      DeviceLibReqMask = getDeviceLibReqMask(Img);
-
-    // TODO: Add support for dynamic linking with kernel bundles
-    std::vector<ur_program_handle_t> ExtraProgramsToLink;
-    std::vector<ur_device_handle_t> URDevices;
-    for (auto Dev : Devs) {
-      URDevices.push_back(getSyclObjImpl(Dev).get()->getHandleRef());
-    }
-    ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              URDevices, DeviceLibReqMask, ExtraProgramsToLink);
-
-    emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
-
-    {
-      std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      NativePrograms.insert({BuiltProgram.get(), &Img});
-    }
-
-    ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), Devs, &Img);
-
-    // Save program to persistent cache if it is not there
-    if (!DeviceCodeWasInCache)
-      PersistentDeviceCodeCache::putItemToDisc(Devs[0], {&Img}, SpecConsts,
-                                               CompileOpts + LinkOpts,
-                                               BuiltProgram.get());
-
-    return BuiltProgram.release();
-  };
-
-  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    auto ResProgram = BuildF();
-    DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
-        InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
-        InputImpl->get_kernel_ids_ptr(), ResProgram,
-        InputImpl->get_spec_const_data_ref(),
-        InputImpl->get_spec_const_blob_ref());
-
-    return createSyclObjFromImpl<device_image_plain>(ExecImpl);
-=======
   if (DevImgWithDeps.hasDeps()) {
     KernelIDs = std::make_shared<std::vector<kernel_id>>();
     // Sort the images to make the order of spec constant values used for
@@ -2894,7 +2784,6 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
     KernelIDs = MainInputImpl->get_kernel_ids_ptr();
     SpecConstBlob = MainInputImpl->get_spec_const_blob_ref();
     SpecConstMap = MainInputImpl->get_spec_const_data_ref();
->>>>>>> sycl
   }
 
   ur_program_handle_t ResProgram =
