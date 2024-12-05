@@ -1682,12 +1682,12 @@ def SYCLIntelESimdVectorize : InheritableAttr {
 }
 
 def SYCLScope : Attr {
-  // No spelling, as this attribute can't be created in the source code.
-  let Spellings = [];
+  let Spellings = [CXX11<"__sycl_detail__", "wg_scope">];
   let Args = [EnumArgument<"level", "Level", /*is_string=*/false,
                                              ["work_group", "work_item"],
-                                             ["WorkGroup", "WorkItem"]>];
-  let Subjects = SubjectList<[Function, Var]>;
+                                             ["WorkGroup", "WorkItem"],
+                                             /*optional=*/true>];
+  let Subjects = SubjectList<[Function, Var, CXXRecord]>;
   let LangOpts = [SYCLIsDevice];
 
   let AdditionalMembers = [{
@@ -1700,7 +1700,7 @@ def SYCLScope : Attr {
     }
   }];
 
-  let Documentation = [InternalOnly];
+  let Documentation = [SYCLWGScopeDocs];
 }
 
 def SYCLDeviceIndirectlyCallable : InheritableAttr {

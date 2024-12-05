@@ -16,6 +16,7 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
@@ -387,6 +388,13 @@ PropSetRegTy computeModuleProperties(const Module &M,
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
       PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
+  }
+  {
+    std::vector<std::pair<StringRef, int>> ArgPos =
+        getKernelNamesUsingImplicitLocalMem(M);
+    for (const auto &FuncAndArgPos : ArgPos)
+      PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, FuncAndArgPos.first,
+                  FuncAndArgPos.second);
   }
 
   {
