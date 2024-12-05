@@ -750,7 +750,6 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // linked and we must link the dummy image.
       if (doesDevSupportDeviceRequirements(Dev, *BinImage) ^ isDummyImage)
         DeviceImagesToLink.insert(BinImage);
-
     }
   }
 
