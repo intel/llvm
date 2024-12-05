@@ -76,6 +76,45 @@ ur_result_t getZesDeviceHandle(zes_uuid_t coreDeviceUuid,
   return UR_RESULT_ERROR_INVALID_ARGUMENT;
 }
 
+ur_result_t checkDeviceIntelGPUIpVersionOrNewer(uint32_t ipVersion) {
+  uint32_t ZeDriverCount = 0;
+  ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
+  if (ZeDriverCount == 0) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  std::vector<ze_driver_handle_t> ZeDrivers;
+  std::vector<ze_device_handle_t> ZeDevices;
+  ZeDrivers.resize(ZeDriverCount);
+
+  ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
+  for (uint32_t I = 0; I < ZeDriverCount; ++I) {
+    ze_device_properties_t device_properties{};
+    ze_device_ip_version_ext_t ipVersionExt{};
+    ipVersionExt.stype = ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
+    ipVersionExt.pNext = nullptr;
+    device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    device_properties.pNext = &ipVersionExt;
+    uint32_t ZeDeviceCount = 0;
+    ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, nullptr));
+    ZeDevices.resize(ZeDeviceCount);
+    ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, ZeDevices.data()));
+    // Check if this driver has GPU Devices that have this IP Version or newer.
+    for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
+      if (device_properties.type == ZE_DEVICE_TYPE_GPU &&
+          device_properties.vendorId == 0x8086) {
+        ze_device_ip_version_ext_t *ipVersionExt =
+            (ze_device_ip_version_ext_t *)device_properties.pNext;
+        if (ipVersionExt->ipVersion >= ipVersion) {
+          return UR_RESULT_SUCCESS;
+        }
+      }
+    }
+  }
+  return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+}
+
 /**
  * @brief Initializes the platforms by querying Level Zero drivers and devices.
  *
@@ -282,11 +321,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       return;
     }
 
+    uint32_t UserForcedSysManInit = 0;
     // Check if the user has disabled the default L0 Env initialization.
-    const int UrSysManEnvInitEnabled = [] {
+    const int UrSysManEnvInitEnabled = [&UserForcedSysManInit] {
       const char *UrRet = std::getenv("UR_L0_ENABLE_SYSMAN_ENV_DEFAULT");
       if (!UrRet)
         return 1;
+      UserForcedSysManInit &= 1;
       return std::atoi(UrRet);
     }();
 
@@ -419,16 +460,25 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 #endif
 
     // Check if the user has enabled the default L0 SysMan initialization.
-    const int UrSysmanZesinitEnable = [] {
+    const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
       const char *UrRet = std::getenv("UR_L0_ENABLE_ZESINIT_DEFAULT");
       if (!UrRet)
         return 0;
+      UserForcedSysManInit &= 2;
       return std::atoi(UrRet);
     }();
 
-    // Enable zesInit by default only if ZES_ENABLE_SYSMAN has not been set by
-    // default and UrSysmanZesinitEnable is true.
-    if (UrSysmanZesinitEnable && !UrSysManEnvInitEnabled) {
+    bool ZesInitNeeded = UrSysmanZesinitEnable && !UrSysManEnvInitEnabled;
+    // Unless the user has forced the SysMan init, we will check the device
+    // version to see if the zesInit is needed.
+    if (UserForcedSysManInit == 0 &&
+        checkDeviceIntelGPUIpVersionOrNewer(0x05004000) == UR_RESULT_SUCCESS) {
+      if (UrSysManEnvInitEnabled) {
+        setEnvVar("ZES_ENABLE_SYSMAN", "0");
+      }
+      ZesInitNeeded = true;
+    }
+    if (ZesInitNeeded) {
       GlobalAdapter->getDeviceByUUIdFunctionPtr =
           (zes_pfnDriverGetDeviceByUuidExp_t)
               ur_loader::LibLoader::getFunctionPtr(
@@ -655,6 +705,14 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
     return ReturnValue(UR_ADAPTER_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(GlobalAdapter->RefCount.load());
+  case UR_ADAPTER_INFO_VERSION: {
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    uint32_t adapterVersion = 2;
+#else
+    uint32_t adapterVersion = 1;
+#endif
+    return ReturnValue(adapterVersion);
+  }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

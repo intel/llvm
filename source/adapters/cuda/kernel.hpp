@@ -76,6 +76,7 @@ struct ur_kernel_handle_t_ {
     /// padded to appropriate alignment. Zero if the argument at the index
     /// isn't a local memory argument.
     args_size_t OriginalLocalMemSize;
+    size_t WorkGroupMemory = 0;
 
     // A struct to keep track of memargs so that we can do dependency analysis
     // at urEnqueueKernelLaunch
@@ -134,9 +135,10 @@ struct ur_kernel_handle_t_ {
       OriginalLocalMemSize[Index] = Size;
 
       // Calculate the current starting offset into local data
-      const size_t LocalOffset = std::accumulate(
-          std::begin(AlignedLocalMemSize),
-          std::next(std::begin(AlignedLocalMemSize), Index), size_t{0});
+      const size_t LocalOffset =
+          std::accumulate(std::begin(AlignedLocalMemSize),
+                          std::next(std::begin(AlignedLocalMemSize), Index),
+                          size_t{WorkGroupMemory});
 
       // Maximum required alignment is the size of the largest vector type
       const size_t MaxAlignment = sizeof(double) * 16;
@@ -156,20 +158,11 @@ struct ur_kernel_handle_t_ {
       return std::make_pair(AlignedLocalSize, AlignedLocalOffset);
     }
 
-    void addLocalArg(size_t Index, size_t Size) {
-      // Get the aligned argument size and offset into local data
-      auto [AlignedLocalSize, AlignedLocalOffset] =
-          calcAlignedLocalArgument(Index, Size);
-
-      // Store argument details
-      addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
-             AlignedLocalSize);
-
-      // For every existing local argument which follows at later argument
-      // indices, update the offset and pointer into the kernel local memory.
-      // Required as padding will need to be recalculated.
+    // Iterate over all existing local argument which follows StartIndex
+    // index, update the offset and pointer into the kernel local memory.
+    void updateLocalArgOffset(size_t StartIndex) {
       const size_t NumArgs = Indices.size() - 1; // Accounts for implicit arg
-      for (auto SuccIndex = Index + 1; SuccIndex < NumArgs; SuccIndex++) {
+      for (auto SuccIndex = StartIndex; SuccIndex < NumArgs; SuccIndex++) {
         const size_t OriginalLocalSize = OriginalLocalMemSize[SuccIndex];
         if (OriginalLocalSize == 0) {
           // Skip if successor argument isn't a local memory arg
@@ -192,6 +185,20 @@ struct ur_kernel_handle_t_ {
       }
     }
 
+    void addLocalArg(size_t Index, size_t Size) {
+      // Get the aligned argument size and offset into local data
+      auto [AlignedLocalSize, AlignedLocalOffset] =
+          calcAlignedLocalArgument(Index, Size);
+
+      // Store argument details
+      addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
+             AlignedLocalSize);
+      // For every existing local argument which follows at later argument
+      // indices, update the offset and pointer into the kernel local memory.
+      // Required as padding will need to be recalculated.
+      updateLocalArgOffset(Index + 1);
+    }
+
     void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
       assert(hMem && "Invalid mem handle");
       // To avoid redundancy we are not storing mem obj with index i at index
@@ -206,6 +213,16 @@ struct ur_kernel_handle_t_ {
       MemObjArgs.push_back(arguments::mem_obj_arg{hMem, Index, Flags});
     }
 
+    void setWorkGroupMemory(size_t MemSize) {
+      // If the WorkGroupMemory is the same as MemSize, then all accessors
+      // offsets accounted for this extra memory
+      if (WorkGroupMemory == MemSize)
+        return;
+      WorkGroupMemory = MemSize;
+      // Update local accessor offsets
+      updateLocalArgOffset(/*StartIndex=*/0);
+    }
+
     void setImplicitOffset(size_t Size, std::uint32_t *ImplicitOffset) {
       assert(Size == sizeof(std::uint32_t) * 3);
       std::memcpy(ImplicitOffsetArgs, ImplicitOffset, Size);
@@ -215,7 +232,8 @@ struct ur_kernel_handle_t_ {
 
     uint32_t getLocalSize() const {
       return std::accumulate(std::begin(AlignedLocalMemSize),
-                             std::end(AlignedLocalMemSize), 0);
+                             std::end(AlignedLocalMemSize), 0) +
+             WorkGroupMemory;
     }
   } Args;
 
@@ -300,6 +318,7 @@ struct ur_kernel_handle_t_ {
     return Args.getIndices();
   }
 
+  void setWorkGroupMemory(size_t MemSize) { Args.setWorkGroupMemory(MemSize); }
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
 
   size_t getRegsPerThread() const noexcept { return RegsPerThread; };

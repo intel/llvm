@@ -1110,6 +1110,49 @@ ur_result_t urPrintExpEnqueueNativeCommandProperties(
 }
 
 ur_result_t
+urPrintExpTensorMapDataTypeFlags(enum ur_exp_tensor_map_data_type_flag_t value,
+                                 char *buffer, const size_t buff_size,
+                                 size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpTensorMapInterleaveFlags(
+    enum ur_exp_tensor_map_interleave_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpTensorMapL2PromotionFlags(
+    enum ur_exp_tensor_map_l2_promotion_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpTensorMapSwizzleFlags(enum ur_exp_tensor_map_swizzle_flag_t value,
+                                char *buffer, const size_t buff_size,
+                                size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpTensorMapOobFillFlags(enum ur_exp_tensor_map_oob_fill_flag_t value,
+                                char *buffer, const size_t buff_size,
+                                size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
 urPrintAdapterGetParams(const struct ur_adapter_get_params_t *params,
                         char *buffer, const size_t buff_size,
                         size_t *out_size) {
@@ -2503,6 +2546,22 @@ ur_result_t urPrintSamplerGetNativeHandleParams(
 ur_result_t urPrintSamplerCreateWithNativeHandleParams(
     const struct ur_sampler_create_with_native_handle_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintTensorMapEncodeIm_2ColExpParams(
+    const struct ur_tensor_map_encode_im_2_col_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintTensorMapEncodeTiledExpParams(
+    const struct ur_tensor_map_encode_tiled_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;
     return str_copy(&ss, buffer, buff_size, out_size);
