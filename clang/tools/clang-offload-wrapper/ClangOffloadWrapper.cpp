@@ -1359,6 +1359,9 @@ public:
     ObjcopyPath = *ObjcopyPathOrErr;
   }
 
+  BinaryWrapper(const BinaryWrapper &BW) = delete;
+  BinaryWrapper &operator=(const BinaryWrapper &BW) = delete;
+
   ~BinaryWrapper() {
     if (TempFiles.empty())
       return;

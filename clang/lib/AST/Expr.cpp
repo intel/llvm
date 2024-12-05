@@ -2044,7 +2044,7 @@ Expr *CastExpr::getSubExprAsWritten() {
       SubExpr = IgnoreExprNodes(cast<CXXConstructExpr>(SubExpr)->getArg(0),
                                 ignoreImplicitSemaNodes);
     } else if (E->getCastKind() == CK_UserDefinedConversion) {
-      assert((isa<CXXMemberCallExpr>(SubExpr) || isa<BlockExpr>(SubExpr)) &&
+      assert((isa<CallExpr, BlockExpr>(SubExpr)) &&
              "Unexpected SubExpr for CK_UserDefinedConversion.");
       if (auto *MCE = dyn_cast<CXXMemberCallExpr>(SubExpr))
         SubExpr = MCE->getImplicitObjectArgument();
@@ -3697,6 +3697,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SYCLUniqueStableIdExprClass:
   case PackIndexingExprClass:
   case HLSLOutArgExprClass:
+  case OpenACCAsteriskSizeExprClass:
     // These never have a side-effect.
     return false;
 
@@ -4776,8 +4777,7 @@ DesignatedInitUpdateExpr::DesignatedInitUpdateExpr(const ASTContext &C,
            OK_Ordinary) {
   BaseAndUpdaterExprs[0] = baseExpr;
 
-  InitListExpr *ILE =
-      new (C) InitListExpr(C, lBraceLoc, std::nullopt, rBraceLoc);
+  InitListExpr *ILE = new (C) InitListExpr(C, lBraceLoc, {}, rBraceLoc);
   ILE->setType(baseExpr->getType());
   BaseAndUpdaterExprs[1] = ILE;
 
@@ -5464,4 +5464,14 @@ HLSLOutArgExpr *HLSLOutArgExpr::Create(const ASTContext &C, QualType Ty,
 
 HLSLOutArgExpr *HLSLOutArgExpr::CreateEmpty(const ASTContext &C) {
   return new (C) HLSLOutArgExpr(EmptyShell());
+}
+
+OpenACCAsteriskSizeExpr *OpenACCAsteriskSizeExpr::Create(const ASTContext &C,
+                                                         SourceLocation Loc) {
+  return new (C) OpenACCAsteriskSizeExpr(Loc, C.IntTy);
+}
+
+OpenACCAsteriskSizeExpr *
+OpenACCAsteriskSizeExpr::CreateEmpty(const ASTContext &C) {
+  return new (C) OpenACCAsteriskSizeExpr({}, C.IntTy);
 }

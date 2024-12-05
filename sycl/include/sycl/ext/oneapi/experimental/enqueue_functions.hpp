@@ -12,6 +12,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
@@ -381,6 +382,17 @@ inline void partial_barrier(queue Q, const std::vector<event> &Events,
                             const sycl::detail::code_location &CodeLoc =
                                 sycl::detail::code_location::current()) {
   submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
+}
+
+inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current()) {
+  Q.ext_oneapi_graph(G, CodeLoc);
+}
+
+inline void execute_graph(handler &CGH,
+                          command_graph<graph_state::executable> &G) {
+  CGH.ext_oneapi_graph(G);
 }
 
 } // namespace ext::oneapi::experimental

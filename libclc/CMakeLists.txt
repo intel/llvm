@@ -166,18 +166,6 @@ endif()
 option( LIBCLC_GENERATE_REMANGLED_VARIANTS
   "Generate remangled variants of enabled libclc targets." OFF )
 
-if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
-  set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
-endif()
-
-option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
-
-if( LIBCLC_NATIVECPU_HOST_TARGET )
-  list(APPEND LIBCLC_TARGETS_TO_BUILD ${LLVM_TARGET_TRIPLE})
-endif()
-
-list( SORT LIBCLC_TARGETS_TO_BUILD )
-
 # Verify that the user hasn't requested mesa3d targets without an available
 # llvm-spirv tool.
 if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
@@ -188,6 +176,28 @@ endif()
 
 add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
 add_custom_target(libopencl-builtins COMMENT "Build libclc builtins")
+
+if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
+  set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
+else()
+  foreach(TARGET_TO_BUILD ${LIBCLC_TARGETS_TO_BUILD})
+    if (NOT ${TARGET_TO_BUILD} IN_LIST LIBCLC_TARGETS_ALL)
+      message ( FATAL_ERROR "Unknown target in LIBCLC_TARGETS_TO_BUILD: \"${TARGET_TO_BUILD}\"\n"
+                            "Valid targets are: ${LIBCLC_TARGETS_ALL}\n")
+    endif()
+  endforeach()
+endif()
+
+option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
+
+if( LIBCLC_NATIVECPU_HOST_TARGET )
+  list(APPEND LIBCLC_TARGETS_TO_BUILD ${LLVM_TARGET_TRIPLE})
+endif()
+
+list( SORT LIBCLC_TARGETS_TO_BUILD )
+
+# Construct LLVM version define
+set( LLVM_VERSION_DEFINE "-DHAVE_LLVM=0x${LLVM_VERSION_MAJOR}0${LLVM_VERSION_MINOR}" )
 
 set(LIBCLC_TARGET_TO_TEST)
 
@@ -229,7 +239,7 @@ set( tahiti_aliases pitcairn verde oland hainan bonaire kabini kaveri hawaii
   gfx1010 gfx1011 gfx1012 gfx1013
   gfx1030 gfx1031 gfx1032 gfx1033 gfx1034 gfx1035 gfx1036
   gfx1100 gfx1101 gfx1102 gfx1103
-  gfx1150 gfx1151 gfx1152
+  gfx1150 gfx1151 gfx1152 gfx1153
   gfx1200 gfx1201
 )
 
@@ -245,8 +255,10 @@ if( ENABLE_RUNTIME_SUBNORMAL )
        RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/${file}.ll
     )
-    install( FILES $<TARGET_PROPERTY:${file},TARGET_FILE> ARCHIVE
-      DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+    install(
+      FILES $<TARGET_PROPERTY:${file},TARGET_FILE>
+      DESTINATION "${CMAKE_INSTALL_DATADIR}/clc"
+    )
   endforeach()
 endif()
 
@@ -424,9 +436,19 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set ( has_distinct_generic_addrspace TRUE )
     if ( ARCH STREQUAL spirv OR ARCH STREQUAL spirv64 )
       set( opt_flags -O3 )
+      list( APPEND build_flags -DCLC_SPIRV )
       set( spvflags --spirv-max-version=1.1 )
+      set( MACRO_ARCH SPIRV32 )
+      if( ARCH STREQUAL spirv64 )
+        set( MACRO_ARCH SPIRV64 )
+      endif()
     elseif( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
       set( opt_flags -O3 )
+      list( APPEND build_flags -DCLC_CLSPV )
+      set( MACRO_ARCH CLSPV32 )
+      if( ARCH STREQUAL clspv64 )
+        set( MACRO_ARCH CLSPV64 )
+      endif()
     elseif( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
       set( opt_flags -O3 "--nvvm-reflect-enable=false" )
       set( has_distinct_generic_addrspace FALSE )
@@ -437,6 +459,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( has_distinct_generic_addrspace FALSE )
     else()
       set( opt_flags -O3 )
+      set( MACRO_ARCH ${ARCH} )
     endif()
 
     # Enable SPIR-V builtin function declarations, so they don't
@@ -483,7 +506,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       list(APPEND build_flags -D__unix__)
     endif()
 
-    string( TOUPPER "CLC_${ARCH}" CLC_TARGET_DEFINE )
+    string( TOUPPER "CLC_${MACRO_ARCH}" CLC_TARGET_DEFINE )
 
     list( APPEND build_flags
       -D__CLC_INTERNAL

@@ -1,5 +1,2 @@
-# These two take too much time
-kernel_bundle
-marray
-# fix: https://github.com/KhronosGroup/SYCL-CTS/pull/964
-accessor_legacy
+# CMPLRTST-26179
+device

@@ -17,6 +17,7 @@ add_llvm_unittest(IRTests
   BasicBlockTest.cpp
   BasicBlockDbgInfoTest.cpp
   CFGBuilder.cpp
+  ConstantFPRangeTest.cpp
   ConstantRangeTest.cpp
   ConstantRangeListTest.cpp
   ConstantsTest.cpp
@@ -44,6 +45,7 @@ add_llvm_unittest(IRTests
   ShuffleVectorInstTest.cpp
   StructuralHashTest.cpp
   TimePassesTest.cpp
+  DroppedVariableStatsTest.cpp
   TypesTest.cpp
   UseTest.cpp
   UserTest.cpp

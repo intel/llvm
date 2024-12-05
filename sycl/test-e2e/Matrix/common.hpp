@@ -10,6 +10,7 @@
 #include <random>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -63,8 +64,7 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
           if constexpr (std::is_same_v<Ta, bfloat16> &&
                         std::is_same_v<Tc, float>)
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
-          else if constexpr (std::is_same_v<Ta, sycl::half> &&
-                             std::is_same_v<Tc, float>)
+          else if constexpr (std::is_same_v<Ta, sycl::half>)
             acc += (float)va[i] * (float)vb[i];
           else if constexpr (std::is_same_v<Ta, float> &&
                                  std::is_same_v<Tc, float> ||
@@ -135,7 +135,8 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
 
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
-      if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float> ||
+      if constexpr (std::is_same_v<T, sycl::half> ||
+                    std::is_same_v<T, bfloat16> || std::is_same_v<T, float> ||
                     std::is_same_v<T, double>) {
         src[i * cols + j] = T(fdistr(dev));
       } else if constexpr (std::is_integral_v<T>) {

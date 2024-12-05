@@ -30,11 +30,6 @@ endif()
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
 # materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
-if(SYCL_ENABLE_EXTENSION_JIT AND WIN32)
-  message(WARNING "Extension to JIT kernels not yet supported on Windows")
-  set(SYCL_ENABLE_EXTENSION_JIT OFF CACHE
-      BOOL "Extension to JIT kernels not yet supported on Windows" FORCE)
-endif()
 
 if (NOT XPTI_INCLUDES)
   set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
@@ -248,6 +243,11 @@ add_custom_target(sycl-headers
           sycl-device-aspect-macros-header
           boost_mp11-headers)
 
+list(APPEND UR_HEADERS_TO_COPY
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp
+)
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
@@ -257,14 +257,13 @@ add_custom_command(
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
           ${HEADERS_IN_SYCLCOMPAT_DIR}
+          ${UR_HEADERS_TO_COPY}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def ${SYCL_INCLUDE_BUILD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory

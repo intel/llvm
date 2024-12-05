@@ -2427,7 +2427,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
-    const RTDeviceBinaryImage *BinImage, const std::string &KernelName) {
+    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2446,6 +2447,17 @@ static ur_result_t SetKernelParamsAndLaunch(
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+
+  std::optional<int> ImplicitLocalArg =
+      ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    Adapter->call<UrApiKind::urKernelSetArgLocal>(
+        Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
+  }
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
 
@@ -2474,9 +2486,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
-    std::vector<ur_exp_launch_property_t> property_list;
-
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
     launch_property_value_cluster_range.clusterDim[0] =
         NDRDesc.ClusterDimensions[0];
@@ -2494,13 +2505,20 @@ static ur_result_t SetKernelParamsAndLaunch(
       property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
                                launch_property_value_cooperative});
     }
-
+  }
+  // If there is no implicit arg, let the driver handle it via a property
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+    property_list.push_back(
+        {UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY, {{WorkGroupMemorySize}}});
+  }
+  if (!property_list.empty()) {
     ur_event_handle_t UREvent = nullptr;
     ur_result_t Error =
         Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
-            Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
-            LocalSize, property_list.size(), property_list.data(),
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
+            property_list.size(), property_list.data(), RawEvents.size(),
+            RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEventImpl ? &UREvent : nullptr);
     if (OutEventImpl) {
       OutEventImpl->setHandle(UREvent);
@@ -2527,6 +2545,51 @@ static ur_result_t SetKernelParamsAndLaunch(
   return Error;
 }
 
+namespace {
+std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
+           const KernelArgMask *>
+getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
+                DeviceImplPtr DeviceImpl,
+                std::vector<ur_kernel_handle_t> &UrKernelsToRelease,
+                std::vector<ur_program_handle_t> &UrProgramsToRelease) {
+
+  ur_kernel_handle_t UrKernel = nullptr;
+  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+  const KernelArgMask *EliminatedArgMask = nullptr;
+
+  // Use kernel_bundle if available unless it is interop.
+  // Interop bundles can't be used in the first branch, because the kernels
+  // in interop kernel bundles (if any) do not have kernel_id
+  // and can therefore not be looked up, but since they are self-contained
+  // they can simply be launched directly.
+  if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
+      KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+    auto KernelName = CommandGroup.MKernelName;
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+
+    kernel SyclKernel =
+        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+
+    auto SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+    UrKernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+  } else if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
+    UrKernel = Kernel->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
+  } else {
+    ur_program_handle_t UrProgram = nullptr;
+    std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
+        sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+    UrKernelsToRelease.push_back(UrKernel);
+    UrProgramsToRelease.push_back(UrProgram);
+  }
+  return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
+}
+} // anonymous namespace
+
 ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -2535,43 +2598,38 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
-  auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  ur_kernel_handle_t UrKernel = nullptr;
-  ur_program_handle_t UrProgram = nullptr;
-  std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
-  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+  // List of ur objects to be released after UR call. We don't do anything
+  // with the ur_program_handle_t objects, but need to update their reference
+  // count.
+  std::vector<ur_kernel_handle_t> UrKernelsToRelease;
+  std::vector<ur_program_handle_t> UrProgramsToRelease;
 
-  auto Kernel = CommandGroup.MSyclKernel;
-  auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
+  ur_kernel_handle_t UrKernel = nullptr;
+  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the kernels
-  // in interop kernel bundles (if any) do not have kernel_id
-  // and can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    auto KernelName = CommandGroup.MKernelName;
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
-    UrKernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
-    UrProgram = DeviceImageImpl->get_ur_program_ref();
-    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-  } else if (Kernel != nullptr) {
-    UrKernel = Kernel->getHandleRef();
-    UrProgram = Kernel->getProgramRef();
-    EliminatedArgMask = Kernel->getKernelArgMask();
-  } else {
-    std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
-        sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+  auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
+  std::tie(UrKernel, DeviceImageImpl, EliminatedArgMask) =
+      getCGKernelInfo(CommandGroup, ContextImpl, DeviceImpl, UrKernelsToRelease,
+                      UrProgramsToRelease);
+
+  // Build up the list of UR kernel handles that the UR command could be
+  // updated to use.
+  std::vector<ur_kernel_handle_t> AltUrKernels;
+  const std::vector<std::weak_ptr<sycl::detail::CGExecKernel>>
+      &AlternativeKernels = CommandGroup.MAlternativeKernels;
+  for (const auto &AltCGKernelWP : AlternativeKernels) {
+    auto AltCGKernel = AltCGKernelWP.lock();
+    assert(AltCGKernel != nullptr);
+
+    ur_kernel_handle_t AltUrKernel = nullptr;
+    std::tie(AltUrKernel, std::ignore, std::ignore) =
+        getCGKernelInfo(*AltCGKernel.get(), ContextImpl, DeviceImpl,
+                        UrKernelsToRelease, UrProgramsToRelease);
+    AltUrKernels.push_back(AltUrKernel);
   }
 
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &Ctx,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
@@ -2622,14 +2680,17 @@ ur_result_t enqueueImpCommandBufferKernel(
   ur_result_t Res =
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
           CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-          &NDRDesc.GlobalSize[0], LocalSize, 0, nullptr, SyncPoints.size(),
-          SyncPoints.size() ? SyncPoints.data() : nullptr, 0, nullptr,
-          OutSyncPoint, nullptr,
+          &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
+          AltUrKernels.size() ? AltUrKernels.data() : nullptr,
+          SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,
+          nullptr, OutSyncPoint, nullptr,
           CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
 
-  if (!SyclKernelImpl && !Kernel) {
-    Adapter->call<UrApiKind::urKernelRelease>(UrKernel);
-    Adapter->call<UrApiKind::urProgramRelease>(UrProgram);
+  for (auto &Kernel : UrKernelsToRelease) {
+    Adapter->call<UrApiKind::urKernelRelease>(Kernel);
+  }
+  for (auto &Program : UrProgramsToRelease) {
+    Adapter->call<UrApiKind::urProgramRelease>(Program);
   }
 
   if (Res != UR_RESULT_SUCCESS) {
@@ -2649,7 +2710,8 @@ void enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch, const RTDeviceBinaryImage *BinImage) {
+    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
+    const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2741,7 +2803,8 @@ void enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch, BinImage, KernelName);
+        KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
+        BinImage, KernelName);
 
     const AdapterPtr &Adapter = Queue->getAdapter();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -3133,7 +3196,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                      SyclKernel, KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch, BinImage);
+                     ExecKernel->MKernelUsesClusterLaunch,
+                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3398,25 +3462,47 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::ProfilingTag: {
     assert(MQueue && "Profiling tag requires a valid queue");
     const auto &Adapter = MQueue->getAdapter();
-    // If the queue is not in-order, we need to insert a barrier. This barrier
-    // does not need output events as it will implicitly enforce the following
-    // enqueue is blocked until it finishes.
-    if (!MQueue->isInOrder()) {
-      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
-      //        not pass an output event to the UR call. Once that is fixed,
-      //        this immediately-deleted event can be removed.
-      ur_event_handle_t PreTimestampBarrierEvent{};
+
+    bool IsInOrderQueue = MQueue->isInOrder();
+    ur_event_handle_t *TimestampDeps = nullptr;
+    size_t NumTimestampDeps = 0;
+
+    // If the queue is not in-order, the implementation will need to first
+    // insert a marker event that the timestamp waits for.
+    ur_event_handle_t PreTimestampMarkerEvent{};
+    if (!IsInOrderQueue) {
+      // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
+      //        Use that instead once it has been fixed.
+      //        See https://github.com/oneapi-src/unified-runtime/issues/2347.
       Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, &PreTimestampBarrierEvent);
-      Adapter->call<UrApiKind::urEventRelease>(PreTimestampBarrierEvent);
+          /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
+      TimestampDeps = &PreTimestampMarkerEvent;
+      NumTimestampDeps = 1;
     }
 
     Adapter->call<UrApiKind::urEnqueueTimestampRecordingExp>(
         MQueue->getHandleRef(),
-        /*blocking=*/false,
-        /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr, Event);
+        /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
+
+    // If the queue is not in-order, we need to insert a barrier. This barrier
+    // does not need output events as it will implicitly enforce the following
+    // enqueue is blocked until it finishes.
+    if (!IsInOrderQueue) {
+      // We also need to release the timestamp event from the marker.
+      Adapter->call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
+      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
+      //        not pass an output event to the UR call. Once that is fixed,
+      //        this immediately-deleted event can be removed.
+      ur_event_handle_t PostTimestampBarrierEvent{};
+      Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+          MQueue->getHandleRef(),
+          /*num_events_in_wait_list=*/0,
+          /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
+      Adapter->call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+    }
+
     if (Event)
       MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
@@ -3527,10 +3613,21 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     return UR_RESULT_SUCCESS;
   }
-  case CGType::None:
-    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "CG type not implemented. " +
-                              codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
+  case CGType::None: {
+    if (RawEvents.empty()) {
+      // urEnqueueEventsWait with zero events acts like a barrier which is NOT
+      // what we want here. On the other hand, there is nothing to wait for, so
+      // we don't need to enqueue anything.
+      return UR_RESULT_SUCCESS;
+    }
+    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    ur_event_handle_t Event;
+    ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+        MQueue->getHandleRef(), RawEvents.size(),
+        RawEvents.size() ? &RawEvents[0] : nullptr, &Event);
+    MEvent->setHandle(Event);
+    return Result;
+  }
   }
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
