@@ -9,6 +9,7 @@
 #include <sycl/detail/os_util.hpp>
 
 #include <cassert>
+#include <iostream>
 #include <limits>
 #if __GNUC__ && __GNUC__ < 8
 // Don't include <filesystem> for GCC versions less than 8
@@ -284,12 +285,12 @@ size_t OSUtil::getDirectorySize(const std::string &Path) {
   DirSizeVar = 0;
 // Use ftw for Linux and darwin as they support posix.
 #if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
-  auto SumSize =
-          [](const char *Fpath, const struct stat *StatBuf, int TypeFlag) {
-            if (TypeFlag == FTW_F)
-              DirSizeVar += StatBuf->st_size;
-            return 0;
-          };
+  auto SumSize = []([[maybe_unused]] const char *Fpath,
+                    const struct stat *StatBuf, [[maybe_unused]] int TypeFlag) {
+    if (TypeFlag == FTW_F)
+      DirSizeVar += StatBuf->st_size;
+    return 0;
+  };
 
   if (ftw(Path.c_str(),SumSize, 1) == -1)
     std::cerr << "Failed to get directory size: " << Path << std::endl;

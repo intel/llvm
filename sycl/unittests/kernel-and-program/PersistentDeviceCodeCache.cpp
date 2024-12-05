@@ -589,7 +589,6 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
 
   // Get Cache size and size of each entry. Set eviction threshold so that
   // just one item is evicted.
-  size_t CurrentCacheSize = 0;
   size_t SizeOfOneEntry =
       (size_t)(detail::OSUtil::getDirectorySize(CacheRoot)) + 10;
 
