@@ -221,6 +221,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
              (ZeDriver, &Count, ZeExtensions.data()));
 
   bool MutableCommandListSpecExtensionSupported = false;
+  bool ZeIntelExternalSemaphoreExtensionSupported = false;
   for (auto &extension : ZeExtensions) {
     // Check if global offset extension is available
     if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
@@ -250,6 +251,13 @@ ur_result_t ur_platform_handle_t_::initialize() {
                 strlen(ZE_MUTABLE_COMMAND_LIST_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_MUTABLE_COMMAND_LIST_EXP_VERSION_1_1) {
         MutableCommandListSpecExtensionSupported = true;
+      }
+    }
+    // Check if extension is available for External Sempahores
+    if (strncmp(extension.name, ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME,
+                strlen(ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0) {
+        ZeIntelExternalSemaphoreExtensionSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
@@ -285,6 +293,38 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // Check if import user ptr into USM feature has been requested.
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
+
+  if (ZeIntelExternalSemaphoreExtensionSupported) {
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelDeviceImportExternalSemaphoreExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp))) ==
+         0);
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelCommandListAppendWaitExternalSemaphoresExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt
+                       .zexCommandListAppendWaitExternalSemaphoresExp))) == 0);
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelCommandListAppendSignalExternalSemaphoresExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt
+                       .zexCommandListAppendSignalExternalSemaphoresExp))) ==
+         0);
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                         (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
+                          reinterpret_cast<void **>(
+                              &ZeExternalSemaphoreExt
+                                   .zexDeviceReleaseExternalSemaphoreExp))) ==
+         0);
+  }
 
   // Check if mutable command list extension is supported and initialize
   // function pointers.

@@ -23,6 +23,7 @@ class Result:
     lower_is_better: bool = True
     git_hash: str = ''
     date: Optional[datetime] = None
+    stddev: float = 0.0
 
 @dataclass_json
 @dataclass
