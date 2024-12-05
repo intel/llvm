@@ -1021,7 +1021,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
       CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
-      false /* KernelUsesClusterLaunch*/));
+      false /* KernelUsesClusterLaunch*/, 0 /* KernelWorkGroupMemorySize */));
   return FusedCG;
 }
 
