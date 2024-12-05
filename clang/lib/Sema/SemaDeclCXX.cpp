@@ -7217,6 +7217,9 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
     else if (Record->hasAttr<CUDADeviceBuiltinTextureTypeAttr>())
       checkCUDADeviceBuiltinTextureClassTemplate(*this, Record);
   }
+  if (getLangOpts().SYCLIsDevice && Record->hasAttr<SYCLScopeAttr>()) {
+    SYCL().CheckSYCLScopeAttr(Record);
+  }
 }
 
 /// Look up the special member function that would be called by a special

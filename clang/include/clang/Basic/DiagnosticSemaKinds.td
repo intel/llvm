@@ -12556,6 +12556,11 @@ def err_sycl_external_global : Error<
 def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
+def err_sycl_wg_scope : Error<
+  "SYCL work group scope only applies to class with a trivial "
+  "%select{default constructor|destructor}0">;
+def err_sycl_field_with_wg_scope : Error<
+  "non-static data member is of a type with a SYCL work group scope attribute applied to it">;
 def err_sycl_virtual_types : Error<
   "no class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;
