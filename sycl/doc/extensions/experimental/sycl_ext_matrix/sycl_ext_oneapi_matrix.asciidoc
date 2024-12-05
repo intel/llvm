@@ -52,17 +52,17 @@ that contain a matrix hardware, specifically Intel(R) Advanced Matrix
 Extensions (Intel(R) AMX), Intel(R) Xe Matrix Extensions (Intel(R)
 XMX), Nvidia(R) Tensor Cores and AMD Matrix Cores(R).
 
-The `joint_matrix` type and the `joint_matrix_mad` function are
-optional kernel features as defined in section 5.7 of the core SYCL
-specification.  Each device supports only certain values for the `M`,
-`N`, and `K` template parameters and only certain types for the `Ta`,
-`Tb`, and `Tc` template parameters. Applications can use the query API
-in `matrix_params` or 
-`get_info<ext::oneapi::experimental::info::device::matrix_combinations>` 
+The `joint_matrix` type and the instructions operating on it such as
+`joint_matrix_mad` function are optional kernel features as defined in
+section 5.7 of the core SYCL specification.  Each device supports only
+certain values for the `M`, `N`, and `K` template parameters and only
+certain types for the `Ta`, `Tb`, and `Tc` template
+parameters. Applications can use the query API in `matrix_params` or
+`get_info<ext::oneapi::experimental::info::device::matrix_combinations>`
 to determine the set of legal parameters for each device.  If the
 application submits a kernel using an unsupported `joint_matrix` type
-or calls `joint_matrix_mad` with an unsupported combination, the
-implementation throws a synchronous exception with the
+or calls `joint_matrix_mul` or `joint_matrix_mad` with an unsupported
+combination, the implementation throws a synchronous exception with the
 `errc::kernel_not_supported` error code as described in section 5.7.
 
 == Overview
@@ -431,6 +431,29 @@ Each device supports only certain combinations of types for the `A`,
 (defined below) to ensure that the combination of types is supported
 on the device where the kernel calling `joint_matrix_mad` runs.
 
+==== Multiply
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename Ta, typename Tb, typename Td,
+          std::size_t M, std::size_t K, std::size_t N,
+          layout LayoutA, layout LayoutB>
+void joint_matrix_mul(Group g,
+    joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic> &D,
+    const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+    const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+The matrix multiply function performs the multiply operation on the
+matrices `A` and `B`, and returns the result into the matrix `D`.
+
+Each device supports only certain combinations of types for the `A`,
+`B`, and `D` matrices. The application must use the query operations
+(defined below) to ensure that the combination of types is supported
+on the device where the kernel calling `joint_matrix_mul` runs.
+
 ==== Fill (Initialization)
 Unlike `joint_matrix_load` that assumes that all the matrices are
 directly loaded from memory, `joint_matrix_fill`  makes it possible to
@@ -753,18 +776,19 @@ Most devices support only certain values for the `Rows` and `Cols`
 template parameters and only certain types for the `T` template
 parameter. Moreover, most devices support only certain combinations of
 these template parameter for the A, B, C, and D matrices in the
-`joint_matrix_mad` function (see Appendix: Supported Combinations Per
-Hardware). This extension adds two query APIs that can be used to
-determine the set of legal parameters for a particular device. One
-form provides `constexpr` values for these parameters, which can be
-used when the application knows the specific device architecture on
-which it will run. The other form uses the standard information
-descriptor queries for the device object.
+`joint_matrix_mul` and `joint_matrix_mad` function (see Appendix:
+Supported Combinations Per Hardware). This extension adds two query
+APIs that can be used to determine the set of legal parameters for a
+particular device. One form provides `constexpr` values for these
+parameters, which can be used when the application knows the specific
+device architecture on which it will run. The other form uses the
+standard information descriptor queries for the device object.
 
 The description below uses the terms `M`, `N`, and `K` to identify the
-matrix dimensions of a multiply and add operation `D = C + A*B`. The
-`D` and `C` matrices are `M` rows by `N` columns. The `A` matrix is
-`M` rows by `K` columns, and the `B` matrix is `K` rows by `N` columns.
+matrix dimensions of a multiply `D = A*B` or multiply and add
+operation `D = C + A*B`. The `D` and `C` matrices are `M` rows by `N`
+columns. The `A` matrix is `M` rows by `K` columns, and the `B` matrix
+is `K` rows by `N` columns.
 
 ==== Compile-Time Query
 This returns `constexpr` values to use in `joint_matrix` template
