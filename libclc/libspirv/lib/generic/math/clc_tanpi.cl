@@ -21,10 +21,10 @@
  */
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
+#include <libspirv/math/tables.h>
 #include <libspirv/spirv.h>
 
 #include "sincos_helpers.h"
-#include "tables.h"
 #include <math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_tanpi(float x)

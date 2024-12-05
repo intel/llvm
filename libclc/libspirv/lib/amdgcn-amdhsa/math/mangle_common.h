@@ -32,39 +32,42 @@
       ARG1_TYPE##4 x,                                                          \
       __attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##4 * y) {           \
     return (ARG1_TYPE##4)(                                                     \
-        FUNCTION_MACRO(2)(x.lo, (__attribute__((address_space(ADDR_SPACE)))    \
-                                 ARG2_TYPE##2 *)y),                            \
         FUNCTION_MACRO(2)(                                                     \
-            x.hi, (__attribute__((address_space(ADDR_SPACE)))                  \
-                   ARG2_TYPE##2 *)((__attribute__((address_space(ADDR_SPACE))) \
-                                    ARG2_TYPE *)y +                            \
-                                   2)));                                       \
+            x.lo,                                                              \
+            (__attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##2 *)y),     \
+        FUNCTION_MACRO(2)(                                                     \
+            x.hi, (__attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##2     \
+                       *)((__attribute__((address_space(ADDR_SPACE)))          \
+                           ARG2_TYPE *)y +                                     \
+                          2)));                                                \
   }                                                                            \
                                                                                \
   _CLC_DEF ARG1_TYPE##8 FUNCTION_MACRO(8)(                                     \
       ARG1_TYPE##8 x,                                                          \
       __attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##8 * y) {           \
     return (ARG1_TYPE##8)(                                                     \
-        FUNCTION_MACRO(4)(x.lo, (__attribute__((address_space(ADDR_SPACE)))    \
-                                 ARG2_TYPE##4 *)y),                            \
         FUNCTION_MACRO(4)(                                                     \
-            x.hi, (__attribute__((address_space(ADDR_SPACE)))                  \
-                   ARG2_TYPE##4 *)((__attribute__((address_space(ADDR_SPACE))) \
-                                    ARG2_TYPE *)y +                            \
-                                   4)));                                       \
+            x.lo,                                                              \
+            (__attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##4 *)y),     \
+        FUNCTION_MACRO(4)(                                                     \
+            x.hi, (__attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##4     \
+                       *)((__attribute__((address_space(ADDR_SPACE)))          \
+                           ARG2_TYPE *)y +                                     \
+                          4)));                                                \
   }                                                                            \
                                                                                \
   _CLC_DEF ARG1_TYPE##16 FUNCTION_MACRO(16)(                                   \
       ARG1_TYPE##16 x,                                                         \
       __attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##16 * y) {          \
     return (ARG1_TYPE##16)(                                                    \
-        FUNCTION_MACRO(8)(x.lo, (__attribute__((address_space(ADDR_SPACE)))    \
-                                 ARG2_TYPE##8 *)y),                            \
         FUNCTION_MACRO(8)(                                                     \
-            x.hi, (__attribute__((address_space(ADDR_SPACE)))                  \
-                   ARG2_TYPE##8 *)((__attribute__((address_space(ADDR_SPACE))) \
-                                    ARG2_TYPE *)y +                            \
-                                   8)));                                       \
+            x.lo,                                                              \
+            (__attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##8 *)y),     \
+        FUNCTION_MACRO(8)(                                                     \
+            x.hi, (__attribute__((address_space(ADDR_SPACE))) ARG2_TYPE##8     \
+                       *)((__attribute__((address_space(ADDR_SPACE)))          \
+                           ARG2_TYPE *)y +                                     \
+                          8)));                                                \
   }
 
 #endif // !__MANGLE_COMMON

@@ -8,7 +8,7 @@
 
 #include <libspirv/spirv.h>
 
-#include "tables.h"
+#include <libspirv/math/tables.h>
 #include <clc/clcmacro.h>
 
 #ifdef cl_khr_fp64

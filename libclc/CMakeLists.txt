@@ -532,8 +532,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${clc_lib_files}
     )
 
-    list( APPEND build_flags
+    list( APPEND opencl_build_flags
+      ${build_flags}
       -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
+      # FIXME: OpenCL bindings shouldn't depend on libspirv
+      -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
     )
 
     list( APPEND spirv_build_flags
@@ -561,7 +564,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       ARCH ${ARCH}
       ARCH_SUFFIX ${arch_suffix}
       TRIPLE ${clang_triple}
-      COMPILE_FLAGS ${build_flags}
+      COMPILE_FLAGS ${opencl_build_flags}
       OPT_FLAGS ${opt_flags}
       LIB_FILES ${opencl_lib_files}
       GEN_FILES ${opencl_gen_files}

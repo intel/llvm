@@ -20,12 +20,12 @@
  * THE SOFTWARE.
  */
 
-#include <libspirv/spirv.h>
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/relational/clc_isnan.h>
+#include <libspirv/math/tables.h>
+#include <libspirv/spirv.h>
 
-#include "tables.h"
 #include <config.h>
 #include <math/math.h>
 

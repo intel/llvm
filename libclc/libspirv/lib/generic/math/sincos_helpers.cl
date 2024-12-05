@@ -21,11 +21,11 @@
  */
 
 #include <core/clc_core.h>
+#include <libspirv/math/tables.h>
 #include <libspirv/spirv.h>
+#include <math/math.h>
 
 #include "sincos_helpers.h"
-#include "tables.h"
-#include <math/math.h>
 
 #define bitalign(hi, lo, shift) ((hi) << (32 - (shift))) | ((lo) >> (shift));
 

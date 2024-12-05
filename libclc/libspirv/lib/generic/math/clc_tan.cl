@@ -26,7 +26,7 @@
 #include <clc/relational/clc_isnan.h>
 
 #include "sincos_helpers.h"
-#include "tables.h"
+#include <libspirv/math/tables.h>
 #include <math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_tan(float x) {

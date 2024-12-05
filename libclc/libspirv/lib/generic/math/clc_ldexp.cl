@@ -20,14 +20,13 @@
  * THE SOFTWARE.
  */
 
-#include <core/clc_core.h>
-#include <libspirv/spirv.h>
-
-#include "tables.h"
 #include <clc/clcmacro.h>
 #include <clc/relational/clc_isinf.h>
 #include <clc/relational/clc_isnan.h>
 #include <config.h>
+#include <core/clc_core.h>
+#include <libspirv/math/tables.h>
+#include <libspirv/spirv.h>
 #include <math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_ldexp(float x, int n) {

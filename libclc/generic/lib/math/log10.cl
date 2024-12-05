@@ -20,7 +20,7 @@
  * THE SOFTWARE.
  */
 
-#include "../../libspirv/math/tables.h"
+#include <libspirv/math/tables.h>
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <libspirv/spirv.h>

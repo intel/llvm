@@ -25,7 +25,7 @@
 #include <clc/clcmacro.h>
 #include <clc/math/clc_fabs.h>
 
-#include "tables.h"
+#include <libspirv/math/tables.h>
 #include <config.h>
 #include <math/math.h>
 

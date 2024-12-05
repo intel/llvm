@@ -22,7 +22,7 @@
 
 #include <libspirv/spirv.h>
 
-#include "tables.h"
+#include <libspirv/math/tables.h>
 #include <math/math.h>
 
 #ifdef cl_khr_fp64
