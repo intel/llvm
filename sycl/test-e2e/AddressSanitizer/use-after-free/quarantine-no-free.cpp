@@ -47,7 +47,7 @@ int main() {
   // CHECK: [[ADDR]] is located inside of Device USM region [{{0x.*}}, {{0x.*}})
   // CHECK: allocated here:
   // CHECK: in main {{.*quarantine-no-free.cpp}}:[[@LINE-27]]
-  // CHECK: freed here:
+  // CHECK: released here:
   // CHECK: in main {{.*quarantine-no-free.cpp}}:[[@LINE-25]]
 
   return 0;
