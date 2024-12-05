@@ -471,10 +471,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                numEventsInWaitList, phEventWaitList, phEvent);
     }
 
-    USMLaunchInfo LaunchInfo(GetContext(hKernel), GetDevice(hQueue),
-                             pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                             workDim);
-    UR_CALL(LaunchInfo.initialize());
+    LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
+                          pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
+                          workDim);
 
     UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 

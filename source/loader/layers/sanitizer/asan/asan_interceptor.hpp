@@ -157,9 +157,72 @@ struct ContextInfo {
     }
 };
 
-struct USMLaunchInfo {
-    LaunchInfo *Data = nullptr;
+struct AsanRuntimeDataWrapper {
+    AsanRuntimeData Host{};
 
+    AsanRuntimeData *DevicePtr = nullptr;
+
+    ur_context_handle_t Context{};
+
+    ur_device_handle_t Device{};
+
+    AsanRuntimeDataWrapper(ur_context_handle_t Context,
+                           ur_device_handle_t Device)
+        : Context(Context), Device(Device) {}
+
+    ~AsanRuntimeDataWrapper();
+
+    AsanRuntimeData *getDevicePtr() {
+        if (DevicePtr == nullptr) {
+            ur_result_t Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+                Context, Device, nullptr, nullptr, sizeof(AsanRuntimeData),
+                (void **)&DevicePtr);
+            if (Result != UR_RESULT_SUCCESS) {
+                getContext()->logger.error(
+                    "Failed to alloc device usm for asan runtime data: {}",
+                    Result);
+            }
+        }
+        return DevicePtr;
+    }
+
+    ur_result_t syncFromDevice(ur_queue_handle_t Queue) {
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
+            sizeof(AsanRuntimeData), 0, nullptr, nullptr));
+
+        return UR_RESULT_SUCCESS;
+    }
+
+    ur_result_t syncToDevice(ur_queue_handle_t Queue) {
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
+            sizeof(AsanRuntimeData), 0, nullptr, nullptr));
+
+        return UR_RESULT_SUCCESS;
+    }
+
+    ur_result_t
+    importLocalArgsInfo(ur_queue_handle_t Queue,
+                        const std::vector<LocalArgsInfo> &LocalArgs) {
+        assert(!LocalArgs.empty());
+
+        Host.NumLocalArgs = LocalArgs.size();
+        const size_t LocalArgsInfoSize =
+            sizeof(LocalArgsInfo) * Host.NumLocalArgs;
+        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+            ur_cast<void **>(&Host.LocalArgs)));
+
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0,
+            nullptr, nullptr));
+
+        return UR_RESULT_SUCCESS;
+    }
+};
+
+struct LaunchInfo {
     ur_context_handle_t Context = nullptr;
     ur_device_handle_t Device = nullptr;
     const size_t *GlobalWorkSize = nullptr;
@@ -167,20 +230,25 @@ struct USMLaunchInfo {
     std::vector<size_t> LocalWorkSize;
     uint32_t WorkDim = 0;
 
-    USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
-                  const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-                  const size_t *GlobalWorkOffset, uint32_t WorkDim)
+    AsanRuntimeDataWrapper Data;
+
+    LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
+               const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+               const size_t *GlobalWorkOffset, uint32_t WorkDim)
         : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
-          GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
+          GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim),
+          Data(Context, Device) {
         if (LocalWorkSize) {
             this->LocalWorkSize =
                 std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
         }
+        [[maybe_unused]] auto Result =
+            getContext()->urDdiTable.Context.pfnRetain(Context);
+        assert(Result == UR_RESULT_SUCCESS);
+        Result = getContext()->urDdiTable.Device.pfnRetain(Device);
+        assert(Result == UR_RESULT_SUCCESS);
     }
-    ~USMLaunchInfo();
-
-    ur_result_t initialize();
-    ur_result_t updateKernelInfo(const KernelInfo &KI);
+    ~LaunchInfo();
 };
 
 struct DeviceGlobalInfo {
@@ -213,11 +281,11 @@ class AsanInterceptor {
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                                 ur_queue_handle_t Queue,
-                                USMLaunchInfo &LaunchInfo);
+                                LaunchInfo &LaunchInfo);
 
     ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
                                  ur_queue_handle_t Queue,
-                                 USMLaunchInfo &LaunchInfo);
+                                 LaunchInfo &LaunchInfo);
 
     ur_result_t insertContext(ur_context_handle_t Context,
                               std::shared_ptr<ContextInfo> &CI);
@@ -301,7 +369,7 @@ class AsanInterceptor {
                               std::shared_ptr<DeviceInfo> &DeviceInfo,
                               ur_queue_handle_t Queue,
                               ur_kernel_handle_t Kernel,
-                              USMLaunchInfo &LaunchInfo);
+                              LaunchInfo &LaunchInfo);
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
