@@ -8103,3 +8103,134 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Encode tensor map with image data
+///
+/// @details
+///     - Map encode using im2col.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_TENSOR_MAP_DATA_TYPE_FLAGS_MASK & TensorMapType`
+///         + `::UR_EXP_TENSOR_MAP_INTERLEAVE_FLAGS_MASK & Interleave`
+///         + `::UR_EXP_TENSOR_MAP_SWIZZLE_FLAGS_MASK & Swizzle`
+///         + `::UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAGS_MASK & L2Promotion`
+///         + `::UR_EXP_TENSOR_MAP_OOB_FILL_FLAGS_MASK & OobFill`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == GlobalAddress`
+///         + `NULL == GlobalDim`
+///         + `NULL == GlobalStrides`
+///         + `NULL == PixelBoxLowerCorner`
+///         + `NULL == PixelBoxUpperCorner`
+///         + `NULL == ElementStrides`
+///         + `NULL == hTensorMap`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `TensorRank < 3`
+ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const int *
+        PixelBoxLowerCorner, ///< [in] Array containing DHW dimensions of lower box corner.
+    const int *
+        PixelBoxUpperCorner, ///< [in] Array containing DHW dimensions of upper box corner.
+    uint32_t ChannelsPerPixel, ///< [in] Number of channels per pixel.
+    uint32_t PixelsPerColumn,  ///< [in] Number of pixels per column.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Encode tensor map with tiled data
+///
+/// @details
+///     - Tiled map encode.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_TENSOR_MAP_DATA_TYPE_FLAGS_MASK & TensorMapType`
+///         + `::UR_EXP_TENSOR_MAP_INTERLEAVE_FLAGS_MASK & Interleave`
+///         + `::UR_EXP_TENSOR_MAP_SWIZZLE_FLAGS_MASK & Swizzle`
+///         + `::UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAGS_MASK & L2Promotion`
+///         + `::UR_EXP_TENSOR_MAP_OOB_FILL_FLAGS_MASK & OobFill`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == GlobalAddress`
+///         + `NULL == GlobalDim`
+///         + `NULL == GlobalStrides`
+///         + `NULL == BoxDim`
+///         + `NULL == ElementStrides`
+///         + `NULL == hTensorMap`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `TensorRank < 3`
+ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const uint32_t *
+        BoxDim, ///< [in] Array containing traversal box size (number of elments) along
+    ///< each of the TensorRank dimensions. Specifies how many elements to be
+    ///< traversed along each tensor dimension.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}

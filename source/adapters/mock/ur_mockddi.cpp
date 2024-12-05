@@ -10744,6 +10744,172 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     return exceptionToResult(std::current_exception());
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTensorMapEncodeIm2ColExp
+__urdlllocal ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const int *
+        PixelBoxLowerCorner, ///< [in] Array containing DHW dimensions of lower box corner.
+    const int *
+        PixelBoxUpperCorner, ///< [in] Array containing DHW dimensions of upper box corner.
+    uint32_t ChannelsPerPixel, ///< [in] Number of channels per pixel.
+    uint32_t PixelsPerColumn,  ///< [in] Number of pixels per column.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    ur_tensor_map_encode_im_2_col_exp_params_t params = {&hDevice,
+                                                         &TensorMapType,
+                                                         &TensorRank,
+                                                         &GlobalAddress,
+                                                         &GlobalDim,
+                                                         &GlobalStrides,
+                                                         &PixelBoxLowerCorner,
+                                                         &PixelBoxUpperCorner,
+                                                         &ChannelsPerPixel,
+                                                         &PixelsPerColumn,
+                                                         &ElementStrides,
+                                                         &Interleave,
+                                                         &Swizzle,
+                                                         &L2Promotion,
+                                                         &OobFill,
+                                                         &hTensorMap};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urTensorMapEncodeIm2ColExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urTensorMapEncodeIm2ColExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        *hTensorMap = mock::createDummyHandle<ur_exp_tensor_map_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urTensorMapEncodeIm2ColExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTensorMapEncodeTiledExp
+__urdlllocal ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const uint32_t *
+        BoxDim, ///< [in] Array containing traversal box size (number of elments) along
+    ///< each of the TensorRank dimensions. Specifies how many elements to be
+    ///< traversed along each tensor dimension.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    ur_tensor_map_encode_tiled_exp_params_t params = {
+        &hDevice,    &TensorMapType, &TensorRank,  &GlobalAddress,
+        &GlobalDim,  &GlobalStrides, &BoxDim,      &ElementStrides,
+        &Interleave, &Swizzle,       &L2Promotion, &OobFill,
+        &hTensorMap};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urTensorMapEncodeTiledExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urTensorMapEncodeTiledExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        *hTensorMap = mock::createDummyHandle<ur_exp_tensor_map_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urTensorMapEncodeTiledExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
 } // namespace driver
 
 #if defined(__cplusplus)
@@ -11557,6 +11723,38 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urSamplerCreateWithNativeHandle;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TensorMapExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetTensorMapExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_tensor_map_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnEncodeIm2ColExp = driver::urTensorMapEncodeIm2ColExp;
+
+    pDdiTable->pfnEncodeTiledExp = driver::urTensorMapEncodeTiledExp;
 
     return result;
 } catch (...) {
