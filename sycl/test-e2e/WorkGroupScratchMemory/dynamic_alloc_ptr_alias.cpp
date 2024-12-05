@@ -2,10 +2,11 @@
 // RUN: %{run} %t.out
 //
 
-// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED: gpu-intel-gen12, cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072
 
-// Test work_group_dynamic extension with allocation size specified at runtime.
+// Test work_group_dynamic extension with allocation size specified at runtime
+// and multiple calls to the extension inside the kernel.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
@@ -44,13 +45,18 @@ int main() {
                        }
 
                        Item.barrier();
+                       // Check that multiple calls return the same pointer.
+                       unsigned int *PtrAlias =
+                           reinterpret_cast<unsigned int *>(
+                               sycl_ext::get_work_group_scratch_memory());
+
                        for (size_t I = 0; I < RepeatWG; ++I) {
                          // Check that the memory is accessible from other
                          // work-items
                          size_t BaseIdx = GroupOffset + (I * WgSize);
                          size_t LocalIdx = Item.get_local_linear_id() ^ 1;
                          size_t GlobalIdx = BaseIdx + LocalIdx;
-                         Acc[GlobalIdx] = Ptr[WgSize * I + LocalIdx];
+                         Acc[GlobalIdx] = PtrAlias[WgSize * I + LocalIdx];
                        }
                      });
   });
