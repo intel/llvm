@@ -10,8 +10,8 @@
 
 #include <detail/queue_impl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -126,10 +126,10 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
 } // namespace sycl
 
 namespace {
-sycl::unittest::UrImage Imgs[] = {sycl::unittest::generateDefaultImage(
+sycl::unittest::MockDeviceImage Imgs[] = {sycl::unittest::generateDefaultImage(
     {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
      USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar})};
-sycl::unittest::UrImageArray<1> ImgArray{Imgs};
+sycl::unittest::MockDeviceImageArray<1> ImgArray{Imgs};
 
 ur_context_info_t LastMemopsQuery = UR_CONTEXT_INFO_NUM_DEVICES;
 

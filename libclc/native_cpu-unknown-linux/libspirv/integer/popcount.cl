@@ -1,5 +1,5 @@
-#include <func.h>
-#include <clcmacro.h>
+#include <clc/clcfunc.h>
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
 
 // We can't use __builtin_popcountg because it supports only unsigned

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <utils.h>
+#include <clc/utils.h>
 
 #ifdef __CLC_SCALAR
 #define __CLC_FUNCTION __CLC_XCONCAT(__clc_native_, __CLC_NATIVE_INTRINSIC)

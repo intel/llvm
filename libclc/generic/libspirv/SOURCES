@@ -27,8 +27,6 @@ common/radians.cl
 common/sign.cl
 common/smoothstep.cl
 common/step.cl
-core/integer/clc_abs.cl
-core/integer/clc_abs_diff.cl
 core/integer/clc_add_sat.cl
 core/integer/clc_hadd.cl
 core/integer/clc_mad24.cl
@@ -39,9 +37,6 @@ core/integer/clc_mul_hi.cl
 core/integer/clc_rhadd.cl
 core/integer/clc_sub_sat.cl
 core/integer/clc_upsample.cl
-core/shared/clc_clamp.cl
-core/shared/clc_max.cl
-core/shared/clc_min.cl
 geometric/cross.cl
 geometric/distance.cl
 geometric/dot.cl

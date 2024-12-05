@@ -284,6 +284,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::ObjCObjectPointer:
     case Type::Pipe:
     case Type::BitInt:
+    case Type::HLSLAttributedResource:
       return TEK_Scalar;
 
     // Complexes.
@@ -465,7 +466,7 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
     EscapeArgs.resize(EscapedLocals.size());
     for (auto &Pair : EscapedLocals)
       EscapeArgs[Pair.second] = Pair.first;
-    llvm::Function *FrameEscapeFn = llvm::Intrinsic::getDeclaration(
+    llvm::Function *FrameEscapeFn = llvm::Intrinsic::getOrInsertDeclaration(
         &CGM.getModule(), llvm::Intrinsic::localescape);
     CGBuilderTy(*this, AllocaInsertPt).CreateCall(FrameEscapeFn, EscapeArgs);
   }
@@ -1054,6 +1055,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       for (const FunctionEffectWithCondition &Fe : FD->getFunctionEffects()) {
         if (Fe.Effect.kind() == FunctionEffect::Kind::NonBlocking)
           Fn->addFnAttr(llvm::Attribute::SanitizeRealtime);
+        else if (Fe.Effect.kind() == FunctionEffect::Kind::Blocking)
+          Fn->addFnAttr(llvm::Attribute::SanitizeRealtimeBlocking);
       }
 
   // Apply fuzzing attribute to the function.
@@ -1786,6 +1789,9 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     if (SyclOptReport.HasOptReportInfo(FD)) {
       llvm::OptimizationRemarkEmitter ORE(Fn);
       for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
+        // Temporarily apply arg location to ensure SourceLocToDebugLoc
+        // picks up the expected file.
+        ApplyDebugLocation TempApplyLoc(*this, ORI.value().KernelArgLoc);
         llvm::DiagnosticLocation DL =
             SourceLocToDebugLoc(ORI.value().KernelArgLoc);
         StringRef NameInDesc = ORI.value().KernelArgDescName;
@@ -1886,7 +1892,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       llvm::Value *IsFalse = Builder.getFalse();
       EmitCheck(std::make_pair(IsFalse, SanitizerKind::Return),
                 SanitizerHandler::MissingReturn,
-                EmitCheckSourceLocation(FD->getLocation()), std::nullopt);
+                EmitCheckSourceLocation(FD->getLocation()), {});
     } else if (ShouldEmitUnreachable) {
       if (CGM.getCodeGenOpts().OptimizationLevel == 0)
         EmitTrapCall(llvm::Intrinsic::trap);
@@ -2056,6 +2062,8 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   if (!InstrumentRegions || !isInstrumentedCondition(Cond))
     return EmitBranchOnBoolExpr(Cond, TrueBlock, FalseBlock, TrueCount, LH);
 
+  const Stmt *CntrStmt = (CntrIdx ? CntrIdx : Cond);
+
   llvm::BasicBlock *ThenBlock = nullptr;
   llvm::BasicBlock *ElseBlock = nullptr;
   llvm::BasicBlock *NextBlock = nullptr;
@@ -2108,7 +2116,7 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   EmitBlock(CounterIncrBlock);
 
   // Increment corresponding counter; if index not provided, use Cond as index.
-  incrementProfileCounter(CntrIdx ? CntrIdx : Cond);
+  incrementProfileCounter(CntrStmt);
 
   // Go to the next block.
   EmitBranch(NextBlock);
@@ -3287,19 +3295,18 @@ void CodeGenFunction::EmitMultiVersionResolver(
   }
 }
 
-static int getPriorityFromAttrString(StringRef AttrStr) {
+static unsigned getPriorityFromAttrString(StringRef AttrStr) {
   SmallVector<StringRef, 8> Attrs;
 
   AttrStr.split(Attrs, ';');
 
   // Default Priority is zero.
-  int Priority = 0;
+  unsigned Priority = 0;
   for (auto Attr : Attrs) {
     if (Attr.consume_front("priority=")) {
-      int Result;
-      if (!Attr.getAsInteger(0, Result)) {
+      unsigned Result;
+      if (!Attr.getAsInteger(0, Result))
         Priority = Result;
-      }
     }
   }
 
@@ -3514,7 +3521,7 @@ void CodeGenFunction::emitAlignmentAssumptionCheck(
     llvm::Instruction *Assumption) {
   assert(isa_and_nonnull<llvm::CallInst>(Assumption) &&
          cast<llvm::CallInst>(Assumption)->getCalledOperand() ==
-             llvm::Intrinsic::getDeclaration(
+             llvm::Intrinsic::getOrInsertDeclaration(
                  Builder.GetInsertBlock()->getParent()->getParent(),
                  llvm::Intrinsic::assume) &&
          "Assumption should be a call to llvm.assume().");

@@ -39,21 +39,22 @@ using namespace llvm;
 using namespace lld;
 using namespace lld::elf;
 
-ScriptLexer::Buffer::Buffer(MemoryBufferRef mb)
+ScriptLexer::Buffer::Buffer(Ctx &ctx, MemoryBufferRef mb)
     : s(mb.getBuffer()), filename(mb.getBufferIdentifier()),
       begin(mb.getBufferStart()) {
-  if (config->sysroot == "")
+  if (ctx.arg.sysroot == "")
     return;
   StringRef path = filename;
   for (; !path.empty(); path = sys::path::parent_path(path)) {
-    if (!sys::fs::equivalent(config->sysroot, path))
+    if (!sys::fs::equivalent(ctx.arg.sysroot, path))
       continue;
     isUnderSysroot = true;
     return;
   }
 }
 
-ScriptLexer::ScriptLexer(MemoryBufferRef mb) : curBuf(mb), mbs(1, mb) {
+ScriptLexer::ScriptLexer(Ctx &ctx, MemoryBufferRef mb)
+    : curBuf(ctx, mb), mbs(1, mb) {
   activeFilenames.insert(mb.getBufferIdentifier());
 }
 
@@ -86,7 +87,7 @@ void ScriptLexer::setError(const Twine &msg) {
   if (prevTok.size())
     s += "\n>>> " + getLine().str() + "\n>>> " +
          std::string(getColumnNumber(), ' ') + "^";
-  error(s);
+  ErrAlways(ctx) << s;
 }
 
 void ScriptLexer::lex() {
@@ -115,7 +116,8 @@ void ScriptLexer::lex() {
       if (e == StringRef::npos) {
         size_t lineno =
             StringRef(curBuf.begin, s.data() - curBuf.begin).count('\n');
-        error(curBuf.filename + ":" + Twine(lineno + 1) + ": unclosed quote");
+        ErrAlways(ctx) << curBuf.filename << ":" << Twine(lineno + 1)
+                       << ": unclosed quote";
         return;
       }
 

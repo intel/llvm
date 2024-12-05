@@ -101,7 +101,7 @@ public:
     SuppressTagKeyword = Policy.SuppressTagKeyword;
     SuppressScope = Policy.SuppressScope;
     Policy.SuppressTagKeyword = true;
-    Policy.SuppressScope = true;
+    Policy.SuppressScope = !Policy.EnforceScopeForElaboratedTypes;
   }
 
   ~ElaboratedTypePolicyRAII() {
@@ -1422,7 +1422,9 @@ void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS,
 
     // Only suppress an inline namespace if the name has the same lookup
     // results in the enclosing namespace.
-    if (Policy.SuppressInlineNamespace && NS->isInline() && NameInScope &&
+    if (Policy.SuppressInlineNamespace !=
+            PrintingPolicy::SuppressInlineNamespaceMode::None &&
+        NS->isInline() && NameInScope &&
         NS->isRedundantInlineQualifierFor(NameInScope))
       return AppendScope(DC->getParent(), OS, NameInScope);
 
@@ -1726,8 +1728,10 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
       Policy.SuppressScope = OldSupressScope;
       return;
     }
-    if (Qualifier && !(Policy.SuppressTypedefs &&
-                       T->getNamedType()->getTypeClass() == Type::Typedef))
+    if (Qualifier &&
+        !(Policy.SuppressTypedefs &&
+          T->getNamedType()->getTypeClass() == Type::Typedef) &&
+        !Policy.EnforceScopeForElaboratedTypes)
       Qualifier->print(OS, Policy);
   }
 
@@ -1947,6 +1951,14 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     return;
   }
 
+  if (T->getAttrKind() == attr::SwiftAttr) {
+    if (auto *swiftAttr = dyn_cast_or_null<SwiftAttrAttr>(T->getAttr())) {
+      OS << " __attribute__((swift_attr(\"" << swiftAttr->getAttribute()
+         << "\")))";
+    }
+    return;
+  }
+
   OS << " __attribute__((";
   switch (T->getAttrKind()) {
 #define TYPE_ATTR(NAME)
@@ -2011,6 +2023,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::NonAllocating:
   case attr::Blocking:
   case attr::Allocating:
+  case attr::SwiftAttr:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:
@@ -2218,15 +2231,6 @@ static void printArgument(const TemplateArgument &A, const PrintingPolicy &PP,
   A.print(PP, OS, IncludeType);
 }
 
-static void printArgument(const TemplateArgumentLoc &A,
-                          const PrintingPolicy &PP, llvm::raw_ostream &OS,
-                          bool IncludeType) {
-  const TemplateArgument::ArgKind &Kind = A.getArgument().getKind();
-  if (Kind == TemplateArgument::ArgKind::Type)
-    return A.getTypeSourceInfo()->getType().print(OS, PP);
-  return A.getArgument().print(PP, OS, IncludeType);
-}
-
 static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
                                           TemplateArgument Pattern,
                                           ArrayRef<TemplateArgument> Args,
@@ -2397,15 +2401,40 @@ template <typename TA>
 static void
 printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
         const TemplateParameterList *TPL, bool IsPack, unsigned ParmIndex) {
-  // Drop trailing template arguments that match default arguments.
-  if (TPL && Policy.SuppressDefaultTemplateArgs &&
-      !Policy.PrintCanonicalTypes && !Args.empty() && !IsPack &&
+  llvm::SmallVector<TemplateArgument, 8> ArgsToPrint;
+  for (const TA &A : Args)
+    ArgsToPrint.push_back(getArgument(A));
+  if (TPL && !Policy.PrintCanonicalTypes && !IsPack &&
       Args.size() <= TPL->size()) {
-    llvm::SmallVector<TemplateArgument, 8> OrigArgs;
-    for (const TA &A : Args)
-      OrigArgs.push_back(getArgument(A));
-    while (!Args.empty() && getArgument(Args.back()).getIsDefaulted())
-      Args = Args.drop_back();
+    // Drop trailing template arguments that match default arguments.
+    if (Policy.SuppressDefaultTemplateArgs) {
+      while (!ArgsToPrint.empty() &&
+             getArgument(ArgsToPrint.back()).getIsDefaulted())
+        ArgsToPrint.pop_back();
+    } else if (Policy.EnforceDefaultTemplateArgs) {
+      for (unsigned I = Args.size(); I < TPL->size(); ++I) {
+        auto Param = TPL->getParam(I);
+        if (auto *TTPD = dyn_cast<TemplateTypeParmDecl>(Param)) {
+          // If we met a non default-argument past provided list of arguments,
+          // it is either a pack which must be the last arguments, or provided
+          // argument list was problematic. Bail out either way. Do the same
+          // for each kind of template argument.
+          if (!TTPD->hasDefaultArgument())
+            break;
+          ArgsToPrint.push_back(getArgument(TTPD->getDefaultArgument()));
+        } else if (auto *TTPD = dyn_cast<TemplateTemplateParmDecl>(Param)) {
+          if (!TTPD->hasDefaultArgument())
+            break;
+          ArgsToPrint.push_back(getArgument(TTPD->getDefaultArgument()));
+        } else if (auto *NTTPD = dyn_cast<NonTypeTemplateParmDecl>(Param)) {
+          if (!NTTPD->hasDefaultArgument())
+            break;
+          ArgsToPrint.push_back(getArgument(NTTPD->getDefaultArgument()));
+        } else {
+          llvm_unreachable("unexpected template parameter");
+        }
+      }
+    }
   }
 
   const char *Comma = Policy.MSVCFormatting ? "," : ", ";
@@ -2414,7 +2443,7 @@ printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
 
   bool NeedSpace = false;
   bool FirstArg = true;
-  for (const auto &Arg : Args) {
+  for (const auto &Arg : ArgsToPrint) {
     // Print the argument into a string.
     SmallString<128> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);

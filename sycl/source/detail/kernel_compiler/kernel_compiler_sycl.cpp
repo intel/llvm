@@ -36,6 +36,15 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler does not support GCC<8");
 }
+
+std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
+  return std::accumulate(UserArguments.begin(), UserArguments.end(),
+                         std::string(""),
+                         [](const std::string &A, const std::string &B) {
+                           return A.empty() ? B : A + " " + B;
+                         });
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
@@ -333,7 +342,7 @@ bool SYCL_JIT_Compilation_Available() {
 #endif
 }
 
-spirv_vec_t SYCL_JIT_to_SPIRV(
+sycl_device_binaries SYCL_JIT_to_SPIRV(
     [[maybe_unused]] const std::string &SYCLSource,
     [[maybe_unused]] include_pairs_t IncludePairs,
     [[maybe_unused]] const std::vector<std::string> &UserArgs,

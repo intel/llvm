@@ -24,10 +24,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/* This is temporary solution until std::filesystem is available when SYCL RT
- * is moved to c++17 standard*/
-std::string getDirName(const char *Path);
-
 /* The class manages inter-process synchronization:
  *  - Path passed to the constructor is appended with .lock and used as lock
  *    file.
@@ -95,16 +91,15 @@ class PersistentDeviceCodeCache {
    */
 private:
   /* Write built binary to persistent cache
-   * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
+   * Format: BinarySize, Binary
    */
   static void writeBinaryDataToFile(const std::string &FileName,
-                                    const std::vector<std::vector<char>> &Data);
+                                    const std::vector<char> &Data);
 
   /* Read built binary to persistent cache
-   * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
+   * Format: BinarySize, Binary
    */
-  static std::vector<std::vector<char>>
-  readBinaryDataFromFile(const std::string &FileName);
+  static std::vector<char> readBinaryDataFromFile(const std::string &FileName);
 
   /* Writing cache item key sources to be used for reliable identification
    * Format: Four pairs of [size, value] for device, build options,
@@ -122,10 +117,6 @@ private:
       const std::string &FileName, const device &Device,
       const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
       const SerializedObj &SpecConsts, const std::string &BuildOptionsString);
-
-  /* Check if on-disk cache enabled.
-   */
-  static bool isEnabled();
 
   /* Returns the path to directory storing persistent device code cache.*/
   static std::string getRootDir();
@@ -161,6 +152,10 @@ private:
       1024 * 1024 * 1024;
 
 public:
+  /* Check if on-disk cache enabled.
+   */
+  static bool isEnabled();
+
   /* Get directory name for storing current cache item
    */
   static std::string
@@ -169,24 +164,42 @@ public:
                    const SerializedObj &SpecConsts,
                    const std::string &BuildOptionsString);
 
+  /*  Get directory name when storing runtime compiled kernels ( via
+   * kernel_compiler ).
+   */
+  static std::string
+  getCompiledKernelItemPath(const device &Device,
+                            const std::string &BuildOptionsString,
+                            const std::string SourceString);
+
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
    * stored in vector of chars.
    */
   static std::vector<std::vector<char>>
-  getItemFromDisc(const device &Device,
+  getItemFromDisc(const std::vector<device> &Devices,
                   const std::vector<const RTDeviceBinaryImage *> &Imgs,
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
 
+  static std::vector<std::vector<char>>
+  getCompiledKernelFromDisc(const std::vector<device> &Devices,
+                            const std::string &BuildOptionsString,
+                            const std::string SourceStr);
+
   /* Stores build program in persistent cache
    */
   static void
-  putItemToDisc(const device &Device,
+  putItemToDisc(const std::vector<device> &Devices,
                 const std::vector<const RTDeviceBinaryImage *> &Imgs,
                 const SerializedObj &SpecConsts,
                 const std::string &BuildOptionsString,
                 const ur_program_handle_t &NativePrg);
+
+  static void putCompiledKernelToDisc(const std::vector<device> &Devices,
+                                      const std::string &BuildOptionsString,
+                                      const std::string &SourceStr,
+                                      const ur_program_handle_t &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {
@@ -194,6 +207,12 @@ public:
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
     if (traceEnabled)
       std::cerr << "[Persistent Cache]: " << msg << std::endl;
+  }
+  static void trace_KernelCompiler(const std::string &msg) {
+    static const bool traceEnabled =
+        SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler();
+    if (traceEnabled)
+      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << std::endl;
   }
 };
 } // namespace detail

@@ -20,14 +20,11 @@
  *     launch<F> with policy & use local memory tests
  **************************************************************************/
 
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/15275
 // UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15275
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>

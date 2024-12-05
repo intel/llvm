@@ -9,7 +9,7 @@
 #include <spirv/spirv.h>
 
 #include "../../include/libdevice.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <config.h>
 #include <math/math.h>
 

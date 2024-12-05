@@ -25,8 +25,8 @@ using namespace jit_compiler;
 using FusedFunction = helper::FusionHelper::FusedFunction;
 using FusedFunctionList = std::vector<FusedFunction>;
 
-static JITResult errorToFusionResult(llvm::Error &&Err,
-                                     const std::string &Msg) {
+template <typename ResultType>
+static ResultType errorTo(llvm::Error &&Err, const std::string &Msg) {
   std::stringstream ErrMsg;
   ErrMsg << Msg << "\nDetailed information:\n";
   llvm::handleAllErrors(std::move(Err),
@@ -35,7 +35,7 @@ static JITResult errorToFusionResult(llvm::Error &&Err,
                           // compiled without exception support.
                           ErrMsg << "\t" << StrErr.getMessage() << "\n";
                         });
-  return JITResult{ErrMsg.str().c_str()};
+  return ResultType{ErrMsg.str().c_str()};
 }
 
 static std::vector<jit_compiler::NDRange>
@@ -71,10 +71,9 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   }
 }
 
-extern "C" JITResult
-materializeSpecConstants(const char *KernelName,
-                         jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-                         View<unsigned char> SpecConstBlob) {
+extern "C" KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
+    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+    View<unsigned char> SpecConstBlob) {
   auto &JITCtx = JITContext::getInstance();
 
   TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
@@ -96,7 +95,7 @@ materializeSpecConstants(const char *KernelName,
       translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
                                                  ModuleInfo.kernels());
   if (auto Error = ModOrError.takeError()) {
-    return errorToFusionResult(std::move(Error), "Failed to load kernels");
+    return errorTo<JITResult>(std::move(Error), "Failed to load kernels");
   }
   std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
   if (!fusion::FusionPipeline::runMaterializerPasses(
@@ -108,19 +107,18 @@ materializeSpecConstants(const char *KernelName,
   SYCLKernelInfo &MaterializerKernelInfo = *ModuleInfo.getKernelFor(KernelName);
   if (auto Error = translation::KernelTranslator::translateKernel(
           MaterializerKernelInfo, *NewMod, JITCtx, TargetFormat)) {
-    return errorToFusionResult(std::move(Error),
-                               "Translation to output format failed");
+    return errorTo<JITResult>(std::move(Error),
+                              "Translation to output format failed");
   }
 
   return JITResult{MaterializerKernelInfo};
 }
 
-extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
-                                 const char *FusedKernelName,
-                                 View<ParameterIdentity> Identities,
-                                 BarrierFlags BarriersFlags,
-                                 View<ParameterInternalization> Internalization,
-                                 View<jit_compiler::JITConstant> Constants) {
+extern "C" KF_EXPORT_SYMBOL JITResult
+fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
+            View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
+            View<ParameterInternalization> Internalization,
+            View<jit_compiler::JITConstant> Constants) {
 
   std::vector<std::string> KernelsToFuse;
   llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
@@ -135,7 +133,7 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
   llvm::Expected<jit_compiler::FusedNDRange> FusedNDR =
       jit_compiler::FusedNDRange::get(NDRanges);
   if (llvm::Error Err = FusedNDR.takeError()) {
-    return errorToFusionResult(std::move(Err), "Illegal ND-range combination");
+    return errorTo<JITResult>(std::move(Err), "Illegal ND-range combination");
   }
 
   if (!isTargetFormatSupported(TargetFormat)) {
@@ -182,7 +180,7 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
       translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
                                                  ModuleInfo.kernels());
   if (auto Error = ModOrError.takeError()) {
-    return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
+    return errorTo<JITResult>(std::move(Error), "SPIR-V translation failed");
   }
   std::unique_ptr<llvm::Module> LLVMMod = std::move(*ModOrError);
 
@@ -199,8 +197,8 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
   llvm::Expected<std::unique_ptr<llvm::Module>> NewModOrError =
       helper::FusionHelper::addFusedKernel(LLVMMod.get(), FusedKernelList);
   if (auto Error = NewModOrError.takeError()) {
-    return errorToFusionResult(std::move(Error),
-                               "Insertion of fused kernel stub failed");
+    return errorTo<JITResult>(std::move(Error),
+                              "Insertion of fused kernel stub failed");
   }
   std::unique_ptr<llvm::Module> NewMod = std::move(*NewModOrError);
 
@@ -223,8 +221,8 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
 
   if (auto Error = translation::KernelTranslator::translateKernel(
           FusedKernelInfo, *NewMod, JITCtx, TargetFormat)) {
-    return errorToFusionResult(std::move(Error),
-                               "Translation to output format failed");
+    return errorTo<JITResult>(std::move(Error),
+                              "Translation to output format failed");
   }
 
   FusedKernelInfo.NDR = FusedNDR->getNDR();
@@ -236,33 +234,57 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
   return JITResult{FusedKernelInfo};
 }
 
-extern "C" JITResult compileSYCL(InMemoryFile SourceFile,
-                                 View<InMemoryFile> IncludeFiles,
-                                 View<const char *> UserArgs) {
-  auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgs);
+extern "C" KF_EXPORT_SYMBOL RTCResult
+compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+            View<const char *> UserArgs) {
+  auto UserArgListOrErr = parseUserArgs(UserArgs);
+  if (!UserArgListOrErr) {
+    return errorTo<RTCResult>(UserArgListOrErr.takeError(),
+                              "Parsing of user arguments failed");
+  }
+  llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
+
+  std::string BuildLog;
+
+  auto ModuleOrErr =
+      compileDeviceCode(SourceFile, IncludeFiles, UserArgList, BuildLog);
   if (!ModuleOrErr) {
-    return errorToFusionResult(ModuleOrErr.takeError(),
-                               "Device compilation failed");
+    return errorTo<RTCResult>(ModuleOrErr.takeError(),
+                              "Device compilation failed");
   }
+
+  std::unique_ptr<llvm::LLVMContext> Context;
   std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
+  Context.reset(&Module->getContext());
 
-  SYCLKernelInfo Kernel;
-  auto Error = translation::KernelTranslator::translateKernel(
-      Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV);
-
-  auto *LLVMCtx = &Module->getContext();
-  Module.reset();
-  delete LLVMCtx;
-
-  if (Error) {
-    return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
+  if (auto Error = linkDeviceLibraries(*Module, UserArgList, BuildLog)) {
+    return errorTo<RTCResult>(std::move(Error), "Device linking failed");
   }
 
-  return JITResult{Kernel};
+  auto PostLinkResultOrError = performPostLink(std::move(Module), UserArgList);
+  if (!PostLinkResultOrError) {
+    return errorTo<RTCResult>(PostLinkResultOrError.takeError(),
+                              "Post-link phase failed");
+  }
+  RTCBundleInfo BundleInfo;
+  std::tie(BundleInfo, Module) = std::move(*PostLinkResultOrError);
+
+  auto BinaryInfoOrError =
+      translation::KernelTranslator::translateBundleToSPIRV(
+          *Module, JITContext::getInstance());
+  if (!BinaryInfoOrError) {
+    return errorTo<RTCResult>(BinaryInfoOrError.takeError(),
+                              "SPIR-V translation failed");
+  }
+  BundleInfo.BinaryInfo = std::move(*BinaryInfoOrError);
+
+  return RTCResult{std::move(BundleInfo), BuildLog.c_str()};
 }
 
-extern "C" void resetJITConfiguration() { ConfigHelper::reset(); }
+extern "C" KF_EXPORT_SYMBOL void resetJITConfiguration() {
+  ConfigHelper::reset();
+}
 
-extern "C" void addToJITConfiguration(OptionStorage &&Opt) {
+extern "C" KF_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt) {
   ConfigHelper::getConfig().set(std::move(Opt));
 }

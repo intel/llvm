@@ -11,7 +11,6 @@
 #include <sycl/detail/array.hpp>       // for array
 #include <sycl/detail/helpers.hpp>     // for loop
 #include <sycl/detail/item_base.hpp>   // for id, range
-#include <sycl/detail/type_list.hpp>   // for is_contained, type_list
 #include <sycl/detail/type_traits.hpp> // for remove_pointer, is_pointer
 #include <sycl/exception.hpp>          // for make_error_code, errc, exception
 #include <sycl/functional.hpp>         // for plus, multiplies, maximum
@@ -21,8 +20,7 @@
 #include <sycl/known_identity.hpp>     // for known_identity_v
 #include <sycl/nd_item.hpp>            // for nd_item
 #include <sycl/range.hpp>              // for range
-#include <sycl/sub_group.hpp>          // for sub_group
-#include <sycl/types.hpp>              // for vec
+#include <sycl/vector.hpp>             // for vec
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
@@ -37,6 +35,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+struct sub_group;
 namespace detail {
 
 // ---- linear_id_to_id
@@ -82,19 +81,18 @@ template <typename Group> inline auto get_local_linear_id(Group g) {
 }
 
 // ---- is_native_op
-template <typename T>
-using native_op_list =
-    type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
-              sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
-              sycl::multiplies<T>, sycl::logical_or<T>, sycl::logical_and<T>>;
+template <typename BinaryOperation, typename T>
+inline constexpr bool is_native_binop_on_v =
+    check_type_in_v<BinaryOperation, sycl::plus<T>, sycl::bit_or<T>,
+                    sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
+                    sycl::minimum<T>, sycl::multiplies<T>, sycl::logical_or<T>,
+                    sycl::logical_and<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
-      is_contained<BinaryOperation,
-                   native_op_list<std::remove_const_t<T>>>::value ||
-      is_contained<BinaryOperation,
-                   native_op_list<std::add_const_t<T>>>::value ||
-      is_contained<BinaryOperation, native_op_list<void>>::value;
+      is_native_binop_on_v<BinaryOperation, std::remove_const_t<T>> ||
+      is_native_binop_on_v<BinaryOperation, std::add_const_t<T>> ||
+      is_native_binop_on_v<BinaryOperation, void>;
 };
 
 // ---- is_plus
