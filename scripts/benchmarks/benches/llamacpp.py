@@ -76,9 +76,6 @@ class LlamaBench(Benchmark):
     def lower_is_better(self):
         return False
 
-    def ignore_iterations(self):
-        return True
-
     def run(self, env_vars) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
