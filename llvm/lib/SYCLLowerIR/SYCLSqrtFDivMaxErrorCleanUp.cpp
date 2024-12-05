@@ -89,9 +89,11 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
       for (auto &II : BB) {
         if (auto *CI = dyn_cast<CallInst>(&II)) {
           auto *SqrtF = CI->getCalledFunction();
+          if (!SqrtF)
+            return PreservedAnalyses::all();
           if (SqrtF->getName() == "sqrt" ||
-              SqrtF->getName().starts_with("_Z4sqrt"))
-//              SqrtF->getIntrinsicID() == llvm::Intrinsic::sqrt)
+              SqrtF->getName().starts_with("_Z4sqrt") ||
+              SqrtF->getIntrinsicID() == llvm::Intrinsic::sqrt)
             return PreservedAnalyses::all();
         }
         if (auto *FPI = dyn_cast<FPMathOperator>(&II)) {
@@ -102,7 +104,6 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
       }
     }
   }
-/*
   // Replace @llvm.fpbuiltin.sqrt call with @llvm.sqrt. llvm-spirv will handle
   // it later.
   SmallSet<Function *, 2> DeclToRemove;
@@ -165,6 +166,5 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     Decl->dropAllReferences();
     Decl->eraseFromParent();
   }
-*/
   return PreservedAnalyses::all();
 }
