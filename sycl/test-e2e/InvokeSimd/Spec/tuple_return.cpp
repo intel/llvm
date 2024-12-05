@@ -1,5 +1,6 @@
 // TODO: enable when Jira ticket resolved
 // XFAIL: *
+// XFAIL-TRACKER: https://jira.devtools.intel.com/browse/GSD-4509
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
