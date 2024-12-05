@@ -34,7 +34,7 @@
 ; CHECK-SPV-DAG: TypePointer [[#ARR_PTR_TY_1:]] [[#FUNCTION_SC]] [[#ARR_TY_1]]
 ; CHECK-SPV-DAG: TypeFloat [[#DOUBLE_TY:]] 64
 ; CHECK-SPV-DAG: TypeStruct [[#STR_TY:]] [[#DOUBLE_TY]] [[#DOUBLE_TY]]
-; CHECK-SPV-DAG: TypePointer [[#STR_PTR_TY:]] [[#FUNCTION_SC]] [[#STR_TY]]
+; CHECK-SPV-TYPED-PTR-DAG: TypePointer [[#STR_PTR_TY:]] [[#FUNCTION_SC]] [[#STR_TY]]
 ; CHECK-SPV-DAG: TypeArray [[#ARR_TY_2:]] [[#STR_TY]] [[#LENGTH_2]]
 ; CHECK-SPV-DAG: TypePointer [[#ARR_PTR_TY_2:]] [[#FUNCTION_SC]] [[#ARR_TY_2:]]
 
@@ -69,7 +69,8 @@ define spir_kernel void @test() {
   ; CHECK-LLVM: %[[VAR1:.*]] = bitcast ptr %[[ALLOCA1]] to ptr
   %scla1 = alloca i8, i32 %length1, align 2
 
-  ; CHECK-SPV: Bitcast [[#STR_PTR_TY]] [[#]] [[#SCLA_2]]
+  ; CHECK-SPV-TYPED-PTR: Bitcast [[#STR_PTR_TY]] [[#]] [[#SCLA_2]]
+  ; CHECK-SPV-UNTYPED-PTR: Bitcast [[#PTR_TY]] [[#]] [[#SCLA_2]]
 
   ; CHECK-LLVM: %[[VAR2:.*]] = bitcast ptr %[[ALLOCA2]] to ptr
   %scla2 = alloca %struct_type, i8 %length2, align 16

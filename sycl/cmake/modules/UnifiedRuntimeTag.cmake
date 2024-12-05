@@ -1,7 +1,7 @@
-# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
-# Merge: 9a209aa5 b1222f08
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 13 09:57:16 2024 +0000
-#     Merge pull request #2254 from PietroGhg/pietro/events_rr
-#     [NATIVECPU] Implement events on Native CPU
-set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)
+# commit a172cde4bc2857dcf74b0b2907a5b0f90566e808 (HEAD, origin/main, origin/HEAD)
+# Merge: 1851eff47b0a cde0d4c820b0
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Thu Dec 5 12:29:44 2024 +0000
+#   Merge pull request #2249 from zhaomaosu/use-device-usm-for-rtl-data
+#   [DeviceASAN] Use device usm to sync asan runtime data instead of shared usm
+set(UNIFIED_RUNTIME_TAG a172cde4bc2857dcf74b0b2907a5b0f90566e808)

@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// https://github.com/intel/llvm/issues/14868
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14868
 
 // The test verifies ESIMD API that adds 2 32-bit integer scalars/vectors with
 // carry returning the result as 2 parts: carry flag the input modified operand
@@ -138,7 +138,7 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
 int main() {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>() << "\n";
 
   constexpr bool AIsVector = true;
   constexpr bool BIsVector = true;

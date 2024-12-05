@@ -221,8 +221,9 @@ enum PropKind : uint32_t {
   Prefetch = 76,
   Deterministic = 77,
   InitializeToIdentity = 78,
+  WorkGroupScratchSize = 79,
   // PropKindSize must always be the last value.
-  PropKindSize = 79,
+  PropKindSize = 80,
 };
 
 template <typename PropertyT> struct PropertyToKind {
@@ -289,29 +290,6 @@ template <typename PropertyT> struct PropertyID {
       static_cast<int>(PropertyToKind<PropertyT>::Kind);
 };
 
-// Trait for identifying runtime properties.
-template <typename PropertyT>
-struct IsRuntimeProperty
-    : std::bool_constant<
-          !is_property_list_v<PropertyT> &&
-          std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
-
-// Trait for identifying compile-time properties.
-template <typename PropertyT>
-struct IsCompileTimeProperty
-    : std::bool_constant<
-          !is_property_list_v<PropertyT> &&
-          std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
-
-// Checks if a type is either a runtime property or if it is a compile-time
-// property
-template <typename T> struct IsProperty {
-  static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimeProperty<T>::value;
-};
-
 // Trait for property compile-time meta names and values.
 template <typename PropertyT> struct PropertyMetaInfo {
   // Some properties don't have meaningful compile-time values.
@@ -324,11 +302,6 @@ template <typename> struct HasCompileTimeEffect : std::false_type {};
 
 } // namespace detail
 
-template <typename T>
-struct is_property_key
-    : std::bool_constant<!is_property_list_v<T> &&
-                         std::is_base_of_v<detail::property_key_base_tag, T>> {
-};
 template <typename, typename> struct is_property_key_of : std::false_type {};
 
 } // namespace experimental

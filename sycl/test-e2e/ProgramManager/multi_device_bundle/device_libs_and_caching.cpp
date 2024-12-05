@@ -1,4 +1,4 @@
-// REQUIRES: gpu && linux && (opencl || level_zero)
+// REQUIRES: ocloc && gpu && linux && (opencl || level_zero)
 
 // Test to check several use cases for multi-device kernel bundles.
 // Test covers AOT and JIT cases. Kernel is using some math functions to enforce
@@ -32,6 +32,7 @@
 #include <complex>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 class Kernel;
