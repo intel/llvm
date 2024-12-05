@@ -1082,7 +1082,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               nullptr,
               // TODO: Extract from handler
               UR_KERNEL_CACHE_CONFIG_DEFAULT, CG->MKernelIsCooperative,
-              CG->MKernelUsesClusterLaunch);
+              CG->MKernelUsesClusterLaunch, CG->MKernelWorkGroupMemorySize);
           ScheduledEvents.push_back(NewEvent);
         } else if (!NodeImpl->isEmpty()) {
           // Empty nodes are node processed as other nodes, but only their

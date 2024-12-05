@@ -4280,6 +4280,18 @@ function pointer for the specified function.
   }];
 }
 
+def SYCLWGScopeDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "__sycl_detail__::wg_scope";
+  let Content = [{
+This attribute can only be applied to records with a trivial default constructor and destructor.
+Types with this attribute cannot be used for non-static data members.
+It indicates that any block and namespace scope variable of a type holding this attribute
+will be allocated in local memory. For variables allocated in block scope, they behave
+as implicitly declared as static.
+  }];
+}
+
 def SYCLDeviceDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "sycl_device";
