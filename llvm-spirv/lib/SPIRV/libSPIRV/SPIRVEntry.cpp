@@ -658,6 +658,7 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeLocalSize:
   case ExecutionModeLocalSizeId:
   case ExecutionModeLocalSizeHint:
+  case ExecutionModeLocalSizeHintId:
   case ExecutionModeMaxWorkgroupSizeINTEL:
     WordLiterals.resize(3);
     break;
