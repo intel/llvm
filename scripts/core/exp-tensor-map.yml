@@ -1,0 +1,213 @@
+#
+# Copyright (C) 2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for mapping tensor objects"
+ordinal: "100"
+
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of tensor map object"
+class: $xTensorMap
+name: "$x_exp_tensor_map_handle_t"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Tensor map data type"
+name: $x_exp_tensor_map_data_type_flags_t
+etors:
+    - name: UINT8
+      desc: "1 byte"
+    - name: UINT16
+      desc: "2 bytes"
+    - name: UINT32
+      desc: "4 bytes"
+    - name: INT32
+      desc: "4 bytes"
+    - name: UINT64
+      desc: "8 bytes"
+    - name: INT64
+      desc: "8 bytes"
+    - name: FLOAT16
+      desc: "2 bytes"
+    - name: FLOAT32
+      desc: "4 bytes"
+    - name: FLOAT64
+      desc: "8 bytes"
+    - name: BFLOAT16
+      desc: "2 bytes"
+    - name: FLOAT32_FTZ
+      desc: "4 bytes"
+    - name: TFLOAT32
+      desc: "4 bytes"
+    - name: TFLOAT32_FTZ
+      desc: "4 bytes"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Tensor map interleave"
+name: $x_exp_tensor_map_interleave_flags_t
+etors:
+    - name: NONE
+      desc: "No interleave"
+    - name: 16B
+      desc: "16B interleave"
+    - name: 32B
+      desc: "32B interleave"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Tensor map l2 promotion"
+name: $x_exp_tensor_map_l2_promotion_flags_t
+etors:
+    - name: NONE
+      desc: "No promotion type"
+    - name: 64B
+      desc: "64B promotion type"
+    - name: 128B
+      desc: "128B promotion type"
+    - name: 256B
+      desc: "256B promotion type"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Tensor map swizzle"
+name: $x_exp_tensor_map_swizzle_flags_t
+etors:
+    - name: NONE
+      desc: "No swizzle"
+    - name: 32B
+      desc: "32B swizzle"
+    - name: 64B
+      desc: "64B swizzle"
+    - name: 128B
+      desc: "128B swizzle"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Tensor map OOB fill"
+name: $x_exp_tensor_map_oob_fill_flags_t
+etors:
+    - name: NONE
+      desc: "No OOB fill"
+    - name: REQUEST_ZERO_FMA
+      desc: "Refer to NVIDIA docs"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Encode tensor map with image data"
+class: $xTensorMap
+name: EncodeIm2ColExp
+details:
+    - "Map encode using im2col."
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] Handle of the device object."
+    - type: $x_exp_tensor_map_data_type_flags_t
+      name: TensorMapType
+      desc: "[in] Data type of the tensor object."
+    - type: uint32_t
+      name: TensorRank
+      desc: "[in] Dimensionality of tensor; must be at least 3."
+    - type: void*
+      name: GlobalAddress
+      desc: "[in] Starting address of memory region described by tensor."
+    - type: const uint64_t*
+      name: GlobalDim
+      desc: "[in] Array containing tensor size (number of elements) along each of the TensorRank dimensions."
+    - type: const uint64_t*
+      name: GlobalStrides
+      desc: "[in] Array containing stride size (in bytes) along each of the TensorRank - 1 dimensions."
+    - type: const int*
+      name: PixelBoxLowerCorner
+      desc: "[in] Array containing DHW dimensions of lower box corner."
+    - type: const int*
+      name: PixelBoxUpperCorner
+      desc: "[in] Array containing DHW dimensions of upper box corner."
+    - type: uint32_t
+      name: ChannelsPerPixel
+      desc: "[in] Number of channels per pixel."
+    - type: uint32_t
+      name: PixelsPerColumn
+      desc: "[in] Number of pixels per column."
+    - type: const uint32_t*
+      name: ElementStrides
+      desc: "[in] Array containing traversal stride in each of the TensorRank dimensions."
+    - type: $x_exp_tensor_map_interleave_flags_t
+      name: Interleave
+      desc: "[in] Type of interleaved layout the tensor addresses"
+    - type: $x_exp_tensor_map_swizzle_flags_t
+      name: Swizzle
+      desc: "[in] Bank swizzling pattern inside shared memory"
+    - type: $x_exp_tensor_map_l2_promotion_flags_t
+      name: L2Promotion
+      desc: "[in] L2 promotion size."
+    - type: $x_exp_tensor_map_oob_fill_flags_t
+      name: OobFill
+      desc: "[in] Indicates whether zero or special NaN constant will be used to fill out-of-bounds elements."
+    - type: $x_exp_tensor_map_handle_t*
+      name: hTensorMap
+      desc: "[out] Handle of the tensor map object."
+returns:
+    - $X_RESULT_ERROR_INVALID_ARGUMENT:
+        - "`TensorRank < 3`"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Encode tensor map with tiled data"
+class: $xTensorMap
+name: EncodeTiledExp
+details:
+    - "Tiled map encode."
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] Handle of the device object."
+    - type: $x_exp_tensor_map_data_type_flags_t
+      name: TensorMapType
+      desc: "[in] Data type of the tensor object."
+    - type: uint32_t
+      name: TensorRank
+      desc: "[in] Dimensionality of tensor; must be at least 3."
+    - type: void*
+      name: GlobalAddress
+      desc: "[in] Starting address of memory region described by tensor."
+    - type: const uint64_t*
+      name: GlobalDim
+      desc: "[in] Array containing tensor size (number of elements) along each of the TensorRank dimensions."
+    - type: const uint64_t*
+      name: GlobalStrides
+      desc: "[in] Array containing stride size (in bytes) along each of the TensorRank - 1 dimensions."
+    - type: const uint32_t*
+      name: BoxDim
+      desc: "[in] Array containing traversal box size (number of elments) along each of the TensorRank dimensions. Specifies how many elements to be traversed along each tensor dimension."
+    - type: const uint32_t*
+      name: ElementStrides
+      desc: "[in] Array containing traversal stride in each of the TensorRank dimensions."
+    - type: $x_exp_tensor_map_interleave_flags_t
+      name: Interleave
+      desc: "[in] Type of interleaved layout the tensor addresses"
+    - type: $x_exp_tensor_map_swizzle_flags_t
+      name: Swizzle
+      desc: "[in] Bank swizzling pattern inside shared memory"
+    - type: $x_exp_tensor_map_l2_promotion_flags_t
+      name: L2Promotion
+      desc: "[in] L2 promotion size."
+    - type: $x_exp_tensor_map_oob_fill_flags_t
+      name: OobFill
+      desc: "[in] Indicates whether zero or special NaN constant will be used to fill out-of-bounds elements."
+    - type: $x_exp_tensor_map_handle_t*
+      name: hTensorMap
+      desc: "[out] Handle of the tensor map object."
+returns:
+    - $X_RESULT_ERROR_INVALID_ARGUMENT:
+        - "`TensorRank < 3`"
+

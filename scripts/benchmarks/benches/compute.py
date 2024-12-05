@@ -50,6 +50,8 @@ class ComputeBench(Suite):
             return []
 
         benches = [
+            SubmitKernelL0(self, 0),
+            SubmitKernelL0(self, 1),
             SubmitKernelSYCL(self, 0),
             SubmitKernelSYCL(self, 1),
             QueueInOrderMemcpy(self, 0, 'Device', 'Device', 1024),
@@ -84,7 +86,7 @@ def parse_unit_type(compute_unit):
         return "instr"
     elif "[us]" in compute_unit:
         return "μs"
-    return "unknown"
+    return compute_unit.replace("[", "").replace("]", "")
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
@@ -184,6 +186,26 @@ class SubmitKernelUR(ComputeBenchmark):
             "--KernelExecTime=1"
         ]
 
+class SubmitKernelL0(ComputeBenchmark):
+    def __init__(self, bench, ioq):
+        self.ioq = ioq
+        super().__init__(bench, "api_overhead_benchmark_l0", "SubmitKernel")
+
+    def name(self):
+        order = "in order" if self.ioq else "out of order"
+        return f"api_overhead_benchmark_l0 SubmitKernel {order}"
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--Ioq={self.ioq}",
+            "--DiscardEvents=0",
+            "--MeasureCompletion=0",
+            "--iterations=100000",
+            "--Profiling=0",
+            "--NumKernels=10",
+            "--KernelExecTime=1"
+        ]
+
 class ExecImmediateCopyQueue(ComputeBenchmark):
     def __init__(self, bench, ioq, isCopyOnly, source, destination, size):
         self.ioq = ioq
@@ -256,6 +278,10 @@ class StreamMemory(ComputeBenchmark):
 
     def name(self):
         return f"memory_benchmark_sycl StreamMemory, placement {self.placement}, type {self.type}, size {self.size}"
+
+    # measurement is in GB/s
+    def lower_is_better(self):
+        return False
 
     def bin_args(self) -> list[str]:
         return [
