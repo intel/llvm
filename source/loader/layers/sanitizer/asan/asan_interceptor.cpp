@@ -221,25 +221,28 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
     if (ReleaseList.size()) {
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
         for (auto &It : ReleaseList) {
+            auto ToFreeAllocInfo = It->second;
             getContext()->logger.info("Quarantine Free: {}",
-                                      (void *)It->second->AllocBegin);
+                                      (void *)ToFreeAllocInfo->AllocBegin);
 
-            ContextInfo->Stats.UpdateUSMRealFreed(AllocInfo->AllocSize,
-                                                  AllocInfo->getRedzoneSize());
+            ContextInfo->Stats.UpdateUSMRealFreed(
+                ToFreeAllocInfo->AllocSize, ToFreeAllocInfo->getRedzoneSize());
 
-            m_AllocationMap.erase(It);
-            if (AllocInfo->Type == AllocType::HOST_USM) {
+            if (ToFreeAllocInfo->Type == AllocType::HOST_USM) {
                 for (auto &Device : ContextInfo->DeviceList) {
                     UR_CALL(getDeviceInfo(Device)->Shadow->ReleaseShadow(
-                        AllocInfo));
+                        ToFreeAllocInfo));
                 }
             } else {
-                UR_CALL(getDeviceInfo(AllocInfo->Device)
-                            ->Shadow->ReleaseShadow(AllocInfo));
+                UR_CALL(getDeviceInfo(ToFreeAllocInfo->Device)
+                            ->Shadow->ReleaseShadow(ToFreeAllocInfo));
             }
 
             UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-                Context, (void *)(It->second->AllocBegin)));
+                Context, (void *)(ToFreeAllocInfo->AllocBegin)));
+
+            // Erase it at last to avoid use-after-free.
+            m_AllocationMap.erase(It);
         }
     }
     ContextInfo->Stats.UpdateUSMFreed(AllocInfo->AllocSize);
@@ -431,6 +434,7 @@ ur_result_t AsanInterceptor::registerProgram(ur_program_handle_t Program) {
 
 ur_result_t AsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
     auto ProgramInfo = getProgramInfo(Program);
+    assert(ProgramInfo != nullptr && "unregistered program!");
 
     for (auto AI : ProgramInfo->AllocInfoForGlobals) {
         UR_CALL(getDeviceInfo(AI->Device)->Shadow->ReleaseShadow(AI));
@@ -475,6 +479,7 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
         }
 
         auto PI = getProgramInfo(Program);
+        assert(PI != nullptr && "unregistered program!");
         for (const auto &SKI : SKInfo) {
             if (SKI.Size == 0) {
                 continue;
@@ -511,6 +516,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
     auto Context = GetContext(Program);
     auto ContextInfo = getContextInfo(Context);
     auto ProgramInfo = getProgramInfo(Program);
+    assert(ProgramInfo != nullptr && "unregistered program!");
 
     for (auto Device : Devices) {
         ManagedQueue Queue(Context, Device);
