@@ -485,6 +485,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
     // TODO: To find out correct value
     return ReturnValue("");
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -1155,8 +1157,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
-    return ReturnValue(false);
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
     const auto ZeDeviceBlockArrayFlags =
@@ -1518,10 +1518,10 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
 
   static const bool UseDriverInOrderLists = [&] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
-        1, 3, L0_DRIVER_INORDER_MIN_VERSION);
+    // bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
+    //     1, 3, L0_DRIVER_INORDER_MIN_VERSION);
     if (!UrRet)
-      return CompatibleDriver;
+      return false;
     return std::atoi(UrRet) != 0;
   }();
 

@@ -375,6 +375,8 @@ struct ur_queue_handle_t_ : _ur_object {
   // Keeps track of whether we are using Counter-based Events
   bool CounterBasedEventsEnabled = false;
 
+  bool InterruptBasedEventsEnabled = false;
+
   // Map of all command lists used in this queue.
   ur_command_list_map_t CommandListMap;
 
@@ -556,6 +558,9 @@ struct ur_queue_handle_t_ : _ur_object {
 
   // Returns true if the queue has discard events property.
   bool isDiscardEvents() const;
+
+  // Returns true if the queue has low power events property.
+  bool isLowPowerEvents() const;
 
   // Returns true if the queue has explicit priority set by user.
   bool isPriorityLow() const;

@@ -33,6 +33,24 @@ struct l0_command_list_cache_info {
   bool IsImmediate = false;
 };
 
+typedef uint32_t ze_intel_event_sync_mode_exp_flags_t;
+typedef enum _ze_intel_event_sync_mode_exp_flag_t {
+  ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT = ZE_BIT(0),
+  ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT = ZE_BIT(1),
+  ZE_INTEL_EVENT_SYNC_MODE_EXP_EXP_FLAG_FORCE_UINT32 = 0x7fffffff
+
+} ze_intel_event_sync_mode_exp_flag_t;
+
+#define ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC                       \
+  (ze_structure_type_t)0x00030016
+
+typedef struct _ze_intel_event_sync_mode_exp_desc_t {
+  ze_structure_type_t stype;
+  const void *pNext;
+
+  ze_intel_event_sync_mode_exp_flags_t syncModeFlags;
+} ze_intel_event_sync_mode_exp_desc_t;
+
 struct ur_context_handle_t_ : _ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
@@ -150,9 +168,9 @@ struct ur_context_handle_t_ : _ur_object {
   // head.
   //
   // Cache of event pools to which host-visible events are added to.
-  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{12};
+  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{30};
   std::vector<std::unordered_map<ze_device_handle_t, size_t>>
-      ZeEventPoolCacheDeviceMap{12};
+      ZeEventPoolCacheDeviceMap{30};
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -199,13 +217,15 @@ struct ur_context_handle_t_ : _ur_object {
                                              bool ProfilingEnabled,
                                              ur_device_handle_t Device,
                                              bool CounterBasedEventEnabled,
-                                             bool UsingImmCmdList);
+                                             bool UsingImmCmdList,
+                                             bool InterruptBasedEventEnabled);
 
   // Get ur_event_handle_t from cache.
   ur_event_handle_t getEventFromContextCache(bool HostVisible,
                                              bool WithProfiling,
                                              ur_device_handle_t Device,
-                                             bool CounterBasedEventEnabled);
+                                             bool CounterBasedEventEnabled,
+                                             bool InterruptBasedEventEnabled);
 
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
@@ -216,17 +236,29 @@ struct ur_context_handle_t_ : _ur_object {
     HostVisibleCounterBasedRegularCacheType,
     HostInvisibleCounterBasedRegularCacheType,
     HostVisibleCounterBasedImmediateCacheType,
-    HostInvisibleCounterBasedImmediateCacheType
+    HostInvisibleCounterBasedImmediateCacheType,
+
+    HostVisibleInterruptBasedRegularCacheType,
+    HostInvisibleInterruptBasedRegularCacheType,
+    HostVisibleInterruptBasedImmediateCacheType,
+    HostInvisibleInterruptBasedImmediateCacheType,
+
+    HostVisibleInterruptAndCounterBasedRegularCacheType,
+    HostInvisibleInterruptAndCounterBasedRegularCacheType,
+    HostVisibleInterruptAndCounterBasedImmediateCacheType,
+    HostInvisibleInterruptAndCounterBasedImmediateCacheType
   };
 
   std::list<ze_event_pool_handle_t> *
   getZeEventPoolCache(bool HostVisible, bool WithProfiling,
                       bool CounterBasedEventEnabled, bool UsingImmediateCmdList,
+                      bool InterruptBasedEventEnabled,
                       ze_device_handle_t ZeDevice) {
     EventPoolCacheType CacheType;
 
     calculateCacheIndex(HostVisible, CounterBasedEventEnabled,
-                        UsingImmediateCmdList, CacheType);
+                        UsingImmediateCmdList, InterruptBasedEventEnabled,
+                        CacheType);
     if (ZeDevice) {
       auto ZeEventPoolCacheMap =
           WithProfiling ? &ZeEventPoolCacheDeviceMap[CacheType * 2]
@@ -246,23 +278,57 @@ struct ur_context_handle_t_ : _ur_object {
   ur_result_t calculateCacheIndex(bool HostVisible,
                                   bool CounterBasedEventEnabled,
                                   bool UsingImmediateCmdList,
+                                  bool InterruptBasedEventEnabled,
                                   EventPoolCacheType &CacheType) {
-    if (CounterBasedEventEnabled && HostVisible && !UsingImmediateCmdList) {
-      CacheType = HostVisibleCounterBasedRegularCacheType;
-    } else if (CounterBasedEventEnabled && !HostVisible &&
-               !UsingImmediateCmdList) {
-      CacheType = HostInvisibleCounterBasedRegularCacheType;
-    } else if (CounterBasedEventEnabled && HostVisible &&
-               UsingImmediateCmdList) {
-      CacheType = HostVisibleCounterBasedImmediateCacheType;
-    } else if (CounterBasedEventEnabled && !HostVisible &&
-               UsingImmediateCmdList) {
-      CacheType = HostInvisibleCounterBasedImmediateCacheType;
-    } else if (!CounterBasedEventEnabled && HostVisible) {
-      CacheType = HostVisibleCacheType;
+    if (InterruptBasedEventEnabled) {
+      if (CounterBasedEventEnabled) {
+        if (HostVisible) {
+          if (UsingImmediateCmdList) {
+            CacheType = HostVisibleInterruptAndCounterBasedImmediateCacheType;
+          } else {
+            CacheType = HostVisibleInterruptAndCounterBasedRegularCacheType;
+          }
+        } else {
+          if (UsingImmediateCmdList) {
+            CacheType = HostInvisibleInterruptAndCounterBasedImmediateCacheType;
+          } else {
+            CacheType = HostInvisibleInterruptAndCounterBasedRegularCacheType;
+          }
+        }
+      } else {
+        if (HostVisible) {
+          if (UsingImmediateCmdList) {
+            CacheType = HostVisibleInterruptBasedImmediateCacheType;
+          } else {
+            CacheType = HostVisibleInterruptBasedRegularCacheType;
+          }
+        } else {
+          if (UsingImmediateCmdList) {
+            CacheType = HostInvisibleInterruptBasedImmediateCacheType;
+          } else {
+            CacheType = HostInvisibleInterruptBasedRegularCacheType;
+          }
+        }
+      }
     } else {
-      CacheType = HostInvisibleCacheType;
+      if (CounterBasedEventEnabled && HostVisible && !UsingImmediateCmdList) {
+        CacheType = HostVisibleCounterBasedRegularCacheType;
+      } else if (CounterBasedEventEnabled && !HostVisible &&
+                 !UsingImmediateCmdList) {
+        CacheType = HostInvisibleCounterBasedRegularCacheType;
+      } else if (CounterBasedEventEnabled && HostVisible &&
+                 UsingImmediateCmdList) {
+        CacheType = HostVisibleCounterBasedImmediateCacheType;
+      } else if (CounterBasedEventEnabled && !HostVisible &&
+                 UsingImmediateCmdList) {
+        CacheType = HostInvisibleCounterBasedImmediateCacheType;
+      } else if (!CounterBasedEventEnabled && HostVisible) {
+        CacheType = HostVisibleCacheType;
+      } else {
+        CacheType = HostInvisibleCacheType;
+      }
     }
+
     return UR_RESULT_SUCCESS;
   }
 
@@ -308,9 +374,10 @@ private:
     EVENT_FLAG_HOST_VISIBLE = UR_BIT(0),
     EVENT_FLAG_WITH_PROFILING = UR_BIT(1),
     EVENT_FLAG_COUNTER = UR_BIT(2),
-    EVENT_FLAG_DEVICE = UR_BIT(3), // if set, subsequent bits are device id
+    EVENT_FLAG_INTERRUPT = UR_BIT(3),
+    EVENT_FLAG_DEVICE = UR_BIT(4), // if set, subsequent bits are device id
     MAX_EVENT_FLAG_BITS =
-        4, // this is used as an offset for embedding device id
+        5, // this is used as an offset for embedding device id
   };
 
   // Mutex to control operations on event caches.
@@ -322,7 +389,8 @@ private:
 
   // Get the cache of events for a provided scope and profiling mode.
   EventCache *getEventCache(bool HostVisible, bool WithProfiling,
-                            ur_device_handle_t Device, bool Counter) {
+                            ur_device_handle_t Device, bool Counter,
+                            bool Interrupt) {
 
     size_t index = 0;
     if (HostVisible) {
@@ -333,6 +401,9 @@ private:
     }
     if (Counter) {
       index |= EVENT_FLAG_COUNTER;
+    }
+    if (Interrupt) {
+      index |= EVENT_FLAG_INTERRUPT;
     }
     if (Device) {
       index |= EVENT_FLAG_DEVICE | (*Device->Id << MAX_EVENT_FLAG_BITS);
