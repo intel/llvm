@@ -86,7 +86,7 @@ def parse_unit_type(compute_unit):
         return "instr"
     elif "[us]" in compute_unit:
         return "μs"
-    return "unknown"
+    return compute_unit.replace("[", "").replace("]", "")
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
@@ -278,6 +278,10 @@ class StreamMemory(ComputeBenchmark):
 
     def name(self):
         return f"memory_benchmark_sycl StreamMemory, placement {self.placement}, type {self.type}, size {self.size}"
+
+    # measurement is in GB/s
+    def lower_is_better(self):
+        return False
 
     def bin_args(self) -> list[str]:
         return [
