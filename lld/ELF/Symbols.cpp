@@ -44,13 +44,13 @@ LLVM_ATTRIBUTE_UNUSED static inline void assertSymbols() {
 }
 
 // Returns a symbol for an error message.
-static std::string maybeDemangleSymbol(StringRef symName) {
-  return elf::ctx.arg.demangle ? demangle(symName.str()) : symName.str();
+static std::string maybeDemangleSymbol(Ctx &ctx, StringRef symName) {
+  return ctx.arg.demangle ? demangle(symName.str()) : symName.str();
 }
 
 std::string lld::toString(const elf::Symbol &sym) {
   StringRef name = sym.getName();
-  std::string ret = maybeDemangleSymbol(name);
+  std::string ret = maybeDemangleSymbol(ctx, name);
 
   const char *suffix = sym.getVersionSuffix();
   if (*suffix == '@')
@@ -58,7 +58,12 @@ std::string lld::toString(const elf::Symbol &sym) {
   return ret;
 }
 
-static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
+const ELFSyncStream &elf::operator<<(const ELFSyncStream &s,
+                                     const Symbol *sym) {
+  return s << toString(*sym);
+}
+
+static uint64_t getSymVA(Ctx &ctx, const Symbol &sym, int64_t addend) {
   switch (sym.kind()) {
   case Symbol::DefinedKind: {
     auto &d = cast<Defined>(sym);
@@ -141,8 +146,8 @@ static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
   llvm_unreachable("invalid symbol kind");
 }
 
-uint64_t Symbol::getVA(int64_t addend) const {
-  return getSymVA(*this, addend) + addend;
+uint64_t Symbol::getVA(Ctx &ctx, int64_t addend) const {
+  return getSymVA(ctx, *this, addend) + addend;
 }
 
 uint64_t Symbol::getGotVA(Ctx &ctx) const {
@@ -243,8 +248,8 @@ void Symbol::parseSymbolVersion(Ctx &ctx) {
   // if the symbol has a local version as it won't be in the dynamic
   // symbol table.
   if (ctx.arg.shared && versionId != VER_NDX_LOCAL)
-    error(toString(file) + ": symbol " + s + " has undefined version " +
-          verstr);
+    ErrAlways(ctx) << file << ": symbol " << s << " has undefined version "
+                   << verstr;
 }
 
 void Symbol::extract(Ctx &ctx) const {
@@ -496,7 +501,7 @@ void Symbol::resolve(Ctx &ctx, const Undefined &other) {
 bool Symbol::shouldReplace(Ctx &ctx, const Defined &other) const {
   if (LLVM_UNLIKELY(isCommon())) {
     if (ctx.arg.warnCommon)
-      warn("common " + getName() + " is overridden");
+      Warn(ctx) << "common " << getName() << " is overridden";
     return !other.isWeak();
   }
   if (!isDefined())
@@ -569,13 +574,13 @@ void Symbol::resolve(Ctx &ctx, const CommonSymbol &other) {
   }
   if (isDefined() && !isWeak()) {
     if (ctx.arg.warnCommon)
-      warn("common " + getName() + " is overridden");
+      Warn(ctx) << "common " << getName() << " is overridden";
     return;
   }
 
   if (CommonSymbol *oldSym = dyn_cast<CommonSymbol>(this)) {
     if (ctx.arg.warnCommon)
-      warn("multiple common of " + getName());
+      Warn(ctx) << "multiple common of " << getName();
     oldSym->alignment = std::max(oldSym->alignment, other.alignment);
     if (oldSym->size < other.size) {
       oldSym->file = other.file;
@@ -617,7 +622,7 @@ void Symbol::resolve(Ctx &ctx, const LazySymbol &other) {
 
   // For common objects, we want to look for global or weak definitions that
   // should be extracted as the canonical definition instead.
-  if (LLVM_UNLIKELY(isCommon()) && elf::ctx.arg.fortranCommon &&
+  if (LLVM_UNLIKELY(isCommon()) && ctx.arg.fortranCommon &&
       other.file->shouldExtractForCommon(getName())) {
     ctx.backwardReferences.erase(this);
     other.overwrite(*this);

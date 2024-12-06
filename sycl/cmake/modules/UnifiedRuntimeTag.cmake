@@ -1,7 +1,7 @@
-# commit 0a90db9b2c36960c9b28ce18557ca15760724c4d
-# Merge: c4d9fdb4 6e0bdeb9
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 27 12:16:44 2024 +0000
-#     Merge pull request #2369 from Bensuo/ben/kernel-binary-update-l0
-#     [CMDBUF] Implement kernel binary update for L0 adapter
-set(UNIFIED_RUNTIME_TAG 870f55dc52cac79af836c8c9f4bfb8fa9a648557)
+# commit d8fde1bdb3c60af0ee13cc44fab567a508644f77
+# Merge: d88481bf20a0 bc5105f1cf30
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Fri Dec 6 12:05:32 2024 +0000
+#     Merge pull request #2266 from zhaomaosu/reuse-shadow-memory
+#     [DeviceASAN] Re-use shadow if required size is not larger than last one
+set(UNIFIED_RUNTIME_TAG 73ba29bfe9dfbd8ac985051f7a81a349ed4e3e08)

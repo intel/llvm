@@ -1,15 +1,5 @@
-// https://github.com/intel/llvm/issues/14244
-// sycl-ls --verbose shows the "ext_intel_free_memory" aspect if
-// ZES_ENABLE_SYSMAN=1 is set, but also is sysman init is supported,
-// so this test is missed if it requires aspect-ext_intel_free_memory.
-
-// Since gen9 and get12 don't support this query,
-// so requiring DG2. There may be more devices in our CI supporting this aspect.
-// REQUIRES: gpu-intel-dg2
+// REQUIRES: aspect-ext_intel_free_memory
 // REQUIRES: level_zero, level_zero_dev_kit
-// UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-INTENDED: The query of free memory is not supported on integrated
-// devices
 //
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env ZES_ENABLE_SYSMAN=1 %{run} %t.out 2>&1 | FileCheck %s

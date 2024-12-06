@@ -45,6 +45,10 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
+      # Docker image has last nightly pre-installed and added to the PATH
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+      cc: clang
+      cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
 
   determine_arc_tests:
@@ -103,7 +107,7 @@ jobs:
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true

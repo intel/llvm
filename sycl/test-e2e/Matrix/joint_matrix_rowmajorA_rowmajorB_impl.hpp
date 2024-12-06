@@ -144,8 +144,8 @@ int main() {
           gemm_row_major<8, 8, 32, class su_8x8x32, int8_t, uint8_t, int32_t>();
       res += gemm_row_major<8, 8, 32, class uu_8x8x32, uint8_t, uint8_t,
                             int32_t>();
-      // res += gemm_row_major<32, 32, 16, class dg2_bf16_32x32x16, bfloat16,
-      //                       bfloat16, float>();
+      res += gemm_row_major<32, 32, 16, class dg2_bf16_32x32x16, bfloat16,
+                            bfloat16, float>();
       break;
     }
   }
