@@ -150,6 +150,31 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
   return std::nullopt;
 }
 
+PropSetRegTy computeSYCLDeviceLibProperties(const Module &M,
+                                            std::string &SYCLDeviceLibName) {
+  PropSetRegTy PropSet;
+
+  {
+    auto SYCLDeviceLibMeta = getSYCLDeviceLibMeta(SYCLDeviceLibName);
+    std::map<StringRef, unsigned int> RMEntry = {
+        {"DeviceLibMetaData", SYCLDeviceLibMeta}};
+    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_METADATA, RMEntry);
+  }
+
+  {
+    for (const auto &F : M.functions()) {
+      if (!F.getName().starts_with("__devicelib_") || F.isDeclaration())
+        continue;
+      if (F.getCallingConv() == CallingConv::SPIR_FUNC) {
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
+
+  return PropSet;
+}
+
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps) {
@@ -454,7 +479,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
 
       PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
-                   "uses-virtual-functions-set", AllSets);
+                  "uses-virtual-functions-set", AllSets);
     }
   }
 

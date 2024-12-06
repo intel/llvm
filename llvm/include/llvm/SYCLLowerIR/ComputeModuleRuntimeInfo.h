@@ -37,6 +37,9 @@ PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps);
 
+PropSetRegTy computeSYCLDeviceLibProperties(const Module &M,
+                                            std::string &SYCLDeviceLibName);
+
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);
 

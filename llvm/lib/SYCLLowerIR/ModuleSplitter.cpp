@@ -1402,6 +1402,9 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
+
+  if (F.getName().starts_with("__devicelib_") && F.isDeclaration())
+    return true;
   // It may be theoretically possible to determine what is importable
   // based solely on function F, but the "SYCL/imported symbols"
   // property list MUST NOT have any imported symbols that are not supplied

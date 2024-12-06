@@ -318,12 +318,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   // constant used, skip regular Prop emit.
   if (!IsDeviceLib)
     PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
-  else {
-    auto SYCLDeviceLibMeta = getSYCLDeviceLibMeta(MD.Name);
-    std::map<StringRef, unsigned int> RMEntry = {
-        {"DeviceLibMetaData", SYCLDeviceLibMeta}};
-    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_METADATA, RMEntry);
-  }
+  else
+    PropSet = computeSYCLDeviceLibProperties(MD.getModule(), MD.Name);
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {
@@ -459,9 +455,10 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
-      GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                                   EmitExportedSymbols, EmitImportedSymbols,
-                                   DeviceGlobals};
+      if (EmitImportedSymbols)
+        GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
+                                     EmitExportedSymbols, EmitImportedSymbols,
+                                     DeviceGlobals};
       CopyTriple.Prop = saveModuleProperties(MD, Props, I, Suffix,
                                              OutputFile.Target, IsDeviceLib);
     }
