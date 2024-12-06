@@ -324,6 +324,17 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       }
     }
 
+    UseNative = false;
+
+    // Check for intel_gpu_pvc as the target
+    if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      if (SYCLTarget->getValues().size() == 1) {
+        StringRef SYCLTargetStr = SYCLTarget->getValue();
+        if (SYCLTargetStr == "intel_gpu_pvc")
+          UseNative = true;
+      }
+    }
+
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats");
     };
@@ -334,8 +345,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       Params += Arg;
     }
     size_t DevicesPos = Params.find("-device ");
-    UseNative = false;
-    if (DevicesPos != std::string::npos) {
+    if (!UseNative && DevicesPos != std::string::npos) {
       UseNative = true;
       std::istringstream Devices(Params.substr(DevicesPos + 8));
       for (std::string S; std::getline(Devices, S, ',');)
@@ -577,6 +587,28 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
   };
 
+  addLibraries(SYCLDeviceWrapperLibs);
+  if (IsSpirvAOT)
+    addLibraries(SYCLDeviceFallbackLibs);
+
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
+
+  // Link in ITT annotations library unless fsycl-no-instrument-device-code
+  // is specified. This ensures that we are ABI-compatible with the
+  // instrumented device code, which was the default not so long ago.
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
+
+  // Handle Sanitize Options
   auto addSingleLibrary = [&](const DeviceLibOptInfo &Lib) {
     if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
       return;
@@ -637,28 +669,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     return JIT;
   };
 
-  addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT)
-    addLibraries(SYCLDeviceFallbackLibs);
-
-  bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
-  if (NeedBfloatLibs) {
-    // Add native or fallback bfloat16 library.
-    if (NativeBfloatLibs)
-      addLibraries(SYCLDeviceBfloat16NativeLib);
-    else
-      addLibraries(SYCLDeviceBfloat16FallbackLib);
-  }
-
-  // Link in ITT annotations library unless fsycl-no-instrument-device-code
-  // is specified. This ensures that we are ABI-compatible with the
-  // instrumented device code, which was the default not so long ago.
-  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
-    addLibraries(SYCLDeviceAnnotationLibs);
-
-  // Handle Sanitize Options
   std::string SanitizeVal;
   std::string SanitizeArg;
   size_t sanitizer_lib_idx = getSingleBuildTarget();
@@ -1635,6 +1645,23 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
   return UnsupportedOpts;
 }
 
+// Currently supported options by SYCL NativeCPU device compilation
+static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
+                                        const OptSpecifier &Opt) {
+  if (!TC.IsSYCLNativeCPU)
+    return false;
+
+  switch (Opt.getID()) {
+  case options::OPT_fcoverage_mapping:
+  case options::OPT_fno_coverage_mapping:
+  case options::OPT_fprofile_instr_generate:
+  case options::OPT_fprofile_instr_generate_EQ:
+  case options::OPT_fno_profile_instr_generate:
+    return true;
+  }
+  return false;
+}
+
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
@@ -1646,6 +1673,9 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   // Diagnose unsupported options only once.
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
+      // Native CPU can support options unsupported by other targets.
+      if (SupportedByNativeCPU(*this, Opt))
+        continue;
       // All sanitizer options are not currently supported, except
       // AddressSanitizer and MemorySanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
@@ -1686,6 +1716,9 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     bool Unsupported = false;
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
+        // NativeCPU should allow most normal cpu options.
+        if (SupportedByNativeCPU(*this, Opt.getID()))
+          continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();

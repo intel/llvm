@@ -18,6 +18,9 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
+namespace detail {
+using namespace sycl::detail;
+}
 
 using byte = unsigned char;
 
@@ -81,10 +84,17 @@ class __SYCL2020_DEPRECATED(
     "experimental online_compiler is being deprecated. See "
     "'sycl_ext_oneapi_kernel_compiler.asciidoc' instead for new kernel "
     "compiler extension to kernel_bundle implementation.") online_compiler {
-  __SYCL_EXPORT std::vector<byte>
-  compile_impl(sycl::detail::string_view Src,
-               sycl::detail::string_view DeviceStepping,
-               const std::vector<sycl::detail::string_view> &Options);
+#if __INTEL_PREVIEW_BREAKING_CHANGES
+  // Refactor this during next ABI Breaking window. We have an `std::string`
+  // data member so cannot be accessing `this` when crossing ABI boundary.
+#endif
+  __SYCL_EXPORT static std::vector<byte>
+  compile_impl(detail::string_view Src,
+               const std::vector<detail::string_view> &Options,
+               std::pair<int, int> OutputFormatVersion,
+               sycl::info::device_type DeviceType, device_arch DeviceArch,
+               bool Is64Bit, detail::string_view DeviceStepping,
+               void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle);
 
   std::vector<byte> compile_impl(const std::string &Source,
                                  const std::vector<std::string> &UserArgs) {
@@ -92,8 +102,10 @@ class __SYCL2020_DEPRECATED(
     for (auto &&Arg : UserArgs)
       Args.emplace_back(Arg);
 
-    return compile_impl(std::string_view{Source},
-                        std::string_view{DeviceStepping}, Args);
+    return compile_impl(std::string_view{Source}, Args, OutputFormatVersion,
+                        DeviceType, DeviceArch, Is64Bit,
+                        std::string_view{DeviceStepping}, CompileToSPIRVHandle,
+                        FreeSPIRVOutputsHandle);
   }
 
 public:

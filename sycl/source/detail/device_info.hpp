@@ -1589,6 +1589,25 @@ get_device_info<ext::intel::info::device::memory_bus_width>(
   return get_device_info_impl<Param::return_type, Param>::get(Dev);
 }
 
+template <>
+inline ext::intel::esimd::info::device::has_2d_block_io_support::return_type
+get_device_info<ext::intel::esimd::info::device::has_2d_block_io_support>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_esimd))
+    return false;
+
+  ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities;
+  Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
+      UrInfoCode<
+          ext::intel::esimd::info::device::has_2d_block_io_support>::value,
+      sizeof(BlockArrayCapabilities), &BlockArrayCapabilities, nullptr);
+  return (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) &&
+         (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
+}
+
 // Returns the list of all progress guarantees that can be requested for
 // work_groups from the coordination level of root_group when using the device
 // given by Dev. First it calls getProgressGuarantee to get the strongest
