@@ -1,7 +1,7 @@
-# commit 27398080349f1d8d21d6a8680e234d29dcd14734 (HEAD, origin/main, origin/HEAD)
-# Merge: 572355db942d dc971af72a31
+# commit 72e80a42cc8e5b11d43dd9d34b40d470e1476181 (HEAD, origin/main, origin/HEAD)
+# Merge:  6e5d0e6b9a47 9c7e56cc765b
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 5 14:57:07 2024 +0000
-#   Merge pull request #2293 from yingcong-wu/yc-PR/241107-misc-minor-fix
-#   [DeviceAsan] Serval bug fixes
-set(UNIFIED_RUNTIME_TAG 27398080349f1d8d21d6a8680e234d29dcd14734)
+# Date:   Fri Dec 6 10:11:15 2024 +0000
+#   Merge pull request #2316 from 0x12CC/coop_kernel_query
+#   Change `urSuggestMaxCooperativeGroupCountExp` to accept ND size parameter
+set(UNIFIED_RUNTIME_TAG 72e80a42cc8e5b11d43dd9d34b40d470e1476181)
