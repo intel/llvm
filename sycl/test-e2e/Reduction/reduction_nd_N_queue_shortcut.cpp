@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().
 
