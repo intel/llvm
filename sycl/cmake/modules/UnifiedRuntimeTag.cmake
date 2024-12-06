@@ -1,7 +1,7 @@
-# commit d8fde1bdb3c60af0ee13cc44fab567a508644f77
-# Merge: d88481bf20a0 bc5105f1cf30
+# commit aa72577da55571b15028dd1710e02a7ea4f62338
+# Merge: 89def64486dd 3d2b7210e352
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 6 12:05:32 2024 +0000
-#     Merge pull request #2266 from zhaomaosu/reuse-shadow-memory
-#     [DeviceASAN] Re-use shadow if required size is not larger than last one
+# Date:   Fri Dec 6 15:24:04 2024 +0000
+#     Merge pull request #2352 from aarongreig/aaron/fixCoverity15-11
+#     Fix a number of issues from the latest coverity scan.
 set(UNIFIED_RUNTIME_TAG 73ba29bfe9dfbd8ac985051f7a81a349ed4e3e08)
