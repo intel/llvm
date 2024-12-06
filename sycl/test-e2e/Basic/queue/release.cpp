@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s %if !windows %{--check-prefixes=CHECK-RELEASE%}
-//
-// XFAIL: hip_nvidia
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16197
 
 #include <sycl/detail/core.hpp>
 int main() {
