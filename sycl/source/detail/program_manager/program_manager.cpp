@@ -603,6 +603,74 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+// For each extension understood by the SYCL runtime, the string representation
+// of its name. Names with devicelib in them are internal to the runtime. Others
+// are actual OpenCL extensions.
+static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
+    {DeviceLibExt::cl_intel_devicelib_assert, "cl_intel_devicelib_assert"},
+    {DeviceLibExt::cl_intel_devicelib_math, "cl_intel_devicelib_math"},
+    {DeviceLibExt::cl_intel_devicelib_math_fp64,
+     "cl_intel_devicelib_math_fp64"},
+    {DeviceLibExt::cl_intel_devicelib_complex, "cl_intel_devicelib_complex"},
+    {DeviceLibExt::cl_intel_devicelib_complex_fp64,
+     "cl_intel_devicelib_complex_fp64"},
+    {DeviceLibExt::cl_intel_devicelib_cstring, "cl_intel_devicelib_cstring"},
+    {DeviceLibExt::cl_intel_devicelib_imf, "cl_intel_devicelib_imf"},
+    {DeviceLibExt::cl_intel_devicelib_imf_fp64, "cl_intel_devicelib_imf_fp64"},
+    {DeviceLibExt::cl_intel_devicelib_imf_bf16, "cl_intel_devicelib_imf_bf16"},
+    {DeviceLibExt::cl_intel_devicelib_bfloat16,
+     "cl_intel_bfloat16_conversions"}};
+
+static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
+  auto Ext = DeviceLibExtensionStrs.find(Extension);
+  if (Ext == DeviceLibExtensionStrs.end())
+    throw exception(make_error_code(errc::build),
+                    "Unhandled (new?) device library extension");
+  return Ext->second;
+}
+
+static bool skipFallbackSYCLDeviceLib(RTDeviceBinaryImage *Img,
+                                      const device &Dev) {
+  const RTDeviceBinaryImage::PropertyRange &DeviceLibMetaProp =
+      Img->getDeviceLibMetaData();
+  unsigned DeviceLibMetaData =
+      DeviceBinaryProperty(*(DeviceLibMetaProp.begin())).asUint32();
+  DeviceLibExt LibExt =
+      static_cast<DeviceLibExt>(DeviceLibMetaData & 0x7FFFFFFF);
+
+  std::vector<std::string> DeviceExtensions =
+      Dev.get_info<info::device::extensions>();
+
+  bool FP64Supported =
+      (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
+                 "cl_khr_fp64") != DeviceExtensions.end());
+  if ((LibExt == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
+       LibExt == DeviceLibExt::cl_intel_devicelib_complex_fp64 ||
+       LibExt == DeviceLibExt::cl_intel_devicelib_imf_fp64) &&
+      !FP64Supported)
+    return true;
+
+  const char *ExtName = getDeviceLibExtensionStr(LibExt);
+  bool NativeSupported =
+      (std::find(DeviceExtensions.begin(), DeviceExtensions.end(), ExtName) !=
+       DeviceExtensions.end());
+
+  bool InhibitNativeImpl = false;
+  if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
+    InhibitNativeImpl = strstr(Env, ExtName) != nullptr;
+  }
+
+  if (NativeSupported && !InhibitNativeImpl)
+    return true;
+
+  if (LibExt == DeviceLibExt::cl_intel_devicelib_bfloat16) {
+    bool IsNative = ((DeviceLibMetaData & 0x80000000) != 0);
+    if (IsNative != NativeSupported)
+      return true;
+  }
+  return false;
+}
+
 static bool checkLinkingSupport(const device &Dev,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
@@ -658,6 +726,9 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (Img->getFormat() != Format ||
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, Dev))
+        continue;
+      if (Img->getDeviceLibMetaData().isAvailable() &&
+          skipFallbackSYCLDeviceLib(Img, Dev))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -768,7 +839,8 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+static inline void
+CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
@@ -1225,32 +1297,6 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension, bool Native) {
     throw exception(make_error_code(errc::build),
                     "Unhandled (new?) device library extension");
   return Lib;
-}
-
-// For each extension understood by the SYCL runtime, the string representation
-// of its name. Names with devicelib in them are internal to the runtime. Others
-// are actual OpenCL extensions.
-static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
-    {DeviceLibExt::cl_intel_devicelib_assert, "cl_intel_devicelib_assert"},
-    {DeviceLibExt::cl_intel_devicelib_math, "cl_intel_devicelib_math"},
-    {DeviceLibExt::cl_intel_devicelib_math_fp64,
-     "cl_intel_devicelib_math_fp64"},
-    {DeviceLibExt::cl_intel_devicelib_complex, "cl_intel_devicelib_complex"},
-    {DeviceLibExt::cl_intel_devicelib_complex_fp64,
-     "cl_intel_devicelib_complex_fp64"},
-    {DeviceLibExt::cl_intel_devicelib_cstring, "cl_intel_devicelib_cstring"},
-    {DeviceLibExt::cl_intel_devicelib_imf, "cl_intel_devicelib_imf"},
-    {DeviceLibExt::cl_intel_devicelib_imf_fp64, "cl_intel_devicelib_imf_fp64"},
-    {DeviceLibExt::cl_intel_devicelib_imf_bf16, "cl_intel_devicelib_imf_bf16"},
-    {DeviceLibExt::cl_intel_devicelib_bfloat16,
-     "cl_intel_bfloat16_conversions"}};
-
-static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
-  auto Ext = DeviceLibExtensionStrs.find(Extension);
-  if (Ext == DeviceLibExtensionStrs.end())
-    throw exception(make_error_code(errc::build),
-                    "Unhandled (new?) device library extension");
-  return Ext->second;
 }
 
 static ur_result_t doCompile(const AdapterPtr &Adapter,
