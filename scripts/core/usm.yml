@@ -364,6 +364,8 @@ desc: "Free the USM memory object"
 class: $xUSM
 name: Free
 ordinal: "0"
+details:
+  - "Note that implementations are required to wait for previously enqueued commands that may be accessing `pMem` to finish before freeing the memory."
 params:
     - type: $x_context_handle_t
       name: hContext

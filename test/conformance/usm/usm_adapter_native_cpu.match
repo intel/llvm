@@ -3,6 +3,7 @@ urUSMDeviceAllocTest.InvalidUSMSize/*__UsePoolDisabled
 urUSMFreeTest.SuccessDeviceAlloc/*
 urUSMFreeTest.SuccessHostAlloc/*
 urUSMFreeTest.SuccessSharedAlloc/*
+urUSMFreeDuringExecutionTest.*
 urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_TYPE
 urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_BASE_PTR
 urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_SIZE
