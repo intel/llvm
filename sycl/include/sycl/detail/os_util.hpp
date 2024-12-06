@@ -101,6 +101,7 @@ public:
   getFilesWithAccessTime(const std::string &Path);
 
   static size_t DirSizeVar;
+  static std::vector<std::pair<time_t, std::string>> Files;
 };
 
 } // namespace detail
