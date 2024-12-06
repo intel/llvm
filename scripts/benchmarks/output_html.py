@@ -32,24 +32,32 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
 
     num_benchmarks = len(benchmarks)
     if num_benchmarks == 0:
-        return
+        return []
 
     html_charts = []
 
     for _, benchmark in enumerate(benchmarks):
         fig, ax = plt.subplots(figsize=(10, 4))
 
+        all_values = []
+        all_stddevs = []
+
         for run in benchmark.runs:
             sorted_points = sorted(run.results, key=lambda x: x.date)
             dates = [point.date for point in sorted_points]
             values = [point.value for point in sorted_points]
+            stddevs = [point.stddev for point in sorted_points]
 
-            ax.plot_date(dates, values, '-', label=run.name, alpha=0.5)
+            all_values.extend(values)
+            all_stddevs.extend(stddevs)
+
+            ax.errorbar(dates, values, yerr=stddevs, fmt='-', label=run.name, alpha=0.5)
             scatter = ax.scatter(dates, values, picker=True)
 
             tooltip_labels = [
                 f"Date: {point.date.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"Value: {point.value:.2f}\n"
+                f"Value: {point.value:.2f} {benchmark.metadata.unit}\n"
+                f"Stddev: {point.stddev:.2f} {benchmark.metadata.unit}\n"
                 f"Git Hash: {point.git_hash}"
                 for point in sorted_points
             ]
@@ -61,6 +69,13 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
                 css='.mpld3-tooltip{background:white;padding:8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;white-space:pre;}',
                 targets=targets)
             mpld3.plugins.connect(fig, tooltip)
+
+        # This is so that the stddev doesn't fill the entire y axis on the chart
+        if all_values and all_stddevs:
+            max_value = max(all_values)
+            min_value = min(all_values)
+            max_stddev = max(all_stddevs)
+            ax.set_ylim(min_value - 3 * max_stddev, max_value + 3 * max_stddev)
 
         ax.set_title(benchmark.label, pad=20)
         performance_indicator = "lower is better" if benchmark.metadata.lower_is_better else "higher is better"
@@ -79,7 +94,7 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter('%Y-%m-%d %H:%M:%S'))
 
         plt.tight_layout()
-        html_charts.append(BenchmarkTimeSeries(html= mpld3.fig_to_html(fig), label= benchmark.label))
+        html_charts.append(BenchmarkTimeSeries(html=mpld3.fig_to_html(fig), label=benchmark.label))
         plt.close(fig)
 
     return html_charts
