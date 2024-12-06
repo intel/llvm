@@ -106,7 +106,7 @@ void readConfig(bool ForceInitialization) {
       // Finding the position of '='
       Position = BufString.find("=");
       // Checking that the variable name is less than MAX_CONFIG_NAME and more
-      // than zero characters
+      // than zero characters.
       if ((Position < MAX_CONFIG_NAME) && (Position > 0)) {
         // Checking that the value is less than MAX_CONFIG_VALUE and
         // more than zero character
