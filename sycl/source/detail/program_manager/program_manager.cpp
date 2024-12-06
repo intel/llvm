@@ -1413,7 +1413,7 @@ const char *getArchName(const device &Device) {
   case syclex::architecture::ARCH:                                             \
     return #ARCH;
 #define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
-#include <sycl/ext/oneapi/experimental/architectures.def>
+#include <sycl/ext/oneapi/experimental/device_architecture.def>
 #undef __SYCL_ARCHITECTURE
 #undef __SYCL_ARCHITECTURE_ALIAS
   }
