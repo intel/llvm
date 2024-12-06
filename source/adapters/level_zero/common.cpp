@@ -341,15 +341,17 @@ getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
-thread_local char ErrorMessage[MaxMessageSize];
+thread_local char ErrorMessage[MaxMessageSize]{};
 thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode,
                                       int32_t AdapterErrorCode) {
-  assert(strlen(pMessage) <= MaxMessageSize);
-  strcpy(ErrorMessage, pMessage);
+  assert(strlen(pMessage) < MaxMessageSize);
+  // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
+  // always null terminated.
+  strncpy(ErrorMessage, pMessage, MaxMessageSize - 1);
   ErrorMessageCode = ErrorCode;
   ErrorAdapterNativeCode = AdapterErrorCode;
 }
