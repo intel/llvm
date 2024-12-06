@@ -86,12 +86,7 @@ bool setEnvVar(const char *name, const char *value) {
 
 ZeUSMImportExtension ZeUSMImport;
 
-// This will count the calls to Level-Zero
-// TODO: remove the ifdef once
-// https://github.com/oneapi-src/unified-runtime/issues/1454 is implemented
-#ifndef UR_L0_CALL_COUNT_IN_TESTS
 std::map<std::string, int> *ZeCallCount = nullptr;
-#endif
 
 inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {

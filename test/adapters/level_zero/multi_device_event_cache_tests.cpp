@@ -10,7 +10,21 @@
 #include <map>
 #include <string>
 
-extern std::map<std::string, int> *ZeCallCount;
+#include "ze_tracer_common.hpp"
+
+size_t zeCommandListAppendWaitOnEventsCount = 0;
+
+void OnAppendWaitOnEventsCb(ze_command_list_append_wait_on_events_params_t *,
+                            ze_result_t, void *, void **) {
+    zeCommandListAppendWaitOnEventsCount++;
+}
+
+static std::shared_ptr<_zel_tracer_handle_t> tracer = [] {
+    zel_core_callbacks_t prologue_callbacks{};
+    prologue_callbacks.CommandList.pfnAppendWaitOnEventsCb =
+        OnAppendWaitOnEventsCb;
+    return enableTracing(prologue_callbacks, {});
+}();
 
 using urMultiQueueMultiDeviceEventCacheTest = uur::urAllDevicesTest;
 TEST_F(urMultiQueueMultiDeviceEventCacheTest,
@@ -54,7 +68,7 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
     uur::raii::Event event = nullptr;
     uur::raii::Event eventWait = nullptr;
     uur::raii::Event eventWaitDummy = nullptr;
-    (*ZeCallCount)["zeCommandListAppendWaitOnEvents"] = 0;
+    zeCommandListAppendWaitOnEventsCount = 0;
     EXPECT_SUCCESS(
         urEventCreateWithNativeHandle(0, context2, nullptr, eventWait.ptr()));
     EXPECT_SUCCESS(urEventCreateWithNativeHandle(0, context1, nullptr,
@@ -63,7 +77,7 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
         urEnqueueEventsWait(queue1, 1, eventWaitDummy.ptr(), eventWait.ptr()));
     EXPECT_SUCCESS(
         urEnqueueEventsWait(queue2, 1, eventWait.ptr(), event.ptr()));
-    EXPECT_EQ((*ZeCallCount)["zeCommandListAppendWaitOnEvents"], 2);
+    EXPECT_EQ(zeCommandListAppendWaitOnEventsCount, 2);
     ASSERT_SUCCESS(urEventRelease(eventWaitDummy.get()));
     ASSERT_SUCCESS(urEventRelease(eventWait.get()));
     ASSERT_SUCCESS(urEventRelease(event.get()));
@@ -89,7 +103,7 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
     uur::raii::Event event = nullptr;
     uur::raii::Event eventWait = nullptr;
     uur::raii::Event eventWaitDummy = nullptr;
-    (*ZeCallCount)["zeCommandListAppendWaitOnEvents"] = 0;
+    zeCommandListAppendWaitOnEventsCount = 0;
     EXPECT_SUCCESS(
         urEventCreateWithNativeHandle(0, context2, nullptr, eventWait.ptr()));
     EXPECT_SUCCESS(urEventCreateWithNativeHandle(0, context1, nullptr,
@@ -98,7 +112,7 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
         urEnqueueEventsWait(queue1, 1, eventWaitDummy.ptr(), eventWait.ptr()));
     EXPECT_SUCCESS(
         urEnqueueEventsWait(queue2, 1, eventWait.ptr(), event.ptr()));
-    EXPECT_EQ((*ZeCallCount)["zeCommandListAppendWaitOnEvents"], 3);
+    EXPECT_EQ(zeCommandListAppendWaitOnEventsCount, 3);
     ASSERT_SUCCESS(urEventRelease(eventWaitDummy.get()));
     ASSERT_SUCCESS(urEventRelease(eventWait.get()));
     ASSERT_SUCCESS(urEventRelease(event.get()));
