@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// XFAIL: hip_nvidia
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16197
 
 //==--------------- queue.cpp - SYCL queue test ----------------------------==//
 //

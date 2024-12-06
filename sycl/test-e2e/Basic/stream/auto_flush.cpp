@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
-//
-// XFAIL: hip_nvidia
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16198
 
 //==-------------- copy.cpp - SYCL stream obect auto flushing test ---------==//
 //

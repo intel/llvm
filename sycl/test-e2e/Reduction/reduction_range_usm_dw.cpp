@@ -1,10 +1,5 @@
 // RUN: %{build} -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
 // RUN: %{run} %t.out
-//
-// Error message `Group algorithms are not
-// supported on host device.` on Nvidia.
-// XFAIL: hip_nvidia
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14973
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
