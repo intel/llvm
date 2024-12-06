@@ -658,14 +658,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
-#if !defined(_WIN32)
+  // Handle Sanitize Options
   std::string SanitizeVal;
+  std::string SanitizeArg;
   size_t sanitizer_lib_idx = getSingleBuildTarget();
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
                                options::OPT_fno_sanitize_EQ)) {
     if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
-        A->getValues().size() == 1)
+        A->getValues().size() == 1) {
       SanitizeVal = A->getValue();
+      SanitizeArg = A->getAsString(Args);
+    }
   } else {
     // User can pass -fsanitize=address to device compiler via
     // -Xsycl-target-frontend, sanitize device library must be
@@ -689,20 +692,26 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     for (const std::string &Arg : ArgVals) {
       if (Arg.find("-fsanitize=address") != std::string::npos) {
         SanitizeVal = "address";
+        SanitizeArg = Arg;
         break;
       }
       if (Arg.find("-fsanitize=memory") != std::string::npos) {
         SanitizeVal = "memory";
+        SanitizeArg = Arg;
         break;
       }
     }
   }
 
+#if !defined(_WIN32)
   if (SanitizeVal == "address")
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
     addLibraries(SYCLDeviceMsanLibs);
-
+#else // _WIN32
+  if (SanitizeVal)
+    D.Diag(diag::warn_drv_unsupported_option_for_target)
+        << SanitizeArg << Target.str();
 #endif
 
   if (isNativeCPU)
@@ -1638,7 +1647,7 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
       // All sanitizer options are not currently supported, except
-      // AddressSanitizer
+      // AddressSanitizer and MemorySanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
