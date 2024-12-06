@@ -42,12 +42,22 @@ namespace detail {
 
 /// Groups the OS-dependent services.
 class __SYCL_EXPORT OSUtil {
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#ifdef _WIN32
+  // Access control is part of the mangling on Windows, have to preserve this
+  // for backward ABI compatibility.
 public:
-  /// Returns an absolute path to a directory where the object was found.
-  static std::string getCurrentDSODir();
-
+#endif
   /// Returns a directory component of a path.
   static std::string getDirName(const char *Path);
+#endif
+
+public:
+  /// Returns an absolute path to a directory where the object was found.
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+  __SYCL_DLL_LOCAL
+#endif
+  static std::string getCurrentDSODir();
 
 #ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";
