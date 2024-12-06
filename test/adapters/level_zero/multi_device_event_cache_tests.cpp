@@ -69,8 +69,6 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
     uur::raii::Event eventWait = nullptr;
     uur::raii::Event eventWaitDummy = nullptr;
     zeCommandListAppendWaitOnEventsCount = 0;
-    EXPECT_SUCCESS(
-        urEventCreateWithNativeHandle(0, context2, nullptr, eventWait.ptr()));
     EXPECT_SUCCESS(urEventCreateWithNativeHandle(0, context1, nullptr,
                                                  eventWaitDummy.ptr()));
     EXPECT_SUCCESS(
@@ -106,8 +104,6 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
     uur::raii::Event eventWait = nullptr;
     uur::raii::Event eventWaitDummy = nullptr;
     zeCommandListAppendWaitOnEventsCount = 0;
-    EXPECT_SUCCESS(
-        urEventCreateWithNativeHandle(0, context2, nullptr, eventWait.ptr()));
     EXPECT_SUCCESS(urEventCreateWithNativeHandle(0, context1, nullptr,
                                                  eventWaitDummy.ptr()));
     EXPECT_SUCCESS(
