@@ -16,6 +16,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 #define __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,      \
                                           ADDR_SPACE, ADDR_SPACE_NV, ORDER)    \
   switch (scope) {                                                             \
+  case Invocation:                                                             \
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
     TYPE_NV res = __nvvm##ORDER##_cta_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(      \

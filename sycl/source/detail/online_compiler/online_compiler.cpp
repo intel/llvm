@@ -204,8 +204,10 @@ compileToSPIRV(string_view Src, sycl::info::device_type DeviceType,
 
 template <source_language Lang>
 __SYCL_EXPORT std::vector<byte> online_compiler<Lang>::compile_impl(
-    detail::string_view Src, detail::string_view DeviceStepping,
-    const std::vector<detail::string_view> &Options) {
+    detail::string_view Src, const std::vector<detail::string_view> &Options,
+    std::pair<int, int> OutputFormatVersion, sycl::info::device_type DeviceType,
+    device_arch DeviceArch, bool Is64Bit, detail::string_view DeviceStepping,
+    void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle) {
 
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
     std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
@@ -228,13 +230,17 @@ __SYCL_EXPORT std::vector<byte> online_compiler<Lang>::compile_impl(
 
 template __SYCL_EXPORT std::vector<byte>
 online_compiler<source_language::opencl_c>::compile_impl(
-    detail::string_view Src, detail::string_view DeviceStepping,
-    const std::vector<detail::string_view> &Options);
+    detail::string_view Src, const std::vector<detail::string_view> &Options,
+    std::pair<int, int> OutputFormatVersion, sycl::info::device_type DeviceType,
+    device_arch DeviceArch, bool Is64Bit, detail::string_view DeviceStepping,
+    void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle);
 
 template __SYCL_EXPORT std::vector<byte>
 online_compiler<source_language::cm>::compile_impl(
-    detail::string_view Src, detail::string_view DeviceStepping,
-    const std::vector<detail::string_view> &Options);
+    detail::string_view Src, const std::vector<detail::string_view> &Options,
+    std::pair<int, int> OutputFormatVersion, sycl::info::device_type DeviceType,
+    device_arch DeviceArch, bool Is64Bit, detail::string_view DeviceStepping,
+    void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle);
 } // namespace ext::intel::experimental
 
 namespace ext {
