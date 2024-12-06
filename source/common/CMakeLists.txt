@@ -32,11 +32,10 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # special branch with cherry-picks for incoming pulldown
-    # contains UMF PRs: #866, #924, and #930
-    # branch was based on commit: 3bae087c9a8c0cbed5bde40f0d5a2
-    # umf-fixes-nov-pulldown: 25.11.2024: Disable libudev in hwloc builds
-    set(UMF_TAG a7b6152b7b095c88ddf34bc7d442eb4c2b3f74d6)
+    # tag v0.10.0
+    # Tagger: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Mon Dec 9 17:01:43 2024 +0100
+    set(UMF_TAG v0.10.0)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
