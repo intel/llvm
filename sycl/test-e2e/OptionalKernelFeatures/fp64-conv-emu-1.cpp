@@ -1,9 +1,24 @@
-// REQUIRES: ocloc, gpu, linux, arch-intel_gpu_dg2_g10
+// -fsycl-fp64-conv-emu is not a language feature, but an implementation
+// feature that is only available for Intel GPUs. In this test we recreate a
+// user-provided scenario of a kernel which only uses double for conversions
+// (the only thing which can be emulated) to make sure that both compilation
+// and execution of such scenario works fine on different HW (w/ and w/o fp64
+// support).
+//
+// REQUIRES: ocloc
+//
+// We require a certain HW here, because we specifically want to exercise AOT
+// compilation and not JIT fallback. However, to make this test run in more
+// environments (and therefore cover more scenarios), the list of HW is bigger
+// than just a single target.
+//
+// REQUIRES: arch-intel_gpu_dg2_g10 || arch-intel_gpu_dg2_g11 || arch-intel_gpu_dg2_g12 || arch-intel_gpu_pvc || arch-intel_gpu_mtl_h || arch-intel_gpu_mtl_u
+//
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-REASON: FP64 emulation is an Intel specific feature.
 
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
-// RUN: %{run} %t_opt.out
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10,intel_gpu_dg2_g11,intel_gpu_dg2_g12,intel_gpu_pvc,intel_gpu_mtl_h,intel_gpu_mtl_u -fsycl-fp64-conv-emu -O0 %s -o %t.out
+// RUN: %{run} %t.out
 
 // Tests that aspect::fp64 is not emitted correctly when -fsycl-fp64-conv-emu
 // flag is used.
