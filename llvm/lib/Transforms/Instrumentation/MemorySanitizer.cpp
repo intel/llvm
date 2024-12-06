@@ -730,23 +730,17 @@ MemorySanitizerOptions::MemorySanitizerOptions(int TO, bool R, bool K,
       Recover(getOptOrDefault(ClKeepGoing, Kernel || R)),
       EagerChecks(getOptOrDefault(ClEagerChecks, EagerChecks)) {}
 
-static StringMap<GlobalVariable *> GlobalStringMap;
-
-GlobalVariable *getOrCreateGlobalString(Module &M, StringRef Name,
-                                        StringRef Value,
-                                        unsigned AddressSpace) {
-  GlobalVariable *StringGV = nullptr;
-  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
-    return GlobalStringMap.at(Value.str());
-
+Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
+                                  unsigned AddressSpace) {
+  auto StringName = (Twine(Name) + "_" + Value).str();
   auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
-  StringGV = new GlobalVariable(
-      M, Ty, true, GlobalValue::InternalLinkage,
-      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
-      GlobalValue::NotThreadLocal, AddressSpace);
-  GlobalStringMap[Value.str()] = StringGV;
 
-  return StringGV;
+  return M.getOrInsertGlobal(StringName, Ty, [&] {
+    return new GlobalVariable(
+        M, Ty, true, GlobalValue::InternalLinkage,
+        ConstantDataArray::getString(M.getContext(), Value), StringName,
+        nullptr, GlobalValue::NotThreadLocal, AddressSpace);
+  });
 }
 
 static void extendSpirKernelArgs(Module &M) {
@@ -821,10 +815,6 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
     Modified |=
         Msan.sanitizeFunction(F, FAM.getResult<TargetLibraryAnalysis>(F));
   }
-
-  // Clear GlobalStringMap to prevent its content from being used by other
-  // modules
-  GlobalStringMap.clear();
 
   if (!Modified)
     return PreservedAnalyses::all();
