@@ -181,11 +181,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
                                      const GlobalBinImageProps &GlobProps) {
 
   PropSetRegTy PropSet;
-  {
-    uint32_t MRMask = getSYCLDeviceLibReqMask(M);
-    std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
-    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
-  }
 
   {
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,

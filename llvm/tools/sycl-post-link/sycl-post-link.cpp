@@ -455,7 +455,6 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
-      if (EmitImportedSymbols)
         GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                      EmitExportedSymbols, EmitImportedSymbols,
                                      DeviceGlobals};

@@ -217,11 +217,6 @@ public:
 
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
-  std::vector<ur_program_handle_t>
-  getDeviceLibReqPrograms(const ContextImplPtr Context,
-                          std::vector<ur_device_handle_t> &Devices,
-                          uint32_t DeviceLibReqMask);
-
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
   /// \param NativePrg the UR program associated with the kernel.
@@ -378,10 +373,6 @@ private:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
-
-  std::mutex m_DeviceLibImagesMutex;
-
-  std::unordered_map<unsigned, RTDeviceBinaryImageUPtr> m_DeviceLibImages;
 
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
