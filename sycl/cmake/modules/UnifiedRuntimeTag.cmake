@@ -1,7 +1,7 @@
-# commit a172cde4bc2857dcf74b0b2907a5b0f90566e808 (HEAD, origin/main, origin/HEAD)
-# Merge: 1851eff47b0a cde0d4c820b0
+# commit aa72577da55571b15028dd1710e02a7ea4f62338
+# Merge: 89def64486dd 3d2b7210e352
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 5 12:29:44 2024 +0000
-#   Merge pull request #2249 from zhaomaosu/use-device-usm-for-rtl-data
-#   [DeviceASAN] Use device usm to sync asan runtime data instead of shared usm
-set(UNIFIED_RUNTIME_TAG a172cde4bc2857dcf74b0b2907a5b0f90566e808)
+# Date:   Fri Dec 6 15:24:04 2024 +0000
+#     Merge pull request #2352 from aarongreig/aaron/fixCoverity15-11
+#     Fix a number of issues from the latest coverity scan.
+set(UNIFIED_RUNTIME_TAG aa72577da55571b15028dd1710e02a7ea4f62338)

@@ -73,7 +73,7 @@ int main(int, char **argv) {
     assert(check_value(i, 0, HostDataB[i], "HostDataB"));
   }
 
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
