@@ -1,7 +1,7 @@
-# commit e1cc9b2cfce7f329f0f411b5b84837b511b86a2d
-# Merge: 5a1a81b6 b209eba8
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Dec 10 14:29:41 2024 +0000
-#     Merge pull request #2394 from zhaomaosu/do-alloc-use-pool
-#     [DevASAN] Do allocation with USM pool to reduce memory overhead
-set(UNIFIED_RUNTIME_TAG e1cc9b2cfce7f329f0f411b5b84837b511b86a2d)
+# commit a172cde4bc2857dcf74b0b2907a5b0f90566e808 (HEAD, origin/main, origin/HEAD)
+# Merge: 1851eff47b0a cde0d4c820b0
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Thu Dec 5 12:29:44 2024 +0000
+#   Merge pull request #2249 from zhaomaosu/use-device-usm-for-rtl-data
+#   [DeviceASAN] Use device usm to sync asan runtime data instead of shared usm
+set(UNIFIED_RUNTIME_TAG 08acf05f2d661421a14f71c3cd1f21daa1e34908)
