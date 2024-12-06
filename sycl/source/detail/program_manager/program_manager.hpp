@@ -335,6 +335,9 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
+  std::optional<int>
+  kernelImplicitLocalArgPos(const std::string &KernelName) const;
+
   bool kernelUsesAsan() const { return m_AsanFoundInImage; }
 
   std::set<RTDeviceBinaryImage *>
@@ -359,6 +362,9 @@ private:
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
+
+  /// Add info on kernels using local arg into cache
+  void cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img);
 
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
@@ -466,6 +472,7 @@ private:
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
   std::set<std::string> m_KernelUsesAssert;
+  std::unordered_map<std::string, int> m_KernelImplicitLocalArgPos;
 
   // True iff there is a device image compiled with AddressSanitizer
   bool m_AsanFoundInImage;

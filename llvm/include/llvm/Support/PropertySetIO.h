@@ -211,6 +211,7 @@ public:
   static constexpr char SYCL_DEVICE_REQUIREMENTS[] = "SYCL/device requirements";
   static constexpr char SYCL_HOST_PIPES[] = "SYCL/host pipes";
   static constexpr char SYCL_VIRTUAL_FUNCTIONS[] = "SYCL/virtual functions";
+  static constexpr char SYCL_IMPLICIT_LOCAL_ARG[] = "SYCL/implicit local arg";
 
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .

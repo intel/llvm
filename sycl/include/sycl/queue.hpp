@@ -14,7 +14,6 @@
 #include <sycl/async_handler.hpp>             // for async_handler
 #include <sycl/backend_types.hpp>             // for backend, backe...
 #include <sycl/buffer.hpp>                    // for buffer
-#include <sycl/context.hpp>                   // for context
 #include <sycl/detail/assert_happened.hpp>    // for AssertHappened
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location

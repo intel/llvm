@@ -25,6 +25,8 @@
 
 #include "tables.h"
 #include <clc/clcmacro.h>
+#include <clc/relational/clc_isinf.h>
+#include <clc/relational/clc_isnan.h>
 #include <config.h>
 #include <math/math.h>
 
@@ -92,7 +94,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_ldexp(float x, int n) {
   val_ui = dexp == 0 ? dval_ui : val_ui;
   val_f = as_float(val_ui);
 
-  val_f = __spirv_IsNan(x) || __spirv_IsInf(x) || val_x == 0 ? x : val_f;
+  val_f = __clc_isnan(x) || __clc_isinf(x) || val_x == 0 ? x : val_f;
   return val_f;
 }
 
@@ -125,7 +127,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_ldexp(double x, int n) {
   mr = v == 0x7ff ? as_double(s | PINFBITPATT_DP64) : mr;
   mr = v < -53 ? as_double(s) : mr;
 
-  mr = ((n == 0) | __spirv_IsInf(x) | (x == 0)) ? x : mr;
+  mr = ((n == 0) | __clc_isinf(x) | (x == 0)) ? x : mr;
   return mr;
 }
 

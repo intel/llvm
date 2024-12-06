@@ -1889,6 +1889,24 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
   return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
 }
 
+void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
+      Img.getImplicitLocalArg();
+  if (ImplicitLocalArgRange.isAvailable())
+    for (auto Prop : ImplicitLocalArgRange) {
+      m_KernelImplicitLocalArgPos[Prop->Name] =
+          DeviceBinaryProperty(Prop).asUint32();
+    }
+}
+
+std::optional<int>
+ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
+  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+  if (it != m_KernelImplicitLocalArgPos.end())
+    return it->second;
+  return {};
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
@@ -2014,6 +2032,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
       m_AsanFoundInImage |=
           Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0);
     }
+
+    cacheKernelImplicitLocalArg(*Img);
 
     // Sort kernel ids for faster search
     std::sort(m_BinImg2KernelIDs[Img.get()]->begin(),
