@@ -9486,13 +9486,17 @@ urEnqueueCooperativeKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pLocalWorkSize`
 ///         + `NULL == pGroupCountRet`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
-    size_t localWorkSize,           ///< [in] number of local work-items that will form a work-group when the
-                                    ///< kernel is launched
+    uint32_t workDim,               ///< [in] number of dimensions, from 1 to 3, to specify the work-group
+                                    ///< work-items
+    const size_t *pLocalWorkSize,   ///< [in] pointer to an array of workDim unsigned values that specify the
+                                    ///< number of local work-items forming a work-group that will execute the
+                                    ///< kernel function.
     size_t dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
                                     ///< that will be used when the kernel is launched
     uint32_t *pGroupCountRet        ///< [out] pointer to maximum number of groups
@@ -11028,7 +11032,8 @@ typedef struct ur_kernel_set_specialization_constants_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t {
     ur_kernel_handle_t *phKernel;
-    size_t *plocalWorkSize;
+    uint32_t *pworkDim;
+    const size_t **ppLocalWorkSize;
     size_t *pdynamicSharedMemorySize;
     uint32_t **ppGroupCountRet;
 } ur_kernel_suggest_max_cooperative_group_count_exp_params_t;

@@ -13074,9 +13074,15 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phKernel));
 
     os << ", ";
-    os << ".localWorkSize = ";
+    os << ".workDim = ";
 
-    os << *(params->plocalWorkSize);
+    os << *(params->pworkDim);
+
+    os << ", ";
+    os << ".pLocalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppLocalWorkSize));
 
     os << ", ";
     os << ".dynamicSharedMemorySize = ";
