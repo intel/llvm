@@ -15,6 +15,8 @@
 ??$create_sub_devices@$0BAIJ@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@@Z
 ??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$02@12@_K@Z
+??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$00@12@_K@Z
+??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$01@12@_K@Z
 ??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$02@12@_K@Z
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -331,13 +333,13 @@
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBX@Z
-?get_active_cgf@dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
+?get_active_index@dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ??4dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV012345@$$QEAV012345@@Z
 ?addImpl@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA?AVnode@34567@AEAVdynamic_command_group@34567@AEBV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@@Z
 ??0dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV?$command_graph@$0A@@12345@AEBV?$vector@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V?$allocator@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@@2@@std@@@Z
 ??0dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
-?set_active_cgf@dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
+?set_active_index@dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
 ??1dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??4dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV012345@AEBV012345@@Z
 ??0event@_V1@sycl@@AEAA@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
