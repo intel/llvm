@@ -94,9 +94,7 @@ implementation supports.
 A SYCL device is divided into one or more compute units, which are each divided
 into one or more processing elements.
 
-All work-items in a given work-group must execute on exactly one compute unit,
-and the work-items within a work-group must not migrate between compute units
-during kernel execution.
+All work-items in a given work-group must execute on exactly one compute unit.
 The mapping of work-groups to compute units is not guaranteed: work-groups may
 be dispatched to compute units in any order, and this order may be different
 for every kernel launch.
