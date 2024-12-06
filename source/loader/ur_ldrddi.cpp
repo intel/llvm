@@ -8760,9 +8760,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    size_t
-        localWorkSize, ///< [in] number of local work-items that will form a work-group when the
-                       ///< kernel is launched
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the work-group
+                 ///< work-items
+    const size_t *
+        pLocalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of local work-items forming a work-group that will execute the
+    ///< kernel function.
     size_t
         dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
     ///< that will be used when the kernel is launched
@@ -8785,7 +8789,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 
     // forward to device-platform
     result = pfnSuggestMaxCooperativeGroupCountExp(
-        hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
+        hKernel, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+        pGroupCountRet);
 
     return result;
 }

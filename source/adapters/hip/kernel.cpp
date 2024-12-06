@@ -169,10 +169,11 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, size_t localWorkSize,
+    ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pLocalWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
   std::ignore = hKernel;
-  std::ignore = localWorkSize;
+  std::ignore = workDim;
+  std::ignore = pLocalWorkSize;
   std::ignore = dynamicSharedMemorySize;
   std::ignore = pGroupCountRet;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
