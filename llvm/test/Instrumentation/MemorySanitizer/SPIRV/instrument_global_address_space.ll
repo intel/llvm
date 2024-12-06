@@ -7,7 +7,8 @@ target triple = "spir64-unknown-unknown"
 
 $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel = comdat any
 
-; CHECK: @__MsanKernelMetadata
+; CHECK: @__MsanKernelMetadata = appending dso_local local_unnamed_addr addrspace(1) global
+; CHECK-SAME: [[ATTR0:#[0-9]+]]
 
 ; Function Attrs: mustprogress norecurse nounwind sanitize_memory uwtable
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) local_unnamed_addr #0 comdat !srcloc !85 !kernel_arg_buffer_location !86 !sycl_fixed_targets !87 {
@@ -34,7 +35,9 @@ entry:
   ret i64 %add
 }
 
-; CHECK: "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__MsanKernelMetadata"
+; CHECK: attributes [[ATTR0]]
+; CHECK-SAME: "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__MsanKernelMetadata"
+
 attributes #0 = { mustprogress norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="check_call.cpp" "sycl-single-task" "uniform-work-group-size"="true" }
 attributes #1 = { mustprogress noinline norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { nounwind }

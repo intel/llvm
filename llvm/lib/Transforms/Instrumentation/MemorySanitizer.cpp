@@ -1240,6 +1240,7 @@ static unsigned TypeSizeToSizeIndex(TypeSize TS) {
 static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
+  assert(OrigValue != nullptr);
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
     return true;
 
@@ -1254,7 +1255,7 @@ static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   return false;
 }
 
-static void noSanitizedSPIRInstruction(Instruction &I) {
+static void setNoSanitizedMetadataSPIR(Instruction &I) {
   const Value *Addr = nullptr;
   if (const auto *LI = dyn_cast<LoadInst>(&I))
     Addr = LI->getPointerOperand();
@@ -1268,30 +1269,33 @@ static void noSanitizedSPIRInstruction(Instruction &I) {
     I.setNoSanitizeMetadata();
   else if (const auto *CI = dyn_cast<CallInst>(&I)) {
     auto *Func = CI->getCalledFunction();
-    if (Func->isIntrinsic()) {
-      switch (CI->getIntrinsicID()) {
-      case Intrinsic::masked_load:
-      case Intrinsic::masked_store:
-      case Intrinsic::masked_gather:
-      case Intrinsic::masked_scatter: {
-        bool IsWrite = CI->getType()->isVoidTy();
-        // Masked store has an initial operand for the value.
-        unsigned OpOffset = IsWrite ? 1 : 0;
-        Addr = CI->getOperand(OpOffset);
-        break;
+    if (Func) {
+      if (Func->isIntrinsic()) {
+        switch (CI->getIntrinsicID()) {
+        case Intrinsic::masked_load:
+        case Intrinsic::masked_store:
+        case Intrinsic::masked_gather:
+        case Intrinsic::masked_scatter: {
+          bool IsWrite = CI->getType()->isVoidTy();
+          // Masked store has an initial operand for the value.
+          unsigned OpOffset = IsWrite ? 1 : 0;
+          Addr = CI->getOperand(OpOffset);
+          break;
+        }
+        case Intrinsic::masked_expandload:
+        case Intrinsic::masked_compressstore: {
+          bool IsWrite =
+              CI->getIntrinsicID() == Intrinsic::masked_compressstore;
+          unsigned OpOffset = IsWrite ? 1 : 0;
+          Addr = CI->getOperand(OpOffset);
+          break;
+        }
+        }
+      } else {
+        auto FuncName = Func->getName();
+        if (FuncName.contains("__spirv_"))
+          I.setNoSanitizeMetadata();
       }
-      case Intrinsic::masked_expandload:
-      case Intrinsic::masked_compressstore: {
-        bool IsWrite = CI->getIntrinsicID() == Intrinsic::masked_compressstore;
-        unsigned OpOffset = IsWrite ? 1 : 0;
-        Addr = CI->getOperand(OpOffset);
-        break;
-      }
-      }
-    } else {
-      auto FuncName = Func->getName();
-      if (FuncName.contains("__spirv_"))
-        I.setNoSanitizeMetadata();
     }
   }
 
@@ -2452,7 +2456,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   using InstVisitor<MemorySanitizerVisitor>::visit;
   void visit(Instruction &I) {
     if (SpirOrSpirv)
-      noSanitizedSPIRInstruction(I);
+      setNoSanitizedMetadataSPIR(I);
 
     if (I.getMetadata(LLVMContext::MD_nosanitize))
       return;
