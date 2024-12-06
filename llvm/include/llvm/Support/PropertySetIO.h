@@ -213,6 +213,9 @@ public:
   static constexpr char SYCL_VIRTUAL_FUNCTIONS[] = "SYCL/virtual functions";
   static constexpr char SYCL_IMPLICIT_LOCAL_ARG[] = "SYCL/implicit local arg";
 
+  static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =
+      "reqd_work_group_size_uint64_t";
+
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .
   template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
@@ -230,6 +233,17 @@ public:
   void add(StringRef Category, StringRef PropName, const T &PropVal) {
     auto &PropSet = PropSetMap[Category];
     PropSet.insert({PropName, PropertyValue(PropVal)});
+  }
+
+  void remove(StringRef Category, StringRef PropName) {
+    auto PropertySetIt = PropSetMap.find(Category);
+    if (PropertySetIt == PropSetMap.end())
+      return;
+    auto &PropertySet = PropertySetIt->second;
+    auto PropIt = PropertySet.find(PropName);
+    if (PropIt == PropertySet.end())
+      return;
+    PropertySet.erase(PropIt);
   }
 
   /// Parses from the given \p Buf a property set registry.
