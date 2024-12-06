@@ -1,3 +1,13 @@
+// -fsycl-fp64-conv-emu is not a language feature, but an implementation
+// feature that is only available for Intel GPUs. In this test we recreate a
+// user-provided scenario where an application has two kinds of kernels: ones
+// which require full fp64 support and ones which can be emulated.
+//
+// The test ensures that the application can be successfully AOT compiled and
+// ran on different HW (w/ and w/o native fp64 support), i.e. it also serves
+// as an integration test for two features: fp64 emulation and optional kernel
+// features AOT.
+//
 // REQUIRES: ocloc
 //
 // We require a certain HW here, because we specifically want to exercise AOT

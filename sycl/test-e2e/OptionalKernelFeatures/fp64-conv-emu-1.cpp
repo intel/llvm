@@ -1,3 +1,10 @@
+// -fsycl-fp64-conv-emu is not a language feature, but an implementation
+// feature that is only available for Intel GPUs. In this test we recreate a
+// user-provided scenario of a kernel which only uses double for conversions
+// (the only thing which can be emulated) to make sure that both compilation
+// and execution of such scenario works fine on different HW (w/ and w/o fp64
+// support).
+//
 // REQUIRES: ocloc
 //
 // We require a certain HW here, because we specifically want to exercise AOT
