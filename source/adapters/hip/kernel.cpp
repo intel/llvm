@@ -226,6 +226,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(hKernel->getProgram());
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
+  case UR_KERNEL_INFO_NUM_REGS: {
+    int NumRegs = 0;
+    UR_CHECK_ERROR(hipFuncGetAttribute(&NumRegs, HIP_FUNC_ATTRIBUTE_NUM_REGS,
+                                       hKernel->get()));
+    return ReturnValue(static_cast<uint32_t>(NumRegs));
+  }
   default:
     break;
   }
