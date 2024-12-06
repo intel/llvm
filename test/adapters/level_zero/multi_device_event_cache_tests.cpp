@@ -54,12 +54,12 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
     ASSERT_SUCCESS(urDevicePartition(devices[0], &properties, numSubDevices,
                                      sub_devices.data(), nullptr));
     uur::raii::Context context1 = nullptr;
-    ASSERT_SUCCESS(
-        urContextCreate(1, &sub_devices[0], nullptr, context1.ptr()));
+    ASSERT_SUCCESS(urContextCreate(sub_devices.size(), &sub_devices[0], nullptr,
+                                   context1.ptr()));
     ASSERT_NE(nullptr, context1);
     uur::raii::Context context2 = nullptr;
-    ASSERT_SUCCESS(
-        urContextCreate(1, &sub_devices[1], nullptr, context2.ptr()));
+    ASSERT_SUCCESS(urContextCreate(sub_devices.size(), &sub_devices[0], nullptr,
+                                   context2.ptr()));
     ASSERT_NE(nullptr, context2);
     ur_queue_handle_t queue1 = nullptr;
     ASSERT_SUCCESS(urQueueCreate(context1, sub_devices[0], 0, &queue1));
@@ -91,10 +91,12 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
         GTEST_SKIP();
     }
     uur::raii::Context context1 = nullptr;
-    ASSERT_SUCCESS(urContextCreate(1, &devices[0], nullptr, context1.ptr()));
+    ASSERT_SUCCESS(
+        urContextCreate(devices.size(), &devices[0], nullptr, context1.ptr()));
     ASSERT_NE(nullptr, context1);
     uur::raii::Context context2 = nullptr;
-    ASSERT_SUCCESS(urContextCreate(1, &devices[1], nullptr, context2.ptr()));
+    ASSERT_SUCCESS(
+        urContextCreate(devices.size(), &devices[0], nullptr, context2.ptr()));
     ASSERT_NE(nullptr, context2);
     ur_queue_handle_t queue1 = nullptr;
     ASSERT_SUCCESS(urQueueCreate(context1, devices[0], 0, &queue1));
