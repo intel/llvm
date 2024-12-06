@@ -1,7 +1,7 @@
-# commit db83117e830406b0d9950e24892dba868acba354
-# Merge: 0a90db9b c79df596
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 27 16:04:19 2024 +0000
-#     Merge pull request #2261 from againull/againull/2d_block_exp
-#     Add new device descriptor to query 2D block array capabilities of the Intel GPU
-set(UNIFIED_RUNTIME_TAG "ben/coverity-fixes")
+# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
+# Merge: daa0b110464c 323b37c55504
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Fri Dec 6 18:03:11 2024 +0000
+#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
+#     Fix command_buffer coverity issues
+set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)
