@@ -49,7 +49,7 @@ if (UR_STATIC_ADAPTER_L0)
     endif()
 endif()
 
-set(UR_USE_EXTERNAL_UMF "" CACHE BOOL "Use a pre-built UMF")
+set(UR_USE_EXTERNAL_UMF OFF CACHE BOOL "Use a pre-built UMF")
 
 if (UR_USE_EXTERNAL_UMF)
   find_package(umf REQUIRED)
