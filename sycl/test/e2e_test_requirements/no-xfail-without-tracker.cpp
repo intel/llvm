@@ -57,16 +57,11 @@
 // Remove the CHECK once the test has been properly XFAIL-ed.
 //
 // CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
-// CHECK-NEXT: Basic/aspects.cpp
-// CHECK-NEXT: Basic/device_event.cpp
-// CHECK-NEXT: Basic/diagnostics/handler.cpp
 // CHECK-NEXT: Basic/max_linear_work_group_size_props.cpp
 // CHECK-NEXT: Basic/max_work_group_size_props.cpp
-// CHECK-NEXT: Basic/partition_supported.cpp
 // CHECK-NEXT: DeviceLib/assert-windows.cpp
 // CHECK-NEXT: ESIMD/hardware_dispatch.cpp
 // CHECK-NEXT: InlineAsm/asm_multiple_instructions.cpp
-// CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_annotated_ptr.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_packedB.cpp
@@ -85,15 +80,10 @@
 // CHECK-NEXT: NewOffloadDriver/sycl-external-with-optional-features.cpp
 // CHECK-NEXT: OptionalKernelFeatures/throw-exception-for-out-of-registers-on-kernel-launch.cpp
 // CHECK-NEXT: PerformanceTests/Reduction/reduce_over_sub_group.cpp
-// CHECK-NEXT: Printf/int.cpp
-// CHECK-NEXT: Printf/mixed-address-space.cpp
-// CHECK-NEXT: Printf/percent-symbol.cpp
 // CHECK-NEXT: Reduction/reduction_big_data.cpp
 // CHECK-NEXT: Reduction/reduction_nd_reducer_skip.cpp
 // CHECK-NEXT: Reduction/reduction_reducer_op_eq.cpp
 // CHECK-NEXT: Regression/build_log.cpp
 // CHECK-NEXT: Regression/complex_global_object.cpp
-// CHECK-NEXT: Regression/context_is_destroyed_after_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
-// CHECK-NEXT: Regression/multiple-targets.cpp
 // CHECK-NEXT: Regression/reduction_resource_leak_dw.cpp
