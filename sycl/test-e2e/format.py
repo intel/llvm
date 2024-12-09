@@ -154,10 +154,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if isinstance(script, lit.Test.Result):
             return script
 
+
+        unsplit_test = False
+        if "build-and-run-mode" in test.requires:
+            unsplit_test = True
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
-            if "build-and-run-mode" in test.requires or "true" in test.unsupported:
+            if unsplit_test or "true" in test.unsupported:
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "Test unsupported for this environment"
                 )
@@ -232,7 +236,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 continue
 
             # Filter commands based on split-mode
-            is_run_line = any(
+            is_run_line = unsplit_test or any(
                 i in directive.command
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
             )

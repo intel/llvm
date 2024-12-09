@@ -45,6 +45,7 @@ if config.test_mode == "full":
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
+    config.available_features.add("build-and-run-mode")
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
