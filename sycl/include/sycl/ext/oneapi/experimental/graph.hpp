@@ -226,8 +226,8 @@ public:
       const command_graph<graph_state::modifiable> &Graph,
       const std::vector<std::function<void(handler &)>> &CGFList);
 
-  size_t get_active_cgf() const;
-  void set_active_cgf(size_t Index);
+  size_t get_active_index() const;
+  void set_active_index(size_t Index);
 
 private:
   template <class Obj>
