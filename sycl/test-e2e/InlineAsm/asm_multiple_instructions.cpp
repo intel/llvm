@@ -1,4 +1,4 @@
-// REQUIRES: gpu,linux,sg-16
+// REQUIRES: sg-16
 // RUN: %{build} -DTO_PASS -o %t.out.pass
 // RUN: %{run} %t.out.pass
 // RUN: %{build} -o %t.out
