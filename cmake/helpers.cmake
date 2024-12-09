@@ -120,18 +120,28 @@ function(add_ur_target_compile_options name)
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
-            /W3
             /MD$<$<CONFIG:Debug>:d>
-            /GS
-            /DWIN32_LEAN_AND_MEAN
-            /DNOMINMAX
+
+            /W3
+            /GS     # Enable: Buffer security check
+            /Gy     # Enable: Function-level linking
+
+            $<$<CONFIG:Release>:/sdl>             # Enable: Additional SDL checks
+            $<$<CXX_COMPILER_ID:MSVC>:/Qspectre>  # Enable: Mitigate Spectre variant 1 vulnerabilities
+
+            /wd4267  # Disable: 'var' : conversion from 'size_t' to 'type', possible loss of data
+            /wd6244  # Disable: local declaration of 'variable' hides previous declaration
+            /wd6246  # Disable: local declaration of 'variable' hides declaration of same name in outer scope
+        )
+
+        target_compile_definitions(${name} PRIVATE
+            WIN32_LEAN_AND_MEAN NOMINMAX  # Cajole Windows.h to define fewer symbols
+            _CRT_SECURE_NO_WARNINGS       # Slience warnings about getenv
         )
 
         if(UR_DEVELOPER_MODE)
-            # _CRT_SECURE_NO_WARNINGS used mainly because of getenv
-            # C4267: The compiler detected a conversion from size_t to a smaller type.
             target_compile_options(${name} PRIVATE
-                /WX /GS /D_CRT_SECURE_NO_WARNINGS /wd4267
+                /WX  # Enable: Treat all warnings as errors
             )
         endif()
     endif()
@@ -155,9 +165,12 @@ function(add_ur_target_link_options name)
         endif()
     elseif(MSVC)
         target_link_options(${name} PRIVATE
-            LINKER:/DYNAMICBASE
-            LINKER:/HIGHENTROPYVA
-            LINKER:/NXCOMPAT
+            LINKER:/DYNAMICBASE     # Enable: Modify header to indicate ASLR should be use
+            LINKER:/HIGHENTROPYVA   # Enable: High-entropy address space layout randomization (ASLR)
+            $<$<CONFIG:Release>:
+                LINKER:/NXCOMPAT    # Enable: Data Execution Prevention
+                LINKER:/LTCG        # Enable: Link-time code generation
+            >
         )
     endif()
 endfunction()
