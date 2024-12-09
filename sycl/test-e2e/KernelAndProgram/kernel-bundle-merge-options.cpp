@@ -13,7 +13,7 @@
 
 // TODO: Uncomment when build options are properly passed to compile and link
 //       commands for kernel_bundle
-// xCHECK: <--- urProgramCompile(
-// xCHECK-SAME: -g
-// xCHECK: <--- urProgramLink(
-// xCHECK-SAME: -g
+// CHECK: <--- urProgramCompile(
+// CHECK-SAME: -g
+// CHECK: <--- urProgramLink(
+// CHECK-SAME: -g
