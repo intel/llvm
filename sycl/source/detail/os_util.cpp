@@ -11,10 +11,16 @@
 #include <cassert>
 #include <iostream>
 #include <limits>
-#if __GNUC__ && __GNUC__ < 8
-// Don't include <filesystem> for GCC versions less than 8
+
+// For GCC versions less than 8, use experimental/filesystem.
+#if defined(__has_include) && __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif defined(__has_include) && __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #else
-#include <filesystem> // C++ 17 std::create_directories
+#error "OSUtils requires C++ filesystem support"
 #endif
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -27,7 +33,6 @@
 #include <cstring>
 #include <dlfcn.h>
 #include <fstream>
-#include <ftw.h>    // for ftw - file tree walk
 #include <libgen.h> // for dirname
 #include <link.h>
 #include <linux/limits.h> // for PATH_MAX
@@ -278,69 +283,58 @@ int OSUtil::makeDir(const char *Dir) {
   return 0;
 }
 
-size_t OSUtil::DirSizeVar = 0;
 // Get size of a directory in bytes.
 size_t getDirectorySize(const std::string &Path) {
+  size_t DirSizeVar = 0;
 
-  OSUtil::DirSizeVar = 0;
-// Use ftw for Linux and darwin as they support posix.
-#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
-  auto SumSize = []([[maybe_unused]] const char *Fpath,
-                    const struct stat *StatBuf, int TypeFlag) {
-    if (TypeFlag == FTW_F)
-      OSUtil::DirSizeVar += StatBuf->st_size;
-    return 0;
-  };
+  // using fs::recursive_directory_iterator.
+  for (const auto &Entry : fs::recursive_directory_iterator(Path)) {
+    // Don't check file with .lock extension.
+    if (fs::is_regular_file(Entry.path()) &&
+        Entry.path().extension() != ".lock")
+      DirSizeVar += getFileSize(Entry.path().string());
+  }
 
-  if (ftw(Path.c_str(), SumSize, 1) == -1)
-    std::cerr << "Failed to get directory size: " << Path << std::endl;
-#endif
-
-  return OSUtil::DirSizeVar;
+  return DirSizeVar;
 }
 
 // Get size of file in bytes.
 size_t getFileSize(const std::string &Path) {
-  size_t Size = 0;
-
-  // For POSIX, use stats to get file size.
-#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
-  struct stat StatBuf;
-  if (stat(Path.c_str(), &StatBuf) == 0)
-    Size = StatBuf.st_size;
-
-#elif defined(__SYCL_RT_OS_WINDOWS)
-  // For Windows, use GetFileAttributesEx to get file size.
-  WIN32_FILE_ATTRIBUTE_DATA FileData;
-  if (GetFileAttributesEx(Path.c_str(), GetFileExInfoStandard, &FileData))
-    Size = (static_cast<size_t>(FileData.nFileSizeHigh) << 32) |
-           FileData.nFileSizeLow;
-#endif // __SYCL_RT_OS
-
-  return Size;
+  return static_cast<size_t>(fs::file_size(Path));
 }
 
-std::vector<std::pair<time_t, std::string>> OSUtil::Files = {};
 // Get list of all files in the directory along with its last access time.
-std::vector<std::pair<time_t, std::string>>
+std::vector<std::pair<uint64_t, std::string>>
 getFilesWithAccessTime(const std::string &Path) {
+  std::vector<std::pair<uint64_t, std::string>> Files = {};
 
-  OSUtil::Files.clear();
-
-// Use ftw for posix.
+  // using fs::recursive_directory_iterator.
+  for (const auto &Entry : fs::recursive_directory_iterator(Path)) {
+    if (fs::is_regular_file(Entry.path())) {
+// For Linux and Darwin, use stats.
 #if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
-  auto GetFiles = [](const char *Fpath, const struct stat *StatBuf,
-                     int TypeFlag) {
-    if (TypeFlag == FTW_F)
-      OSUtil::Files.push_back({StatBuf->st_atime, std::string(Fpath)});
-    return 0;
-  };
+      struct stat StatBuf;
+      if (stat(Entry.path().c_str(), &StatBuf) == 0)
+        Files.push_back({StatBuf.st_atime, Entry.path().string()});
+#elif defined(__SYCL_RT_OS_WINDOWS)
+      // For Windows, use GetFileAttributesEx to get file size.
+      WIN32_FILE_ATTRIBUTE_DATA FileData;
+      // Convert to wise string.
+      char *path = new char[Entry.path().string().length() + 1];
+      strcpy(path, Entry.path().string().c_str());
+      if (GetFileAttributesEx(path, GetFileExInfoStandard, &FileData)) {
+        // Convert FILETIME to uint64_t.
+        ULARGE_INTEGER Time;
+        Time.LowPart = FileData.ftLastAccessTime.dwLowDateTime;
+        Time.HighPart = FileData.ftLastAccessTime.dwHighDateTime;
+        Files.push_back({Time.QuadPart, Entry.path().string()});
+      }
+      free(path);
+#endif // __SYCL_RT_OS
+    }
+  }
 
-  if (ftw(Path.c_str(), GetFiles, 1) == -1)
-    std::cerr << "Failed to get files with access time: " << Path << std::endl;
-#endif
-
-  return OSUtil::Files;
+  return Files;
 }
 
 } // namespace detail

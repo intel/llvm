@@ -89,21 +89,6 @@ public:
     return !stat(Path.c_str(), &Stat);
 #endif
   }
-
-private:
-  // These static variables will be used by ftw POSIX function to
-  // calculate directory size and get files with access time. Other
-  // option is to make these global variables but that will pollute
-  // the sycl::detail namespace.
-  // QUESTION: Should we make these global variables? Or implement ftw-like
-  // function ourself for directory iteration?
-  static size_t DirSizeVar;
-  static std::vector<std::pair<time_t, std::string>> Files;
-
-  // Friendship is required to access private static variables.
-  friend size_t getDirectorySize(const std::string &Path);
-  friend std::vector<std::pair<time_t, std::string>>
-  getFilesWithAccessTime(const std::string &Path);
 };
 
 // These functions are not a part of OSUtils class to prevent
@@ -116,7 +101,7 @@ size_t getDirectorySize(const std::string &Path);
 size_t getFileSize(const std::string &Path);
 
 // Get list of all files in the directory along with its last access time.
-std::vector<std::pair<time_t, std::string>>
+std::vector<std::pair<uint64_t, std::string>>
 getFilesWithAccessTime(const std::string &Path);
 
 } // namespace detail
