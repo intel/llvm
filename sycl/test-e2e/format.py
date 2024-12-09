@@ -154,10 +154,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if isinstance(script, lit.Test.Result):
             return script
 
-
         unsplit_test = False
         if "build-and-run-mode" in test.requires:
             unsplit_test = True
+
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
