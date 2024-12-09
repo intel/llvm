@@ -26,12 +26,11 @@ jobs:
     - uses: actions/checkout@v4
       with:
         ref: ${{ env.SYCL_REL_BRANCH }}
-      run: |
-        git show --quiet | tee -a $GITHUB_STEP_SUMMARY
+    - run: git show --quiet | tee -a $GITHUB_STEP_SUMMARY
 
     - id: is_new_commit
       if: ${{ github.event_name == 'schedule' }}
-      run: test -z $(git rev-list --after="24 hours" HEAD) && echo "::set-output name=is_new_commit::false"
+      run: test -z $(git rev-list --after="24 hours" HEAD) && echo "is_new_commit=false" >> $GITHUB_OUTPUT
 
   ubuntu2204_build:
     needs: [check_for_new_commits]
