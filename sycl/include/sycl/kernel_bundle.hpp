@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>          // for backend, backend_return_t
-#include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
@@ -46,6 +45,7 @@ template <backend Backend> class backend_traits;
 template <backend Backend, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<Backend, kernel_bundle<State>>;
+class context;
 
 namespace detail {
 class kernel_id_impl;
