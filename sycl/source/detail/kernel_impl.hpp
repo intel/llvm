@@ -304,6 +304,16 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
       Queue, WorkGroupSize, /* DynamicLocalMemorySize */ 0);
 }
 
+template <>
+inline typename syclex::info::kernel_queue_specific::max_work_group_size::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_work_group_size>(
+        queue Queue) const {
+  auto Device = Queue.get_device();
+  return get_info<info::kernel_device_specific::work_group_size>(Device);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
