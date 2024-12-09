@@ -1,4 +1,3 @@
-// UNSUPPORTED: cuda || hip_nvidia
 // REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
