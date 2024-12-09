@@ -5774,10 +5774,7 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
 
     if (getTriple().isNVPTX() || getTriple().isAMDGPU()) {
       const RecordDecl *RD = D->getType()->getAsRecordDecl();
-      if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>()) {
-        clang::CXXRecordDecl *record = D->getType()->getAsCXXRecordDecl();
-        const auto *Spec = cast<ClassTemplateSpecializationDecl>(record);
-        if (Spec->getTemplateArgs().get(0).getAsType().isConstQualified())
+      if (RD && RD->hasAttr<SYCLDeviceConstantAttr>()) {
           return LangAS::opencl_constant;
       }
     }

@@ -1805,6 +1805,15 @@ def SYCLDeviceGlobal: InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def SYCLDeviceConstant: InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "device_constant">];
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by SYCL implementation
+  let Documentation = [Undocumented];
+  let SimpleHandler = 1;
+}
+
 def SYCLGlobalVariableAllowed : InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "global_variable_allowed">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;

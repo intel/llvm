@@ -8,7 +8,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 
-device_global<const int> DeviceGlobalVar;
+device_global<const int, decltype(properties{device_constant})> DeviceGlobalVar;
 
 int main() {
   queue Q;
