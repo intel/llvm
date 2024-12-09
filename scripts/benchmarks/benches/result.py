@@ -18,6 +18,7 @@ class Result:
     stdout: str
     passed: bool = True
     unit: str = ""
+    explicit_group: str = ""
     # stddev can be optionally set by the benchmark,
     # if not set, it will be calculated automatically.
     stddev: float = 0.0
