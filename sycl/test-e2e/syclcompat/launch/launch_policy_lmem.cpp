@@ -20,9 +20,6 @@
  *     launch<F> with policy & use local memory tests
  **************************************************************************/
 
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14826
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
