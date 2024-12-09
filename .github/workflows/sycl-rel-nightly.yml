@@ -2,16 +2,40 @@ name: SYCL Release Branch Nightly
 
 on:
   workflow_dispatch:
-  # TODO: we need to skip the whole workflow if it was launched by cron job, but
-  # there were no new commits since the last cron run.
-  # schedule:
-  #   - cron: '0 3 * * *'
+  schedule:
+    - cron: '0 3 * * *'
 
 permissions: read-all
 
+env:
+  # NOTE: so that GitHub Actions can trigger the scheduled workflow run - the
+  # workflow file should be on the default branch. Therefore every job should
+  # checkout the release branch.
+  SYCL_REL_BRANCH: "draft-sycl-rel-6_0_0"
+
 jobs:
+  # To avoid unnecessary scheduled runs this job checks if there are new commits
+  # since the last run. More precisely, it checks if the last commit is older
+  # than 24h. That means the previous Nightly already tested this commit.
+  check_for_new_commits:
+    runs-on: ubuntu-latest
+    name: Check for new commits
+    outputs:
+      is_new_commit: ${{ steps.is_new_commit.outputs.is_new_commit }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.SYCL_REL_BRANCH }}
+      run: |
+        git show --quiet | tee -a $GITHUB_STEP_SUMMARY
+
+    - id: is_new_commit
+      if: ${{ github.event_name == 'schedule' }}
+      run: test -z $(git rev-list --after="24 hours" HEAD) && echo "::set-output name=is_new_commit::false"
+
   ubuntu2204_build:
-    if: github.repository == 'intel/llvm'
+    needs: [check_for_new_commits]
+    if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
@@ -20,7 +44,7 @@ jobs:
       build_configure_extra_args: '--hip --cuda'
       merge_ref: ''
       retention-days: 90
-      branch: draft-sycl-rel-6_0_0
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -88,21 +112,22 @@ jobs:
       tests_selector: ${{ matrix.tests_selector }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      ref: draft-sycl-rel-6_0_0
+      ref: ${{ env.SYCL_REL_BRANCH }}
       merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
   build-win:
+    needs: [check_for_new_commits]
+    if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-windows-build.yml
-    if: github.repository == 'intel/llvm'
     with:
       retention-days: 90
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
-      build_ref: draft-sycl-rel-6_0_0
+      build_ref: ${{ env.SYCL_REL_BRANCH }}
 
   e2e-win:
     needs: build-win
@@ -117,7 +142,7 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
-      ref: draft-sycl-rel-6_0_0
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -126,7 +151,7 @@ jobs:
     secrets: inherit
     with:
       mode: start
-      ref: draft-sycl-rel-6_0_0
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
   cuda-run-tests:
     needs: [ubuntu2204_build, cuda-aws-start]
@@ -138,7 +163,7 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: ext_oneapi_cuda:gpu
-      ref: draft-sycl-rel-6_0_0
+      ref: ${{ env.SYCL_REL_BRANCH }}
       merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
@@ -241,3 +266,4 @@ jobs:
   #       tags: |
   #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
   #         ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
+  
