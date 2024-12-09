@@ -3,5 +3,5 @@
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
 # Date:   Fri Dec 6 15:24:04 2024 +0000
 #     Merge pull request #2352 from aarongreig/aaron/fixCoverity15-11
-#     Fix a number of issues from the latest coverity scan.
+#     Fix a number of issues from the latest coverity scan.1
 set(UNIFIED_RUNTIME_TAG yc-test/1209-cif-syclos-CI)
