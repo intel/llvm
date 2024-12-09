@@ -377,18 +377,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_DEVICE_ID: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
-        cl_adapter::cast<cl_device_id>(hDevice), {"cl_intel_device_attribute_query"},
-        Supported));
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
 
     if (!Supported) {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
-    cl_uint DeviceId = {};
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_ID_INTEL,
-        sizeof(DeviceId), &DeviceId, nullptr));
-    return ReturnValue(DeviceId);
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_ID_INTEL, propSize,
+        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
   }
 
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
@@ -1019,9 +1019,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
     std::snprintf(AddressBuffer, AddressBufferSize, "%04x:%02x:%02x.%01x",
-                  PciInfo.pci_domain,
-                  PciInfo.pci_bus,
-                  PciInfo.pci_device,
+                  PciInfo.pci_domain, PciInfo.pci_bus, PciInfo.pci_device,
                   PciInfo.pci_function);
     return ReturnValue(AddressBuffer);
   }
