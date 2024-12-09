@@ -1,4 +1,3 @@
-// REQUIRES: xptifw, opencl
 // RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
 // RUN: %{build} -O2 -o %t.opt.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.opt.out | FileCheck %s --check-prefixes=CHECK,CHECK-OPT
@@ -108,6 +107,9 @@ int main() {
     // CHECK-OPT: arg1 : {0, [[ACCID5]], 4062, 1}
     // CHECK-OPT: arg2 : {1, [[ACCID5]], 8, 2}
   });
+
+  sycl::free(PtrDevice, Queue);
+  sycl::free(PtrShared, Queue);
 
   return 0;
 }
