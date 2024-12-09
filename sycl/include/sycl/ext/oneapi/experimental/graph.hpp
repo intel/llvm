@@ -60,7 +60,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_device_global = 6,
   sycl_ext_oneapi_bindless_images = 7,
   sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
-  sycl_ext_codeplay_enqueue_native_command = 9
+  sycl_ext_codeplay_enqueue_native_command = 9,
+  sycl_ext_oneapi_work_group_scratch_memory = 10
 };
 
 inline const char *
@@ -87,6 +88,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
   case UGF::sycl_ext_codeplay_enqueue_native_command:
     return "sycl_ext_codeplay_enqueue_native_command";
+  case UGF::sycl_ext_oneapi_work_group_scratch_memory:
+    return "sycl_ext_oneapi_work_group_scratch_memory";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -224,8 +227,8 @@ public:
       const command_graph<graph_state::modifiable> &Graph,
       const std::vector<std::function<void(handler &)>> &CGFList);
 
-  size_t get_active_cgf() const;
-  void set_active_cgf(size_t Index);
+  size_t get_active_index() const;
+  void set_active_index(size_t Index);
 
 private:
   template <class Obj>
@@ -387,7 +390,7 @@ protected:
 #ifdef __SYCL_GRAPH_IMPL_CPP
 // Magic combination found by trial and error:
 __SYCL_EXPORT
-#if WIN32
+#if _WIN32
 inline
 #endif
 #else

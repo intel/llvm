@@ -87,6 +87,34 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_bfloat16,
 };
 
+// A helper class for storing image/program objects and their dependencies
+// and making their handling a bit more readable.
+template <typename T> class ObjectWithDeps {
+public:
+  ObjectWithDeps(T Main) : Objs({std::move(Main)}) {}
+  // Assumes 0th element is the main one.
+  ObjectWithDeps(std::vector<T> AllObjs) : Objs{std::move(AllObjs)} {}
+
+  T &getMain() { return *Objs.begin(); }
+  const T &getMain() const { return *Objs.begin(); }
+  const std::vector<T> &getAll() const { return Objs; }
+  std::size_t size() const { return Objs.size(); }
+  bool hasDeps() const { return Objs.size() > 1; }
+  auto begin() { return Objs.begin(); }
+  auto begin() const { return Objs.begin(); }
+  auto end() { return Objs.end(); }
+  auto end() const { return Objs.end(); }
+  // TODO use a subrange once C++20 is available
+  auto depsBegin() const { return Objs.begin() + 1; }
+  auto depsEnd() const { return Objs.end(); }
+
+private:
+  std::vector<T> Objs;
+};
+
+using DevImgPlainWithDeps = ObjectWithDeps<device_image_plain>;
+using BinImgWithDeps = ObjectWithDeps<const RTDeviceBinaryImage *>;
+
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
@@ -149,23 +177,19 @@ public:
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
-  /// \param Img is the main image the program is built with.
+  /// \param ImgWithDeps is the main image the program is built with and its
+  /// dependencies.
   /// \param Context is the context the program is built for.
   /// \param Devs is a vector of devices the program is built for.
-  /// \param DeviceImagesToLink is a set of image dependencies required by the
-  /// main image.
-  /// \param AllImages is a vector of all images the program is built with.
-  /// \param DeviceImageImpl is an optional device_image_impl pointer that
-  /// represents the main image.
+  /// \param DevImgWithDeps is an optional DevImgPlainWithDeps pointer that
+  /// represents the images.
   /// \param SpecConsts is an optional parameter containing spec constant values
   /// the program should be built with.
-  ur_program_handle_t getBuiltURProgram(
-      const RTDeviceBinaryImage &Img, const context &Context,
-      const std::vector<device> &Devs,
-      const std::set<RTDeviceBinaryImage *> &DeviceImagesToLink,
-      const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const std::shared_ptr<device_image_impl> &DeviceImageImpl = nullptr,
-      const SerializedObj &SpecConsts = {});
+  ur_program_handle_t
+  getBuiltURProgram(const BinImgWithDeps &ImgWithDeps, const context &Context,
+                    const std::vector<device> &Devs,
+                    const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
+                    const SerializedObj &SpecConsts = {});
 
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>
@@ -248,25 +272,25 @@ public:
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
-  std::vector<device_image_plain> getSYCLDeviceImagesWithCompatibleState(
+  std::vector<DevImgPlainWithDeps> getSYCLDeviceImagesWithCompatibleState(
       const context &Ctx, const std::vector<device> &Devs,
       bundle_state TargetState, const std::vector<kernel_id> &KernelIDs = {});
 
   // Brind images in the passed vector to the required state. Does it inplace
   void
-  bringSYCLDeviceImagesToState(std::vector<device_image_plain> &DeviceImages,
+  bringSYCLDeviceImagesToState(std::vector<DevImgPlainWithDeps> &DeviceImages,
                                bundle_state TargetState);
 
   // The function returns a vector of SYCL device images in required state,
   // which are compatible with at least one of the device from Devs.
-  std::vector<device_image_plain>
+  std::vector<DevImgPlainWithDeps>
   getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
                       bundle_state State);
 
   // The function returns a vector of SYCL device images, for which Selector
   // callable returns true, in required state, which are compatible with at
   // least one of the device from Devs.
-  std::vector<device_image_plain>
+  std::vector<DevImgPlainWithDeps>
   getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
                       const DevImgSelectorImpl &Selector,
                       bundle_state TargetState);
@@ -274,26 +298,26 @@ public:
   // The function returns a vector of SYCL device images which represent at
   // least one kernel from kernel ids vector in required state, which are
   // compatible with at least one of the device from Devs.
-  std::vector<device_image_plain>
+  std::vector<DevImgPlainWithDeps>
   getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
                       const std::vector<kernel_id> &KernelIDs,
                       bundle_state TargetState);
 
   // Produces new device image by convering input device image to the object
   // state
-  device_image_plain compile(const device_image_plain &DeviceImage,
-                             const std::vector<device> &Devs,
-                             const property_list &PropList);
+  DevImgPlainWithDeps compile(const DevImgPlainWithDeps &ImgWithDeps,
+                              const std::vector<device> &Devs,
+                              const property_list &PropList);
 
   // Produces set of device images by convering input device images to object
   // the executable state
-  std::vector<device_image_plain> link(const device_image_plain &DeviceImages,
+  std::vector<device_image_plain> link(const DevImgPlainWithDeps &ImgWithDeps,
                                        const std::vector<device> &Devs,
                                        const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
-  device_image_plain build(const device_image_plain &DeviceImage,
+  device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
                            const std::vector<device> &Devs,
                            const property_list &PropList);
 
@@ -305,6 +329,9 @@ public:
   ~ProgramManager() = default;
 
   bool kernelUsesAssert(const std::string &KernelName) const;
+
+  std::optional<int>
+  kernelImplicitLocalArgPos(const std::string &KernelName) const;
 
   bool kernelUsesAsan() const { return m_AsanFoundInImage; }
 
@@ -331,13 +358,17 @@ private:
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
 
-  std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           device Dev);
+  /// Add info on kernels using local arg into cache
+  void cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img);
 
   std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
+  std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
+                                           const device &Dev);
+  std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
-      const RTDeviceBinaryImage &Img, device Dev);
+      const RTDeviceBinaryImage &Img, const device &Dev);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
@@ -432,6 +463,7 @@ private:
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
   std::set<std::string> m_KernelUsesAssert;
+  std::unordered_map<std::string, int> m_KernelImplicitLocalArgPos;
 
   // True iff there is a device image compiled with AddressSanitizer
   bool m_AsanFoundInImage;

@@ -30,8 +30,9 @@ llvm::Error linkDeviceLibraries(llvm::Module &Module,
                                 const llvm::opt::InputArgList &UserArgList,
                                 std::string &BuildLog);
 
-llvm::Expected<RTCBundleInfo>
-performPostLink(llvm::Module &Module,
+using PostLinkResult = std::pair<RTCBundleInfo, std::unique_ptr<llvm::Module>>;
+llvm::Expected<PostLinkResult>
+performPostLink(std::unique_ptr<llvm::Module> Module,
                 const llvm::opt::InputArgList &UserArgList);
 
 llvm::Expected<llvm::opt::InputArgList>
