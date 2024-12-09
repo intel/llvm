@@ -720,8 +720,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addLibraries(SYCLDeviceMsanLibs);
 #else // _WIN32
   if (!SanitizeVal.empty())
-    D.Diag(diag::warn_drv_unsupported_option_for_target)
-        << SanitizeArg << Target.str();
+    C.getDriver().Diag(diag::warn_drv_unsupported_option_for_target)
+        << SanitizeArg << TargetTriple.str();
 #endif
 
   if (isNativeCPU)
