@@ -117,19 +117,27 @@ TEST(TBAAMetadataTest, BasicTypes) {
   ASSERT_TRUE(I);
 
   I = matchNext(I,
-                MInstruction(Instruction::Store,
-                             MValType(PointerType::getUnqual(Compiler.Context)),
-                             MMTuple(MMTuple(MMString("p1 void"),
-                                             AnyPtr, MConstInt(0)),
-                                     MSameAs(0), MConstInt(0))));
+      MInstruction(Instruction::Store,
+        MValType(PointerType::getUnqual(Compiler.Context)),
+        MMTuple(
+          MMTuple(
+            MMString("p1 void"),
+            AnyPtr,
+            MConstInt(0)),
+          MSameAs(0),
+          MConstInt(0))));
   ASSERT_TRUE(I);
 
   I = matchNext(I,
-                MInstruction(Instruction::Store,
-                             MValType(PointerType::getUnqual(Compiler.Context)),
-                             MMTuple(MMTuple(MMString("p1 void"),
-                                             AnyPtr, MConstInt(0)),
-                                     MSameAs(0), MConstInt(0))));
+      MInstruction(Instruction::Store,
+        MValType(PointerType::getUnqual(Compiler.Context)),
+        MMTuple(
+          MMTuple(
+            MMString("p1 int"),
+            AnyPtr,
+            MConstInt(0)),
+          MSameAs(0),
+          MConstInt(0))));
   ASSERT_TRUE(I);
 }
 
