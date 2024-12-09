@@ -322,7 +322,7 @@ getFilesWithAccessTime(const std::string &Path) {
       // Convert to wise string.
       char *path = new char[Entry.path().string().length() + 1];
       strcpy(path, Entry.path().string().c_str());
-      if (GetFileAttributesEx(path, GetFileExInfoStandard, &FileData)) {
+      if (GetFileAttributesExA(path, GetFileExInfoStandard, &FileData)) {
         // Convert FILETIME to uint64_t.
         ULARGE_INTEGER Time;
         Time.LowPart = FileData.ftLastAccessTime.dwLowDateTime;
