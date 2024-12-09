@@ -112,35 +112,39 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
   return;
 }
 
-template <typename Group, typename T, use Use, size_t M, size_t N,
+template <typename Group, typename T0, typename T1, use Use, size_t M, size_t N,
           layout Layout, typename F>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jmsrc,
-                   joint_matrix<Group, T, Use, M, N, Layout> &jmdest,
+joint_matrix_apply(Group sg, joint_matrix<Group, T0, Use, M, N, Layout> &jm0,
+                   joint_matrix<Group, T1, Use, M, N, Layout> &jm1,
                    F &&lambda) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__) || defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
-  for (int i = 0; i < jmsrc.matrix_impl.wi_marray.size(); i++) {
-    lambda(jmsrc.matrix_impl.wi_marray[i], jmdest.matrix_impl.wi_marray[i]);
+  for (int i = 0; i < jm0.matrix_impl.wi_marray.size(); i++) {
+    lambda(jm0.matrix_impl.wi_marray[i], jm1.matrix_impl.wi_marray[i]);
   }
 #else // NVPTX
-  using storage_element_type =
+  using storage_element_type0 =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
-          T>::storage_element_type;
-  auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, jmsrc);
-  auto wi_data_d = sycl::ext::oneapi::detail::get_wi_data(sg, jmdest);
-  for (int i = 0; i < wi_data_c.length(); i++) {
-    storage_element_type elementsrc = wi_data_c[i];
-    storage_element_type elementdest = wi_data_d[i];
-    lambda(elementsrc, elementdest);
-    wi_data_d[i] = elementdest;
+          T0>::storage_element_type;
+  using storage_element_type1 =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T1>::storage_element_type;
+  auto wi_data_0 = sycl::ext::oneapi::detail::get_wi_data(sg, jm0);
+  auto wi_data_1 = sycl::ext::oneapi::detail::get_wi_data(sg, jm1);
+  for (int i = 0; i < wi_data_0.length(); i++) {
+    storage_element_type0 element0 = wi_data_0[i];
+    storage_element_type1 element1 = wi_data_1[i];
+    lambda(element0, element1);
+    wi_data_0[i] = element0;
+    wi_data_1[i] = element1;
   }
 #endif
 #else
   std::ignore = sg;
-  std::ignore = jmsrc;
-  std::ignore = jmdest;
+  std::ignore = jm0;
+  std::ignore = jm1;
   std::ignore = lambda;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
