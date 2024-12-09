@@ -280,15 +280,15 @@ int OSUtil::makeDir(const char *Dir) {
 
 size_t OSUtil::DirSizeVar = 0;
 // Get size of a directory in bytes.
-size_t OSUtil::getDirectorySize(const std::string &Path) {
+size_t getDirectorySize(const std::string &Path) {
 
-  DirSizeVar = 0;
+  OSUtil::DirSizeVar = 0;
 // Use ftw for Linux and darwin as they support posix.
 #if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
   auto SumSize = []([[maybe_unused]] const char *Fpath,
                     const struct stat *StatBuf, int TypeFlag) {
     if (TypeFlag == FTW_F)
-      DirSizeVar += StatBuf->st_size;
+      OSUtil::DirSizeVar += StatBuf->st_size;
     return 0;
   };
 
@@ -296,11 +296,11 @@ size_t OSUtil::getDirectorySize(const std::string &Path) {
     std::cerr << "Failed to get directory size: " << Path << std::endl;
 #endif
 
-  return DirSizeVar;
+  return OSUtil::DirSizeVar;
 }
 
 // Get size of file in bytes.
-size_t OSUtil::getFileSize(const std::string &Path) {
+size_t getFileSize(const std::string &Path) {
   size_t Size = 0;
 
   // For POSIX, use stats to get file size.
@@ -309,8 +309,8 @@ size_t OSUtil::getFileSize(const std::string &Path) {
   if (stat(Path.c_str(), &StatBuf) == 0)
     Size = StatBuf.st_size;
 
-  // For Windows, use GetFileAttributesEx to get file size.
 #elif defined(__SYCL_RT_OS_WINDOWS)
+  // For Windows, use GetFileAttributesEx to get file size.
   WIN32_FILE_ATTRIBUTE_DATA FileData;
   if (GetFileAttributesEx(Path.c_str(), GetFileExInfoStandard, &FileData))
     Size = (static_cast<size_t>(FileData.nFileSizeHigh) << 32) |
@@ -323,16 +323,16 @@ size_t OSUtil::getFileSize(const std::string &Path) {
 std::vector<std::pair<time_t, std::string>> OSUtil::Files = {};
 // Get list of all files in the directory along with its last access time.
 std::vector<std::pair<time_t, std::string>>
-OSUtil::getFilesWithAccessTime(const std::string &Path) {
+getFilesWithAccessTime(const std::string &Path) {
 
-  Files.clear();
+  OSUtil::Files.clear();
 
 // Use ftw for posix.
 #if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
   auto GetFiles = [](const char *Fpath, const struct stat *StatBuf,
                      int TypeFlag) {
     if (TypeFlag == FTW_F)
-      Files.push_back({StatBuf->st_atime, std::string(Fpath)});
+      OSUtil::Files.push_back({StatBuf->st_atime, std::string(Fpath)});
     return 0;
   };
 
@@ -340,7 +340,7 @@ OSUtil::getFilesWithAccessTime(const std::string &Path) {
     std::cerr << "Failed to get files with access time: " << Path << std::endl;
 #endif
 
-  return Files;
+  return OSUtil::Files;
 }
 
 } // namespace detail

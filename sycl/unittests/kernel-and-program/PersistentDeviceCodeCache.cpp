@@ -589,8 +589,7 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
 
   // Get Cache size and size of each entry. Set eviction threshold so that
   // just one item is evicted.
-  size_t SizeOfOneEntry =
-      (size_t)(detail::OSUtil::getDirectorySize(CacheRoot)) + 10;
+  size_t SizeOfOneEntry = (size_t)(detail::getDirectorySize(CacheRoot)) + 10;
 
   // Set SYCL_CACHE_MAX_SIZE.
   SetDiskCacheEvictionEnv(std::to_string(SizeOfOneEntry).c_str());

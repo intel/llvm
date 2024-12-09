@@ -90,19 +90,34 @@ public:
 #endif
   }
 
-  // Get size of directory in bytes.
-  static size_t getDirectorySize(const std::string &Path);
-
-  // Get size of file in bytes.
-  static size_t getFileSize(const std::string &Path);
-
-  // Get list of all files in the directory along with its last access time.
-  static std::vector<std::pair<time_t, std::string>>
-  getFilesWithAccessTime(const std::string &Path);
-
+private:
+  // These static variables will be used by ftw POSIX function to
+  // calculate directory size and get files with access time. Other
+  // option is to make these global variables but that will pollute
+  // the sycl::detail namespace.
+  // QUESTION: Should we make these global variables? Or implement ftw-like
+  // function ourself for directory iteration?
   static size_t DirSizeVar;
   static std::vector<std::pair<time_t, std::string>> Files;
+
+  // Friendship is required to access private static variables.
+  friend size_t getDirectorySize(const std::string &Path);
+  friend std::vector<std::pair<time_t, std::string>>
+  getFilesWithAccessTime(const std::string &Path);
 };
+
+// These functions are not a part of OSUtils class to prevent
+// exporting them as ABI. They are only used in persistent cache
+// implementation and should not be exposed to the end users.
+// Get size of directory in bytes.
+size_t getDirectorySize(const std::string &Path);
+
+// Get size of file in bytes.
+size_t getFileSize(const std::string &Path);
+
+// Get list of all files in the directory along with its last access time.
+std::vector<std::pair<time_t, std::string>>
+getFilesWithAccessTime(const std::string &Path);
 
 } // namespace detail
 } // namespace _V1

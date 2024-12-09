@@ -196,7 +196,7 @@ void PersistentDeviceCodeCache::repopulateCacheSizeFile(
     PersistentDeviceCodeCache::trace(
         "Cache size file not present. Creating one.");
     // Calculate the size of the cache directory.
-    size_t CacheSize = OSUtil::getDirectorySize(CacheRoot);
+    size_t CacheSize = getDirectorySize(CacheRoot);
 
     // Take the lock to write the cache size to the file.
     {
@@ -232,7 +232,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
 
   // Get the list of all files in the cache directory along with their last
   // access time.
-  auto FilesWithAccessTime = OSUtil::getFilesWithAccessTime(CacheRoot);
+  auto FilesWithAccessTime = getFilesWithAccessTime(CacheRoot);
 
   // Sort the files in the cache directory based on their last access time.
   std::sort(FilesWithAccessTime.begin(), FilesWithAccessTime.end(),
@@ -267,7 +267,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
 
       auto RemoveFileAndSubtractSize =
           [&CurrCacheSize](const std::string &FileName) {
-            auto FileSize = OSUtil::getFileSize(FileName);
+            auto FileSize = getFileSize(FileName);
             if (std::remove(FileName.c_str())) {
               PersistentDeviceCodeCache::trace("Failed to remove file: " +
                                                FileName);
@@ -414,8 +414,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
     }
 
     if (IsWriteSuccess) {
-      TotalSize += OSUtil::getFileSize(FileName + ".src");
-      TotalSize += OSUtil::getFileSize(FileName + ".bin");
+      TotalSize += getFileSize(FileName + ".src");
+      TotalSize += getFileSize(FileName + ".bin");
     }
   }
 
