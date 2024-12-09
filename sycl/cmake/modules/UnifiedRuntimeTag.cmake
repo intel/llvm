@@ -1,7 +1,4 @@
-# commit f74b2d7e4fb19aee4c4794cdb2ebc1d87dce02b0
+# commit 44b4ff98ae7955186387a4e18ecbb8dfe4920d65 (HEAD -> add-opencl-device-queries)
 # Author: Ben Ashbaugh <ben.ashbaugh@intel.com>
-# Date:   Sat Dec 7 16:46:06 2024 -0800
-
-#     add a few missing Intel GPU device queries
-#     also, fix the device ID query
-set(UNIFIED_RUNTIME_TAG f74b2d7e4fb19aee4c4794cdb2ebc1d87dce02b0)
+# Date:   Mon Dec 9 07:56:24 2024 -0800
+set(UNIFIED_RUNTIME_TAG 44b4ff98ae7955186387a4e18ecbb8dfe4920d65)
