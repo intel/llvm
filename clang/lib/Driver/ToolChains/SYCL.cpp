@@ -719,7 +719,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   else if (SanitizeVal == "memory")
     addLibraries(SYCLDeviceMsanLibs);
 #else // _WIN32
-  if (SanitizeVal)
+  if (!SanitizeVal.empty())
     D.Diag(diag::warn_drv_unsupported_option_for_target)
         << SanitizeArg << Target.str();
 #endif
