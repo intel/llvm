@@ -9,7 +9,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 namespace syclex = sycl::ext::oneapi;
 

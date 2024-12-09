@@ -225,7 +225,7 @@ ID was assigned to which symbolic ID).
 With help of `clang-offload-wrapper` tool, those device image properties are
 embedded into the application together with device code and used by DPC++ RT
 while handling specialization constants during application execution: it either
-calls corresponding PI API to set a value of a specialization constant or it
+calls corresponding UR API to set a value of a specialization constant or it
 fills a special buffer with values of specialization constants and passes it as
 kernel argument to emulate support of specialization constants.
 
@@ -577,13 +577,13 @@ property_set {
     property {
       Name: "id_int_symbolic_ID",
       ValAddr: points to byte array [{0, 0, 4}],
-      Type: PI_PROPERTY_TYPE_BYTE_ARRAY,
+      Type: SYCL_PROPERTY_TYPE_BYTE_ARRAY,
       Size: sizeof(byte array above)
     },
     property {
       Name: "id_A_symbolic_ID",
       ValAddr: points to byte array [{1, 0, 4}, {2, 4, 4}, {3, 8, 4}],
-      Type: PI_PROPERTY_TYPE_BYTE_ARRAY,
+      Type: SYCL_PROPERTY_TYPE_BYTE_ARRAY,
       Size: sizeof(byte array above)
     },
   ]
@@ -644,7 +644,7 @@ property_set {
         1, 3.0, 4.0, // id_A
         5.0, 6.0 // id_Nested
       ],
-      Type: PI_PROPERTY_TYPE_BYTE_ARRAY,
+      Type: SYCL_PROPERTY_TYPE_BYTE_ARRAY,
       Size: sizeof(byte array above)
     }
   ]
@@ -950,14 +950,24 @@ If native specialization constants are supported by the target device, the
 runtime iterates through the value map and invokes
 
 ```
-pi_result piextProgramSetSpecializationConstant(pi_program prog,
-                                                pi_uint32 spec_id,
-                                                size_t spec_size,
-                                                const void *spec_value);
+ur_result_t urProgramSetSpecializationConstants(ur_program_handle_t hProgram,
+                                                uint32_t count,
+                                                const ur_specialization_constant_info_t *
+                                                pSpecConstants)
 ```
 
-Plugin Interface function for descriptor of each property: `spec_id` and
-`spec_size` are taken from the descriptor, `spec_value` is calculated based on
+Unified Runtime function for descriptor of each property. The definition for
+`ur_specialization_constant_info_t` is as follows:
+
+```
+struct ur_specialization_constant_info_t {
+    uint32_t id;
+    size_t size;
+    const void *pValue;
+};
+```
+
+`id` and `size` are taken from the descriptor, `pValue` is calculated based on
 address of the specialization constant provided by user and `offset` field of
 the descriptor as `(char*)(SpecConstantValuesMap[SymbolicID]) + offset`.
 

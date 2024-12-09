@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -39,11 +38,11 @@
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
@@ -67,18 +66,7 @@
 // 41(!!!) includes of SYCL headers + 10 includes of standard headers.
 // 3300+ lines of code
 
-// SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
-#if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
-#define __SYCL_NONCONST_FUNCTOR__
-#endif
-
-// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
-//                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAMTYPE KernelType
-#else
 #define _KERNELFUNCPARAMTYPE const KernelType &
-#endif
 #define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
 #if defined(__SYCL_UNNAMED_LAMBDA__)
@@ -152,6 +140,7 @@ inline namespace _V1 {
 
 // Forward declaration
 
+template <bundle_state State> class kernel_bundle;
 class handler;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
@@ -173,12 +162,14 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
+class kernel_bundle_impl;
 class work_group_memory_impl;
 class handler_impl;
 class kernel_impl;
 class queue_impl;
 class stream_impl;
 class event_impl;
+class context_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
@@ -824,6 +815,14 @@ private:
           prop.coordinationScope);
     }
 
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_group_scratch_size>()) {
+      auto WorkGroupMemSize = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_scratch_size>();
+      setKernelWorkGroupMem(WorkGroupMemSize.size);
+    }
+
     checkAndSetClusterRange(Props);
   }
 
@@ -1175,7 +1174,6 @@ private:
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CGType::Kernel);
-      setNDRangeUsed(false);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
@@ -1198,7 +1196,6 @@ private:
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CGType::Kernel);
-      setNDRangeUsed(false);
 #endif
 #else
       (void)KernelFunc;
@@ -1249,7 +1246,6 @@ private:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
 #endif
   }
 
@@ -1272,7 +1268,6 @@ private:
     setNDRangeDescriptor(std::move(NumWorkItems));
     processLaunchProperties<PropertiesT>(Props);
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
 #endif
@@ -1298,7 +1293,6 @@ private:
     setNDRangeDescriptor(std::move(NDRange));
     processLaunchProperties(Props);
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
 #endif
@@ -1339,7 +1333,6 @@ private:
     setNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1727,36 +1720,15 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value);
 
-    setStateSpecConstSet();
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-        KernelBundleImplPtr)
-        .set_specialization_constant<SpecName>(Value);
-  }
-
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
-  get_specialization_constant() const {
-
-    if (isStateExplicitKernelBundle())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Specialization constants cannot be read after "
-                            "explicitly setting the used kernel bundle");
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-               KernelBundleImplPtr)
-        .get_specialization_constant<SpecName>();
-  }
+  get_specialization_constant() const;
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
@@ -1855,7 +1827,9 @@ public:
   void set_arg(
       int ArgIndex,
       ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
-    setArgHelper(ArgIndex, Arg);
+    // slice the base class object out of Arg
+    detail::work_group_memory_impl &ArgImpl = Arg;
+    setArgHelper(ArgIndex, ArgImpl);
   }
 
   // set_arg for graph dynamic_parameters
@@ -1971,7 +1945,6 @@ public:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
 #endif
   }
 
@@ -2069,7 +2042,6 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
 #endif
@@ -2148,7 +2120,6 @@ public:
     setNDRangeDescriptor(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2189,7 +2160,6 @@ public:
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(false);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2229,7 +2199,6 @@ public:
     setNDRangeDescriptor(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -3357,6 +3326,7 @@ private:
                                  size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
+  friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;
 
   bool DisableRangeRounding();
 
@@ -3560,6 +3530,9 @@ private:
   // Set using cuda thread block cluster launch flag and set the launch bounds.
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
 
+  // Set the request work group memory size (work_group_static ext).
+  void setKernelWorkGroupMem(size_t Size);
+
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time
   // during device compilations (by reducing amount of templates we have to
@@ -3626,8 +3599,10 @@ private:
   }
 #endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Set that an ND Range was used during a call to parallel_for
   void setNDRangeUsed(bool Value);
+#endif
 
   inline void internalProfilingTagImpl() {
     throwIfActionIsCreated();

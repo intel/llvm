@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s %if !windows %{--check-prefixes=CHECK-RELEASE%}
-//
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
 int main() {
@@ -14,7 +12,7 @@ int main() {
 }
 
 // CHECK: <--- urEnqueueKernelLaunch(
-// FIXME the order of these 2 varies between plugins due to a Level Zero
+// FIXME the order of these 2 varies between adapters due to a Level Zero
 // specific queue workaround.
 // CHECK-DAG: <--- urEventRelease(
 // CHECK-DAG: <--- urQueueRelease(

@@ -693,11 +693,6 @@ inline constexpr implement_in_csr_key::value_t<Enable> implement_in_csr;
 inline constexpr implement_in_csr_key::value_t<true> implement_in_csr_on;
 inline constexpr implement_in_csr_key::value_t<false> implement_in_csr_off;
 
-template <> struct is_property_key<device_image_scope_key> : std::true_type {};
-template <> struct is_property_key<host_access_key> : std::true_type {};
-template <> struct is_property_key<init_mode_key> : std::true_type {};
-template <> struct is_property_key<implement_in_csr_key> : std::true_type {};
-
 template <typename T, typename PropertyListT>
 struct is_property_key_of<device_image_scope_key, device_global<T, PropertyListT>>
   : std::true_type {};

@@ -15,6 +15,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <iostream>
 
