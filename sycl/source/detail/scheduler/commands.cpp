@@ -956,7 +956,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
     MEvent->setEnqueued();
-    if (MShouldCompleteEventIfPossible &&
+    if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
 
@@ -2427,7 +2427,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
-    const RTDeviceBinaryImage *BinImage, const std::string &KernelName) {
+    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2446,6 +2447,17 @@ static ur_result_t SetKernelParamsAndLaunch(
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+
+  std::optional<int> ImplicitLocalArg =
+      ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    Adapter->call<UrApiKind::urKernelSetArgLocal>(
+        Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
+  }
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
 
@@ -2474,9 +2486,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
-    std::vector<ur_exp_launch_property_t> property_list;
-
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
     launch_property_value_cluster_range.clusterDim[0] =
         NDRDesc.ClusterDimensions[0];
@@ -2494,13 +2505,20 @@ static ur_result_t SetKernelParamsAndLaunch(
       property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
                                launch_property_value_cooperative});
     }
-
+  }
+  // If there is no implicit arg, let the driver handle it via a property
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+    property_list.push_back(
+        {UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY, {{WorkGroupMemorySize}}});
+  }
+  if (!property_list.empty()) {
     ur_event_handle_t UREvent = nullptr;
     ur_result_t Error =
         Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
-            Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
-            LocalSize, property_list.size(), property_list.data(),
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
+            property_list.size(), property_list.data(), RawEvents.size(),
+            RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEventImpl ? &UREvent : nullptr);
     if (OutEventImpl) {
       OutEventImpl->setHandle(UREvent);
@@ -2692,7 +2710,8 @@ void enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch, const RTDeviceBinaryImage *BinImage) {
+    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
+    const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2784,7 +2803,8 @@ void enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch, BinImage, KernelName);
+        KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
+        BinImage, KernelName);
 
     const AdapterPtr &Adapter = Queue->getAdapter();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -3055,6 +3075,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
   detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
 
+  auto SetEventHandleOrDiscard = [&]() {
+    if (Event)
+      MEvent->setHandle(*Event);
+    else
+      MEvent->setStateDiscarded();
+  };
+
   switch (MCommandGroup->getType()) {
 
   case CGType::UpdateHost: {
@@ -3176,7 +3203,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                      SyclKernel, KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch, BinImage);
+                     ExecKernel->MKernelUsesClusterLaunch,
+                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3188,8 +3216,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
@@ -3200,8 +3227,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
@@ -3212,8 +3238,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
@@ -3225,8 +3250,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Copy2DUSM: {
@@ -3238,8 +3262,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill2DUSM: {
@@ -3251,8 +3274,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Memset2DUSM: {
@@ -3264,8 +3286,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CodeplayHostTask: {
@@ -3405,8 +3426,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     MQueue->getAdapter()->call<UrApiKind::urEnqueueNativeCommandExp>(
         MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData, ReqMems.size(),
         ReqMems.data(), nullptr, RawEvents.size(), RawEvents.data(), Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Barrier: {
@@ -3416,8 +3436,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::BarrierWaitlist: {
@@ -3434,34 +3453,54 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), UrEvents.size(), &UrEvents[0], Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
     assert(MQueue && "Profiling tag requires a valid queue");
     const auto &Adapter = MQueue->getAdapter();
-    // If the queue is not in-order, we need to insert a barrier. This barrier
-    // does not need output events as it will implicitly enforce the following
-    // enqueue is blocked until it finishes.
-    if (!MQueue->isInOrder()) {
-      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
-      //        not pass an output event to the UR call. Once that is fixed,
-      //        this immediately-deleted event can be removed.
-      ur_event_handle_t PreTimestampBarrierEvent{};
+
+    bool IsInOrderQueue = MQueue->isInOrder();
+    ur_event_handle_t *TimestampDeps = nullptr;
+    size_t NumTimestampDeps = 0;
+
+    // If the queue is not in-order, the implementation will need to first
+    // insert a marker event that the timestamp waits for.
+    ur_event_handle_t PreTimestampMarkerEvent{};
+    if (!IsInOrderQueue) {
+      // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
+      //        Use that instead once it has been fixed.
+      //        See https://github.com/oneapi-src/unified-runtime/issues/2347.
       Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, &PreTimestampBarrierEvent);
-      Adapter->call<UrApiKind::urEventRelease>(PreTimestampBarrierEvent);
+          /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
+      TimestampDeps = &PreTimestampMarkerEvent;
+      NumTimestampDeps = 1;
     }
 
     Adapter->call<UrApiKind::urEnqueueTimestampRecordingExp>(
         MQueue->getHandleRef(),
-        /*blocking=*/false,
-        /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr, Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+        /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
+
+    // If the queue is not in-order, we need to insert a barrier. This barrier
+    // does not need output events as it will implicitly enforce the following
+    // enqueue is blocked until it finishes.
+    if (!IsInOrderQueue) {
+      // We also need to release the timestamp event from the marker.
+      Adapter->call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
+      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
+      //        not pass an output event to the UR call. Once that is fixed,
+      //        this immediately-deleted event can be removed.
+      ur_event_handle_t PostTimestampBarrierEvent{};
+      Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+          MQueue->getHandleRef(),
+          /*num_events_in_wait_list=*/0,
+          /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
+      Adapter->call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+    }
+
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyToDeviceGlobal: {
@@ -3474,8 +3513,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyFromDeviceGlobal: {
@@ -3489,8 +3527,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::ReadWriteHostPipe: {
@@ -3521,8 +3558,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                 CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
                 RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
                 Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
 
     return Err;
   }
@@ -3538,8 +3574,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
 
     return UR_RESULT_SUCCESS;
   }
@@ -3570,10 +3605,21 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     return UR_RESULT_SUCCESS;
   }
-  case CGType::None:
-    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "CG type not implemented. " +
-                              codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
+  case CGType::None: {
+    if (RawEvents.empty()) {
+      // urEnqueueEventsWait with zero events acts like a barrier which is NOT
+      // what we want here. On the other hand, there is nothing to wait for, so
+      // we don't need to enqueue anything.
+      return UR_RESULT_SUCCESS;
+    }
+    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    ur_event_handle_t Event;
+    ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+        MQueue->getHandleRef(), RawEvents.size(),
+        RawEvents.size() ? &RawEvents[0] : nullptr, &Event);
+    MEvent->setHandle(Event);
+    return Result;
+  }
   }
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }

@@ -18,14 +18,14 @@
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
+// CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
-// CHECK-NEXT: detail/type_traits.hpp
-// CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
@@ -100,6 +100,7 @@
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
+// CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: event.hpp
@@ -130,9 +131,9 @@
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
+// CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
 // CHECK-NEXT: kernel.hpp
-// CHECK-NEXT: kernel_bundle.hpp
-// CHECK-NEXT: ext/oneapi/experimental/free_function_traits.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-EMPTY:

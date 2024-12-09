@@ -20,11 +20,8 @@ on:
     - ./devops/actions/cached_checkout
 
 concurrency:
-  # Cancel a currently running workflow from the same PR or commit hash.
-  # We need to use the user's branch name (which is in different variables
-  # for pull request events and push events) so that making a PR from a
-  # sycl-devops-pr branch doesn't cause two postcommit runs.
-  group: "${{ github.actor }}-${{ github.head_ref || github.ref_name }}"
+  #  Cancel a currently running workflow from the same PR or commit hash.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 permissions: read-all
@@ -38,11 +35,7 @@ jobs:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: default
       build_artifact_suffix: default
-      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
-      # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
-      cc: clang
-      cxx: clang++
+      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"      
       merge_ref: ''
 
   e2e-lin:

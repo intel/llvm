@@ -142,8 +142,7 @@ int main() {
       passed &= test<uint8_t, int32_t, 8, 8, 32, 4, class dg2_uint_8x8x32>();
       passed &= test<int8_t, int32_t, 8, 8, 32, 4, class dg2_sint_8x8x32>();
       passed &= test<bfloat16, float, 8, 8, 16, 2, class dg2_bf16_8x16x16>();
-      // passed &= test<bfloat16, float, 32, 32, 16, 2, class
-      // dg2_bf16_32x32x16>();
+      passed &= test<bfloat16, float, 32, 32, 16, 2, class dg2_bf16_32x32x16>();
       break;
     }
   }

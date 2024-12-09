@@ -5,9 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// XFAIL: level_zero
-// XFAIL-TRACKER: OFNAAO-307
-
 // Tests interaction of whole graph update and dynamic command-groups
 
 #include "../graph_common.hpp"
@@ -37,7 +34,7 @@ int main() {
 
   auto DynamicCGB = exp_ext::dynamic_command_group(GraphB, {CGFA, CGFB});
   auto DynamicCGNodeB = GraphB.add(DynamicCGB);
-  DynamicCGB.set_active_cgf(1); //  Check if doesn't affect GraphA
+  DynamicCGB.set_active_index(1); //  Check if doesn't affect GraphA
 
   auto ExecGraph = GraphA.finalize(exp_ext::property::graph::updatable{});
 
@@ -60,7 +57,7 @@ int main() {
 
   // Both ExecGraph and Graph B have CGFB as active, so
   // whole graph update should be valid as graphs match.
-  DynamicCGA.set_active_cgf(1);
+  DynamicCGA.set_active_index(1);
   ExecGraph.update(DynamicCGNodeA);
   ExecGraph.update(GraphB);
 
