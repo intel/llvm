@@ -222,7 +222,7 @@ void uur::PlatformEnvironment::selectPlatformFromOptions() {
         std::stringstream errstr;
         errstr << "Multiple possible platforms found; please select one of the "
                   "following or set --platforms_count=1:\n";
-        for (auto p : platforms_filtered) {
+        for (const auto &p : platforms_filtered) {
             errstr << "  --backend=" << backend_to_str(p.backend)
                    << " --platform=\"" << p.name << "\"\n";
         }
@@ -287,7 +287,7 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
         } else if (std::strncmp(arg, "--backend=", sizeof("--backend=") - 1) ==
                    0) {
             std::string backend_string{&arg[std::strlen("--backend=")]};
-            if (!parse_backend(backend_string)) {
+            if (!parse_backend(std::move(backend_string))) {
                 return options;
             }
         } else if (std::strncmp(arg, "--platforms_count=",

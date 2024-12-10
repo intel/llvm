@@ -215,7 +215,8 @@ ur_result_t createSyncPointAndGetZeEvents(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr /*Queue*/,
                       false /*IsMultiDevice*/, HostVisible, &LaunchEvent,
                       false /*CounterBasedEventEnabled*/,
-                      !CommandBuffer->IsProfilingEnabled));
+                      !CommandBuffer->IsProfilingEnabled,
+                      false /*InterruptBasedEventEnabled*/));
   LaunchEvent->CommandType = CommandType;
   ZeLaunchEvent = LaunchEvent->ZeEvent;
 
@@ -476,21 +477,14 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
 
 ur_exp_command_buffer_command_handle_t_::
     ur_exp_command_buffer_command_handle_t_(
-        ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId,
-        uint32_t WorkDim, bool UserDefinedLocalSize,
-        ur_kernel_handle_t Kernel = nullptr)
-    : CommandBuffer(CommandBuffer), CommandId(CommandId), WorkDim(WorkDim),
-      UserDefinedLocalSize(UserDefinedLocalSize), Kernel(Kernel) {
+        ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId)
+    : CommandBuffer(CommandBuffer), CommandId(CommandId) {
   ur::level_zero::urCommandBufferRetainExp(CommandBuffer);
-  if (Kernel)
-    ur::level_zero::urKernelRetain(Kernel);
 }
 
 ur_exp_command_buffer_command_handle_t_::
     ~ur_exp_command_buffer_command_handle_t_() {
   ur::level_zero::urCommandBufferReleaseExp(CommandBuffer);
-  if (Kernel)
-    ur::level_zero::urKernelRelease(Kernel);
 }
 
 void ur_exp_command_buffer_handle_t_::registerSyncPoint(
@@ -525,6 +519,31 @@ ur_result_t ur_exp_command_buffer_handle_t_::getFenceForQueue(
   }
   this->ZeActiveFence = ZeFence;
   return UR_RESULT_SUCCESS;
+}
+
+kernel_command_handle::kernel_command_handle(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
+    uint64_t CommandId, uint32_t WorkDim, bool UserDefinedLocalSize,
+    uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives)
+    : ur_exp_command_buffer_command_handle_t_(CommandBuffer, CommandId),
+      WorkDim(WorkDim), UserDefinedLocalSize(UserDefinedLocalSize),
+      Kernel(Kernel) {
+  // Add the default kernel to the list of valid kernels
+  ur::level_zero::urKernelRetain(Kernel);
+  ValidKernelHandles.insert(Kernel);
+  // Add alternative kernels if provided
+  if (KernelAlternatives) {
+    for (size_t i = 0; i < NumKernelAlternatives; i++) {
+      ur::level_zero::urKernelRetain(KernelAlternatives[i]);
+      ValidKernelHandles.insert(KernelAlternatives[i]);
+    }
+  }
+}
+
+kernel_command_handle::~kernel_command_handle() {
+  for (const ur_kernel_handle_t &KernelHandle : ValidKernelHandles) {
+    ur::level_zero::urKernelRelease(KernelHandle);
+  }
 }
 
 namespace ur::level_zero {
@@ -580,10 +599,13 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
  */
 bool canBeInOrder(ur_context_handle_t Context,
                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
+  const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
   // In-order command-lists are not available in old driver version.
+  bool DriverInOrderRequested = UrRet ? std::atoi(UrRet) != 0 : false;
   bool CompatibleDriver = Context->getPlatform()->isDriverVersionNewerOrSimilar(
       1, 3, L0_DRIVER_INORDER_MIN_VERSION);
-  return CompatibleDriver
+  bool CanUseDriverInOrderLists = CompatibleDriver && DriverInOrderRequested;
+  return CanUseDriverInOrderLists
              ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
              : false;
 }
@@ -662,13 +684,15 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
     if (Device->hasMainCopyEngine()) {
       UR_CALL(EventCreate(Context, nullptr /*Queue*/, false, false,
                           &CopyFinishedEvent, UseCounterBasedEvents,
-                          !EnableProfiling));
+                          !EnableProfiling,
+                          false /*InterruptBasedEventEnabled*/));
     }
 
     if (EnableProfiling) {
       UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                           false /*HostVisible*/, &ComputeFinishedEvent,
-                          UseCounterBasedEvents, !EnableProfiling));
+                          UseCounterBasedEvents, !EnableProfiling,
+                          false /*InterruptBasedEventEnabled*/));
     }
   }
 
@@ -677,7 +701,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   if (WaitEventPath) {
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &WaitEvent,
-                        false /*CounterBasedEventEnabled*/, !EnableProfiling));
+                        false /*CounterBasedEventEnabled*/, !EnableProfiling,
+                        false /*InterruptBasedEventEnabled*/));
   }
 
   // Create ZeCommandListResetEvents only if counter-based events are not being
@@ -689,7 +714,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   if (!UseCounterBasedEvents) {
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &AllResetEvent,
-                        false /*CounterBasedEventEnabled*/, !EnableProfiling));
+                        false /*CounterBasedEventEnabled*/, !EnableProfiling,
+                        false /*InterruptBasedEventEnabled*/));
 
     UR_CALL(createMainCommandList(Context, Device, false, false, false,
                                   ZeCommandListResetEvents));
@@ -697,7 +723,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
     // The ExecutionFinishedEvent is only waited on by ZeCommandListResetEvents.
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &ExecutionFinishedEvent,
-                        false /*CounterBasedEventEnabled*/, !EnableProfiling));
+                        false /*CounterBasedEventEnabled*/, !EnableProfiling,
+                        false /*InterruptBased*/));
   }
 
   try {
@@ -906,7 +933,8 @@ setKernelPendingArguments(ur_exp_command_buffer_handle_t CommandBuffer,
 ur_result_t
 createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
                     ur_kernel_handle_t Kernel, uint32_t WorkDim,
-                    const size_t *LocalWorkSize,
+                    const size_t *LocalWorkSize, uint32_t NumKernelAlternatives,
+                    ur_kernel_handle_t *KernelAlternatives,
                     ur_exp_command_buffer_command_handle_t &Command) {
 
   assert(CommandBuffer->IsUpdatable);
@@ -923,14 +951,41 @@ createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
                                ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET;
 
   auto Platform = CommandBuffer->Context->getPlatform();
-  ZE2UR_CALL(Platform->ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp,
-             (CommandBuffer->ZeComputeCommandListTranslated,
-              &ZeMutableCommandDesc, &CommandId));
+  if (NumKernelAlternatives > 0) {
+    ZeMutableCommandDesc.flags |=
+        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_INSTRUCTION;
+
+    std::vector<ze_kernel_handle_t> TranslatedKernelHandles(
+        NumKernelAlternatives + 1, nullptr);
+
+    // Translate main kernel first
+    ZE2UR_CALL(zelLoaderTranslateHandle,
+               (ZEL_HANDLE_KERNEL, Kernel->ZeKernel,
+                (void **)&TranslatedKernelHandles[0]));
+
+    for (size_t i = 0; i < NumKernelAlternatives; i++) {
+      ZE2UR_CALL(zelLoaderTranslateHandle,
+                 (ZEL_HANDLE_KERNEL, KernelAlternatives[i]->ZeKernel,
+                  (void **)&TranslatedKernelHandles[i + 1]));
+    }
+
+    ZE2UR_CALL(Platform->ZeMutableCmdListExt
+                   .zexCommandListGetNextCommandIdWithKernelsExp,
+               (CommandBuffer->ZeComputeCommandListTranslated,
+                &ZeMutableCommandDesc, NumKernelAlternatives + 1,
+                TranslatedKernelHandles.data(), &CommandId));
+
+  } else {
+    ZE2UR_CALL(Platform->ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp,
+               (CommandBuffer->ZeComputeCommandListTranslated,
+                &ZeMutableCommandDesc, &CommandId));
+  }
   DEBUG_LOG(CommandId);
 
   try {
-    Command = new ur_exp_command_buffer_command_handle_t_(
-        CommandBuffer, CommandId, WorkDim, LocalWorkSize != nullptr, Kernel);
+    Command = new kernel_command_handle(
+        CommandBuffer, Kernel, CommandId, WorkDim, LocalWorkSize != nullptr,
+        NumKernelAlternatives, KernelAlternatives);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -944,8 +999,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
     uint32_t WorkDim, const size_t *GlobalWorkOffset,
     const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-    uint32_t /*numKernelAlternatives*/,
-    ur_kernel_handle_t * /*phKernelAlternatives*/,
+    uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
@@ -959,6 +1013,10 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   // Command handles can only be obtained from updatable command-buffers
   UR_ASSERT(!(Command && !CommandBuffer->IsUpdatable),
             UR_RESULT_ERROR_INVALID_OPERATION);
+
+  for (uint32_t i = 0; i < NumKernelAlternatives; ++i) {
+    UR_ASSERT(KernelAlternatives[i] != Kernel, UR_RESULT_ERROR_INVALID_VALUE);
+  }
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
@@ -983,18 +1041,21 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
   CommandBuffer->KernelsList.push_back(Kernel);
+  for (size_t i = 0; i < NumKernelAlternatives; i++) {
+    CommandBuffer->KernelsList.push_back(KernelAlternatives[i]);
+  }
 
-  // Increment the reference count of the Kernel and indicate that the Kernel
-  // is in use. Once the event has been signaled, the code in
-  // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
-  // reference count on the kernel, using the kernel saved in CommandData.
-  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
+  ur::level_zero::urKernelRetain(Kernel);
+  // Retain alternative kernels if provided
+  for (size_t i = 0; i < NumKernelAlternatives; i++) {
+    ur::level_zero::urKernelRetain(KernelAlternatives[i]);
+  }
 
   if (Command) {
     UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, LocalWorkSize,
+                                NumKernelAlternatives, KernelAlternatives,
                                 *Command));
   }
-
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
   UR_CALL(createSyncPointAndGetZeEvents(
@@ -1690,7 +1751,7 @@ ur_result_t urCommandBufferReleaseCommandExp(
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t validateCommandDesc(
-    ur_exp_command_buffer_command_handle_t Command,
+    kernel_command_handle *Command,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
 
   auto CommandBuffer = Command->CommandBuffer;
@@ -1699,9 +1760,14 @@ ur_result_t validateCommandDesc(
           ->mutableCommandFlags;
   logger::debug("Mutable features supported by device {}", SupportedFeatures);
 
-  // Kernel handle updates are not yet supported.
-  if (CommandDesc->hNewKernel && CommandDesc->hNewKernel != Command->Kernel) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  UR_ASSERT(
+      !CommandDesc->hNewKernel ||
+          (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_INSTRUCTION),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+  // Check if the provided new kernel is in the list of valid alternatives.
+  if (CommandDesc->hNewKernel &&
+      !Command->ValidKernelHandles.count(CommandDesc->hNewKernel)) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   if (CommandDesc->newWorkDim != Command->WorkDim &&
@@ -1754,7 +1820,7 @@ ur_result_t validateCommandDesc(
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t updateKernelCommand(
-    ur_exp_command_buffer_command_handle_t Command,
+    kernel_command_handle *Command,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
 
   // We need the created descriptors to live till the point when
@@ -1769,11 +1835,28 @@ ur_result_t updateKernelCommand(
 
   const auto CommandBuffer = Command->CommandBuffer;
   const void *NextDesc = nullptr;
+  auto Platform = CommandBuffer->Context->getPlatform();
 
   uint32_t Dim = CommandDesc->newWorkDim;
   size_t *NewGlobalWorkOffset = CommandDesc->pNewGlobalWorkOffset;
   size_t *NewLocalWorkSize = CommandDesc->pNewLocalWorkSize;
   size_t *NewGlobalWorkSize = CommandDesc->pNewGlobalWorkSize;
+
+  // Kernel handle must be updated first for a given CommandId if required
+  ur_kernel_handle_t NewKernel = CommandDesc->hNewKernel;
+  if (NewKernel && Command->Kernel != NewKernel) {
+    ze_kernel_handle_t ZeKernelTranslated = nullptr;
+    ZE2UR_CALL(
+        zelLoaderTranslateHandle,
+        (ZEL_HANDLE_KERNEL, NewKernel->ZeKernel, (void **)&ZeKernelTranslated));
+
+    ZE2UR_CALL(Platform->ZeMutableCmdListExt
+                   .zexCommandListUpdateMutableCommandKernelsExp,
+               (CommandBuffer->ZeComputeCommandListTranslated, 1,
+                &Command->CommandId, &ZeKernelTranslated));
+    // Set current kernel to be the new kernel
+    Command->Kernel = NewKernel;
+  }
 
   // Check if a new global offset is provided.
   if (NewGlobalWorkOffset && Dim > 0) {
@@ -1973,7 +2056,6 @@ ur_result_t updateKernelCommand(
   MutableCommandDesc.pNext = NextDesc;
   MutableCommandDesc.flags = 0;
 
-  auto Platform = CommandBuffer->Context->getPlatform();
   ZE2UR_CALL(
       Platform->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
       (CommandBuffer->ZeComputeCommandListTranslated, &MutableCommandDesc));
@@ -2009,18 +2091,22 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
   UR_ASSERT(Command->CommandBuffer->IsUpdatable,
             UR_RESULT_ERROR_INVALID_OPERATION);
-  UR_ASSERT(Command->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  auto KernelCommandHandle = static_cast<kernel_command_handle *>(Command);
+
+  UR_ASSERT(KernelCommandHandle->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // Lock command, kernel and command buffer for update.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Guard(
-      Command->Mutex, Command->CommandBuffer->Mutex, Command->Kernel->Mutex);
+      Command->Mutex, Command->CommandBuffer->Mutex,
+      KernelCommandHandle->Kernel->Mutex);
 
   UR_ASSERT(Command->CommandBuffer->IsFinalized,
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  UR_CALL(validateCommandDesc(Command, CommandDesc));
+  UR_CALL(validateCommandDesc(KernelCommandHandle, CommandDesc));
   UR_CALL(waitForOngoingExecution(Command->CommandBuffer));
-  UR_CALL(updateKernelCommand(Command, CommandDesc));
+  UR_CALL(updateKernelCommand(KernelCommandHandle, CommandDesc));
 
   ZE2UR_CALL(zeCommandListClose,
              (Command->CommandBuffer->ZeComputeCommandList));

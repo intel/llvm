@@ -220,6 +220,8 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZE2UR_CALL(zeDriverGetExtensionProperties,
              (ZeDriver, &Count, ZeExtensions.data()));
 
+  bool MutableCommandListSpecExtensionSupported = false;
+  bool ZeIntelExternalSemaphoreExtensionSupported = false;
   for (auto &extension : ZeExtensions) {
     // Check if global offset extension is available
     if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
@@ -244,13 +246,18 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeDriverEventPoolCountingEventsExtensionFound = true;
       }
     }
-
-    // Check if the ImmediateAppendCommandLists extension is available.
-    if (strncmp(extension.name, ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME,
-                strlen(ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME) + 1) == 0) {
-      if (extension.version ==
-          ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_VERSION_CURRENT) {
-        zeDriverImmediateCommandListAppendFound = true;
+    // Check if extension is available for Mutable Command List v1.1.
+    if (strncmp(extension.name, ZE_MUTABLE_COMMAND_LIST_EXP_NAME,
+                strlen(ZE_MUTABLE_COMMAND_LIST_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_MUTABLE_COMMAND_LIST_EXP_VERSION_1_1) {
+        MutableCommandListSpecExtensionSupported = true;
+      }
+    }
+    // Check if extension is available for External Sempahores
+    if (strncmp(extension.name, ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME,
+                strlen(ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0) {
+        ZeIntelExternalSemaphoreExtensionSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
@@ -287,39 +294,137 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
 
+  if (ZeIntelExternalSemaphoreExtensionSupported) {
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelDeviceImportExternalSemaphoreExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp))) ==
+         0);
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelCommandListAppendWaitExternalSemaphoresExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt
+                       .zexCommandListAppendWaitExternalSemaphoresExp))) == 0);
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelCommandListAppendSignalExternalSemaphoresExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt
+                       .zexCommandListAppendSignalExternalSemaphoresExp))) ==
+         0);
+    ZeExternalSemaphoreExt.Supported |=
+        (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                         (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
+                          reinterpret_cast<void **>(
+                              &ZeExternalSemaphoreExt
+                                   .zexDeviceReleaseExternalSemaphoreExp))) ==
+         0);
+  }
+
   // Check if mutable command list extension is supported and initialize
   // function pointers.
-  ZeMutableCmdListExt.Supported |=
-      (ZE_CALL_NOCHECK(
-           zeDriverGetExtensionFunctionAddress,
-           (ZeDriver, "zeCommandListGetNextCommandIdExp",
-            reinterpret_cast<void **>(
-                &ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp))) == 0);
+  if (MutableCommandListSpecExtensionSupported) {
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp =
+        (ze_pfnCommandListGetNextCommandIdExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListGetNextCommandIdExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp != nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp =
+        (ze_pfnCommandListUpdateMutableCommandsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp != nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp =
+        (ze_pfnCommandListUpdateMutableCommandSignalEventExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandSignalEventExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp !=
+        nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp =
+        (ze_pfnCommandListUpdateMutableCommandWaitEventsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandWaitEventsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp !=
+        nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp =
+        (ze_pfnCommandListUpdateMutableCommandKernelsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandKernelsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp !=
+        nullptr;
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp =
+        (ze_pfnCommandListGetNextCommandIdWithKernelsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListGetNextCommandIdWithKernelsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp !=
+        nullptr;
+  } else {
+    ZeMutableCmdListExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListGetNextCommandIdExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp))) ==
+         0);
 
-  ZeMutableCmdListExt.Supported &=
-      (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                       (ZeDriver, "zeCommandListUpdateMutableCommandsExp",
-                        reinterpret_cast<void **>(
-                            &ZeMutableCmdListExt
-                                 .zexCommandListUpdateMutableCommandsExp))) ==
-       0);
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                         (ZeDriver, "zeCommandListUpdateMutableCommandsExp",
+                          reinterpret_cast<void **>(
+                              &ZeMutableCmdListExt
+                                   .zexCommandListUpdateMutableCommandsExp))) ==
+         0);
 
-  ZeMutableCmdListExt.Supported &=
-      (ZE_CALL_NOCHECK(
-           zeDriverGetExtensionFunctionAddress,
-           (ZeDriver, "zeCommandListUpdateMutableCommandSignalEventExp",
-            reinterpret_cast<void **>(
-                &ZeMutableCmdListExt
-                     .zexCommandListUpdateMutableCommandSignalEventExp))) == 0);
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListUpdateMutableCommandSignalEventExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListUpdateMutableCommandSignalEventExp))) ==
+         0);
 
-  ZeMutableCmdListExt.Supported &=
-      (ZE_CALL_NOCHECK(
-           zeDriverGetExtensionFunctionAddress,
-           (ZeDriver, "zeCommandListUpdateMutableCommandWaitEventsExp",
-            reinterpret_cast<void **>(
-                &ZeMutableCmdListExt
-                     .zexCommandListUpdateMutableCommandWaitEventsExp))) == 0);
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListUpdateMutableCommandWaitEventsExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListUpdateMutableCommandWaitEventsExp))) ==
+         0);
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListUpdateMutableCommandKernelsExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListUpdateMutableCommandKernelsExp))) == 0);
 
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListGetNextCommandIdWithKernelsExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListGetNextCommandIdWithKernelsExp))) == 0);
+  }
   return UR_RESULT_SUCCESS;
 }
 

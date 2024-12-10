@@ -7,6 +7,8 @@ set(UR_LEVEL_ZERO_LOADER_LIBRARY "" CACHE FILEPATH "Path of the Level Zero Loade
 set(UR_LEVEL_ZERO_INCLUDE_DIR "" CACHE FILEPATH "Directory containing the Level Zero Headers")
 set(UR_LEVEL_ZERO_LOADER_REPO "" CACHE STRING "Github repo to get the Level Zero loader sources from")
 set(UR_LEVEL_ZERO_LOADER_TAG "" CACHE STRING " GIT tag of the Level Loader taken from github repo")
+set(UR_COMPUTE_RUNTIME_REPO "" CACHE STRING "Github repo to get the compute runtime sources from")
+set(UR_COMPUTE_RUNTIME_TAG "" CACHE STRING " GIT tag of the compute runtime taken from github repo")
 
 # Copy Level Zero loader/headers locally to the build to avoid leaking their path.
 set(LEVEL_ZERO_COPY_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader)
@@ -87,8 +89,31 @@ target_link_libraries(LevelZeroLoader
     INTERFACE "${LEVEL_ZERO_LIB_NAME}"
 )
 
+file(GLOB LEVEL_ZERO_LOADER_API_HEADERS "${LEVEL_ZERO_INCLUDE_DIR}/*.h")
+file(COPY ${LEVEL_ZERO_LOADER_API_HEADERS} DESTINATION ${LEVEL_ZERO_INCLUDE_DIR}/level_zero)
 add_library(LevelZeroLoader-Headers INTERFACE)
 target_include_directories(LevelZeroLoader-Headers
-    INTERFACE "$<BUILD_INTERFACE:${LEVEL_ZERO_INCLUDE_DIR}>"
+    INTERFACE "$<BUILD_INTERFACE:${LEVEL_ZERO_INCLUDE_DIR};${LEVEL_ZERO_INCLUDE_DIR}/level_zero>"
+              "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+)
+
+if (UR_COMPUTE_RUNTIME_REPO STREQUAL "")
+set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
+endif()
+if (UR_COMPUTE_RUNTIME_TAG STREQUAL "")
+set(UR_COMPUTE_RUNTIME_TAG 24.39.31294.12)
+endif()
+include(FetchContent)
+# Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.
+FetchContentSparse_Declare(exp-headers ${UR_COMPUTE_RUNTIME_REPO} "${UR_COMPUTE_RUNTIME_TAG}" "level_zero/include")
+FetchContent_GetProperties(exp-headers)
+if(NOT exp-headers_POPULATED)
+  FetchContent_Populate(exp-headers)
+endif()
+add_library(ComputeRuntimeLevelZero-Headers INTERFACE)
+set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${exp-headers_SOURCE_DIR}/../..")
+message(STATUS "Level Zero Adapter: Using Level Zero headers from ${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}")
+target_include_directories(ComputeRuntimeLevelZero-Headers
+    INTERFACE "$<BUILD_INTERFACE:${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}>"
               "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )

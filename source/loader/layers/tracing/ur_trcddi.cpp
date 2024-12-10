@@ -8585,9 +8585,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    size_t
-        localWorkSize, ///< [in] number of local work-items that will form a work-group when the
-                       ///< kernel is launched
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the work-group
+                 ///< work-items
+    const size_t *
+        pLocalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of local work-items forming a work-group that will execute the
+    ///< kernel function.
     size_t
         dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
     ///< that will be used when the kernel is launched
@@ -8602,7 +8606,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     }
 
     ur_kernel_suggest_max_cooperative_group_count_exp_params_t params = {
-        &hKernel, &localWorkSize, &dynamicSharedMemorySize, &pGroupCountRet};
+        &hKernel, &workDim, &pLocalWorkSize, &dynamicSharedMemorySize,
+        &pGroupCountRet};
     uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
         "urKernelSuggestMaxCooperativeGroupCountExp", &params);
@@ -8611,7 +8616,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     logger.info("   ---> urKernelSuggestMaxCooperativeGroupCountExp\n");
 
     ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
-        hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
+        hKernel, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+        pGroupCountRet);
 
     getContext()->notify_end(
         UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
@@ -8699,6 +8705,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
                  ///< work-group work-items
     const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< offset used to calculate the global ID of a work-item
+    const size_t *
         pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
     ///< number of global work-items in workDim that will execute the kernel
     ///< function
@@ -8730,11 +8739,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     }
 
     ur_enqueue_kernel_launch_custom_exp_params_t params = {
-        &hQueue,          &hKernel,
-        &workDim,         &pGlobalWorkSize,
-        &pLocalWorkSize,  &numPropsInLaunchPropList,
-        &launchPropList,  &numEventsInWaitList,
-        &phEventWaitList, &phEvent};
+        &hQueue,
+        &hKernel,
+        &workDim,
+        &pGlobalWorkOffset,
+        &pGlobalWorkSize,
+        &pLocalWorkSize,
+        &numPropsInLaunchPropList,
+        &launchPropList,
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &phEvent};
     uint64_t instance =
         getContext()->notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
                                    "urEnqueueKernelLaunchCustomExp", &params);
@@ -8743,9 +8758,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     logger.info("   ---> urEnqueueKernelLaunchCustomExp\n");
 
     ur_result_t result = pfnKernelLaunchCustomExp(
-        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
-        numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
+        numEventsInWaitList, phEventWaitList, phEvent);
 
     getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
                              "urEnqueueKernelLaunchCustomExp", &params, &result,
@@ -9215,6 +9230,166 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
         ur::extras::printFunctionParams(
             args_str, UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP, &params);
         logger.info("   <--- urEnqueueNativeCommandExp({}) -> {};\n",
+                    args_str.str(), result);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTensorMapEncodeIm2ColExp
+__urdlllocal ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const int *
+        PixelBoxLowerCorner, ///< [in] Array containing DHW dimensions of lower box corner.
+    const int *
+        PixelBoxUpperCorner, ///< [in] Array containing DHW dimensions of upper box corner.
+    uint32_t ChannelsPerPixel, ///< [in] Number of channels per pixel.
+    uint32_t PixelsPerColumn,  ///< [in] Number of pixels per column.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+) {
+    auto pfnEncodeIm2ColExp =
+        getContext()->urDdiTable.TensorMapExp.pfnEncodeIm2ColExp;
+
+    if (nullptr == pfnEncodeIm2ColExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_tensor_map_encode_im_2_col_exp_params_t params = {&hDevice,
+                                                         &TensorMapType,
+                                                         &TensorRank,
+                                                         &GlobalAddress,
+                                                         &GlobalDim,
+                                                         &GlobalStrides,
+                                                         &PixelBoxLowerCorner,
+                                                         &PixelBoxUpperCorner,
+                                                         &ChannelsPerPixel,
+                                                         &PixelsPerColumn,
+                                                         &ElementStrides,
+                                                         &Interleave,
+                                                         &Swizzle,
+                                                         &L2Promotion,
+                                                         &OobFill,
+                                                         &hTensorMap};
+    uint64_t instance =
+        getContext()->notify_begin(UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP,
+                                   "urTensorMapEncodeIm2ColExp", &params);
+
+    auto &logger = getContext()->logger;
+    logger.info("   ---> urTensorMapEncodeIm2ColExp\n");
+
+    ur_result_t result = pfnEncodeIm2ColExp(
+        hDevice, TensorMapType, TensorRank, GlobalAddress, GlobalDim,
+        GlobalStrides, PixelBoxLowerCorner, PixelBoxUpperCorner,
+        ChannelsPerPixel, PixelsPerColumn, ElementStrides, Interleave, Swizzle,
+        L2Promotion, OobFill, hTensorMap);
+
+    getContext()->notify_end(UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP,
+                             "urTensorMapEncodeIm2ColExp", &params, &result,
+                             instance);
+
+    if (logger.getLevel() <= logger::Level::INFO) {
+        std::ostringstream args_str;
+        ur::extras::printFunctionParams(
+            args_str, UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP, &params);
+        logger.info("   <--- urTensorMapEncodeIm2ColExp({}) -> {};\n",
+                    args_str.str(), result);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTensorMapEncodeTiledExp
+__urdlllocal ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const uint32_t *
+        BoxDim, ///< [in] Array containing traversal box size (number of elments) along
+    ///< each of the TensorRank dimensions. Specifies how many elements to be
+    ///< traversed along each tensor dimension.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+) {
+    auto pfnEncodeTiledExp =
+        getContext()->urDdiTable.TensorMapExp.pfnEncodeTiledExp;
+
+    if (nullptr == pfnEncodeTiledExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_tensor_map_encode_tiled_exp_params_t params = {
+        &hDevice,    &TensorMapType, &TensorRank,  &GlobalAddress,
+        &GlobalDim,  &GlobalStrides, &BoxDim,      &ElementStrides,
+        &Interleave, &Swizzle,       &L2Promotion, &OobFill,
+        &hTensorMap};
+    uint64_t instance =
+        getContext()->notify_begin(UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP,
+                                   "urTensorMapEncodeTiledExp", &params);
+
+    auto &logger = getContext()->logger;
+    logger.info("   ---> urTensorMapEncodeTiledExp\n");
+
+    ur_result_t result = pfnEncodeTiledExp(
+        hDevice, TensorMapType, TensorRank, GlobalAddress, GlobalDim,
+        GlobalStrides, BoxDim, ElementStrides, Interleave, Swizzle, L2Promotion,
+        OobFill, hTensorMap);
+
+    getContext()->notify_end(UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP,
+                             "urTensorMapEncodeTiledExp", &params, &result,
+                             instance);
+
+    if (logger.getLevel() <= logger::Level::INFO) {
+        std::ostringstream args_str;
+        ur::extras::printFunctionParams(
+            args_str, UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP, &params);
+        logger.info("   <--- urTensorMapEncodeTiledExp({}) -> {};\n",
                     args_str.str(), result);
     }
 
@@ -10266,6 +10441,43 @@ __urdlllocal ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TensorMapExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetTensorMapExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_tensor_map_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_tracing_layer::getContext()->urDdiTable.TensorMapExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnEncodeIm2ColExp = pDdiTable->pfnEncodeIm2ColExp;
+    pDdiTable->pfnEncodeIm2ColExp =
+        ur_tracing_layer::urTensorMapEncodeIm2ColExp;
+
+    dditable.pfnEncodeTiledExp = pDdiTable->pfnEncodeTiledExp;
+    pDdiTable->pfnEncodeTiledExp = ur_tracing_layer::urTensorMapEncodeTiledExp;
+
+    return result;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's USM table
 ///        with current process' addresses
 ///
@@ -10608,6 +10820,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_tracing_layer::urGetSamplerProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Sampler);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_tracing_layer::urGetTensorMapExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->TensorMapExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {

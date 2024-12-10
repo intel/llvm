@@ -45,6 +45,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tensor_map.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
@@ -58,7 +59,7 @@ if(UR_BUILD_ADAPTER_L0)
         # 'utils' target from 'level-zero-loader' includes path which is prefixed
         # in the source directory, this breaks the installation of 'utils' target.
         set_target_properties(utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ze_loader utils
+        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers ze_loader utils
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -109,6 +110,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero PRIVATE
@@ -138,6 +140,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tensor_map.cpp
         # v2-only sources
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.hpp
@@ -203,6 +206,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero_v2 PRIVATE
