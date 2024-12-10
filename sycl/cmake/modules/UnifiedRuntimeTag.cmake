@@ -1,7 +1,7 @@
-# commit b23a973a08194fbc462e968c7f0b2a04aded9b0e
-# Merge: 3ad235de 447b638b
-# Author: Neil R. Spruit <neil.r.spruit@intel.com>
-# Date:   Wed Dec 4 13:35:40 2024 -0800
-#   Merge pull request #2416 from nrspruit/disable_driver_inorderlists
-#   [L0] Disabling Driver In Order Lists by default 
-set(UNIFIED_RUNTIME_TAG yc-PR/1204-error-on-unsupported-feature)
+# commit 870f0ed76aa302c23b4d72aa90d0b24b1faf1aa7
+# Merge: e1cc9b2c b532350f
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Dec 10 18:05:02 2024 +0000
+#     Merge pull request #2420 from yingcong-wu/yc-PR/1204-error-on-unsupported-feature
+#     [DevAsan] Report error when using unsupported extension API
+set(UNIFIED_RUNTIME_TAG 870f0ed76aa302c23b4d72aa90d0b24b1faf1aa7)
