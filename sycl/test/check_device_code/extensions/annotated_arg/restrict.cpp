@@ -19,4 +19,4 @@ int main() {
   return 0;
 }
 
-// CHECK-IR: spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_(ptr addrspace(1) noalias noundef align 4 "sycl-restrict" %_arg_AnnotArg)
+// CHECK-IR: spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_(ptr addrspace(1) noalias noundef align 4 "sycl-restrict"
