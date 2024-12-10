@@ -30,11 +30,15 @@ oneapiext::device_global<const int> DGInit5{7};
 oneapiext::device_global<const int, decltype(oneapiext::properties{
                                         oneapiext::host_access_read})>
     DGCopy5{DGInit5};
+oneapiext::device_global<const int, decltype(oneapiext::properties{
+                                        oneapiext::device_constant})>
+    DGInit6{8};
+oneapiext::device_global<const int> DGCopy6{DGInit6};
 
 int main() {
   sycl::queue Q;
 
-  int ReadVals[10] = {0, 0};
+  int ReadVals[12] = {0, 0};
   {
     sycl::buffer<int, 1> ReadValsBuff{ReadVals, 10};
 
@@ -51,6 +55,8 @@ int main() {
          ReadValsAcc[7] = DGCopy4.get();
          ReadValsAcc[8] = DGInit5.get();
          ReadValsAcc[9] = DGCopy5.get();
+         ReadValsAcc[10] = DGInit6.get();
+         ReadValsAcc[11] = DGCopy6.get();
        });
      }).wait_and_throw();
   }
@@ -65,6 +71,8 @@ int main() {
   assert(ReadVals[7] == 6);
   assert(ReadVals[8] == 7);
   assert(ReadVals[9] == 7);
+  assert(ReadVals[10] == 8);
+  assert(ReadVals[11] == 8);
 
   return 0;
 }

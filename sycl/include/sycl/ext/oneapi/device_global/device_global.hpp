@@ -10,8 +10,7 @@
 
 #include <sycl/access/access.hpp>                       // for address_space
 #include <sycl/exception.hpp>                           // for make_error_code
-#include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image...
-#include <sycl/ext/oneapi/properties/properties.hpp>    // for properties_t
+#include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image... , for properties_t
 #include <sycl/multi_ptr.hpp>                           // for multi_ptr
 #include <sycl/pointers.hpp>                            // for decorated_gl...
 
@@ -39,9 +38,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-
-template <typename T, typename PropertyListT, typename Condition>
-class device_global;
 
 namespace detail {
 // Type-trait for checking if a type defines `operator->`.
@@ -193,7 +189,7 @@ public:
 
 } // namespace detail
 
-template <typename T, typename PropertyListT, typename Condition>
+template <typename T, typename PropertyListT, typename>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     // FIXME: Temporary work-around. Remove when fixed.
