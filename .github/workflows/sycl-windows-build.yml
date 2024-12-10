@@ -70,9 +70,6 @@ jobs:
     name: Build + LIT
     runs-on: [Windows, build-test]
     environment: WindowsCILock
-    defaults:
-      run:
-         shell: bash
     # TODO use cached checkout
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
@@ -120,16 +117,17 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
     - name: Configure
-      shell: cmd
       env:
          ARGS: ${{ inputs.build_configure_extra_args }}
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       run: |
         mkdir build
-        fsutil.exe file setCaseSensitiveInfo build enable
         mkdir install
-        mkdir -p D:\github\_work\cache
-        mkdir -p D:\github\_work\cache\${{inputs.build_cache_suffix}}
+        fsutil.exe file setCaseSensitiveInfo build enable
+        fsutil.exe file setCaseSensitiveInfo install enable
+
+        IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
+        IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
           --ci-defaults %ARGS% ^
           --cmake-opt="-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
@@ -142,8 +140,7 @@ jobs:
     - name: Build
       id: build
       run: |
-        cmake --build build --target sycl-toolchain
-        cmake --build build --target llvm-test-depends
+        cmake --build build
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
