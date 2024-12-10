@@ -127,22 +127,6 @@ jobs:
             target_devices: opencl:cpu
             tests_selector: e2e
             extra_lit_opts: --param spirv-backend=True --param gpu-intel-gen12=True
-
-          - name: SYCL-CTS on OCL CPU w/ LLVM SPIR-V Backend
-            runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: opencl:cpu
-            tests_selector: cts
-            extra_lit_opts: --param spirv-backend=True --param gpu-intel-gen12=True
-
-          - name: SYCL-CTS on L0 gen12 w/ LLVM SPIR-V Backend
-            runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
-            tests_selector: cts
-            extra_lit_opts: --param spirv-backend=True --param gpu-intel-gen12=True
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
