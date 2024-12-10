@@ -1830,7 +1830,7 @@ def SYCLDeviceConstant: InheritableAttr {
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   // Only used internally by SYCL implementation
-  let Documentation = [Undocumented];
+  let Documentation = [SYCLDeviceConstantAttrDocs];
   let SimpleHandler = 1;
 }
 

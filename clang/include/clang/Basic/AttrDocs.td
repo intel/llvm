@@ -3579,6 +3579,26 @@ so we have this attribute in sycl_detail namespace.
   }];
 }
 
+def SYCLDeviceConstantAttrDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "__sycl_detail__::device_constant";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+[[__sycl_detail__::device_constant]] attribute is used for marking that a
+device_global should use the device constant address space (if available).
+We do not intend to support this as a general attribute that user code can use,
+so we have this attribute in sycl_detail namespace.
+
+.. code-block:: c++
+
+  template<typename T>
+  struct [[__sycl_detail__::device_global,
+         __sycl_detail__::device_constant]] device_global {}
+
+  device_global<int> Foo;
+  }];
+}
+
 def SYCLGlobalVariableAllowedAttrDocs : Documentation {
   let Category = DocCatType;
   let Heading = "__sycl_detail__::global_variable_allowed";
