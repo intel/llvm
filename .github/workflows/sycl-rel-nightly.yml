@@ -30,7 +30,10 @@ jobs:
 
     - id: is_new_commit
       if: ${{ github.event_name == 'schedule' }}
-      run: test -z $(git rev-list --after="24 hours" HEAD) && echo "is_new_commit=false" >> $GITHUB_OUTPUT
+      run: |
+        if [ -z "$(git rev-list --after="24 hours" HEAD)" ]; then
+          echo "is_new_commit=false" >> $GITHUB_OUTPUT
+        fi
 
   ubuntu2204_build:
     needs: [check_for_new_commits]
@@ -126,7 +129,7 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
-      build_ref: ${{ env.SYCL_REL_BRANCH }}
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
   e2e-win:
     needs: build-win
@@ -176,6 +179,7 @@ jobs:
     secrets: inherit
     with:
       mode: stop
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
   # No binaries upload for now
   # nightly_build_upload:

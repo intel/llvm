@@ -10,6 +10,9 @@ on:
       build_ref:
         type: string
         required: false
+      ref:
+        type: string
+        required: false
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -73,7 +76,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         path: src
-        ref: ${{ inputs.build_ref || github.sha }}
+        ref: ${{ inputs.ref || github.sha }}
         fetch-depth: 1
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
