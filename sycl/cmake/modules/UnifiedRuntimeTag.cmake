@@ -1,7 +1,7 @@
-# commit b23a973a08194fbc462e968c7f0b2a04aded9b0e
-# Merge: 3ad235de 447b638b
-# Author: Neil R. Spruit <neil.r.spruit@intel.com>
-# Date:   Wed Dec 4 13:35:40 2024 -0800
-#   Merge pull request #2416 from nrspruit/disable_driver_inorderlists
-#   [L0] Disabling Driver In Order Lists by default
-set(UNIFIED_RUNTIME_TAG b23a973a08194fbc462e968c7f0b2a04aded9b0e)
+# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
+# Merge: daa0b110464c 323b37c55504
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Fri Dec 6 18:03:11 2024 +0000
+#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
+#     Fix command_buffer coverity issues
+set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)

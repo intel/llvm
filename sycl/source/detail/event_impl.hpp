@@ -152,6 +152,9 @@ public:
   /// Clear the event state
   void setStateIncomplete();
 
+  /// Set state as discarded.
+  void setStateDiscarded() { MState = HES_Discarded; }
+
   /// Returns command that is associated with the event.
   ///
   /// Scheduler mutex must be locked in read mode when this is called.
