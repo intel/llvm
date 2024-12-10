@@ -6,6 +6,7 @@
 // Debug option -g is not passed to device code compiler when CL-style driver
 // is used and /DEBUG options is passed.
 // XFAIL: cl_options
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16309
 
 #include "kernel-bundle-merge-options.hpp"
 
