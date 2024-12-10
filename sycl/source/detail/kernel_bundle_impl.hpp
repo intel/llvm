@@ -479,34 +479,30 @@ public:
       // TODO: Support persistent caching.
 
       const std::string &SourceStr = std::get<std::string>(this->Source);
-      auto [Binaries, Id] = syclex::detail::SYCL_JIT_to_SPIRV(
+      auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
           SourceStr, IncludePairs, BuildOptions, LogPtr, RegisteredKernelNames);
 
       assert(Binaries->NumDeviceBinaries == 1);
 
       auto &PM = detail::ProgramManager::getInstance();
-      std::unordered_set<uintptr_t> ImageIds;
-      PM.addImages(Binaries, &ImageIds);
-      auto DevImgs = PM.getSYCLDeviceImages(
-          MContext, MDevices,
-          [&ImageIds](const detail::DeviceImageImplPtr &DevImgImpl) -> bool {
-            return ImageIds.count(
-                DevImgImpl->get_bin_image_ref()->getImageID());
-          },
-          bundle_state::executable);
+      PM.addImages(Binaries);
 
-      PM.bringSYCLDeviceImagesToState(DevImgs, bundle_state::executable);
-
+      std::vector<kernel_id> KernelIDs;
       std::vector<std::string> KernelNames;
-      std::transform(Binaries->DeviceBinaries->EntriesBegin,
-                     Binaries->DeviceBinaries->EntriesEnd,
-                     std::back_inserter(KernelNames),
-                     [PrefixLen = Id.length() + 1](auto &OffloadEntry) {
-                       // `jit_compiler::compileSYCL` uses `Id + '$'` as name
-                       // prefix; drop that here.
-                       return std::string{OffloadEntry.name + PrefixLen};
-                     });
+      // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
+      // for offload entry names.
+      std::string Prefix = CompilationID + '$';
+      for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
+        std::string_view KernelName{KernelID.get_name()};
+        if (KernelName.find(Prefix) == 0) {
+          KernelIDs.push_back(KernelID);
+          KernelName.remove_prefix(Prefix.length());
+          KernelNames.emplace_back(KernelName);
+        }
+      }
 
+      auto DevImgs = PM.getSYCLDeviceImages(MContext, MDevices, KernelIDs,
+                                            bundle_state::executable);
       assert(DevImgs.size() == 1);
       assert(!DevImgs.front().hasDeps());
 

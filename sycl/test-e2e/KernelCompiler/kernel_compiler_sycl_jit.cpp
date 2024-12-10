@@ -194,6 +194,23 @@ int test_build_and_run() {
   test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
   test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 
+  // Create and compile new bundle with different header.
+  std::string AddEmHModified = AddEmH;
+  AddEmHModified[AddEmHModified.find('5')] = '7';
+  syclex::include_files incFiles2{"intermediate/AddEm.h", AddEmHModified};
+  incFiles2.add("intermediate/PlusEm.h", PlusEmH);
+  source_kb kbSrc2 = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, SYCLSource,
+      syclex::properties{incFiles2});
+
+  exe_kb kbExe3 = syclex::build(kbSrc2);
+  sycl::kernel k3 = kbExe3.ext_oneapi_get_kernel("ff_cp");
+  test_1(q, k3, 37 + 7);
+
+  // Can we still run the original compilation?
+  sycl::kernel k4 = kbExe1.ext_oneapi_get_kernel("ff_cp");
+  test_1(q, k4, 37 + 5);
+
   return 0;
 }
 

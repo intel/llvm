@@ -46,7 +46,7 @@ public:
                            const std::vector<unsigned char> &SpecConstBlob);
 
   sycl_device_binaries compileSYCL(
-      const std::string &Id, const std::string &SYCLSource,
+      const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
       const std::vector<std::string> &RegisteredKernelNames);

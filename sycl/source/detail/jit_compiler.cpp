@@ -1210,7 +1210,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 sycl_device_binaries jit_compiler::compileSYCL(
-    const std::string &Id, const std::string &SYCLSource,
+    const std::string &CompilationID, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
     const std::vector<std::string> &RegisteredKernelNames) {
@@ -1227,7 +1227,7 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   std::string FinalSource = ss.str();
 
-  std::string SYCLFileName = Id + ".cpp";
+  std::string SYCLFileName = CompilationID + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
                                           FinalSource.c_str()};
 
@@ -1255,7 +1255,7 @@ sycl_device_binaries jit_compiler::compileSYCL(
   }
 
   return createDeviceBinaryImage(Result.getBundleInfo(),
-                                 /*OffloadEntryPrefix=*/Id + '$');
+                                 /*OffloadEntryPrefix=*/CompilationID + '$');
 }
 
 } // namespace detail
