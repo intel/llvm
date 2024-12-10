@@ -36,10 +36,10 @@ int main() {
   sycl::range<1> UpdateRange(NewRange);
   DynamicCGNode.update_range(UpdateRange);
 
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
 
   // Check that the UpdateRange from active CGF 0 is preserved
-  DynamicCG.set_active_cgf(0);
+  DynamicCG.set_active_index(0);
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   Queue.ext_oneapi_graph(ExecGraph).wait();

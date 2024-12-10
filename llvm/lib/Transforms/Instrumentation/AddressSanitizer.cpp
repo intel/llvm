@@ -1393,7 +1393,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+    Types.push_back(llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1718,7 +1718,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // SPIR constant address space
   PointerType *ConstASPtrTy =
-      Type::getInt8Ty(C)->getPointerTo(kSpirOffloadConstantAS);
+      llvm::PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
@@ -1877,9 +1877,9 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
   // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
   // this step
   initializeCallbacks(TLI);
-  IRB.CreateStore(
-      ConstantPointerNull::get(IntptrTy->getPointerTo(kSpirOffloadGlobalAS)),
-      AsanLaunchInfo);
+  IRB.CreateStore(ConstantPointerNull::get(
+                      llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
+                  AsanLaunchInfo);
 }
 
 // Instrument memset/memmove/memcpy
@@ -3471,7 +3471,7 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
       // )
       if (TargetTriple.isSPIROrSPIRV()) {
         auto *Int8PtrTy =
-            Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
+            llvm::PointerType::get(Type::getInt8Ty(*C), kSpirOffloadConstantAS);
 
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
@@ -3588,9 +3588,10 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
                               IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
-        "__AsanLaunchInfo", IntptrTy->getPointerTo(kSpirOffloadGlobalAS), [&] {
+        "__AsanLaunchInfo",
+        llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), [&] {
           return new GlobalVariable(
-              M, IntptrTy->getPointerTo(kSpirOffloadGlobalAS), false,
+              M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
               GlobalVariable::ExternalLinkage, nullptr, "__AsanLaunchInfo",
               nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
         });
