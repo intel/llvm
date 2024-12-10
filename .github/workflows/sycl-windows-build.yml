@@ -120,6 +120,7 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
     - name: Configure
+      shell: cmd
       env:
          ARGS: ${{ inputs.build_configure_extra_args }}
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
@@ -130,10 +131,10 @@ jobs:
         mkdir -p D:\github\_work\cache
         mkdir -p D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build \
-          --ci-defaults $ARGS \
+          --ci-defaults %ARGS% \
           --cmake-opt="-DCMAKE_C_COMPILER=${{inputs.compiler}}" \
           --cmake-opt="-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" \
-          --cmake-opt="-DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE\install" \
+          --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" \
           --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache" \
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=ccache" \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
