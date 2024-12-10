@@ -352,7 +352,6 @@ params:
       desc: "[in][optional] Pointer obtained by USM allocation or virtual memory mapping operation. If null then argument value is considered null."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xKernelSetExecInfo."
