@@ -58,8 +58,7 @@ jobs:
 
     - name: Test adapter specific
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" -E "test-adapter-level_zero_multi_queue" --timeout 180
-      # TODO: investigate why test-adapter-level_zero_multi_queue fails on newer driver
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" --timeout 180
 
     - name: Test adapters
       working-directory: ${{github.workspace}}/build
