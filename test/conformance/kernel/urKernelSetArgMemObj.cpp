@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "ur_api.h"
 #include <uur/fixtures.h>
 
 struct urKernelSetArgMemObjTest : uur::urKernelTest {
@@ -42,4 +43,14 @@ TEST_P(urKernelSetArgMemObjTest, InvalidKernelArgumentIndex) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
         urKernelSetArgMemObj(kernel, num_kernel_args + 1, nullptr, buffer));
+}
+
+TEST_P(urKernelSetArgMemObjTest, InvalidEnumeration) {
+    ur_kernel_arg_mem_obj_properties_t props{
+        UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, /* stype */
+        nullptr,                                         /* pNext */
+        UR_MEM_FLAG_FORCE_UINT32                         /* memoryAccess */
+    };
+    ASSERT_EQ_RESULT(urKernelSetArgMemObj(kernel, 0, &props, buffer),
+                     UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
