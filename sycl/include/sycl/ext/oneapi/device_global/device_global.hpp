@@ -40,7 +40,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT> class device_global;
+template <typename T, typename PropertyListT, typename Condition>
+class device_global;
 
 namespace detail {
 // Type-trait for checking if a type defines `operator->`.
