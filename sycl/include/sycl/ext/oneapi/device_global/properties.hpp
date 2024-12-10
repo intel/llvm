@@ -8,9 +8,9 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
 #include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
-#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
 
 #include <cstdint>     // for uint16_t
 #include <iosfwd>      // for nullptr_t
@@ -20,14 +20,16 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT = empty_properties_t, typename = void> class device_global;
+template <typename T, typename PropertyListT = empty_properties_t,
+          typename = void>
+class device_global;
 
 struct device_image_scope_key
     : detail::compile_time_property_key<detail::PropKind::DeviceImageScope> {
   using value_t = property_value<device_image_scope_key>;
 };
 
-struct device_constant_key {
+struct device_constant_key
     : detail::compile_time_property_key<detail::PropKind::DeviceConstant> {
   using value_t = property_value<device_constant_key>;
 };
@@ -88,8 +90,8 @@ template <typename T, typename PropertyListT>
 struct is_property_key_of<device_image_scope_key,
                           device_global<T, PropertyListT>> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<device_constant_key,
-                          device_global<T, PropertyListT>> : std::true_type {};
+struct is_property_key_of<device_constant_key, device_global<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<host_access_key, device_global<T, PropertyListT>>
     : std::true_type {};

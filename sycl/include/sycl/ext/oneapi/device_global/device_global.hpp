@@ -224,16 +224,16 @@ class
                                                                                \
   template <class RelayT = T>                                                  \
   std::remove_reference_t<                                                     \
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>        \
-      &operator[](std::ptrdiff_t idx) noexcept {                               \
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &      \
+  operator[](std::ptrdiff_t idx) noexcept {                                    \
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")                            \
     return (*this->get_ptr())[idx];                                            \
   }                                                                            \
                                                                                \
   template <class RelayT = T>                                                  \
   const std::remove_reference_t<                                               \
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>        \
-      &operator[](std::ptrdiff_t idx) const noexcept {                         \
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &      \
+  operator[](std::ptrdiff_t idx) const noexcept {                              \
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")                            \
     return (*this->get_ptr())[idx];                                            \
   }                                                                            \
@@ -241,8 +241,8 @@ class
   template <class RelayT = T>                                                  \
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||                  \
                        std::is_pointer_v<RelayT>,                              \
-                   RelayT>                                                     \
-      &operator->() noexcept {                                                 \
+                   RelayT> &                                                   \
+  operator->() noexcept {                                                      \
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")                 \
     return *this->get_ptr();                                                   \
   }                                                                            \
@@ -250,8 +250,8 @@ class
   template <class RelayT = T>                                                  \
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||                  \
                        std::is_pointer_v<RelayT>,                              \
-                   const RelayT>                                               \
-      &operator->() const noexcept {                                           \
+                   const RelayT> &                                             \
+  operator->() const noexcept {                                                \
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")                 \
     return *this->get_ptr();                                                   \
   }                                                                            \
