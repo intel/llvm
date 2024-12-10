@@ -282,6 +282,7 @@ class
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
+  using base_t = detail::device_global_base<T, property_list_t>;
 
 public:
   using element_type = std::remove_extent_t<T>;
@@ -316,6 +317,7 @@ class
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
+  using base_t = detail::device_global_base<T, property_list_t>;
 
 public:
   using element_type = std::remove_extent_t<T>;
