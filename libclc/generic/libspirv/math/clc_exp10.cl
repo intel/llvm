@@ -64,7 +64,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_exp10(float x)
     const float R_LOG10_2_BY_64_TL = 0x1.04d426p-18f; // log2/(64 * log10) tail : 0.00000388665057
     const float R_LN10 = 0x1.26bb1cp+1f;
 
-    int return_nan = __spirv_IsNan(x);
+    int return_nan = __clc_isnan(x);
     int return_inf = x > X_MAX;
     int return_zero = x < X_MIN;
 
@@ -143,7 +143,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_exp10(double x)
     z2 = __spirv_ocl_ldexp(z2, m);
     z2 = small_value ? z3: z2;
 
-    z2 = __spirv_IsNan(x) ? x : z2;
+    z2 = __clc_isnan(x) ? x : z2;
 
     z2 = x > X_MAX ? as_double(PINFBITPATT_DP64) : z2;
     z2 = x < X_MIN ? 0.0 : z2;

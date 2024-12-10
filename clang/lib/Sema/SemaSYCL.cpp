@@ -5210,6 +5210,28 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
     KernelFunc->setInvalidDecl();
 }
 
+void SemaSYCL::CheckSYCLScopeAttr(CXXRecordDecl *Decl) {
+  assert(Decl->hasAttr<SYCLScopeAttr>());
+
+  bool HasError = false;
+
+  if (Decl->isDependentContext())
+    return;
+
+  // We don't emit both diags at the time as note will only be emitted for the
+  // first, which is confusing. So we check both cases but only report one.
+  if (!Decl->hasTrivialDefaultConstructor()) {
+    Diag(Decl->getLocation(), diag::err_sycl_wg_scope) << 0;
+    HasError = true;
+  } else if (!Decl->hasTrivialDestructor()) {
+    Diag(Decl->getLocation(), diag::err_sycl_wg_scope) << 1;
+    HasError = true;
+  }
+
+  if (HasError)
+    Decl->dropAttr<SYCLScopeAttr>();
+}
+
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
 void SemaSYCL::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
