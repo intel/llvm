@@ -71,7 +71,8 @@ private:
                        ::jit_compiler::BinaryFormat Format);
 
   sycl_device_binaries
-  createDeviceBinaryImage(const ::jit_compiler::RTCBundleInfo &BundleInfo);
+  createDeviceBinaryImage(const ::jit_compiler::RTCBundleInfo &BundleInfo,
+                          const std::string &OffloadEntryPrefix);
 
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;

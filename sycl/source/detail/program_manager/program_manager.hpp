@@ -210,7 +210,8 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr Context);
 
-  void addImages(sycl_device_binaries DeviceImages);
+  void addImages(sycl_device_binaries DeviceImages,
+                 std::unordered_set<uintptr_t> *ImageIds = nullptr);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr Context);

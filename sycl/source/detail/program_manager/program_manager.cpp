@@ -1802,7 +1802,8 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
-void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
+void ProgramManager::addImages(sycl_device_binaries DeviceBinary,
+                               std::unordered_set<uintptr_t> *ImageIds) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -1824,6 +1825,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 #endif
     else
       Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
+
+    if (ImageIds)
+      ImageIds->insert(Img->getImageID());
 
     static uint32_t SequenceID = 0;
 

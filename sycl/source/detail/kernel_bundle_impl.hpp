@@ -474,6 +474,46 @@ public:
       DeviceVec.push_back(Dev);
     }
 
+    if (Language == syclex::source_language::sycl_jit) {
+      // Experimental: Build device images via the program manager.
+      // TODO: Support persistent caching.
+
+      const std::string &SourceStr = std::get<std::string>(this->Source);
+      auto [Binaries, Id] = syclex::detail::SYCL_JIT_to_SPIRV(
+          SourceStr, IncludePairs, BuildOptions, LogPtr, RegisteredKernelNames);
+
+      assert(Binaries->NumDeviceBinaries == 1);
+
+      auto &PM = detail::ProgramManager::getInstance();
+      std::unordered_set<uintptr_t> ImageIds;
+      PM.addImages(Binaries, &ImageIds);
+      auto DevImgs = PM.getSYCLDeviceImages(
+          MContext, MDevices,
+          [&ImageIds](const detail::DeviceImageImplPtr &DevImgImpl) -> bool {
+            return ImageIds.count(
+                DevImgImpl->get_bin_image_ref()->getImageID());
+          },
+          bundle_state::executable);
+
+      PM.bringSYCLDeviceImagesToState(DevImgs, bundle_state::executable);
+
+      std::vector<std::string> KernelNames;
+      std::transform(Binaries->DeviceBinaries->EntriesBegin,
+                     Binaries->DeviceBinaries->EntriesEnd,
+                     std::back_inserter(KernelNames),
+                     [PrefixLen = Id.length() + 1](auto &OffloadEntry) {
+                       // `jit_compiler::compileSYCL` uses `Id + '$'` as name
+                       // prefix; drop that here.
+                       return std::string{OffloadEntry.name + PrefixLen};
+                     });
+
+      assert(DevImgs.size() == 1);
+      assert(!DevImgs.front().hasDeps());
+
+      return std::make_shared<kernel_bundle_impl>(
+          MContext, MDevices, DevImgs.front().getMain(), KernelNames, Language);
+    }
+
     ur_program_handle_t UrProgram = nullptr;
     // SourceStrPtr will be null when source is Spir-V bytes.
     const std::string *SourceStrPtr = std::get_if<std::string>(&this->Source);
@@ -513,15 +553,6 @@ public:
           return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, IncludePairs,
                                                BuildOptions, LogPtr,
                                                RegisteredKernelNames);
-        }
-        if (Language == syclex::source_language::sycl_jit) {
-          auto *Binaries = syclex::detail::SYCL_JIT_to_SPIRV(
-              *SourceStrPtr, IncludePairs, BuildOptions, LogPtr,
-              RegisteredKernelNames);
-          assert(Binaries->NumDeviceBinaries == 1 &&
-                 "Device code splitting is not yet supported");
-          return std::vector<uint8_t>(Binaries->DeviceBinaries->BinaryStart,
-                                      Binaries->DeviceBinaries->BinaryEnd);
         }
         throw sycl::exception(
             make_error_code(errc::invalid),

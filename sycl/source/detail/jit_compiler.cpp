@@ -1120,13 +1120,17 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
 }
 
 sycl_device_binaries jit_compiler::createDeviceBinaryImage(
-    const ::jit_compiler::RTCBundleInfo &BundleInfo) {
+    const ::jit_compiler::RTCBundleInfo &BundleInfo,
+    const std::string &OffloadEntryPrefix) {
   DeviceBinaryContainer Binary;
   for (const auto &Symbol : BundleInfo.SymbolTable) {
-    // Create an offload entry for each kernel.
+    // Create an offload entry for each kernel. We prepend a unique prefix to
+    // support reusing the same name across multiple RTC requests. The actual
+    // entrypoints remain unchanged.
     // It seems to be OK to set zero for most of the information here, at least
     // that is the case for compiled SPIR-V binaries.
-    OffloadEntryContainer Entry{Symbol.c_str(), /*Addr=*/nullptr, /*Size=*/0,
+    std::string PrefixedName = OffloadEntryPrefix + Symbol.c_str();
+    OffloadEntryContainer Entry{PrefixedName, /*Addr=*/nullptr, /*Size=*/0,
                                 /*Flags=*/0, /*Reserved=*/0};
     Binary.addOffloadEntry(std::move(Entry));
   }
@@ -1250,7 +1254,8 @@ sycl_device_binaries jit_compiler::compileSYCL(
     throw sycl::exception(sycl::errc::build, Result.getBuildLog());
   }
 
-  return createDeviceBinaryImage(Result.getBundleInfo());
+  return createDeviceBinaryImage(Result.getBundleInfo(),
+                                 /*OffloadEntryPrefix=*/Id + '$');
 }
 
 } // namespace detail
