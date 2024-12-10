@@ -43,24 +43,16 @@ if(UR_BUILD_ADAPTER_L0)
     endif()
 
     if(NOT WIN32 AND NOT UR_STATIC_ADAPTER_L0)
-        # Make L0 use CallMap from a seprate shared lib so that we can access the map
-        # from the tests. This only seems to work on linux
-        add_library(zeCallMap SHARED zeCallMap.cpp)
-        install_ur_library(zeCallMap)
-        target_compile_definitions(ur_adapter_level_zero PRIVATE UR_L0_CALL_COUNT_IN_TESTS)
-        # TODO: stop exporting internals like this for tests...
-        target_link_libraries(ur_adapter_level_zero PRIVATE zeCallMap)
-
         add_adapter_test(level_zero_ze_calls
             FIXTURE DEVICES
             SOURCES
                 event_cache_tests.cpp
             ENVIRONMENT
                 "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
-                "UR_L0_LEAKS_DEBUG=1"
+                "ZE_ENABLE_TRACING_LAYER=1"
         )
 
-        target_link_libraries(test-adapter-level_zero_ze_calls PRIVATE zeCallMap)
+        target_link_libraries(test-adapter-level_zero_ze_calls PRIVATE LevelZeroLoader LevelZeroLoader-Headers)
 
         add_adapter_test(level_zero_multi_queue
             FIXTURE DEVICES
@@ -68,10 +60,10 @@ if(UR_BUILD_ADAPTER_L0)
                 multi_device_event_cache_tests.cpp
             ENVIRONMENT
                 "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
-                "UR_L0_LEAKS_DEBUG=1"
+                "ZE_ENABLE_TRACING_LAYER=1"
         )
 
-        target_link_libraries(test-adapter-level_zero_multi_queue PRIVATE zeCallMap)
+        target_link_libraries(test-adapter-level_zero_multi_queue PRIVATE LevelZeroLoader LevelZeroLoader-Headers)
     endif()
 
     add_adapter_test(level_zero_ipc
