@@ -78,7 +78,6 @@ jobs:
       with:
         arch: amd64
     - name: oneAPI setup
-      shell: powershell
       if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
       run: |
         $batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
@@ -102,7 +101,6 @@ jobs:
             }
         }
     - name: Set env
-      shell: powershell
       run: |      
         git config --system core.longpaths true
         git config --global core.autocrlf false
@@ -117,6 +115,7 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
     - name: Configure
+      shell: cmd
       env:
          ARGS: ${{ inputs.build_configure_extra_args }}
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
