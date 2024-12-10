@@ -15,7 +15,8 @@
 
 /// ###########################################################################
 
-// RUN: %clangxx -fsycl -fsanitize=memory -c %s -### 2>&1 \
+// We need to add "not" here since "error: unsupported option '-fsanitize=memory' for target 'x86_64-pc-windows-msvc'"
+// RUN: not %clangxx -fsycl -fsanitize=memory -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-MSAN %s
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=memory -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-MSAN %s
