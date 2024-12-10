@@ -130,7 +130,7 @@ jobs:
         mkdir install
         mkdir -p D:\github\_work\cache
         mkdir -p D:\github\_work\cache\${{inputs.build_cache_suffix}}
-        python.exe src/buildbot/configure.py -o build \
+        python.exe src/buildbot/configure.py -o build ^
           --ci-defaults %ARGS% ^
           --cmake-opt="-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
