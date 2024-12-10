@@ -71,9 +71,6 @@ class Benchmark:
     def teardown(self):
         raise NotImplementedError()
 
-    def ignore_iterations(self):
-        return False
-
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
         raise NotImplementedError()

@@ -18,9 +18,99 @@ from utils.utils import prepare_workdir;
 
 import argparse
 import re
+import statistics
 
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = '2.0'
+
+def run_iterations(benchmark: Benchmark, env_vars, iters: int, results: dict[str, list[Result]]):
+    for iter in range(iters):
+        print(f"running {benchmark.name()}, iteration {iter}... ", end='', flush=True)
+        bench_results = benchmark.run(env_vars)
+        if bench_results is None:
+            print(f"did not finish (OK for sycl-bench).")
+            break
+
+        for bench_result in bench_results:
+            # TODO: report failures in markdown/html ?
+            if not bench_result.passed:
+                print(f"complete ({bench_result.label}: verification FAILED)")
+                continue
+
+            print(f"complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit}).")
+
+            bench_result.name = bench_result.label
+            bench_result.lower_is_better = benchmark.lower_is_better()
+
+            if bench_result.label not in results:
+                results[bench_result.label] = []
+
+            results[bench_result.label].append(bench_result)
+
+# https://www.statology.org/modified-z-score/
+def modified_z_score(values: list[float]) -> list[float]:
+    median = statistics.median(values)
+    mad = statistics.median([abs(v - median) for v in values])
+    if mad == 0:
+        return [0] * len(values)
+    return [(0.6745 * (v - median)) / mad for v in values]
+
+def remove_outliers(results: dict[str, list[Result]], threshold: float = 3.5) -> dict[str, list[Result]]:
+    new_results = {}
+    for key, rlist in results.items():
+        # don't eliminate outliers on first pass
+        if len(rlist) <= options.iterations:
+            new_results[key] = rlist
+            continue
+
+        values = [r.value for r in rlist]
+        z_scores = modified_z_score(values)
+        filtered_rlist = [r for r, z in zip(rlist, z_scores) if abs(z) <= threshold]
+
+        if not filtered_rlist:
+            new_results[key] = rlist
+        else:
+            new_results[key] = filtered_rlist
+
+    return new_results
+
+def process_results(results: dict[str, list[Result]]) -> tuple[bool, list[Result]]:
+    processed: list[Result] = []
+    # technically, we can detect whether result is below or above threshold per
+    # individual result. However, we can't repeat benchmark runs with that
+    # granularity. So we just reject all results and try again.
+    valid_results = True # above stddev threshold
+
+    for label, rlist in remove_outliers(results).items():
+        if (len(rlist) == 0):
+            continue
+
+        if len(rlist) == 1:
+            processed.append(rlist[0])
+            continue
+
+        values = [r.value for r in rlist]
+
+        mean_value = statistics.mean(values)
+        stddev = statistics.stdev(values)
+
+        threshold = options.stddev_threshold * mean_value
+
+        if stddev > threshold:
+            print(f"stddev {stddev} above the threshold {threshold} for {label}")
+            valid_results = False
+
+        rlist.sort(key=lambda res: res.value)
+        median_index = len(rlist) // 2
+        median_result = rlist[median_index]
+
+        # only override the stddev if not already set
+        if median_result.stddev == 0.0:
+            median_result.stddev = stddev
+
+        processed.append(median_result)
+
+    return valid_results, processed
 
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
@@ -65,36 +155,14 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     for benchmark in benchmarks:
         try:
             merged_env_vars = {**additional_env_vars}
-            iteration_results = []
-            iterations = options.iterations if not benchmark.ignore_iterations() else 1
-            for iter in range(iterations):
-                print(f"running {benchmark.name()}, iteration {iter}... ", end='', flush=True)
-                bench_results = benchmark.run(merged_env_vars)
-                if bench_results is not None:
-                    for bench_result in bench_results:
-                        if bench_result.passed:
-                            print(f"complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit}).")
-                        else:
-                            print(f"complete ({bench_result.label}: verification FAILED)")
-                        iteration_results.append(bench_result)
-                else:
-                    print(f"did not finish (OK for sycl-bench).")
+            intermediate_results: dict[str, list[Result]] = {}
+            processed: list[Result] = []
+            for _ in range(5):
+                run_iterations(benchmark, merged_env_vars, options.iterations, intermediate_results)
+                valid, processed = process_results(intermediate_results)
+                if valid:
                     break
-
-            if len(iteration_results) == 0:
-                continue
-
-            for label in set([result.label for result in iteration_results]):
-                label_results = [result for result in iteration_results if result.label == label and result.passed == True]
-                if len(label_results) > 0:
-                    label_results.sort(key=lambda res: res.value)
-                    median_index = len(label_results) // 2
-                    median_result = label_results[median_index]
-
-                    median_result.name = label
-                    median_result.lower_is_better = benchmark.lower_is_better()
-
-                    results.append(median_result)
+            results += processed
         except Exception as e:
             if options.exit_on_failure:
                 raise e
@@ -164,14 +232,15 @@ if __name__ == "__main__":
     parser.add_argument("--env", type=str, help='Use env variable for a benchmark run.', action="append", default=[])
     parser.add_argument("--save", type=str, help='Save the results for comparison under a specified name.')
     parser.add_argument("--compare", type=str, help='Compare results against previously saved data.', action="append", default=["baseline"])
-    parser.add_argument("--iterations", type=int, help='Number of times to run each benchmark to select a median value.', default=5)
-    parser.add_argument("--timeout", type=int, help='Timeout for individual benchmarks in seconds.', default=600)
+    parser.add_argument("--iterations", type=int, help='Number of times to run each benchmark to select a median value.', default=options.iterations)
+    parser.add_argument("--stddev-threshold", type=float, help='If stddev % is above this threshold, rerun all iterations', default=options.stddev_threshold)
+    parser.add_argument("--timeout", type=int, help='Timeout for individual benchmarks in seconds.', default=options.timeout)
     parser.add_argument("--filter", type=str, help='Regex pattern to filter benchmarks by name.', default=None)
-    parser.add_argument("--epsilon", type=float, help='Threshold to consider change of performance significant', default=0.005)
+    parser.add_argument("--epsilon", type=float, help='Threshold to consider change of performance significant', default=options.epsilon)
     parser.add_argument("--verbose", help='Print output of all the commands.', action="store_true")
     parser.add_argument("--exit-on-failure", help='Exit on first failure.', action="store_true")
     parser.add_argument("--compare-type", type=str, choices=[e.value for e in Compare], help='Compare results against previously saved data.', default=Compare.LATEST.value)
-    parser.add_argument("--compare-max", type=int, help='How many results to read for comparisions', default=10)
+    parser.add_argument("--compare-max", type=int, help='How many results to read for comparisions', default=options.compare_max)
     parser.add_argument("--output-html", help='Create HTML output', action="store_true", default=False)
     parser.add_argument("--output-markdown", help='Create Markdown output', action="store_true", default=True)
     parser.add_argument("--dry-run", help='Do not run any actual benchmarks', action="store_true", default=False)

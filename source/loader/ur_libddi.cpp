@@ -100,6 +100,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = urGetTensorMapExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &urDdiTable.TensorMapExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.USM);
     }
 
