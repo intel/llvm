@@ -807,7 +807,7 @@ public:
 
   char padding[sizeof(detail::AccessorImplDevice<AdjustedDim>) +
                sizeof(PtrType) - sizeof(detail::AccessorBaseHost) -
-               sizeof(MAccData)];
+               sizeof(MAccData)] = {0};
 
   PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
@@ -2192,7 +2192,7 @@ protected:
       : detail::LocalAccessorBaseHost{Impl} {}
 
   char padding[sizeof(detail::LocalAccessorBaseDevice<AdjustedDim>) +
-               sizeof(PtrType) - sizeof(detail::LocalAccessorBaseHost)];
+               sizeof(PtrType) - sizeof(detail::LocalAccessorBaseHost)] = {0};
   using detail::LocalAccessorBaseHost::getSize;
 
   PtrType getQualifiedPtr() const {

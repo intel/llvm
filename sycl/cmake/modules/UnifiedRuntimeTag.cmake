@@ -1,7 +1,7 @@
-# commit 0a90db9b2c36960c9b28ce18557ca15760724c4d
-# Merge: c4d9fdb4 6e0bdeb9
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 27 12:16:44 2024 +0000
-#     Merge pull request #2369 from Bensuo/ben/kernel-binary-update-l0
-#     [CMDBUF] Implement kernel binary update for L0 adapter
-set(UNIFIED_RUNTIME_TAG 0a90db9b2c36960c9b28ce18557ca15760724c4d)
+# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
+# Merge: daa0b110464c 323b37c55504
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Fri Dec 6 18:03:11 2024 +0000
+#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
+#     Fix command_buffer coverity issues
+set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)
