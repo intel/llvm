@@ -273,7 +273,7 @@ class
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>,
-                  std::enable_if_t<detail::properties_t<
+                  typename std::enable_if_t<detail::properties_t<
                       Props...>::template has_property<device_constant_key>()>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
@@ -308,7 +308,7 @@ class
 #endif
     device_global<
         T, detail::properties_t<Props...>,
-        std::enable_if_t<!(detail::properties_t<Props...>::
+        typename std::enable_if_t<!(detail::properties_t<Props...>::
                                template has_property<device_constant_key>())>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
