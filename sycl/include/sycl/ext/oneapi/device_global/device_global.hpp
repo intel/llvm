@@ -274,7 +274,7 @@ class
 #endif
     device_global<T, detail::properties_t<Props...>,
                   typename std::enable_if_t<detail::properties_t<
-                      Props...>::template has_property<device_constant_key>()>>
+                      Props...>::template has_property<device_constant_key>(), class DeviceConstantAddrSp>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
@@ -309,7 +309,7 @@ class
     device_global<
         T, detail::properties_t<Props...>,
         typename std::enable_if_t<!(detail::properties_t<Props...>::
-                               template has_property<device_constant_key>())>>
+                               template has_property<device_constant_key>()), class DeviceDefaultAddrSp>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
