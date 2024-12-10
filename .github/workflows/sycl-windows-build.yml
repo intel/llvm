@@ -138,17 +138,16 @@ jobs:
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
     - name: Build
       id: build
-      run: |
+      run: |        
         cmake --build build
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
-        cmake --build build --target check-llvm
         sleep inf
+        cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
-        sleep inf
         cmake --build build --target check-clang
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
