@@ -105,7 +105,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       compiler: icx
-      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch -Wno-builtin-macro-redefined /U__has_include" --cmake-opt=-DCMAKE_CXX_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch -Wno-builtin-macro-redefined /U__has_include" --cmake-opt="-DCMAKE_EXE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_MODULE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_SHARED_LINKER_FLAGS=/manifest:no" 
+      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt=-DCMAKE_CXX_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt="-DCMAKE_EXE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_MODULE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_SHARED_LINKER_FLAGS=/manifest:no" 
       build_cache_suffix: icx
       
   e2e-win:
