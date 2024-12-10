@@ -164,7 +164,7 @@ public:
             detail::ProgramManager::getInstance().build(DevImgWithDeps,
                                                         MDevices, PropList);
         MDeviceImages.emplace_back(BuiltImg);
-        MUniqueDeviceImages.push_back(std::move(BuiltImg));
+        MUniqueDeviceImages.emplace_back(BuiltImg);
         break;
       }
       case bundle_state::input:
