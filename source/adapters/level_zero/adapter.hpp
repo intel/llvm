@@ -39,12 +39,13 @@ struct ur_adapter_handle_t_ {
   uint32_t ZeInitDriversCount = 0;
   bool InitDriversSupported = false;
 
-  std::optional<ze_result_t> ZeInitDriversResult;
-  std::optional<ze_result_t> ZeInitResult;
+  ze_result_t ZeInitDriversResult;
+  ze_result_t ZeInitResult;
+  ze_result_t ZesResult;
   std::optional<ze_result_t> ZeResult;
-  std::optional<ze_result_t> ZesResult;
   ZeCache<Result<PlatformVec>> PlatformCache;
   logger::Logger &logger;
+  HMODULE processHandle = nullptr;
 };
 
 extern ur_adapter_handle_t_ *GlobalAdapter;

@@ -2,6 +2,7 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#include "ur_api.h"
 #include "uur/raii.h"
 #include <uur/fixtures.h>
 
@@ -34,7 +35,8 @@ UUR_TEST_SUITE_P(urQueueCreateWithParamTest,
                                  UR_QUEUE_FLAG_SUBMISSION_BATCHED,
                                  UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE,
                                  UR_QUEUE_FLAG_USE_DEFAULT_STREAM,
-                                 UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM),
+                                 UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM,
+                                 UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP),
                  uur::deviceTestWithParamPrinter<ur_queue_flag_t>);
 
 TEST_P(urQueueCreateWithParamTest, SuccessWithProperties) {

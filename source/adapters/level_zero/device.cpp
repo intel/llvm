@@ -485,6 +485,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
     // TODO: To find out correct value
     return ReturnValue("");
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -1048,6 +1050,10 @@ ur_result_t urDeviceGetInfo(
       UpdateCapabilities |=
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET;
     }
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_INSTRUCTION)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+    }
     return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
@@ -1151,8 +1157,30 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
-    return ReturnValue(false);
+  case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
+#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+    const auto ZeDeviceBlockArrayFlags =
+        Device->ZeDeviceBlockArrayProperties->flags;
+
+    auto supportsFlags =
+        [&](ze_intel_device_block_array_exp_flags_t RequiredFlags) {
+          return (ZeDeviceBlockArrayFlags & RequiredFlags) == RequiredFlags;
+        };
+
+    ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities = 0;
+    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_LOAD)) {
+      BlockArrayCapabilities |=
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD;
+    }
+    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_STORE)) {
+      BlockArrayCapabilities |=
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
+    }
+    return ReturnValue(BlockArrayCapabilities);
+#else
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+#endif
+  }
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
@@ -1490,10 +1518,10 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
 
   static const bool UseDriverInOrderLists = [&] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
-        1, 3, L0_DRIVER_INORDER_MIN_VERSION);
+    // bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
+    //     1, 3, L0_DRIVER_INORDER_MIN_VERSION);
     if (!UrRet)
-      return CompatibleDriver;
+      return false;
     return std::atoi(UrRet) != 0;
   }();
 
@@ -1583,6 +1611,17 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         P.pNext = &Properties;
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
+
+#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+  ZeDeviceBlockArrayProperties.Compute =
+      [ZeDevice](
+          ZeStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+        ze_device_properties_t P;
+        P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+        P.pNext = &Properties;
+        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
+      };
+#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
   ImmCommandListUsed = this->useImmediateCommandLists();
 

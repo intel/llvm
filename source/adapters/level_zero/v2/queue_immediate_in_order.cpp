@@ -1069,13 +1069,15 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
-    ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pGlobalWorkSize,
+    ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
     const ur_exp_launch_property_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   std::ignore = hKernel;
   std::ignore = workDim;
+  std::ignore = pGlobalWorkOffset;
   std::ignore = pGlobalWorkSize;
   std::ignore = pLocalWorkSize;
   std::ignore = numPropsInLaunchPropList;

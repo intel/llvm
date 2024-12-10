@@ -87,6 +87,10 @@ using ur_exp_command_buffer_command_factory_t =
     singleton_factory_t<ur_exp_command_buffer_command_object_t,
                         ur_exp_command_buffer_command_handle_t>;
 
+using ur_exp_tensor_map_object_t = object_t<ur_exp_tensor_map_handle_t>;
+using ur_exp_tensor_map_factory_t =
+    singleton_factory_t<ur_exp_tensor_map_object_t, ur_exp_tensor_map_handle_t>;
+
 struct handle_factories {
     ur_adapter_factory_t ur_adapter_factory;
     ur_platform_factory_t ur_platform_factory;
@@ -105,6 +109,7 @@ struct handle_factories {
     ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
     ur_exp_command_buffer_command_factory_t
         ur_exp_command_buffer_command_factory;
+    ur_exp_tensor_map_factory_t ur_exp_tensor_map_factory;
 };
 
 } // namespace ur_loader

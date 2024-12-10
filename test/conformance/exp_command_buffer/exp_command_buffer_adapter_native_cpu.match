@@ -37,7 +37,11 @@
 {{OPT}}KernelCommandEventSyncUpdateTest.TwoWaitEvents/*
 {{OPT}}KernelCommandEventSyncUpdateTest.InvalidWaitUpdate/*
 {{OPT}}KernelCommandEventSyncUpdateTest.InvalidSignalUpdate/*
-{{OPT}}LocalMemoryUpdateTest.UpdateParameters/*
-{{OPT}}LocalMemoryUpdateTest.UpdateParametersAndLocalSize/*
+{{OPT}}LocalMemoryUpdateTest.UpdateParametersSameLocalSize/*
+{{OPT}}LocalMemoryUpdateTest.UpdateLocalOnly/*
+{{OPT}}LocalMemoryUpdateTest.UpdateParametersEmptyLocalSize/*
+{{OPT}}LocalMemoryUpdateTest.UpdateParametersSmallerLocalSize/*
+{{OPT}}LocalMemoryUpdateTest.UpdateParametersLargerLocalSize/*
+{{OPT}}LocalMemoryUpdateTest.UpdateParametersPartialLocalSize/*
 {{OPT}}LocalMemoryMultiUpdateTest.UpdateParameters/*
 {{OPT}}LocalMemoryMultiUpdateTest.UpdateWithoutBlocking/*

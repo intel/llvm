@@ -9,7 +9,7 @@
 #                                  rocm_agent_enumerator is found.
 #
 
-find_program(ROCM_AGENT_ENUMERATOR NAMES rocm_agent_enumerator)
+find_program(ROCM_AGENT_ENUMERATOR NAMES rocm_agent_enumerator PATHS /opt/rocm/bin)
 
 if(ROCM_AGENT_ENUMERATOR)
     set(ROCM_AGENT_ENUMERATOR_FOUND TRUE)

@@ -50,10 +50,9 @@ struct LocalArgsInfo {
 
 constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
-struct LaunchInfo {
+struct AsanRuntimeData {
     uintptr_t GlobalShadowOffset = 0;
     uintptr_t GlobalShadowOffsetEnd = 0;
-
     uintptr_t PrivateShadowOffset = 0;
     uintptr_t PrivateShadowOffsetEnd = 0;
 
@@ -99,6 +98,7 @@ const int kPrivateMidRedzoneMagic = (char)0xf2;
 const int kPrivateRightRedzoneMagic = (char)0xf3;
 
 constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
+constexpr auto kSPIR_AsanSpirKernelMetadata = "__AsanKernelMetadata";
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer

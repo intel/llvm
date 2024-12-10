@@ -12,6 +12,7 @@
 #include "common.hpp"
 #include "ur_api.h"
 #include "ze_api.h"
+#include "ze_ddi.h"
 #include "zes_api.h"
 
 struct ur_device_handle_t_;
@@ -106,5 +107,31 @@ struct ur_platform_handle_t_ : public _ur_platform {
     ze_result_t (*zexCommandListUpdateMutableCommandWaitEventsExp)(
         ze_command_list_handle_t, uint64_t, uint32_t,
         ze_event_handle_t *) = nullptr;
+    ze_result_t (*zexCommandListUpdateMutableCommandKernelsExp)(
+        ze_command_list_handle_t, uint32_t, uint64_t *,
+        ze_kernel_handle_t *) = nullptr;
+    ze_result_t (*zexCommandListGetNextCommandIdWithKernelsExp)(
+        ze_command_list_handle_t, const ze_mutable_command_id_exp_desc_t *,
+        uint32_t, ze_kernel_handle_t *, uint64_t *) = nullptr;
   } ZeMutableCmdListExt;
+
+  // Structure with function pointers for External Semaphore Extension.
+  struct ZeExternalSemaphoreExtension {
+    bool Supported = false;
+    ze_result_t (*zexImportExternalSemaphoreExp)(
+        ze_device_handle_t, ze_intel_external_semaphore_exp_handle_t *,
+        const ze_intel_external_semaphore_exp_desc_t *);
+    ze_result_t (*zexCommandListAppendWaitExternalSemaphoresExp)(
+        ze_command_list_handle_t,
+        const ze_intel_external_semaphore_exp_handle_t *,
+        const ze_intel_external_semaphore_wait_exp_params_t *, unsigned int,
+        ze_event_handle_t, uint32_t, ze_event_handle_t *);
+    ze_result_t (*zexCommandListAppendSignalExternalSemaphoresExp)(
+        ze_command_list_handle_t,
+        const ze_intel_external_semaphore_exp_handle_t *,
+        const ze_intel_external_semaphore_signal_exp_params_t *, size_t,
+        ze_event_handle_t, uint32_t, ze_event_handle_t *);
+    ze_result_t (*zexDeviceReleaseExternalSemaphoreExp)(
+        ze_intel_external_semaphore_exp_handle_t);
+  } ZeExternalSemaphoreExt;
 };

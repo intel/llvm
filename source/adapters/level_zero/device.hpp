@@ -18,13 +18,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "adapters/level_zero/platform.hpp"
+#include "common.hpp"
+#include <level_zero/include/ze_intel_gpu.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
-
-#include "adapters/level_zero/platform.hpp"
-#include "common.hpp"
 
 enum EventsScope {
   // All events are created host-visible.
@@ -224,6 +224,10 @@ struct ur_device_handle_t_ : _ur_object {
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
+#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+  ZeCache<ZeStruct<ze_intel_device_block_array_exp_properties_t>>
+      ZeDeviceBlockArrayProperties;
+#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
   // Map device bindless image offset to corresponding host image handle.
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>

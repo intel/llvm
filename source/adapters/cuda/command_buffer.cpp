@@ -105,7 +105,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::addWaitNodes(
   }
   // Set DepsLists as an output parameter for communicating the list of wait
   // nodes created.
-  DepsList = WaitNodes;
+  DepsList = std::move(WaitNodes);
   return UR_RESULT_SUCCESS;
 }
 
@@ -115,7 +115,7 @@ kernel_command_handle::kernel_command_handle(
     const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
     const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
     ur_kernel_handle_t *KernelAlternatives, CUgraphNode SignalNode,
-    std::vector<CUgraphNode> WaitNodes)
+    const std::vector<CUgraphNode> &WaitNodes)
     : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
                                               WaitNodes),
       Kernel(Kernel), Params(Params), WorkDim(WorkDim) {
@@ -146,7 +146,7 @@ kernel_command_handle::kernel_command_handle(
 ur_exp_command_buffer_command_handle_t_::
     ur_exp_command_buffer_command_handle_t_(
         ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
-        CUgraphNode SignalNode, std::vector<CUgraphNode> WaitNodes)
+        CUgraphNode SignalNode, const std::vector<CUgraphNode> &WaitNodes)
     : CommandBuffer(CommandBuffer), Node(Node), SignalNode(SignalNode),
       WaitNodes(WaitNodes), RefCountInternal(1), RefCountExternal(1) {
   CommandBuffer->incrementInternalReferenceCount();
@@ -339,7 +339,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        NumEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        NumEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new T(CommandBuffer, GraphNode, SignalNode, WaitNodes);
     CommandBuffer->CommandHandles.push_back(NewCommand);
 
@@ -522,9 +522,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                                         DepsList.data(), DepsList.size(),
                                         &NodeParams));
 
-    if (LocalSize != 0)
-      hKernel->clearLocalSize();
-
     // Add signal node if external return event is used.
     CUgraphNode SignalNode = nullptr;
     if (phEvent) {
@@ -540,7 +537,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new kernel_command_handle(
         hCommandBuffer, hKernel, GraphNode, NodeParams, workDim,
         pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
@@ -598,7 +595,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new usm_memcpy_command_handle(hCommandBuffer, GraphNode,
                                                     SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -666,9 +663,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new buffer_copy_command_handle(hCommandBuffer, GraphNode,
                                                      SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
 
     if (phCommand) {
       NewCommand->incrementInternalReferenceCount();
@@ -730,7 +728,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new buffer_copy_rect_command_handle(
         hCommandBuffer, GraphNode, SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -791,7 +789,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new buffer_write_command_handle(hCommandBuffer, GraphNode,
                                                       SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -851,7 +849,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new buffer_read_command_handle(hCommandBuffer, GraphNode,
                                                      SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -916,7 +914,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new buffer_write_rect_command_handle(
         hCommandBuffer, GraphNode, SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -981,7 +979,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new buffer_read_rect_command_handle(
         hCommandBuffer, GraphNode, SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -1037,7 +1035,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new usm_prefetch_command_handle(hCommandBuffer, GraphNode,
                                                       SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -1093,7 +1091,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     }
 
     std::vector<CUgraphNode> WaitNodes =
-        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+        numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
     auto NewCommand = new usm_advise_command_handle(hCommandBuffer, GraphNode,
                                                     SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);

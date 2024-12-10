@@ -111,9 +111,9 @@ struct ProgramInfo {
     ur_program_handle_t Handle;
     std::atomic<int32_t> RefCount = 1;
 
-    // lock this mutex if following fields are accessed
-    ur_shared_mutex Mutex;
+    // Program is built only once, so we don't need to lock it
     std::unordered_set<std::shared_ptr<AllocInfo>> AllocInfoForGlobals;
+    std::unordered_set<std::string> InstrumentedKernels;
 
     explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
         [[maybe_unused]] auto Result =
@@ -126,6 +126,8 @@ struct ProgramInfo {
             getContext()->urDdiTable.Program.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
+
+    bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
 };
 
 struct ContextInfo {
@@ -155,9 +157,72 @@ struct ContextInfo {
     }
 };
 
-struct USMLaunchInfo {
-    LaunchInfo *Data = nullptr;
+struct AsanRuntimeDataWrapper {
+    AsanRuntimeData Host{};
 
+    AsanRuntimeData *DevicePtr = nullptr;
+
+    ur_context_handle_t Context{};
+
+    ur_device_handle_t Device{};
+
+    AsanRuntimeDataWrapper(ur_context_handle_t Context,
+                           ur_device_handle_t Device)
+        : Context(Context), Device(Device) {}
+
+    ~AsanRuntimeDataWrapper();
+
+    AsanRuntimeData *getDevicePtr() {
+        if (DevicePtr == nullptr) {
+            ur_result_t Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+                Context, Device, nullptr, nullptr, sizeof(AsanRuntimeData),
+                (void **)&DevicePtr);
+            if (Result != UR_RESULT_SUCCESS) {
+                getContext()->logger.error(
+                    "Failed to alloc device usm for asan runtime data: {}",
+                    Result);
+            }
+        }
+        return DevicePtr;
+    }
+
+    ur_result_t syncFromDevice(ur_queue_handle_t Queue) {
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
+            sizeof(AsanRuntimeData), 0, nullptr, nullptr));
+
+        return UR_RESULT_SUCCESS;
+    }
+
+    ur_result_t syncToDevice(ur_queue_handle_t Queue) {
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
+            sizeof(AsanRuntimeData), 0, nullptr, nullptr));
+
+        return UR_RESULT_SUCCESS;
+    }
+
+    ur_result_t
+    importLocalArgsInfo(ur_queue_handle_t Queue,
+                        const std::vector<LocalArgsInfo> &LocalArgs) {
+        assert(!LocalArgs.empty());
+
+        Host.NumLocalArgs = LocalArgs.size();
+        const size_t LocalArgsInfoSize =
+            sizeof(LocalArgsInfo) * Host.NumLocalArgs;
+        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+            ur_cast<void **>(&Host.LocalArgs)));
+
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0,
+            nullptr, nullptr));
+
+        return UR_RESULT_SUCCESS;
+    }
+};
+
+struct LaunchInfo {
     ur_context_handle_t Context = nullptr;
     ur_device_handle_t Device = nullptr;
     const size_t *GlobalWorkSize = nullptr;
@@ -165,26 +230,36 @@ struct USMLaunchInfo {
     std::vector<size_t> LocalWorkSize;
     uint32_t WorkDim = 0;
 
-    USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
-                  const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-                  const size_t *GlobalWorkOffset, uint32_t WorkDim)
+    AsanRuntimeDataWrapper Data;
+
+    LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
+               const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+               const size_t *GlobalWorkOffset, uint32_t WorkDim)
         : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
-          GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
+          GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim),
+          Data(Context, Device) {
         if (LocalWorkSize) {
             this->LocalWorkSize =
                 std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
         }
+        [[maybe_unused]] auto Result =
+            getContext()->urDdiTable.Context.pfnRetain(Context);
+        assert(Result == UR_RESULT_SUCCESS);
+        Result = getContext()->urDdiTable.Device.pfnRetain(Device);
+        assert(Result == UR_RESULT_SUCCESS);
     }
-    ~USMLaunchInfo();
-
-    ur_result_t initialize();
-    ur_result_t updateKernelInfo(const KernelInfo &KI);
+    ~LaunchInfo();
 };
 
 struct DeviceGlobalInfo {
     uptr Size;
     uptr SizeWithRedZone;
     uptr Addr;
+};
+
+struct SpirKernelInfo {
+    uptr KernelName;
+    uptr Size;
 };
 
 class AsanInterceptor {
@@ -200,18 +275,17 @@ class AsanInterceptor {
                                AllocType Type, void **ResultPtr);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
-    ur_result_t registerProgram(ur_context_handle_t Context,
-                                ur_program_handle_t Program);
+    ur_result_t registerProgram(ur_program_handle_t Program);
 
     ur_result_t unregisterProgram(ur_program_handle_t Program);
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                                 ur_queue_handle_t Queue,
-                                USMLaunchInfo &LaunchInfo);
+                                LaunchInfo &LaunchInfo);
 
     ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
                                  ur_queue_handle_t Queue,
-                                 USMLaunchInfo &LaunchInfo);
+                                 LaunchInfo &LaunchInfo);
 
     ur_result_t insertContext(ur_context_handle_t Context,
                               std::shared_ptr<ContextInfo> &CI);
@@ -260,14 +334,18 @@ class AsanInterceptor {
 
     std::shared_ptr<ProgramInfo> getProgramInfo(ur_program_handle_t Program) {
         std::shared_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
-        assert(m_ProgramMap.find(Program) != m_ProgramMap.end());
-        return m_ProgramMap[Program];
+        if (m_ProgramMap.find(Program) != m_ProgramMap.end()) {
+            return m_ProgramMap[Program];
+        }
+        return nullptr;
     }
 
     std::shared_ptr<KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {
         std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-        assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
-        return m_KernelMap[Kernel];
+        if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
+            return m_KernelMap[Kernel];
+        }
+        return nullptr;
     }
 
     const AsanOptions &getOptions() { return m_Options; }
@@ -293,12 +371,17 @@ class AsanInterceptor {
                               std::shared_ptr<DeviceInfo> &DeviceInfo,
                               ur_queue_handle_t Queue,
                               ur_kernel_handle_t Kernel,
-                              USMLaunchInfo &LaunchInfo);
+                              LaunchInfo &LaunchInfo);
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
 
+    ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
+    ur_result_t registerSpirKernels(ur_program_handle_t Program);
+
   private:
+    // m_Options may be used in other places, place it at the top
+    AsanOptions m_Options;
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
@@ -323,8 +406,6 @@ class AsanInterceptor {
     ur_shared_mutex m_AllocationMapMutex;
 
     std::unique_ptr<Quarantine> m_Quarantine;
-
-    AsanOptions m_Options;
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
     ur_shared_mutex m_AdaptersMutex;

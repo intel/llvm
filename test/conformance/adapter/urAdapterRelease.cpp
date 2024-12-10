@@ -16,6 +16,7 @@ struct urAdapterReleaseTest : uur::runtime::urAdapterTest {
 
 TEST_F(urAdapterReleaseTest, Success) {
     uint32_t referenceCountBefore = 0;
+    ASSERT_SUCCESS(urAdapterRetain(adapter));
 
     ASSERT_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_REFERENCE_COUNT,
                                     sizeof(referenceCountBefore),
