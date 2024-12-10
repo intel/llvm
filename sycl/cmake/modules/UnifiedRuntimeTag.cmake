@@ -1,7 +1,7 @@
-# commit bb64b3e9f6d30b232b204590b94250ce2da6967b
-# Merge: d23739306f2c e625bfdaa99b
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Martin Grant <martin.morrisongrant@codeplay.com>
-#     Merge pull request #2471 from Bensuo/ben/l0-include-fix
-#     [L0] Fix issue with test include path
-set(UNIFIED_RUNTIME_TAG bb64b3e9f6d30b232b204590b94250ce2da6967b)
+# commit e1cc9b2cfce7f329f0f411b5b84837b511b86a2d
+# Merge: 5a1a81b6 b209eba8
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Dec 10 14:29:41 2024 +0000
+#     Merge pull request #2394 from zhaomaosu/do-alloc-use-pool
+#     [DevASAN] Do allocation with USM pool to reduce memory overhead
+set(UNIFIED_RUNTIME_TAG e1cc9b2cfce7f329f0f411b5b84837b511b86a2d)
