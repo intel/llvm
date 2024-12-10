@@ -1,5 +1,5 @@
 // FIXME: Move to sycl/test.
-// RUN: %{build} -fsyntax-only -o %t.out
+// RUN: %{build} -fsyntax-only -Wno-error=unused-command-line-argument -o %t.out
 
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>

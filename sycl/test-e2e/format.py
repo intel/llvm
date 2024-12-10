@@ -178,7 +178,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -fsycl-use-spirv-backend-for-spirv-gen is needed
         # to support "spirv-backend" feature
         fsycl_use_spirv_backend = (
-            "-fsycl-use-spirv-backend-for-spirv-gen"
+            " -fsycl-use-spirv-backend-for-spirv-gen"
             if "spirv-backend" in test.config.available_features
             else ""
         )

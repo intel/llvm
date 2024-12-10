@@ -12,6 +12,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t2.o %t.a -Wno-unused-command-line-argument -o %t2.exe
 // RUN: %{run} %t2.exe
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64059
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 

@@ -15,6 +15,9 @@
 // RUN: %clangxx %t-same-kernel-a.o %t-same-kernel-b.o -Wno-unused-command-line-argument -o %t-same-kernel.exe -fsycl -fsycl-targets=%{sycl_triple}
 // RUN: %{run} %t-same-kernel.exe
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64059
+
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
