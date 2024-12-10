@@ -110,7 +110,7 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
         urEnqueueEventsWait(queue1, 1, eventWaitDummy.ptr(), eventWait.ptr()));
     EXPECT_SUCCESS(
         urEnqueueEventsWait(queue2, 1, eventWait.ptr(), event.ptr()));
-    EXPECT_EQ(zeCommandListAppendWaitOnEventsCount, 3);
+    EXPECT_EQ(zeCommandListAppendWaitOnEventsCount, 2);
     ASSERT_SUCCESS(urEventRelease(eventWaitDummy.get()));
     ASSERT_SUCCESS(urEventRelease(eventWait.get()));
     ASSERT_SUCCESS(urEventRelease(event.get()));
