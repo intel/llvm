@@ -165,9 +165,11 @@ if(UR_ENABLE_SANITIZER)
     )
 
     if(UR_ENABLE_SYMBOLIZER)
-        target_sources(ur_loader
-            PRIVATE
+        set(symbolizer_sources
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/symbolizer.cpp
+        )
+        target_sources(ur_loader
+            PRIVATE ${symbolizer_sources}
         )
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
         target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
@@ -183,7 +185,7 @@ if(UR_ENABLE_SANITIZER)
                 OUTPUT_VARIABLE LIBCXX_ABI_PATH
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
             set_property(SOURCE
-                ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/symbolizer.cpp
+                ${symbolizer_sources}
                 APPEND_STRING PROPERTY COMPILE_FLAGS
                 " -stdlib=libc++ ")
             if(NOT EXISTS ${LIBCXX_PATH} OR NOT EXISTS ${LIBCXX_ABI_PATH})
