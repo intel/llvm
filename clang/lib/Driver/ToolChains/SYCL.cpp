@@ -608,7 +608,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
-  // Handle Sanitize Options
+#if !defined(_WIN32)
+
   auto addSingleLibrary = [&](const DeviceLibOptInfo &Lib) {
     if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
       return;
@@ -713,15 +714,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
   }
 
-#if !defined(_WIN32)
   if (SanitizeVal == "address")
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
     addLibraries(SYCLDeviceMsanLibs);
-#else // _WIN32
-  if (!SanitizeVal.empty())
-    C.getDriver().Diag(diag::warn_drv_unsupported_option_for_target)
-        << SanitizeArg << TargetTriple.str();
 #endif
 
   if (isNativeCPU)

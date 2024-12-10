@@ -1169,6 +1169,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   // SPIR/SPIRV sanitizer support is experimental and will pass a fixed set of
   // flags
   if (TC.getTriple().isSPIROrSPIRV()) {
+#if !defined(_WIN32)
     if (Sanitizers.has(SanitizerKind::Address)) {
       CmdArgs.push_back("-fsanitize=address");
       CmdArgs.push_back("-fsanitize-address-use-after-return=never");
@@ -1209,6 +1210,17 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-msan-eager-checks=1");
     }
+#else // _WIN32
+    std::string SanitizeArg;
+    if (Sanitizers.has(SanitizerKind::Address))
+      SanitizeArg = "-fsanitize=address";
+    else if (Sanitizers.has(SanitizerKind::Memory))
+      SanitizeArg = "-fsanitize=memory";
+    else
+      SanitizeArg = "-fsanitize=";
+    TC.getDriver().Diag(diag::warn_drv_unsupported_option_for_target)
+        << SanitizeArg << TC.getTripleString();
+#endif
     return;
   }
 
