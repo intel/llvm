@@ -29,7 +29,7 @@
 // RUN: grep -rI "XFAIL:" %S/../../test-e2e \
 // RUN: -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
-// RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t
+// RUN: grep -Pv "(?:XFAIL-TRACKER:\s+(?:(?:https:\/\/github.com\/[\w\d-]+\/[\w\d-]+\/issues\/[\d]+)|(?:[\w]+-[\d]+)))"
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
 // RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
 //
