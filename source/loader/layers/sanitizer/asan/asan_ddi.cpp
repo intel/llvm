@@ -1555,6 +1555,52 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceGetInfo
+__urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
+    ur_device_handle_t hDevice, ///< [in] handle of the device instance
+    ur_device_info_t propName,  ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If propSize is not equal to or greater than the real number of bytes
+    ///< needed to return the info
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    ///< pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+) {
+    auto pfnGetInfo = getContext()->urDdiTable.Device.pfnGetInfo;
+
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    // For unsupported features for device address sanitizer, we override the result.
+    static std::unordered_set<ur_device_info_t> UnsupportedFeatures = {
+        // Virtual Memory
+        UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
+
+        // Command Buffer
+        UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+        UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
+    };
+    if (UnsupportedFeatures.find(propName) != UnsupportedFeatures.end()) {
+        UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+        // handle non-bool return type queries
+        if (propName == UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP) {
+            ur_device_command_buffer_update_capability_flags_t flag = 0;
+            return ReturnValue(flag);
+        }
+
+        return ReturnValue(false);
+    }
+
+    return pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Global table
 ///        with current process' addresses
 ///
@@ -1843,6 +1889,168 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Device table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_device_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnGetInfo = ur_sanitizer_layer::asan::urDeviceGetInfo;
+
+    return result;
+}
+
+template <class A, class B> struct NotSupportedApi;
+
+template <class MsgType, class R, class... A>
+struct NotSupportedApi<MsgType, R (*)(A...)> {
+    R static ReportError(A...) {
+        getContext()->logger.error(MsgType::value);
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+};
+
+struct DevAsanNotSupportCommandBufferMsg {
+    static constexpr const char *value =
+        "CommandBuffer extension is not supported by UR_LAYER_ASAN";
+};
+
+struct DevAsanNotSupportVirtualMemoryMsg {
+    static constexpr const char *value =
+        "VirtualMemory extension is not supported by UR_LAYER_ASAN";
+};
+
+template <class T>
+using CommandBufferNotSupported =
+    NotSupportedApi<DevAsanNotSupportCommandBufferMsg, T>;
+
+template <class T>
+using VirtualMemoryNotSupported =
+    NotSupportedApi<DevAsanNotSupportVirtualMemoryMsg, T>;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's CommandBufferExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_command_buffer_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+#define SET_UNSUPPORTED(FuncPtr)                                               \
+    do {                                                                       \
+        FuncPtr = CommandBufferNotSupported<decltype(FuncPtr)>::ReportError;   \
+    } while (0)
+
+    SET_UNSUPPORTED(pDdiTable->pfnCreateExp);
+    SET_UNSUPPORTED(pDdiTable->pfnRetainExp);
+    SET_UNSUPPORTED(pDdiTable->pfnReleaseExp);
+    SET_UNSUPPORTED(pDdiTable->pfnFinalizeExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendKernelLaunchExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendUSMFillExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferCopyExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferWriteExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferReadExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferCopyRectExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferWriteRectExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferReadRectExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferFillExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendUSMPrefetchExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendUSMAdviseExp);
+    SET_UNSUPPORTED(pDdiTable->pfnEnqueueExp);
+    SET_UNSUPPORTED(pDdiTable->pfnRetainCommandExp);
+    SET_UNSUPPORTED(pDdiTable->pfnReleaseCommandExp);
+    SET_UNSUPPORTED(pDdiTable->pfnUpdateKernelLaunchExp);
+    SET_UNSUPPORTED(pDdiTable->pfnUpdateSignalEventExp);
+    SET_UNSUPPORTED(pDdiTable->pfnUpdateWaitEventsExp);
+    SET_UNSUPPORTED(pDdiTable->pfnGetInfoExp);
+    SET_UNSUPPORTED(pDdiTable->pfnCommandGetInfoExp);
+
+#undef SET_UNSUPPORTED
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's VirtualMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_virtual_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+#define SET_UNSUPPORTED(FuncPtr)                                               \
+    do {                                                                       \
+        FuncPtr = VirtualMemoryNotSupported<decltype(FuncPtr)>::ReportError;   \
+    } while (0)
+
+    SET_UNSUPPORTED(pDdiTable->pfnGranularityGetInfo);
+    SET_UNSUPPORTED(pDdiTable->pfnReserve);
+    SET_UNSUPPORTED(pDdiTable->pfnFree);
+    SET_UNSUPPORTED(pDdiTable->pfnMap);
+    SET_UNSUPPORTED(pDdiTable->pfnUnmap);
+    SET_UNSUPPORTED(pDdiTable->pfnSetAccess);
+    SET_UNSUPPORTED(pDdiTable->pfnGetInfo);
+
+#undef SET_UNSUPPORTED
+
+    return result;
+}
 } // namespace asan
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
@@ -1909,6 +2117,21 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_sanitizer_layer::asan::urGetUSMProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->USM);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::asan::urGetDeviceProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Device);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::asan::urGetCommandBufferExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->CommandBufferExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::asan::urGetVirtualMemProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->VirtualMem);
     }
 
     return result;
