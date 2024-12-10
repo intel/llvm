@@ -142,8 +142,9 @@ jobs:
         cmake --build build
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+      shell: bash
       run: |
-        timeout -1
+        sleep inf
         cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
