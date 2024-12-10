@@ -113,26 +113,41 @@ kernel::ext_oneapi_get_info(queue Queue) const {
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
+                            size_t DynamicLocalMemorySize) const {
+  return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
+                                          DynamicLocalMemorySize);
+}
+
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
+                            size_t DynamicLocalMemorySize) const {
+  return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
+                                          DynamicLocalMemorySize);
+}
+
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                             size_t DynamicLocalMemorySize) const {
   return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
                                           DynamicLocalMemorySize);
 }
 
-template __SYCL_EXPORT typename ext::oneapi::experimental::info::
-    kernel_queue_specific::max_num_work_group_sync::return_type
-    kernel::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(queue Queue) const;
-
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT)           \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
+      queue, const range<1> &, size_t) const;                                  \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
+      queue, const range<2> &, size_t) const;                                  \
   template __SYCL_EXPORT ReturnT                                               \
   kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
       queue, const range<3> &, size_t) const;
 // Not including "ext_oneapi_kernel_queue_specific_traits.def" because not all
 // kernel_queue_specific queries require the above-defined get_info interface.
 // clang-format off
-__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_group_sync, size_t)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_groups, size_t)
 // clang-format on
 #undef __SYCL_PARAM_TRAITS_SPEC
@@ -142,6 +157,54 @@ kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 ur_native_handle_t kernel::getNative() const { return impl->getNative(); }
 
 ur_native_handle_t kernel::getNativeImpl() const { return impl->getNative(); }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// The following query was deprecated since it doesn't include a way to specify
+// the invdividual dimensions of the work group. All of the contents of this
+// #ifndef block should be removed during the next ABI breaking window.
+namespace ext::oneapi::experimental::info::kernel_queue_specific {
+struct max_num_work_group_sync {
+  using return_type = size_t;
+};
+} // namespace ext::oneapi::experimental::info::kernel_queue_specific
+template <>
+struct detail::is_kernel_queue_specific_info_desc<
+    ext::oneapi::experimental::info::kernel_queue_specific::
+        max_num_work_group_sync> : std::true_type {
+  using return_type = ext::oneapi::experimental::info::kernel_queue_specific::
+      max_num_work_group_sync::return_type;
+};
+template <>
+__SYCL2020_DEPRECATED(
+    "The 'max_num_work_group_sync' query is deprecated. See "
+    "'sycl_ext_oneapi_launch_queries' for the new 'max_num_work_groups' query.")
+__SYCL_EXPORT typename ext::oneapi::experimental::info::kernel_queue_specific::
+    max_num_work_group_sync::return_type kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_num_work_group_sync>(queue Queue, const range<3> &WorkGroupSize,
+                                     size_t DynamicLocalMemorySize) const {
+  return ext_oneapi_get_info<ext::oneapi::experimental::info::
+                                 kernel_queue_specific::max_num_work_groups>(
+      Queue, WorkGroupSize, DynamicLocalMemorySize);
+}
+template <>
+__SYCL2020_DEPRECATED(
+    "The 'max_num_work_group_sync' query is deprecated. See "
+    "'sycl_ext_oneapi_launch_queries' for the new 'max_num_work_groups' query.")
+__SYCL_EXPORT typename ext::oneapi::experimental::info::kernel_queue_specific::
+    max_num_work_group_sync::return_type kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_num_work_group_sync>(queue Queue) const {
+  auto Device = Queue.get_device();
+  const auto MaxWorkGroupSize =
+      get_info<info::kernel_device_specific::work_group_size>(Device);
+  const sycl::range<3> WorkGroupSize{MaxWorkGroupSize, 1, 1};
+  return ext_oneapi_get_info<ext::oneapi::experimental::info::
+                                 kernel_queue_specific::max_num_work_groups>(
+      Queue, WorkGroupSize,
+      /* DynamicLocalMemorySize */ 0);
+}
+#endif
 
 } // namespace _V1
 } // namespace sycl

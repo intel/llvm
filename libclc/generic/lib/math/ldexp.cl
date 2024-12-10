@@ -26,7 +26,7 @@
 
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 _CLC_DEFINE_BINARY_BUILTIN(float, ldexp, __spirv_ocl_ldexp, float, int)
 
