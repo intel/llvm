@@ -284,8 +284,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     UR_CALL(pfnRetain(hProgram));
 
     auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
-    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-    ProgramInfo->RefCount++;
+    if (ProgramInfo != nullptr) {
+        ProgramInfo->RefCount++;
+    }
 
     return UR_RESULT_SUCCESS;
 }
@@ -358,6 +359,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
     UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
 
+    UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
     UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
@@ -389,6 +391,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
     UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                               phPrograms, pOptions, phProgram));
 
+    UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
     UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
@@ -411,8 +414,7 @@ ur_result_t UR_APICALL urProgramRelease(
     UR_CALL(pfnProgramRelease(hProgram));
 
     auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
-    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-    if (--ProgramInfo->RefCount == 0) {
+    if (ProgramInfo != nullptr && --ProgramInfo->RefCount == 0) {
         UR_CALL(getAsanInterceptor()->unregisterProgram(hProgram));
         UR_CALL(getAsanInterceptor()->eraseProgram(hProgram));
     }
@@ -459,10 +461,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     getContext()->logger.debug("==== urEnqueueKernelLaunch");
 
-    USMLaunchInfo LaunchInfo(GetContext(hKernel), GetDevice(hQueue),
-                             pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                             workDim);
-    UR_CALL(LaunchInfo.initialize());
+    LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
+                          pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
+                          workDim);
 
     UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 

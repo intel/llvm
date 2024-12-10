@@ -607,6 +607,12 @@ etors:
 - name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
   desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
   value: '246'
+- name: TENSOR_MAP_ENCODE_IM_2_COL_EXP
+  desc: Enumerator for $xTensorMapEncodeIm2ColExp
+  value: '247'
+- name: TENSOR_MAP_ENCODE_TILED_EXP
+  desc: Enumerator for $xTensorMapEncodeTiledExp
+  value: '248'
 ---
 type: enum
 desc: Defines structure types

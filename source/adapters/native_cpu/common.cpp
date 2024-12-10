@@ -13,13 +13,15 @@
 // Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
 // See urGetLastResult
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
-thread_local char ErrorMessage[MaxMessageSize];
+thread_local char ErrorMessage[MaxMessageSize]{};
 
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode) {
-  assert(strlen(pMessage) <= MaxMessageSize);
-  strcpy(ErrorMessage, pMessage);
+  assert(strlen(pMessage) < MaxMessageSize);
+  // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
+  // always null terminated.
+  strncpy(ErrorMessage, pMessage, MaxMessageSize - 1);
   ErrorMessageCode = ErrorCode;
 }
 

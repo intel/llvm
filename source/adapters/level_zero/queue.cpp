@@ -104,10 +104,10 @@ ur_result_t ur_completion_batch::seal(ur_queue_handle_t queue,
   assert(st == ACCUMULATING);
 
   if (!barrierEvent) {
-    UR_CALL(EventCreate(queue->Context, queue, false /*IsMultiDevice*/,
-                        true /*HostVisible*/, &barrierEvent,
-                        false /*CounterBasedEventEnabled*/,
-                        false /*ForceDisableProfiling*/));
+    UR_CALL(EventCreate(
+        queue->Context, queue, false /*IsMultiDevice*/, true /*HostVisible*/,
+        &barrierEvent, false /*CounterBasedEventEnabled*/,
+        false /*ForceDisableProfiling*/, false /*InterruptBasedEventEnabled*/));
   }
 
   // Instead of collecting all the batched events, we simply issue a global
@@ -1197,6 +1197,8 @@ ur_queue_handle_t_::ur_queue_handle_t_(
       UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
       useDriverCounterBasedEvents &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
+  this->InterruptBasedEventsEnabled =
+      isLowPowerEvents() && isInOrderQueue() && Device->useDriverInOrderLists();
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1655,6 +1657,10 @@ bool ur_queue_handle_t_::isInOrderQueue() const {
           0);
 }
 
+bool ur_queue_handle_t_::isLowPowerEvents() const {
+  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) != 0);
+}
+
 // Helper function to perform the necessary cleanup of the events from reset cmd
 // list.
 ur_result_t CleanupEventListFromResetCmdList(
@@ -1889,7 +1895,8 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   if (*Event == nullptr)
     UR_CALL(EventCreate(
         Queue->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
-        Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/));
+        Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/,
+        Queue->InterruptBasedEventsEnabled));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;

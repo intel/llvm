@@ -41,6 +41,14 @@ struct ShadowMemory {
 
     virtual size_t GetShadowSize() = 0;
 
+    virtual ur_result_t AllocLocalShadow(ur_queue_handle_t Queue,
+                                         uint32_t NumWG, uptr &Begin,
+                                         uptr &End) = 0;
+
+    virtual ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue,
+                                           uint32_t NumWG, uptr &Begin,
+                                           uptr &End) = 0;
+
     ur_context_handle_t Context{};
 
     ur_device_handle_t Device{};
@@ -64,6 +72,20 @@ struct ShadowMemoryCPU final : public ShadowMemory {
                                     uptr Size, u8 Value) override;
 
     size_t GetShadowSize() override { return 0x80000000000ULL; }
+
+    ur_result_t AllocLocalShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
+                                 uptr &End) override {
+        Begin = ShadowBegin;
+        End = ShadowEnd;
+        return UR_RESULT_SUCCESS;
+    }
+
+    ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
+                                   uptr &End) override {
+        Begin = ShadowBegin;
+        End = ShadowEnd;
+        return UR_RESULT_SUCCESS;
+    }
 };
 
 struct ShadowMemoryGPU : public ShadowMemory {
@@ -78,12 +100,22 @@ struct ShadowMemoryGPU : public ShadowMemory {
 
     ur_result_t ReleaseShadow(std::shared_ptr<AllocInfo> AI) override final;
 
+    ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                                 uptr &Begin, uptr &End) override final;
+
+    ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                                   uptr &Begin, uptr &End) override final;
+
     ur_mutex VirtualMemMapsMutex;
 
     std::unordered_map<
         uptr, std::pair<ur_physical_mem_handle_t,
                         std::unordered_set<std::shared_ptr<AllocInfo>>>>
         VirtualMemMaps;
+
+    uptr LocalShadowOffset = 0;
+
+    uptr PrivateShadowOffset = 0;
 };
 
 /// Shadow Memory layout of GPU PVC device
