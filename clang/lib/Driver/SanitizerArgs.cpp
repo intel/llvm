@@ -1216,10 +1216,10 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       SanitizeArg = "-fsanitize=address";
     else if (Sanitizers.has(SanitizerKind::Memory))
       SanitizeArg = "-fsanitize=memory";
-    else
-      SanitizeArg = "-fsanitize=";
-    TC.getDriver().Diag(diag::warn_drv_unsupported_option_for_target)
-        << SanitizeArg << TC.getTripleString();
+
+    if (!SanitizeArg.empty())
+      TC.getDriver().Diag(diag::warn_drv_unsupported_option_for_target)
+          << SanitizeArg << TC.getTripleString();
 #endif
     return;
   }
