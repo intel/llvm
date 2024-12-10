@@ -54,7 +54,7 @@ int main() {
     assert(HostData[i] == PatternA);
   }
 
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
@@ -63,7 +63,7 @@ int main() {
     assert(HostData[i] == PatternB);
   }
 
-  DynamicCG.set_active_cgf(2);
+  DynamicCG.set_active_index(2);
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();

@@ -2063,12 +2063,16 @@ void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
   setType(detail::CGType::CodeplayHostTask);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: This function is not used anymore, remove it in the next
+// ABI-breaking window.
 void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
   // Add accessor to the list of requirements.
   impl->CGData.MRequirements.push_back(Accessor.get());
   // Store copy of the accessor.
   impl->CGData.MAccStorage.push_back(std::move(Accessor));
 }
+#endif
 
 void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));
