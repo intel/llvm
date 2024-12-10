@@ -112,7 +112,6 @@ struct ProgramInfo {
     std::atomic<int32_t> RefCount = 1;
 
     // Program is built only once, so we don't need to lock it
-    std::unordered_set<std::shared_ptr<AllocInfo>> AllocInfoForGlobals;
     std::unordered_set<std::string> InstrumentedKernels;
 
     explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
@@ -132,6 +131,10 @@ struct ProgramInfo {
 
 struct ContextInfo {
     ur_context_handle_t Handle;
+
+    ur_usm_pool_handle_t USMPool{};
+    std::once_flag PoolInit;
+
     std::atomic<int32_t> RefCount = 1;
 
     std::vector<ur_device_handle_t> DeviceList;
@@ -155,6 +158,8 @@ struct ContextInfo {
             AllocInfos.List.emplace_back(AI);
         }
     }
+
+    ur_usm_pool_handle_t getUSMPool();
 };
 
 struct AsanRuntimeDataWrapper {
