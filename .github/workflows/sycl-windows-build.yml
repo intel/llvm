@@ -78,7 +78,6 @@ jobs:
       build_conclusion: ${{ steps.build.conclusion }}
     steps:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
-      shell: powershell
       with:
         arch: amd64
     - name: oneAPI setup
