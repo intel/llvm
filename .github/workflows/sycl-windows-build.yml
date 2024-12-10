@@ -144,9 +144,11 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
         cmake --build build --target check-llvm
+        sleep inf
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
+        sleep inf
         cmake --build build --target check-clang
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
