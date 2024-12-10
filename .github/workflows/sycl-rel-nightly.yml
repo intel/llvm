@@ -129,7 +129,7 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
-      ref: ${{ env.SYCL_REL_BRANCH }}
+      build_ref: ${{ env.SYCL_REL_BRANCH }}
 
   e2e-win:
     needs: build-win
