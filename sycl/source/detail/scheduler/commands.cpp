@@ -3257,8 +3257,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   // TODO Either remove "PrefetchUSMExpD2H" on next ABI breaking window,
