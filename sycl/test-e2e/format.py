@@ -175,13 +175,21 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
+        # -fsycl-use-spirv-backend-for-spirv-gen is needed
+        # to support "spirv-backend" feature
+        fsycl_use_spirv_backend = (
+            "-fsycl-use-spirv-backend-for-spirv-gen"
+            if "spirv-backend" in test.config.available_features
+            else ""
+        )
         # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
         substitutions.append(
             (
                 "%{build}",
-                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s",
+                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s"
+                + fsycl_use_spirv_backend,
             )
         )
         if platform.system() == "Windows":
