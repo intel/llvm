@@ -1,7 +1,7 @@
-# commit 5c10466f349b0ff303bd14b015f64bbcd0b78d7d
-# Merge: ffcc53b6 b7b6b557
+# commit e1cc9b2cfce7f329f0f411b5b84837b511b86a2d
+# Merge: 5a1a81b6 b209eba8
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Dec 9 14:58:34 2024 +0000
-#     Merge pull request #2410 from steffenlarsen/steffen/fix_profiling_tag_eviction_and_caching
-#     [L0] Fix cached and evicted timestamp recordings
-set(UNIFIED_RUNTIME_TAG 5c10466f349b0ff303bd14b015f64bbcd0b78d7d)
+# Date:   Tue Dec 10 14:29:41 2024 +0000
+#     Merge pull request #2394 from zhaomaosu/do-alloc-use-pool
+#     [DevASAN] Do allocation with USM pool to reduce memory overhead
+set(UNIFIED_RUNTIME_TAG e1cc9b2cfce7f329f0f411b5b84837b511b86a2d)
