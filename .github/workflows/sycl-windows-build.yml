@@ -122,9 +122,6 @@ jobs:
       run: |
         mkdir build
         mkdir install
-        fsutil.exe file setCaseSensitiveInfo build enable
-        fsutil.exe file setCaseSensitiveInfo install enable
-
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
@@ -138,13 +135,12 @@ jobs:
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
     - name: Build
       id: build
+      shell: bash
       run: |        
-        cmake --build build
+        cmake --build build --target sycl-toolchain
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
-      shell: bash
       run: |
-        sleep inf
         cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
