@@ -1,7 +1,7 @@
-# commit 3ad235dee9588152a58980bb73c8827a3d03a9e8
-# Merge: c7cd88de 6390f637
+# commit e1cc9b2cfce7f329f0f411b5b84837b511b86a2d
+# Merge: 5a1a81b6 b209eba8
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Dec 4 18:17:07 2024 +0000
-#     Merge pull request #2389 from againull/indirect_fix
-#     [L0] Set exec info for all L0 kernels in UR kernel
-set(UNIFIED_RUNTIME_TAG do-alloc-use-pool)
+# Date:   Tue Dec 10 14:29:41 2024 +0000
+#     Merge pull request #2394 from zhaomaosu/do-alloc-use-pool
+#     [DevASAN] Do allocation with USM pool to reduce memory overhead
+set(UNIFIED_RUNTIME_TAG e1cc9b2cfce7f329f0f411b5b84837b511b86a2d)
