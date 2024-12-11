@@ -676,162 +676,155 @@ ur_result_t AsanInterceptor::prepareLaunch(
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
     ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
 
-    do {
-        auto KernelInfo = getKernelInfo(Kernel);
-        assert(KernelInfo && "Kernel should be instrumented");
+    auto KernelInfo = getKernelInfo(Kernel);
+    assert(KernelInfo && "Kernel should be instrumented");
 
-        // Validate pointer arguments
-        if (getOptions().DetectKernelArguments) {
-            for (const auto &[ArgIndex, PtrPair] : KernelInfo->PointerArgs) {
-                auto Ptr = PtrPair.first;
-                if (Ptr == nullptr) {
-                    continue;
-                }
-                if (auto ValidateResult = ValidateUSMPointer(
-                        ContextInfo->Handle, DeviceInfo->Handle, (uptr)Ptr)) {
-                    ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
-                                                ValidateResult, PtrPair.second);
-                    exitWithErrors();
-                }
+    // Validate pointer arguments
+    if (getOptions().DetectKernelArguments) {
+        for (const auto &[ArgIndex, PtrPair] : KernelInfo->PointerArgs) {
+            auto Ptr = PtrPair.first;
+            if (Ptr == nullptr) {
+                continue;
+            }
+            if (auto ValidateResult = ValidateUSMPointer(
+                    ContextInfo->Handle, DeviceInfo->Handle, (uptr)Ptr)) {
+                ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
+                                            ValidateResult, PtrPair.second);
+                exitWithErrors();
             }
         }
+    }
 
-        // Set membuffer arguments
-        for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
-            char *ArgPointer = nullptr;
-            UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-            ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-                Kernel, ArgIndex, nullptr, ArgPointer);
-            if (URes != UR_RESULT_SUCCESS) {
-                getContext()->logger.error(
-                    "Failed to set buffer {} as the {} arg to kernel {}: {}",
-                    ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-                    URes);
-            }
+    // Set membuffer arguments
+    for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
+        char *ArgPointer = nullptr;
+        UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
+        ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
+            Kernel, ArgIndex, nullptr, ArgPointer);
+        if (URes != UR_RESULT_SUCCESS) {
+            getContext()->logger.error(
+                "Failed to set buffer {} as the {} arg to kernel {}: {}",
+                ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
+                URes);
         }
+    }
 
-        auto ArgNums = GetKernelNumArgs(Kernel);
-        // We must prepare all kernel args before call
-        // urKernelGetSuggestedLocalWorkSize, otherwise the call will fail on
-        // CPU device.
-        if (ArgNums) {
-            ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-                Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
-            if (URes != UR_RESULT_SUCCESS) {
-                getContext()->logger.error("Failed to set launch info: {}",
-                                           URes);
+    auto ArgNums = GetKernelNumArgs(Kernel);
+    // We must prepare all kernel args before call
+    // urKernelGetSuggestedLocalWorkSize, otherwise the call will fail on
+    // CPU device.
+    if (ArgNums) {
+        ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
+            Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
+        if (URes != UR_RESULT_SUCCESS) {
+            getContext()->logger.error("Failed to set launch info: {}", URes);
+            return URes;
+        }
+    }
+
+    if (LaunchInfo.LocalWorkSize.empty()) {
+        LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+        auto URes =
+            getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+                Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+                LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+        if (URes != UR_RESULT_SUCCESS) {
+            if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
                 return URes;
             }
-        }
-
-        if (LaunchInfo.LocalWorkSize.empty()) {
-            LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-            auto URes =
-                getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-                    Kernel, Queue, LaunchInfo.WorkDim,
-                    LaunchInfo.GlobalWorkOffset, LaunchInfo.GlobalWorkSize,
-                    LaunchInfo.LocalWorkSize.data());
-            if (URes != UR_RESULT_SUCCESS) {
-                if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-                    return URes;
-                }
-                // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we fallback
-                // to inefficient implementation
-                for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
-                    LaunchInfo.LocalWorkSize[Dim] = 1;
-                }
+            // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we fallback
+            // to inefficient implementation
+            for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+                LaunchInfo.LocalWorkSize[Dim] = 1;
             }
         }
+    }
 
-        const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
-        uint32_t NumWG = 1;
-        for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
-            NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
-                     LocalWorkSize[Dim];
+    const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
+    uint32_t NumWG = 1;
+    for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+        NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
+                 LocalWorkSize[Dim];
+    }
+
+    // Prepare asan runtime data
+    LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
+    LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+    LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
+    LaunchInfo.Data.Host.Debug = getOptions().Debug ? 1 : 0;
+
+    auto LocalMemoryUsage =
+        GetKernelLocalMemorySize(Kernel, DeviceInfo->Handle);
+    auto PrivateMemoryUsage =
+        GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
+
+    getContext()->logger.info(
+        "KernelInfo {} (LocalMemory={}, PrivateMemory={})", (void *)Kernel,
+        LocalMemoryUsage, PrivateMemoryUsage);
+
+    // Write shadow memory offset for local memory
+    if (getOptions().DetectLocals) {
+        if (DeviceInfo->Shadow->AllocLocalShadow(
+                Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
+                LaunchInfo.Data.Host.LocalShadowOffsetEnd) !=
+            UR_RESULT_SUCCESS) {
+            getContext()->logger.warning(
+                "Failed to allocate shadow memory for local "
+                "memory, maybe the number of workgroup ({}) is too "
+                "large",
+                NumWG);
+            getContext()->logger.warning(
+                "Skip checking local memory of kernel <{}>",
+                GetKernelName(Kernel));
+        } else {
+            getContext()->logger.info(
+                "ShadowMemory(Local, WorkGroup{}, {} - {})", NumWG,
+                (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+                (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
         }
+    }
 
-        // Prepare asan runtime data
-        LaunchInfo.Data.Host.GlobalShadowOffset =
-            DeviceInfo->Shadow->ShadowBegin;
-        LaunchInfo.Data.Host.GlobalShadowOffsetEnd =
-            DeviceInfo->Shadow->ShadowEnd;
-        LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
-        LaunchInfo.Data.Host.Debug = getOptions().Debug ? 1 : 0;
-
-        auto LocalMemoryUsage =
-            GetKernelLocalMemorySize(Kernel, DeviceInfo->Handle);
-        auto PrivateMemoryUsage =
-            GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
-
-        getContext()->logger.info(
-            "KernelInfo {} (LocalMemory={}, PrivateMemory={})", (void *)Kernel,
-            LocalMemoryUsage, PrivateMemoryUsage);
-
-        // Write shadow memory offset for local memory
-        if (getOptions().DetectLocals) {
-            if (DeviceInfo->Shadow->AllocLocalShadow(
-                    Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
-                    LaunchInfo.Data.Host.LocalShadowOffsetEnd) !=
-                UR_RESULT_SUCCESS) {
-                getContext()->logger.warning(
-                    "Failed to allocate shadow memory for local "
-                    "memory, maybe the number of workgroup ({}) is too "
-                    "large",
-                    NumWG);
-                getContext()->logger.warning(
-                    "Skip checking local memory of kernel <{}>",
-                    GetKernelName(Kernel));
-            } else {
-                getContext()->logger.info(
-                    "ShadowMemory(Local, WorkGroup{}, {} - {})", NumWG,
-                    (void *)LaunchInfo.Data.Host.LocalShadowOffset,
-                    (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
-            }
+    // Write shadow memory offset for private memory
+    if (getOptions().DetectPrivates) {
+        if (DeviceInfo->Shadow->AllocPrivateShadow(
+                Queue, NumWG, LaunchInfo.Data.Host.PrivateShadowOffset,
+                LaunchInfo.Data.Host.PrivateShadowOffsetEnd) !=
+            UR_RESULT_SUCCESS) {
+            getContext()->logger.warning(
+                "Failed to allocate shadow memory for private "
+                "memory, maybe the number of workgroup ({}) is too "
+                "large",
+                NumWG);
+            getContext()->logger.warning(
+                "Skip checking private memory of kernel <{}>",
+                GetKernelName(Kernel));
+        } else {
+            getContext()->logger.info(
+                "ShadowMemory(Private, WorkGroup{}, {} - {})", NumWG,
+                (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+                (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
         }
+    }
 
-        // Write shadow memory offset for private memory
-        if (getOptions().DetectPrivates) {
-            if (DeviceInfo->Shadow->AllocPrivateShadow(
-                    Queue, NumWG, LaunchInfo.Data.Host.PrivateShadowOffset,
-                    LaunchInfo.Data.Host.PrivateShadowOffsetEnd) !=
-                UR_RESULT_SUCCESS) {
-                getContext()->logger.warning(
-                    "Failed to allocate shadow memory for private "
-                    "memory, maybe the number of workgroup ({}) is too "
-                    "large",
-                    NumWG);
-                getContext()->logger.warning(
-                    "Skip checking private memory of kernel <{}>",
-                    GetKernelName(Kernel));
-            } else {
-                getContext()->logger.info(
-                    "ShadowMemory(Private, WorkGroup{}, {} - {})", NumWG,
-                    (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
-                    (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
-            }
+    // Write local arguments info
+    if (!KernelInfo->LocalArgs.empty()) {
+        std::vector<LocalArgsInfo> LocalArgsInfo;
+        for (auto [ArgIndex, ArgInfo] : KernelInfo->LocalArgs) {
+            LocalArgsInfo.push_back(ArgInfo);
+            getContext()->logger.debug(
+                "local_args (argIndex={}, size={}, sizeWithRZ={})", ArgIndex,
+                ArgInfo.Size, ArgInfo.SizeWithRedZone);
         }
+        UR_CALL(LaunchInfo.Data.importLocalArgsInfo(Queue, LocalArgsInfo));
+    }
 
-        // Write local arguments info
-        if (!KernelInfo->LocalArgs.empty()) {
-            std::vector<LocalArgsInfo> LocalArgsInfo;
-            for (auto [ArgIndex, ArgInfo] : KernelInfo->LocalArgs) {
-                LocalArgsInfo.push_back(ArgInfo);
-                getContext()->logger.debug(
-                    "local_args (argIndex={}, size={}, sizeWithRZ={})",
-                    ArgIndex, ArgInfo.Size, ArgInfo.SizeWithRedZone);
-            }
-            UR_CALL(LaunchInfo.Data.importLocalArgsInfo(Queue, LocalArgsInfo));
-        }
+    // sync asan runtime data to device side
+    UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
-        // sync asan runtime data to device side
-        UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
-
-        getContext()->logger.debug(
-            "launch_info {} (numLocalArgs={}, localArgs={})",
-            (void *)LaunchInfo.Data.getDevicePtr(),
-            LaunchInfo.Data.Host.NumLocalArgs,
-            (void *)LaunchInfo.Data.Host.LocalArgs);
-    } while (false);
+    getContext()->logger.debug("launch_info {} (numLocalArgs={}, localArgs={})",
+                               (void *)LaunchInfo.Data.getDevicePtr(),
+                               LaunchInfo.Data.Host.NumLocalArgs,
+                               (void *)LaunchInfo.Data.Host.LocalArgs);
 
     return UR_RESULT_SUCCESS;
 }

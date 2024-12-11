@@ -6,17 +6,22 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file asan_ddi.hpp
+ * @file msan_report.hpp
  *
  */
 
-#include "ur_ddi.h"
+#pragma once
+
+#include "ur_api.h"
 
 namespace ur_sanitizer_layer {
 
-void initAsanInterceptor();
-void destroyAsanInterceptor();
+struct MsanErrorReport;
 
-ur_result_t initAsanDDITable(ur_dditable_t *dditable);
+namespace msan {
 
+void ReportUsesUninitializedValue(const MsanErrorReport &Report,
+                                  ur_kernel_handle_t Kernel);
+
+} // namespace msan
 } // namespace ur_sanitizer_layer
