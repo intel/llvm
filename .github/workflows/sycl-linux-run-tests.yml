@@ -59,6 +59,29 @@ on:
         default: ''
         required: False
 
+      e2e_binaries_artifact:
+        type: string
+        default: ''
+        required: False
+      e2e_binaries_archive:
+        type: string
+        default: ''
+        required: False
+      e2e_binaries_decompress_command:
+        type: string
+        default: ''
+        required: False
+
+      upload_artifact:
+        type: string
+        default: 'false'
+      build_artifact_suffix:
+        type: string
+        default: 'default'
+      artifact_archive_name:
+        type: string
+        default: e2e_binaries.tar.zst
+
       reset_intel_gpu:
         type: string
         required: False
@@ -78,6 +101,14 @@ on:
         default: 'false'
         required: False
 
+    outputs:
+      run_conclusion:
+        value: ${{ jobs.run.outputs.build_conclusion }}
+      artifact_archive_name:
+        value: ${{ jobs.run.outputs.artifact_archive_name }}
+      artifact_decompress_command:
+        value: ${{ jobs.run.outputs.artifact_decompress_command }}
+
   workflow_dispatch:
     inputs:
       runner:
@@ -87,6 +118,7 @@ on:
           - '["amdgpu"]'
           - '["Linux", "arc"]'
           - '["cts-cpu"]'
+          - '["Linux", "build"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
@@ -142,6 +174,11 @@ on:
         options:
           - false
           - true
+      upload_artifact:
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -154,8 +191,31 @@ jobs:
     container:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
+    outputs:
+      run_conclusion: ${{ steps.run.conclusion }}
+      artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+      artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
+    - name: Deduce artifact archive params
+      if: inputs.upload_artifact == 'true'
+      id: artifact_info
+      run: |
+        NAME="${{inputs.artifact_archive_name}}"
+        if [ -z "$NAME" ]; then
+          NAME=e2e_binaries.tar.zst
+        fi
+        echo ARCHIVE_NAME="$NAME" >> $GITHUB_OUTPUT
+        if [ "${NAME}" != "${NAME%.tar.gz}" ]; then
+          echo COMPRESS="gzip" >> $GITHUB_OUTPUT
+          echo DECOMPRESS="gunzip" >> $GITHUB_OUTPUT
+        elif [ "${NAME}" != "${NAME%.tar.zst}" ]; then
+          echo COMPRESS="zstd -9" >> $GITHUB_OUTPUT
+          echo DECOMPRESS="zstd" >> $GITHUB_OUTPUT
+        else
+          echo "Unsupported extension"
+          exit 1
+        fi
     - name: Reset Intel GPU
       if: inputs.reset_intel_gpu == 'true'
       run: |
@@ -270,8 +330,20 @@ jobs:
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
 
+    - name: Download E2E Binaries
+      if: inputs.e2e_binaries_artifact != '' && github.event_name != 'workflow_run'
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.e2e_binaries_artifact }}
+    - name: Extract/Setup E2E Binaries
+      if: inputs.e2e_binaries_artifact != ''
+      run: |
+        mkdir build-e2e
+        tar -I '${{ inputs.e2e_binaries_decompress_command }}' -xf ${{ inputs.e2e_binaries_archive }} -C build-e2e
+        rm -f ${{ inputs.e2e_binaries_artifact }}
+
     - name: Deduce E2E CMake options
-      if: inputs.tests_selector == 'e2e'
+      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact == ''
       id: cmake_opts
       shell: bash
       env:
@@ -281,14 +353,15 @@ jobs:
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
         fi
     - name: Configure E2E tests
-      if: inputs.tests_selector == 'e2e'
+      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact == ''
       run: |
-        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
     - name: SYCL End-to-end tests
       shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
+        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
         exit_code=$?
@@ -375,3 +448,13 @@ jobs:
         grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
         exit $ret
+    - name: Pack e2e binaries
+      if: ${{ always() && !cancelled() && inputs.upload_artifact == 'true'}}
+      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C ./build-e2e .
+    - name: Upload e2e binaries
+      if: ${{ always() && !cancelled() && inputs.upload_artifact == 'true'}}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_e2e_bin_${{ inputs.build_artifact_suffix }}
+        path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        retention-days: ${{ inputs.retention-days }}

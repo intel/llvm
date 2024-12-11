@@ -72,6 +72,56 @@ jobs:
           else
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
           fi
+
+  split_test_build:
+    needs: [build]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Build e2e tests
+      runner: '["Linux", "build"]'
+      image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:alldeps
+      image_options: -u 1001
+      target_devices: opencl:cpu
+      extra_lit_opts: --param test-mode=build-only
+      ref: ${{ github.sha }}
+      merge_ref: ''
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      upload_artifact: 'true'
+  split_test_run:
+    needs: [build, split_test_build]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            reset_intel_gpu: true
+            extra_lit_opts: --param gpu-intel-gen12=True
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      extra_lit_opts: --param test-mode=run-only ${{ matrix.extra_lit_opts }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
+      ref: ${{ github.sha }}
+      merge_ref: ''
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      e2e_binaries_artifact: sycl_e2e_bin_default
+      e2e_binaries_archive: ${{ needs.split_test_build.outputs.artifact_archive_name }}
+      e2e_binaries_decompress_command: ${{ needs.split_test_build.outputs.artifact_decompress_command }}
+
   test:
     needs: [build, detect_changes, determine_arc_tests]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
@@ -90,13 +140,6 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             reset_intel_gpu: false
-          - name: Intel
-            runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_intel_gpu: true
-            extra_lit_opts: --param gpu-intel-gen12=True
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
