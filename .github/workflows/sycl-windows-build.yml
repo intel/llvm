@@ -140,8 +140,9 @@ jobs:
         cmake --build build --target sycl-toolchain
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+      shell: bash
       run: |
-        if "${{inputs.compiler}} == 'icx'"
+        if [[ ${{inputs.compiler}} == 'icx' ]]; then
           env LIT_FILTER="SYCL" cmake --build build --target check-llvm
         else
           cmake --build build --target check-llvm
