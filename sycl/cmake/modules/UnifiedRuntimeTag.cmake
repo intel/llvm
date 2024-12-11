@@ -1,6 +1,7 @@
-# commit 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb
-# Author: Artur Gainullin <artur.gainullin@intel.com>
-# Date:   Tue Oct 22 03:30:08 2024 -0700
-#
-#     Support UR program creation from multiple device binaries (#2147)
-set(UNIFIED_RUNTIME_TAG review/yang/restructure_asan_msan)
+# commit 8818ab5bf11e94ffd967bed697b13e6f82ea87c9
+# Merge: 45f3d8ad 064da157
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Dec 11 11:04:29 2024 +0000
+#     Merge pull request #2325 from AllanZyne/review/yang/restructure_asan_msan
+#     [DeviceMSAN] Support MemorySanitizer for device offloading
+set(UNIFIED_RUNTIME_TAG 8818ab5bf11e94ffd967bed697b13e6f82ea87c9)
