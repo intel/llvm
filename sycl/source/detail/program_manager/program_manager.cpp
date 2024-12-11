@@ -76,7 +76,7 @@ static ur_program_handle_t
 createBinaryProgram(const ContextImplPtr Context,
                     const std::vector<device> &Devices,
                     const uint8_t **Binaries, size_t *Lengths,
-                    const std::vector<ur_program_metadata_t> Metadata) {
+                    const std::vector<ur_program_metadata_t> &Metadata) {
   const AdapterPtr &Adapter = Context->getAdapter();
   ur_program_handle_t Program;
   std::vector<ur_device_handle_t> DeviceHandles;
@@ -230,7 +230,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
-  auto ProgMetadata = Img.getProgramMetadataUR();
+  const auto &ProgMetadata = Img.getProgramMetadataUR();
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -825,6 +825,24 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   return getBuiltURProgram(AllImages, Context, {Device});
 }
 
+template <typename Func>
+void callFuncForAllSubsets(Func &FuncToCall,
+                           const std::set<ur_device_handle_t> &DeviceSet,
+                           std::set<ur_device_handle_t> &Subset, int index) {
+  // Add the current subset to the result list
+  if (Subset.size() && Subset.size() != DeviceSet.size()) {
+    FuncToCall(Subset);
+  }
+
+  auto it = DeviceSet.begin();
+  std::advance(it, index);
+  for (int i = index; i < DeviceSet.size(); i++, it++) {
+    auto InsertedEntry = Subset.insert(Subset.end(), *it);
+    callFuncForAllSubsets(FuncToCall, DeviceSet, Subset, i + 1);
+    Subset.erase(InsertedEntry);
+  }
+};
+
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const BinImgWithDeps &ImgWithDeps, const context &Context,
     const std::vector<device> &Devs, const DevImgPlainWithDeps *DevImgWithDeps,
@@ -990,27 +1008,23 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // emplace all subsets of the current set of devices into the cache.
     // Set of all devices is not included in the loop as it was already added
     // into the cache.
-    for (int Mask = 1; Mask < (1 << URDevicesSet.size()) - 1; ++Mask) {
-      std::set<ur_device_handle_t> Subset;
-      int Index = 0;
-      for (auto It = URDevicesSet.begin(); It != URDevicesSet.end();
-           ++It, ++Index) {
-        if (Mask & (1 << Index)) {
-          Subset.insert(*It);
-        }
-      }
-      // Change device in the cache key to reduce copying of spec const data.
-      CacheKey.second = Subset;
-      bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
-      if (DidInsert) {
-        // For every cached copy of the program, we need to increment its
-        // refcount
-        Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
-      }
-      CacheLinkedImages();
-      // getOrBuild is not supposed to return nullptr
-      assert(BuildResult != nullptr && "Invalid build result");
-    }
+    auto ExecuteForAllSubsets =
+        [&CacheKey, &Cache, &Adapter, &ResProgram,
+         &CacheLinkedImages](std::set<ur_device_handle_t> &Subset) {
+          // Change device in the cache key to reduce copying of spec const
+          // data.
+          CacheKey.second = Subset;
+          bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
+          if (DidInsert) {
+            // For every cached copy of the program, we need to increment its
+            // refcount
+            Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
+          }
+          CacheLinkedImages();
+        };
+    std::set<ur_device_handle_t> Subset;
+    int Index = 0;
+    callFuncForAllSubsets(ExecuteForAllSubsets, URDevicesSet, Subset, Index);
   }
 
   // If caching is enabled, one copy of the program handle will be
@@ -1124,7 +1138,7 @@ ProgramManager::getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
 
 std::string
 ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
-                                   const ContextImplPtr Context) {
+                                   const ContextImplPtr &Context) {
   size_t URDevicesSize = 0;
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,

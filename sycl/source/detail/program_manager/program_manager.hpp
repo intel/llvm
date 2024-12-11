@@ -213,7 +213,7 @@ public:
   void addImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
-                                        const ContextImplPtr Context);
+                                        const ContextImplPtr &Context);
 
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
