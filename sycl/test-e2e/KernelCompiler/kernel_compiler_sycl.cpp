@@ -44,6 +44,7 @@
 // CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 auto constexpr AddEmH = R"===(

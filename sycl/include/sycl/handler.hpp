@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -39,11 +38,11 @@
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
@@ -141,6 +140,7 @@ inline namespace _V1 {
 
 // Forward declaration
 
+template <bundle_state State> class kernel_bundle;
 class handler;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
@@ -162,12 +162,14 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
+class kernel_bundle_impl;
 class work_group_memory_impl;
 class handler_impl;
 class kernel_impl;
 class queue_impl;
 class stream_impl;
 class event_impl;
+class context_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
@@ -607,7 +609,6 @@ private:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
-    addAccessorReq(std::move(AccImpl));
     // Add accessor to the list of arguments.
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
            static_cast<int>(AccessTarget), ArgIndex);
@@ -811,6 +812,14 @@ private:
           prop.guarantee,
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
+    }
+
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_group_scratch_size>()) {
+      auto WorkGroupMemSize = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_scratch_size>();
+      setKernelWorkGroupMem(WorkGroupMemSize.size);
     }
 
     checkAndSetClusterRange(Props);
@@ -1710,36 +1719,15 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value);
 
-    setStateSpecConstSet();
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-        KernelBundleImplPtr)
-        .set_specialization_constant<SpecName>(Value);
-  }
-
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
-  get_specialization_constant() const {
-
-    if (isStateExplicitKernelBundle())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Specialization constants cannot be read after "
-                            "explicitly setting the used kernel bundle");
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-               KernelBundleImplPtr)
-        .get_specialization_constant<SpecName>();
-  }
+  get_specialization_constant() const;
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
@@ -2560,9 +2548,6 @@ public:
 
     MSrcPtr = static_cast<void *>(AccImpl.get());
     MDstPtr = static_cast<void *>(Dst);
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory pointed by Src into the memory object
@@ -2598,9 +2583,6 @@ public:
 
     MSrcPtr = const_cast<T_Src *>(Src);
     MDstPtr = static_cast<void *>(AccImpl.get());
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory object accessed by Src to the memory
@@ -2655,10 +2637,6 @@ public:
 
     MSrcPtr = AccImplSrc.get();
     MDstPtr = AccImplDst.get();
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImplSrc));
-    addAccessorReq(std::move(AccImplDst));
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -2684,7 +2662,6 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    addAccessorReq(std::move(AccImpl));
   }
 
 public:
@@ -3440,7 +3417,6 @@ private:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    addAccessorReq(std::move(AccImpl));
 
     MPattern.resize(sizeof(T));
     auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
@@ -3540,6 +3516,9 @@ private:
 
   // Set using cuda thread block cluster launch flag and set the launch bounds.
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
+
+  // Set the request work group memory size (work_group_static ext).
+  void setKernelWorkGroupMem(size_t Size);
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time
