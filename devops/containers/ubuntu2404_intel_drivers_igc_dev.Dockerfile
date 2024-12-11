@@ -5,7 +5,7 @@ FROM $base_image:$base_tag
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update && apt install -yqq libllvm14
+RUN sudo apt update && apt install -yqq libllvm14
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
