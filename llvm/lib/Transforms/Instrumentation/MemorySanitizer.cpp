@@ -161,6 +161,7 @@
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
@@ -196,6 +197,7 @@
 #include "llvm/Support/DebugCounter.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -483,6 +485,14 @@ static const MemoryMapParams NetBSD_X86_64_MemoryMapParams = {
     0x100000000000, // OriginBase
 };
 
+// SPIR64 Intel
+static const MemoryMapParams Intel_SPIR64_MemoryMapParams = {
+    0, // AndMask
+    0, // XorMask
+    0, // ShadowBase
+    0, // OriginBase
+};
+
 static const PlatformMemoryMapParams Linux_X86_MemoryMapParams = {
     &Linux_I386_MemoryMapParams,
     &Linux_X86_64_MemoryMapParams,
@@ -527,6 +537,18 @@ static const PlatformMemoryMapParams NetBSD_X86_MemoryMapParams = {
     nullptr,
     &NetBSD_X86_64_MemoryMapParams,
 };
+
+static const PlatformMemoryMapParams Intel_SPIR_MemoryMapParams = {
+    nullptr,
+    &Intel_SPIR64_MemoryMapParams,
+};
+
+// Spir memory address space
+static constexpr unsigned kSpirOffloadPrivateAS = 0;
+static constexpr unsigned kSpirOffloadGlobalAS = 1;
+static constexpr unsigned kSpirOffloadConstantAS = 2;
+static constexpr unsigned kSpirOffloadLocalAS = 3;
+static constexpr unsigned kSpirOffloadGenericAS = 4;
 
 namespace {
 
@@ -655,6 +677,9 @@ private:
   FunctionCallee MsanMetadataPtrForStore_1_8[4];
   FunctionCallee MsanInstrumentAsmStoreFn;
 
+  /// Get shadow memory address
+  FunctionCallee MsanGetShadowFn;
+
   /// Storage for return values of the MsanMetadataPtrXxx functions.
   Value *MsanMetadataAlloca;
 
@@ -705,14 +730,80 @@ MemorySanitizerOptions::MemorySanitizerOptions(int TO, bool R, bool K,
       Recover(getOptOrDefault(ClKeepGoing, Kernel || R)),
       EagerChecks(getOptOrDefault(ClEagerChecks, EagerChecks)) {}
 
+Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
+                                  unsigned AddressSpace) {
+  auto StringName = (Twine(Name) + "_" + Value).str();
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+
+  return M.getOrInsertGlobal(StringName, Ty, [&] {
+    return new GlobalVariable(
+        M, Ty, true, GlobalValue::InternalLinkage,
+        ConstantDataArray::getString(M.getContext(), Value), StringName,
+        nullptr, GlobalValue::NotThreadLocal, AddressSpace);
+  });
+}
+
+static void extendSpirKernelArgs(Module &M) {
+  SmallVector<Constant *, 8> SpirKernelsMetadata;
+
+  auto DL = M.getDataLayout();
+  Type *IntptrTy = DL.getIntPtrType(M.getContext());
+
+  // SpirKernelsMetadata only saves fixed kernels, and is described by
+  // following structure:
+  //  uptr unmangled_kernel_name
+  //  uptr unmangled_kernel_name_size
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+  for (Function &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
+        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+      continue;
+
+    auto KernelName = F.getName();
+    auto *KernelNameGV = getOrCreateGlobalString(M, "__msan_kernel", KernelName,
+                                                 kSpirOffloadGlobalAS);
+    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+        ConstantInt::get(IntptrTy, KernelName.size())));
+  }
+
+  // Create global variable to record spirv kernels' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__MsanKernelMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  // Add device global attributes
+  MsanSpirKernelMetadata->addAttribute(
+      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
+  MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+  MsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       "_Z20__MsanKernelMetadata");
+  MsanSpirKernelMetadata->setDSOLocal(true);
+}
+
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
                                            ModuleAnalysisManager &AM) {
   // Return early if nosanitize_memory module flag is present for the module.
   if (checkIfAlreadyInstrumented(M, "nosanitize_memory"))
     return PreservedAnalyses::all();
   bool Modified = false;
-  if (!Options.Kernel) {
+  auto TargetTriple = Triple(M.getTargetTriple());
+
+  if (!Options.Kernel && !TargetTriple.isSPIROrSPIRV()) {
     insertModuleCtor(M);
+    Modified = true;
+  }
+
+  if (TargetTriple.isSPIROrSPIRV()) {
+    extendSpirKernelArgs(M);
     Modified = true;
   }
 
@@ -888,9 +979,24 @@ void MemorySanitizer::createUserspaceApi(Module &M, const TargetLibraryInfo &TLI
        AccessSizeIndex++) {
     unsigned AccessSize = 1 << AccessSizeIndex;
     std::string FunctionName = "__msan_maybe_warning_" + itostr(AccessSize);
-    MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
-        FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
-        IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty());
+
+    if (!TargetTriple.isSPIROrSPIRV()) {
+      MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
+          FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty());
+    } else { // SPIR or SPIR-V
+      // __msan_maybe_warning_N(
+      //   ...
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
+          FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+    }
 
     FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
     MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
@@ -935,6 +1041,9 @@ void MemorySanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo &TL
 
   MsanInstrumentAsmStoreFn = M.getOrInsertFunction(
       "__msan_instrument_asm_store", IRB.getVoidTy(), PtrTy, IntptrTy);
+
+  MsanGetShadowFn = M.getOrInsertFunction("__msan_get_shadow", IntptrTy,
+                                          IntptrTy, IRB.getInt32Ty());
 
   if (CompileKernel) {
     createKernelApi(M, TLI);
@@ -1035,6 +1144,12 @@ void MemorySanitizer::initializeModule(Module &M) {
         report_fatal_error("unsupported architecture");
       }
       break;
+    case Triple::UnknownOS:
+      // NOTE: Support SPIR or SPIRV only, without MapParams
+      if (!TargetTriple.isSPIROrSPIRV())
+        report_fatal_error("unsupported architecture");
+      MapParams = Intel_SPIR_MemoryMapParams.bits64;
+      break;
     default:
       report_fatal_error("unsupported operating system");
     }
@@ -1112,6 +1227,72 @@ static unsigned TypeSizeToSizeIndex(TypeSize TS) {
   return Log2_32_Ceil((TypeSizeFixed + 7) / 8);
 }
 
+static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
+  // Skip SPIR-V built-in varibles
+  auto *OrigValue = Addr->stripInBoundsOffsets();
+  assert(OrigValue != nullptr);
+  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
+  switch (PtrTy->getPointerAddressSpace()) {
+  case kSpirOffloadPrivateAS:
+  case kSpirOffloadLocalAS:
+  case kSpirOffloadGenericAS:
+    return true;
+  }
+
+  return false;
+}
+
+static void setNoSanitizedMetadataSPIR(Instruction &I) {
+  const Value *Addr = nullptr;
+  if (const auto *LI = dyn_cast<LoadInst>(&I))
+    Addr = LI->getPointerOperand();
+  else if (const auto *SI = dyn_cast<StoreInst>(&I))
+    Addr = SI->getPointerOperand();
+  else if (const auto *RMW = dyn_cast<AtomicRMWInst>(&I))
+    Addr = RMW->getPointerOperand();
+  else if (const auto *XCHG = dyn_cast<AtomicCmpXchgInst>(&I))
+    Addr = XCHG->getPointerOperand();
+  else if (isa<MemCpyInst>(&I))
+    I.setNoSanitizeMetadata();
+  else if (const auto *CI = dyn_cast<CallInst>(&I)) {
+    auto *Func = CI->getCalledFunction();
+    if (Func) {
+      if (Func->isIntrinsic()) {
+        switch (CI->getIntrinsicID()) {
+        case Intrinsic::masked_load:
+        case Intrinsic::masked_store:
+        case Intrinsic::masked_gather:
+        case Intrinsic::masked_scatter: {
+          bool IsWrite = CI->getType()->isVoidTy();
+          // Masked store has an initial operand for the value.
+          unsigned OpOffset = IsWrite ? 1 : 0;
+          Addr = CI->getOperand(OpOffset);
+          break;
+        }
+        case Intrinsic::masked_expandload:
+        case Intrinsic::masked_compressstore: {
+          bool IsWrite =
+              CI->getIntrinsicID() == Intrinsic::masked_compressstore;
+          unsigned OpOffset = IsWrite ? 1 : 0;
+          Addr = CI->getOperand(OpOffset);
+          break;
+        }
+        }
+      } else {
+        auto FuncName = Func->getName();
+        if (FuncName.contains("__spirv_"))
+          I.setNoSanitizeMetadata();
+      }
+    }
+  }
+
+  if (Addr && isUnsupportedSPIRAccess(Addr, &I))
+    I.setNoSanitizeMetadata();
+}
+
 namespace {
 
 /// Helper class to attach debug information of the given instruction onto new
@@ -1146,6 +1327,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   bool PoisonStack;
   bool PoisonUndef;
 
+  bool SpirOrSpirv;
+
   struct ShadowOriginAndInsertPoint {
     Value *Shadow;
     Value *Origin;
@@ -1171,6 +1354,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     PropagateShadow = SanitizeFunction;
     PoisonStack = SanitizeFunction && ClPoisonStack;
     PoisonUndef = SanitizeFunction && ClPoisonUndef;
+    SpirOrSpirv = Triple(F.getParent()->getTargetTriple()).isSPIROrSPIRV();
 
     // In the presence of unreachable blocks, we may see Phi nodes with
     // incoming nodes from such blocks. Since InstVisitor skips unreachable
@@ -1402,11 +1586,60 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       ConvertedShadow = convertShadowToScalar(ConvertedShadow, IRB);
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
-      CallBase *CB = IRB.CreateCall(
-          Fn, {ConvertedShadow2,
-               MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)});
-      CB->addParamAttr(0, Attribute::ZExt);
-      CB->addParamAttr(1, Attribute::ZExt);
+      if (!SpirOrSpirv) {
+        CallBase *CB = IRB.CreateCall(
+            Fn,
+            {ConvertedShadow2,
+             MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)});
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(1, Attribute::ZExt);
+      } else { // SPIR or SPIR-V
+        SmallVector<Value *, 5> Args = {
+            ConvertedShadow2,
+            MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
+
+        {
+          auto *M = F.getParent();
+          auto *ConstASPtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
+
+          // file name and line number
+          {
+            bool HasDebugLoc = false;
+            auto *ConvertedShadowInst = dyn_cast<Instruction>(ConvertedShadow);
+
+            if (ConvertedShadowInst) {
+              if (auto &Loc = ConvertedShadowInst->getDebugLoc()) {
+                llvm::SmallString<128> Source = Loc->getDirectory();
+                sys::path::append(Source, Loc->getFilename());
+                auto *FileNameGV = getOrCreateGlobalString(
+                    *M, "__asan_file", Source, kSpirOffloadConstantAS);
+                Args.push_back(
+                    ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
+                Args.push_back(
+                    ConstantInt::get(IRB.getInt32Ty(), Loc.getLine()));
+
+                HasDebugLoc = true;
+              }
+            }
+
+            if (!HasDebugLoc) {
+              Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
+              Args.push_back(ConstantInt::get(IRB.getInt32Ty(), 0));
+            }
+          }
+
+          // function name
+          auto FuncName = F.getName();
+          auto *FuncNameGV = getOrCreateGlobalString(
+              *M, "__asan_func", demangle(FuncName), kSpirOffloadConstantAS);
+          Args.push_back(
+              ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
+        }
+
+        CallBase *CB = IRB.CreateCall(Fn, Args);
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(1, Attribute::ZExt);
+      }
     } else {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
@@ -1566,6 +1799,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // This may not add new address checks.
     materializeStores();
 
+    // Fix unexpected llvm intrinsic
+    if (SpirOrSpirv)
+      FnPrologueEnd->eraseFromParent();
+
     return true;
   }
 
@@ -1678,14 +1915,15 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     return MS.IntptrTy;
   }
 
-  Type *getPtrToShadowPtrType(Type *IntPtrTy, Type *ShadowTy) const {
+  Type *getPtrToShadowPtrType(Type *IntPtrTy, Type *ShadowTy,
+                              unsigned int AddressSapce = 0) const {
     if (VectorType *VectTy = dyn_cast<VectorType>(IntPtrTy)) {
       return VectorType::get(
           getPtrToShadowPtrType(VectTy->getElementType(), ShadowTy),
           VectTy->getElementCount());
     }
     assert(IntPtrTy == MS.IntptrTy);
-    return MS.PtrTy;
+    return PointerType::get(*MS.C, AddressSapce);
   }
 
   Constant *constToIntPtr(Type *IntPtrTy, uint64_t C) const {
@@ -1708,11 +1946,21 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Type *IntptrTy = ptrToIntPtrType(Addr->getType());
     Value *OffsetLong = IRB.CreatePointerCast(Addr, IntptrTy);
 
-    if (uint64_t AndMask = MS.MapParams->AndMask)
-      OffsetLong = IRB.CreateAnd(OffsetLong, constToIntPtr(IntptrTy, ~AndMask));
+    if (!SpirOrSpirv) {
+      if (uint64_t AndMask = MS.MapParams->AndMask)
+        OffsetLong =
+            IRB.CreateAnd(OffsetLong, constToIntPtr(IntptrTy, ~AndMask));
 
-    if (uint64_t XorMask = MS.MapParams->XorMask)
-      OffsetLong = IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
+      if (uint64_t XorMask = MS.MapParams->XorMask)
+        OffsetLong =
+            IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
+    } else { // SPIR or SPIR-V
+      OffsetLong = IRB.CreateCall(
+          MS.MsanGetShadowFn,
+          {OffsetLong,
+           IRB.getInt32(Addr->getType()->getPointerAddressSpace())});
+    }
+
     return OffsetLong;
   }
 
@@ -1741,7 +1989,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           IRB.CreateAdd(ShadowLong, constToIntPtr(IntptrTy, ShadowBase));
     }
     Value *ShadowPtr = IRB.CreateIntToPtr(
-        ShadowLong, getPtrToShadowPtrType(IntptrTy, ShadowTy));
+        ShadowLong,
+        getPtrToShadowPtrType(IntptrTy, ShadowTy,
+                              SpirOrSpirv ? kSpirOffloadGlobalAS : 0));
 
     Value *OriginPtr = nullptr;
     if (MS.TrackOrigins) {
@@ -2195,6 +2445,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // ------------------- Visitors.
   using InstVisitor<MemorySanitizerVisitor>::visit;
   void visit(Instruction &I) {
+    if (SpirOrSpirv)
+      setNoSanitizedMetadataSPIR(I);
+
     if (I.getMetadata(LLVMContext::MD_nosanitize))
       return;
     // Don't want to visit if we're in the prologue
