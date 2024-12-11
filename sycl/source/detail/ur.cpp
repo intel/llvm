@@ -70,9 +70,8 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   // entry point introduced for the now deleted ESIMD adapter. All calls to this
   // entry point returned a similar error code to INVALID_OPERATION and would
   // have resulted in a similar throw to this one
-  throw exception(
-      make_error_code(errc::feature_not_supported),
-      "This operation is not supported by any existing backends.");
+  throw exception(make_error_code(errc::feature_not_supported),
+                  "This operation is not supported by any existing backends.");
   return nullptr;
 }
 
@@ -142,7 +141,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
-  if(!LoaderConfig) {
+  if (!LoaderConfig) {
     CHECK_UR_SUCCESS(loaderConfigCreate(&LoaderConfig))
     OwnLoaderConfig = true;
   }
