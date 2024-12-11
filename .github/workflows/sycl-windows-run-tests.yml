@@ -56,7 +56,8 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
-    - uses: ./.github/workflows/sycl-windows-setup-oneapi-env.yaml
+    - name: Setup oneAPI env
+    - uses: ./llvm/.github/workflows/sycl-windows-setup-oneapi-env.yaml
       if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
       with:
         runner: ${{ inputs.runner }}
