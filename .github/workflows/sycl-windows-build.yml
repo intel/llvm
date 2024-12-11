@@ -77,29 +77,8 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
-    - name: oneAPI setup
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
-      run: |
-        $batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
-
-        $githubEnvFilePath = $env:GITHUB_ENV
-
-        $envBefore = Get-ChildItem Env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
-
-        $envVars = & cmd.exe /c "call `"$batchFilePath`" && set" | Out-String
-
-        $envAfter = $envVars -split "`r`n" | Where-Object { $_ -match "^(.*?)=(.*)$" }
-
-        foreach ($envVar in $envAfter) {
-            if ($envVar -match "^(.*?)=(.*)$") {
-                $name = $matches[1]
-                $value = $matches[2]
-                $envBeforeVar = $envBefore | Where-Object { $_ -like "$name=*" }
-                if (-not $envBeforeVar -or $envBeforeVar -ne "$name=$value") {
-                    Add-Content -Path $githubEnvFilePath -Value "$name=$value"
-                }
-            }
-        }
+    - uses: ./.github/workflows/sycl-windows-setup-oneapi-env.yaml
+      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }} 
     - name: Set env
       run: |      
         git config --system core.longpaths true
@@ -143,10 +122,9 @@ jobs:
       shell: bash
       run: |
         if [[ ${{inputs.compiler}} == 'icx' ]]; then
-          env LIT_FILTER="SYCL" cmake --build build --target check-llvm
-        else
-          cmake --build build --target check-llvm
+          export LIT_FILTER="SYCL"
         fi
+        cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
@@ -156,10 +134,9 @@ jobs:
       shell: bash
       run: |
          if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           env LIT_FILTER_OUT="host_tanpi_double_accuracy" cmake --build build --target check-sycl
-         else
-          cmake --build build --target check-sycl
+           export LIT_FILTER_OUT="host_tanpi_double_accuracy"
          fi
+          cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |

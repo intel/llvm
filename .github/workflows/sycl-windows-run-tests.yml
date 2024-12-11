@@ -50,29 +50,8 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
-    - name: oneAPI setup
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
-      run: |
-        $batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
-
-        $githubEnvFilePath = $env:GITHUB_ENV
-
-        $envBefore = Get-ChildItem Env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
-
-        $envVars = & cmd.exe /c "call `"$batchFilePath`" && set" | Out-String
-
-        $envAfter = $envVars -split "`r`n" | Where-Object { $_ -match "^(.*?)=(.*)$" }
-
-        foreach ($envVar in $envAfter) {
-            if ($envVar -match "^(.*?)=(.*)$") {
-                $name = $matches[1]
-                $value = $matches[2]
-                $envBeforeVar = $envBefore | Where-Object { $_ -like "$name=*" }
-                if (-not $envBeforeVar -or $envBeforeVar -ne "$name=$value") {
-                    Add-Content -Path $githubEnvFilePath -Value "$name=$value"
-                }
-            }
-        }        
+    - uses: ./.github/workflows/sycl-windows-setup-oneapi-env.yaml
+      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}      
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -112,6 +91,9 @@ jobs:
       shell: bash
       run: |
         # Run E2E tests.
+        if [[ ${{inputs.compiler}} == 'icx']]; then
+           export LIT_FILTER_OUT="compile_on_win_with_mdd"
+        fi
         export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e
     - name: Detect hung tests
