@@ -6030,16 +6030,17 @@ class OffloadingActionBuilder final {
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv, bool isNativeCPU,
-                           Action *&NativeCPULib, const char *BoundArch, DerivedArgList &Args) {
+                           Action *&NativeCPULib, const char *BoundArch,
+                           DerivedArgList &Args) {
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
-      if(Args.hasArg(options::OPT_fsycl_libdevice_path_EQ)) {
-          auto ProvidedPath =
-              Args.getLastArgValue(options::OPT_fsycl_libdevice_path_EQ).str();
-          if (llvm::sys::fs::exists(ProvidedPath))  {
-            SmallString<128> ProvidedPathSS(ProvidedPath);
-            LibLocCandidates.push_back(ProvidedPathSS);
-          }
+      if (Args.hasArg(options::OPT_fsycl_libdevice_path_EQ)) {
+        auto ProvidedPath =
+            Args.getLastArgValue(options::OPT_fsycl_libdevice_path_EQ).str();
+        if (llvm::sys::fs::exists(ProvidedPath)) {
+          SmallString<128> ProvidedPathSS(ProvidedPath);
+          LibLocCandidates.push_back(ProvidedPathSS);
+        }
       }
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
