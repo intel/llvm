@@ -137,7 +137,7 @@ jobs:
          if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="host_tanpi_double_accuracy"
          fi
-          cmake --build build --target check-sycl
+         cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |

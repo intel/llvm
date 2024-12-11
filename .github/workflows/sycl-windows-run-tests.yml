@@ -92,7 +92,7 @@ jobs:
       shell: bash
       run: |
         # Run E2E tests.
-        if [[ ${{inputs.compiler}} == 'icx']]; then
+        if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="compile_on_win_with_mdd"
         fi
         export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
