@@ -1,7 +1,7 @@
-# commit e1cc9b2cfce7f329f0f411b5b84837b511b86a2d
-# Merge: 5a1a81b6 b209eba8
+# commit 8818ab5bf11e94ffd967bed697b13e6f82ea87c9
+# Merge: 45f3d8ad 064da157
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Dec 10 14:29:41 2024 +0000
-#     Merge pull request #2394 from zhaomaosu/do-alloc-use-pool
-#     [DevASAN] Do allocation with USM pool to reduce memory overhead
-set(UNIFIED_RUNTIME_TAG e1cc9b2cfce7f329f0f411b5b84837b511b86a2d)
+# Date:   Wed Dec 11 11:04:29 2024 +0000
+#     Merge pull request #2325 from AllanZyne/review/yang/restructure_asan_msan
+#     [DeviceMSAN] Support MemorySanitizer for device offloading
+set(UNIFIED_RUNTIME_TAG 8818ab5bf11e94ffd967bed697b13e6f82ea87c9)

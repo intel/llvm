@@ -1,4 +1,4 @@
-//===-- AsanKernelMetadata.h - fix kernel medatadata for sanitizer ---===//
+//===-- SanitizerKernelMetadata.h - fix kernel medatadata for sanitizer ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This pass fixes attributes and metadata of the global variable
-// "__AsanKernelMetadata"
+// "__XsanKernelMetadata"
 //===----------------------------------------------------------------------===//
 
 #pragma once
@@ -15,7 +15,8 @@
 
 namespace llvm {
 
-class AsanKernelMetadataPass : public PassInfoMixin<AsanKernelMetadataPass> {
+class SanitizerKernelMetadataPass
+    : public PassInfoMixin<SanitizerKernelMetadataPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };

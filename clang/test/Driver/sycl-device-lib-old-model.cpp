@@ -198,35 +198,35 @@
 /// ###########################################################################
 /// test behavior of libsycl-asan.bc linking when -fsanitize=address is available
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -fsanitize=address -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend -fsanitize=address -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend=spir64 -fsanitize=address -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_ASAN_MACRO
-// SYCL_DEVICE_LIB_SANITIZER: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-complex.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-complex-fp64.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-cmath.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-cmath-fp64.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-imf.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-imf-fp64.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-imf-bf16.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-cassert.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-cstring.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-complex.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-complex-fp64.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-cmath.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-cmath-fp64.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-asan.bc"
+// SYCL_DEVICE_LIB_ASAN: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-complex.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-imf.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-cassert.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-cstring.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-complex.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-complex-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-cmath.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-imf.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libsycl-asan.bc"
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
 // SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}} "-only-needed"
@@ -317,3 +317,41 @@
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libsycl-asan-dg2.bc"
+
+
+/// ###########################################################################
+/// test behavior of libsycl-msan.bc linking when -fsanitize=memory is available
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -fsanitize=memory -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend -fsanitize=memory -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend=spir64 -fsanitize=memory -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=memory -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_MSAN_MACRO
+// SYCL_DEVICE_LIB_MSAN: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-complex.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-complex-fp64.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-cmath.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-imf.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-imf-fp64.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-imf-bf16.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-cassert.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-cstring.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-complex.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-complex-fp64.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-cmath.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-cmath-fp64.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-imf.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libsycl-msan.bc"
+// SYCL_DEVICE_MSAN_MACRO: "-cc1"
+// SYCL_DEVICE_MSAN_MACRO-SAME: "USE_SYCL_DEVICE_MSAN"
+// SYCL_DEVICE_MSAN_MACRO: llvm-link{{.*}} "-only-needed"
+// SYCL_DEVICE_MSAN_MACRO-SAME: "{{.*}}libsycl-msan.bc"
