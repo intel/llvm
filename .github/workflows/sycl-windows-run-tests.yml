@@ -51,7 +51,9 @@ jobs:
       with:
         arch: amd64
     - uses: ./.github/workflows/sycl-windows-setup-oneapi-env.yaml
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}      
+      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      with:
+        runner: ${{ inputs.runner }}
     - name: Set env
       run: |
         git config --system core.longpaths true
