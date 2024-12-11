@@ -39,6 +39,9 @@ RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
 RUN usermod -aG video sycl
 RUN usermod -aG irc sycl
 
+# Allow sycl user to run as sudo
+RUN echo "sycl  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
 USER sycl
