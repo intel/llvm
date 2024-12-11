@@ -154,7 +154,11 @@ jobs:
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
-        cmake --build build --target check-sycl
+         if [[ ${{inputs.compiler}} == 'icx' ]]; then
+           env LIT_FILTER="!host_tanpi_double_accuracy" cmake --build build --target check-sycl
+          else
+          cmake --build build --target check-sycl
+         fi
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |

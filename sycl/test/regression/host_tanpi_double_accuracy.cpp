@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fno-fast-math -ffp-model=precise %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 //
 // Checks that sycl::tanpi with double has the accuracy required by the

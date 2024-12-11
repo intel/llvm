@@ -33,6 +33,11 @@ on:
         default: '{}'
         required: False
 
+      compiler:
+        type: string
+        required: false
+        default: "cl"
+
 permissions: read-all
 
 jobs:
@@ -45,6 +50,29 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
+    - name: oneAPI setup
+      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      run: |
+        $batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+
+        $githubEnvFilePath = $env:GITHUB_ENV
+
+        $envBefore = Get-ChildItem Env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
+
+        $envVars = & cmd.exe /c "call `"$batchFilePath`" && set" | Out-String
+
+        $envAfter = $envVars -split "`r`n" | Where-Object { $_ -match "^(.*?)=(.*)$" }
+
+        foreach ($envVar in $envAfter) {
+            if ($envVar -match "^(.*?)=(.*)$") {
+                $name = $matches[1]
+                $value = $matches[2]
+                $envBeforeVar = $envBefore | Where-Object { $_ -like "$name=*" }
+                if (-not $envBeforeVar -or $envBeforeVar -ne "$name=$value") {
+                    Add-Content -Path $githubEnvFilePath -Value "$name=$value"
+                }
+            }
+        }        
     - name: Set env
       run: |
         git config --system core.longpaths true
