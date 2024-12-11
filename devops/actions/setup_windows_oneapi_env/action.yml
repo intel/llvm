@@ -1,17 +1,8 @@
-name: SYCL Windows setup oneAPI env
+name: Windows setup oneAPI env
 
-on:
-  workflow_call:
-    inputs:
-      runner:
-        description: 'The runner name'
-        required: true
-        type: string
-
-jobs:
-  set-env-vars-job:
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    steps:
+runs:
+  using: "composite"
+  steps:
     - name: Setup oneAPI env
       shell: powershell
       run: |
