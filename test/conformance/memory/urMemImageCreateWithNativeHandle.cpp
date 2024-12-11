@@ -10,7 +10,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateWithNativeHandleTest);
 
 TEST_P(urMemImageCreateWithNativeHandleTest, Success) {
     ur_native_handle_t native_handle = 0;
-    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urMemGetNativeHandle(image, device, &native_handle));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urMemGetNativeHandle(image, device, &native_handle));
 
     ur_mem_handle_t mem = nullptr;
     ASSERT_SUCCESS(urMemImageCreateWithNativeHandle(

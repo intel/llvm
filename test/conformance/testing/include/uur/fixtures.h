@@ -374,10 +374,6 @@ struct urQueueTest : urContextTest {
 struct urHostPipeTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
-        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-            platform, context, device, *il_binary, nullptr, &program));
 
         size_t size = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(
@@ -385,6 +381,7 @@ struct urHostPipeTest : urQueueTest {
             &size));
         ASSERT_NE(size, 0);
         ASSERT_EQ(sizeof(ur_bool_t), size);
+
         void *info_data = alloca(size);
         ASSERT_SUCCESS(urDeviceGetInfo(
             device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, size,
@@ -396,6 +393,11 @@ struct urHostPipeTest : urQueueTest {
         if (!supported) {
             GTEST_SKIP() << "Host pipe read/write is not supported.";
         }
+
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
+        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
     }
 
     void TearDown() override {

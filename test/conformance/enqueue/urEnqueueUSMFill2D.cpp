@@ -134,9 +134,9 @@ TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
 
     ur_event_handle_t event = nullptr;
 
-    ASSERT_SUCCESS(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
-                                      pattern.data(), width, height, 0, nullptr,
-                                      &event));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
+                           width, height, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
 
     ASSERT_SUCCESS(urEventWait(1, &event));
@@ -161,6 +161,11 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
 
         ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
                                         allocation_size, &ptr));
+
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(),
+                               width, height, 0, nullptr, nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queue));
     }
 
     void TearDown() override {
