@@ -3,17 +3,18 @@ name: SYCL Windows setup oneAPI env
 on:
   workflow_call:
     inputs:
-        runner:
+      runner:
+        description: 'The runner name'
+        required: true
         type: string
-        required: True
 
 jobs:
   set-env-vars-job:
     runs-on: ${{ fromJSON(inputs.runner) }}
     steps:
-     - name: Setup oneAPI env
-       shell: powershell
-       run: |
+    - name: Setup oneAPI env
+      shell: powershell
+      run: |
         batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
 
         $githubEnvFilePath = $env:GITHUB_ENV
