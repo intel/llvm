@@ -35,11 +35,7 @@ struct urKernelGetGroupInfoMaxWorkGroupSizeTest : uur::urKernelTest {
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetGroupInfoMaxWorkGroupSizeTest);
 
-struct urKernelGetGroupInfoTest : uur::urKernelTest {
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
-    }
-};
+using urKernelGetGroupInfoTest = uur::urKernelTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetGroupInfoTest);
 
 TEST_P(urKernelGetGroupInfoTest, GlobalWorkSize) {
