@@ -141,7 +141,11 @@ jobs:
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
-        cmake --build build --target check-llvm
+        if "{{inputs.compiler}} == 'icx'"
+          env LIT_FILTER="SYCL" cmake --build build --target check-llvm
+        else
+          cmake --build build --target check-llvm
+        fi
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
