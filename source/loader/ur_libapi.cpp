@@ -3983,7 +3983,6 @@ ur_result_t UR_APICALL urKernelRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]

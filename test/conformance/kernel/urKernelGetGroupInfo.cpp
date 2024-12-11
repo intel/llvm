@@ -26,8 +26,8 @@ struct urKernelGetGroupInfoMaxWorkGroupSizeTest : uur::urKernelTest {
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
     }
 
-    // These values correlate to max_work_group_size<6, 5, 4> and
-    // max_linear_work_group_size<120> in max_wg_size.cpp.
+    // These values correlate to max_work_group_size<8, 4, 2> and
+    // max_linear_work_group_size<64> in max_wg_size.cpp.
     // In SYCL, the right-most dimension varies the fastest in linearization.
     // In UR, this is on the left, so we reverse the order of these values.
     std::array<size_t, 3> max_work_group_size{2, 4, 8};
