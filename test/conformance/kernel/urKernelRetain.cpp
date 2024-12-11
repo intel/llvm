@@ -26,9 +26,7 @@ TEST_P(urKernelRetainTest, CheckReferenceCount) {
                                    nullptr));
     ASSERT_EQ(referenceCount, 1);
 
-    {
-        ASSERT_SUCCESS(urKernelRetain(kernel));
-    }
+    ASSERT_SUCCESS(urKernelRetain(kernel));
 
     ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_REFERENCE_COUNT,
                                    sizeof(referenceCount), &referenceCount,
