@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG use_latest=true
 
-RUN sudo apt update && apt install -yqq wget
+RUN sudo apt update && sudo apt install -yqq wget
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
