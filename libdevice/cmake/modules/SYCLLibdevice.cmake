@@ -288,6 +288,13 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_dg2_target_opt}
                                             -D__LIBDEVICE_DG2__)
+  
+  set(msan_obj_deps
+    device.h atomic.hpp spirv_vars.h
+    ${UR_SANITIZER_INCLUDE_DIR}/msan/msan_libdevice.hpp
+    include/msan_rtl.hpp
+    include/spir_global_var.hpp
+    sycl-compiler)
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -373,6 +380,14 @@ else()
                         OPTS ${asan_${asan_device}_compile_opts_${asan_ft}})
       endforeach()
     endforeach()
+
+    # msan jit
+    add_devicelibs(libsycl-msan
+      SRC sanitizer/msan_rtl.cpp
+      DEPENDENCIES ${msan_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 endif()
 

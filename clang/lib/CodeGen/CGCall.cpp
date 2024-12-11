@@ -3019,6 +3019,21 @@ namespace {
   };
 }
 
+static bool hasSYCLRestrictPropertyIRAttr(const VarDecl *Arg,
+                                          const ASTContext &Context) {
+  auto *IRAttr = Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>();
+  if (!IRAttr)
+    return false;
+
+  SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+      IRAttr->getAttributeNameValuePairs(Context);
+  return std::any_of(
+      NameValuePairs.begin(), NameValuePairs.end(),
+      [](const std::pair<std::string, std::string> &NameValuePair) {
+        return NameValuePair.first == "sycl-restrict";
+      });
+}
+
 void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
                                          llvm::Function *Fn,
                                          const FunctionArgList &Args) {
@@ -3243,9 +3258,10 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
         // Set 'noalias' if an argument type has the `restrict` qualifier.
         if (Arg->getType().isRestrictQualified() ||
-            (CurCodeDecl &&
-             CurCodeDecl->hasAttr<SYCLIntelKernelArgsRestrictAttr>() &&
-             Arg->getType()->isPointerType()) ||
+            (Arg->getType()->isPointerType() &&
+             ((CurCodeDecl &&
+               CurCodeDecl->hasAttr<SYCLIntelKernelArgsRestrictAttr>()) ||
+              hasSYCLRestrictPropertyIRAttr(Arg, getContext()))) ||
             (Arg->hasAttr<RestrictAttr>() && Arg->getType()->isPointerType()))
           AI->addAttr(llvm::Attribute::NoAlias);
       }

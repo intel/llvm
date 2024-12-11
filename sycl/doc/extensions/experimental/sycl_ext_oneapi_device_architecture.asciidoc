@@ -397,6 +397,22 @@ intel_gpu_lnl_m
 a|
 [source]
 ----
+intel_gpu_ptl_h
+----
+|-
+|Panther Lake H Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_ptl_u
+----
+|-
+|Panther Lake U Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_8_0_0 = intel_gpu_bdw
 intel_gpu_9_0_9 = intel_gpu_skl
 intel_gpu_9_1_9 = intel_gpu_kbl
@@ -424,6 +440,8 @@ intel_gpu_12_71_4 = intel_gpu_mtl_h
 intel_gpu_12_74_4 = intel_gpu_arl_h
 intel_gpu_20_1_4 = intel_gpu_bmg_g21
 intel_gpu_20_4_4 = intel_gpu_lnl_m
+intel_gpu_30_0_4 = intel_gpu_ptl_h
+intel_gpu_30_1_1 = intel_gpu_ptl_u
 ----
 |-
 |Aliases for Intel graphics architectures.
