@@ -633,14 +633,22 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void prefetch(sycl::queue q, void* ptr, size_t numBytes);
+enum class prefetch_type { device, host };
 
-void prefetch(sycl::handler &h, void* ptr, size_t numBytes);
+void prefetch(sycl::queue q, void* ptr, size_t numBytes,
+              prefetch_type type = prefetch_type::device);
+
+void prefetch(sycl::handler &h, void* ptr, size_t numBytes,
+              prefetch_type type = prefetch_type::device);
 
 }
 ----
 !====
-_Effects_: Enqueues a `prefetch` to the `sycl::queue` or `sycl::handler`.
+_Effects_: Enqueues a `prefetch` to the `sycl::queue` or `sycl::handler`. The
+`prefetch_type` enum indicates the destination device the USM data is fetched to:
+i.e. a prefetch to `prefetch_type::device` fetches from the host to the device,
+and `prefetch_type::host` fetches from the device back to host.
+
 
 a|
 [frame=all,grid=none]
