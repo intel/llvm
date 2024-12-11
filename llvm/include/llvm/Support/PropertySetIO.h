@@ -214,6 +214,7 @@ public:
 
   static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =
       "reqd_work_group_size_uint64_t";
+  static constexpr char SYCL_NATIVE_CPU_PROPS[] = "SYCL/native cpu properties";
 
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .
