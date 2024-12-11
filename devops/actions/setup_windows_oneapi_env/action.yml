@@ -6,7 +6,7 @@ runs:
     - name: Setup oneAPI env
       shell: powershell
       run: |
-        batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+        $batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
 
         $githubEnvFilePath = $env:GITHUB_ENV
 

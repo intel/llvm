@@ -85,8 +85,6 @@ jobs:
     - name: Setup oneAPI env
       uses: ./src/devops/actions/setup_windows_oneapi_env
       if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
-      with:
-        runner: ${{ runner.name }}
     - name: Set env
       run: |      
         git config --system core.longpaths true
