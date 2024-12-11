@@ -1,7 +1,7 @@
-# commit eb076da108a49ef1426f38690547a71905f58015
-# Merge: d8d8ee90 46832dfd
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 29 15:54:31 2024 +0000
-#     Merge pull request #2396 from kswiecicki/init-results-fix
-#     [L0] Add nullopt check before init results access
-set(UNIFIED_RUNTIME_TAG do-alloc-use-pool)
+# commit e1cc9b2cfce7f329f0f411b5b84837b511b86a2d
+# Merge: 5a1a81b6 b209eba8
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Dec 10 14:29:41 2024 +0000
+#     Merge pull request #2394 from zhaomaosu/do-alloc-use-pool
+#     [DevASAN] Do allocation with USM pool to reduce memory overhead
+set(UNIFIED_RUNTIME_TAG e1cc9b2cfce7f329f0f411b5b84837b511b86a2d)

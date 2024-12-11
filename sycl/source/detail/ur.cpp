@@ -176,17 +176,6 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
     }
   }
 
-  loaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
-                                      nullptr);
-
-  if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      loaderConfigRelease(LoaderConfig);
-      std::cerr << "Failed to enable ASAN layer\n";
-      return;
-    }
-  }
-
   ur_device_init_flags_t device_flags = 0;
   CHECK_UR_SUCCESS(loaderInit(device_flags, LoaderConfig));
 
