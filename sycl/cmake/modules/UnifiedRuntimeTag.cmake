@@ -1,7 +1,7 @@
-# commit 8818ab5bf11e94ffd967bed697b13e6f82ea87c9
-# Merge: 45f3d8ad 064da157
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Dec 11 11:04:29 2024 +0000
-#     Merge pull request #2325 from AllanZyne/review/yang/restructure_asan_msan
-#     [DeviceMSAN] Support MemorySanitizer for device offloading
-set(UNIFIED_RUNTIME_TAG 8818ab5bf11e94ffd967bed697b13e6f82ea87c9)
+# commit 58e4d76c2ace154c053b51592f2645fc43437646
+# Merge: e23a75034bb2 bc5d6a695dc8
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Wed Dec 11 15:14:14 2024 +0000
+#     Merge pull request #2436 from igchor/umf_params_bump
+#     [UMF] bump UMF version to v0.10.0 and adjust code
+set(UNIFIED_RUNTIME_TAG 58e4d76c2ace154c053b51592f2645fc43437646)
