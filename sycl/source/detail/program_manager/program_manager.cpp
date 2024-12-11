@@ -841,7 +841,7 @@ void callFuncForAllSubsets(Func &FuncToCall,
     callFuncForAllSubsets(FuncToCall, DeviceSet, Subset, i + 1);
     Subset.erase(InsertedEntry);
   }
-};
+}
 
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const BinImgWithDeps &ImgWithDeps, const context &Context,
