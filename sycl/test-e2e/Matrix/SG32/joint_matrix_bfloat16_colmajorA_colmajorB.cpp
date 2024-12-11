@@ -14,7 +14,6 @@
 // This tests support of col major layout for matrix B which does transpose and
 // then VNNI transform. This is currently only available on AMX
 
-// XFAIL: gpu
 
 #include "../common.hpp"
 #include <iostream>
