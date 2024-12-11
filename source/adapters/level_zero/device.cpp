@@ -1528,6 +1528,20 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
   return UseDriverInOrderLists;
 }
 
+bool ur_device_handle_t_::useDriverCounterBasedEvents() {
+  // Use counter-based events implementation from L0 driver.
+
+  static const bool DriverCounterBasedEventsEnabled = [] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
+    if (!UrRet) {
+      return true;
+    }
+    return std::atoi(UrRet) != 0;
+  }();
+
+  return DriverCounterBasedEventsEnabled;
+}
+
 ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                                             int SubSubDeviceIndex) {
   // Maintain various device properties cache.
