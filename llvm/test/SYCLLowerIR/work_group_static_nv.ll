@@ -5,7 +5,7 @@
 
 target triple = "nvptx64-nvidia-cuda"
 
-; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = external addrspace(3) global [0 x i8], align 128
+; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = external local_unnamed_addr addrspace(3) global [0 x i8], align 128
 
 ; Function Attrs: convergent norecurse
 ; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0)
