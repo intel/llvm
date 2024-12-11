@@ -8593,7 +8593,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (IsCuda) {
+  // Propagate -fcuda-short-ptr if compiling CUDA or SYCL for NVPTX
+  if (IsCuda || (IsSYCLDevice && Triple.isNVPTX())) {
     if (Args.hasFlag(options::OPT_fcuda_short_ptr,
                      options::OPT_fno_cuda_short_ptr, false))
       CmdArgs.push_back("-fcuda-short-ptr");
