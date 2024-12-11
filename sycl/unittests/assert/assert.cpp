@@ -147,6 +147,10 @@ static AssertHappened ExpectedToOutput = {
 static constexpr int KernelLaunchCounterBase = 0;
 static constexpr int MemoryMapCounterBase = 1000;
 static int MemoryMapCounter = MemoryMapCounterBase;
+#ifndef _WIN32
+static int KernelLaunchCounter = KernelLaunchCounterBase;
+static constexpr int PauseWaitOnIdx = KernelLaunchCounterBase + 1;
+#endif
 
 // Mock redifinitions
 static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
@@ -164,6 +168,39 @@ static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
 
   return UR_RESULT_SUCCESS;
 }
+
+#ifndef _WIN32
+static ur_result_t redefinedEnqueueKernelLaunchAfter(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  static ur_event_handle_t UserKernelEvent = **params.pphEvent;
+  int Val = KernelLaunchCounter++;
+  // This output here is to reduce amount of time requried to debug/reproduce a
+  // failing test upon feature break
+  printf("Enqueued %i\n", Val);
+
+  if (PauseWaitOnIdx == Val) {
+    // It should be copier kernel. Check if it depends on user's one.
+    EXPECT_EQ(*params.pnumEventsInWaitList, 1U);
+    EXPECT_EQ(*params.pphEventWaitList[0], UserKernelEvent);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t redefinedEventWaitPositive(void *pParams) {
+  auto params = *static_cast<ur_event_wait_params_t *>(pParams);
+  // there should be two events: one is for memory map and the other is for
+  // copier kernel
+  assert(*params.pnumEvents == 2);
+
+  int EventIdx1 = reinterpret_cast<int *>((*params.pphEventWaitList)[0])[0];
+  int EventIdx2 = reinterpret_cast<int *>((*params.pphEventWaitList)[1])[0];
+  // This output here is to reduce amount of time requried to debug/reproduce
+  // a failing test upon feature break
+  printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
+  return UR_RESULT_SUCCESS;
+}
+#endif
 
 static ur_result_t redefinedEventWaitNegative(void *pParams) {
   auto params = *static_cast<ur_enqueue_events_wait_params_t *>(pParams);
@@ -189,6 +226,20 @@ static ur_result_t redefinedEnqueueMemBufferMapAfter(void *pParams) {
 
   return UR_RESULT_SUCCESS;
 }
+
+#ifndef _WIN32
+static void setupMock(sycl::unittest::UrMock<> &Mock) {
+  using namespace sycl::detail;
+  mock::getCallbacks().set_after_callback("urKernelGetGroupInfo",
+                                          &redefinedKernelGetGroupInfoAfter);
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
+                                          &redefinedEnqueueKernelLaunchAfter);
+  mock::getCallbacks().set_after_callback("urEnqueueMemBufferMap",
+                                          &redefinedEnqueueMemBufferMapAfter);
+  mock::getCallbacks().set_before_callback("urEventWait",
+                                           &redefinedEventWaitPositive);
+}
+#endif
 
 namespace TestInteropKernel {
 const sycl::context *Context = nullptr;
