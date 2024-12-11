@@ -54,7 +54,6 @@
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion3D/*
 {{OPT}}urEnqueueKernelLaunchMultiDeviceTest.KernelLaunchReadDifferentQueues/*
 urEnqueueUSMAdviseTest.InvalidSizeTooLarge/*
-urEnqueueUSMFill2DNegativeTest.OutOfBounds/*
 {{OPT}}urEnqueueUSMMemcpyTest.Blocking/*
 {{OPT}}urEnqueueUSMMemcpyTest.BlockingWithEvent/*
 {{OPT}}urEnqueueUSMMemcpyTest.WaitForDependencies/*

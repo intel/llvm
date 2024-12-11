@@ -68,7 +68,6 @@ urEnqueueKernelLaunchKernelWgSizeTest.Success/*
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion2D/*
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion3D/*
 {{OPT}}urEnqueueKernelLaunchMultiDeviceTest.KernelLaunchReadDifferentQueues/*
-urEnqueueUSMFill2DNegativeTest.OutOfBounds/*
 urEnqueueUSMAdviseTest.InvalidSizeTooLarge/*
 urEnqueueUSMPrefetchTest.InvalidSizeTooLarge/*
 {{OPT}}urEnqueueTimestampRecordingExpTest.SuccessBlocking/*
