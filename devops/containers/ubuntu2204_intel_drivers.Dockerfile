@@ -13,7 +13,7 @@ COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
 COPY dependencies.json /
 
-RUN mkdir /runtimes
+RUN sudo mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
     if [ "$use_latest" = "true" ]; then \
@@ -21,7 +21,7 @@ RUN --mount=type=secret,id=github_token \
     else \
       install_driver_opt=" dependencies.json"; \
     fi && \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh $install_driver_opt --all
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) sudo /install_drivers.sh $install_driver_opt --all
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 
