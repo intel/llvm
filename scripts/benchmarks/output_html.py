@@ -161,17 +161,26 @@ def create_grouped_bar_charts(groups: list[ExplicitGroup]) -> list[BenchmarkChar
                 if height > max_height:
                     max_height = height
 
-                ax.text(rect.get_x() + rect.get_width()/2., height + 2,
+                ax.text(rect.get_x() + rect.get_width()/2., height + 1,
                                     f'{res.value:.1f}',
                                     ha='center', va='bottom', fontsize=9)
 
                 tooltip_labels = [
+                    f"Date: {res.date.strftime('%Y-%m-%d %H:%M:%S')}\n"
                     f"Run: {run}\n"
                     f"Label: {res.label}\n"
                     f"Value: {res.value:.2f} {res.unit}\n"
+                    f"Stddev: {res.stddev:.2f} {res.unit}\n"
                 ]
                 tooltip = mpld3.plugins.LineHTMLTooltip(rect, tooltip_labels, css=tooltip_css())
                 mpld3.plugins.connect(ax.figure, tooltip)
+
+        # normally we'd just set legend to be outside
+        # the chart, but this is not supported by mpld3.
+        # instead, we adjust the y axis to account for
+        # the height of the bars.
+        legend_height = len(group.runs) * 0.1
+        ax.set_ylim(0, max_height * (1 + legend_height))
 
         ax.set_xticks([])
         ax.grid(True, axis='y', alpha=0.2)
@@ -190,7 +199,7 @@ def create_grouped_bar_charts(groups: list[ExplicitGroup]) -> list[BenchmarkChar
             # this is a hack to get labels to show above the legend
             # we normalize the idx to transAxes transform and offset it a little.
             x_norm = (idx + 0.3 - ax.get_xlim()[0]) / (ax.get_xlim()[1] - ax.get_xlim()[0])
-            ax.text(x_norm, 1.00, label,
+            ax.text(x_norm, 1.03, label,
                 transform=ax.transAxes,
                 color='#666666')
 
