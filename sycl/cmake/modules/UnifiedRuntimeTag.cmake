@@ -1,7 +1,7 @@
-# commit 45f3d8ad95d7acada8e3bc4aa49bfae07dabcba5
-# Merge: 8f33719fa4fc 08acf05f2d66
-# Author:  Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Dec 11 09:12:33 2024 +0000
-#     Merge pull request #2430 from nrspruit/fix_inorder_initList
-#     [UR] Fix correct usage of In Order sync list given counting events
-set(UNIFIED_RUNTIME_TAG 45f3d8ad95d7acada8e3bc4aa49bfae07dabcba5)
+# commit 8818ab5bf11e94ffd967bed697b13e6f82ea87c9
+# Merge: 45f3d8ad 064da157
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Dec 11 11:04:29 2024 +0000
+#     Merge pull request #2325 from AllanZyne/review/yang/restructure_asan_msan
+#     [DeviceMSAN] Support MemorySanitizer for device offloading
+set(UNIFIED_RUNTIME_TAG 8818ab5bf11e94ffd967bed697b13e6f82ea87c9)

@@ -1,4 +1,4 @@
-//===-- AsanKernelMetadata.cpp - fix kernel medatadata for sanitizer -===//
+//===-- SanitizerKernelMetadata.cpp - fix kernel medatadata for sanitizer -===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 // This pass fixes attributes and metadata of global variable
-// "__AsanKernelMetadata".
-// We treat "__AsanKernelMetadata" as a device global variable, so that it can
-// be read by runtime.
+// "__AsanKernelMetadata" or "__MsanKernelMetadata".
+// We treat "KernelMetadata" as a device global variable, so that it
+// can be read by runtime.
 // "spirv.Decorations" is removed by llvm-link, so we add it here again.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/AsanKernelMetadata.h"
+#include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
 
 #include "llvm/IR/IRBuilder.h"
 
-#define DEBUG_TYPE "AsanKernelMetadata"
+#define DEBUG_TYPE "SanitizerKernelMetadata"
 
 using namespace llvm;
 
@@ -25,12 +25,15 @@ namespace llvm {
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 
-PreservedAnalyses AsanKernelMetadataPass::run(Module &M,
-                                              ModuleAnalysisManager &MAM) {
+PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
+                                                   ModuleAnalysisManager &MAM) {
   auto *KernelMetadata = M.getNamedGlobal("__AsanKernelMetadata");
-  if (!KernelMetadata) {
+
+  if (!KernelMetadata)
+    KernelMetadata = M.getNamedGlobal("__MsanKernelMetadata");
+
+  if (!KernelMetadata)
     return PreservedAnalyses::all();
-  }
 
   auto &DL = M.getDataLayout();
   auto &Ctx = M.getContext();
@@ -51,7 +54,7 @@ PreservedAnalyses AsanKernelMetadataPass::run(Module &M,
       Constant::getIntegerValue(Ty, APInt(32, SPIRV_HOST_ACCESS_DECOR))));
   MD.push_back(
       ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, 0))));
-  MD.push_back(MDString::get(Ctx, "_Z20__AsanKernelMetadata"));
+  MD.push_back(MDString::get(Ctx, "_Z20__SanitizerKernelMetadata"));
 
   MDOps.push_back(MDNode::get(Ctx, MD));
 
