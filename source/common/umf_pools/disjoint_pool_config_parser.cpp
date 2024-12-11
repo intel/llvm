@@ -25,9 +25,13 @@ constexpr auto operator""_GB(unsigned long long x) -> size_t {
     return x * 1024 * 1024 * 1024;
 }
 
+umf_disjoint_pool_config_t::umf_disjoint_pool_config_t()
+    : SlabMinSize(0), MaxPoolableSize(0), Capacity(0),
+      MinBucketSize(UMF_DISJOINT_POOL_MIN_BUCKET_DEFAULT_SIZE), PoolTrace(0),
+      SharedLimits(nullptr), Name("disjoint_pool") {}
+
 DisjointPoolAllConfigs::DisjointPoolAllConfigs(int trace) {
     for (auto &Config : Configs) {
-        Config = umfDisjointPoolParamsDefault();
         Config.PoolTrace = trace;
     }
 
