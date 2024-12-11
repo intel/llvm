@@ -677,6 +677,8 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeSharedLocalMemorySizeINTEL:
   case ExecutionModeNamedBarrierCountINTEL:
   case ExecutionModeSubgroupSize:
+  case ExecutionModeSubgroupsPerWorkgroup:
+  case ExecutionModeSubgroupsPerWorkgroupId:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
   case ExecutionModeSchedulerTargetFmaxMhzINTEL:
