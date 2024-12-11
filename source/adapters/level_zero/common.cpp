@@ -88,7 +88,7 @@ ZeUSMImportExtension ZeUSMImport;
 
 std::map<std::string, int> *ZeCallCount = nullptr;
 
-inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
+void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
 #define ZE_ERRCASE(ERR)                                                        \
   case ERR:                                                                    \

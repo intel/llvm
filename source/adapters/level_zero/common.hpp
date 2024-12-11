@@ -340,6 +340,9 @@ bool setEnvVar(const char *name, const char *value);
 // Map Level Zero runtime error code to UR error code.
 ur_result_t ze2urResult(ze_result_t ZeResult);
 
+// Parse Level Zero error code and return the error string.
+void zeParseError(ze_result_t ZeError, const char *&ErrorString);
+
 // Trace a call to Level-Zero RT
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \
   {                                                                            \
