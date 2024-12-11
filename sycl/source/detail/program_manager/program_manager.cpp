@@ -836,7 +836,7 @@ void callFuncForAllSubsets(Func &FuncToCall,
 
   auto it = DeviceSet.begin();
   std::advance(it, index);
-  for (int i = index; i < DeviceSet.size(); i++, it++) {
+  for (size_t i = index; i < DeviceSet.size(); i++, it++) {
     auto InsertedEntry = Subset.insert(Subset.end(), *it);
     callFuncForAllSubsets(FuncToCall, DeviceSet, Subset, i + 1);
     Subset.erase(InsertedEntry);
