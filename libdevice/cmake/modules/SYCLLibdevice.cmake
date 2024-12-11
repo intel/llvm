@@ -584,7 +584,7 @@ foreach(arch IN LISTS devicelib_arch)
 
     append_to_property(
       ${bc_binary_dir}/libsycl-fallback-imf-${arch}-${dtype}.${bc-suffix}
-      PROPERTY_NAME ${arch})
+      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
   endforeach()
 endforeach()
 
