@@ -7,6 +7,7 @@
 //===---------------------------------------------------------------------===//
 
 // REQUIRES: opencl-aot, cpu
+// REQUIRES: build-and-run-mode
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/aot.cpp -o %t.out
 // RUN: %{run} %t.out
