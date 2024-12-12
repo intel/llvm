@@ -72,7 +72,7 @@ struct VecOperators {
     BinOp Op{};
     if constexpr (is_host ||
                   std::is_same_v<element_type, ext::oneapi::bfloat16>) {
-      result_t res;
+      result_t res{};
       for (size_t i = 0; i < N; ++i)
         if constexpr (is_logical)
           res[i] = Op(Lhs[i], Rhs[i]) ? -1 : 0;
@@ -137,7 +137,7 @@ struct VecOperators {
     UnaryOp Op{};
     if constexpr (is_host ||
                   std::is_same_v<element_type, ext::oneapi::bfloat16>) {
-      result_t res;
+      result_t res{};
       for (size_t i = 0; i < N; ++i)
         if constexpr (is_logical)
           res[i] = Op(self[i]) ? -1 : 0;
