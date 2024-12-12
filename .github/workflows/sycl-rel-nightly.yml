@@ -45,7 +45,6 @@ jobs:
       build_artifact_suffix: v6
       build_configure_extra_args: '--hip --cuda'
       merge_ref: ''
-      retention-days: 90
       ref: ${{ env.SYCL_REL_BRANCH }}
 
       # We upload the build for people to download/use, override its name and
