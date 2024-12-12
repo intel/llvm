@@ -22,7 +22,10 @@ class UMFSuite(Suite):
         self.directory = directory
         if not isUMFAvailable():
             print("UMF not provided. Related benchmarks will not run")
-    
+
+    def name(self) -> str:
+        return "UMF"
+
     def setup(self):
         if not isUMFAvailable():
             return []

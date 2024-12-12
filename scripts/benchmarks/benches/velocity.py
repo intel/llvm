@@ -22,6 +22,9 @@ class VelocityBench(Suite):
 
         self.directory = directory
 
+    def name(self) -> str:
+        return "Velocity Bench"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -46,7 +49,7 @@ class VelocityBench(Suite):
 
 class VelocityBase(Benchmark):
     def __init__(self, name: str, bin_name: str, vb: VelocityBench, unit: str):
-        super().__init__(vb.directory)
+        super().__init__(vb.directory, vb)
         self.vb = vb
         self.bench_name = name
         self.bin_name = bin_name
