@@ -7876,6 +7876,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     // attribute.
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
         !SYCL().isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+            NewVD->getType()) &&
+        !SYCL().isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
             NewVD->getType()))
       SYCL().DiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << SemaSYCL::KernelNonConstStaticDataVariable;
@@ -18576,6 +18578,14 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
     Diag(Loc, diag::err_field_with_address_space);
     Record->setInvalidDecl();
     InvalidDecl = true;
+  }
+
+  if (LangOpts.SYCLIsDevice) {
+    const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+    if (RD && RD->hasAttr<SYCLScopeAttr>()) {
+      Diag(Loc, diag::err_sycl_field_with_wg_scope);
+      InvalidDecl = true;
+    }
   }
 
   if (LangOpts.OpenCL) {

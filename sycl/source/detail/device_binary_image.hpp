@@ -119,6 +119,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     size_t size() const { return std::distance(begin(), end()); }
+    bool empty() const { return begin() == end(); }
     friend class RTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
@@ -230,6 +231,7 @@ public:
   }
   const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
+  const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -255,6 +257,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
+  RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 

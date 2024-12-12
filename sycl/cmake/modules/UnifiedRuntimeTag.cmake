@@ -1,7 +1,7 @@
-# commit 2bea25d7d5404ce82f36caf91c359f65b25187d7
-# Merge: 0b5d8f9e e578228a
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Dec 3 12:41:16 2024 +0000
-#     Merge pull request #2298 from Bensuo/ewan/cuda_update_local_size
-#     Improve CUDA/HIP local argument handling
-set(UNIFIED_RUNTIME_TAG 2bea25d7d5404ce82f36caf91c359f65b25187d7)
+# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
+# Merge: daa0b110464c 323b37c55504
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Fri Dec 6 18:03:11 2024 +0000
+#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
+#     Fix command_buffer coverity issues
+set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)

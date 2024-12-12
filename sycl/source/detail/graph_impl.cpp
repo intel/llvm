@@ -1082,7 +1082,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               nullptr,
               // TODO: Extract from handler
               UR_KERNEL_CACHE_CONFIG_DEFAULT, CG->MKernelIsCooperative,
-              CG->MKernelUsesClusterLaunch);
+              CG->MKernelUsesClusterLaunch, CG->MKernelWorkGroupMemorySize);
           ScheduledEvents.push_back(NewEvent);
         } else if (!NodeImpl->isEmpty()) {
           // Empty nodes are node processed as other nodes, but only their
@@ -2078,10 +2078,10 @@ dynamic_command_group::dynamic_command_group(
   impl->finalizeCGFList(CGFList);
 }
 
-size_t dynamic_command_group::get_active_cgf() const {
+size_t dynamic_command_group::get_active_index() const {
   return impl->getActiveIndex();
 }
-void dynamic_command_group::set_active_cgf(size_t Index) {
+void dynamic_command_group::set_active_index(size_t Index) {
   return impl->setActiveIndex(Index);
 }
 } // namespace experimental
