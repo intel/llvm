@@ -75,7 +75,7 @@ on:
       upload_artifact:
         type: string
         default: 'false'
-      build_artifact_suffix:
+      artifact_suffix:
         type: string
         default: 'default'
       artifact_archive_name:
@@ -455,6 +455,6 @@ jobs:
       if: ${{ always() && !cancelled() && inputs.upload_artifact == 'true'}}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_e2e_bin_${{ inputs.build_artifact_suffix }}
+        name: sycl_e2e_bin_${{ inputs.artifact_suffix }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
