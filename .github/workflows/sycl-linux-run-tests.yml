@@ -189,6 +189,7 @@ jobs:
     container:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
+    outputs:
       artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
       artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
     env: ${{ fromJSON(inputs.env) }}
