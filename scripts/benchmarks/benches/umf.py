@@ -30,7 +30,7 @@ class UMFSuite(Suite):
 
     def benchmarks(self) -> list[Benchmark]:
         if not isUMFAvailable():
-            return
+            return []
         
         benches = [
             GBench(self),
