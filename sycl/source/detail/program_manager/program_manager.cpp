@@ -994,8 +994,9 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     if (URDevicesSet.size() > sizeof(Mask) * 8 - 1) {
       // Protection for the algorithm below. Although overflow is very unlikely
       // to be reached.
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Unable to generate device sets");
+      throw sycl::exception(
+          make_error_code(errc::runtime),
+          "Unable to cache built program for more than 31 devices");
     }
     for (; Mask < (1 << URDevicesSet.size()) - 1; ++Mask) {
       std::set<ur_device_handle_t> Subset;
