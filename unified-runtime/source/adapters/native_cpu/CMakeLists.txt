@@ -98,5 +98,11 @@ if(NATIVECPU_WITH_ONETBB)
     target_compile_options(tbbmalloc PRIVATE -Wno-cast-qual)
   endif()
 
+  # Undefine _DEBUG option in release builds to find
+  # release tbbbind
+  if (NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    target_compile_options(tbb PRIVATE -U_DEBUG)
+  endif()
+
   target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_WITH_ONETBB)
 endif()
