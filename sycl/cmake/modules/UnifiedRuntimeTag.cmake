@@ -1,7 +1,7 @@
-# commit 098deca1f9f3b9f3f0563ee823ac424d8db30668
-# Merge: 58e4d76c2ace 73ba29bfe9df
+# commit 06f48f674445532d8c04be431474901b82c3c449
+# Merge: 098deca1f9f3 1b373f83c71e
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Dec 11 17:23:43 2024 +0000
-#     Merge pull request #2299 from cppchedy/chedy/fix-mipmap-leak
-#     [CUDA][Bindless] Fix memory leak in interop mapping
-set(UNIFIED_RUNTIME_TAG 098deca1f9f3b9f3f0563ee823ac424d8db30668)
+# Date:   Thu Dec 12 11:04:15 2024 +0000
+#     Merge pull request #2356 from npmiller/hip-images
+#     [HIP] Disable SYCL images by default
+set(UNIFIED_RUNTIME_TAG 06f48f674445532d8c04be431474901b82c3c449)
