@@ -1028,7 +1028,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
-    if (LangOpts.SYCLIsDevice)
+    if (LangOpts.SYCLIsDevice) {
       PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
                                              OptimizationLevel Level) {
         MPM.addPass(SYCLVirtualFunctionsAnalysisPass());
@@ -1043,7 +1043,14 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
       });
-    else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
+      PB.registerOptimizerEarlyEPCallback([](ModulePassManager &MPM,
+                                             OptimizationLevel Level,
+                                             ThinOrFullLTOPhase) {
+        // Allocate static local memory in SYCL kernel scope for each allocation
+        // call.
+        MPM.addPass(SYCLLowerWGLocalMemoryPass());
+      });
+    } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDRemoveHostCodePass());
@@ -1190,10 +1197,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             "ITT annotations can only be added to a module with spir target");
         MPM.addPass(SPIRITTAnnotationsPass());
       }
-
-      // Allocate static local memory in SYCL kernel scope for each allocation
-      // call.
-      MPM.addPass(SYCLLowerWGLocalMemoryPass());
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
