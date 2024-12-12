@@ -1114,7 +1114,6 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // enabled or not, so we access properties of the queue and that's why queue
   // must released later.
   if (DisableEventsCaching || !Event->OwnNativeHandle) {
-    ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
     delete Event;
   } else {
     Event->Context->addEventToContextCache(Event);
