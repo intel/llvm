@@ -13,7 +13,8 @@
 
 // Currently row major B fails when annotated_ptr is used
 // XFAIL: gpu
-
+// XFAIL-TRACKER: GSD-4181
+ 
 #include "../common.hpp"
 
 #define SG_SZ 32
