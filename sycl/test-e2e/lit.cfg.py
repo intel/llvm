@@ -149,10 +149,13 @@ if platform.system() == "Windows":
         ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
     )
     config.substitutions.append(("%obj_ext", ".obj"))
+    config.substitutions.append(
+        ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
+    )
 elif platform.system() == "Linux":
     config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
-config.substitutions.append(("%sycl_include", config.sycl_include))
+    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
@@ -663,7 +666,9 @@ for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+    if sycl_device.startswith("hip:"):
+        env["UR_HIP_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
