@@ -1,7 +1,7 @@
-# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
-# Merge: daa0b110464c 323b37c55504
+# commit 58e4d76c2ace154c053b51592f2645fc43437646
+# Merge: e23a75034bb2 bc5d6a695dc8
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 6 18:03:11 2024 +0000
-#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
-#     Fix command_buffer coverity issues
-set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)
+# Date:   Wed Dec 11 15:14:14 2024 +0000
+#     Merge pull request #2436 from igchor/umf_params_bump
+#     [UMF] bump UMF version to v0.10.0 and adjust code
+set(UNIFIED_RUNTIME_TAG 58e4d76c2ace154c053b51592f2645fc43437646)

@@ -822,7 +822,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::copy(DeviceImagesToLink.begin(), DeviceImagesToLink.end(),
             std::back_inserter(AllImages));
 
-  return getBuiltURProgram(AllImages, Context, {Device});
+  return getBuiltURProgram(std::move(AllImages), Context, {Device});
 }
 
 ur_program_handle_t ProgramManager::getBuiltURProgram(
@@ -1353,7 +1353,8 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
   return URProgram;
 }
 
-ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
+ProgramManager::ProgramManager()
+    : m_SanitizerFoundInImage(SanitizerType::None) {
   const char *SpvFile = std::getenv(UseSpvEnv);
   // If a SPIR-V file is specified with an environment variable,
   // register the corresponding image
@@ -1416,7 +1417,7 @@ const char *getArchName(const device &Device) {
   case syclex::architecture::ARCH:                                             \
     return #ARCH;
 #define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
-#include <sycl/ext/oneapi/experimental/architectures.def>
+#include <sycl/ext/oneapi/experimental/device_architecture.def>
 #undef __SYCL_ARCHITECTURE
 #undef __SYCL_ARCHITECTURE_ALIAS
   }
@@ -1909,11 +1910,21 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     cacheKernelUsesAssertInfo(*Img);
 
-    // check if kernel uses asan
+    // check if kernel uses sanitizer
     {
-      sycl_device_binary_property Prop = Img->getProperty("asanUsed");
-      m_AsanFoundInImage |=
-          Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0);
+      sycl_device_binary_property SanProp = Img->getProperty("sanUsed");
+      if (SanProp) {
+        std::string SanValue =
+            detail::DeviceBinaryProperty(SanProp).asCString();
+
+        if (SanValue.rfind("asan", 0) == 0) { // starts_with
+          m_SanitizerFoundInImage = SanitizerType::AddressSanitizer;
+        } else if (SanValue.rfind("msan", 0) == 0) {
+          m_SanitizerFoundInImage = SanitizerType::MemorySanitizer;
+        } else if (SanValue.rfind("tsan", 0) == 0) {
+          m_SanitizerFoundInImage = SanitizerType::ThreadSanitizer;
+        }
+      }
     }
 
     cacheKernelImplicitLocalArg(*Img);
@@ -2404,7 +2415,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     std::vector<device_image_plain> Images;
     const std::set<RTDeviceBinaryImage *> &Deps = ImgInfoPair.second.Deps;
     Images.reserve(Deps.size() + 1);
-    Images.push_back(createSyclObjFromImpl<device_image_plain>(MainImpl));
+    Images.push_back(
+        createSyclObjFromImpl<device_image_plain>(std::move(MainImpl)));
     for (RTDeviceBinaryImage *Dep : Deps) {
       std::shared_ptr<std::vector<sycl::kernel_id>> DepKernelIDs;
       {
@@ -2418,7 +2430,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           Dep, Ctx, Devs, ImgInfoPair.second.State, DepKernelIDs,
           /*PIProgram=*/nullptr);
 
-      Images.push_back(createSyclObjFromImpl<device_image_plain>(DepImpl));
+      Images.push_back(
+          createSyclObjFromImpl<device_image_plain>(std::move(DepImpl)));
     }
     SYCLDeviceImages.push_back(std::move(Images));
   }
@@ -2604,7 +2617,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
                              getSyclObjImpl(ObjectImpl->get_context())));
 
     CompiledImages.push_back(
-        createSyclObjFromImpl<device_image_plain>(ObjectImpl));
+        createSyclObjFromImpl<device_image_plain>(std::move(ObjectImpl)));
   }
   return CompiledImages;
 }
@@ -2779,14 +2792,14 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
     SpecConstMap = MainInputImpl->get_spec_const_data_ref();
   }
 
-  ur_program_handle_t ResProgram =
-      getBuiltURProgram(BinImgs, Context, Devs, &DevImgWithDeps, SpecConstBlob);
+  ur_program_handle_t ResProgram = getBuiltURProgram(
+      std::move(BinImgs), Context, Devs, &DevImgWithDeps, SpecConstBlob);
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
       MainInputImpl->get_bin_image_ref(), Context, Devs,
       bundle_state::executable, std::move(KernelIDs), ResProgram,
       std::move(SpecConstMap), std::move(SpecConstBlob));
-  return createSyclObjFromImpl<device_image_plain>(ExecImpl);
+  return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
 }
 
 // When caching is enabled, the returned UrKernel will already have

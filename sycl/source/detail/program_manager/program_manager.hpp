@@ -88,6 +88,13 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_gsort,
 };
 
+enum class SanitizerType {
+  None,
+  AddressSanitizer,
+  MemorySanitizer,
+  ThreadSanitizer
+};
+
 // A helper class for storing image/program objects and their dependencies
 // and making their handling a bit more readable.
 template <typename T> class ObjectWithDeps {
@@ -331,10 +338,10 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
+  SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
+
   std::optional<int>
   kernelImplicitLocalArgPos(const std::string &KernelName) const;
-
-  bool kernelUsesAsan() const { return m_AsanFoundInImage; }
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -466,8 +473,8 @@ private:
   std::set<std::string> m_KernelUsesAssert;
   std::unordered_map<std::string, int> m_KernelImplicitLocalArgPos;
 
-  // True iff there is a device image compiled with AddressSanitizer
-  bool m_AsanFoundInImage;
+  // Sanitizer type used in device image
+  SanitizerType m_SanitizerFoundInImage;
 
   // Maps between device_global identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>
