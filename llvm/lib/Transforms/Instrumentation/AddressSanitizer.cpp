@@ -1322,7 +1322,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
-  auto DL = M.getDataLayout();
+  const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
