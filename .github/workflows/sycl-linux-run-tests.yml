@@ -81,6 +81,10 @@ on:
       artifact_archive_name:
         type: string
         default: e2e_binaries.tar.zst
+      retention-days:
+        description: 'E2E binaries artifact retention period'
+        type: string
+        default: 1
 
       reset_intel_gpu:
         type: string
