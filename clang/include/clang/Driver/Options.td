@@ -7058,7 +7058,7 @@ def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
   Flags<[NoXarchOption]>, AliasArgs<["all"]>,
   HelpText<"Emit help information from all of the offline compilation tools">;
 def fsycl_libdevice_path_EQ : Joined<["-"], "fsycl-libdevice-path=">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, HelpText<"Path to libdevice library">;
+  Visibility<[ClangOption]>, HelpText<"Path to libdevice library">;
 def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   HelpText<"Path to libspirv library">;
 def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">,
