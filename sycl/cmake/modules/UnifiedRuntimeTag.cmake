@@ -1,7 +1,7 @@
-# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
-# Merge: daa0b110464c 323b37c55504
+# commit 098deca1f9f3b9f3f0563ee823ac424d8db30668
+# Merge: 58e4d76c2ace 73ba29bfe9df
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 6 18:03:11 2024 +0000
-#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
-#     Fix command_buffer coverity issues
-set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)
+# Date:   Wed Dec 11 17:23:43 2024 +0000
+#     Merge pull request #2299 from cppchedy/chedy/fix-mipmap-leak
+#     [CUDA][Bindless] Fix memory leak in interop mapping
+set(UNIFIED_RUNTIME_TAG 098deca1f9f3b9f3f0563ee823ac424d8db30668)
