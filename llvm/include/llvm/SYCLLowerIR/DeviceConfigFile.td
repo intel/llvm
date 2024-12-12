@@ -188,8 +188,14 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 : TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
 // Note: only the "canonical" target names are listed here - see
 // SYCL::gen::resolveGenDevice().
-def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
+//
+// TODO: instructions on how to get "???" values below are required. Currently
+// device architectures below which have "???" in it are not fully supported.
+//
+// def : IntelTargetInfo<"intel_gpu_ptl_u", ???, ???>;
+// def : IntelTargetInfo<"intel_gpu_ptl_h", ???, ???>;
 def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;

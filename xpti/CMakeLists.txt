@@ -91,6 +91,9 @@ if (LLVM_BINARY_DIR)
     COMMENT "Copying XPTI headers ..."
   )
   add_dependencies(xpti xpti-headers)
+  if (MSVC)
+    add_dependencies(xptid xpti-headers)
+  endif()
 endif()
 
 include(GNUInstallDirs)
