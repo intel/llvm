@@ -9,6 +9,7 @@ from benches.compute import *
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
+from benches.umf import *
 from benches.test import TestSuite
 from benches.options import Compare, options
 from output_markdown import generate_markdown
@@ -74,7 +75,7 @@ def remove_outliers(results: dict[str, list[Result]], threshold: float = 3.5) ->
 
     return new_results
 
-def process_results(results: dict[str, list[Result]]) -> tuple[bool, list[Result]]:
+def process_results(results: dict[str, list[Result]], stddev_threshold_override) -> tuple[bool, list[Result]]:
     processed: list[Result] = []
     # technically, we can detect whether result is below or above threshold per
     # individual result. However, we can't repeat benchmark runs with that
@@ -94,7 +95,7 @@ def process_results(results: dict[str, list[Result]]) -> tuple[bool, list[Result
         mean_value = statistics.mean(values)
         stddev = statistics.stdev(values)
 
-        threshold = options.stddev_threshold * mean_value
+        threshold = (stddev_threshold_override if stddev_threshold_override is not None else options.stddev_threshold) * mean_value
 
         if stddev > threshold:
             print(f"stddev {stddev} above the threshold {threshold} for {label}")
@@ -120,6 +121,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         VelocityBench(directory),
         SyclBench(directory),
         LlamaCppBench(directory),
+        UMFSuite(directory),
         #TestSuite()
     ] if not options.dry_run else []
 
@@ -159,7 +161,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             processed: list[Result] = []
             for _ in range(5):
                 run_iterations(benchmark, merged_env_vars, options.iterations, intermediate_results)
-                valid, processed = process_results(intermediate_results)
+                valid, processed = process_results(intermediate_results, benchmark.stddev_threshold())
                 if valid:
                     break
             results += processed
@@ -231,6 +233,7 @@ if __name__ == "__main__":
     parser.add_argument('benchmark_directory', type=str, help='Working directory to setup benchmarks.')
     parser.add_argument('--sycl', type=str, help='Root directory of the SYCL compiler.', default=None)
     parser.add_argument('--ur', type=str, help='UR install prefix path', default=None)
+    parser.add_argument('--umf', type=str, help='UMF install prefix path', default=None)
     parser.add_argument('--adapter', type=str, help='Options to build the Unified Runtime as part of the benchmark', default="level_zero")
     parser.add_argument("--no-rebuild", help='Rebuild the benchmarks from scratch.', action="store_true")
     parser.add_argument("--env", type=str, help='Use env variable for a benchmark run.', action="append", default=[])
@@ -267,6 +270,7 @@ if __name__ == "__main__":
     options.output_html = args.output_html
     options.output_markdown = args.output_markdown
     options.dry_run = args.dry_run
+    options.umf = args.umf
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
