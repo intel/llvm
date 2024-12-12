@@ -86,7 +86,7 @@ jobs:
       uses: ./src/devops/actions/setup_windows_oneapi_env
       if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
     - name: Set env
-      run: |      
+      run: |
         git config --system core.longpaths true
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -116,7 +116,7 @@ jobs:
     - name: Build
       id: build
       shell: bash
-      run: |        
+      run: |
         cmake --build build --target sycl-toolchain
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
@@ -156,6 +156,7 @@ jobs:
         cmake --build build --target check-libdevice
     - name: Install
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      shell: bash
       # TODO replace utility installation with a single CMake target
       run: |
         cmake --build build --target deploy-sycl-toolchain
@@ -174,6 +175,7 @@ jobs:
         tar -czf ${{ inputs.artifact_archive_name }} -C install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      shell: bash      
       uses: actions/upload-artifact@v4
       with:
         name: sycl_windows_default
