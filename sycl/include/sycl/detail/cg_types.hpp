@@ -15,14 +15,14 @@
 #include <sycl/detail/item_base.hpp>           // for id
 #include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
 #include <sycl/exception.hpp>
-#include <sycl/group.hpp>                      // for group
-#include <sycl/h_item.hpp>                     // for h_item
-#include <sycl/id.hpp>                         // for id
-#include <sycl/item.hpp>                       // for item
-#include <sycl/kernel_handler.hpp>             // for kernel_handler
-#include <sycl/nd_item.hpp>                    // for nd_item
-#include <sycl/nd_range.hpp>                   // for nd_range
-#include <sycl/range.hpp>                      // for range, operator*
+#include <sycl/group.hpp>          // for group
+#include <sycl/h_item.hpp>         // for h_item
+#include <sycl/id.hpp>             // for id
+#include <sycl/item.hpp>           // for item
+#include <sycl/kernel_handler.hpp> // for kernel_handler
+#include <sycl/nd_item.hpp>        // for nd_item
+#include <sycl/nd_range.hpp>       // for nd_range
+#include <sycl/range.hpp>          // for range, operator*
 
 #include <functional>  // for function
 #include <stddef.h>    // for size_t

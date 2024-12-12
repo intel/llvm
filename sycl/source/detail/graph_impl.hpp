@@ -243,9 +243,9 @@ public:
     case sycl::detail::CGType::PrefetchUSM:
       return createCGCopy<sycl::detail::CGPrefetchUSM>();
     case sycl::detail::CGType::PrefetchUSMExpD2H:
-      throw sycl::exception(
-          sycl::make_error_code(errc::feature_not_supported),
-          "Prefetch from device to host is currently not supported by SYCL Graph extension.");
+      throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                            "Prefetch from device to host is currently not "
+                            "supported by SYCL Graph extension.");
     case sycl::detail::CGType::AdviseUSM:
       return createCGCopy<sycl::detail::CGAdviseUSM>();
     case sycl::detail::CGType::Copy2DUSM:

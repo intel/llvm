@@ -15,8 +15,8 @@
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
-#include <sycl/kernel.hpp>                                   // for kernel_impl
-#include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
+#include <sycl/kernel.hpp>          // for kernel_impl
+#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
