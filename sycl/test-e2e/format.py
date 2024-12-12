@@ -296,9 +296,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # TODO: workaround for lit hanging when executing non-existent binary
         # inside our containers
         if len(script) == 0:
-            return lit.Test.Result(
-                    lit.Test.UNSUPPORTED, "Lit script is empty"
-                    )
+            return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
         useExternalSh = test.config.test_mode == "run-only"
 
         result = lit.TestRunner._runShTest(
