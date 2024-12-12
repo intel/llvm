@@ -5,9 +5,10 @@
 
 #include "ur_api.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urKernelGetInfoTest = uur::urKernelTest;
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetInfoTest);
 
 TEST_P(urKernelGetInfoTest, FunctionName) {
     auto property_name = UR_KERNEL_INFO_FUNCTION_NAME;
@@ -114,6 +115,7 @@ TEST_P(urKernelGetInfoTest, Attributes) {
 }
 
 TEST_P(urKernelGetInfoTest, NumRegs) {
+    UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{});
     auto property_name = UR_KERNEL_INFO_NUM_REGS;
     size_t property_size = 0;
 

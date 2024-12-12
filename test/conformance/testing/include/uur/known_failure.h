@@ -83,12 +83,9 @@ inline bool isKnownFailureOn(ur_adapter_handle_t adapter,
     return false;
 }
 
-template <class Param>
-inline bool
-isKnownFailureOn(const std::tuple<ur_platform_handle_t, Param> &param,
-                 const std::vector<Matcher> &matchers) {
-    ur_platform_handle_t platform = std::get<0>(param);
-    ur_adapter_handle_t adapter;
+inline bool isKnownFailureOn(ur_platform_handle_t platform,
+                             const std::vector<Matcher> &matchers) {
+    ur_adapter_handle_t adapter = nullptr;
     urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
                       sizeof(ur_adapter_handle_t), &adapter, nullptr);
     for (const auto &matcher : matchers) {
@@ -112,12 +109,22 @@ isKnownFailureOn(const std::tuple<ur_platform_handle_t, Param> &param,
     return false;
 }
 
+template <class Param>
+inline bool
+isKnownFailureOn(const std::tuple<ur_platform_handle_t, Param> &param,
+                 const std::vector<Matcher> &matchers) {
+    ur_platform_handle_t platform = std::get<0>(param);
+    return isKnownFailureOn(platform, matchers);
+}
+
 inline bool isKnownFailureOn(const DeviceTuple &param,
                              const std::vector<Matcher> &matchers) {
     for (const auto &matcher : matchers) {
         auto adapterInfo = detail::getAdapterInfo(param.adapter);
-        if (matcher.adapterVersion != adapterInfo.version &&
-            matcher.backend != adapterInfo.backend) {
+        if (matcher.backend != adapterInfo.backend) {
+            continue;
+        }
+        if (matcher.adapterVersion != adapterInfo.version) {
             continue;
         }
         if (matcher.names.empty()) {
@@ -146,11 +153,8 @@ inline std::string knownFailureMessage(ur_adapter_handle_t adapter) {
     return "Known failure on: " + backend;
 }
 
-template <class Param>
-inline std::string
-knownFailureMessage(const std::tuple<ur_platform_handle_t, Param> &param) {
-    ur_platform_handle_t platform = std::get<0>(param);
-    ur_adapter_handle_t adapter;
+inline std::string knownFailureMessage(ur_platform_handle_t platform) {
+    ur_adapter_handle_t adapter = nullptr;
     urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
                       sizeof(ur_adapter_handle_t), &adapter, nullptr);
     std::string backend = uur::GetAdapterBackendName(adapter);
@@ -158,6 +162,13 @@ knownFailureMessage(const std::tuple<ur_platform_handle_t, Param> &param) {
     uur::GetPlatformInfo<std::string>(platform, UR_PLATFORM_INFO_NAME,
                                       platformName);
     return "Known failure on: " + backend + ", " + platformName;
+}
+
+template <class Param>
+inline std::string
+knownFailureMessage(const std::tuple<ur_platform_handle_t, Param> &param) {
+    ur_platform_handle_t platform = std::get<0>(param);
+    return knownFailureMessage(platform);
 }
 
 inline std::string knownFailureMessage(const DeviceTuple &param) {
@@ -190,8 +201,8 @@ inline bool alsoRunKnownFailures() {
 } // namespace uur
 
 #define UUR_KNOWN_FAILURE_ON(...)                                              \
-    if (uur::isKnownFailureOn(GetParam(), {__VA_ARGS__})) {                    \
-        auto message = uur::knownFailureMessage(GetParam());                   \
+    if (uur::isKnownFailureOn(this->GetParam(), {__VA_ARGS__})) {              \
+        auto message = uur::knownFailureMessage(this->GetParam());             \
         if (uur::alsoRunKnownFailures()) {                                     \
             std::cerr << message << "\n";                                      \
         } else {                                                               \

@@ -3,7 +3,8 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "uur/fixtures.h"
+#include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urPhysicalMemCreateTest
     : uur::urVirtualMemGranularityTestWithParam<size_t> {
@@ -26,17 +27,21 @@ struct urPhysicalMemCreateTest
 };
 
 using urPhysicalMemCreateWithSizeParamTest = urPhysicalMemCreateTest;
-UUR_TEST_SUITE_P(urPhysicalMemCreateWithSizeParamTest,
-                 ::testing::Values(1, 2, 3, 7, 12, 44),
-                 uur::deviceTestWithParamPrinter<size_t>);
+UUR_DEVICE_TEST_SUITE_P(urPhysicalMemCreateWithSizeParamTest,
+                        ::testing::Values(1, 2, 3, 7, 12, 44),
+                        uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateWithSizeParamTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(
         urPhysicalMemCreate(context, device, size, nullptr, &physical_mem));
     ASSERT_NE(physical_mem, nullptr);
 }
 
 TEST_P(urPhysicalMemCreateWithSizeParamTest, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     if (granularity == 1) {
         GTEST_SKIP()
             << "A granularity of 1 means that any size will be accepted.";
@@ -49,9 +54,10 @@ TEST_P(urPhysicalMemCreateWithSizeParamTest, InvalidSize) {
 
 using urPhysicalMemCreateWithFlagsParamTest =
     uur::urPhysicalMemTestWithParam<ur_physical_mem_flags_t>;
-UUR_TEST_SUITE_P(urPhysicalMemCreateWithFlagsParamTest,
-                 ::testing::Values(UR_PHYSICAL_MEM_FLAG_TBD),
-                 uur::deviceTestWithParamPrinter<ur_physical_mem_flags_t>);
+UUR_DEVICE_TEST_SUITE_P(
+    urPhysicalMemCreateWithFlagsParamTest,
+    ::testing::Values(UR_PHYSICAL_MEM_FLAG_TBD),
+    uur::deviceTestWithParamPrinter<ur_physical_mem_flags_t>);
 
 TEST_P(urPhysicalMemCreateWithFlagsParamTest, Success) {
     ur_physical_mem_properties_t properties;
@@ -65,8 +71,8 @@ TEST_P(urPhysicalMemCreateWithFlagsParamTest, Success) {
 }
 
 using urPhysicalMemCreateTest = urPhysicalMemCreateTest;
-UUR_TEST_SUITE_P(urPhysicalMemCreateTest, ::testing::Values(1),
-                 uur::deviceTestWithParamPrinter<size_t>);
+UUR_DEVICE_TEST_SUITE_P(urPhysicalMemCreateTest, ::testing::Values(1),
+                        uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateTest, InvalidNullHandleContext) {
     ASSERT_EQ_RESULT(

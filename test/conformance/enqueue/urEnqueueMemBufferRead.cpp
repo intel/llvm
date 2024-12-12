@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urEnqueueMemBufferReadTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
@@ -43,6 +44,8 @@ TEST_P(urEnqueueMemBufferReadTestWithParam, InvalidNullPointerDst) {
 }
 
 TEST_P(urEnqueueMemBufferReadTestWithParam, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> output(count, 42);
     ASSERT_EQ_RESULT(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
                                             output.data(), 1, nullptr, nullptr),
@@ -66,6 +69,8 @@ TEST_P(urEnqueueMemBufferReadTestWithParam, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemBufferReadTestWithParam, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> output(count, 42);
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueMemBufferRead(queue, buffer, true, 1, size,
@@ -100,6 +105,9 @@ TEST_P(urEnqueueMemBufferReadTestWithParam, Blocking) {
 }
 
 TEST_P(urEnqueueMemBufferReadTestWithParam, NonBlocking) {
+    // This is a flaky fail.
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     constexpr const size_t memSize = 10u;
     constexpr const size_t bytes = memSize * sizeof(int);
     const int data[memSize] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};

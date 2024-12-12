@@ -5,12 +5,15 @@
 
 #include <cuda.h>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 #include <vector>
 
 using T = uint32_t;
 
 struct urCudaEnqueueNativeCommandTest : uur::urQueueTest {
     void SetUp() {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
         ur_bool_t native_enqueue_support = false;

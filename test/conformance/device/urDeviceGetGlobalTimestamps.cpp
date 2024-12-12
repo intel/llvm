@@ -7,6 +7,7 @@
 #include <thread>
 #include <type_traits>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 // WARNING  - This is the precision that is used in the OpenCL-CTS.
 //          - We might need to modify this value per-adapter.
@@ -30,6 +31,8 @@ using urDeviceGetGlobalTimestampTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceGetGlobalTimestampTest);
 
 TEST_P(urDeviceGetGlobalTimestampTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+
     uint64_t device_time = 0;
     uint64_t host_time = 0;
     ASSERT_SUCCESS(
@@ -39,16 +42,25 @@ TEST_P(urDeviceGetGlobalTimestampTest, Success) {
 }
 
 TEST_P(urDeviceGetGlobalTimestampTest, SuccessHostTimer) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+
     uint64_t host_time = 0;
     ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, &host_time));
     ASSERT_NE(host_time, 0);
 }
 
 TEST_P(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+
     ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, nullptr));
 }
 
 TEST_P(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
+                         uur::LevelZeroV2{}, uur::NativeCPU{},
+                         uur::OpenCL{"Intel(R) FPGA"},
+                         uur::OpenCL{"Intel(R) UHD Graphics 770"});
+
     // get the timer resolution of the device
     size_t deviceTimerResolutionNanoSecs = 0;
     ASSERT_SUCCESS(uur::GetDeviceProfilingTimerResolution(

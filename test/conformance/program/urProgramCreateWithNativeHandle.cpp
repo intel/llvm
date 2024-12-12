@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
     void SetUp() override {
@@ -32,7 +33,7 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
     ur_native_handle_t native_program_handle = 0;
     ur_program_handle_t native_program = nullptr;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramCreateWithNativeHandleTest);
 
 TEST_P(urProgramCreateWithNativeHandleTest, Success) {
     UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urProgramCreateWithNativeHandle(

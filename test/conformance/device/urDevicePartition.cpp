@@ -17,9 +17,8 @@ void getNumberComputeUnits(ur_device_handle_t device,
 TEST_P(urDevicePartitionTest, PartitionEquallySuccess) {
 
     if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_EQUALLY)) {
-        ::testing::Message() << "Device: \'" << device
-                             << "\' does not support partitioning equally.";
-        GTEST_SKIP();
+        GTEST_SKIP() << "Device: \'" << device
+                     << "\' does not support partitioning equally.";
     }
 
     uint32_t n_compute_units = 0;
@@ -57,9 +56,8 @@ TEST_P(urDevicePartitionTest, PartitionByCounts) {
 
     if (!uur::hasDevicePartitionSupport(device,
                                         UR_DEVICE_PARTITION_BY_COUNTS)) {
-        ::testing::Message() << "Device: \'" << device
-                             << "\' does not support partitioning by counts.\n";
-        GTEST_SKIP();
+        GTEST_SKIP() << "Device: \'" << device
+                     << "\' does not support partitioning by counts.\n";
     }
 
     uint32_t n_cu_in_device = 0;
@@ -175,9 +173,8 @@ TEST_P(urDevicePartitionTest, InvalidNullPointerPropertiesArray) {
 TEST_P(urDevicePartitionTest, SuccessSubSet) {
 
     if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_EQUALLY)) {
-        ::testing::Message() << "Device: \'" << device
-                             << "\' does not support partitioning equally.";
-        GTEST_SKIP();
+        GTEST_SKIP() << "Device: \'" << device
+                     << "\' does not support partitioning equally.";
     }
 
     uint32_t n_compute_units = 0;
@@ -228,10 +225,9 @@ TEST_P(urDevicePartitionAffinityDomainTest, PartitionByAffinityDomain) {
 
     if (!uur::hasDevicePartitionSupport(
             device, UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN)) {
-        ::testing::Message() << "Device \'" << device
-                             << "\' does not support partitioning by "
-                                "affinity domain.\n";
-        GTEST_SKIP();
+        GTEST_SKIP()
+            << "Device \'" << device
+            << "\' does not support partitioning by affinity domain.\n";
     }
 
     uint32_t n_compute_units = 0;
@@ -243,10 +239,9 @@ TEST_P(urDevicePartitionAffinityDomainTest, PartitionByAffinityDomain) {
     ASSERT_SUCCESS(
         uur::GetDevicePartitionAffinityDomainFlags(device, supported_flags));
     if (!(flag & supported_flags)) {
-        ::testing::Message()
-            << static_cast<ur_device_affinity_domain_flag_t>(flag)
-            << " is not supported by the device: \'" << device << "\'.\n";
-        GTEST_SKIP();
+        GTEST_SKIP() << static_cast<ur_device_affinity_domain_flag_t>(flag)
+                     << " is not supported by the device: \'" << device
+                     << "\'.\n";
     }
 
     ur_device_partition_property_t prop =

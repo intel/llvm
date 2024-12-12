@@ -19,7 +19,7 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
     urDeviceGetNativeHandle(device, (ur_native_handle_t *)&native_device);
 
     std::shared_ptr<std::vector<char>> il_binary;
-    uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
+    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
 
     auto kernel_name =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
@@ -79,7 +79,7 @@ TEST_P(urLevelZeroKernelNativeHandleTest, NullProgram) {
     urDeviceGetNativeHandle(device, (ur_native_handle_t *)&native_device);
 
     std::shared_ptr<std::vector<char>> il_binary;
-    uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
+    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
 
     auto kernel_name =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];

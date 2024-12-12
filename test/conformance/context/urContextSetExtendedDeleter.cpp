@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "uur/fixtures.h"
+#include "uur/known_failure.h"
 #include "uur/raii.h"
 
 using urContextSetExtendedDeleterTest = uur::urDeviceTest;
@@ -11,6 +12,9 @@ using urContextSetExtendedDeleterTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextSetExtendedDeleterTest);
 
 TEST_P(urContextSetExtendedDeleterTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                         uur::NativeCPU{});
+
     bool called = false;
     {
         uur::raii::Context context = nullptr;

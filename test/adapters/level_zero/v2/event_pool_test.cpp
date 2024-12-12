@@ -88,7 +88,7 @@ struct ProviderParams {
 template <typename T>
 inline std::string
 printParams(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     auto params = std::get<1>(info.param);
@@ -144,8 +144,8 @@ static ProviderParams test_cases[] = {
     //{TEST_PROVIDER_COUNTER, EVENT_COUNTER, QUEUE_IMMEDIATE},
 };
 
-UUR_TEST_SUITE_P(EventPoolTest, testing::ValuesIn(test_cases),
-                 printParams<EventPoolTest>);
+UUR_DEVICE_TEST_SUITE_P(EventPoolTest, testing::ValuesIn(test_cases),
+                        printParams<EventPoolTest>);
 
 TEST_P(EventPoolTest, InvalidDevice) {
     auto pool = cache->borrow(MAX_DEVICES, getParam().flags);
@@ -237,8 +237,8 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
 
 using EventPoolTestWithQueue = uur::urQueueTestWithParam<ProviderParams>;
 
-UUR_TEST_SUITE_P(EventPoolTestWithQueue, testing::ValuesIn(test_cases),
-                 printParams<EventPoolTest>);
+UUR_DEVICE_TEST_SUITE_P(EventPoolTestWithQueue, testing::ValuesIn(test_cases),
+                        printParams<EventPoolTest>);
 
 // TODO: actual min version is unknown, retest after drivers on CI are
 // updated.

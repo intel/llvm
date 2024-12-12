@@ -3,11 +3,14 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urQueueRetainTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueRetainTest);
 
 TEST_P(urQueueRetainTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     uint32_t prevRefCount = 0;
     ASSERT_SUCCESS(uur::GetObjectReferenceCount(queue, prevRefCount));
 

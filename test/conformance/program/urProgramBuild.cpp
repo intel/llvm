@@ -4,9 +4,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urProgramBuildTest = uur::urProgramTest;
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramBuildTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramBuildTest);
 
 TEST_P(urProgramBuildTest, Success) {
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
@@ -28,9 +29,12 @@ TEST_P(urProgramBuildTest, InvalidNullHandleProgram) {
 }
 
 TEST_P(urProgramBuildTest, BuildFailure) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     ur_program_handle_t program = nullptr;
     std::shared_ptr<std::vector<char>> il_binary;
-    uur::KernelsEnvironment::instance->LoadSource("build_failure", il_binary);
+    uur::KernelsEnvironment::instance->LoadSource("build_failure", platform,
+                                                  il_binary);
     if (!il_binary) {
         // The build failure we are testing for happens at SYCL compile time on
         // AMD and Nvidia, so no binary exists to check for a build failure

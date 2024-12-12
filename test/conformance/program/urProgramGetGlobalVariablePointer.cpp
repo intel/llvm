@@ -7,7 +7,7 @@
 
 using urProgramGetGlobalVariablePointerTest = uur::urGlobalVariableTest;
 
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetGlobalVariablePointerTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetGlobalVariablePointerTest);
 
 TEST_P(urProgramGetGlobalVariablePointerTest, Success) {
     size_t global_variable_size = 0;

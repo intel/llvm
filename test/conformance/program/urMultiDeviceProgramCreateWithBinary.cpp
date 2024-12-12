@@ -4,6 +4,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "uur/known_failure.h"
 #include <uur/fixtures.h>
 #include <uur/raii.h>
 
@@ -245,6 +246,8 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckProgramGetInfo) {
 struct urMultiDeviceCommandBufferExpTest
     : urMultiDeviceProgramCreateWithBinaryTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(
             urMultiDeviceProgramCreateWithBinaryTest::SetUp());
 
@@ -298,8 +301,9 @@ struct urMultiDeviceCommandBufferExpTest
     static constexpr size_t global_size = 64;
     static constexpr size_t local_size = 4;
 };
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceCommandBufferExpTest);
 
-TEST_F(urMultiDeviceCommandBufferExpTest, Enqueue) {
+TEST_P(urMultiDeviceCommandBufferExpTest, Enqueue) {
     for (size_t i = 0; i < devices.size(); i++) {
         auto device = devices[i];
         if (!hasCommandBufferSupport(device)) {
@@ -325,7 +329,7 @@ TEST_F(urMultiDeviceCommandBufferExpTest, Enqueue) {
     }
 }
 
-TEST_F(urMultiDeviceCommandBufferExpTest, Update) {
+TEST_P(urMultiDeviceCommandBufferExpTest, Update) {
     for (size_t i = 0; i < devices.size(); i++) {
         auto device = devices[i];
         if (!(hasCommandBufferSupport(device) &&

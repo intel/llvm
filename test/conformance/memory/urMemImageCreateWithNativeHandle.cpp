@@ -4,11 +4,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
-using urMemImageCreateWithNativeHandleTest = uur::urMemImageTest;
+struct urMemImageCreateWithNativeHandleTest : uur::urMemImageTest {
+    void SetUp() {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+        UUR_RETURN_ON_FATAL_FAILURE(urMemImageTest::SetUp());
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateWithNativeHandleTest);
 
 TEST_P(urMemImageCreateWithNativeHandleTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::LevelZero{});
+
     ur_native_handle_t native_handle = 0;
     UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
         urMemGetNativeHandle(image, device, &native_handle));

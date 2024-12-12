@@ -28,10 +28,6 @@ inline std::string GTestSanitizeString(const std::string &str) {
     return str_cpy;
 }
 
-inline ur_platform_handle_t GetPlatform() {
-    return PlatformEnvironment::instance->platform;
-}
-
 template <class T, class ObjectTy, class InfoTy, class Callable>
 ur_result_t GetInfo(ObjectTy object, InfoTy info, Callable cb, T &out_value) {
     // first get the size of the info
@@ -193,7 +189,7 @@ inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
 
 inline std::string GetPlatformNameWithID(ur_platform_handle_t hPlatform) {
     auto platform_name = GetPlatformName(hPlatform);
-    auto &platforms = uur::PlatformEnvironment::instance->all_platforms;
+    auto &platforms = uur::PlatformEnvironment::instance->platforms;
     size_t platform_id =
         std::find(platforms.begin(), platforms.end(), hPlatform) -
         platforms.begin();

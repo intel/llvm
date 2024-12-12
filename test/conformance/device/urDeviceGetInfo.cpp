@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_TYPE, sizeof(ur_device_type_t)},
@@ -264,8 +265,49 @@ bool doesReturnArray(ur_device_info_t info_type) {
     return false;
 }
 
+const std::set<ur_device_info_t> nativeCPUFails = {
+    UR_DEVICE_INFO_DEVICE_ID,
+    UR_DEVICE_INFO_MEMORY_CLOCK_RATE,
+    UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS,
+    UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+    UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES,
+    UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES,
+    UR_DEVICE_INFO_IL_VERSION,
+    UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
+    UR_DEVICE_INFO_UUID,
+    UR_DEVICE_INFO_PCI_ADDRESS,
+    UR_DEVICE_INFO_GPU_EU_COUNT,
+    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
+    UR_DEVICE_INFO_GPU_EU_SLICES,
+    UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+    UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
+    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH,
+    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES,
+    UR_DEVICE_INFO_MEMORY_BUS_WIDTH,
+    UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+    UR_DEVICE_INFO_ASYNC_BARRIER,
+    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED,
+    UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP,
+    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS,
+    UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES,
+    UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES};
+
 TEST_P(urDeviceGetInfoTest, Success) {
     ur_device_info_t info_type = getParam();
+
+    if (info_type == UR_DEVICE_INFO_GLOBAL_MEM_FREE) {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{});
+    }
+
+    if (info_type == UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS) {
+        UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+    }
+
+    if (nativeCPUFails.count(info_type)) {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+    }
+
     size_t size = 0;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urDeviceGetInfo(device, info_type, 0, nullptr, &size), info_type);
@@ -336,6 +378,8 @@ TEST_P(urDeviceGetInfoSingleTest, InvalidNullPointerPropSizeRet) {
 }
 
 TEST_P(urDeviceGetInfoSingleTest, MaxWorkGroupSizeIsNonzero) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     size_t max_global_size;
 
     ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,

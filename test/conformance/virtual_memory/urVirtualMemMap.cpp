@@ -6,11 +6,12 @@
 
 using urVirtualMemMapWithFlagsTest =
     uur::urVirtualMemTestWithParam<ur_virtual_mem_access_flag_t>;
-UUR_TEST_SUITE_P(urVirtualMemMapWithFlagsTest,
-                 ::testing::Values(UR_VIRTUAL_MEM_ACCESS_FLAG_NONE,
-                                   UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE,
-                                   UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY),
-                 uur::deviceTestWithParamPrinter<ur_virtual_mem_access_flag_t>);
+UUR_DEVICE_TEST_SUITE_P(
+    urVirtualMemMapWithFlagsTest,
+    ::testing::Values(UR_VIRTUAL_MEM_ACCESS_FLAG_NONE,
+                      UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE,
+                      UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY),
+    uur::deviceTestWithParamPrinter<ur_virtual_mem_access_flag_t>);
 
 TEST_P(urVirtualMemMapWithFlagsTest, Success) {
     ASSERT_SUCCESS(urVirtualMemMap(context, virtual_ptr, size, physical_mem, 0,

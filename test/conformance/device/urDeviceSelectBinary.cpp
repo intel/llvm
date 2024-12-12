@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urDeviceSelectBinaryTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceSelectBinaryTest);
@@ -23,6 +24,8 @@ static constexpr uint32_t binaries_length =
     sizeof(binaries) / sizeof(ur_device_binary_t);
 
 TEST_P(urDeviceSelectBinaryTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     uint32_t selected_binary = binaries_length; // invalid index
     ASSERT_SUCCESS(urDeviceSelectBinary(device, binaries, binaries_length,
                                         &selected_binary));

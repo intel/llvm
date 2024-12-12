@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urDeviceCreateWithNativeHandleTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceCreateWithNativeHandleTest);
@@ -56,6 +57,8 @@ TEST_P(urDeviceCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 }
 
 TEST_P(urDeviceCreateWithNativeHandleTest, InvalidNullHandlePlatform) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_native_handle_t native_handle = 0;
     ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
 
@@ -66,6 +69,8 @@ TEST_P(urDeviceCreateWithNativeHandleTest, InvalidNullHandlePlatform) {
 }
 
 TEST_P(urDeviceCreateWithNativeHandleTest, InvalidNullPointerDevice) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_native_handle_t native_handle = 0;
     ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
 

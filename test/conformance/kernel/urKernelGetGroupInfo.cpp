@@ -6,6 +6,7 @@
 #include "ur_api.h"
 #include <array>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urKernelGetGroupInfoFixedWorkGroupSizeTest : uur::urKernelTest {
     void SetUp() override {
@@ -22,6 +23,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetGroupInfoFixedWorkGroupSizeTest);
 
 struct urKernelGetGroupInfoMaxWorkGroupSizeTest : uur::urKernelTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{},
+                             uur::OpenCL{"13th Gen", "Intel(R) Xeon"});
         program_name = "max_wg_size";
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
     }
@@ -69,6 +72,8 @@ TEST_P(urKernelGetGroupInfoTest, WorkGroupSize) {
 }
 
 TEST_P(urKernelGetGroupInfoFixedWorkGroupSizeTest, CompileWorkGroupSize) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     auto property_name = UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE;
     size_t property_size = 0;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(

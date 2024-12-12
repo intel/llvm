@@ -154,8 +154,17 @@ printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     return test_name.str();
 }
 
-struct urMultiQueueMultiDeviceTest : uur::urMultiDeviceContextTestTemplate<1> {
-    void initQueues(size_t minDevices) {
+// Similar to urMultiDeviceContextTestWithParam this fixture allows a min
+// device count to be specified, but in this case we duplicate existing
+// devices to reach the min device count rather than skipping if it isn't met.
+template <size_t minDevices>
+struct urMultiQueueMultiDeviceTest : uur::urAllDevicesTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTest::SetUp());
+
+        ASSERT_SUCCESS(
+            urContextCreate(devices.size(), devices.data(), nullptr, &context));
+
         // Duplicate our devices until we hit the minimum size specified.
         auto srcDevices = devices;
         while (devices.size() < minDevices) {
@@ -169,18 +178,38 @@ struct urMultiQueueMultiDeviceTest : uur::urMultiDeviceContextTestTemplate<1> {
         }
     }
 
-    // Default implementation that uses all available devices
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMultiDeviceContextTestTemplate<1>::SetUp());
-        initQueues(1);
+    void TearDown() override {
+        for (auto &queue : queues) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTest::TearDown());
     }
 
-    // Specialized implementation that duplicates all devices and queues
-    void SetUp(size_t numDuplicate) {
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMultiDeviceContextTestTemplate<1>::SetUp());
-        initQueues(numDuplicate);
+    ur_context_handle_t context;
+    std::vector<ur_queue_handle_t> queues;
+};
+
+template <size_t minDevices, class T>
+struct urMultiQueueMultiDeviceTestWithParam
+    : uur::urAllDevicesTestWithParam<T> {
+    using uur::urAllDevicesTestWithParam<T>::devices;
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTestWithParam<T>::SetUp());
+
+        ASSERT_SUCCESS(
+            urContextCreate(devices.size(), devices.data(), nullptr, &context));
+
+        // Duplicate our devices until we hit the minimum size specified.
+        auto srcDevices = devices;
+        while (devices.size() < minDevices) {
+            devices.insert(devices.end(), srcDevices.begin(), srcDevices.end());
+        }
+
+        for (auto &device : devices) {
+            ur_queue_handle_t queue = nullptr;
+            ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &queue));
+            queues.push_back(queue);
+        }
     }
 
     void TearDown() override {
@@ -188,12 +217,10 @@ struct urMultiQueueMultiDeviceTest : uur::urMultiDeviceContextTestTemplate<1> {
             EXPECT_SUCCESS(urQueueRelease(queue));
         }
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMultiDeviceContextTestTemplate<1>::TearDown());
+            uur::urAllDevicesTestWithParam<T>::TearDown());
     }
-    std::function<std::tuple<std::vector<ur_device_handle_t>,
-                             std::vector<ur_queue_handle_t>>(void)>
-        makeQueues;
 
+    ur_context_handle_t context;
     std::vector<ur_queue_handle_t> queues;
 };
 
