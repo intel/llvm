@@ -21,6 +21,9 @@ class LlamaCppBench(Suite):
 
         self.directory = directory
 
+    def name(self) -> str:
+        return "llama.cpp bench"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -64,8 +67,8 @@ class LlamaCppBench(Suite):
 
 class LlamaBench(Benchmark):
     def __init__(self, bench):
+        super().__init__(bench.directory, bench)
         self.bench = bench
-        super().__init__(bench.directory)
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.build_path, 'bin', 'llama-bench')

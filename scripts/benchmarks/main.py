@@ -42,6 +42,7 @@ def run_iterations(benchmark: Benchmark, env_vars, iters: int, results: dict[str
 
             bench_result.name = bench_result.label
             bench_result.lower_is_better = benchmark.lower_is_better()
+            bench_result.suite = benchmark.get_suite_name()
 
             if bench_result.label not in results:
                 results[bench_result.label] = []
