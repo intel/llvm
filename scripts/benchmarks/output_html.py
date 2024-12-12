@@ -157,6 +157,9 @@ def create_grouped_bar_charts(groups: list[ExplicitGroup]) -> list[BenchmarkChar
             ax.bar_label(rects, fmt='')
 
             for rect, run, res in zip(rects, run_results.keys(), run_results.values()):
+                if res is None:
+                    continue
+
                 height = rect.get_height()
                 if height > max_height:
                     max_height = height
