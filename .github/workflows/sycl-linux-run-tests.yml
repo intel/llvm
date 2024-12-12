@@ -102,8 +102,6 @@ on:
         required: False
 
     outputs:
-      run_conclusion:
-        value: ${{ jobs.run.outputs.build_conclusion }}
       artifact_archive_name:
         value: ${{ jobs.run.outputs.artifact_archive_name }}
       artifact_decompress_command:
@@ -191,8 +189,6 @@ jobs:
     container:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
-    outputs:
-      run_conclusion: ${{ steps.run.conclusion }}
       artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
       artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
     env: ${{ fromJSON(inputs.env) }}
