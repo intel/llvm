@@ -1,9 +1,0 @@
-urKernelGetGroupInfoFixedWorkGroupSizeTest.CompileWorkGroupSize/*
-urKernelGetGroupInfoMaxWorkGroupSizeTest.CompileMaxWorkGroupSize/*
-urKernelGetGroupInfoMaxWorkGroupSizeTest.CompileMaxLinearWorkGroupSize/*
-urKernelGetSubGroupInfoFixedSubGroupSizeTest.CompileNumSubGroups/*
-{{OPT}}urKernelSetArgLocalTest.InvalidKernelArgumentIndex/*
-{{OPT}}urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/*
-{{OPT}}urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/*
-{{OPT}}urKernelSetArgSamplerTest.InvalidKernelArgumentIndex/*
-{{OPT}}urKernelSetArgValueTest.InvalidKernelArgumentIndex/*

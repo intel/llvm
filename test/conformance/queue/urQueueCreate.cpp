@@ -5,11 +5,14 @@
 #include "ur_api.h"
 #include "uur/raii.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urQueueCreateTest = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueCreateTest);
 
 TEST_P(urQueueCreateTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     uur::raii::Queue queue = nullptr;
     ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, queue.ptr()));
     ASSERT_NE(nullptr, queue);
@@ -39,6 +42,8 @@ UUR_DEVICE_TEST_SUITE_P(
     uur::deviceTestWithParamPrinter<ur_queue_flag_t>);
 
 TEST_P(urQueueCreateWithParamTest, SuccessWithProperties) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_queue_flags_t supportedFlags{};
     ASSERT_SUCCESS(uur::GetDeviceQueueOnHostProperties(device, supportedFlags));
 
@@ -72,6 +77,8 @@ TEST_P(urQueueCreateWithParamTest, SuccessWithProperties) {
 /* Creates two queues with the same platform and device, and checks that the
  * queried device and platform of both queues match. */
 TEST_P(urQueueCreateWithParamTest, MatchingDeviceHandles) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_queue_flags_t supportedFlags{};
     ASSERT_SUCCESS(uur::GetDeviceQueueOnHostProperties(device, supportedFlags));
 
@@ -109,6 +116,7 @@ TEST_P(urQueueCreateWithParamTest, MatchingDeviceHandles) {
 
 /* Create a queue and check that it returns the right context*/
 TEST_P(urQueueCreateTest, CheckContext) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
     uur::raii::Queue queue = nullptr;
     ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, queue.ptr()));

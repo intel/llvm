@@ -6,6 +6,7 @@
 #include "helpers.h"
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 #include <uur/raii.h>
 
 #include <thread>
@@ -14,9 +15,9 @@
 // There was a bug in previous L0 drivers that caused the test to fail
 std::tuple<size_t, size_t, size_t> minL0DriverVersion = {1, 3, 29534};
 
-template <typename T>
-struct urMultiQueueLaunchMemcpyTest : uur::urMultiQueueMultiDeviceTest,
-                                      testing::WithParamInterface<T> {
+template <size_t minDevices, typename T>
+struct urMultiQueueLaunchMemcpyTest
+    : uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T> {
     std::string KernelName;
     std::vector<ur_program_handle_t> programs;
     std::vector<ur_kernel_handle_t> kernels;
@@ -26,11 +27,17 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiQueueMultiDeviceTest,
     static constexpr size_t ArraySize = 100;
     static constexpr uint32_t InitialValue = 1;
 
-    void SetUp() override { throw std::runtime_error("Not implemented"); }
+    using uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::devices;
+    using uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::platform;
+    using uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::context;
+    using uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::queues;
 
-    void SetUp(size_t duplicateDevices) {
+    void SetUp() override {
+        // We haven't got device code tests working on native cpu yet.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMultiQueueMultiDeviceTest::SetUp(duplicateDevices));
+            uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::SetUp());
 
         for (auto &device : devices) {
             SKIP_IF_DRIVER_TOO_OLD("Level-Zero", minL0DriverVersion, platform,
@@ -47,7 +54,8 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiQueueMultiDeviceTest,
         std::shared_ptr<std::vector<char>> il_binary;
         std::vector<ur_program_metadata_t> metadatas{};
 
-        uur::KernelsEnvironment::instance->LoadSource(ProgramName, il_binary);
+        uur::KernelsEnvironment::instance->LoadSource(ProgramName, platform,
+                                                      il_binary);
 
         for (size_t i = 0; i < devices.size(); i++) {
             const ur_program_properties_t properties = {
@@ -92,7 +100,8 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiQueueMultiDeviceTest,
             urProgramRelease(program);
         }
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMultiDeviceContextTestTemplate<1>::TearDown());
+            uur::urMultiQueueMultiDeviceTestWithParam<minDevices,
+                                                      T>::TearDown());
     }
 
     void runBackgroundCheck(std::vector<uur::raii::Event> &Events) {
@@ -121,58 +130,62 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiQueueMultiDeviceTest,
 
 template <typename Param>
 struct urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam
-    : public urMultiQueueLaunchMemcpyTest<Param> {
+    : public urMultiQueueLaunchMemcpyTest<8, Param> {
     static constexpr size_t duplicateDevices = 8;
 
-    using urMultiQueueLaunchMemcpyTest<Param>::context;
-    using urMultiQueueLaunchMemcpyTest<Param>::queues;
-    using urMultiQueueLaunchMemcpyTest<Param>::devices;
-    using urMultiQueueLaunchMemcpyTest<Param>::kernels;
-    using urMultiQueueLaunchMemcpyTest<Param>::SharedMem;
+    using urMultiQueueLaunchMemcpyTest<duplicateDevices, Param>::context;
+    using urMultiQueueLaunchMemcpyTest<duplicateDevices, Param>::queues;
+    using urMultiQueueLaunchMemcpyTest<duplicateDevices, Param>::devices;
+    using urMultiQueueLaunchMemcpyTest<duplicateDevices, Param>::kernels;
+    using urMultiQueueLaunchMemcpyTest<duplicateDevices, Param>::SharedMem;
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
-            urMultiQueueLaunchMemcpyTest<Param>::SetUp(duplicateDevices));
+            urMultiQueueLaunchMemcpyTest<duplicateDevices, Param>::SetUp());
     }
 
     void TearDown() override {
         UUR_RETURN_ON_FATAL_FAILURE(
-            urMultiQueueLaunchMemcpyTest<Param>::TearDown());
+            urMultiQueueLaunchMemcpyTest<duplicateDevices, Param>::TearDown());
     }
 };
 
 struct urEnqueueKernelLaunchIncrementTest
-    : urMultiQueueLaunchMemcpyTest<uur::BoolTestParam> {
+    : urMultiQueueLaunchMemcpyTest<50, uur::BoolTestParam> {
     static constexpr size_t numOps = 50;
 
     using Param = uur::BoolTestParam;
-    using urMultiQueueLaunchMemcpyTest<Param>::context;
-    using urMultiQueueLaunchMemcpyTest<Param>::queues;
-    using urMultiQueueLaunchMemcpyTest<Param>::devices;
-    using urMultiQueueLaunchMemcpyTest<Param>::kernels;
-    using urMultiQueueLaunchMemcpyTest<Param>::SharedMem;
+
+    using urMultiQueueLaunchMemcpyTest<numOps, Param>::context;
+    using urMultiQueueLaunchMemcpyTest<numOps, Param>::queues;
+    using urMultiQueueLaunchMemcpyTest<numOps, Param>::devices;
+    using urMultiQueueLaunchMemcpyTest<numOps, Param>::kernels;
+    using urMultiQueueLaunchMemcpyTest<numOps, Param>::SharedMem;
 
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueLaunchMemcpyTest<Param>::SetUp(
-            numOps)); // Use single device, duplicated numOps times
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urMultiQueueLaunchMemcpyTest<numOps, Param>::
+                SetUp()); // Use single device, duplicated numOps times
     }
 
     void TearDown() override {
         UUR_RETURN_ON_FATAL_FAILURE(
-            urMultiQueueLaunchMemcpyTest<Param>::TearDown());
+            urMultiQueueLaunchMemcpyTest<numOps, Param>::TearDown());
     }
 };
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_PLATFORM_TEST_SUITE_P(
     urEnqueueKernelLaunchIncrementTest,
     testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEvents")),
-    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
+    uur::platformTestWithParamPrinter<uur::BoolTestParam>);
 
 TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
 
-    auto useEvents = std::get<1>(GetParam()).value;
+    auto useEvents = getParam().value;
 
     std::vector<uur::raii::Event> kernelEvents(numOps);
     std::vector<uur::raii::Event> memcpyEvents(numOps - 1);
@@ -226,25 +239,30 @@ inline std::string
 printParams(const testing::TestParamInfo<typename T::ParamType> &info) {
     std::stringstream ss;
 
-    auto param1 = std::get<0>(info.param);
+    auto boolParamTuple = std::get<1>(info.param);
+
+    auto param1 = std::get<0>(boolParamTuple);
     ss << (param1.value ? "" : "No") << param1.name;
 
-    auto param2 = std::get<1>(info.param);
+    auto param2 = std::get<1>(boolParamTuple);
     ss << (param2.value ? "" : "No") << param2.name;
 
     if constexpr (std::tuple_size_v < typename T::ParamType >> 2) {
         auto param3 = std::get<2>(info.param);
     }
 
-    return ss.str();
+    auto platform = std::get<0>(info.param);
+
+    return uur::GetPlatformNameWithID(platform) + "__" +
+           uur::GTestSanitizeString(ss.str());
 }
 
 using urEnqueueKernelLaunchIncrementMultiDeviceTest =
     urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
         std::tuple<uur::BoolTestParam, uur::BoolTestParam>>;
 
-INSTANTIATE_TEST_SUITE_P(
-    , urEnqueueKernelLaunchIncrementMultiDeviceTest,
+UUR_PLATFORM_TEST_SUITE_P(
+    urEnqueueKernelLaunchIncrementMultiDeviceTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEventWait")),
         testing::ValuesIn(
@@ -253,8 +271,10 @@ INSTANTIATE_TEST_SUITE_P(
 
 // Do a chain of kernelLaunch(dev0) -> memcpy(dev0, dev1) -> kernelLaunch(dev1) ... ops
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
-    auto waitOnEvent = std::get<0>(GetParam()).value;
-    auto runBackgroundCheck = std::get<1>(GetParam()).value;
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
+    auto waitOnEvent = std::get<0>(getParam()).value;
+    auto runBackgroundCheck = std::get<1>(getParam()).value;
 
     size_t returned_size;
     ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_EXTENSIONS, 0,
@@ -330,8 +350,8 @@ using urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest =
     urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
         std::tuple<uur::BoolTestParam, uur::BoolTestParam>>;
 
-INSTANTIATE_TEST_SUITE_P(
-    , urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest,
+UUR_PLATFORM_TEST_SUITE_P(
+    urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEvents")),
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("QueuePerThread"))),
@@ -340,13 +360,17 @@ INSTANTIATE_TEST_SUITE_P(
 // Enqueue kernelLaunch concurrently from multiple threads
 // With !queuePerThread this becomes a test on a single device
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
+    auto useEvents = std::get<0>(getParam()).value;
+    auto queuePerThread = std::get<1>(getParam()).value;
+
+    if (!queuePerThread) {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+    }
+
     size_t numThreads = devices.size();
     std::vector<std::thread> threads;
 
     static constexpr size_t numOpsPerThread = 6;
-
-    auto useEvents = std::get<0>(GetParam()).value;
-    auto queuePerThread = std::get<1>(GetParam()).value;
 
     for (size_t i = 0; i < numThreads; i++) {
         threads.emplace_back([this, i, queuePerThread, useEvents]() {

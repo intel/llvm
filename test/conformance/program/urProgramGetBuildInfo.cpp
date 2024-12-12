@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "uur/known_failure.h"
 #include <uur/fixtures.h>
 
 struct urProgramGetBuildInfoTest
@@ -27,10 +28,15 @@ struct urProgramGetBuildInfoSingleTest : uur::urProgramTest {
         ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
     }
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetBuildInfoSingleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetBuildInfoSingleTest);
 
 TEST_P(urProgramGetBuildInfoTest, Success) {
     auto property_name = getParam();
+
+    if (property_name == UR_PROGRAM_BUILD_INFO_STATUS) {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+    }
+
     size_t property_size = 0;
     std::vector<char> property_value;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -72,6 +78,9 @@ TEST_P(urProgramGetBuildInfoTest, InvalidEnumeration) {
 }
 
 TEST_P(urProgramGetBuildInfoSingleTest, LogIsNullTerminated) {
+    // This is a flaky fail.
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
     size_t logSize;
     std::vector<char> log;
 

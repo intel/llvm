@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 enum class BarrierType {
     Normal,
@@ -103,6 +104,8 @@ struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierOrderingTest);
 
 TEST_P(urEnqueueEventsWaitWithBarrierTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+
     ur_event_handle_t event1 = nullptr;
     ur_event_handle_t waitEvent = nullptr;
     ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue1, src_buffer, dst_buffer, 0, 0,
@@ -142,6 +145,8 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullHandleQueue) {
 }
 
 TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 1, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
@@ -160,6 +165,8 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullPtrEventWaitList) {
 
 TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
        SuccessEventDependenciesBarrierOnly) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     constexpr size_t offset = 0;
     constexpr size_t count = 1;
     ur_event_handle_t event;
@@ -192,6 +199,8 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
 
 TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
        SuccessEventDependenciesLaunchOnly) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     constexpr size_t offset = 0;
     constexpr size_t count = 1;
     ur_event_handle_t event;
@@ -223,6 +232,8 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
 }
 
 TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest, SuccessEventDependencies) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     constexpr size_t offset = 0;
     constexpr size_t count = 1;
     ur_event_handle_t event[6];
@@ -255,6 +266,8 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest, SuccessEventDependencies) {
 
 TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
        SuccessNonEventDependencies) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     constexpr size_t offset = 0;
     constexpr size_t count = 1;
 

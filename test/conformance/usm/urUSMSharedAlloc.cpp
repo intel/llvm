@@ -5,6 +5,7 @@
 
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urUSMSharedAllocTest
     : uur::urQueueTestWithParam<uur::USMDeviceAllocParams> {
@@ -140,6 +141,8 @@ TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{});
+
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_USM_SIZE,
         urUSMSharedAlloc(context, device, nullptr, pool, -1, &ptr));

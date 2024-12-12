@@ -2,8 +2,8 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-#include "uur/known_failure.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 #include <vector>
 
 static ur_image_desc_t image_desc{
@@ -66,6 +66,7 @@ std::vector<ur_image_format_t> all_image_formats;
 struct urMemImageCreateTestWithImageFormatParam
     : uur::urContextTestWithParam<ur_image_format_t> {
     void SetUp() {
+        UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urContextTestWithParam<ur_image_format_t>::SetUp());
     }
@@ -91,10 +92,16 @@ UUR_DEVICE_TEST_SUITE_P(
     uur::deviceTestWithParamPrinter<ur_image_format_t>);
 
 TEST_P(urMemImageCreateTestWithImageFormatParam, Success) {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{},
+                         uur::OpenCL{"Intel(R) UHD Graphics 770"});
+
     ur_image_channel_order_t channel_order =
         std::get<1>(GetParam()).channelOrder;
     ur_image_channel_type_t channel_type = std::get<1>(GetParam()).channelType;
+
+    if (channel_order == UR_IMAGE_CHANNEL_ORDER_RGBA) {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+    }
 
     ur_image_format_t image_format{channel_order, channel_type};
 

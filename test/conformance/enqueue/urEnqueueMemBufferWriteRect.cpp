@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
 #include <numeric>
+#include <uur/known_failure.h>
 
 static std::vector<uur::test_parameters_t> generateParameterizations() {
     std::vector<uur::test_parameters_t> parameterizations;
@@ -45,22 +46,22 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
                      256, 256, 256, 512);
     // Tests that a 8x8x8 region can be written from a 8x8x8 host buffer at
     // offset {0,0,0} to a 8x8x8 device buffer at offset {0,0,0}.
-    PARAMETERIZATION(write_3d, 512, 512, (ur_rect_offset_t{0, 0, 0}),
+    PARAMETERIZATION(write_3D, 512, 512, (ur_rect_offset_t{0, 0, 0}),
                      (ur_rect_offset_t{0, 0, 0}), (ur_rect_region_t{8, 8, 8}),
                      8, 64, 8, 64);
     // Tests that a 4x3x2 region can be written from a 8x8x8 host buffer at
     // offset {1,2,3} to a 8x8x8 device buffer at offset {4,1,3}.
-    PARAMETERIZATION(write_3d_with_offsets, 512, 512,
+    PARAMETERIZATION(write_3D_with_offsets, 512, 512,
                      (ur_rect_offset_t{1, 2, 3}), (ur_rect_offset_t{4, 1, 3}),
                      (ur_rect_region_t{4, 3, 2}), 8, 64, 8, 64);
     // Tests that a 4x16x2 region can be written from a 8x32x1 host buffer at
     // offset {1,2,0} to a 8x32x4 device buffer at offset {4,1,3}.
-    PARAMETERIZATION(write_2d_3d, 256, 1024, (ur_rect_offset_t{1, 2, 0}),
+    PARAMETERIZATION(write_2D_3D, 256, 1024, (ur_rect_offset_t{1, 2, 0}),
                      (ur_rect_offset_t{4, 1, 3}), (ur_rect_region_t{4, 16, 1}),
                      8, 256, 8, 256);
     // Tests that a 1x4x1 region can be written from a 8x16x4 host buffer at
     // offset {7,3,3} to a 2x8x1 device buffer at offset {1,3,0}.
-    PARAMETERIZATION(write_3d_2d, 512, 16, (ur_rect_offset_t{7, 3, 3}),
+    PARAMETERIZATION(write_3D_2D, 512, 16, (ur_rect_offset_t{7, 3, 3}),
                      (ur_rect_offset_t{1, 3, 0}), (ur_rect_region_t{1, 4, 1}),
                      8, 128, 2, 16);
 #undef PARAMETERIZATION
@@ -76,6 +77,17 @@ UUR_DEVICE_TEST_SUITE_P(
     uur::printRectTestString<urEnqueueMemBufferWriteRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
+    const auto name = getParam().name;
+    if (name.find("write_row_2D") != std::string::npos) {
+        UUR_KNOWN_FAILURE_ON(uur::HIP{});
+    }
+
+    if (name.find("write_3D_2D") != std::string::npos) {
+        UUR_KNOWN_FAILURE_ON(uur::HIP{});
+    }
+
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
     // Unpack the parameters.
     const auto host_size = getParam().src_size;
     const auto buffer_size = getParam().dst_size;
@@ -165,6 +177,8 @@ TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullPointerSrc) {
 }
 
 TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> src(count);
     ur_rect_region_t region{size, 1, 1};
     ur_rect_offset_t buffer_offset{0, 0, 0};
@@ -195,6 +209,8 @@ TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemBufferWriteRectTest, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> src(count);
     std::fill(src.begin(), src.end(), 1);
 

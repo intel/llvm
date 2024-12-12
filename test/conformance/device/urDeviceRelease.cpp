@@ -23,9 +23,8 @@ TEST_P(urDeviceReleaseTest, Success) {
 
 TEST_P(urDeviceReleaseTest, SuccessSubdevices) {
     if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_EQUALLY)) {
-        ::testing::Message() << "Device: \'" << device
-                             << "\' does not support partitioning equally.";
-        GTEST_SKIP();
+        GTEST_SKIP() << "Device: \'" << device
+                     << "\' does not support partitioning equally.";
     }
 
     ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);

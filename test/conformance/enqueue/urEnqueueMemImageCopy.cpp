@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urEnqueueMemImageCopyTest
     : public uur::urQueueTestWithParam<ur_mem_type_t> {
@@ -11,6 +12,8 @@ struct urEnqueueMemImageCopyTest
         uint32_t data[4];
     };
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
         ur_bool_t imageSupported;
@@ -125,6 +128,8 @@ UUR_DEVICE_TEST_SUITE_P(urEnqueueMemImageCopyTest,
                         printImageCopyTestString<urEnqueueMemImageCopyTest>);
 
 TEST_P(urEnqueueMemImageCopyTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                          {0, 0, 0}, size, 0, nullptr, nullptr));
     std::vector<rgba_pixel> output(buffSize, {1, 1, 1, 1});
@@ -135,6 +140,8 @@ TEST_P(urEnqueueMemImageCopyTest, Success) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopy) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                          {0, 0, 0}, partialRegion, 0, nullptr,
                                          nullptr));
@@ -159,6 +166,8 @@ TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopy) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopyWithSrcOffset) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage,
                                          partialRegionOffset, {0, 0, 0},
                                          partialRegion, 0, nullptr, nullptr));
@@ -183,6 +192,8 @@ TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopyWithSrcOffset) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopyWithDstOffset) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                          partialRegionOffset, partialRegion, 0,
                                          nullptr, nullptr));
@@ -254,6 +265,8 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueMemImageCopy(queue, srcImage, dstImage, {1, 0, 0},
                                            {0, 0, 0}, size, 0, nullptr,

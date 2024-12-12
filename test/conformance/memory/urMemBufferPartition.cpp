@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "uur/fixtures.h"
+#include "uur/known_failure.h"
 #include "uur/raii.h"
 
 using urMemBufferPartitionWithFlagsTest =
@@ -15,6 +16,16 @@ UUR_DEVICE_TEST_SUITE_P(urMemBufferPartitionWithFlagsTest,
                         uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
 TEST_P(urMemBufferPartitionWithFlagsTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
+    if (getParam() == UR_MEM_FLAG_WRITE_ONLY) {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+    }
+
+    if (getParam() == UR_MEM_FLAG_READ_ONLY) {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+    }
+
     uur::raii::Mem buffer = nullptr;
 
     ASSERT_SUCCESS(
@@ -53,6 +64,9 @@ TEST_P(urMemBufferPartitionTest, InvalidEnumerationFlags) {
 }
 
 TEST_P(urMemBufferPartitionTest, InvalidEnumerationBufferCreateType) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                         uur::NativeCPU{});
+
     ur_buffer_region_t region{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, 0,
                               1024};
     uur::raii::Mem partition = nullptr;
@@ -89,6 +103,8 @@ TEST_P(urMemBufferPartitionTest, InvalidBufferSize) {
 }
 
 TEST_P(urMemBufferPartitionTest, InvalidValueCreateType) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+
     // create a read only buffer
     uur::raii::Mem ro_buffer = nullptr;
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, 4096,
@@ -105,6 +121,9 @@ TEST_P(urMemBufferPartitionTest, InvalidValueCreateType) {
 }
 
 TEST_P(urMemBufferPartitionTest, InvalidValueBufferCreateInfoOutOfBounds) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                         uur::NativeCPU{});
+
     ur_buffer_region_t region{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, 0,
                               8192};
     uur::raii::Mem partition = nullptr;

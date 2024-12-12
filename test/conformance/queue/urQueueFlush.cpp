@@ -4,12 +4,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "uur/fixtures.h"
+#include "uur/known_failure.h"
 #include "uur/raii.h"
 
 using urQueueFlushTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueFlushTest);
 
 TEST_P(urQueueFlushTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     constexpr size_t buffer_size = 1024;
     uur::raii::Mem buffer = nullptr;
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,

@@ -18,7 +18,7 @@ struct urProgramGetFunctionPointerTest : uur::urProgramTest {
 
     std::string function_name;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetFunctionPointerTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetFunctionPointerTest);
 
 TEST_P(urProgramGetFunctionPointerTest, Success) {
     UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});

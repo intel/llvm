@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include <cstring>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urUSMHostAllocTest
     : uur::urQueueTestWithParam<uur::USMDeviceAllocParams> {
@@ -52,6 +53,8 @@ UUR_DEVICE_TEST_SUITE_P(
     uur::printUSMAllocTestString<urUSMHostAllocTest>);
 
 TEST_P(urUSMHostAllocTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, hostUSMSupport));
     if (!hostUSMSupport) {
@@ -126,6 +129,8 @@ TEST_P(urUSMHostAllocTest, InvalidNullPtrMem) {
 }
 
 TEST_P(urUSMHostAllocTest, InvalidUSMSize) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{});
+
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
                      urUSMHostAlloc(context, nullptr, pool, -1, &ptr));

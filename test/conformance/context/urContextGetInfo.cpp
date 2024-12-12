@@ -35,14 +35,6 @@ TEST_P(urContextGetInfoTest, SuccessDevices) {
     size_t devices_count = size / sizeof(ur_device_handle_t);
     ASSERT_EQ(devices_count, 1);
     ASSERT_EQ(queried_device, device);
-
-    for (uint32_t i = 0; i < devices_count; i++) {
-        auto &devices = uur::DevicesEnvironment::instance->devices;
-        auto queried_device =
-            std::find(devices.begin(), devices.end(), devices[i]);
-        EXPECT_TRUE(queried_device != devices.end())
-            << "device associated with the context is not valid";
-    }
 }
 
 TEST_P(urContextGetInfoTest, SuccessUSMMemCpy2DSupport) {

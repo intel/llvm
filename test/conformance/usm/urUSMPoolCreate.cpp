@@ -5,6 +5,7 @@
 
 #include "uur/utils.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urUSMPoolCreateTest : uur::urContextTest {
     void SetUp() {
@@ -27,6 +28,8 @@ TEST_P(urUSMPoolCreateTest, Success) {
 }
 
 TEST_P(urUSMPoolCreateTest, SuccessWithFlag) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
     ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                  UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
     ur_usm_pool_handle_t pool = nullptr;

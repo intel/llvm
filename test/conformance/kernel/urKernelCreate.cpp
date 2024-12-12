@@ -26,7 +26,7 @@ struct urKernelCreateTest : uur::urProgramTest {
     std::string kernel_name;
     ur_kernel_handle_t kernel = nullptr;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelCreateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelCreateTest);
 
 TEST_P(urKernelCreateTest, Success) {
     ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
@@ -66,7 +66,7 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
     std::shared_ptr<std::vector<char>> il_binary;
-    uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
+    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
 
     for (size_t i = 0; i < devices.size(); i++) {
         uur::raii::Program program;
@@ -100,7 +100,7 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
     std::shared_ptr<std::vector<char>> il_binary;
-    uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
+    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
 
     for (size_t i = 0; i < devices.size(); i++) {
         uur::raii::Program program;

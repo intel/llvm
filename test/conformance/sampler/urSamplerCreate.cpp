@@ -4,11 +4,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "uur/fixtures.h"
+#include "uur/known_failure.h"
 #include "uur/raii.h"
 
 struct urSamplerCreateTestWithParam
     : public uur::urContextTestWithParam<uur::SamplerCreateParamT> {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urContextTestWithParam<uur::SamplerCreateParamT>::SetUp());
 

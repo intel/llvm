@@ -4,10 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 #include <vector>
 
 struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
         ur_device_usm_access_capability_flags_t device_usm = 0;
@@ -75,6 +77,8 @@ struct urEnqueueUSMMemcpyTest : uur::urQueueTest {
  * true.
  */
 TEST_P(urEnqueueUSMMemcpyTest, Blocking) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEventWait(1, &memset_event));
     ASSERT_TRUE(memsetHasFinished());
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, device_dst, device_src,
@@ -87,6 +91,8 @@ TEST_P(urEnqueueUSMMemcpyTest, Blocking) {
  * UR_EVENT_STATUS_COMPLETE when the blocking parameter is set to true.
  */
 TEST_P(urEnqueueUSMMemcpyTest, BlockingWithEvent) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ur_event_handle_t memcpy_event = nullptr;
     ASSERT_SUCCESS(urEventWait(1, &memset_event));
     ASSERT_TRUE(memsetHasFinished());
@@ -125,6 +131,8 @@ TEST_P(urEnqueueUSMMemcpyTest, NonBlocking) {
  * the memory.
  */
 TEST_P(urEnqueueUSMMemcpyTest, WaitForDependencies) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, device_dst, device_src,
                                       allocation_size, 1, &memset_event,
                                       nullptr));

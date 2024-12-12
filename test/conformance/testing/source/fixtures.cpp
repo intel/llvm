@@ -19,6 +19,18 @@ std::string deviceTestWithParamPrinter<BoolTestParam>(
 }
 
 template <>
+std::string platformTestWithParamPrinter<BoolTestParam>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_platform_handle_t, BoolTestParam>> &info) {
+    auto platform = std::get<0>(info.param);
+    auto param = std::get<1>(info.param);
+
+    std::stringstream ss;
+    ss << param.name << (param.value ? "Enabled" : "Disabled");
+    return uur::GetPlatformNameWithID(platform) + "__" + ss.str();
+}
+
+template <>
 std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
     const ::testing::TestParamInfo<
         std::tuple<DeviceTuple, uur::SamplerCreateParamT>> &info) {
