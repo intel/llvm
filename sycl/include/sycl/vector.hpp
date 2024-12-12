@@ -32,9 +32,10 @@
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
-#include <sycl/detail/type_traits.hpp>         // for is_floating_point
+#include <sycl/detail/named_swizzles_mixin.hpp>
+#include <sycl/detail/type_traits.hpp> // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
-#include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
+#include <sycl/half_type.hpp> // for StorageT, half, Vec16...
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
@@ -134,7 +135,9 @@ template <typename DataT, int NumElements>
 class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
-                                                   DataT, NumElements> {
+                                                   DataT, NumElements>,
+      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>,
+                                            NumElements> {
   static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
                 "DataT must be cv-unqualified");
 
@@ -379,26 +382,6 @@ public:
 
   DataT &operator[](int i) { return m_Data[i]; }
 
-  // Begin hi/lo, even/odd, xyzw, and rgba swizzles. @{
-private:
-  // Indexer used in the swizzles.def
-  // Currently it is defined as a template struct. Replacing it with a constexpr
-  // function would activate a bug in MSVC that is fixed only in v19.20.
-  // Until then MSVC does not recognize such constexpr functions as const and
-  // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index> struct Indexer {
-    static constexpr int value = Index;
-  };
-
-public:
-#ifdef __SYCL_ACCESS_RETURN
-#error "Undefine __SYCL_ACCESS_RETURN macro"
-#endif
-#define __SYCL_ACCESS_RETURN this
-#include "swizzles.def"
-#undef __SYCL_ACCESS_RETURN
-  // }@ End of hi/lo, even/odd, xyzw, and rgba swizzles.
-
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t Offset, multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
     for (int I = 0; I < NumElements; I++) {
@@ -560,7 +543,10 @@ template <typename T> struct LShift {
 // Actual computation performed on conversion or assignment operators.
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
-class SwizzleOp {
+class SwizzleOp : public detail::NamedSwizzlesMixinBoth<
+                      SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                OperationCurrentT, Indexes...>,
+                      sizeof...(Indexes)> {
   using DataT = typename VecT::element_type;
   // Certain operators return a vector with a different element type. Also, the
   // left and right operand types may differ. CommonDataT selects a result type
@@ -1194,36 +1180,24 @@ public:
     return NewRelOp<RhsOperation, LogicalOr, Indexes...>(NULL, *this, Rhs);
   }
 
-  // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
-  // Indexer used in the swizzles.def.
-  // Currently it is defined as a template struct. Replacing it with a constexpr
-  // function would activate a bug in MSVC that is fixed only in v19.20.
-  // Until then MSVC does not recognize such constexpr functions as const and
-  // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index> struct Indexer {
-    static constexpr int IDXs[sizeof...(Indexes)] = {Indexes...};
-    static constexpr int value = IDXs[Index >= getNumElements() ? 0 : Index];
-  };
+  static constexpr auto get_vec_idx(int idx) {
+    int counter = 0;
+    int result = -1;
+    ((result = counter++ == idx ? Indexes : result), ...);
+    return result;
+  }
 
 public:
   template <int... swizzleIndexes>
-  ConstSwizzle<Indexer<swizzleIndexes>::value...> swizzle() const {
+  ConstSwizzle<get_vec_idx(swizzleIndexes)...> swizzle() const {
     return m_Vector;
   }
 
   template <int... swizzleIndexes>
-  Swizzle<Indexer<swizzleIndexes>::value...> swizzle() {
+  Swizzle<get_vec_idx(swizzleIndexes)...> swizzle() {
     return m_Vector;
   }
-
-#ifdef __SYCL_ACCESS_RETURN
-#error "Undefine __SYCL_ACCESS_RETURN macro"
-#endif
-#define __SYCL_ACCESS_RETURN m_Vector
-#include "swizzles.def"
-#undef __SYCL_ACCESS_RETURN
-  // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 
   // Leave store() interface to automatic conversion to vec<>.
   // Load to vec_t and then assign to swizzle.
