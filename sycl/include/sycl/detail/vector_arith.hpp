@@ -35,8 +35,9 @@ struct ShiftLeft {
 };
 struct ShiftRight {
   template <class T, class U>
-  constexpr auto operator()(T &&lhs, U &&rhs) const
-      -> decltype(std::forward<T>(lhs) >> std::forward<U>(rhs)) {
+  constexpr auto operator()(T &&lhs,
+                            U &&rhs) const -> decltype(std::forward<T>(lhs) >>
+                                                       std::forward<U>(rhs)) {
     return std::forward<T>(lhs) >> std::forward<U>(rhs);
   }
 };
