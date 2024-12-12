@@ -82,7 +82,6 @@ jobs:
       runner: '["Linux", "build"]'
       image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:alldeps
       image_options: -u 1001
-      target_devices: opencl:cpu
       extra_lit_opts: --param test-mode=build-only
       ref: ${{ github.sha }}
       merge_ref: ''

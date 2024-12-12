@@ -19,7 +19,7 @@ on:
 
       target_devices:
         type: string
-        required: True
+        required: False
       extra_cmake_args:
         type: string
         required: False
@@ -360,8 +360,7 @@ jobs:
       shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
-        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
       run: |
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
         exit_code=$?
