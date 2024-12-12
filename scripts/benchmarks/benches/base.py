@@ -26,7 +26,7 @@ class Benchmark:
         assert False, \
             f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
-    def run_bench(self, command, env_vars, ld_library=[]):
+    def run_bench(self, command, env_vars, ld_library=[], add_sycl=True):
         env_vars_with_forced_adapter = env_vars.copy()
         if options.ur is not None:
             env_vars_with_forced_adapter.update(
@@ -35,7 +35,7 @@ class Benchmark:
         return run(
             command=command,
             env_vars=env_vars_with_forced_adapter,
-            add_sycl=True,
+            add_sycl=add_sycl,
             cwd=options.benchmark_cwd,
             ld_library=ld_library
         ).stdout.decode()
@@ -70,6 +70,9 @@ class Benchmark:
 
     def teardown(self):
         raise NotImplementedError()
+
+    def stddev_threshold(self):
+        return None
 
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
