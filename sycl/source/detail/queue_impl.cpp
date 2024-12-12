@@ -308,8 +308,9 @@ void queue_impl::addEvent(const event &Event) {
       addSharedEvent(Event);
   }
   // As long as the queue supports urQueueFinish we only need to store events
-  // for unenqueued commands and host tasks.
-  else if (MEmulateOOO || EImpl->getHandle() == nullptr) {
+  // for undiscarded, unenqueued commands and host tasks.
+  else if (MEmulateOOO ||
+           (EImpl->getHandle() == nullptr && !EImpl->isDiscarded())) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -355,7 +356,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
-                              const SubmitPostProcessF *PostProcess) {
+                              const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
@@ -374,7 +375,9 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  if (PostProcess) {
+  if (SubmitInfo.PostProcessorFunc()) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+
     bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;
 
@@ -385,7 +388,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                              Handler.MKernelName.c_str());
     finalizeHandler(Handler, Event);
 
-    (*PostProcess)(IsKernel, KernelUsesAssert, Event);
+    PostProcess(IsKernel, KernelUsesAssert, Event);
   } else
     finalizeHandler(Handler, Event);
 
@@ -410,13 +413,24 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
-  return submit(
+  SubmissionInfo SI{};
+  if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+    submit_without_event(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          HandlerFunc(CGH);
+        },
+        Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+    return createDiscardedEvent();
+  }
+  return submit_with_event(
       [&](handler &CGH) {
         CGH.depends_on(DepEvents);
         HandlerFunc(CGH);
       },
-      Self, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+      Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
@@ -444,7 +458,16 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
-        return createDiscardedEvent();
+
+        event DiscardedEvent = createDiscardedEvent();
+        if (isInOrder()) {
+          // Store the discarded event for proper in-order dependency tracking.
+          auto &EventToStoreIn = MGraph.expired()
+                                     ? MDefaultGraphDeps.LastEventPtr
+                                     : MExtGraphDeps.LastEventPtr;
+          EventToStoreIn = detail::getSyclObjImpl(DiscardedEvent);
+        }
+        return DiscardedEvent;
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
@@ -455,6 +478,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent,
                   EventImpl);
         EventImpl->setHandle(UREvent);
+        EventImpl->setEnqueued();
       }
 
       if (isInOrder()) {
@@ -468,7 +492,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       return discard_or_return(ResEvent);
     }
   }
-  return submitWithHandler(Self, DepEvents, HandlerFunc);
+  return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
@@ -803,6 +827,33 @@ void queue_impl::doUnenqueuedCommandCleanup(
     tryToCleanup(MExtGraphDeps);
   else
     tryToCleanup(MDefaultGraphDeps);
+}
+
+void queue_impl::verifyProps(const property_list &Props) const {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/queue_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/properties/queue_properties.def>
+    default:
+      return false;
+    }
+  };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                CheckPropertiesWithData);
 }
 
 } // namespace detail

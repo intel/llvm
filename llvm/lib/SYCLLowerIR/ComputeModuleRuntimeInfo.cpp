@@ -16,6 +16,7 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
@@ -37,6 +38,7 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
   assert(MDOp && "Unexpected metadata operand");
   const auto &MDConst = MDOp->getOperand(0);
   auto *MDVal = mdconst::dyn_extract_or_null<ConstantInt>(MDConst);
+  assert(MDVal && "Unexpected metadata operand type");
   uint8_t Val = MDVal->getZExtValue();
   assert(Val < 3 && "Unexpected value for split metadata");
   auto AsEnum = static_cast<module_split::SyclEsimdSplitStatus>(Val);
@@ -45,16 +47,11 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
 } // namespace
 
 bool isModuleUsingAsan(const Module &M) {
-  for (const auto &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
-    if (F.arg_size() == 0)
-      continue;
-    const auto *LastArg = F.getArg(F.arg_size() - 1);
-    if (LastArg->getName() == "__asan_launch")
-      return true;
-  }
-  return false;
+  return M.getNamedGlobal("__AsanKernelMetadata");
+}
+
+bool isModuleUsingMsan(const Module &M) {
+  return M.getNamedGlobal("__MsanKernelMetadata");
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
@@ -396,10 +393,19 @@ PropSetRegTy computeModuleProperties(const Module &M,
     for (const StringRef &FName : FuncNames)
       PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
   }
+  {
+    std::vector<std::pair<StringRef, int>> ArgPos =
+        getKernelNamesUsingImplicitLocalMem(M);
+    for (const auto &FuncAndArgPos : ArgPos)
+      PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, FuncAndArgPos.first,
+                  FuncAndArgPos.second);
+  }
 
   {
     if (isModuleUsingAsan(M))
-      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "asanUsed", true);
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
+    else if (isModuleUsingMsan(M))
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {

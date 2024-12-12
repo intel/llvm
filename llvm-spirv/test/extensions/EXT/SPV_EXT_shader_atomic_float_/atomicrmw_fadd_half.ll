@@ -7,7 +7,7 @@
 ; CHECK-DAG: Extension "SPV_EXT_shader_atomic_float_add"
 ; CHECK-DAG: Capability AtomicFloat16AddEXT
 ; CHECK: TypeInt [[TypeIntID:[0-9]+]] 32 0
-; CHECK-DAG: Constant [[TypeIntID]] [[ScopeDevice:[0-9]+]] 1 {{$}}
+; CHECK-DAG: Constant [[TypeIntID]] [[ScopeCrossDevice:[0-9]+]] 0 {{$}}
 ; CHECK-DAG: Constant [[TypeIntID]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
 ; CHECK: TypeFloat [[TypeFloatHalfID:[0-9]+]] 16
 ; CHECK: Variable {{[0-9]+}} [[HalfPointer:[0-9]+]]
@@ -22,7 +22,7 @@ target triple = "spir64"
 define dso_local spir_func void @test_atomicrmw_fadd() local_unnamed_addr #0 {
 entry:
  %0 = atomicrmw fadd ptr addrspace(1) @f, half 42.000000e+00 seq_cst
-; CHECK: AtomicFAddEXT [[TypeFloatHalfID]] {{[0-9]+}} [[HalfPointer]] [[ScopeDevice]] [[MemSem_SequentiallyConsistent]] [[HalfValue]]
+; CHECK: AtomicFAddEXT [[TypeFloatHalfID]] {{[0-9]+}} [[HalfPointer]] [[ScopeCrossDevice]] [[MemSem_SequentiallyConsistent]] [[HalfValue]]
 
   ret void
 }

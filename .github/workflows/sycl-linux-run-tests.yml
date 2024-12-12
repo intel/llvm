@@ -21,9 +21,6 @@ on:
         type: string
         required: True
       extra_cmake_args:
-        description: |
-          If empty, then HIP_PLATFORM and AMD_ARCH would be automatically added
-          if inputs.target_devices contains 'ext_oneapi_hip'
         type: string
         required: False
       tests_selector:
@@ -152,7 +149,7 @@ permissions:
 
 jobs:
   run:
-    if: inputs.skip_run == 'false'
+    if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
@@ -186,8 +183,8 @@ jobs:
       with:
         path: khronos_sycl_cts
         repository: 'KhronosGroup/SYCL-CTS'
-        ref: 'SYCL-2020'
-        default_branch: 'SYCL-2020'
+        ref: 'main'
+        default_branch: 'main'
         cache_path: "/__w/repo_cache/"
     - name: SYCL CTS GIT submodules init
       if: inputs.tests_selector == 'cts'
@@ -283,12 +280,6 @@ jobs:
       run: |
         if [ -n "$CMAKE_EXTRA_ARGS" ]; then
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
-        else
-          if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
-            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
-          else
-            echo 'opts=' >> $GITHUB_OUTPUT
-          fi
         fi
     - name: Configure E2E tests
       if: inputs.tests_selector == 'e2e'

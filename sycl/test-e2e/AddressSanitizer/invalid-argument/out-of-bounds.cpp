@@ -1,9 +1,6 @@
-// REQUIRES: linux, gpu
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS="detect_kernel_arguments:1" %{run} not %t 2>&1 | FileCheck %s
-
-// See https://github.com/intel/llvm/issues/15449
-// UNSUPPORTED: gpu-intel-dg2
 
 #include <sycl/detail/core.hpp>
 
@@ -19,7 +16,7 @@ int main() {
   });
   Q.wait();
   // CHECK: ERROR: DeviceSanitizer: invalid-argument
-  // CHECK: The 1th argument {{.*}} is located outside of its region
+  // CHECK: The {{[0-9]+}}th argument {{.*}} is located outside of its region
 
   return 0;
 }

@@ -109,7 +109,7 @@ public:
   /// be safely passed to the underlying native runtime API. Warning. Returned
   /// reference will be invalid if context_impl was destroyed.
   ///
-  /// \return an instance of raw plug-in context handle.
+  /// \return an instance of raw UR context handle.
   ur_context_handle_t &getHandleRef();
 
   /// Gets the underlying context object (if any) without reference count
@@ -119,7 +119,7 @@ public:
   /// be safely passed to the underlying native runtime API. Warning. Returned
   /// reference will be invalid if context_impl was destroyed.
   ///
-  /// \return an instance of raw plug-in context handle.
+  /// \return an instance of raw UR context handle.
   const ur_context_handle_t &getHandleRef() const;
 
   /// Unlike `get_info<info::context::devices>', this function returns a
@@ -305,6 +305,8 @@ private:
            std::unique_ptr<std::byte[]>>
       MDeviceGlobalUnregisteredData;
   std::mutex MDeviceGlobalUnregisteredDataMutex;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 template <typename T, typename Capabilities>

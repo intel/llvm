@@ -77,7 +77,7 @@ const char *getArchName(const device &Device) {
   case syclex::architecture::ARCH:                                             \
     return #ARCH;
 #define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
-#include <sycl/ext/oneapi/experimental/architectures.def>
+#include <sycl/ext/oneapi/experimental/device_architecture.def>
 #undef __SYCL_ARCHITECTURE
 #undef __SYCL_ARCHITECTURE_ALIAS
   }
@@ -146,6 +146,15 @@ static void printDeviceInfo(const device &Device, bool Verbose,
         std::cout << std::to_string(UUID[i]);
       }
       std::cout << std::endl;
+    }
+
+    // Get and print device ID, if it is available.
+    if (Device.has(aspect::ext_intel_device_id)) {
+      auto DeviceID =
+          Device.get_info<sycl::ext::intel::info::device::device_id>();
+      std::cout << Prepend << "DeviceID          : " << DeviceID << std::endl;
+    } else {
+      std::cout << Prepend << "DeviceID          : " << "UNKNOWN" << std::endl;
     }
 
     // Print sub and sub-sub devices.

@@ -14,22 +14,22 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                      big_matrix<T2, K / 2, N * 2> &B) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
-  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, K));
-  buffer<bfloat16, 2> bufB(B.get_data(), range<2>(K, N));
-  buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
+  buffer<T2, 2> bufA(A.get_data(), range<2>(M, K));
+  buffer<T2, 2> bufB(B.get_data(), range<2>(K, N));
+  buffer<T1, 2> bufC((T1 *)C.get_data(), range<2>(M, N));
 
   queue q;
   size_t sg_size = get_sg_size<imatrix<T1, TM, TN, TK>>(q);
   q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.get_access<access::mode::read_write>(cgh);
-     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+     accessor accA{bufA, cgh};
+     accessor accB{bufB, cgh};
+     accessor accC{bufC, cgh};
 
      cgh.parallel_for<imatrix<T1, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -41,13 +41,11 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
-               sub_a;
+           joint_matrix<sub_group, T2, use::a, TM, TK, layout::row_major> sub_a;
            // For B, we assume B has been already VNNIed.
-           joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        layout::ext_intel_packed>
+           joint_matrix<sub_group, T2, use::b, TK, TN, layout::ext_intel_packed>
                sub_b;
-           joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
+           joint_matrix<sub_group, T1, use::accumulator, TM, TN> sub_c;
 
            joint_matrix_load(
                sg, sub_c,
@@ -122,13 +120,21 @@ int main() {
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       test<bfloat16, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      // test<bfloat16, bfloat16, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
 
       // This combination is not currently supported for sub group size = 32 in
       // IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
       test<bfloat16, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      // test<bfloat16, bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      // test<bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      // test<bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      // test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      // test<bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      // test<bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      // test<bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
 #endif
       break;
     }

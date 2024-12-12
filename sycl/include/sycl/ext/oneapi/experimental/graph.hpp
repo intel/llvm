@@ -12,9 +12,13 @@
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
+#include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
-#include <sycl/device.hpp>                 // for device
-#include <sycl/nd_range.hpp>               // for range, nd_range
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string_view.hpp>
+#endif
+#include <sycl/device.hpp>                     // for device
+#include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -56,7 +60,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_device_global = 6,
   sycl_ext_oneapi_bindless_images = 7,
   sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
-  sycl_ext_codeplay_enqueue_native_command = 9
+  sycl_ext_codeplay_enqueue_native_command = 9,
+  sycl_ext_oneapi_work_group_scratch_memory = 10
 };
 
 inline const char *
@@ -83,6 +88,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
   case UGF::sycl_ext_codeplay_enqueue_native_command:
     return "sycl_ext_codeplay_enqueue_native_command";
+  case UGF::sycl_ext_oneapi_work_group_scratch_memory:
+    return "sycl_ext_oneapi_work_group_scratch_memory";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -93,6 +100,7 @@ class node_impl;
 class graph_impl;
 class exec_graph_impl;
 class dynamic_parameter_impl;
+class dynamic_command_group_impl;
 } // namespace detail
 
 enum class node_type {
@@ -213,9 +221,27 @@ public:
 } // namespace node
 } // namespace property
 
+class __SYCL_EXPORT dynamic_command_group {
+public:
+  dynamic_command_group(
+      const command_graph<graph_state::modifiable> &Graph,
+      const std::vector<std::function<void(handler &)>> &CGFList);
+
+  size_t get_active_index() const;
+  void set_active_index(size_t Index);
+
+private:
+  template <class Obj>
+  friend const decltype(Obj::impl) &
+  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
+
+  std::shared_ptr<detail::dynamic_command_group_impl> impl;
+};
+
 namespace detail {
 // Templateless modifiable command-graph base class.
-class __SYCL_EXPORT modifiable_command_graph {
+class __SYCL_EXPORT modifiable_command_graph
+    : public sycl::detail::OwnerLessBase<modifiable_command_graph> {
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
@@ -328,6 +354,12 @@ protected:
   modifiable_command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
       : impl(Impl) {}
 
+  /// Template-less implementation of add() for dynamic command-group nodes.
+  /// @param DynCGF Dynamic Command-group function object to add.
+  /// @param Dep List of predecessor nodes.
+  /// @return Node added to the graph.
+  node addImpl(dynamic_command_group &DynCGF, const std::vector<node> &Dep);
+
   /// Template-less implementation of add() for CGF nodes.
   /// @param CGF Command-group function to add.
   /// @param Dep List of predecessor nodes.
@@ -345,17 +377,34 @@ protected:
   /// added as dependencies.
   void addGraphLeafDependencies(node Node);
 
+  void print_graph(sycl::detail::string_view path, bool verbose = false) const;
+
   template <class Obj>
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
   std::shared_ptr<detail::graph_impl> impl;
 };
 
+#ifdef __SYCL_GRAPH_IMPL_CPP
+// Magic combination found by trial and error:
+__SYCL_EXPORT
+#if _WIN32
+inline
+#endif
+#else
+inline
+#endif
+    void
+    modifiable_command_graph::print_graph(const std::string path,
+                                          bool verbose) const {
+  print_graph(sycl::detail::string_view{path}, verbose);
+}
+
 // Templateless executable command-graph base class.
-class __SYCL_EXPORT executable_command_graph {
+class __SYCL_EXPORT executable_command_graph
+    : public sycl::detail::OwnerLessBase<executable_command_graph> {
 public:
   /// An executable command-graph is not user constructable.
   executable_command_graph() = delete;
@@ -409,7 +458,8 @@ public:
   /// Constructor.
   /// @param SyclQueue Queue to use for the graph device and context.
   /// @param PropList Optional list of properties to pass.
-  command_graph(const queue &SyclQueue, const property_list &PropList = {})
+  explicit command_graph(const queue &SyclQueue,
+                         const property_list &PropList = {})
       : modifiable_command_graph(SyclQueue, PropList) {}
 
 private:

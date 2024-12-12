@@ -5,6 +5,10 @@
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
+// RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
 int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
   return atomic_load_explicit(obj, order, scope);
 }
@@ -33,7 +37,7 @@ int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
 
 // CHECK-SPIRV: Function [[int]] [[TRANS_MEM_SCOPE]]
 // CHECK-SPIRV: FunctionParameter [[int]] [[KEY:[0-9]+]]
-// CHECK-SPIRV: Variable {{[0-9]+}} [[RES:[0-9]+]]
+// CHECK-SPIRV: {{(Variable|UntypedVariableKHR)}} {{[0-9]+}} [[RES:[0-9]+]]
 // CHECK-SPIRV: Switch [[KEY]] [[CASE_2:[0-9]+]] 0 [[CASE_0:[0-9]+]] 1 [[CASE_1:[0-9]+]] 2 [[CASE_2]] 3 [[CASE_3:[0-9]+]] 4 [[CASE_4:[0-9]+]]
 // CHECK-SPIRV: Label [[CASE_0]]
 // CHECK-SPIRV: Store [[RES]] [[FOUR]]
@@ -57,7 +61,7 @@ int load (volatile atomic_int* obj, memory_order order, memory_scope scope) {
 
 // CHECK-SPIRV: Function [[int]] [[TRANS_MEM_ORDER]]
 // CHECK-SPIRV: FunctionParameter [[int]] [[KEY:[0-9]+]]
-// CHECK-SPIRV: Variable {{[0-9]+}} [[RES:[0-9]+]]
+// CHECK-SPIRV: {{(Variable|UntypedVariableKHR)}} {{[0-9]+}} [[RES:[0-9]+]]
 // CHECK-SPIRV: Switch [[KEY]] [[CASE_5:[0-9]+]] 0 [[CASE_0:[0-9]+]] 2 [[CASE_2:[0-9]+]] 3 [[CASE_3:[0-9]+]] 4 [[CASE_4:[0-9]+]] 5 [[CASE_5]]
 // CHECK-SPIRV: Label [[CASE_0]]
 // CHECK-SPIRV: Store [[RES]] [[ZERO]]

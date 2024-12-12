@@ -10,8 +10,8 @@
 
 #include <detail/queue_impl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -125,31 +125,11 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateMemopsImage() {
-  using namespace sycl::unittest;
-
-  UrPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
-
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(
-      {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
-       USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar});
-
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
 namespace {
-sycl::unittest::UrImage Imgs[] = {generateMemopsImage()};
-sycl::unittest::UrImageArray<1> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {sycl::unittest::generateDefaultImage(
+    {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
+     USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar})};
+sycl::unittest::MockDeviceImageArray<1> ImgArray{Imgs};
 
 ur_context_info_t LastMemopsQuery = UR_CONTEXT_INFO_NUM_DEVICES;
 

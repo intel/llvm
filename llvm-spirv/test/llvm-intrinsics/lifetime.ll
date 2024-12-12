@@ -6,6 +6,12 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.spv.bc
 ; RUN: llvm-dis < %t.spv.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; Verify that we have valid SPV and the same output LLVM IR when using untyped pointers.
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.spv.bc
+; RUN: llvm-dis < %t.spv.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
 ; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#SimpleF:]] "lifetime_simple"
 ; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#SizedF:]] "lifetime_sized"
 ; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#GenericF:]] "lifetime_generic"

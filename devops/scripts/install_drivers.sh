@@ -81,6 +81,10 @@ InstallTBB () {
   if [ "$TBB_INSTALLED" = false ]; then
     mkdir -p $INSTALL_LOCATION
     cd $INSTALL_LOCATION
+    if [ -d "$INSTALL_LOCATION/oneapi-tbb" ]; then
+      echo "$INSTALL_LOCATION/oneapi-tbb exists and will be removed!"
+      rm -Rf $INSTALL_LOCATION/oneapi-tbb;
+    fi
     echo "Installing TBB..."
     echo "TBB version $TBB_TAG"
     get_release oneapi-src/onetbb $TBB_TAG \
@@ -115,6 +119,11 @@ InstallIGFX () {
   # This can help us avoid using the risky force-depends-version option in dpkg command.
   #
   # Of course, this also installed the libopencl-clang so that we can copy and use later as a temporariy workaround.
+  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  UBUNTU_VER="u22\.04"
+  if [ "$IS_IGC_DEV" == "Yes" ] || [ "$L0_TAG" == "latest" ]; then
+     UBUNTU_VER="u24\.04"
+  fi
   get_release intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
@@ -122,16 +131,20 @@ InstallIGFX () {
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
   # Perform the checksum conditionally and then get the release
-  sha256sum -c *.sum  && \
+  # Skip the ww45 checksum because the igc_dev driver was manually updated
+  # so the package versions don't exactly match.
+  if [ ! -f "ww45.sum" ]; then
+      sha256sum -c *.sum
+  fi
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
     | wget -qi -
   get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*u22\.04.*deb" \
+    | grep ".*$UBUNTU_VER.*deb" \
     | wget -qi -
   dpkg -i *.deb && rm *.deb *.sum
-  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
     # Dev IGC deb package did not include libopencl-clang
@@ -143,7 +156,9 @@ InstallIGFX () {
     echo "Download IGC dev git hash $IGC_DEV_VER"
     get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
-    dpkg -i *.deb
+    # New dev IGC packaged iga64 conflicting with iga64 from intel-igc-media
+    # force overwrite to workaround it first.
+    dpkg -i --force-overwrite *.deb
     echo "Install libopencl-clang"
     # Workaround only, will download deb and install with dpkg once fixed.
     cp -d libopencl-clang.so.14*  /usr/local/lib/

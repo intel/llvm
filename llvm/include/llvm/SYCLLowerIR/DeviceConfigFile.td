@@ -85,6 +85,7 @@ def AspectExt_oneapi_virtual_mem : Aspect<"ext_oneapi_virtual_mem">;
 def AspectExt_oneapi_cuda_cluster_group : Aspect<"ext_oneapi_cuda_cluster_group">;
 def AspectExt_intel_fpga_task_sequence : Aspect<"ext_intel_fpga_task_sequence">;
 def AspectExt_oneapi_atomic16 : Aspect<"ext_oneapi_atomic16">;
+def AspectExt_oneapi_virtual_functions : Aspect<"ext_oneapi_virtual_functions">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -148,7 +149,8 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_private_alloca, 
     AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group, 
     AspectExt_intel_fpga_task_sequence,
-    AspectExt_oneapi_atomic16],
+    AspectExt_oneapi_atomic16,
+    AspectExt_oneapi_virtual_functions],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -186,8 +188,14 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 : TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
 // Note: only the "canonical" target names are listed here - see
 // SYCL::gen::resolveGenDevice().
-def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
+//
+// TODO: instructions on how to get "???" values below are required. Currently
+// device architectures below which have "???" in it are not fully supported.
+//
+// def : IntelTargetInfo<"intel_gpu_ptl_u", ???, ???>;
+// def : IntelTargetInfo<"intel_gpu_ptl_h", ???, ???>;
 def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;
@@ -318,6 +326,9 @@ def : HipTargetInfo<"amd_gpu_gfx906", !listconcat(HipMinAspects, AllUSMAspects),
 def : HipTargetInfo<"amd_gpu_gfx700", HipMinAspects, HipSubgroupSizesGCN2>;
 def : HipTargetInfo<"amd_gpu_gfx701", HipMinAspects, HipSubgroupSizesGCN2>;
 def : HipTargetInfo<"amd_gpu_gfx702", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx703", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx704", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx705", HipMinAspects, HipSubgroupSizesGCN2>;
 def : HipTargetInfo<"amd_gpu_gfx801", HipMinAspects, HipSubgroupSizesGCN3>;
 def : HipTargetInfo<"amd_gpu_gfx802", HipMinAspects, HipSubgroupSizesGCN3>;
 def : HipTargetInfo<"amd_gpu_gfx803", HipMinAspects, HipSubgroupSizesGCN3>;

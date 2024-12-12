@@ -101,6 +101,7 @@ struct ForcePassLinking {
     (void)llvm::createNaryReassociatePass();
     (void)llvm::createObjCARCContractPass();
     (void)llvm::createPromoteMemoryToRegisterPass();
+    (void)llvm::createRegToMemWrapperPass();
     (void)llvm::createPostDomOnlyPrinterWrapperPassPass();
     (void)llvm::createPostDomPrinterWrapperPassPass();
     (void)llvm::createPostDomOnlyViewerWrapperPassPass();
@@ -133,6 +134,7 @@ struct ForcePassLinking {
     (void)llvm::createLowerAtomicPass();
     (void)llvm::createLoadStoreVectorizerPass();
     (void)llvm::createPartiallyInlineLibCallsPass();
+    (void)llvm::createScalarizerPass();
     (void)llvm::createSeparateConstOffsetFromGEPPass();
     (void)llvm::createSpeculativeExecutionPass();
     (void)llvm::createSpeculativeExecutionIfHasBranchDivergencePass();

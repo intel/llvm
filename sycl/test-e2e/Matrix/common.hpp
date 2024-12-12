@@ -10,6 +10,7 @@
 #include <random>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -63,15 +64,16 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
           if constexpr (std::is_same_v<Ta, bfloat16> &&
                         std::is_same_v<Tc, float>)
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
+          else if constexpr (std::is_same_v<Ta, sycl::half>)
+            acc += (float)va[i] * (float)vb[i];
           else if constexpr (std::is_same_v<Ta, float> &&
                                  std::is_same_v<Tc, float> ||
                              std::is_integral_v<Ta> && std::is_integral_v<Tc> ||
+                             (std::is_same_v<Ta, bfloat16> ||
+                              std::is_same_v<Ta, sycl::half>) ||
                              (std::is_same_v<Ta, double> &&
                               std::is_same_v<Tc, double>))
             acc += va[i] * vb[i];
-          else if constexpr (std::is_same_v<Ta, sycl::half> &&
-                             std::is_same_v<Tc, float>)
-            acc += (float)va[i] * (float)vb[i];
           else
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }
@@ -133,7 +135,8 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
 
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
-      if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float> ||
+      if constexpr (std::is_same_v<T, sycl::half> ||
+                    std::is_same_v<T, bfloat16> || std::is_same_v<T, float> ||
                     std::is_same_v<T, double>) {
         src[i * cols + j] = T(fdistr(dev));
       } else if constexpr (std::is_integral_v<T>) {
@@ -154,6 +157,13 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
+template <typename F, typename T>
+void matrix_apply(unsigned int rows, unsigned int cols, T *mat, F op) {
+  for (unsigned int i = 0; i < rows; i++)
+    for (unsigned int j = 0; j < cols; j++)
+      mat[i * cols + j] = op(mat[i * cols + j]);
+}
+
 template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
@@ -171,7 +181,7 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                     << ", Epsilon: " << FLOAT_EPSILON << "\n";
           return false;
         }
-      } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
+      } else if constexpr (exact || std::is_integral_v<T1>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
           std::cout << "Incorrect result in matrix."
                     << "i: " << i << ", j: " << j

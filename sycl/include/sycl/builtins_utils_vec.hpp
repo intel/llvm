@@ -8,11 +8,14 @@
 
 #pragma once
 
+#include <sycl/detail/type_traits/vec_marray_traits.hpp>
+
 #include <sycl/builtins_utils_scalar.hpp>
 
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/marray.hpp> // for marray
-#include <sycl/types.hpp>  // for vec
+#include <sycl/vector.hpp> // for vec
 
 namespace sycl {
 inline namespace _V1 {
@@ -40,19 +43,6 @@ struct is_valid_elem_type<multi_ptr<ElementType, Space, DecorateAddress>, Ts...>
 template <typename ElementType, typename... Ts>
 struct is_valid_elem_type<ElementType *, Ts...>
     : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
-
-// Utility trait for getting the number of elements in T.
-template <typename T>
-struct num_elements : std::integral_constant<size_t, 1> {};
-template <typename T, size_t N>
-struct num_elements<marray<T, N>> : std::integral_constant<size_t, N> {};
-template <typename T, int N>
-struct num_elements<vec<T, N>> : std::integral_constant<size_t, size_t(N)> {};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct num_elements<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                              OperationCurrentT, Indexes...>>
-    : std::integral_constant<size_t, sizeof...(Indexes)> {};
 
 // Utilty trait for checking that the number of elements in T is in Ns.
 template <typename T, size_t... Ns>

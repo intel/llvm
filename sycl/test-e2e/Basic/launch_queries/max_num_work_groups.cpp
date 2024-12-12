@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -161,11 +162,10 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // It cannot be possible to launch a kernel successfully with a configuration
   // that exceeds the available resources as in the above defined workGroupSize.
   // workGroupSize is larger than maxWorkGroupSize, hence maxWGs must equal 0.
-  // Note: Level-Zero currently always returns a non-zero value. While other
-  // backends (i.e., OpenCL, HIP) always return 1 in their implementations.
-  if (dev.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    assert(maxWGs == 0 && "max_num_work_groups query failed");
-  }
+  assert(maxWGs == 0 &&
+         "max_num_work_groups query failed.\n"
+         "It should return 0 possible groups when the requested resources "
+         "by the lanuch config exceed those available in the hardware.");
 
   // As we ensured that the 'max_num_work_groups' query correctly
   // returns 0 possible work-groups, test that the kernel launch will fail.

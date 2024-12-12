@@ -18,10 +18,14 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace property::image {
-class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
-};
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  namespace NS_QUALIFIER {                                                     \
+  class PROP_NAME                                                              \
+      : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
+  }
+#include <sycl/properties/image_properties.def>
 
+namespace property::image {
 class use_mutex : public detail::PropertyWithData<detail::ImageUseMutex> {
 public:
   use_mutex(std::mutex &MutexRef) : MMutex(MutexRef) {}
@@ -50,41 +54,32 @@ template <int Dimensions, typename AllocatorT> class sampled_image;
 template <int Dimensions, typename AllocatorT> class unsampled_image;
 
 // SYCL 1.2.1 image property trait specializations
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::use_host_ptr,
-                      image<Dimensions, AllocatorT>> : std::true_type {};
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::use_mutex, image<Dimensions, AllocatorT>>
-    : std::true_type {};
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::context_bound,
-                      image<Dimensions, AllocatorT>> : std::true_type {};
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  template <int Dimensions, typename AllocatorT>                               \
+  struct is_property_of<NS_QUALIFIER::PROP_NAME,                               \
+                        image<Dimensions, AllocatorT>> : std::true_type {};
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#include <sycl/properties/image_properties.def>
 
 // SYCL 2020 image property trait specializations
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::use_host_ptr,
-                      sampled_image<Dimensions, AllocatorT>> : std::true_type {
-};
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::use_mutex,
-                      sampled_image<Dimensions, AllocatorT>> : std::true_type {
-};
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::context_bound,
-                      sampled_image<Dimensions, AllocatorT>> : std::true_type {
-};
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::use_host_ptr,
-                      unsampled_image<Dimensions, AllocatorT>>
-    : std::true_type {};
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::use_mutex,
-                      unsampled_image<Dimensions, AllocatorT>>
-    : std::true_type {};
-template <int Dimensions, typename AllocatorT>
-struct is_property_of<property::image::context_bound,
-                      unsampled_image<Dimensions, AllocatorT>>
-    : std::true_type {};
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  template <int Dimensions, typename AllocatorT>                               \
+  struct is_property_of<NS_QUALIFIER::PROP_NAME,                               \
+                        sampled_image<Dimensions, AllocatorT>>                 \
+      : std::true_type {};
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#include <sycl/properties/image_properties.def>
+
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  template <int Dimensions, typename AllocatorT>                               \
+  struct is_property_of<NS_QUALIFIER::PROP_NAME,                               \
+                        unsampled_image<Dimensions, AllocatorT>>               \
+      : std::true_type {};
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#include <sycl/properties/image_properties.def>
 
 } // namespace _V1
 } // namespace sycl

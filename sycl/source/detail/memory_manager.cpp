@@ -1346,8 +1346,8 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
     Adapter->call<UrApiKind::urCommandBufferAppendMemBufferCopyExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcXOffBytes,
-        DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(),
-        OutSyncPoint);
+        DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(), 0,
+        nullptr, OutSyncPoint, nullptr, nullptr);
   } else {
     // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
     // calculate both src and dest pitch using region[0], which is not correct
@@ -1373,7 +1373,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcOrigin, DstOrigin,
         Region, SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
-        Deps.size(), Deps.data(), OutSyncPoint);
+        Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
   }
 }
 
@@ -1411,7 +1411,8 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
         Adapter->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferReadExp>(
             CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
             SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
-            Deps.size(), Deps.data(), OutSyncPoint);
+            Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
+            nullptr);
 
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
@@ -1440,8 +1441,8 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
         UrApiKind::urCommandBufferAppendMemBufferReadRectExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         BufferOffset, HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch,
-        HostRowPitch, HostSlicePitch, DstMem, Deps.size(), Deps.data(),
-        OutSyncPoint);
+        HostRowPitch, HostSlicePitch, DstMem, Deps.size(), Deps.data(), 0,
+        nullptr, OutSyncPoint, nullptr, nullptr);
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -1487,7 +1488,8 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
             ->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteExp>(
                 CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
                 DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
-                Deps.size(), Deps.data(), OutSyncPoint);
+                Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
+                nullptr);
 
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
@@ -1516,8 +1518,8 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
         UrApiKind::urCommandBufferAppendMemBufferWriteRectExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
         BufferOffset, HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch,
-        HostRowPitch, HostSlicePitch, SrcMem, Deps.size(), Deps.data(),
-        OutSyncPoint);
+        HostRowPitch, HostSlicePitch, SrcMem, Deps.size(), Deps.data(), 0,
+        nullptr, OutSyncPoint, nullptr, nullptr);
 
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
@@ -1541,8 +1543,8 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
   const AdapterPtr &Adapter = Context->getAdapter();
   ur_result_t Result =
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendUSMMemcpyExp>(
-          CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
-          OutSyncPoint);
+          CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(), 0,
+          nullptr, OutSyncPoint, nullptr, nullptr);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -1566,7 +1568,7 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urCommandBufferAppendUSMFillExp>(
       CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len, Deps.size(),
-      Deps.data(), OutSyncPoint);
+      Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(
@@ -1597,7 +1599,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     Adapter->call<UrApiKind::urCommandBufferAppendMemBufferFillExp>(
         CommandBuffer, ur::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
         AccessOffset[0] * ElementSize, RangeMultiplier * ElementSize,
-        Deps.size(), Deps.data(), OutSyncPoint);
+        Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
     return;
   }
   // The sycl::handler uses a parallel_for kernel in the case of unusable
@@ -1614,7 +1616,7 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
       CommandBuffer, Mem, Length, ur_usm_migration_flags_t(0), Deps.size(),
-      Deps.data(), OutSyncPoint);
+      Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
 }
 
 void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
@@ -1625,8 +1627,8 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urCommandBufferAppendUSMAdviseExp>(
-      CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(),
-      OutSyncPoint);
+      CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(), 0, nullptr,
+      OutSyncPoint, nullptr, nullptr);
 }
 
 void MemoryManager::copy_image_bindless(

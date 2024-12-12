@@ -62,7 +62,8 @@ public:
     kind_pointer,
     kind_specialization_constants_buffer,
     kind_stream,
-    kind_last = kind_stream
+    kind_work_group_memory,
+    kind_last = kind_work_group_memory
   };
 
 public:
@@ -266,6 +267,7 @@ public:
 
   void CheckSYCLKernelCall(FunctionDecl *CallerFunc,
                            ArrayRef<const Expr *> Args);
+  void CheckSYCLScopeAttr(CXXRecordDecl *Decl);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as device code".
@@ -477,6 +479,7 @@ public:
                                                   const ParsedAttr &AL);
   void handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Decl *D,
                                                      const ParsedAttr &AL);
+  void handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL);
 
   void checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
 
@@ -651,6 +654,7 @@ public:
                                 Expr **Exprs, unsigned Size);
   void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E);
+  void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
 };
 
 } // namespace clang

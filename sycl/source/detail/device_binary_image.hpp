@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "ur_utils.hpp"
 #include <detail/compiler.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <ur_api.h>
-#include "ur_utils.hpp"
 
 #include <sycl/detail/iostream_proxy.hpp>
 
@@ -119,6 +119,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     size_t size() const { return std::distance(begin(), end()); }
+    bool empty() const { return begin() == end(); }
     friend class RTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
@@ -158,7 +159,10 @@ public:
   virtual void print() const;
   virtual void dump(std::ostream &Out) const;
 
-  size_t getSize() const {
+  // getSize will be overridden in the case of compressed binary images.
+  // In that case, we return the size of uncompressed data, instead of
+  // BinaryEnd - BinaryStart.
+  virtual size_t getSize() const {
     assert(Bin && "binary image data not set");
     return static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
   }
@@ -227,6 +231,7 @@ public:
   }
   const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
+  const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -252,6 +257,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
+  RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
@@ -275,6 +281,35 @@ public:
 protected:
   std::unique_ptr<char[]> Data;
 };
+
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+// Compressed device binary image. Decompression happens when the image is
+// actually used to build a program.
+// Also, frees the decompressed data in destructor.
+class CompressedRTDeviceBinaryImage : public RTDeviceBinaryImage {
+public:
+  CompressedRTDeviceBinaryImage(sycl_device_binary Bin);
+  ~CompressedRTDeviceBinaryImage() override;
+
+  void Decompress();
+
+  // We return the size of decompressed data, not the size of compressed data.
+  size_t getSize() const override {
+    assert(Bin && "binary image data not set");
+    return m_ImageSize;
+  }
+
+  bool IsCompressed() const { return m_DecompressedData.get() == nullptr; }
+  void print() const override {
+    RTDeviceBinaryImage::print();
+    std::cerr << "    COMPRESSED\n";
+  }
+
+private:
+  std::unique_ptr<char> m_DecompressedData;
+  size_t m_ImageSize;
+};
+#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
 
 } // namespace detail
 } // namespace _V1

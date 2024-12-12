@@ -229,7 +229,6 @@ environment:
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;
- * **fusion**: - Runtime supports kernel fusion;
  * **aspect-\<name\>**: - SYCL aspects supported by a device;
  * **arch-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. `arch-intel_gpu_pvc`, the name matches what you
    can pass into `-fsycl-targets` compiler flag);
@@ -320,3 +319,63 @@ implementation header files is still in progress and the final set of these
 "fine-grained" includes that might be officially documented and suggested for
 customers to use isn't determined yet. **Until then, code outside of this project
 must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**
+
+## Marking tests as expected to fail
+
+Every test should be written in a way that it is either passed, or it is skipped
+(in case it is not compatible with an environment it was launched in).
+
+If for any reason you find yourself in need to temporary mark test as expected
+to fail under certain conditions, you need to submit an issue to the repo to
+analyze that failure and make test passed or skipped.
+
+Once the issue is created, you can update the test by adding `XFAIL` and
+`XFAIL-TRACKER` directive:
+```
+// GPU driver update caused failure
+// XFAIL: level_zero
+// XFAIL-TRACKER: PRJ-5324
+
+// Sporadically fails on CPU:
+// XFAIL: cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/DDDDD
+```
+
+If you add `XFAIL` without `XFAIL-TRACKER` directive,
+`no-xfail-without-tracker.cpp` test will fail, notifying you about that.
+
+## Marking tests as unsupported
+
+Some tests may be considered unsupported, e.g.:
+* the test checks the feature that is not supported by some
+  backend / device / OS / etc.
+* the test is flaky or hangs, so it can't be marked with `XFAIL`.
+
+In these cases the test can be marked with `UNSUPPORTED`. This mark should be
+followed by either `UNSUPPORTED-INTENDED` or `UNSUPPORTED-TRACKER` depending on
+whether the test is not intended to be run with some feature at all or it was
+temporarily disabled due to some issue.
+```
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-INTENDED: only supported by backends with SPIR-V IR
+
+// Sporadically fails on DG2.
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/DDDDD
+// *OR*
+// UNSUPPORTED-TRACKER: PRJ-1234
+```
+
+If you add `UNSUPPORTED` without `UNSUPPORTED-TRACKER` or `UNSUPPORTED-INTENDED`
+directive, the `no-unsupported-without-tracker.cpp` test will fail, notifying
+you about that.
+
+To disable the test completely, you can use:
+```
+// USNUPPORTED: true
+```
+
+Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's
+a non-standard mechanism. Use `UNSUPPORTED: true` instead, we track
+`UNSUPPORTED` tests using the mechanism described above. Otherwise the test
+risks remaining untraceable.

@@ -110,7 +110,8 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
 llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
 ToolChain::executeToolChainProgram(StringRef Executable) const {
   llvm::SmallString<64> OutputFile;
-  llvm::sys::fs::createTemporaryFile("toolchain-program", "txt", OutputFile);
+  llvm::sys::fs::createTemporaryFile("toolchain-program", "txt", OutputFile,
+                                     llvm::sys::fs::OF_Text);
   llvm::FileRemover OutputRemover(OutputFile.c_str());
   std::optional<llvm::StringRef> Redirects[] = {
       {""},
@@ -127,9 +128,10 @@ ToolChain::executeToolChainProgram(StringRef Executable) const {
                                      "CLANG_TOOLCHAIN_PROGRAM_TIMEOUT expected "
                                      "an integer, got '" +
                                          *Str + "'");
-    SecondsToWait = std::min(SecondsToWait, 0); // infinite
+    SecondsToWait = std::max(SecondsToWait, 0); // infinite
   }
-  if (llvm::sys::ExecuteAndWait(Executable, {}, {}, Redirects, SecondsToWait,
+  if (llvm::sys::ExecuteAndWait(Executable, {Executable}, {}, Redirects,
+                                SecondsToWait,
                                 /*MemoryLimit=*/0, &ErrorMessage))
     return llvm::createStringError(std::error_code(),
                                    Executable + ": " + ErrorMessage);
@@ -227,6 +229,11 @@ static void getAArch64MultilibFlags(const Driver &D,
       Args.getLastArgNoClaim(options::OPT_mbranch_protection_EQ);
   if (BranchProtectionArg) {
     Result.push_back(BranchProtectionArg->getAsString(Args));
+  }
+
+  const Arg *ABIArg = Args.getLastArgNoClaim(options::OPT_mabi_EQ);
+  if (ABIArg) {
+    Result.push_back(ABIArg->getAsString(Args));
   }
 }
 
@@ -382,6 +389,9 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
       {"cl", "--driver-mode=cl"},
       {"++", "--driver-mode=g++"},
       {"flang", "--driver-mode=flang"},
+      // For backwards compatibility, we create a symlink for `flang` called
+      // `flang-new`. This will be removed in the future.
+      {"flang-new", "--driver-mode=flang"},
       {"clang-dxc", "--driver-mode=dxc"},
   };
 
@@ -967,7 +977,9 @@ bool ToolChain::needsProfileRT(const ArgList &Args) {
          Args.hasArg(options::OPT_fprofile_instr_generate) ||
          Args.hasArg(options::OPT_fprofile_instr_generate_EQ) ||
          Args.hasArg(options::OPT_fcreate_profile) ||
-         Args.hasArg(options::OPT_forder_file_instrumentation);
+         Args.hasArg(options::OPT_forder_file_instrumentation) ||
+         Args.hasArg(options::OPT_fprofile_generate_cold_function_coverage) ||
+         Args.hasArg(options::OPT_fprofile_generate_cold_function_coverage_EQ);
 }
 
 bool ToolChain::needsGCovInstrumentation(const llvm::opt::ArgList &Args) {
@@ -1165,6 +1177,12 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
   }
   case llvm::Triple::aarch64_32:
     return getTripleString();
+  case llvm::Triple::amdgcn: {
+    llvm::Triple Triple = getTriple();
+    if (Args.getLastArgValue(options::OPT_mcpu_EQ) == "amdgcnspirv")
+      Triple.setArch(llvm::Triple::ArchType::spirv64);
+    return Triple.getTriple();
+  }
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
   case llvm::Triple::thumb:
@@ -1519,6 +1537,9 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
+void ToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+                                   ArgStringList &CC1Args) const {}
+
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getDeviceLibs(
     const ArgList &DriverArgs,
@@ -1657,7 +1678,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue(0)) == getTriple())
+        if (getDriver().getSYCLDeviceTriple(A->getValue(0)) == getTriple())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
