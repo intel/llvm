@@ -156,6 +156,13 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t hPhysicalMem, ur_physical_mem_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t
 urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_sampler_properties_t *pProperties,

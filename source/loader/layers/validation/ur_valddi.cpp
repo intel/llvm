@@ -2666,6 +2666,49 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory object to query.
+    ur_physical_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    auto pfnGetInfo = getContext()->urDdiTable.PhysicalMem.pfnGetInfo;
+
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (getContext()->enableParameterValidation) {
+        if (NULL == hPhysicalMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hPhysicalMem)) {
+        getContext()->refCountContext->logInvalidReference(hPhysicalMem);
+    }
+
+    ur_result_t result =
+        pfnGetInfo(hPhysicalMem, propName, propSize, pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
@@ -11299,6 +11342,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
     pDdiTable->pfnRelease = ur_validation_layer::urPhysicalMemRelease;
+
+    dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urPhysicalMemGetInfo;
 
     return result;
 }

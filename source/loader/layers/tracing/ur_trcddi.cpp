@@ -2604,6 +2604,54 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory object to query.
+    ur_physical_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    auto pfnGetInfo = getContext()->urDdiTable.PhysicalMem.pfnGetInfo;
+
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_physical_mem_get_info_params_t params = {
+        &hPhysicalMem, &propName, &propSize, &pPropValue, &pPropSizeRet};
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_PHYSICAL_MEM_GET_INFO, "urPhysicalMemGetInfo", &params);
+
+    auto &logger = getContext()->logger;
+    logger.info("   ---> urPhysicalMemGetInfo\n");
+
+    ur_result_t result =
+        pfnGetInfo(hPhysicalMem, propName, propSize, pPropValue, pPropSizeRet);
+
+    getContext()->notify_end(UR_FUNCTION_PHYSICAL_MEM_GET_INFO,
+                             "urPhysicalMemGetInfo", &params, &result,
+                             instance);
+
+    if (logger.getLevel() <= logger::Level::INFO) {
+        std::ostringstream args_str;
+        ur::extras::printFunctionParams(
+            args_str, UR_FUNCTION_PHYSICAL_MEM_GET_INFO, &params);
+        logger.info("   <--- urPhysicalMemGetInfo({}) -> {};\n", args_str.str(),
+                    result);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
@@ -10165,6 +10213,9 @@ __urdlllocal ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
 
     dditable.pfnRelease = pDdiTable->pfnRelease;
     pDdiTable->pfnRelease = ur_tracing_layer::urPhysicalMemRelease;
+
+    dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+    pDdiTable->pfnGetInfo = ur_tracing_layer::urPhysicalMemGetInfo;
 
     return result;
 }
