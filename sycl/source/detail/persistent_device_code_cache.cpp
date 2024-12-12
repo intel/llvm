@@ -178,7 +178,7 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
   return Result;
 }
 
-// Check if cache_size.lock file is present in the cache root directory.
+// Check if cache_size.txt file is present in the cache root directory.
 // If not, create it and populate it with the size of the cache directory.
 void PersistentDeviceCodeCache::repopulateCacheSizeFile(
     const std::string &CacheRoot) {
@@ -195,8 +195,6 @@ void PersistentDeviceCodeCache::repopulateCacheSizeFile(
   if (!OSUtil::isPathPresent(CacheSizeFile)) {
     PersistentDeviceCodeCache::trace(
         "Cache size file not present. Creating one.");
-    // Calculate the size of the cache directory.
-    size_t CacheSize = getDirectorySize(CacheRoot);
 
     // Take the lock to write the cache size to the file.
     {
@@ -205,11 +203,22 @@ void PersistentDeviceCodeCache::repopulateCacheSizeFile(
         // If some other process is writing the cache size, do not write it.
         PersistentDeviceCodeCache::trace("Didnot create the cache size file. "
                                          "Some other process is creating one.");
-        return;
+
+        // Stall until the other process creates the file. Stalling is important
+        // to prevent race between one process that's calculating the directory
+        // size and another process that's trying to create a new cache entry.
+        while (!OSUtil::isPathPresent(CacheSizeFile))
+          continue;
       } else {
+        // Calculate the size of the cache directory.
+        // During directory size calculation, do not add anything
+        // in the cache. Otherwise, we'll get a std::fs_error.
+        size_t CacheSize = getDirectorySize(CacheRoot, true);
+
         std::ofstream FileStream{CacheSizeFile};
         FileStream << CacheSize;
         FileStream.close();
+        PersistentDeviceCodeCache::trace("Cache size file created.");
       }
     }
   }
@@ -222,7 +231,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   // Create a file eviction_in_progress.lock to indicate that eviction is in
   // progress. This file is used to prevent two processes from evicting the
   // cache at the same time.
-  LockCacheItem Lock{CacheRoot + "eviction_in_progress"};
+  LockCacheItem Lock{CacheRoot + "/eviction_in_progress"};
   if (!Lock.isOwned()) {
     // If some other process is evicting the cache, return.
     PersistentDeviceCodeCache::trace(
@@ -231,13 +240,13 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   }
 
   // Get the list of all files in the cache directory along with their last
-  // access time.
-  auto FilesWithAccessTime = getFilesWithAccessTime(CacheRoot);
+  // modification time.
+  auto FilesWithAccessTime = getFilesWithLastModificationTime(CacheRoot, true);
 
   // Sort the files in the cache directory based on their last access time.
   std::sort(FilesWithAccessTime.begin(), FilesWithAccessTime.end(),
-            [](const std::pair<time_t, std::string> &A,
-               const std::pair<time_t, std::string> &B) {
+            [](const std::pair<uint64_t, std::string> &A,
+               const std::pair<uint64_t, std::string> &B) {
               return A.first < B.first;
             });
 
@@ -247,8 +256,13 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   for (const auto &File : FilesWithAccessTime) {
 
     // Remove .bin/.src/.lock extension from the file name.
-    const std::string FileNameWOExt =
-        File.second.substr(0, File.second.find_last_of("."));
+    auto ExtLoc = File.second.find_last_of(".");
+    const std::string FileNameWOExt = File.second.substr(0, ExtLoc);
+    const std::string Extension = File.second.substr(ExtLoc);
+
+    if (Extension != ".bin")
+      continue;
+
     const std::string BinFile = FileNameWOExt + ".bin";
     const std::string SrcFile = FileNameWOExt + ".src";
 
@@ -371,6 +385,14 @@ void PersistentDeviceCodeCache::putItemToDisc(
     return;
 
   repopulateCacheSizeFile(getRootDir());
+
+  // Do not insert any new item if eviction is in progress.
+  // Since evictions are rare, we can afford to spin lock here.
+  const std::string EvictionInProgressFile =
+      getRootDir() + "/eviction_in_progress.lock";
+  // Stall until the other process finishes eviction.
+  while (OSUtil::isPathPresent(EvictionInProgressFile))
+    continue;
 
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   auto BinaryData = getProgramBinaryData(NativePrg, Devices);
@@ -500,6 +522,12 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
         try {
           std::string FullFileName = FileName + ".bin";
           Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+
+          // Explicitly update the access time of the file. This is required for
+          // eviction.
+          if (isEvictionEnabled())
+            updateFileModificationTime(FileName + ".bin");
+
           FileNames += FullFileName + ";";
           break;
         } catch (...) {

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/os_util.hpp>
+#include <sycl/exception.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -38,6 +39,7 @@ namespace fs = std::experimental::filesystem;
 #include <linux/limits.h> // for PATH_MAX
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
+#include <sys/utime.h>
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
@@ -284,17 +286,20 @@ int OSUtil::makeDir(const char *Dir) {
 }
 
 // Get size of a directory in bytes.
-size_t getDirectorySize(const std::string &Path) {
+size_t getDirectorySize(const std::string &Path, bool IgnoreError = false) {
   size_t DirSizeVar = 0;
+  std::error_code EC;
+  for (auto It = fs::recursive_directory_iterator(Path, EC);
+       It != fs::recursive_directory_iterator(); It.increment(EC)) {
+    // Errors can happen if a file was removed/added during the iteration.
+    if (EC && !IgnoreError)
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to get directory size: " + Path + "\n" +
+                                EC.message());
 
-  // using fs::recursive_directory_iterator.
-  for (const auto &Entry : fs::recursive_directory_iterator(Path)) {
-    // Don't check file with .lock extension.
-    if (fs::is_regular_file(Entry.path()) &&
-        Entry.path().extension() != ".lock")
-      DirSizeVar += getFileSize(Entry.path().string());
+    if (fs::is_regular_file(It->path()))
+      DirSizeVar += getFileSize(It->path().string());
   }
-
   return DirSizeVar;
 }
 
@@ -303,38 +308,81 @@ size_t getFileSize(const std::string &Path) {
   return static_cast<size_t>(fs::file_size(Path));
 }
 
-// Get list of all files in the directory along with its last access time.
+// Get list of all files in the directory along with its last modification time.
 std::vector<std::pair<uint64_t, std::string>>
-getFilesWithAccessTime(const std::string &Path) {
+getFilesWithLastModificationTime(const std::string &Path,
+                                 bool IgnoreError = false) {
   std::vector<std::pair<uint64_t, std::string>> Files = {};
+  std::error_code EC;
+  for (auto It = fs::recursive_directory_iterator(Path, EC);
+       It != fs::recursive_directory_iterator(); It.increment(EC)) {
+    // Errors can happen if a file was removed/added during the iteration.
+    if (EC && !IgnoreError)
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to get files with access time: " + Path +
+                                "\n" + EC.message());
 
-  // using fs::recursive_directory_iterator.
-  for (const auto &Entry : fs::recursive_directory_iterator(Path)) {
-    if (fs::is_regular_file(Entry.path())) {
+    const std::string FileName = It->path().string();
+    if (fs::is_regular_file(It->path())) {
 // For Linux and Darwin, use stats.
 #if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
       struct stat StatBuf;
-      if (stat(Entry.path().c_str(), &StatBuf) == 0)
-        Files.push_back({StatBuf.st_atime, Entry.path().string()});
+      if (stat(FileName.c_str(), &StatBuf) == 0)
+        Files.push_back({StatBuf.st_mtime, FileName});
 #elif defined(__SYCL_RT_OS_WINDOWS)
-      // For Windows, use GetFileAttributesEx to get file size.
-      WIN32_FILE_ATTRIBUTE_DATA FileData;
-      // Convert to wise string.
-      char *path = new char[Entry.path().string().length() + 1];
-      strcpy(path, Entry.path().string().c_str());
-      if (GetFileAttributesExA(path, GetFileExInfoStandard, &FileData)) {
-        // Convert FILETIME to uint64_t.
-        ULARGE_INTEGER Time;
-        Time.LowPart = FileData.ftLastAccessTime.dwLowDateTime;
-        Time.HighPart = FileData.ftLastAccessTime.dwHighDateTime;
-        Files.push_back({Time.QuadPart, Entry.path().string()});
-      }
-      free(path);
+      // Use GetFileAttributeExA to get file modification time.
+      WIN32_FILE_ATTRIBUTE_DATA FileAttr;
+      if (GetFileAttributesExA(FileName.c_str(), GetFileExInfoStandard,
+                               &FileAttr)) {
+        ULARGE_INTEGER AccessTime;
+        AccessTime.HighPart = FileAttr.ftLastWriteTime.dwHighDateTime;
+        AccessTime.LowPart = FileAttr.ftLastWriteTime.dwLowDateTime;
+        Files.push_back({AccessTime.QuadPart, FileName});
+      } else
+        throw sycl::exception(make_error_code(errc::runtime),
+                              "Failed to get file attributes for: " + FileName);
 #endif // __SYCL_RT_OS
     }
   }
 
   return Files;
+}
+
+// Function to update file modification time with current time.
+void updateFileModificationTime(const std::string &Path) {
+
+#if defined(__SYCL_RT_OS_WINDOWS)
+  // For Windows, use SetFileTime to update file access time.
+  HANDLE hFile = CreateFileA(Path.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE,
+                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (hFile != INVALID_HANDLE_VALUE) {
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    if (!SetFileTime(hFile, NULL, NULL, &ft)) {
+      // Print full error.
+      char *errorText = nullptr;
+      FormatMessageA(
+          FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER |
+              FORMAT_MESSAGE_IGNORE_INSERTS,
+          NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+          (LPSTR)&errorText, 0, NULL);
+
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to update file access time: " + Path);
+    }
+    CloseHandle(hFile);
+  } else {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "Failed to open file: " + Path);
+  }
+
+#elif defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
+  // For Linux and Darwin, use utime to update file modification time.
+  struct utimbuf UtimeBuf;
+  UtimeBuf.actime = UtimeBuf.actime;
+  UtimeBuf.modtime = time(nullptr);
+  utime(Path.c_str(), &UtimeBuf);
+#endif // __SYCL_RT_OS
 }
 
 } // namespace detail

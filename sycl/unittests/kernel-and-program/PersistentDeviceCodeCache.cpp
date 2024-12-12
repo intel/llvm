@@ -555,25 +555,18 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
   ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
 
   // Disable eviction for the time being.
-  SetDiskCacheEvictionEnv("0");
+  SetDiskCacheEvictionEnv("9000000");
 
   std::string BuildOptions{"--eviction"};
   // Put 3 items to the cache.
-  // Sleeping for 1 second between each put to ensure that the items are
-  // written to the cache with different timestamps. After that, we will
-  // have three binary files in the cache with different timestamps. This is
-  // required to keep this unit test deterministic.
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
-  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
-  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
-  std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Retrieve 0.bin from the cache.
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
@@ -589,7 +582,8 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
 
   // Get Cache size and size of each entry. Set eviction threshold so that
   // just one item is evicted.
-  size_t SizeOfOneEntry = (size_t)(detail::getDirectorySize(CacheRoot)) + 10;
+  size_t SizeOfOneEntry =
+      (size_t)(detail::getDirectorySize(CacheRoot, false)) + 10;
 
   // Set SYCL_CACHE_MAX_SIZE.
   SetDiskCacheEvictionEnv(std::to_string(SizeOfOneEntry).c_str());
@@ -605,10 +599,9 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
       << "Eviction failed. Wrong number of binary files in the cache.";
 
   // Check that 1.bin was evicted.
-  for (const auto &File : BinFiles) {
+  for (const auto &File : BinFiles)
     EXPECT_NE(File, "1.bin")
         << "Eviction failed. 1.bin should have been evicted.";
-  }
 
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
@@ -620,9 +613,9 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheFileSize) {
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
   ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
 
-  // Insanely large value to not trigger eviction. This test just checks
+  // Insanely large value (1GB) to not trigger eviction. This test just checks
   // for deadlocks/crashes when updating the size file concurrently.
-  SetDiskCacheEvictionEnv("10000000");
+  SetDiskCacheEvictionEnv("1000000000");
   ConcurentReadWriteCache(1, 50);
 }
 

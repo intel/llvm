@@ -95,14 +95,17 @@ public:
 // exporting them as ABI. They are only used in persistent cache
 // implementation and should not be exposed to the end users.
 // Get size of directory in bytes.
-size_t getDirectorySize(const std::string &Path);
+size_t getDirectorySize(const std::string &Path, bool ignoreError);
 
 // Get size of file in bytes.
 size_t getFileSize(const std::string &Path);
 
-// Get list of all files in the directory along with its last access time.
+// Get list of all files in the directory along with its last modification time.
 std::vector<std::pair<uint64_t, std::string>>
-getFilesWithAccessTime(const std::string &Path);
+getFilesWithLastModificationTime(const std::string &Path, bool ignoreError);
+
+// Function to update file modification time with current time.
+void updateFileModificationTime(const std::string &Path);
 
 } // namespace detail
 } // namespace _V1

@@ -815,27 +815,27 @@ template <> class SYCLConfig<SYCL_CACHE_MAX_SIZE> {
   using BaseT = SYCLConfigBase<SYCL_CACHE_MAX_SIZE>;
 
 public:
-  static int get() { return getCachedValue(); }
+  static long long get() { return getCachedValue(); }
   static void reset() { (void)getCachedValue(true); }
 
-  static int getProgramCacheSize() { return getCachedValue(); }
+  static long long getProgramCacheSize() { return getCachedValue(); }
 
   static bool isPersistentCacheEvictionEnabled() {
     return getProgramCacheSize() > 0;
   }
 
 private:
-  static int getCachedValue(bool ResetCache = false) {
+  static long long getCachedValue(bool ResetCache = false) {
     const auto Parser = []() {
       const char *ValStr = BaseT::getRawValue();
 
       // Disable eviction by default.
       if (!ValStr)
-        return 0;
+        return (long long)0;
 
-      int CacheSize = 0;
+      long long CacheSize = 0;
       try {
-        CacheSize = std::stoi(ValStr);
+        CacheSize = std::stoll(ValStr);
         if (CacheSize < 0)
           throw INVALID_CONFIG_EXCEPTION(BaseT, "Value must be non-negative");
       } catch (...) {
