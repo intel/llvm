@@ -21,6 +21,9 @@ inputs:
   file:
     description: "Dockerfile"
     required: true
+  sycl_passwd:
+    description: "Password to assign to sycl user within a container"
+    required: true
 
 runs:
   using: "composite"
