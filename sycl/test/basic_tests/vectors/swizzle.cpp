@@ -32,7 +32,6 @@ int main() {
   {
     // expected-error-re@+1 {{no template named 'swizzle' in {{.*}}}}
     auto tmp = (sw + sw).swizzle<1, 0>();
-    std::cout << tmp[0] << " " << tmp[1] << std::endl;
 
     assert(tmp[0] == 6);
     assert(tmp[1] == 4);
