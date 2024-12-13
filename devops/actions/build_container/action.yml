@@ -42,4 +42,4 @@ runs:
       file: ${{ github.workspace }}/devops/containers/${{ inputs.file }}.Dockerfile
       secrets: |
         github_token=${{ github.token }}
-        sycl_passwd=${{ sycl_passwd }}
+        sycl_passwd=${{ inputs.sycl_passwd }}
