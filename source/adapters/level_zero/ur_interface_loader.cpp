@@ -320,6 +320,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
   pDdiTable->pfnCreate = ur::level_zero::urPhysicalMemCreate;
   pDdiTable->pfnRetain = ur::level_zero::urPhysicalMemRetain;
   pDdiTable->pfnRelease = ur::level_zero::urPhysicalMemRelease;
+  pDdiTable->pfnGetInfo = ur::level_zero::urPhysicalMemGetInfo;
 
   return result;
 }

@@ -33,8 +33,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
     UR_CHECK_ERROR(Result);
   }
   try {
-    *phPhysicalMem =
-        new ur_physical_mem_handle_t_(ResHandle, hContext, hDevice);
+    *phPhysicalMem = new ur_physical_mem_handle_t_(
+        ResHandle, hContext, hDevice, size,
+        pProperties ? *pProperties : ur_physical_mem_properties_t{});
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -65,4 +66,31 @@ urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t hPhysicalMem, ur_physical_mem_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_PHYSICAL_MEM_INFO_CONTEXT: {
+    return ReturnValue(hPhysicalMem->getContext());
+  }
+  case UR_PHYSICAL_MEM_INFO_DEVICE: {
+    return ReturnValue(hPhysicalMem->getDevice());
+  }
+  case UR_PHYSICAL_MEM_INFO_SIZE: {
+    return ReturnValue(hPhysicalMem->getSize());
+  }
+  case UR_PHYSICAL_MEM_INFO_PROPERTIES: {
+    return ReturnValue(hPhysicalMem->getProperties());
+  }
+  case UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hPhysicalMem->getReferenceCount());
+  }
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
 }
