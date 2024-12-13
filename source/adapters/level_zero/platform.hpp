@@ -119,17 +119,17 @@ struct ur_platform_handle_t_ : public _ur_platform {
   struct ZeExternalSemaphoreExtension {
     bool Supported = false;
     ze_result_t (*zexImportExternalSemaphoreExp)(
-        ze_device_handle_t, ze_intel_external_semaphore_exp_handle_t *,
-        const ze_intel_external_semaphore_exp_desc_t *);
+        ze_device_handle_t, const ze_intel_external_semaphore_exp_desc_t *,
+        ze_intel_external_semaphore_exp_handle_t *);
     ze_result_t (*zexCommandListAppendWaitExternalSemaphoresExp)(
-        ze_command_list_handle_t,
+        ze_command_list_handle_t, unsigned int,
         const ze_intel_external_semaphore_exp_handle_t *,
-        const ze_intel_external_semaphore_wait_exp_params_t *, unsigned int,
+        const ze_intel_external_semaphore_wait_exp_params_t *,
         ze_event_handle_t, uint32_t, ze_event_handle_t *);
     ze_result_t (*zexCommandListAppendSignalExternalSemaphoresExp)(
-        ze_command_list_handle_t,
+        ze_command_list_handle_t, size_t,
         const ze_intel_external_semaphore_exp_handle_t *,
-        const ze_intel_external_semaphore_signal_exp_params_t *, size_t,
+        const ze_intel_external_semaphore_signal_exp_params_t *,
         ze_event_handle_t, uint32_t, ze_event_handle_t *);
     ze_result_t (*zexDeviceReleaseExternalSemaphoreExp)(
         ze_intel_external_semaphore_exp_handle_t);
