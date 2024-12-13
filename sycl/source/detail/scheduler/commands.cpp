@@ -60,7 +60,7 @@ namespace detail {
 template <typename MemOpFuncT, typename... MemOpArgTs>
 ur_result_t callMemOpHelper(MemOpFuncT &MemOpFunc, MemOpArgTs &&...MemOpArgs) {
   try {
-    MemOpFunc(MemOpArgs...);
+    MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...);
   } catch (sycl::exception &e) {
     return static_cast<ur_result_t>(get_ur_error(e));
   }
@@ -71,7 +71,7 @@ template <typename MemOpRet, typename MemOpFuncT, typename... MemOpArgTs>
 ur_result_t callMemOpHelperRet(MemOpRet &MemOpResult, MemOpFuncT &MemOpFunc,
                                MemOpArgTs &&...MemOpArgs) {
   try {
-    MemOpResult = MemOpFunc(MemOpArgs...);
+    MemOpResult = MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...);
   } catch (sycl::exception &e) {
     return static_cast<ur_result_t>(get_ur_error(e));
   }
@@ -2901,7 +2901,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
                                                        &RawEvents[0]);
   }
 
-  ur_exp_command_buffer_sync_point_t OutSyncPoint;
+  ur_exp_command_buffer_sync_point_t OutSyncPoint{};
   ur_exp_command_buffer_command_handle_t OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
   case CGType::Kernel: {
