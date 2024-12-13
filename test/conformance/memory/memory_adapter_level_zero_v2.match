@@ -10,11 +10,6 @@
 {{OPT}}urMemImageGetInfoTest.InvalidSizeSmall/*
 {{OPT}}urMemImageGetInfoTest.InvalidNullPointerParamValue/*
 {{OPT}}urMemImageGetInfoTest.InvalidNullPointerPropSizeRet/*
-{{OPT}}urMemBufferCreateWithNativeHandleTest.Success/*
-{{OPT}}urMemBufferCreateWithNativeHandleTest.SuccessWithOwnedNativeHandle/*
-{{OPT}}urMemBufferCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle/*
-{{OPT}}urMemBufferCreateWithNativeHandleTest.InvalidNullHandle/*
-{{OPT}}urMemBufferCreateWithNativeHandleTest.InvalidNullPointer/*
 {{OPT}}urMemImageCreateWithNativeHandleTest.Success/*
 {{OPT}}urMemImageCreateWithNativeHandleTest.InvalidNullHandle/*
 {{OPT}}urMemImageCreateWithNativeHandleTest.InvalidNullPointer/*
