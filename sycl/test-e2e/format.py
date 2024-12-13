@@ -174,9 +174,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 (backend, _) = sycl_device.split(":")
                 triples.add(get_triple(test, backend))
 
-            if "build-and-run-mode" in test.requires and test.config.fallback_build_run_only:
+            if (
+                "build-and-run-mode" in test.requires
+                and test.config.fallback_build_run_only
+            ):
                 ignore_line_filtering = True
-
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
