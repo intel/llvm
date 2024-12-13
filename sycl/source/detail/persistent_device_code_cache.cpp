@@ -320,7 +320,7 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::getCompiledKernelFromDisc(
     const std::vector<device> &Devices, const std::string &BuildOptionsString,
-    const std::string SourceStr) {
+    const std::string &SourceStr) {
   assert(!Devices.empty());
   std::vector<std::vector<char>> Binaries(Devices.size());
   std::string FileNames;
@@ -518,7 +518,7 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
 
 std::string PersistentDeviceCodeCache::getCompiledKernelItemPath(
     const device &Device, const std::string &BuildOptionsString,
-    const std::string SourceString) {
+    const std::string &SourceString) {
 
   std::string cache_root{getRootDir()};
   if (cache_root.empty()) {
