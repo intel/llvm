@@ -178,7 +178,7 @@ struct VecOperators {
 #error "Undefine __SYCL_BINOP macro"
 #endif
 
-#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT, COND, FUNCTOR)                  \
+#define __SYCL_BINOP(BINOP, OPASSIGN, COND, FUNCTOR)                           \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
                                                         const vec_t & Rhs) {   \
@@ -312,20 +312,20 @@ protected:
 
   // clang-format off
   // Binary operations on sycl::vec<> for all types except std::byte.
-  __SYCL_BINOP(+, +=, true, true, std::plus<void>)
-  __SYCL_BINOP(-, -=, true, true, std::minus<void>)
-  __SYCL_BINOP(*, *=, false, true, std::multiplies<void>)
-  __SYCL_BINOP(/, /=, false, true, std::divides<void>)
+  __SYCL_BINOP(+, +=, true, std::plus<void>)
+  __SYCL_BINOP(-, -=, true, std::minus<void>)
+  __SYCL_BINOP(*, *=, true, std::multiplies<void>)
+  __SYCL_BINOP(/, /=, true, std::divides<void>)
 
   // The following OPs are available only when: DataT != cl_float &&
   // DataT != cl_double && DataT != cl_half && DataT != BF16.
-  __SYCL_BINOP(%, %=, false, (!detail::is_vgenfloat_v<T>), std::modulus<void>)
+  __SYCL_BINOP(%, %=, (!detail::is_vgenfloat_v<T>), std::modulus<void>)
   // Bitwise operations are allowed for std::byte.
-  __SYCL_BINOP(|, |=, false, (!detail::is_vgenfloat_v<DataT>), std::bit_or<void>)
-  __SYCL_BINOP(&, &=, false, (!detail::is_vgenfloat_v<DataT>), std::bit_and<void>)
-  __SYCL_BINOP(^, ^=, false, (!detail::is_vgenfloat_v<DataT>), std::bit_xor<void>)
-  __SYCL_BINOP(>>, >>=, false, (!detail::is_vgenfloat_v<DataT>), ShiftRight)
-  __SYCL_BINOP(<<, <<=, true, (!detail::is_vgenfloat_v<DataT>), ShiftLeft)
+  __SYCL_BINOP(|, |=, (!detail::is_vgenfloat_v<DataT>), std::bit_or<void>)
+  __SYCL_BINOP(&, &=, (!detail::is_vgenfloat_v<DataT>), std::bit_and<void>)
+  __SYCL_BINOP(^, ^=, (!detail::is_vgenfloat_v<DataT>), std::bit_xor<void>)
+  __SYCL_BINOP(>>, >>=, (!detail::is_vgenfloat_v<DataT>), ShiftRight)
+  __SYCL_BINOP(<<, <<=, (!detail::is_vgenfloat_v<DataT>), ShiftLeft)
   // clang-format on
 
   // friends
@@ -377,9 +377,9 @@ protected:
     return Lhs;
   }
 
-  __SYCL_BINOP(|, |=, false, true, std::bit_or<void>)
-  __SYCL_BINOP(&, &=, false, true, std::bit_and<void>)
-  __SYCL_BINOP(^, ^=, false, true, std::bit_xor<void>)
+  __SYCL_BINOP(|, |=, true, std::bit_or<void>)
+  __SYCL_BINOP(&, &=, true, std::bit_and<void>)
+  __SYCL_BINOP(^, ^=, true, std::bit_xor<void>)
 
   // friends
   template <typename T1, int T2> friend class __SYCL_EBO vec;
