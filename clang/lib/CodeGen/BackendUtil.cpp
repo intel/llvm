@@ -1042,8 +1042,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
             /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
-        // Allocate static local memory in SYCL kernel scope for each allocation
-        // call.
+        // Lowers static/dynamic local memory builtin calls.
         MPM.addPass(SYCLLowerWGLocalMemoryPass());
       });
     else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)

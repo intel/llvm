@@ -19,7 +19,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "LowerWGLocalMemory"
+#define DEBUG_TYPE "sycllowerwglocalmemory"
 
 static constexpr char SYCL_ALLOCLOCALMEM_CALL[] = "__sycl_allocateLocalMemory";
 static constexpr char SYCL_DYNAMIC_LOCALMEM_CALL[] =
@@ -86,29 +86,37 @@ ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
   return new SYCLLowerWGLocalMemoryLegacy();
 }
 
-static bool inlineAllocateLocalMemoryFunc(Module &M) {
+// In sycl header __sycl_allocateLocalMemory builtin call is wrapped in
+// group_local_memory/group_local_memory_for_overwrite functions, which must be
+// inlined first before each __sycl_allocateLocalMemory call can be lowered to a
+// unique global variable. Inlining them here so that this pass doesn't have
+// implicit dependency on AlwaysInlinerPass.
+static bool inlineGroupLocalMemoryFunc(Module &M) {
   Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
-  if (!ALMFunc)
+  if (!ALMFunc || ALMFunc->use_empty())
     return false;
 
-  auto *Caller = cast<CallInst>(*ALMFunc->user_begin())->getFunction();
-  if (!Caller->hasFnAttribute(Attribute::AlwaysInline)) {
-    // Already inlined.
-    return false;
+  for (auto *U : ALMFunc->users()) {
+    auto *Caller = cast<CallInst>(U)->getFunction();
+    if (!Caller->hasFnAttribute(Attribute::AlwaysInline)) {
+      // Already inlined.
+      return false;
+    }
+    std::string FName = llvm::demangle(Caller->getName());
+    if (FName.find("sycl::_V1::ext::oneapi::group_local_memory") ==
+        std::string::npos) {
+      // Already inlined.
+      return false;
+    }
+    for (auto *U2 : make_early_inc_range(Caller->users())) {
+      auto *CI = cast<CallInst>(U2);
+      InlineFunctionInfo IFI;
+      [[maybe_unused]] auto Result = InlineFunction(*CI, IFI);
+      assert(Result.isSuccess() && "inlining failed");
+    }
+    Caller->eraseFromParent();
   }
-  std::string FName = llvm::demangle(Caller->getName());
-  if (FName.find("sycl::_V1::ext::oneapi::group_local_memory") ==
-      std::string::npos) {
-    // Already inlined.
-    return false;
-  }
-  for (User *U : make_early_inc_range(Caller->users())) {
-    auto *CI = cast<CallInst>(U);
-    InlineFunctionInfo IFI;
-    [[maybe_unused]] auto Result = InlineFunction(*CI, IFI);
-    assert(Result.isSuccess() && "inlining failed");
-  }
-  Caller->eraseFromParent();
+
   return true;
 }
 
@@ -345,7 +353,7 @@ static bool dynamicWGLocalMemory(Module &M) {
 
 PreservedAnalyses SYCLLowerWGLocalMemoryPass::run(Module &M,
                                                   ModuleAnalysisManager &) {
-  bool Changed = inlineAllocateLocalMemoryFunc(M);
+  bool Changed = inlineGroupLocalMemoryFunc(M);
   Changed |= allocaWGLocalMemory(M);
   Changed |= dynamicWGLocalMemory(M);
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
