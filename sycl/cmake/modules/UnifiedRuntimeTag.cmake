@@ -1,7 +1,7 @@
-# commit 58e4d76c2ace154c053b51592f2645fc43437646
-# Merge: e23a75034bb2 bc5d6a695dc8
+# commit b7047f6c36ec17b8560c2f1cd9ac9521715a9127
+# Merge: 73e5f3c6ff2d fcddf077c290
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Dec 11 15:14:14 2024 +0000
-#     Merge pull request #2436 from igchor/umf_params_bump
-#     [UMF] bump UMF version to v0.10.0 and adjust code
-set(UNIFIED_RUNTIME_TAG 58e4d76c2ace154c053b51592f2645fc43437646)
+# Date:   Fri Dec 13 14:20:15 2024 +0000
+#     Merge pull request #2454 from Bensuo/l0_cmd-buf_multi-device
+#     Fix L0 command-buffer consumption of multi-device kernels
+set(UNIFIED_RUNTIME_TAG b7047f6c36ec17b8560c2f1cd9ac9521715a9127)

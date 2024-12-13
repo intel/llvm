@@ -1,4 +1,4 @@
-name: SYCL Nightly
+name: SYCL Release Branch Nightly
 
 on:
   workflow_dispatch:
@@ -7,34 +7,49 @@ on:
 
 permissions: read-all
 
+env:
+  # NOTE: so that GitHub Actions can trigger the scheduled workflow run - the
+  # workflow file should be on the default branch. Therefore every job should
+  # checkout the release branch.
+  SYCL_REL_BRANCH: "draft-sycl-rel-6_0_0"
+
 jobs:
+  # To avoid unnecessary scheduled runs this job checks if there are new commits
+  # since the last run. More precisely, it checks if the last commit is older
+  # than 24h. That means the previous Nightly already tested this commit.
+  check_for_new_commits:
+    runs-on: ubuntu-latest
+    name: Check for new commits
+    outputs:
+      is_new_commit: ${{ steps.is_new_commit.outputs.is_new_commit }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.SYCL_REL_BRANCH }}
+    - run: git show --quiet | tee -a $GITHUB_STEP_SUMMARY
+
+    - id: is_new_commit
+      if: ${{ github.event_name == 'schedule' }}
+      run: |
+        if [ -z "$(git rev-list --after="24 hours" HEAD)" ]; then
+          echo "is_new_commit=false" >> $GITHUB_OUTPUT
+        fi
+
   ubuntu2204_build:
-    if: github.repository == 'intel/llvm'
+    needs: [check_for_new_commits]
+    if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: default
+      build_artifact_suffix: v6
       build_configure_extra_args: '--hip --cuda'
       merge_ref: ''
-      retention-days: 90
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
-
-  ubuntu2204_shared_build:
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-linux-build.yml
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/"
-      build_cache_suffix: sprod_shared
-      build_artifact_suffix: sprod_shared
-      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
-      merge_ref: ''
-
-      artifact_archive_name: sycl_linux_shared.tar.zst
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
@@ -68,24 +83,10 @@ jobs:
             tests_selector: e2e
             extra_lit_opts: --param gpu-intel-gen12=True
 
-          - name: OCL CPU (AMD)
-            runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001
-            target_devices: opencl:cpu
-            tests_selector: e2e
-
-          - name: OCL CPU (Intel/GEN12)
+          - name: Intel OCL CPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN
-            target_devices: opencl:cpu
-            tests_selector: e2e
-
-          - name: OCL CPU (Intel/Arc)
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001
             target_devices: opencl:cpu
             tests_selector: e2e
 
@@ -110,22 +111,23 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: ${{ matrix.tests_selector }}
-      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      ref: ${{ github.sha }}
+      ref: ${{ env.SYCL_REL_BRANCH }}
       merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
   build-win:
+    needs: [check_for_new_commits]
+    if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-windows-build.yml
-    if: github.repository == 'intel/llvm'
     with:
-      retention-days: 90
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
+      build_ref: ${{ env.SYCL_REL_BRANCH }}
 
   e2e-win:
     needs: build-win
@@ -140,6 +142,7 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -148,6 +151,7 @@ jobs:
     secrets: inherit
     with:
       mode: start
+      ref: ${{ env.SYCL_REL_BRANCH }}
 
   cuda-run-tests:
     needs: [ubuntu2204_build, cuda-aws-start]
@@ -159,7 +163,7 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: ext_oneapi_cuda:gpu
-      ref: ${{ github.sha }}
+      ref: ${{ env.SYCL_REL_BRANCH }}
       merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
@@ -168,95 +172,9 @@ jobs:
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
-    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
+    if: always()
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
       mode: stop
-
-  nightly_build_upload:
-    name: Nightly Build Upload
-    if: ${{ github.ref_name == 'sycl' }}
-    needs: [ubuntu2204_build, build-win]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        name: sycl_linux_default
-    - uses: actions/download-artifact@v4
-      with:
-        name: sycl_windows_default
-    - name: Compute tag
-      id: tag
-      run: |
-        if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
-          echo "TAG=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-        else
-          # TODO: Use date of the commit?
-          echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-        fi
-    - name: Upload binaries
-      uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974
-      with:
-        files: |
-          sycl_linux.tar.gz
-          sycl_windows.tar.gz
-        tag_name: nightly-${{ steps.tag.outputs.TAG }}
-        name: DPC++ daily ${{ steps.tag.outputs.TAG }}
-        prerelease: true
-        body: "Daily build ${{ steps.tag.outputs.TAG }}"
-        target_commitish: ${{ github.sha }}
-
-  ubuntu2204_docker_build_push:
-    if: github.repository == 'intel/llvm'
-    runs-on: [Linux, build]
-    permissions:
-      packages: write
-    needs: ubuntu2204_build
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
-      with:
-        name: sycl_linux_default
-        path: devops/
-    - name: Build and Push Container (with drivers)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_intel_drivers
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:latest
-    - name: Build and Push Container (no drivers)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_base
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
-    - name: Build and Push Container (Build image)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_build
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
+      ref: ${{ env.SYCL_REL_BRANCH }}

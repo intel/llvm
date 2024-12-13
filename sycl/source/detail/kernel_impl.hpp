@@ -355,7 +355,8 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
         syclex::info::kernel_queue_specific::max_num_work_groups>(
         queue Queue, const range<1> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  return queryMaxNumWorkGroups(Queue, WorkGroupSize, DynamicLocalMemorySize);
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 template <>
@@ -365,7 +366,8 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
         syclex::info::kernel_queue_specific::max_num_work_groups>(
         queue Queue, const range<2> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  return queryMaxNumWorkGroups(Queue, WorkGroupSize, DynamicLocalMemorySize);
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 template <>
@@ -375,7 +377,8 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
         syclex::info::kernel_queue_specific::max_num_work_groups>(
         queue Queue, const range<3> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  return queryMaxNumWorkGroups(Queue, WorkGroupSize, DynamicLocalMemorySize);
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 } // namespace detail
