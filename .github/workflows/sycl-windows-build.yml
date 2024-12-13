@@ -48,6 +48,9 @@ on:
         type: choice
         options:
           - "default"
+      build_configure_extra_args:
+        type: string
+        required: false
       artifact_archive_name:
         type: choice
         options:
