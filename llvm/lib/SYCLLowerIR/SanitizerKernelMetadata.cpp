@@ -38,6 +38,30 @@ PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
   auto &DL = M.getDataLayout();
   auto &Ctx = M.getContext();
 
+  // Fix device global type, by wrapping a structure type
+  {
+    assert(KernelMetadata->getValueType()->isArrayTy());
+
+    auto Name = KernelMetadata->getName();
+    KernelMetadata->setName(Name + "_del");
+    auto *KernelMetadataOld = KernelMetadata;
+
+    StructType *StructTypeWithArray = StructType::create(Ctx);
+    StructTypeWithArray->setBody(KernelMetadataOld->getValueType());
+
+    KernelMetadata = new GlobalVariable(
+        M, StructTypeWithArray, false, GlobalValue::ExternalLinkage,
+        ConstantStruct::get(StructTypeWithArray,
+                            KernelMetadataOld->getInitializer()),
+        Name, nullptr, GlobalValue::NotThreadLocal, 1);
+    KernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+    KernelMetadata->setDSOLocal(true);
+    KernelMetadata->copyAttributesFrom(KernelMetadataOld);
+    KernelMetadata->copyMetadata(KernelMetadataOld, 0);
+
+    KernelMetadataOld->eraseFromParent();
+  }
+
   // Fix attributes
   KernelMetadata->addAttribute(
       "sycl-device-global-size",
