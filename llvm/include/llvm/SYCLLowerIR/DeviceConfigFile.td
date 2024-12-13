@@ -208,7 +208,7 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 // as sub-group sizes the supported sub-group sizes. 
 
 def : IntelTargetInfo<"intel_gpu_ptl_u", Fp16Fp64Atomic64, Sg16_32>;
-def : IntelTargetInfo<"intel_gpu_ptl_h", Fp16Fp64Atomic64, Sg16_32>
+def : IntelTargetInfo<"intel_gpu_ptl_h", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
