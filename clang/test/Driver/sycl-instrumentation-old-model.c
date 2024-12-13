@@ -20,19 +20,27 @@
 // CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-stubs.bc"
 // CHECK-HOST-NOT: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-instrument-device-code"
 
-// ITT annotations in device code are disabled by default. However, for SYCL offloading,
-// we still link ITT annotations libraries to ensure ABI compatibility with previous release.
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64 -### %s 2>&1 \
+// ITT annotations in device code are disabled by default. However, for SYCL
+// offloading, we still link ITT annotations libraries to ensure ABI
+// compatibility with previous release.
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64 -### \
+// RUN:   --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-ITT-LINK-ONLY %s
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -### %s 2>&1 \
-// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // CHECK-ITT-LINK-ONLY-NOT: "-fsycl-instrument-device-code"
 // CHECK-ITT-LINK-ONLY: llvm-link{{.*}} {{.*}}libsycl-itt-{{.*}}
 
-// RUN: %clangxx -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
+// Verify that ITT annotations are not pulled in for non-SPIR-V targets as
+// well as when device code instrumentation is explicitly turned off.
+// RUN: %clangxx -fsycl --no-offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:   -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -nocudalib -### %s 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:   -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+// RUN: %clangxx -fsycl --no-offload-new-driver --sysroot=%s/Inputs/SYCL \
+// RUN:   -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code \
+// RUN:   -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // CHECK-NONPASSED-NOT: "-fsycl-instrument-device-code"
