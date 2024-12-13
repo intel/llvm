@@ -76,7 +76,7 @@ static ur_program_handle_t
 createBinaryProgram(const ContextImplPtr Context,
                     const std::vector<device> &Devices,
                     const uint8_t **Binaries, size_t *Lengths,
-                    const std::vector<ur_program_metadata_t> Metadata) {
+                    const std::vector<ur_program_metadata_t> &Metadata) {
   const AdapterPtr &Adapter = Context->getAdapter();
   ur_program_handle_t Program;
   std::vector<ur_device_handle_t> DeviceHandles;
@@ -230,7 +230,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
-  auto ProgMetadata = Img.getProgramMetadataUR();
+  const auto &ProgMetadata = Img.getProgramMetadataUR();
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -990,7 +990,15 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // emplace all subsets of the current set of devices into the cache.
     // Set of all devices is not included in the loop as it was already added
     // into the cache.
-    for (int Mask = 1; Mask < (1 << URDevicesSet.size()) - 1; ++Mask) {
+    int Mask = 1;
+    if (URDevicesSet.size() > sizeof(Mask) * 8 - 1) {
+      // Protection for the algorithm below. Although overflow is very unlikely
+      // to be reached.
+      throw sycl::exception(
+          make_error_code(errc::runtime),
+          "Unable to cache built program for more than 31 devices");
+    }
+    for (; Mask < (1 << URDevicesSet.size()) - 1; ++Mask) {
       std::set<ur_device_handle_t> Subset;
       int Index = 0;
       for (auto It = URDevicesSet.begin(); It != URDevicesSet.end();
@@ -1124,7 +1132,7 @@ ProgramManager::getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
 
 std::string
 ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
-                                   const ContextImplPtr Context) {
+                                   const ContextImplPtr &Context) {
   size_t URDevicesSize = 0;
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,

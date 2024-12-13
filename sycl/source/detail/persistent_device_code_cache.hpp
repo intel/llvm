@@ -170,7 +170,7 @@ public:
   static std::string
   getCompiledKernelItemPath(const device &Device,
                             const std::string &BuildOptionsString,
-                            const std::string SourceString);
+                            const std::string &SourceString);
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
@@ -185,7 +185,7 @@ public:
   static std::vector<std::vector<char>>
   getCompiledKernelFromDisc(const std::vector<device> &Devices,
                             const std::string &BuildOptionsString,
-                            const std::string SourceStr);
+                            const std::string &SourceStr);
 
   /* Stores build program in persistent cache
    */
