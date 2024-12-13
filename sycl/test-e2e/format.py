@@ -236,7 +236,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 continue
 
             # Filter commands based on split-mode
-            is_run_line = unsplit_test or any(
+            is_run_line = (unsplit_test and test.config.fallback_build_run_only) or any(
                 i in directive.command
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
             )
