@@ -31,6 +31,7 @@ runs:
       registry: ghcr.io
       username: ${{ inputs.username }}
       password: ${{ inputs.password }}
+      sycl_passwd: ${{ inputs.sycl_passwd }}
   - name: Build and Push Container
     uses: docker/build-push-action@v3.2.0
     with:
@@ -41,4 +42,4 @@ runs:
       file: ${{ github.workspace }}/devops/containers/${{ inputs.file }}.Dockerfile
       secrets: |
         github_token=${{ github.token }}
-        sycl_passwd=${{ secrets.sycl_passwd }}
+        sycl_passwd=${{ sycl_passwd }}
