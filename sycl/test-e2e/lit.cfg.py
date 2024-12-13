@@ -143,6 +143,7 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+config.substitutions.append(("%llvm_main_include_dir", config.llvm_main_include_dir))
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 if platform.system() == "Windows":
     config.substitutions.append(

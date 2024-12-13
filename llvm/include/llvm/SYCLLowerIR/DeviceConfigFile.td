@@ -164,14 +164,18 @@ defvar IntelCpuAspects = [
     AspectExt_oneapi_srgb, AspectExt_oneapi_native_assert,
     AspectExt_intel_legacy_image, AspectExt_oneapi_ballot_group,
     AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
-    AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca
+    AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca, 
+    AspectOnline_compiler, AspectOnline_linker, AspectExt_intel_gpu_slices,
+    AspectExt_intel_gpu_subslices_per_slice, AspectExt_intel_gpu_eu_count_per_subslice,
+    AspectExt_intel_gpu_hw_threads_per_eu, AspectExt_intel_device_id, 
+    AspectExt_oneapi_virtual_functions
 ] # AllUSMAspects;
 
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
 def : TargetInfo<"spir64_x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
-def : TargetInfo<"x86_64", [], [], "", "", 1>;
+def : TargetInfo<"x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
 //defvar AspectList = [AspectCpu] # AllUSMAspects;
 //def : TargetInfo<"Test", AspectList, []>;
@@ -183,9 +187,11 @@ defvar Fp16Fp64Atomic64 = [AspectFp16, AspectFp64, AspectAtomic64];
 defvar Fp16Atomic64 = [AspectFp16, AspectAtomic64];
 defvar Sg8_16_32 = [8, 16, 32];
 defvar Sg16_32 = [16, 32];
-defvar IntelBaseAspects = [AspectExt_intel_esimd];
+defvar IntelGPUBaseAspects = [AspectExt_intel_esimd, AspectExt_oneapi_ballot_group,
+    AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
+    AspectExt_oneapi_tangle_group];
 class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizesList>
-: TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
+: TargetInfo<Name, IntelGPUBaseAspects # Aspects, subGroupSizesList>;
 // Note: only the "canonical" target names are listed here - see
 // SYCL::gen::resolveGenDevice().
 //

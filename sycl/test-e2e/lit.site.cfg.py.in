@@ -10,6 +10,7 @@ site.addsitedir("@CMAKE_CURRENT_SOURCE_DIR@")
 config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@SYCL_CXX_COMPILER@")
 config.dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
 
+config.llvm_main_include_dir = "@LLVM_MAIN_INCLUDE_DIR@"
 config.llvm_tools_dir = os.path.join(config.dpcpp_root_dir, 'bin')
 config.lit_tools_dir = os.path.dirname("@TEST_SUITE_LIT@")
 config.dump_ir_supported = lit_config.params.get("dump_ir", ("@DUMP_IR_SUPPORTED@" if "@DUMP_IR_SUPPORTED@" else False))
