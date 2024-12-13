@@ -134,6 +134,16 @@ struct VecOperators {
             res[i] = bit_cast<int8_t>(res[i]) != 0;
         }
       }
+      // The following is true:
+      //
+      // using char2 = char __attribute__((ext_vector_type(2)));
+      // using uchar2 = unsigned char __attribute__((ext_vector_type(2)));
+      // static_assert(std::is_same_v<decltype(std::declval<uchar2>() ==
+      //                                       std::declval<uchar2>()),
+      //                              char2>);
+      //
+      // so we need some extra casts. Also, static_cast<uchar2>(char2{})
+      // isn't allowed either.
       return result_t{(typename result_t::vector_t)res};
     }
   }
