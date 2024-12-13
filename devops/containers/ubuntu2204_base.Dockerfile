@@ -8,8 +8,8 @@ USER root
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
-COPY scripts/setup-sycl-user.sh /user-setup.sh
-RUN /user-setup.sh
+COPY scripts/create-sycl-user.sh /user-setup.sh
+RUN --mount=type=secret,id=sycl_passwd /user-setup.sh
 
 COPY actions/cached_checkout /actions/cached_checkout
 COPY actions/cleanup /actions/cleanup
