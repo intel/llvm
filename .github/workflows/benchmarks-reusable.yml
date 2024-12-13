@@ -236,3 +236,8 @@ jobs:
       with:
         path: ur-repo/benchmark_results.html
         key: benchmark-results-${{ matrix.adapter.str_name }}-${{ github.run_id }}
+
+    - name: Get information about platform
+      if: ${{ always() }}
+      working-directory: ${{ github.workspace }}/ur-repo/
+      run: .github/scripts/get_system_info.sh

@@ -192,6 +192,11 @@ jobs:
       id: tests
       run: ninja -C build-e2e check-sycl-e2e || echo "e2e tests have failed. Ignoring failure."
 
+    - name: Get information about platform
+      if: ${{ always() }}
+      working-directory: ${{github.workspace}}/ur-repo
+      run: .github/scripts/get_system_info.sh
+
     # FIXME: Requires pull-request: write permissions but this is only granted
     # on pull requests from forks if using pull_request_target workflow
     # trigger but not the pull_request trigger..
