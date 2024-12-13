@@ -9,14 +9,15 @@
 //===----------------------------------------------------------------------===//
 #include "event_pool.hpp"
 #include "common/latency_tracker.hpp"
+#include "event.hpp"
+#include "queue_api.hpp"
 #include "ur_api.h"
 
 namespace v2 {
 
 static constexpr size_t EVENTS_BURST = 64;
 
-ur_event_handle_t_ *event_pool::allocate(ur_queue_handle_t hQueue,
-                                         ur_command_t commandType) {
+ur_pooled_event_t *event_pool::allocate() {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<std::mutex> lock(*mutex);
@@ -25,7 +26,7 @@ ur_event_handle_t_ *event_pool::allocate(ur_queue_handle_t hQueue,
     auto start = events.size();
     auto end = start + EVENTS_BURST;
     for (; start < end; ++start) {
-      events.emplace_back(provider->allocate(), this);
+      events.emplace_back(hContext, provider->allocate(), this);
       freelist.push_back(&events.at(start));
     }
   }
@@ -33,12 +34,15 @@ ur_event_handle_t_ *event_pool::allocate(ur_queue_handle_t hQueue,
   auto event = freelist.back();
   freelist.pop_back();
 
-  event->resetQueueAndCommand(hQueue, commandType);
+#ifndef NDEBUG
+  // Set the command type to an invalid value to catch any misuses in tests
+  event->resetQueueAndCommand(nullptr, UR_COMMAND_FORCE_UINT32);
+#endif
 
   return event;
 }
 
-void event_pool::free(ur_event_handle_t_ *event) {
+void event_pool::free(ur_pooled_event_t *event) {
   TRACK_SCOPE_LATENCY("event_pool::free");
 
   std::unique_lock<std::mutex> lock(*mutex);

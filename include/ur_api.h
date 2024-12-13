@@ -233,6 +233,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,               ///< Enumerator for ::urEnqueueEventsWaitWithBarrierExt
     UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP = 247,                     ///< Enumerator for ::urTensorMapEncodeIm2ColExp
     UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP = 248,                        ///< Enumerator for ::urTensorMapEncodeTiledExp
+    UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,                              ///< Enumerator for ::urPhysicalMemGetInfo
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2525,7 +2526,7 @@ typedef enum ur_mem_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory Information type
 typedef enum ur_mem_info_t {
-    UR_MEM_INFO_SIZE = 0,            ///< [size_t] actual size of of memory object in bytes
+    UR_MEM_INFO_SIZE = 0,            ///< [size_t] actual size of the memory object in bytes
     UR_MEM_INFO_CONTEXT = 1,         ///< [::ur_context_handle_t] context in which the memory object was created
     UR_MEM_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the memory object.
                                      ///< The reference count returned should be considered immediately stale.
@@ -4136,6 +4137,50 @@ urPhysicalMemRetain(
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemRelease(
     ur_physical_mem_handle_t hPhysicalMem ///< [in][release] handle of the physical memory object to release.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Physical memory range info queries.
+typedef enum ur_physical_mem_info_t {
+    UR_PHYSICAL_MEM_INFO_CONTEXT = 0,         ///< [::ur_context_handle_t] context in which the physical memory object
+                                              ///< was created.
+    UR_PHYSICAL_MEM_INFO_DEVICE = 1,          ///< [::ur_device_handle_t] device associated with this physical memory
+                                              ///< object.
+    UR_PHYSICAL_MEM_INFO_SIZE = 2,            ///< [size_t] actual size of the physical memory object in bytes.
+    UR_PHYSICAL_MEM_INFO_PROPERTIES = 3,      ///< [::ur_physical_mem_properties_t] properties set when creating this
+                                              ///< physical memory object.
+    UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT = 4, ///< [uint32_t] Reference count of the physical memory object.
+                                              ///< The reference count returned should be considered immediately stale.
+                                              ///< It is unsuitable for general use in applications. This feature is
+                                              ///< provided for identifying memory leaks.
+    /// @cond
+    UR_PHYSICAL_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_physical_mem_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get information about a physical memory object.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPhysicalMem`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT < propName`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t hPhysicalMem, ///< [in] handle of the physical memory object to query.
+    ur_physical_mem_info_t propName,       ///< [in] type of the info to query.
+    size_t propSize,                       ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *pPropValue,                      ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                           ///< the info. If propSize is less than the real number of bytes needed to
+                                           ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+                                           ///< returned and pPropValue is not used.
+    size_t *pPropSizeRet                   ///< [out][optional] pointer to the actual size in bytes of the queried propName."
 );
 
 #if !defined(__GNUC__)
@@ -11317,6 +11362,18 @@ typedef struct ur_physical_mem_retain_params_t {
 typedef struct ur_physical_mem_release_params_t {
     ur_physical_mem_handle_t *phPhysicalMem;
 } ur_physical_mem_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urPhysicalMemGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_physical_mem_get_info_params_t {
+    ur_physical_mem_handle_t *phPhysicalMem;
+    ur_physical_mem_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_physical_mem_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urAdapterGet

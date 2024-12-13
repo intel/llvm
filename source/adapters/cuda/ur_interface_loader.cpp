@@ -401,6 +401,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
   pDdiTable->pfnCreate = urPhysicalMemCreate;
   pDdiTable->pfnRelease = urPhysicalMemRelease;
   pDdiTable->pfnRetain = urPhysicalMemRetain;
+  pDdiTable->pfnGetInfo = urPhysicalMemGetInfo;
 
   return retVal;
 }

@@ -3104,6 +3104,60 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory object to query.
+    ur_physical_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    ur_physical_mem_get_info_params_t params = {
+        &hPhysicalMem, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback("urPhysicalMemGetInfo"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback("urPhysicalMemGetInfo"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback("urPhysicalMemGetInfo"));
+    if (afterCallback) {
+        return afterCallback(&params);
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
@@ -11508,6 +11562,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
     pDdiTable->pfnRetain = driver::urPhysicalMemRetain;
 
     pDdiTable->pfnRelease = driver::urPhysicalMemRelease;
+
+    pDdiTable->pfnGetInfo = driver::urPhysicalMemGetInfo;
 
     return result;
 } catch (...) {

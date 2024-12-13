@@ -11,6 +11,7 @@
 #include "../device.hpp"
 
 #include "context.hpp"
+#include "event_provider_counter.hpp"
 #include "event_provider_normal.hpp"
 
 static std::vector<ur_device_handle_t>
@@ -48,14 +49,22 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
     : commandListCache(hContext),
-      eventPoolCache(phDevices[0]->Platform->getNumDevices(),
+      eventPoolCache(this, phDevices[0]->Platform->getNumDevices(),
                      [context = this, platform = phDevices[0]->Platform](
-                         DeviceId deviceId, v2::event_flags_t flags) {
-                       auto device = platform->getDeviceById(deviceId);
+                         DeviceId deviceId, v2::event_flags_t flags)
+                         -> std::unique_ptr<v2::event_provider> {
+                       assert((flags & v2::EVENT_FLAGS_COUNTER) != 0);
+
+                       std::ignore = deviceId;
+                       std::ignore = platform;
+
                        // TODO: just use per-context id?
                        return std::make_unique<v2::provider_normal>(
-                           context, device, v2::QUEUE_IMMEDIATE, flags);
+                           context, v2::QUEUE_IMMEDIATE, flags);
                      }),
+      nativeEventsPool(this, std::make_unique<v2::provider_normal>(
+                                 this, v2::QUEUE_IMMEDIATE,
+                                 v2::EVENT_FLAGS_PROFILING_ENABLED)),
       hContext(hContext, ownZeContext),
       hDevices(phDevices, phDevices + numDevices),
       p2pAccessDevices(populateP2PDevices(
