@@ -442,6 +442,7 @@ public:
         return;
 
       // Save reference between the program and the fast cache key.
+      std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
       MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
     }
 
@@ -495,16 +496,18 @@ public:
             LockedCacheKP.get().erase(NativePrg);
           }
 
-          // Remove corresponding entries from KernelFastCache.
-          auto FastCacheKeyItr =
-              MProgramToKernelFastCacheKeyMap.find(NativePrg);
-          if (FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
-            for (const auto &FastCacheKey : FastCacheKeyItr->second) {
-              std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
-              MKernelFastCache.erase(FastCacheKey);
-              traceKernel("Kernel evicted.", std::get<2>(FastCacheKey), true);
+          {
+            // Remove corresponding entries from KernelFastCache.
+            std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+            if (auto FastCacheKeyItr =
+                    MProgramToKernelFastCacheKeyMap.find(NativePrg);
+                FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
+              for (const auto &FastCacheKey : FastCacheKeyItr->second) {
+                MKernelFastCache.erase(FastCacheKey);
+                traceKernel("Kernel evicted.", std::get<2>(FastCacheKey), true);
+              }
+              MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
             }
-            MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
           }
 
           // Remove entry from ProgramCache KeyMap.
