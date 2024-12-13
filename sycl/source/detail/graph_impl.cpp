@@ -1989,8 +1989,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     // shared_ptr<detail::CGExecKernel> to store
     sycl::detail::CG *RawCGPtr = Handler.impl->MGraphNodeCG.release();
     auto RawCGExecPtr = static_cast<sycl::detail::CGExecKernel *>(RawCGPtr);
-    auto CGExecSP = std::shared_ptr<sycl::detail::CGExecKernel>(RawCGExecPtr);
-    MKernels.push_back(CGExecSP);
+    MKernels.push_back(
+        std::shared_ptr<sycl::detail::CGExecKernel>(RawCGExecPtr));
 
     // Track dynamic_parameter usage in command-list
     auto &DynamicParams = Handler.impl->MDynamicParameters;
