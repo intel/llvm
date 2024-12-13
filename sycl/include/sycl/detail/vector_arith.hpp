@@ -73,7 +73,7 @@ struct VecOperators {
         is_logical, vec<fixed_width_signed<sizeof(element_type)>, N>, Self>;
 
     BinOp Op{};
-    if constexpr (is_host ||
+    if constexpr (is_host || N == 1 ||
                   std::is_same_v<element_type, ext::oneapi::bfloat16>) {
       result_t res{};
       for (size_t i = 0; i < N; ++i)
@@ -110,14 +110,9 @@ struct VecOperators {
       }(bit_cast<vector_t>(Args)...);
 
       if constexpr (is_logical) {
-        if constexpr (N == 1) {
-          // vector_t for one-element vector is just scalar with normal C++
-          // semantics, need to align it with vector behavior:
-          return result_t{(typename result_t::vector_t)res * -1};
-        }
         return result_t{(typename result_t::vector_t)res};
       } else {
-        if constexpr (std::is_same_v<element_type, bool>) {
+        if constexpr (std::is_same_v<element_type, bool> && true) {
           // OpenCL/SPIR-V has different semantics for operations on bool
           // (which is mapped to some 8-bit integer type on device) than SYCL.
           // Need to "convert" back to 0/1.
@@ -128,14 +123,8 @@ struct VecOperators {
                                          std::divides<void>, std::bit_or<void>,
                                          std::bit_and<void>, std::bit_xor<void>,
                                          ShiftRight, UnaryPlus>) {
-            if constexpr (N == 1) {
-              // vector_t for one-element vector is just scalar with normal
-              // C++ semantics, need to align it with vector behavior:
-              return result_t{(typename result_t::vector_t)res * -1};
-            } else {
-              for (size_t i = 0; i < N; ++i)
-                res[i] = bit_cast<int8_t>(res[i]) != 0;
-            }
+            for (size_t i = 0; i < N; ++i)
+              res[i] = bit_cast<int8_t>(res[i]) != 0;
           }
         }
         return result_t{(typename result_t::vector_t)res};
