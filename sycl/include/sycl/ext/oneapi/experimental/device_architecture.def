@@ -1,24 +1,11 @@
-
-// If new element is added to this enum:
+// If new element is added below:
 //
-// Update
-//   - "detail::min_<category>_architecture" below if needed
-//   - "detail::max_<category>_architecture" below if needed
-//   - sycl_ext_oneapi_device_architecture specification doc
-//   - "-fsycl-targets" description in sycl/doc/UsersManual.md
-//
+// Follow 
+//  - the note about architecture IDs uniqueness below
+// 
 // Add
-//   - new value for -fsycl-targets option to the compiler driver in
-//     accordance with changes from sycl/doc/UsersManual.md and update the
-//     compiler driver tests
-//   - ___SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
-//   - the unique ID of the new architecture to the SYCL RT source code to
-//     support querying the device architecture through
-//     device::get_info<ext::oneapi::experimental::info::device::architecture>
 //   - alias of architecture if this is Intel GPU architecture in format
 //     intel_gpu_<intel_gpu_arch_version>
-//   - supported aspects of architecture in
-//     llvm/include/llvm/SYCLLowerIR/DeviceConfigFile.td 
 //
 // Important note about keeping architecture IDs below unique:
 //   - the architecture ID must be a hex number with 16 digits
@@ -86,6 +73,8 @@ __SYCL_ARCHITECTURE(intel_gpu_mtl_h, 0x0000000311c00400)         // Meteor Lake 
 __SYCL_ARCHITECTURE(intel_gpu_arl_h, 0x0000000312800400)         // Arrow Lake H
 __SYCL_ARCHITECTURE(intel_gpu_bmg_g21, 0x0000000500400400)       // Battlemage G21
 __SYCL_ARCHITECTURE(intel_gpu_lnl_m, 0x0000000501000400)         // Lunar Lake
+__SYCL_ARCHITECTURE(intel_gpu_ptl_h, 0x0000000780000400)         // Panther Lake H
+__SYCL_ARCHITECTURE(intel_gpu_ptl_u, 0x0000000780400100)         // Panther Lake U
 //
 // NVIDIA architectures
 //
@@ -182,3 +171,5 @@ __SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_71_4, intel_gpu_mtl_h)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_74_4, intel_gpu_arl_h)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_20_1_4, intel_gpu_bmg_g21)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_20_4_4, intel_gpu_lnl_m)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_0_4, intel_gpu_ptl_h)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_1_1, intel_gpu_ptl_u)

@@ -1,7 +1,7 @@
-# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
-# Merge: daa0b110464c 323b37c55504
+# commit b7047f6c36ec17b8560c2f1cd9ac9521715a9127
+# Merge: 73e5f3c6ff2d fcddf077c290
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 6 18:03:11 2024 +0000
-#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
-#     Fix command_buffer coverity issues
-set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)
+# Date:   Fri Dec 13 14:20:15 2024 +0000
+#     Merge pull request #2454 from Bensuo/l0_cmd-buf_multi-device
+#     Fix L0 command-buffer consumption of multi-device kernels
+set(UNIFIED_RUNTIME_TAG b7047f6c36ec17b8560c2f1cd9ac9521715a9127)

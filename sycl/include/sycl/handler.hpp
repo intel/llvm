@@ -609,7 +609,6 @@ private:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
-    addAccessorReq(std::move(AccImpl));
     // Add accessor to the list of arguments.
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
            static_cast<int>(AccessTarget), ArgIndex);
@@ -2549,9 +2548,6 @@ public:
 
     MSrcPtr = static_cast<void *>(AccImpl.get());
     MDstPtr = static_cast<void *>(Dst);
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory pointed by Src into the memory object
@@ -2587,9 +2583,6 @@ public:
 
     MSrcPtr = const_cast<T_Src *>(Src);
     MDstPtr = static_cast<void *>(AccImpl.get());
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory object accessed by Src to the memory
@@ -2644,10 +2637,6 @@ public:
 
     MSrcPtr = AccImplSrc.get();
     MDstPtr = AccImplDst.get();
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImplSrc));
-    addAccessorReq(std::move(AccImplDst));
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -2673,7 +2662,6 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    addAccessorReq(std::move(AccImpl));
   }
 
 public:
@@ -3429,7 +3417,6 @@ private:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    addAccessorReq(std::move(AccImpl));
 
     MPattern.resize(sizeof(T));
     auto PatternPtr = reinterpret_cast<T *>(MPattern.data());

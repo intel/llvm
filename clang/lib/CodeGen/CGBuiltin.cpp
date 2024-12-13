@@ -2716,6 +2716,53 @@ static RValue EmitHipStdParUnsupportedBuiltin(CodeGenFunction *CGF,
   return RValue::get(CGF->Builder.CreateCall(UBF, Args));
 }
 
+static RValue EmitSYCLFreeFunctionKernelBuiltin(CodeGenFunction &CGF,
+                                                const CallExpr *E,
+                                                StringRef NameStr1,
+                                                StringRef NameStr2,
+                                                bool CheckNDRangeDim = false) {
+  const Expr *ArgExpr = E->getArg(0)->IgnoreImpCasts();
+  auto *UO = dyn_cast<clang::UnaryOperator>(ArgExpr);
+  // If this is of the form &function or *function, get to the function
+  // sub-expression.
+  if (UO && (UO->getOpcode() == UO_AddrOf || UO->getOpcode() == UO_Deref))
+    ArgExpr = UO->getSubExpr()->IgnoreParenImpCasts();
+  while (isa<CastExpr>(ArgExpr))
+    ArgExpr = cast<CastExpr>(ArgExpr)->getSubExpr();
+  auto *DRE = dyn_cast<DeclRefExpr>(ArgExpr);
+  if (DRE) {
+    const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl());
+    if (FD && FD->hasAttr<SYCLAddIRAttributesFunctionAttr>()) {
+      auto *SAIRAttr = FD->getAttr<SYCLAddIRAttributesFunctionAttr>();
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          SAIRAttr->getFilteredAttributeNameValuePairs(CGF.CGM.getContext());
+      for (const auto &NVPair : NameValuePairs) {
+        if (!NVPair.first.compare(NameStr1) ||
+            (!NameStr2.empty() && !!NVPair.first.compare(NameStr2))) {
+          if (CheckNDRangeDim) {
+            uint64_t Dim = E->getArg(1)
+                               ->EvaluateKnownConstInt(CGF.CGM.getContext())
+                               .getZExtValue();
+            // Return true only if the dimensions match.
+            if (std::stoul(NVPair.second) == Dim)
+              return RValue::get(
+                  llvm::ConstantInt::getTrue(CGF.ConvertType(E->getType())));
+            else
+              return RValue::get(
+                  llvm::ConstantInt::getFalse(CGF.ConvertType(E->getType())));
+          }
+          // Return true if the kernel type matches.
+          return RValue::get(
+              llvm::ConstantInt::getTrue(CGF.ConvertType(E->getType())));
+        }
+      }
+    }
+  }
+  // Return false otherwise.
+  return RValue::get(
+      llvm::ConstantInt::getFalse(CGF.ConvertType(E->getType())));
+}
+
 RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                                         const CallExpr *E,
                                         ReturnValueSlot ReturnValue) {
@@ -6362,6 +6409,18 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
         cast<DeclRefExpr>(E->getArg(0)->IgnoreImpCasts())->getDecl());
     auto Str = CGM.GetAddrOfConstantCString(Name, "");
     return RValue::get(Str.getPointer());
+  }
+  case Builtin::BI__builtin_sycl_is_kernel: {
+    return EmitSYCLFreeFunctionKernelBuiltin(
+        *this, E, "sycl-single-task-kernel", "sycl-nd-range-kernel");
+  }
+  case Builtin::BI__builtin_sycl_is_single_task_kernel: {
+    return EmitSYCLFreeFunctionKernelBuiltin(*this, E,
+                                             "sycl-single-task-kernel", "");
+  }
+  case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
+    return EmitSYCLFreeFunctionKernelBuiltin(*this, E, "sycl-nd-range-kernel",
+                                             "", /*CheckNDRangeDim=*/true);
   }
   }
 
