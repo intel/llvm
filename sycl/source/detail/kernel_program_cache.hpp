@@ -620,13 +620,20 @@ public:
   ///
   /// This member function should only be used in unit tests.
   void reset() {
-    std::lock_guard<std::mutex> L1(MProgramCacheMutex);
-    std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
-    std::lock_guard<std::mutex> L3(MKernelFastCacheMutex);
-    MCachedPrograms = ProgramCache{};
-    MKernelsPerProgramCache = KernelCacheT{};
-    MKernelFastCache = KernelFastCacheT{};
-    MProgramToKernelFastCacheKeyMap.clear();
+    {
+      std::lock_guard<std::mutex> L1(MProgramCacheMutex);
+      MCachedPrograms = ProgramCache{};
+    }
+    {
+      std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
+      MKernelsPerProgramCache = KernelCacheT{};
+    }
+
+    {
+      std::lock_guard<std::mutex> L3(MKernelFastCacheMutex);
+      MKernelFastCache = KernelFastCacheT{};
+      MProgramToKernelFastCacheKeyMap.clear();
+    }
 
     // Clear the eviction lists and its mutexes.
     std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
