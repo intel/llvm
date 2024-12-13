@@ -1,6 +1,4 @@
 urMemImageCreateTest.InvalidSize/*
-urMemImageGetInfoTest.Success/*
 urMemBufferCreateWithNativeHandleTest.Success/*
 urMemBufferCreateWithNativeHandleTest.SuccessWithOwnedNativeHandle/*
 urMemBufferCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle/*
-urMemImageCreateWithNativeHandleTest.Success/*

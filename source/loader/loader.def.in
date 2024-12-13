@@ -161,6 +161,7 @@ EXPORTS
 	urMemRelease
 	urMemRetain
 	urPhysicalMemCreate
+	urPhysicalMemGetInfo
 	urPhysicalMemRelease
 	urPhysicalMemRetain
 	urPlatformCreateWithNativeHandle
@@ -403,6 +404,8 @@ EXPORTS
 	urPrintMemoryScopeCapabilityFlags
 	urPrintPhysicalMemCreateParams
 	urPrintPhysicalMemFlags
+	urPrintPhysicalMemGetInfoParams
+	urPrintPhysicalMemInfo
 	urPrintPhysicalMemProperties
 	urPrintPhysicalMemReleaseParams
 	urPrintPhysicalMemRetainParams

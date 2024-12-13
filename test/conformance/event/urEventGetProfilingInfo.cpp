@@ -121,3 +121,51 @@ TEST_P(urEventGetProfilingInfoNegativeTest, InvalidValue) {
 }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetProfilingInfoNegativeTest);
+
+struct urEventGetProfilingInfoForWaitWithBarrier : uur::urProfilingQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urProfilingQueueTest::SetUp());
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
+                                         nullptr, &buffer));
+
+        input.assign(count, 42);
+        ur_event_handle_t membuf_event = nullptr;
+        ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, false, 0, size,
+                                               input.data(), 0, nullptr,
+                                               &membuf_event));
+
+        ASSERT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 1, &membuf_event, &event));
+        ASSERT_SUCCESS(urQueueFinish(queue));
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urProfilingQueueTest::TearDown());
+    }
+
+    const size_t count = 1024;
+    const size_t size = sizeof(uint32_t) * count;
+    ur_mem_handle_t buffer = nullptr;
+    ur_event_handle_t event = nullptr;
+    std::vector<uint32_t> input;
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetProfilingInfoForWaitWithBarrier);
+
+TEST_P(urEventGetProfilingInfoForWaitWithBarrier, Success) {
+    std::vector<uint8_t> submit_data(size);
+    ASSERT_SUCCESS(urEventGetProfilingInfo(event,
+                                           UR_PROFILING_INFO_COMMAND_START,
+                                           size, submit_data.data(), nullptr));
+    auto start_timing = reinterpret_cast<size_t *>(submit_data.data());
+    ASSERT_NE(*start_timing, 0);
+
+    std::vector<uint8_t> complete_data(size);
+    ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_END,
+                                           size, complete_data.data(),
+                                           nullptr));
+    auto end_timing = reinterpret_cast<size_t *>(complete_data.data());
+    ASSERT_NE(*end_timing, 0);
+
+    ASSERT_GT(*end_timing, *start_timing);
+}

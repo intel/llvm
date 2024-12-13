@@ -15,6 +15,9 @@ class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
 
+    def name(self) -> str:
+        return "Compute Benchmarks"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -90,10 +93,10 @@ def parse_unit_type(compute_unit):
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
+        super().__init__(bench.directory, bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
-        super().__init__(bench.directory)
 
     def bin_args(self) -> list[str]:
         return []
