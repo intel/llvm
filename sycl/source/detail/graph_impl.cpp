@@ -1639,7 +1639,7 @@ node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DynCGFImpl, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
@@ -1651,7 +1651,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
@@ -1664,7 +1664,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 void modifiable_command_graph::addGraphLeafDependencies(node Node) {
