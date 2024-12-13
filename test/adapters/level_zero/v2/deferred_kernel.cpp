@@ -61,8 +61,8 @@ TEST_P(urEnqueueKernelLaunchTest, DeferredKernelRelease) {
     ASSERT_SUCCESS(urEventRelease(event));
 }
 
-struct urMultiQueueLaunchKernelDefferFreeTest
-    : uur::urMultiQueueMultiDeviceTest {
+struct urMultiQueueLaunchKernelDeferFreeTest
+    : uur::urMultiQueueMultiDeviceTest<2> {
     std::string KernelName;
 
     static constexpr char ProgramName[] = "foo";
@@ -73,12 +73,12 @@ struct urMultiQueueLaunchKernelDefferFreeTest
     ur_kernel_handle_t kernel = nullptr;
 
     void SetUp() override {
-        if (uur::KernelsEnvironment::instance->devices.size() < 2) {
+        if (devices.size() < 2) {
             GTEST_SKIP() << "This test requires at least 2 devices";
         }
 
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueMultiDeviceTest::SetUp(
-            uur::KernelsEnvironment::instance->devices, 1));
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urMultiQueueMultiDeviceTest<2>::SetUp());
 
         KernelName = uur::KernelsEnvironment::instance->GetEntryPointNames(
             ProgramName)[0];
@@ -86,7 +86,8 @@ struct urMultiQueueLaunchKernelDefferFreeTest
         std::shared_ptr<std::vector<char>> il_binary;
         std::vector<ur_program_metadata_t> metadatas{};
 
-        uur::KernelsEnvironment::instance->LoadSource(ProgramName, il_binary);
+        uur::KernelsEnvironment::instance->LoadSource(ProgramName, platform,
+                                                      il_binary);
 
         const ur_program_properties_t properties = {
             UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
@@ -107,11 +108,13 @@ struct urMultiQueueLaunchKernelDefferFreeTest
 
         urProgramRelease(program);
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMultiQueueMultiDeviceTest::TearDown());
+            uur::urMultiQueueMultiDeviceTest<2>::TearDown());
     }
 };
 
-TEST_F(urMultiQueueLaunchKernelDefferFreeTest, Success) {
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiQueueLaunchKernelDeferFreeTest);
+
+TEST_P(urMultiQueueLaunchKernelDeferFreeTest, Success) {
     auto zeEvent1 = createZeEvent(context, devices[0]);
     auto zeEvent2 = createZeEvent(context, devices[1]);
 
