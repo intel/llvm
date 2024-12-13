@@ -1,7 +1,7 @@
-# commit 4739d4cc30534d80fba4c876bfbafa51d3cad53a
-# Merge: b0d133d5d5e8 44b4ff98ae79
+# commit b7047f6c36ec17b8560c2f1cd9ac9521715a9127
+# Merge: 73e5f3c6ff2d fcddf077c290
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 13 11:30:56 2024 +0000
-#     Merge pull request #2437 from bashbaug/add-opencl-device-queries
-#     add a few missing Intel GPU device queries, fix device ID query
-set(UNIFIED_RUNTIME_TAG 4739d4cc30534d80fba4c876bfbafa51d3cad53a)
+# Date:   Fri Dec 13 14:20:15 2024 +0000
+#     Merge pull request #2454 from Bensuo/l0_cmd-buf_multi-device
+#     Fix L0 command-buffer consumption of multi-device kernels
+set(UNIFIED_RUNTIME_TAG b7047f6c36ec17b8560c2f1cd9ac9521715a9127)
