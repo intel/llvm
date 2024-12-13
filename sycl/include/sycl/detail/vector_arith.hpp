@@ -122,7 +122,8 @@ struct VecOperators {
         // implementation needs to do some extra processing for operators that
         // can result in this scenario.
         //
-        if constexpr (!check_type_in_v<BinOp, std::multiplies<void>,
+        if constexpr (!is_logical &&
+                      !check_type_in_v<BinOp, std::multiplies<void>,
                                        std::divides<void>, std::bit_or<void>,
                                        std::bit_and<void>, std::bit_xor<void>,
                                        ShiftRight, UnaryPlus>) {
