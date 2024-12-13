@@ -39,7 +39,7 @@ namespace fs = std::experimental::filesystem;
 #include <linux/limits.h> // for PATH_MAX
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
-#include <sys/utime.h>
+#include <utime.h>
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
@@ -52,8 +52,10 @@ namespace fs = std::experimental::filesystem;
 #elif defined(__SYCL_RT_OS_DARWIN)
 
 #include <dlfcn.h>
+#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/types.h>
+#include <utime.h>
 
 #endif // __SYCL_RT_OS
 
@@ -353,8 +355,13 @@ void updateFileModificationTime(const std::string &Path) {
 
 #if defined(__SYCL_RT_OS_WINDOWS)
   // For Windows, use SetFileTime to update file access time.
-  HANDLE hFile = CreateFileA(Path.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE,
-                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+  // Open file with FILE_FLAG_WRITE_THROUGH and FILE_FLAG_NO_BUFFERING flags
+  // to ensure that the file time is updated on disk, asap.
+  HANDLE hFile = CreateFileA(
+      Path.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING,
+      NULL);
   if (hFile != INVALID_HANDLE_VALUE) {
     FILETIME ft;
     GetSystemTimeAsFileTime(&ft);

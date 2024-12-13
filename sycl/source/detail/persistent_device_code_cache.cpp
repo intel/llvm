@@ -241,7 +241,22 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
 
   // Get the list of all files in the cache directory along with their last
   // modification time.
-  auto FilesWithAccessTime = getFilesWithLastModificationTime(CacheRoot, true);
+  std::vector<std::pair<uint64_t, std::string>> FilesWithAccessTime;
+
+  // getFileWithLastModificationTime can throw if any new file is created or
+  // removed during the iteration. Retry in that case. When eviction is in
+  // progress,, we don't insert any new item but processes can still read the
+  // cache. Reading from cache can create/remove .lock file which can cause the
+  // exception.
+  while (true) {
+    try {
+      FilesWithAccessTime = getFilesWithLastModificationTime(CacheRoot, false);
+      break;
+    } catch (...) {
+      // If the cache directory is removed during the iteration, retry.
+      continue;
+    }
+  }
 
   // Sort the files in the cache directory based on their last access time.
   std::sort(FilesWithAccessTime.begin(), FilesWithAccessTime.end(),
@@ -266,33 +281,34 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
     const std::string BinFile = FileNameWOExt + ".bin";
     const std::string SrcFile = FileNameWOExt + ".src";
 
-    while (OSUtil::isPathPresent(BinFile) && OSUtil::isPathPresent(SrcFile)) {
-
-      // This is used to prevent race between processes trying to read the file
-      // while it is being evicted.
-      if (LockCacheItem::isLocked(FileNameWOExt + "_reader")) {
-        // If some other process is reading the file, spin and wait.
-        continue;
-      }
-
-      // Take a lock on the file to prevent other processes from reading the
-      // file.
-      LockCacheItem Lock{FileNameWOExt};
-
+    while (OSUtil::isPathPresent(BinFile) || OSUtil::isPathPresent(SrcFile)) {
+      // Remove the file and subtract its size from the cache size.
       auto RemoveFileAndSubtractSize =
           [&CurrCacheSize](const std::string &FileName) {
+            // If the file is not present, return.
+            if (!OSUtil::isPathPresent(FileName))
+              return;
+
             auto FileSize = getFileSize(FileName);
             if (std::remove(FileName.c_str())) {
-              PersistentDeviceCodeCache::trace("Failed to remove file: " +
-                                               FileName);
+              throw sycl::exception(make_error_code(errc::runtime),
+                                    "Failed to evict cache entry: " + FileName);
             } else {
               PersistentDeviceCodeCache::trace("File removed: " + FileName);
               CurrCacheSize -= FileSize;
             }
           };
 
-      RemoveFileAndSubtractSize(SrcFile);
-      RemoveFileAndSubtractSize(BinFile);
+      // If removal fails due to a race, retry.
+      // Races are rare, but can happen if another process is reading the file.
+      // Locking down the entire cache and blocking all readers would be
+      // inefficient.
+      try {
+        RemoveFileAndSubtractSize(SrcFile);
+        RemoveFileAndSubtractSize(BinFile);
+      } catch (...) {
+        continue;
+      }
     }
 
     // If the cache size is less than the threshold, break.
@@ -510,11 +526,6 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     std::string FileName{Path + "/" + std::to_string(i)};
     while (OSUtil::isPathPresent(FileName + ".bin") ||
            OSUtil::isPathPresent(FileName + ".src")) {
-
-      // Create a file, <file_name>_reader.lock, to indicate that the file is
-      // being read. This file is used to prevent another process from evicting
-      // the cache entry while it is being read.
-      LockCacheItem Lock{FileName + "_reader"};
 
       if (!LockCacheItem::isLocked(FileName) &&
           isCacheItemSrcEqual(FileName + ".src", Devices[DeviceIndex],

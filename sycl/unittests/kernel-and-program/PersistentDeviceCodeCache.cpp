@@ -559,14 +559,24 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
 
   std::string BuildOptions{"--eviction"};
   // Put 3 items to the cache.
+  // On Windows, for NTFS, the file timestamp resolution is 100ns,
+  // but on Linux, for EXT4, the file timestamp resolution is few milliseconds.
+  // So, to make this test deterministic, we need to sleep for a while,
+  // say 20ms, between each putItemToDisc/getItemFromDisc call.
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
 
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
   // Retrieve 0.bin from the cache.
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
@@ -616,7 +626,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheFileSize) {
   // Insanely large value (1GB) to not trigger eviction. This test just checks
   // for deadlocks/crashes when updating the size file concurrently.
   SetDiskCacheEvictionEnv("1000000000");
-  ConcurentReadWriteCache(1, 50);
+  ConcurentReadWriteCache(1, 100);
 }
 
 // Unit test for adding and evicting cache, concurrently.
@@ -627,7 +637,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheEviction) {
   ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
 
   SetDiskCacheEvictionEnv("1000");
-  ConcurentReadWriteCache(2, 40);
+  ConcurentReadWriteCache(2, 100);
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
