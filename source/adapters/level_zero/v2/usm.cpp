@@ -236,18 +236,26 @@ ur_result_t urUSMPoolCreate(
 
 ur_result_t
 urUSMPoolRetain(ur_usm_pool_handle_t hPool ///< [in] pointer to USM memory pool
-) {
+                ) try {
   hPool->RefCount.increment();
   return UR_RESULT_SUCCESS;
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t
 urUSMPoolRelease(ur_usm_pool_handle_t hPool ///< [in] pointer to USM memory pool
-) {
+                 ) try {
   if (hPool->RefCount.decrementAndTest()) {
     delete hPool;
   }
   return UR_RESULT_SUCCESS;
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urUSMPoolGetInfo(
@@ -258,7 +266,7 @@ ur_result_t urUSMPoolGetInfo(
                       ///< property
     size_t
         *pPropSizeRet ///< [out] size in bytes returned in pool property value
-) {
+    ) try {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -272,6 +280,10 @@ ur_result_t urUSMPoolGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   }
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urUSMDeviceAlloc(
@@ -284,13 +296,17 @@ ur_result_t urUSMDeviceAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppRetMem ///< [out] pointer to USM device memory object
-) {
+    ) try {
   if (!hPool) {
     hPool = hContext->getDefaultUSMPool();
   }
 
   return hPool->allocate(hContext, hDevice, pUSMDesc, UR_USM_TYPE_DEVICE, size,
                          ppRetMem);
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urUSMSharedAlloc(
@@ -303,13 +319,17 @@ ur_result_t urUSMSharedAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppRetMem ///< [out] pointer to USM shared memory object
-) {
+    ) try {
   if (!hPool) {
     hPool = hContext->getDefaultUSMPool();
   }
 
   return hPool->allocate(hContext, hDevice, pUSMDesc, UR_USM_TYPE_SHARED, size,
                          ppRetMem);
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urUSMHostAlloc(
@@ -321,21 +341,29 @@ ur_result_t urUSMHostAlloc(
     size_t
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppRetMem ///< [out] pointer to USM host memory object
-) {
+    ) try {
   if (!hPool) {
     hPool = hContext->getDefaultUSMPool();
   }
 
   return hPool->allocate(hContext, nullptr, pUSMDesc, UR_USM_TYPE_HOST, size,
                          ppRetMem);
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t
 urUSMFree(ur_context_handle_t hContext, ///< [in] handle of the context object
           void *pMem                    ///< [in] pointer to USM memory object
-) {
+          ) try {
   std::ignore = hContext;
   return umf::umf2urResult(umfFree(pMem));
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urUSMGetMemAllocInfo(
@@ -348,7 +376,7 @@ ur_result_t urUSMGetMemAllocInfo(
     void *pPropValue, ///< [out][optional] value of the USM allocation property
     size_t *pPropValueSizeRet ///< [out][optional] bytes returned in USM
                               ///< allocation property
-) {
+    ) try {
   ze_device_handle_t zeDeviceHandle;
   ZeStruct<ze_memory_allocation_properties_t> zeMemoryAllocationProperties;
 
@@ -412,5 +440,9 @@ ur_result_t urUSMGetMemAllocInfo(
   }
   }
   return UR_RESULT_SUCCESS;
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 } // namespace ur::level_zero
