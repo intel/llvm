@@ -82,7 +82,7 @@ struct VecOperators {
     } else {
       using vector_t = typename Self::vector_t;
       auto res = [&](auto x, auto y) {
-        // Workaround for https://godbolt.org/z/P6daoG6jW.
+        // Workaround for https://github.com/llvm/llvm-project/issues/119617.
         if constexpr (std::is_same_v<BinOp, std::equal_to<void>>)
           return x == y;
         else if constexpr (std::is_same_v<BinOp, std::not_equal_to<void>>)
