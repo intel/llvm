@@ -3221,6 +3221,10 @@ private:
   void *MDstPtr = nullptr;
   /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// USM prefetch direction.
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
+#endif
   /// Pattern that is used to fill memory object in case command type is fill.
   std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
@@ -3505,8 +3509,22 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
-  // Implementation of USM prefetch, fetching from device back to host.
+// Enqueue function extension's implementation USM prefetch, enabling USM
+// prefetch from both host to device, and device to host.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // With breaking changes enabled, the handler/CG Nodes have their fields
+  // modified. This function updates that field in the CG Node.
+  void ext_oneapi_prefetch_exp(const void *Ptr, size_t Count,
+                               ext::oneapi::experimental::prefetch_type Type);
+  // This is a separate function to keep the current handler.prefetch function
+  // the same.
+#else
+  // Without breaking changes, the handler/CG Nodes fields cannot be modified,
+  // meaning 1 CG node type cannot indicate both prefetch directions. Thus, the
+  // default handler.prefetch indicates host to device, and this function serves
+  // as device to host.
   void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
+#endif
   // Friend prefetch from the enqueue functions extension to allow call to
   // private function ext_oneapi_prefetch_d2h
   friend void sycl::ext::oneapi::experimental::prefetch(

@@ -352,11 +352,15 @@ void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
 
 inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
                      prefetch_type type = prefetch_type::device) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  CGH.ext_oneapi_prefetch_exp(Ptr, NumBytes, type);
+#else
   if (type == prefetch_type::device) {
     CGH.prefetch(Ptr, NumBytes);
   } else {
     CGH.ext_oneapi_prefetch_d2h(Ptr, NumBytes);
   }
+#endif
 }
 
 inline void prefetch(queue Q, void *Ptr, size_t NumBytes,

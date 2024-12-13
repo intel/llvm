@@ -3260,10 +3260,24 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
-  // TODO Either remove "PrefetchUSMExpD2H" on next ABI breaking window,
-  // Or rename PrefetchUSM to "PrefetchUSMH2D"
+  // TODO Either remove non __INTEL_PREVIEW_BREAKING_CHANGES implementation upon
+  // next ABI breaking window, or rename PrefetchUSM to "PrefetchUSMH2D"
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  case CGType::PrefetchUSMExp: {
+    CGPrefetchUSMExp *Prefetch = (CGPrefetchUSMExp*) MCommandGroup.get();
+    if (auto Result = callMemOpHelper(
+            MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
+            Prefetch->getLength(), std::move(RawEvents), Event, MEvent,
+            Prefetch->getPrefetchType);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+    return UR_RESULT_SUCCESS;
+  }
+#else
   case CGType::PrefetchUSMExpD2H: {
-    CGPrefetchUSMExpD2H *Prefetch = (CGPrefetchUSMExpD2H *)MCommandGroup.get();
+    CGPrefetchUSMExpD2H *Prefetch = (CGPrefetchUSMExpD2H*) MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
             Prefetch->getLength(), std::move(RawEvents), Event, MEvent,
@@ -3274,6 +3288,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
+#endif
   case CGType::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     if (auto Result =

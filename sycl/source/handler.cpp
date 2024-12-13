@@ -382,10 +382,17 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGPrefetchUSM(
         MDstPtr, MLength, std::move(impl->CGData), MCodeLoc));
     break;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  case detail::CGType::PrefetchUSMExp:
+    CommandGroup.reset(new detail::CGPrefetchUSMExp(
+        MDstPtr, MLength, std::move(impl->CGData), MPrefetchType, MCodeLoc));
+    break;
+#else
   case detail::CGType::PrefetchUSMExpD2H:
     CommandGroup.reset(new detail::CGPrefetchUSMExpD2H(
         MDstPtr, MLength, std::move(impl->CGData), MCodeLoc));
     break;
+#endif
   case detail::CGType::AdviseUSM:
     CommandGroup.reset(new detail::CGAdviseUSM(MDstPtr, MLength, impl->MAdvice,
                                                std::move(impl->CGData),
@@ -977,12 +984,24 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   setType(detail::CGType::PrefetchUSM);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::ext_oneapi_prefetch_exp(const void *Ptr, size_t Count,
+                                ext::oneapi::experimental::prefetch_type Type) {
+
+  throwIfActionIsCreated();
+  MDstPtr = const_cast<void *>(Ptr);
+  MLength = Count;
+  MPrefetchType = Type;
+  setType(detail::CGType::PrefetchUSMExp);
+}
+#else
 void handler::ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
   setType(detail::CGType::PrefetchUSMExpD2H);
 }
+#endif
 
 void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();

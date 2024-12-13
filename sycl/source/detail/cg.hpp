@@ -17,6 +17,9 @@
 #include <sycl/exception_list.hpp>  // for queue_impl
 #include <sycl/kernel.hpp>          // for kernel_impl
 #include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetch_type
+#endif
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
@@ -405,7 +408,26 @@ public:
   size_t getLength() { return MLength; }
 };
 
-/// "Prefetch USM" command group class.
+/// Command group class for experimental USM prefetch provided in the enqueue
+/// functions extension.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+class CGPrefetchUSMExp : public CG {
+  void *MDst;
+  size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
+public:
+  CGPrefetchUSMExp(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                      ext::oneapi::experimental::prefetch_type Type,
+                      detail::code_location loc = {})
+      : CG(CGType::PrefetchUSMExp, std::move(CGData), std::move(loc)),
+        MDst(DstPtr), MLength(Length), MPrefetchType(Type) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() {
+    return MPrefetchType
+  }
+};
+#else
 class CGPrefetchUSMExpD2H : public CG {
   void *MDst;
   size_t MLength;
@@ -418,6 +440,7 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
 };
+#endif
 
 /// "Advise USM" command group class.
 class CGAdviseUSM : public CG {
