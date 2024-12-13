@@ -813,12 +813,13 @@ ur_result_t urKernelGetGroupInfo(
                                       (ZeKernelDevice, &kernelProperties));
       if (ZeResult || workGroupProperties.maxGroupSize == 0) {
         return ReturnValue(
-            uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
+            size_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
       }
-      return ReturnValue(workGroupProperties.maxGroupSize);
+      // Specification states this returns a size_t.
+      return ReturnValue(size_t{workGroupProperties.maxGroupSize});
     } else {
       return ReturnValue(
-          uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
+          size_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
     }
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
