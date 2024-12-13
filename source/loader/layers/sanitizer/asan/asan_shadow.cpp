@@ -108,11 +108,15 @@ ur_result_t ShadowMemoryGPU::Setup() {
         // TODO: Protect Bad Zone
         auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
             Context, nullptr, ShadowSize, (void **)&ShadowBegin);
-        if (Result == UR_RESULT_SUCCESS) {
-            ShadowEnd = ShadowBegin + ShadowSize;
-            // Retain the context which reserves shadow memory
-            getContext()->urDdiTable.Context.pfnRetain(Context);
+        if (Result != UR_RESULT_SUCCESS) {
+            getContext()->logger.error(
+                "Shadow memory reserved failed with size {}: {}",
+                (void *)ShadowSize, Result);
+            return Result;
         }
+        ShadowEnd = ShadowBegin + ShadowSize;
+        // Retain the context which reserves shadow memory
+        getContext()->urDdiTable.Context.pfnRetain(Context);
 
         // Set shadow memory for null pointer
         // For GPU, wu use up to 1 page of shadow memory
@@ -137,6 +141,24 @@ ur_result_t ShadowMemoryGPU::Destory() {
             Context, (void *)PrivateShadowOffset));
         PrivateShadowOffset = 0;
     }
+
+    static ur_result_t Result = [this]() {
+        const size_t PageSize = GetVirtualMemGranularity(Context, Device);
+        for (auto [MappedPtr, PhysicalMem] : VirtualMemMaps) {
+            UR_CALL(getContext()->urDdiTable.VirtualMem.pfnUnmap(
+                Context, (void *)MappedPtr, PageSize));
+            UR_CALL(
+                getContext()->urDdiTable.PhysicalMem.pfnRelease(PhysicalMem));
+        }
+        UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
+            Context, (const void *)ShadowBegin, GetShadowSize()));
+        UR_CALL(getContext()->urDdiTable.Context.pfnRelease(Context));
+        return UR_RESULT_SUCCESS;
+    }();
+    if (!Result) {
+        return Result;
+    }
+
     if (LocalShadowOffset != 0) {
         UR_CALL(getContext()->urDdiTable.USM.pfnFree(
             Context, (void *)LocalShadowOffset));
@@ -205,19 +227,8 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
                     return URes;
                 }
 
-                VirtualMemMaps[MappedPtr].first = PhysicalMem;
+                VirtualMemMaps[MappedPtr] = PhysicalMem;
             }
-
-            // We don't need to record virtual memory map for null pointer,
-            // since it doesn't have an alloc info.
-            if (Ptr == 0) {
-                continue;
-            }
-
-            auto AllocInfoIt =
-                getAsanInterceptor()->findAllocInfoByAddress(Ptr);
-            assert(AllocInfoIt);
-            VirtualMemMaps[MappedPtr].second.insert((*AllocInfoIt)->second);
         }
     }
 
@@ -230,35 +241,6 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
     if (URes != UR_RESULT_SUCCESS) {
         getContext()->logger.error("EnqueueUSMBlockingSet(): {}", URes);
         return URes;
-    }
-
-    return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ShadowMemoryGPU::ReleaseShadow(std::shared_ptr<AllocInfo> AI) {
-    uptr ShadowBegin = MemToShadow(AI->AllocBegin);
-    uptr ShadowEnd = MemToShadow(AI->AllocBegin + AI->AllocSize);
-    assert(ShadowBegin <= ShadowEnd);
-
-    static const size_t PageSize = GetVirtualMemGranularity(Context, Device);
-
-    for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
-         MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
-        std::scoped_lock<ur_mutex> Guard(VirtualMemMapsMutex);
-        if (VirtualMemMaps.find(MappedPtr) == VirtualMemMaps.end()) {
-            continue;
-        }
-        VirtualMemMaps[MappedPtr].second.erase(AI);
-        if (VirtualMemMaps[MappedPtr].second.empty()) {
-            UR_CALL(getContext()->urDdiTable.VirtualMem.pfnUnmap(
-                Context, (void *)MappedPtr, PageSize));
-            UR_CALL(getContext()->urDdiTable.PhysicalMem.pfnRelease(
-                VirtualMemMaps[MappedPtr].first));
-            getContext()->logger.debug("urVirtualMemUnmap: {} ~ {}",
-                                       (void *)MappedPtr,
-                                       (void *)(MappedPtr + PageSize - 1));
-            VirtualMemMaps.erase(MappedPtr);
-        }
     }
 
     return UR_RESULT_SUCCESS;

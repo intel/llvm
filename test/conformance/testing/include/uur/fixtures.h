@@ -95,6 +95,7 @@ struct urDeviceTest : urPlatformTest,
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         device = GetParam();
+        EXPECT_SUCCESS(urDeviceRetain(device));
     }
 
     void TearDown() override {

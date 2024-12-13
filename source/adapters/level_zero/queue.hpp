@@ -492,15 +492,12 @@ struct ur_queue_handle_t_ : _ur_object {
   // End-times enqueued are stored on the queue rather than on the event to
   // avoid the event objects having been destroyed prior to the write to the
   // end-time member.
-  struct end_time_recording {
-    // RecordEventEndTimestamp is not adjusted for valid bits nor resolution, as
-    // it is written asynchronously.
-    uint64_t RecordEventEndTimestamp = 0;
-    // The event may die before the recording has been written back. In this
-    // case the event will mark this for deletion when the queue sees fit.
-    bool EventHasDied = false;
-  };
-  std::map<ur_event_handle_t, end_time_recording> EndTimeRecordings;
+  // RecordEventEndTimestamp is not adjusted for valid bits nor resolution, as
+  // it is written asynchronously.
+  std::map<ur_event_handle_t, uint64_t> EndTimeRecordings;
+  // The event may die before the recording has been written back. In this case
+  // we move it to a separate map to avoid conflicts.
+  std::multimap<ur_event_handle_t, uint64_t> EvictedEndTimeRecordings;
 
   // Clear the end time recording timestamps entries.
   void clearEndTimeRecordings();

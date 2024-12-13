@@ -183,6 +183,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # should this be configurable?
     history.load(1000)
 
+    # remove duplicates. this can happen if e.g., --compare baseline is specified manually.
+    compare_names = list(dict.fromkeys(compare_names))
+
     for name in compare_names:
         compare_result = history.get_compare(name)
         if compare_result:
@@ -203,7 +206,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
         history.save(saved_name, results, save_name is not None)
-        compare_names.append(saved_name)
+        if saved_name not in compare_names:
+            compare_names.append(saved_name)
 
     if options.output_html:
         html_content = generate_html(history.runs, 'oneapi-src/unified-runtime', compare_names)

@@ -1186,16 +1186,9 @@ ur_queue_handle_t_::ur_queue_handle_t_(
       ZeCommandListBatchComputeConfig.startSize();
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
-  static const bool useDriverCounterBasedEvents = [] {
-    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
-    if (!UrRet) {
-      return true;
-    }
-    return std::atoi(UrRet) != 0;
-  }();
   this->CounterBasedEventsEnabled =
       UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
-      useDriverCounterBasedEvents &&
+      Device->useDriverCounterBasedEvents() &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
   this->InterruptBasedEventsEnabled =
       isLowPowerEvents() && isInOrderQueue() && Device->useDriverInOrderLists();
@@ -1566,24 +1559,23 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
   for (auto Entry : EndTimeRecordings) {
     auto &Event = Entry.first;
     auto &EndTimeRecording = Entry.second;
-    if (!Entry.second.EventHasDied) {
-      // Write the result back to the event if it is not dead.
-      uint64_t ContextEndTime =
-          (EndTimeRecording.RecordEventEndTimestamp & TimestampMaxValue) *
-          ZeTimerResolution;
 
-      // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
-      // Note, it will not report correct time if there were multiple wrap
-      // arounds, and the longer term plan is to enlarge the capacity of the
-      // HW timestamps.
-      if (ContextEndTime < Event->RecordEventStartTimestamp)
-        ContextEndTime += TimestampMaxValue * ZeTimerResolution;
+    // Write the result back to the event if it is not dead.
+    uint64_t ContextEndTime =
+        (EndTimeRecording & TimestampMaxValue) * ZeTimerResolution;
 
-      // Store it in the event.
-      Event->RecordEventEndTimestamp = ContextEndTime;
-    }
+    // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
+    // Note, it will not report correct time if there were multiple wrap
+    // arounds, and the longer term plan is to enlarge the capacity of the
+    // HW timestamps.
+    if (ContextEndTime < Event->RecordEventStartTimestamp)
+      ContextEndTime += TimestampMaxValue * ZeTimerResolution;
+
+    // Store it in the event.
+    Event->RecordEventEndTimestamp = ContextEndTime;
   }
   EndTimeRecordings.clear();
+  EvictedEndTimeRecordings.clear();
 }
 
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
@@ -2398,7 +2390,11 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
   uint32_t QueueIndex, QueueOrdinal;
   auto Index = getQueueIndex(&QueueOrdinal, &QueueIndex);
 
-  if (ImmCmdLists[Index] != Queue->CommandListMap.end())
+  if ((ImmCmdLists[Index] != Queue->CommandListMap.end()) &&
+      (!Queue->CounterBasedEventsEnabled ||
+       (Queue->CounterBasedEventsEnabled &&
+        (ImmCmdLists[Index]->second.ZeQueueDesc.flags &
+         ZE_COMMAND_QUEUE_FLAG_IN_ORDER))))
     return ImmCmdLists[Index];
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
