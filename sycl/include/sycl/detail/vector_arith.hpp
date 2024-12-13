@@ -287,7 +287,6 @@ protected:
 #undef __SYCL_RELLOGOP
 #undef RELLOGOP_BASE
 
-  // clang-format off
   // Binary operations on sycl::vec<> for all types except std::byte.
   __SYCL_BINOP(+, +=, true, std::plus<void>)
   __SYCL_BINOP(-, -=, true, std::minus<void>)
@@ -303,7 +302,6 @@ protected:
   __SYCL_BINOP(^, ^=, (!detail::is_vgenfloat_v<DataT>), std::bit_xor<void>)
   __SYCL_BINOP(>>, >>=, (!detail::is_vgenfloat_v<DataT>), ShiftRight)
   __SYCL_BINOP(<<, <<=, (!detail::is_vgenfloat_v<DataT>), ShiftLeft)
-  // clang-format on
 
   // friends
   template <typename T1, int T2> friend class __SYCL_EBO vec;
