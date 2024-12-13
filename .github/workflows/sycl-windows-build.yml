@@ -10,6 +10,9 @@ on:
       build_ref:
         type: string
         required: false
+      build_configure_extra_args:
+        type: string
+        required: false
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -22,6 +25,10 @@ on:
         description: 'Artifacts retention period'
         type: string
         default: 3
+      compiler:
+        type: string
+        required: false
+        default: "cl"
 
     outputs:
       build_conclusion:
@@ -41,6 +48,9 @@ on:
         type: choice
         options:
           - "default"
+      build_configure_extra_args:
+        type: string
+        required: false
       artifact_archive_name:
         type: choice
         options:
@@ -50,6 +60,12 @@ on:
         type: choice
         options:
           - 3
+      compiler:
+        type: choice
+        options:
+          - cl
+          - icx
+          
 permissions: read-all
 
 jobs:
@@ -61,24 +77,30 @@ jobs:
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
     steps:
-    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
-      with:
-        arch: amd64
-    - name: Set env
-      run: |
-        git config --system core.longpaths true
-        git config --global core.autocrlf false
-        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - uses: actions/checkout@v4
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
         fetch-depth: 1
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      with:
+        arch: amd64
+    - name: Setup oneAPI env
+      uses: ./src/devops/actions/setup_windows_oneapi_env
+      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+    - name: Set env
+      run: |
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "CCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
     - name: Configure
       shell: cmd
+      env:
+         ARGS: ${{ inputs.build_configure_extra_args }}
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       run: |
         mkdir build
@@ -86,12 +108,12 @@ jobs:
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-defaults ^
-          --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
+          --ci-defaults %ARGS% ^
+          --cmake-opt="-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
-          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache" ^
+          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=ccache" ^
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" ^
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
     - name: Build
@@ -101,7 +123,11 @@ jobs:
         cmake --build build --target sycl-toolchain
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+      shell: bash
       run: |
+        if [[ ${{inputs.compiler}} == 'icx' ]]; then
+          export LIT_FILTER="SYCL"
+        fi
         cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
@@ -109,8 +135,12 @@ jobs:
         cmake --build build --target check-clang
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      shell: bash
       run: |
-        cmake --build build --target check-sycl
+         if [[ ${{inputs.compiler}} == 'icx' ]]; then
+           export LIT_FILTER_OUT="host_tanpi_double_accuracy"
+         fi
+         cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
