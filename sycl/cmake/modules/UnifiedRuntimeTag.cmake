@@ -1,7 +1,7 @@
-# commit 06f48f674445532d8c04be431474901b82c3c449
-# Merge: 098deca1f9f3 1b373f83c71e
+# commit 6d4eec8cdcfe8a5d359ed05092797c429c2ca878
+# Merge: 40d28e7bd84a 800b452d67c5
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 12 11:04:15 2024 +0000
-#     Merge pull request #2356 from npmiller/hip-images
-#     [HIP] Disable SYCL images by default
-set(UNIFIED_RUNTIME_TAG 06f48f674445532d8c04be431474901b82c3c449)
+# Date:   Thu Dec 12 16:00:13 2024 +0000
+#     Merge pull request #2272 from martygrant/martin/virtual-memory-cts-spec-gap
+#     Improvements to align CTS and Spec for Virtual Memory
+set(UNIFIED_RUNTIME_TAG 6d4eec8cdcfe8a5d359ed05092797c429c2ca878)
