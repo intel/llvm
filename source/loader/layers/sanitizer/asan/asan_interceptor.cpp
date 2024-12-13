@@ -836,8 +836,9 @@ ur_result_t AsanInterceptor::prepareLaunch(
 
     getContext()->logger.info(
         "LaunchInfo {} (device={}, debug={}, numLocalArgs={}, localArgs={})",
-        (void *)LaunchInfo.Data.getDevicePtr(), LaunchInfo.Data.Host.DeviceTy,
-        LaunchInfo.Data.Host.Debug, LaunchInfo.Data.Host.NumLocalArgs,
+        (void *)LaunchInfo.Data.getDevicePtr(),
+        ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug,
+        LaunchInfo.Data.Host.NumLocalArgs,
         (void *)LaunchInfo.Data.Host.LocalArgs);
 
     return UR_RESULT_SUCCESS;
