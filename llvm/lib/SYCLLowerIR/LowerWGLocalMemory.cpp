@@ -96,17 +96,18 @@ static bool inlineGroupLocalMemoryFunc(Module &M) {
   if (!ALMFunc || ALMFunc->use_empty())
     return false;
 
+  bool Changed = false;
   for (auto *U : ALMFunc->users()) {
     auto *Caller = cast<CallInst>(U)->getFunction();
     if (!Caller->hasFnAttribute(Attribute::AlwaysInline)) {
       // Already inlined.
-      return false;
+      continue;
     }
     std::string FName = llvm::demangle(Caller->getName());
     if (FName.find("sycl::_V1::ext::oneapi::group_local_memory") ==
         std::string::npos) {
       // Already inlined.
-      return false;
+      continue;
     }
     for (auto *U2 : make_early_inc_range(Caller->users())) {
       auto *CI = cast<CallInst>(U2);
@@ -115,9 +116,10 @@ static bool inlineGroupLocalMemoryFunc(Module &M) {
       assert(Result.isSuccess() && "inlining failed");
     }
     Caller->eraseFromParent();
+    Changed = true;
   }
 
-  return true;
+  return Changed;
 }
 
 // TODO: It should be checked that __sycl_allocateLocalMemory (or its source
