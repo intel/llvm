@@ -117,8 +117,14 @@ struct VecOperators {
                                          std::divides<void>, std::bit_or<void>,
                                          std::bit_and<void>, std::bit_xor<void>,
                                          ShiftRight>) {
-            for (size_t i = 0; i < N; ++i)
-              res[i] = bit_cast<int8_t>(res[i]) != 0;
+            if constexpr (N == 1) {
+              // vector_t for one-element vector is just scalar with normal C++
+              // semantics, need to align it with vector behavior:
+              return result_t{(typename result_t::vector_t)res * -1};
+            } else {
+              for (size_t i = 0; i < N; ++i)
+                res[i] = bit_cast<int8_t>(res[i]) != 0;
+            }
           }
         }
         return result_t{(typename result_t::vector_t)res};
@@ -163,8 +169,14 @@ struct VecOperators {
           // Some operations are known to produce only 0/1 for valid bool inputs
           // though, no reason to do extra processing for them:
           if constexpr (!check_type_in_v<UnaryOp, UnaryPlus>) {
-            for (size_t i = 0; i < N; ++i)
-              res[i] = bit_cast<int8_t>(res[i]) != 0;
+            if constexpr (N == 1) {
+              // vector_t for one-element vector is just scalar with normal C++
+              // semantics, need to align it with vector behavior:
+              return result_t{(typename result_t::vector_t)res * -1};
+            } else {
+              for (size_t i = 0; i < N; ++i)
+                res[i] = bit_cast<int8_t>(res[i]) != 0;
+            }
           }
         }
         return result_t{(typename result_t::vector_t)res};
