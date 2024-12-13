@@ -126,6 +126,10 @@ struct VecOperators {
                                        std::divides<void>, std::bit_or<void>,
                                        std::bit_and<void>, std::bit_xor<void>,
                                        ShiftRight, UnaryPlus>) {
+          // TODO: Not sure why the following doesn't work
+          // (test-e2e/Basic/vector/bool.cpp fails).
+          //
+          // res = (decltype(res))(res != 0);
           for (size_t i = 0; i < N; ++i)
             res[i] = bit_cast<int8_t>(res[i]) != 0;
         }
