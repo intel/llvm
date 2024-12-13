@@ -1431,7 +1431,7 @@ bool usesSpvExtImageRaw10Raw12Constants(const CallInst *CI) {
   // common use patterns here.
   for (auto *U : CI->users()) {
     for (auto C : ExtConstants) {
-      ICmpInst::Predicate Pred;
+      CmpPredicate Pred;
       if (match(U, m_c_ICmp(Pred, m_Value(), m_SpecificInt(C)))) {
         return true;
       }

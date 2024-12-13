@@ -1817,7 +1817,7 @@ bool SCEVExpander::hasRelatedExistingExpansion(const SCEV *S,
 
   // Look for suitable value in simple conditions at the loop exits.
   for (BasicBlock *BB : ExitingBlocks) {
-    ICmpInst::Predicate Pred;
+    CmpPredicate Pred;
     Instruction *LHS, *RHS;
 
     if (!match(BB->getTerminator(),

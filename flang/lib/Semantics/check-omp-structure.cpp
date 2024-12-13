@@ -1690,6 +1690,15 @@ void OmpStructureChecker::Leave(const parser::OpenMPDeclareTargetConstruct &x) {
   dirContext_.pop_back();
 }
 
+void OmpStructureChecker::Enter(const parser::OpenMPErrorConstruct &x) {
+  const auto &dir{std::get<parser::Verbatim>(x.t)};
+  PushContextAndClauseSets(dir.source, llvm::omp::Directive::OMPD_error);
+}
+
+void OmpStructureChecker::Leave(const parser::OpenMPErrorConstruct &x) {
+  dirContext_.pop_back();
+}
+
 void OmpStructureChecker::Enter(const parser::OpenMPExecutableAllocate &x) {
   isPredefinedAllocator = true;
   const auto &dir{std::get<parser::Verbatim>(x.t)};
@@ -2867,7 +2876,6 @@ CHECK_SIMPLE_CLAUSE(Align, OMPC_align)
 CHECK_SIMPLE_CLAUSE(Compare, OMPC_compare)
 CHECK_SIMPLE_CLAUSE(CancellationConstructType, OMPC_cancellation_construct_type)
 CHECK_SIMPLE_CLAUSE(OmpxAttribute, OMPC_ompx_attribute)
-CHECK_SIMPLE_CLAUSE(OmpxBare, OMPC_ompx_bare)
 CHECK_SIMPLE_CLAUSE(Weak, OMPC_weak)
 
 CHECK_REQ_SCALAR_INT_CLAUSE(NumTeams, OMPC_num_teams)
@@ -4392,6 +4400,17 @@ void OmpStructureChecker::Enter(const parser::OmpClause::To &x) {
     for (const parser::OmpObject &object : objList.v) {
       CheckIfContiguous(object);
     }
+  }
+}
+
+void OmpStructureChecker::Enter(const parser::OmpClause::OmpxBare &x) {
+  // Don't call CheckAllowedClause, because it allows "ompx_bare" on
+  // a non-combined "target" directive (for reasons of splitting combined
+  // directives). In source code it's only allowed on "target teams".
+  if (GetContext().directive != llvm::omp::Directive::OMPD_target_teams) {
+    context_.Say(GetContext().clauseSource,
+        "%s clause is only allowed on combined TARGET TEAMS"_err_en_US,
+        parser::ToUpperCaseLetters(getClauseName(llvm::omp::OMPC_ompx_bare)));
   }
 }
 
