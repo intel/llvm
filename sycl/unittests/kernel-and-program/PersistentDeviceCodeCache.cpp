@@ -623,8 +623,8 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheFileSize) {
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
   ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
 
-  // Insanely large value (1GB) to not trigger eviction. This test just checks
-  // for deadlocks/crashes when updating the size file concurrently.
+  // Insanely large value (1GB) to not trigger eviction. This test just
+  // checks for deadlocks/crashes when updating the size file concurrently.
   SetDiskCacheEvictionEnv("1000000000");
   ConcurentReadWriteCache(1, 100);
 }

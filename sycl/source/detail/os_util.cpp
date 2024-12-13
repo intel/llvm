@@ -39,7 +39,6 @@ namespace fs = std::experimental::filesystem;
 #include <linux/limits.h> // for PATH_MAX
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
-#include <utime.h>
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
@@ -55,7 +54,6 @@ namespace fs = std::experimental::filesystem;
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/types.h>
-#include <utime.h>
 
 #endif // __SYCL_RT_OS
 
@@ -330,7 +328,7 @@ getFilesWithLastModificationTime(const std::string &Path,
 #if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
       struct stat StatBuf;
       if (stat(FileName.c_str(), &StatBuf) == 0)
-        Files.push_back({StatBuf.st_mtime, FileName});
+        Files.push_back({StatBuf.st_atim.tv_nsec, FileName});
 #elif defined(__SYCL_RT_OS_WINDOWS)
       // Use GetFileAttributeExA to get file modification time.
       WIN32_FILE_ATTRIBUTE_DATA FileAttr;
@@ -384,11 +382,8 @@ void updateFileModificationTime(const std::string &Path) {
   }
 
 #elif defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
-  // For Linux and Darwin, use utime to update file modification time.
-  struct utimbuf UtimeBuf;
-  UtimeBuf.actime = UtimeBuf.actime;
-  UtimeBuf.modtime = time(nullptr);
-  utime(Path.c_str(), &UtimeBuf);
+  // For Linux and Darwin, use utimensat to update file modification time.
+  utimensat(0, Path.c_str(), nullptr, 0);
 #endif // __SYCL_RT_OS
 }
 

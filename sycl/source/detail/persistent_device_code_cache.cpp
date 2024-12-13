@@ -282,32 +282,37 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
     const std::string SrcFile = FileNameWOExt + ".src";
 
     while (OSUtil::isPathPresent(BinFile) || OSUtil::isPathPresent(SrcFile)) {
-      // Remove the file and subtract its size from the cache size.
-      auto RemoveFileAndSubtractSize =
-          [&CurrCacheSize](const std::string &FileName) {
-            // If the file is not present, return.
-            if (!OSUtil::isPathPresent(FileName))
-              return;
 
-            auto FileSize = getFileSize(FileName);
-            if (std::remove(FileName.c_str())) {
-              throw sycl::exception(make_error_code(errc::runtime),
-                                    "Failed to evict cache entry: " + FileName);
-            } else {
-              PersistentDeviceCodeCache::trace("File removed: " + FileName);
-              CurrCacheSize -= FileSize;
-            }
-          };
+      // Lock to prevent race between writer and eviction thread.
+      LockCacheItem Lock{FileNameWOExt};
+      if (Lock.isOwned()) {
+        // Remove the file and subtract its size from the cache size.
+        auto RemoveFileAndSubtractSize = [&CurrCacheSize](
+                                             const std::string &FileName) {
+          // If the file is not present, return.
+          if (!OSUtil::isPathPresent(FileName))
+            return;
 
-      // If removal fails due to a race, retry.
-      // Races are rare, but can happen if another process is reading the file.
-      // Locking down the entire cache and blocking all readers would be
-      // inefficient.
-      try {
-        RemoveFileAndSubtractSize(SrcFile);
-        RemoveFileAndSubtractSize(BinFile);
-      } catch (...) {
-        continue;
+          auto FileSize = getFileSize(FileName);
+          if (std::remove(FileName.c_str())) {
+            throw sycl::exception(make_error_code(errc::runtime),
+                                  "Failed to evict cache entry: " + FileName);
+          } else {
+            PersistentDeviceCodeCache::trace("File removed: " + FileName);
+            CurrCacheSize -= FileSize;
+          }
+        };
+
+        // If removal fails due to a race, retry.
+        // Races are rare, but can happen if another process is reading the
+        // file. Locking down the entire cache and blocking all readers would be
+        // inefficient.
+        try {
+          RemoveFileAndSubtractSize(SrcFile);
+          RemoveFileAndSubtractSize(BinFile);
+        } catch (...) {
+          continue;
+        }
       }
     }
 
@@ -426,7 +431,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
       return;
 
     std::string FileName;
-    bool IsWriteSuccess = false;
     try {
       OSUtil::makeDir(DirName.c_str());
       FileName = getUniqueFilename(DirName);
@@ -437,7 +441,10 @@ void PersistentDeviceCodeCache::putItemToDisc(
         trace("device binary has been cached: " + FullFileName);
         writeSourceItem(FileName + ".src", Devices[DeviceIndex], SortedImgs,
                         SpecConsts, BuildOptionsString);
-        IsWriteSuccess = true;
+
+        // Update Total cache size after adding the new items.
+        TotalSize += getFileSize(FileName + ".src");
+        TotalSize += getFileSize(FileName + ".bin");
       } else {
         PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
       }
@@ -449,11 +456,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
       PersistentDeviceCodeCache::trace(
           std::string("error outputting persistent cache: ") +
           std::strerror(errno));
-    }
-
-    if (IsWriteSuccess) {
-      TotalSize += getFileSize(FileName + ".src");
-      TotalSize += getFileSize(FileName + ".bin");
     }
   }
 
