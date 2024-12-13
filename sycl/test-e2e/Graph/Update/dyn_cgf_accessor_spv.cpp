@@ -44,6 +44,13 @@ int main(int, char **argv) {
   auto AccA = BufA.get_access();
   auto AccB = BufB.get_access();
 
+  // Zero initialize buffers
+  std::vector<int> HostDataA(Size, 0);
+  std::vector<int> HostDataB(Size, 0);
+  Queue.copy(HostDataA.data(), AccA);
+  Queue.copy(HostDataB.data(), AccB);
+  Queue.wait();
+
   auto CGFA = [&](handler &CGH) {
     CGH.require(AccA);
     CGH.set_arg(0, AccA);
@@ -64,8 +71,6 @@ int main(int, char **argv) {
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  std::vector<int> HostDataA(Size, 0);
-  std::vector<int> HostDataB(Size, 0);
   Queue.copy(BufA.get_access(), HostDataA.data()).wait();
   Queue.copy(BufB.get_access(), HostDataB.data()).wait();
   for (size_t i = 0; i < Size; i++) {
