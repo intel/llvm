@@ -10,6 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 import matplotlib.dates as mdates
 from benches.result import BenchmarkRun, Result
+import numpy as np
 
 @dataclass
 class BenchmarkMetadata:
@@ -23,11 +24,14 @@ class BenchmarkSeries:
     runs: list[BenchmarkRun]
 
 @dataclass
-class BenchmarkTimeSeries:
+class BenchmarkChart:
     label: str
     html: str
 
-def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str) -> list[BenchmarkTimeSeries]:
+def tooltip_css() -> str:
+    return '.mpld3-tooltip{background:white;padding:8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;white-space:pre;}'
+
+def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str) -> list[BenchmarkChart]:
     plt.close('all')
 
     num_benchmarks = len(benchmarks)
@@ -66,7 +70,7 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
                       for point in sorted_points]
 
             tooltip = mpld3.plugins.PointHTMLTooltip(scatter, tooltip_labels,
-                css='.mpld3-tooltip{background:white;padding:8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;white-space:pre;}',
+                css=tooltip_css(),
                 targets=targets)
             mpld3.plugins.connect(fig, tooltip)
 
@@ -94,7 +98,113 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter('%Y-%m-%d %H:%M:%S'))
 
         plt.tight_layout()
-        html_charts.append(BenchmarkTimeSeries(html=mpld3.fig_to_html(fig), label=benchmark.label))
+        html_charts.append(BenchmarkChart(html=mpld3.fig_to_html(fig), label=benchmark.label))
+        plt.close(fig)
+
+    return html_charts
+
+@dataclass
+class ExplicitGroup:
+    name: str
+    nnames: int
+    metadata: BenchmarkMetadata
+    runs: dict[str, dict[str, Result]]
+
+def create_explicit_groups(benchmark_runs: list[BenchmarkRun], compare_names: list[str]) -> list[ExplicitGroup]:
+    groups = {}
+
+    for run in benchmark_runs:
+        if run.name in compare_names:
+            for res in run.results:
+                if res.explicit_group != '':
+                    if res.explicit_group not in groups:
+                        groups[res.explicit_group] = ExplicitGroup(name=res.explicit_group, nnames=len(compare_names),
+                                metadata=BenchmarkMetadata(unit=res.unit, lower_is_better=res.lower_is_better),
+                                runs={})
+
+                    group = groups[res.explicit_group]
+                    if res.label not in group.runs:
+                        group.runs[res.label] = {name: None for name in compare_names}
+
+                    if group.runs[res.label][run.name] is None:
+                        group.runs[res.label][run.name] = res
+
+    return list(groups.values())
+
+def create_grouped_bar_charts(groups: list[ExplicitGroup]) -> list[BenchmarkChart]:
+    plt.close('all')
+
+    html_charts = []
+
+    for group in groups:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        x = np.arange(group.nnames)
+        x_labels = []
+        width = 0.8 / len(group.runs)
+
+        max_height = 0
+
+        for i, (run_name, run_results) in enumerate(group.runs.items()):
+            offset = width * i
+
+            positions = x + offset
+            x_labels = run_results.keys()
+            valid_data = [r.value if r is not None else 0 for r in run_results.values()]
+            rects = ax.bar(positions, valid_data, width, label=run_name)
+            # This is a hack to disable all bar_label. Setting labels to empty doesn't work.
+            # We create our own labels below for each bar, this works better in mpld3.
+            ax.bar_label(rects, fmt='')
+
+            for rect, run, res in zip(rects, run_results.keys(), run_results.values()):
+                height = rect.get_height()
+                if height > max_height:
+                    max_height = height
+
+                ax.text(rect.get_x() + rect.get_width()/2., height + 1,
+                                    f'{res.value:.1f}',
+                                    ha='center', va='bottom', fontsize=9)
+
+                tooltip_labels = [
+                    f"Date: {res.date.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"Run: {run}\n"
+                    f"Label: {res.label}\n"
+                    f"Value: {res.value:.2f} {res.unit}\n"
+                    f"Stddev: {res.stddev:.2f} {res.unit}\n"
+                ]
+                tooltip = mpld3.plugins.LineHTMLTooltip(rect, tooltip_labels, css=tooltip_css())
+                mpld3.plugins.connect(ax.figure, tooltip)
+
+        # normally we'd just set legend to be outside
+        # the chart, but this is not supported by mpld3.
+        # instead, we adjust the y axis to account for
+        # the height of the bars.
+        legend_height = len(group.runs) * 0.1
+        ax.set_ylim(0, max_height * (1 + legend_height))
+
+        ax.set_xticks([])
+        ax.grid(True, axis='y', alpha=0.2)
+        ax.set_ylabel(f"Value ({group.metadata.unit})")
+        ax.legend(loc='upper left')
+        ax.set_title(group.name, pad=20)
+        performance_indicator = "lower is better" if group.metadata.lower_is_better else "higher is better"
+        ax.text(0.5, 1.03, f"({performance_indicator})",
+                ha='center',
+                transform=ax.transAxes,
+                style='italic',
+                fontsize=7,
+                color='#666666')
+
+        for idx, label in enumerate(x_labels):
+            # this is a hack to get labels to show above the legend
+            # we normalize the idx to transAxes transform and offset it a little.
+            x_norm = (idx + 0.3 - ax.get_xlim()[0]) / (ax.get_xlim()[1] - ax.get_xlim()[0])
+            ax.text(x_norm, 1.03, label,
+                transform=ax.transAxes,
+                color='#666666')
+
+        plt.tight_layout()
+        html_charts.append(BenchmarkChart(label=group.name, html=mpld3.fig_to_html(fig)))
         plt.close(fig)
 
     return html_charts
@@ -137,6 +247,11 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
 
     timeseries = create_time_series_chart(benchmarks, github_repo)
     timeseries_charts_html = '\n'.join(f'<div class="chart" data-label="{ts.label}"><div>{ts.html}</div></div>' for ts in timeseries)
+
+    explicit_groups = create_explicit_groups(benchmark_runs, compare_names)
+
+    bar_charts = create_grouped_bar_charts(explicit_groups)
+    bar_charts_html = '\n'.join(f'<div class="chart" data-label="{bc.label}"><div>{bc.html}</div></div>' for bc in bar_charts)
 
     html_template = f"""
     <!DOCTYPE html>
@@ -199,21 +314,72 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
                 width: 400px;
                 max-width: 100%;
             }}
+            details {{
+                margin-bottom: 24px;
+            }}
+            summary {{
+                font-size: 18px;
+                font-weight: 500;
+                cursor: pointer;
+                padding: 12px;
+                background: #e9ecef;
+                border-radius: 8px;
+                user-select: none;
+            }}
+            summary:hover {{
+                background: #dee2e6;
+            }}
         </style>
         <script>
+            function getQueryParam(param) {{
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get(param);
+            }}
+
             function filterCharts() {{
                 const regexInput = document.getElementById('bench-filter').value;
                 const regex = new RegExp(regexInput, 'i');
                 const charts = document.querySelectorAll('.chart');
+                let timeseriesVisible = false;
+                let barChartsVisible = false;
+
                 charts.forEach(chart => {{
                     const label = chart.getAttribute('data-label');
                     if (regex.test(label)) {{
                         chart.style.display = '';
+                        if (chart.closest('.timeseries')) {{
+                            timeseriesVisible = true;
+                        }} else if (chart.closest('.bar-charts')) {{
+                            barChartsVisible = true;
+                        }}
                     }} else {{
                         chart.style.display = 'none';
                     }}
                 }});
+
+                updateURL(regexInput);
+
+                document.querySelector('.timeseries').open = timeseriesVisible;
+                document.querySelector('.bar-charts').open = barChartsVisible;
             }}
+
+            function updateURL(regex) {{
+                const url = new URL(window.location);
+                if (regex) {{
+                    url.searchParams.set('regex', regex);
+                }} else {{
+                    url.searchParams.delete('regex');
+                }}
+                history.replaceState(null, '', url);
+            }}
+
+            document.addEventListener('DOMContentLoaded', (event) => {{
+                const regexParam = getQueryParam('regex');
+                if (regexParam) {{
+                    document.getElementById('bench-filter').value = regexParam;
+                    filterCharts();
+                }}
+            }});
         </script>
     </head>
     <body>
@@ -222,13 +388,20 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
             <div class="filter-container">
                 <input type="text" id="bench-filter" placeholder="Regex..." oninput="filterCharts()">
             </div>
-            <h2>Historical Results</h2>
-            <div class="charts">
-                {timeseries_charts_html}
-            </div>
+            <details class="timeseries">
+                <summary>Historical Results</summary>
+                <div class="charts">
+                    {timeseries_charts_html}
+                </div>
+            </details>
+            <details class="bar-charts">
+                <summary>Comparisons</summary>
+                <div class="charts">
+                    {bar_charts_html}
+                </div>
+            </details>
         </div>
     </body>
     </html>
     """
-
     return html_template

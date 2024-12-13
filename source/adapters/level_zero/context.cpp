@@ -48,6 +48,8 @@ ur_result_t urContextCreate(
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (umf_result_t e) {
+    return umf::umf2urResult(e);
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -196,36 +198,41 @@ ur_result_t ur_context_handle_t_::initialize() {
     auto MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
                            reinterpret_cast<ur_context_handle_t>(this), Device)
                            .second;
+    auto UmfDeviceParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Device]);
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(
-                            umfDisjointPoolOps(), std::move(MemProvider),
-                            &DisjointPoolConfigInstance
-                                 .Configs[usm::DisjointPoolMemType::Device])
+        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
+                                                   std::move(MemProvider),
+                                                   UmfDeviceParamsHandle.get())
                             .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
                       .second;
+
+    auto UmfSharedParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Shared]);
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(
-                            umfDisjointPoolOps(), std::move(MemProvider),
-                            &DisjointPoolConfigInstance
-                                 .Configs[usm::DisjointPoolMemType::Shared])
+        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
+                                                   std::move(MemProvider),
+                                                   UmfSharedParamsHandle.get())
                             .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
                       .second;
+
+    auto UmfSharedROParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigInstance
+            .Configs[usm::DisjointPoolMemType::SharedReadOnly]);
     SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUniqueFromOps(
-                umfDisjointPoolOps(), std::move(MemProvider),
-                &DisjointPoolConfigInstance
-                     .Configs[usm::DisjointPoolMemType::SharedReadOnly])
-                .second));
+        std::make_tuple(umf::poolMakeUniqueFromOps(
+                            umfDisjointPoolOps(), std::move(MemProvider),
+                            UmfSharedROParamsHandle.get())
+                            .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
@@ -273,10 +280,11 @@ ur_result_t ur_context_handle_t_::initialize() {
   auto MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
                          reinterpret_cast<ur_context_handle_t>(this), nullptr)
                          .second;
+  auto UmfHostParamsHandle = getUmfParamsHandle(
+      DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host]);
   HostMemPool =
-      umf::poolMakeUniqueFromOps(
-          umfDisjointPoolOps(), std::move(MemProvider),
-          &DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
+      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
+                                 UmfHostParamsHandle.get())
           .second;
 
   MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
@@ -319,9 +327,16 @@ ur_result_t ur_context_handle_t_::initialize() {
 
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
+  if (Device->useDriverInOrderLists() &&
+      Device->useDriverCounterBasedEvents()) {
+    logger::debug(
+        "L0 Synchronous Immediate Command List needed with In Order property.");
+    ZeCommandQueueDesc.flags |= ZE_COMMAND_LIST_FLAG_IN_ORDER;
+  }
   ZE2UR_CALL(
       zeCommandListCreateImmediate,
       (ZeContext, Device->ZeDevice, &ZeCommandQueueDesc, &ZeCommandListInit));
+
   return UR_RESULT_SUCCESS;
 }
 

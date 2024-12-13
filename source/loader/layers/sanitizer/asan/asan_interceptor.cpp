@@ -36,7 +36,8 @@ AsanInterceptor::~AsanInterceptor() {
     // We must release these objects before releasing adapters, since
     // they may use the adapter in their destructor
     for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-        DeviceInfo->Shadow->Destory();
+        [[maybe_unused]] auto URes = DeviceInfo->Shadow->Destory();
+        assert(URes == UR_RESULT_SUCCESS);
     }
 
     m_Quarantine = nullptr;
@@ -95,6 +96,10 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
     }
 
     void *Allocated = nullptr;
+
+    if (Pool == nullptr) {
+        Pool = ContextInfo->getUSMPool();
+    }
 
     if (Type == AllocType::DEVICE_USM) {
         UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
@@ -227,16 +232,6 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
             ContextInfo->Stats.UpdateUSMRealFreed(
                 ToFreeAllocInfo->AllocSize, ToFreeAllocInfo->getRedzoneSize());
-
-            if (ToFreeAllocInfo->Type == AllocType::HOST_USM) {
-                for (auto &Device : ContextInfo->DeviceList) {
-                    UR_CALL(getDeviceInfo(Device)->Shadow->ReleaseShadow(
-                        ToFreeAllocInfo));
-                }
-            } else {
-                UR_CALL(getDeviceInfo(ToFreeAllocInfo->Device)
-                            ->Shadow->ReleaseShadow(ToFreeAllocInfo));
-            }
 
             UR_CALL(getContext()->urDdiTable.USM.pfnFree(
                 Context, (void *)(ToFreeAllocInfo->AllocBegin)));
@@ -436,12 +431,6 @@ ur_result_t AsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
     auto ProgramInfo = getProgramInfo(Program);
     assert(ProgramInfo != nullptr && "unregistered program!");
 
-    for (auto AI : ProgramInfo->AllocInfoForGlobals) {
-        UR_CALL(getDeviceInfo(AI->Device)->Shadow->ReleaseShadow(AI));
-        m_AllocationMap.erase(AI->AllocBegin);
-    }
-    ProgramInfo->AllocInfoForGlobals.clear();
-
     ProgramInfo->InstrumentedKernels.clear();
 
     return UR_RESULT_SUCCESS;
@@ -560,10 +549,6 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
                           {}});
 
             ContextInfo->insertAllocInfo({Device}, AI);
-            ProgramInfo->AllocInfoForGlobals.emplace(AI);
-
-            std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-            m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
         }
     }
 
@@ -750,6 +735,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
     {
         assert(ArgNums >= 1 &&
                "Sanitized Kernel should have at least one argument");
+
         ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
             Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
         if (URes != UR_RESULT_SUCCESS) {
@@ -848,10 +834,11 @@ ur_result_t AsanInterceptor::prepareLaunch(
     // sync asan runtime data to device side
     UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
-    getContext()->logger.debug("LaunchInfo {} (numLocalArgs={}, localArgs={})",
-                               (void *)LaunchInfo.Data.getDevicePtr(),
-                               LaunchInfo.Data.Host.NumLocalArgs,
-                               (void *)LaunchInfo.Data.Host.LocalArgs);
+    getContext()->logger.info(
+        "LaunchInfo {} (device={}, debug={}, numLocalArgs={}, localArgs={})",
+        (void *)LaunchInfo.Data.getDevicePtr(), LaunchInfo.Data.Host.DeviceTy,
+        LaunchInfo.Data.Host.Debug, LaunchInfo.Data.Host.NumLocalArgs,
+        (void *)LaunchInfo.Data.Host.LocalArgs);
 
     return UR_RESULT_SUCCESS;
 }
@@ -892,9 +879,14 @@ bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
 ContextInfo::~ContextInfo() {
     Stats.Print(Handle);
 
-    [[maybe_unused]] auto Result =
-        getContext()->urDdiTable.Context.pfnRelease(Handle);
-    assert(Result == UR_RESULT_SUCCESS);
+    [[maybe_unused]] ur_result_t URes;
+    if (USMPool) {
+        URes = getContext()->urDdiTable.USM.pfnPoolRelease(USMPool);
+        assert(URes == UR_RESULT_SUCCESS);
+    }
+
+    URes = getContext()->urDdiTable.Context.pfnRelease(Handle);
+    assert(URes == UR_RESULT_SUCCESS);
 
     // check memory leaks
     if (getAsanInterceptor()->getOptions().DetectLeaks &&
@@ -908,6 +900,22 @@ ContextInfo::~ContextInfo() {
             }
         }
     }
+}
+
+ur_usm_pool_handle_t ContextInfo::getUSMPool() {
+    std::call_once(PoolInit, [this]() {
+        ur_usm_pool_desc_t Desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr, 0};
+        auto URes =
+            getContext()->urDdiTable.USM.pfnPoolCreate(Handle, &Desc, &USMPool);
+        if (URes != UR_RESULT_SUCCESS &&
+            URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+            getContext()->logger.warning(
+                "Failed to create USM pool, the memory overhead "
+                "may increase: {}",
+                URes);
+        }
+    });
+    return USMPool;
 }
 
 AsanRuntimeDataWrapper::~AsanRuntimeDataWrapper() {

@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "asan/asan_allocator.hpp"
+#include "asan_allocator.hpp"
 #include "sanitizer_common/sanitizer_libdevice.hpp"
 
 #include <unordered_set>
@@ -34,10 +34,6 @@ struct ShadowMemory {
 
     virtual ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr,
                                             uptr Size, u8 Value) = 0;
-
-    virtual ur_result_t ReleaseShadow(std::shared_ptr<AllocInfo>) {
-        return UR_RESULT_SUCCESS;
-    }
 
     virtual size_t GetShadowSize() = 0;
 
@@ -98,8 +94,6 @@ struct ShadowMemoryGPU : public ShadowMemory {
     ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr,
                                     uptr Size, u8 Value) override final;
 
-    ur_result_t ReleaseShadow(std::shared_ptr<AllocInfo> AI) override final;
-
     ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                  uptr &Begin, uptr &End) override final;
 
@@ -108,10 +102,7 @@ struct ShadowMemoryGPU : public ShadowMemory {
 
     ur_mutex VirtualMemMapsMutex;
 
-    std::unordered_map<
-        uptr, std::pair<ur_physical_mem_handle_t,
-                        std::unordered_set<std::shared_ptr<AllocInfo>>>>
-        VirtualMemMaps;
+    std::unordered_map<uptr, ur_physical_mem_handle_t> VirtualMemMaps;
 
     uptr LocalShadowOffset = 0;
 
@@ -143,7 +134,7 @@ struct ShadowMemoryPVC final : public ShadowMemoryGPU {
     size_t GetShadowSize() override { return 0x180000000000ULL; }
 };
 
-/// Shadow Memory layout of GPU PVC device
+/// Shadow Memory layout of GPU DG2 device
 ///
 /// USM Allocation Range (48 bits)
 ///   Host/Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
