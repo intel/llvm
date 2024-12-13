@@ -1322,7 +1322,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
-  auto DL = M.getDataLayout();
+  const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
@@ -1637,7 +1637,8 @@ static TargetExtType *getTargetExtType(Type *Ty) {
 // store float %1, ptr %call, align 4
 // clang-format on
 static bool isJointMatrixAccess(Value *V) {
-  if (auto *CI = dyn_cast<CallInst>(V)) {
+  auto *ActualV = V->stripInBoundsOffsets();
+  if (auto *CI = dyn_cast<CallInst>(ActualV)) {
     for (Value *Op : CI->args()) {
       if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
         if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
