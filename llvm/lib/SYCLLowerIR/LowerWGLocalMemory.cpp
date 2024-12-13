@@ -9,10 +9,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Pass.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 using namespace llvm;
 
@@ -50,6 +52,32 @@ INITIALIZE_PASS(SYCLLowerWGLocalMemoryLegacy, "sycllowerwglocalmemory",
 
 ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
   return new SYCLLowerWGLocalMemoryLegacy();
+}
+
+static bool inlineAllocateLocalMemoryFunc(Module &M) {
+  Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
+  if (!ALMFunc)
+    return false;
+
+  auto *Caller = cast<CallInst>(*ALMFunc->user_begin())->getFunction();
+  if (!Caller->hasFnAttribute(Attribute::AlwaysInline)) {
+    // Already inlined.
+    return false;
+  }
+  std::string FName = llvm::demangle(Caller->getName());
+  if (FName.find("sycl::_V1::ext::oneapi::group_local_memory") ==
+      std::string::npos) {
+    // Already inlined.
+    return false;
+  }
+  for (User *U : make_early_inc_range(Caller->users())) {
+    auto *CI = cast<CallInst>(U);
+    InlineFunctionInfo IFI;
+    [[maybe_unused]] auto Result = InlineFunction(*CI, IFI);
+    assert(Result.isSuccess() && "inlining failed");
+  }
+  Caller->eraseFromParent();
+  return true;
 }
 
 // TODO: It should be checked that __sycl_allocateLocalMemory (or its source
@@ -94,7 +122,6 @@ static bool allocaWGLocalMemory(Module &M) {
   Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
   if (!ALMFunc)
     return false;
-
   assert(ALMFunc->isDeclaration() && "should have declaration only");
 
   SmallVector<CallInst *, 4> DelCalls;
@@ -118,7 +145,7 @@ static bool allocaWGLocalMemory(Module &M) {
 
 PreservedAnalyses SYCLLowerWGLocalMemoryPass::run(Module &M,
                                                   ModuleAnalysisManager &) {
-  if (allocaWGLocalMemory(M))
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
+  bool Changed = inlineAllocateLocalMemoryFunc(M);
+  Changed |= allocaWGLocalMemory(M);
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
