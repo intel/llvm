@@ -13,8 +13,9 @@ import urllib.request
 import tarfile
 
 class Benchmark:
-    def __init__(self, directory):
+    def __init__(self, directory, suite):
         self.directory = directory
+        self.suite = suite
 
     @staticmethod
     def get_adapter_full_path():
@@ -74,8 +75,14 @@ class Benchmark:
     def stddev_threshold(self):
         return None
 
+    def get_suite_name(self) -> str:
+        return self.suite.name()
+
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
+        raise NotImplementedError()
+
+    def name(self) -> str:
         raise NotImplementedError()
 
     def setup(self):
