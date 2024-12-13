@@ -73,20 +73,19 @@ jobs:
     name: Build + LIT
     runs-on: [Windows, build]
     environment: WindowsCILock
-    # TODO use cached checkout
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
     steps:
     - uses: actions/checkout@v4
       with:
-        path: src
-        ref: ${{ inputs.build_ref || github.sha }}
-        fetch-depth: 1
+        sparse-checkout: |
+          devops/actions
+        ref: ${{ inputs.ref || github.sha }} 
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
     - name: Setup oneAPI env
-      uses: ./src/devops/actions/setup_windows_oneapi_env
+      uses: ./devops/actions/setup_windows_oneapi_env
       if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
     - name: Set env
       run: |
@@ -96,7 +95,12 @@ jobs:
         echo "CCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "CCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Register cleanup after job is finished
-      uses: ./src/devops/actions/cleanup
+      uses: ./devops/actions/cleanup
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: src
+        ref: ${{ inputs.build_ref || github.sha }}
+        cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Configure
       shell: cmd
       env:
