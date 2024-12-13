@@ -3612,6 +3612,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // we don't need to enqueue anything.
       return UR_RESULT_SUCCESS;
     }
+    assert(MQueue && "Empty node should have an associated queue");
     const detail::AdapterPtr &Adapter = MQueue->getAdapter();
     ur_event_handle_t Event;
     ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
