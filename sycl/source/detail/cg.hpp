@@ -114,8 +114,8 @@ public:
 
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
-        Dims{size_t(DimsArg)} {
+      : GlobalSize{NumWorkItems}, LocalSize{LocalSize},
+        GlobalOffset{Offset}, Dims{size_t(DimsArg)} {
     setNDRangeLeftover();
   }
 
@@ -230,7 +230,7 @@ public:
   getAuxiliaryResources() const {
     return {};
   }
-  virtual void clearAuxiliaryResources() {};
+  virtual void clearAuxiliaryResources(){};
 
   virtual ~CG() = default;
 
@@ -323,8 +323,8 @@ public:
   CGCopy(CGType CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
          std::vector<std::shared_ptr<const void>> AuxiliaryResources,
          detail::code_location loc = {})
-      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
-        MAuxiliaryResources{AuxiliaryResources} {}
+      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src),
+        MDst(Dst), MAuxiliaryResources{AuxiliaryResources} {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
 
@@ -415,16 +415,17 @@ class CGPrefetchUSMExp : public CG {
   void *MDst;
   size_t MLength;
   ext::oneapi::experimental::prefetch_type MPrefetchType;
+
 public:
   CGPrefetchUSMExp(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
-                      ext::oneapi::experimental::prefetch_type Type,
-                      detail::code_location loc = {})
+                   ext::oneapi::experimental::prefetch_type Type,
+                   detail::code_location loc = {})
       : CG(CGType::PrefetchUSMExp, std::move(CGData), std::move(loc)),
         MDst(DstPtr), MLength(Length), MPrefetchType(Type) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
   ext::oneapi::experimental::prefetch_type getPrefetchType() {
-    return MPrefetchType
+    return MPrefetchType;
   }
 };
 #else

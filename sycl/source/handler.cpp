@@ -985,8 +985,9 @@ void handler::prefetch(const void *Ptr, size_t Count) {
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::ext_oneapi_prefetch_exp(const void *Ptr, size_t Count,
-                                ext::oneapi::experimental::prefetch_type Type) {
+void handler::ext_oneapi_prefetch_exp(
+    const void *Ptr, size_t Count,
+    ext::oneapi::experimental::prefetch_type Type) {
 
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);

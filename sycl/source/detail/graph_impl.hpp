@@ -242,10 +242,19 @@ public:
       return createCGCopy<sycl::detail::CGFillUSM>();
     case sycl::detail::CGType::PrefetchUSM:
       return createCGCopy<sycl::detail::CGPrefetchUSM>();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    case sycl::detail::CGType::PrefetchUSMExp:
+      throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                            "Prefetch as a part of the experimental enqueue "
+                            "function extension is currently not supported by "
+                            "SYCL Graph extension.");
+      // return createCGCopy<sycl::detail::CGPrefetchUSMExp>();
+#else
     case sycl::detail::CGType::PrefetchUSMExpD2H:
       throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
                             "Prefetch from device to host is currently not "
                             "supported by SYCL Graph extension.");
+#endif
     case sycl::detail::CGType::AdviseUSM:
       return createCGCopy<sycl::detail::CGAdviseUSM>();
     case sycl::detail::CGType::Copy2DUSM:
