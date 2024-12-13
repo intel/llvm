@@ -78,7 +78,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
   bool DeviceSupportsUpdate = UpdateCapabilities > 0;
 
   if (IsUpdatable && !DeviceSupportsUpdate) {
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   cl_command_buffer_properties_khr Properties[3] = {

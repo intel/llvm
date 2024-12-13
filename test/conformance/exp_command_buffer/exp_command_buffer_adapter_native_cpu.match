@@ -46,3 +46,4 @@
 {{OPT}}LocalMemoryUpdateTest.UpdateParametersPartialLocalSize/*
 {{OPT}}LocalMemoryMultiUpdateTest.UpdateParameters/*
 {{OPT}}LocalMemoryMultiUpdateTest.UpdateWithoutBlocking/*
+{{OPT}}urInvalidUpdateCommandBufferExpExecutionTest.*
