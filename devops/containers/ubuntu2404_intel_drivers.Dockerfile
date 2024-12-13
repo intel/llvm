@@ -7,6 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG use_latest=true
 
+USER root
+
 RUN apt update && apt install -yqq wget
 
 COPY scripts/get_release.py /
