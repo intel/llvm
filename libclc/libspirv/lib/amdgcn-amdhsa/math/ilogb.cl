@@ -10,18 +10,18 @@
 #include <libspirv/spirv.h>
 
 int __ocml_ilogb_f32(float);
-_CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __ocml_ilogb_f32, float)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_ilogb, __ocml_ilogb_f32, float)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 int __ocml_ilogb_f64(double);
-_CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __ocml_ilogb_f64, double)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_ilogb, __ocml_ilogb_f64, double)
 #endif // cl_khr_fp64
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 int __ocml_ilogb_f16(half);
-_CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __ocml_ilogb_f16, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_ilogb, __ocml_ilogb_f16, half)
 #endif // cl_khr_fp16
 
 #undef __CLC_BUILTIN

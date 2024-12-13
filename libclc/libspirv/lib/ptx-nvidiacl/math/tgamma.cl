@@ -15,4 +15,4 @@
 #define __CLC_BUILTIN __nv_tgamma
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin_scalarize.inc>

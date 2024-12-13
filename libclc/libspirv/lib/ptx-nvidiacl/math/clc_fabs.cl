@@ -6,15 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/clcmacro.h>
+#include <libspirv/ptx-nvidiacl/libdevice.h>
 #include <libspirv/spirv.h>
 
-#include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
+// Expose "bfloat16 versions" of fabs.
 
-#define __CLC_FUNCTION __spirv_ocl_fabs
-#define __CLC_BUILTIN __nv_fabs
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
-#include <math/unary_builtin.inc>
+// FIXME: __clc symbols are internal and should not be made publicly available.
+// The correct thing to do would be to expose bfloat16/bfloat16x2 versions of
+// these builtins as proper __spirv_ocl_fabs builtins. An LLVM demangling bug is
+// currently preventing us from using these types natively in libclc (the
+// libclc-demangler fails)
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fabs(ushort x) {

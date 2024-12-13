@@ -10,4 +10,4 @@
 
 #define __CLC_BUILTIN __spirv_ocl_exp2
 #define __CLC_FUNCTION __spirv_ocl_half_exp2
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin_scalarize.inc>

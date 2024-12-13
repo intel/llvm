@@ -13,7 +13,7 @@ math/atan.cl
 math/atan2.cl
 math/atanh.cl
 math/cbrt.cl
-math/ceil.cl
+math/clc_fabs.cl
 math/copysign.cl
 math/cos.cl
 math/cosh.cl
@@ -24,9 +24,7 @@ math/exp.cl
 math/exp10.cl
 math/exp2.cl
 math/expm1.cl
-math/fabs.cl
 math/fdim.cl
-math/floor.cl
 math/fma.cl
 math/fma_relu.cl
 math/fmax.cl
@@ -71,7 +69,6 @@ math/sqrt.cl
 math/tan.cl
 math/tanh.cl
 math/tgamma.cl
-math/trunc.cl
 relational/isfinite.cl
 relational/isinf.cl
 relational/isnan.cl

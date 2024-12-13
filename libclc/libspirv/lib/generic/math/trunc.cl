@@ -6,14 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
-
-// Map the llvm intrinsic to an OpenCL function.
-#define __CLC_FUNCTION __clc___spirv_ocl_trunc
-#define __CLC_INTRINSIC "llvm.trunc"
-#include <math/unary_intrin.inc>
+#include <clc/clc.h>
+#include <clc/math/clc_trunc.h>
 
 #undef __CLC_FUNCTION
+#define __CLC_BUILTIN __clc_trunc
 #define __CLC_FUNCTION __spirv_ocl_trunc
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin.inc>
