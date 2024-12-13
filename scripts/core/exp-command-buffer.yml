@@ -330,6 +330,8 @@ params:
       desc: "[in] Handle of the command-buffer object."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_OPERATION
+        - "If `hCommandBuffer` has already been finalized"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------

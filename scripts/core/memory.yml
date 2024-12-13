@@ -59,7 +59,7 @@ name: $x_mem_info_t
 typed_etors: True
 etors:
     - name: SIZE
-      desc: "[size_t] actual size of of memory object in bytes"
+      desc: "[size_t] actual size of the memory object in bytes"
     - name: CONTEXT
       desc: "[$x_context_handle_t] context in which the memory object was created"
     - name: REFERENCE_COUNT

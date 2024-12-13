@@ -964,13 +964,9 @@ struct urPhysicalMemTest : urVirtualMemGranularityTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemGranularityTest::SetUp());
         size = granularity * 256;
-        ur_physical_mem_properties_t props{
-            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
-            nullptr,
-            0 /*flags*/,
-        };
-        ASSERT_SUCCESS(
-            urPhysicalMemCreate(context, device, size, &props, &physical_mem));
+
+        ASSERT_SUCCESS(urPhysicalMemCreate(context, device, size, &properties,
+                                           &physical_mem));
         ASSERT_NE(physical_mem, nullptr);
     }
 
@@ -983,6 +979,11 @@ struct urPhysicalMemTest : urVirtualMemGranularityTest {
 
     size_t size = 0;
     ur_physical_mem_handle_t physical_mem = nullptr;
+    ur_physical_mem_properties_t properties{
+        UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+        nullptr,
+        0 /*flags*/,
+    };
 };
 
 template <class T>

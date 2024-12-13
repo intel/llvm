@@ -292,7 +292,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       logger::always(
           "Images are not fully supported by the CUDA BE, their support is "
           "disabled by default. Their partial support can be activated by "
-          "setting SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
+          "setting UR_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
           "runtime.");
     }
 
