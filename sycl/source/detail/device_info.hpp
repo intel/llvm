@@ -712,6 +712,10 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
     {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
     {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
+    {0x07800000, oneapi_exp_arch::intel_gpu_ptl_h},   // A0
+    {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
+    {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
+    {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
 };
 
 // Only for Intel CPU architectures
@@ -1412,6 +1416,32 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
 }
 
 template <>
+inline typename info::device::preferred_interop_user_sync::return_type
+get_device_info<info::device::preferred_interop_user_sync>(
+    const DeviceImplPtr &Dev) {
+  if (Dev->getBackend() != backend::opencl) {
+    throw sycl::exception(
+        errc::invalid,
+        "the info::device::preferred_interop_user_sync info descriptor can "
+        "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::preferred_interop_user_sync;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline typename info::device::profile::return_type
+get_device_info<info::device::profile>(const DeviceImplPtr &Dev) {
+  if (Dev->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::invalid,
+                          "the info::device::profile info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::profile;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
 inline ext::intel::info::device::device_id::return_type
 get_device_info<ext::intel::info::device::device_id>(const DeviceImplPtr &Dev) {
   if (!Dev->has(aspect::ext_intel_device_id))
@@ -1561,6 +1591,25 @@ get_device_info<ext::intel::info::device::memory_bus_width>(
         "The device does not have the ext_intel_memory_bus_width aspect");
   using Param = ext::intel::info::device::memory_bus_width;
   return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::esimd::info::device::has_2d_block_io_support::return_type
+get_device_info<ext::intel::esimd::info::device::has_2d_block_io_support>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_esimd))
+    return false;
+
+  ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities;
+  Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
+      UrInfoCode<
+          ext::intel::esimd::info::device::has_2d_block_io_support>::value,
+      sizeof(BlockArrayCapabilities), &BlockArrayCapabilities, nullptr);
+  return (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) &&
+         (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
 }
 
 // Returns the list of all progress guarantees that can be requested for

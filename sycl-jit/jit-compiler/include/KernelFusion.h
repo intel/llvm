@@ -56,6 +56,29 @@ private:
   sycl::detail::string ErrorMessage;
 };
 
+class RTCResult {
+public:
+  explicit RTCResult(const char *BuildLog)
+      : Failed{true}, BundleInfo{}, BuildLog{BuildLog} {}
+
+  RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
+      : Failed{false}, BundleInfo{std::move(BundleInfo)}, BuildLog{BuildLog} {}
+
+  bool failed() const { return Failed; }
+
+  const char *getBuildLog() const { return BuildLog.c_str(); }
+
+  const RTCBundleInfo &getBundleInfo() const {
+    assert(!failed() && "No bundle info");
+    return BundleInfo;
+  }
+
+private:
+  bool Failed;
+  RTCBundleInfo BundleInfo;
+  sycl::detail::string BuildLog;
+};
+
 extern "C" {
 
 #ifdef __clang__
@@ -77,7 +100,7 @@ KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
     const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
     View<unsigned char> SpecConstBlob);
 
-KF_EXPORT_SYMBOL JITResult compileSYCL(InMemoryFile SourceFile,
+KF_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                        View<InMemoryFile> IncludeFiles,
                                        View<const char *> UserArgs);
 

@@ -8,6 +8,7 @@ add_llvm_library(sycl-jit
    lib/fusion/JITContext.cpp
    lib/fusion/ModuleHelper.cpp
    lib/rtc/DeviceCompilation.cpp
+   lib/rtc/ESIMD.cpp
    lib/helper/ConfigHelper.cpp
 
    SHARED
@@ -31,6 +32,8 @@ add_llvm_library(sycl-jit
    Target
    TargetParser
    MC
+   SYCLLowerIR
+   GenXIntrinsics
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS

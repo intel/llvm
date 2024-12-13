@@ -4731,6 +4731,25 @@ def GetDeviceSideMangledName : LangBuiltin<"CUDA_LANG"> {
   let Prototype = "char const*(...)";
 }
 
+// SYCL
+def SYCLIsKernel : LangBuiltin<"SYCL_LANG"> {
+  let Spellings = ["__builtin_sycl_is_kernel"];
+  let Attributes = [NoThrow, Const, Constexpr, CustomTypeChecking];
+  let Prototype = "bool(...)";
+}
+
+def SYCLIsSingleTaskKernel : LangBuiltin<"SYCL_LANG"> {
+  let Spellings = ["__builtin_sycl_is_single_task_kernel"];
+  let Attributes = [NoThrow, Const, Constexpr, CustomTypeChecking];
+  let Prototype = "bool(...)";
+}
+
+def SYCLIsNDRangeKernel : LangBuiltin<"SYCL_LANG"> {
+  let Spellings = ["__builtin_sycl_is_nd_range_kernel"];
+  let Attributes = [NoThrow, Const, Constexpr, CustomTypeChecking];
+  let Prototype = "bool(...)";
+}
+
 // HLSL
 def HLSLAll : LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_all"];
@@ -4788,6 +4807,18 @@ def HLSLDegrees : LangBuiltin<"HLSL_LANG"> {
 
 def HLSLDotProduct : LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_dot"];
+  let Attributes = [NoThrow, Const];
+  let Prototype = "void(...)";
+}
+
+def HLSLDot4AddI8Packed : LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_dot4add_i8packed"];
+  let Attributes = [NoThrow, Const];
+  let Prototype = "int(unsigned int, unsigned int, int)";
+}
+
+def HLSLFirstBitHigh : LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_elementwise_firstbithigh"];
   let Attributes = [NoThrow, Const];
   let Prototype = "void(...)";
 }
@@ -4867,6 +4898,12 @@ def HLSLStep: LangBuiltin<"HLSL_LANG"> {
 
 def HLSLRadians : LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_elementwise_radians"];
+  let Attributes = [NoThrow, Const];
+  let Prototype = "void(...)";
+}
+
+def HLSLSplitDouble: LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_elementwise_splitdouble"];
   let Attributes = [NoThrow, Const];
   let Prototype = "void(...)";
 }

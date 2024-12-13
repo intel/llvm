@@ -5,9 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// XFAIL: level_zero
-// XFAIL-TRACKER: OFNAAO-307
-
 // Tests using a dynamic command-group object with dynamic parameters inside it
 
 #include "../graph_common.hpp"
@@ -102,11 +99,11 @@ int main() {
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(false, true, false);
 
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(false, true, false);
 
-  DynamicCG.set_active_cgf(2);
+  DynamicCG.set_active_index(2);
   // Should be ignored as DynParam1 not used in active node
   DynParam1.update(PtrA);
   ExecGraph.update(DynamicCGNode);

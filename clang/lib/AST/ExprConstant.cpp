@@ -11597,6 +11597,9 @@ bool ArrayExprEvaluator::VisitCXXParenListOrInitListExpr(
   LValue Subobject = This;
   Subobject.addArray(Info, ExprToVisit, CAT);
   auto Eval = [&](const Expr *Init, unsigned ArrayIndex) {
+    if (Init->isValueDependent())
+      return EvaluateDependentExpr(Init, Info);
+
     if (!EvaluateInPlace(Result.getArrayInitializedElt(ArrayIndex), Info,
                          Subobject, Init) ||
         !HandleLValueArrayAdjustment(Info, Init, Subobject,
@@ -12726,6 +12729,45 @@ static bool getBuiltinAlignArguments(const CallExpr *E, EvalInfo &Info,
   return true;
 }
 
+static bool isSYCLFreeFunctionKernel(IntExprEvaluator &IEV,
+                                     const EvalInfo &Info, const CallExpr *E,
+                                     StringRef NameStr1, StringRef NameStr2,
+                                     bool CheckNDRangeKernelDim = false) {
+  const Expr *ArgExpr = E->getArg(0)->IgnoreParenImpCasts();
+  while (isa<CastExpr>(ArgExpr))
+    ArgExpr = cast<CastExpr>(ArgExpr)->getSubExpr();
+  auto *DRE = dyn_cast<DeclRefExpr>(ArgExpr);
+  if (DRE) {
+    const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl());
+    if (FD) {
+      auto *SAIRAttr = FD->getAttr<SYCLAddIRAttributesFunctionAttr>();
+      if (!SAIRAttr)
+        return IEV.Success(false, E);
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          SAIRAttr->getFilteredAttributeNameValuePairs(Info.Ctx);
+      for (const auto &NVPair : NameValuePairs) {
+        if (!NVPair.first.compare(NameStr1) ||
+            (!NameStr2.empty() && !NVPair.first.compare(NameStr2))) {
+          if (CheckNDRangeKernelDim) {
+            uint64_t Dim =
+                E->getArg(1)->EvaluateKnownConstInt(Info.Ctx).getZExtValue();
+            // Return true only if the dimensions match.
+            if (std::stoul(NVPair.second) == Dim)
+              return IEV.Success(true, E);
+            else
+              return IEV.Success(false, E);
+          }
+          // Return true if it has the sycl-single-task-kernel or the
+          // sycl-nd-range-kernel attribute.
+          return IEV.Success(true, E);
+        }
+      }
+      return IEV.Success(false, E);
+    }
+  }
+  return false;
+}
+
 bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
                                             unsigned BuiltinOp) {
   switch (BuiltinOp) {
@@ -13670,6 +13712,19 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
       if (Msk[I])
         Result.setBitVal(P++, Val[I]);
     return Success(Result, E);
+  }
+
+  case Builtin::BI__builtin_sycl_is_kernel: {
+    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-single-task-kernel",
+                                    "sycl-nd-range-kernel");
+  }
+  case Builtin::BI__builtin_sycl_is_single_task_kernel: {
+    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-single-task-kernel",
+                                    "");
+  }
+  case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
+    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-nd-range-kernel", "",
+                                    /*CheckNDRangeDim=*/true);
   }
   }
 }

@@ -14,7 +14,6 @@
 #include <sycl/async_handler.hpp>             // for async_handler
 #include <sycl/backend_types.hpp>             // for backend, backe...
 #include <sycl/buffer.hpp>                    // for buffer
-#include <sycl/context.hpp>                   // for context
 #include <sycl/detail/assert_happened.hpp>    // for AssertHappened
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
@@ -56,11 +55,8 @@
 // these macros are #undef immediately.
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAM(a) KernelType a
-#else
+
 #define _KERNELFUNCPARAM(a) const KernelType &a
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -345,7 +341,12 @@ public:
   /// Queries SYCL queue for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<queue, Param>()
+#endif
+            >
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
 
