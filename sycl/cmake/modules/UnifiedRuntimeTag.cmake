@@ -1,7 +1,7 @@
-# commit 58e4d76c2ace154c053b51592f2645fc43437646
-# Merge: e23a75034bb2 bc5d6a695dc8
+# commit 6d4eec8cdcfe8a5d359ed05092797c429c2ca878
+# Merge: 40d28e7bd84a 800b452d67c5
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Dec 11 15:14:14 2024 +0000
-#     Merge pull request #2436 from igchor/umf_params_bump
-#     [UMF] bump UMF version to v0.10.0 and adjust code
-set(UNIFIED_RUNTIME_TAG 58e4d76c2ace154c053b51592f2645fc43437646)
+# Date:   Thu Dec 12 16:00:13 2024 +0000
+#     Merge pull request #2272 from martygrant/martin/virtual-memory-cts-spec-gap
+#     Improvements to align CTS and Spec for Virtual Memory
+set(UNIFIED_RUNTIME_TAG b97f2ea845d3ba9074067888f9e54375a9d6af5d)
