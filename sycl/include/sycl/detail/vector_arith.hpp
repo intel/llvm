@@ -56,16 +56,19 @@ struct VecOperators {
   static constexpr bool is_host = true;
 #endif
 
-  template <typename BinOp, typename Self>
-  static constexpr auto apply_binary_op(const Self &Lhs, const Self &Rhs) {
+  template <typename BinOp, typename... ArgTys>
+  static constexpr auto apply(const ArgTys &...Args) {
+    using Self = nth_type_t<0, ArgTys...>;
     static_assert(is_vec_v<Self>);
+    static_assert(((std::is_same_v<Self, ArgTys> && ...)));
+
     using element_type = typename Self::element_type;
     constexpr int N = Self::size();
-    constexpr bool is_logical =
-        check_type_in_v<BinOp, std::equal_to<void>, std::not_equal_to<void>,
-                        std::less<void>, std::greater<void>,
-                        std::less_equal<void>, std::greater_equal<void>,
-                        std::logical_and<void>, std::logical_or<void>>;
+    constexpr bool is_logical = check_type_in_v<
+        BinOp, std::equal_to<void>, std::not_equal_to<void>, std::less<void>,
+        std::greater<void>, std::less_equal<void>, std::greater_equal<void>,
+        std::logical_and<void>, std::logical_or<void>, std::logical_not<void>>;
+
     using result_t = std::conditional_t<
         is_logical, vec<fixed_width_signed<sizeof(element_type)>, N>, Self>;
 
@@ -75,29 +78,37 @@ struct VecOperators {
       result_t res{};
       for (size_t i = 0; i < N; ++i)
         if constexpr (is_logical)
-          res[i] = Op(Lhs[i], Rhs[i]) ? -1 : 0;
+          res[i] = Op(Args[i]...) ? -1 : 0;
         else
-          res[i] = Op(Lhs[i], Rhs[i]);
+          res[i] = Op(Args[i]...);
       return res;
     } else {
       using vector_t = typename Self::vector_t;
-      auto res = [&](auto x, auto y) {
+
+      auto res = [&](auto... xs) {
         // Workaround for https://github.com/llvm/llvm-project/issues/119617.
-        if constexpr (std::is_same_v<BinOp, std::equal_to<void>>)
-          return x == y;
-        else if constexpr (std::is_same_v<BinOp, std::not_equal_to<void>>)
-          return x != y;
-        else if constexpr (std::is_same_v<BinOp, std::less<void>>)
-          return x < y;
-        else if constexpr (std::is_same_v<BinOp, std::less_equal<void>>)
-          return x <= y;
-        else if constexpr (std::is_same_v<BinOp, std::greater<void>>)
-          return x > y;
-        else if constexpr (std::is_same_v<BinOp, std::greater_equal<void>>)
-          return x >= y;
-        else
-          return Op(x, y);
-      }(bit_cast<vector_t>(Lhs), bit_cast<vector_t>(Rhs));
+        if constexpr (sizeof...(Args) == 2) {
+          return [&](auto x, auto y) {
+            if constexpr (std::is_same_v<BinOp, std::equal_to<void>>)
+              return x == y;
+            else if constexpr (std::is_same_v<BinOp, std::not_equal_to<void>>)
+              return x != y;
+            else if constexpr (std::is_same_v<BinOp, std::less<void>>)
+              return x < y;
+            else if constexpr (std::is_same_v<BinOp, std::less_equal<void>>)
+              return x <= y;
+            else if constexpr (std::is_same_v<BinOp, std::greater<void>>)
+              return x > y;
+            else if constexpr (std::is_same_v<BinOp, std::greater_equal<void>>)
+              return x >= y;
+            else
+              return Op(x, y);
+          }(xs...);
+        } else {
+          return Op(xs...);
+        }
+      }(bit_cast<vector_t>(Args)...);
+
       if constexpr (is_logical) {
         if constexpr (N == 1) {
           // vector_t for one-element vector is just scalar with normal C++
@@ -107,71 +118,19 @@ struct VecOperators {
         return result_t{(typename result_t::vector_t)res};
       } else {
         if constexpr (std::is_same_v<element_type, bool>) {
-          // OpenCL/SPIR-V has different semantics for operations on bool (which
-          // is mapped to some 8-bit integer type on device) than SYCL. Need to
-          // "convert" back to 0/1.
+          // OpenCL/SPIR-V has different semantics for operations on bool
+          // (which is mapped to some 8-bit integer type on device) than SYCL.
+          // Need to "convert" back to 0/1.
           //
-          // Some operations are known to produce only 0/1 for valid bool inputs
-          // though, no reason to do extra processing for them:
+          // Some operations are known to produce only 0/1 for valid bool
+          // inputs though, no reason to do extra processing for them:
           if constexpr (!check_type_in_v<BinOp, std::multiplies<void>,
                                          std::divides<void>, std::bit_or<void>,
                                          std::bit_and<void>, std::bit_xor<void>,
-                                         ShiftRight>) {
+                                         ShiftRight, UnaryPlus>) {
             if constexpr (N == 1) {
-              // vector_t for one-element vector is just scalar with normal C++
-              // semantics, need to align it with vector behavior:
-              return result_t{(typename result_t::vector_t)res * -1};
-            } else {
-              for (size_t i = 0; i < N; ++i)
-                res[i] = bit_cast<int8_t>(res[i]) != 0;
-            }
-          }
-        }
-        return result_t{(typename result_t::vector_t)res};
-      }
-    }
-  }
-
-  template <typename UnaryOp, typename Self>
-  static constexpr auto apply_unary_op(const Self &self) {
-    static_assert(is_vec_v<Self>);
-    constexpr bool is_logical = std::is_same_v<UnaryOp, std::logical_not<void>>;
-    using element_type = typename Self::element_type;
-    constexpr int N = Self::size();
-    using result_t = std::conditional_t<
-        is_logical, vec<fixed_width_signed<sizeof(element_type)>, N>, Self>;
-    UnaryOp Op{};
-    if constexpr (is_host ||
-                  std::is_same_v<element_type, ext::oneapi::bfloat16>) {
-      result_t res{};
-      for (size_t i = 0; i < N; ++i)
-        if constexpr (is_logical)
-          res[i] = Op(self[i]) ? -1 : 0;
-        else
-          res[i] = Op(self[i]);
-      return res;
-    } else {
-      using vector_t = typename Self::vector_t;
-      auto res = Op(bit_cast<vector_t>(self));
-      if constexpr (is_logical) {
-        if constexpr (N == 1) {
-          // vector_t for one-element vector is just scalar with normal C++
-          // semantics, need to align it with vector behavior:
-          return result_t{(typename result_t::vector_t)res * -1};
-        }
-        return result_t{(typename result_t::vector_t)res};
-      } else {
-        if constexpr (std::is_same_v<element_type, bool>) {
-          // OpenCL/SPIR-V has different semantics for operations on bool (which
-          // is mapped to some 8-bit integer type on device) than SYCL. Need to
-          // "convert" back to 0/1.
-          //
-          // Some operations are known to produce only 0/1 for valid bool inputs
-          // though, no reason to do extra processing for them:
-          if constexpr (!check_type_in_v<UnaryOp, UnaryPlus>) {
-            if constexpr (N == 1) {
-              // vector_t for one-element vector is just scalar with normal C++
-              // semantics, need to align it with vector behavior:
+              // vector_t for one-element vector is just scalar with normal
+              // C++ semantics, need to align it with vector behavior:
               return result_t{(typename result_t::vector_t)res * -1};
             } else {
               for (size_t i = 0; i < N; ++i)
@@ -194,7 +153,7 @@ struct VecOperators {
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
                                                         const vec_t & Rhs) {   \
-    return VecOperators::apply_binary_op<FUNCTOR>(Lhs, Rhs);                   \
+    return VecOperators::apply<FUNCTOR>(Lhs, Rhs);                             \
   }                                                                            \
                                                                                \
   template <typename T = DataT>                                                \
@@ -246,17 +205,17 @@ protected:
 
   // operator!.
   friend vec<ocl_t, NumElements> operator!(const vec_t &Rhs) {
-    return VecOperators::apply_unary_op<std::logical_not<void>>(Rhs);
+    return VecOperators::apply<std::logical_not<void>>(Rhs);
   }
 
   // operator +.
   friend vec_t operator+(const vec_t &Lhs) {
-    return VecOperators::apply_unary_op<UnaryPlus>(Lhs);
+    return VecOperators::apply<UnaryPlus>(Lhs);
   }
 
   // operator -.
   friend vec_t operator-(const vec_t &Lhs) {
-    return VecOperators::apply_unary_op<std::negate<void>>(Lhs);
+    return VecOperators::apply<std::negate<void>>(Lhs);
   }
 
 // Unary operations on sycl::vec
@@ -292,7 +251,7 @@ protected:
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
       const vec_t & Lhs, const vec_t & Rhs) {                                  \
-    return VecOperators::apply_binary_op<FUNCTOR>(Lhs, Rhs);                   \
+    return VecOperators::apply<FUNCTOR>(Lhs, Rhs);                             \
   }                                                                            \
                                                                                \
   template <typename T = DataT>                                                \
@@ -410,7 +369,7 @@ protected:
   template <typename T = DataT>
   friend std::enable_if_t<!detail::is_vgenfloat_v<T>, vec_t>
   operator~(const vec_t &Rhs) {
-    return VecOperators::apply_unary_op<std::bit_not<void>>(Rhs);
+    return VecOperators::apply<std::bit_not<void>>(Rhs);
   }
 
   // friends
