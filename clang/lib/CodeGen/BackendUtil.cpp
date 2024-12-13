@@ -1048,6 +1048,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
                                              ThinOrFullLTOPhase) {
         // Lowers __sycl_allocateLocalMemory  and
         // __sycl_dynamicLocalMemoryPlaceholder builtin calls.
+        // It is required by design to run SYCLLowerWGLocalMemoryPass after
+        // AlwaysInliner.
         MPM.addPass(SYCLLowerWGLocalMemoryPass());
       });
     } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
