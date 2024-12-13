@@ -43,6 +43,8 @@ class UMFSuite(Suite):
 
 class ComputeUMFBenchmark(Benchmark):
     def __init__(self, bench, name):
+        super().__init__(bench.directory, bench)
+
         self.bench = bench
         self.bench_name = name
         self.oneapi = get_oneapi()
@@ -54,8 +56,6 @@ class ComputeUMFBenchmark(Benchmark):
         self.col_time_unit = None
 
         self.col_statistics_time = None
-
-        super().__init__(bench.directory)
 
     def bin_args(self) -> list[str]:
         return []

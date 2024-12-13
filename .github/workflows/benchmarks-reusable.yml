@@ -176,9 +176,7 @@ jobs:
     - name: Build UMF
       run: cmake --build ${{github.workspace}}/umf_build -j $(nproc)
 
-    - name: Run benchmarks
-      working-directory: ${{ github.workspace }}/ur-repo/
-      id: benchmarks
+    - name: Compute core range
       run: |
         # Compute the core range for the first NUMA node, skipping the first 4 cores.
         # This is to avoid the first cores that the kernel is likely to schedule more work on.
@@ -190,7 +188,13 @@ jobs:
             sub(/^0/, "4", b[1])
             print b[1]
           }')
-        taskset -c $CORES ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py
+        echo "CORES=$CORES" >> $GITHUB_ENV
+
+    - name: Run benchmarks
+      working-directory: ${{ github.workspace }}/ur-repo/
+      id: benchmarks
+      run: >
+        taskset -c ${{ env.CORES }} ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py
         ~/bench_workdir
         --sycl ${{ github.workspace }}/sycl_build
         --ur ${{ github.workspace }}/ur_install
