@@ -23,7 +23,6 @@ int main() {
 
   {
     auto tmp = (sw + sw).swizzle<1, 0>();
-    std::cout << tmp[0] << " " << tmp[1] << std::endl;
 
     // FIXME: Should be "6" and "4", respectively.
     assert(tmp[0] == 3);
