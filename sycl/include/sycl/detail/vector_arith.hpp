@@ -109,26 +109,28 @@ struct VecOperators {
         }
       }(bit_cast<vector_t>(Args)...);
 
-      if constexpr (is_logical) {
-        return result_t{(typename result_t::vector_t)res};
-      } else {
-        if constexpr (std::is_same_v<element_type, bool> && true) {
-          // OpenCL/SPIR-V has different semantics for operations on bool
-          // (which is mapped to some 8-bit integer type on device) than SYCL.
-          // Need to "convert" back to 0/1.
-          //
-          // Some operations are known to produce only 0/1 for valid bool
-          // inputs though, no reason to do extra processing for them:
-          if constexpr (!check_type_in_v<BinOp, std::multiplies<void>,
-                                         std::divides<void>, std::bit_or<void>,
-                                         std::bit_and<void>, std::bit_xor<void>,
-                                         ShiftRight, UnaryPlus>) {
-            for (size_t i = 0; i < N; ++i)
-              res[i] = bit_cast<int8_t>(res[i]) != 0;
-          }
+      if constexpr (std::is_same_v<element_type, bool>) {
+        // vec(vector_t) ctor does a simple bit_cast and the way "bool" is
+        // stored is that only one bit matters. vector_t, however, is a char
+        // type and it can have non-zero value with lowest bit unset. E.g.,
+        // consider this:
+        //
+        //   auto x = true + true; // int x = 2
+        //   bool y = true + true; // bool y = true
+        //
+        // and the vec<bool, N> has to behave in a similar way. As such, current
+        // implementation needs to do some extra processing for operators that
+        // can result in this scenario.
+        //
+        if constexpr (!check_type_in_v<BinOp, std::multiplies<void>,
+                                       std::divides<void>, std::bit_or<void>,
+                                       std::bit_and<void>, std::bit_xor<void>,
+                                       ShiftRight, UnaryPlus>) {
+          for (size_t i = 0; i < N; ++i)
+            res[i] = bit_cast<int8_t>(res[i]) != 0;
         }
-        return result_t{(typename result_t::vector_t)res};
       }
+      return result_t{(typename result_t::vector_t)res};
     }
   }
 };
