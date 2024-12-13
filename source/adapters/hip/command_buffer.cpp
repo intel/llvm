@@ -304,6 +304,8 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
+  UR_ASSERT(hCommandBuffer->HIPGraphExec == nullptr,
+            UR_RESULT_ERROR_INVALID_OPERATION);
   try {
     const unsigned long long flags = 0;
     UR_CHECK_ERROR(hipGraphInstantiateWithFlags(
