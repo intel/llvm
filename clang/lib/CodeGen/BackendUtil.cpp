@@ -1046,8 +1046,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerOptimizerEarlyEPCallback([](ModulePassManager &MPM,
                                              OptimizationLevel Level,
                                              ThinOrFullLTOPhase) {
-        // Lowers __sycl_allocateLocalMemory  and __sycl_dynamicLocalMemoryPlaceholder
-        // builtin calls.
+        // Lowers __sycl_allocateLocalMemory  and
+        // __sycl_dynamicLocalMemoryPlaceholder builtin calls.
         MPM.addPass(SYCLLowerWGLocalMemoryPass());
       });
     } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
