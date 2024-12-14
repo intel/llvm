@@ -22,6 +22,73 @@ namespace {
 static constexpr char ACCESS_CHAIN[] = "_Z19__spirv_AccessChain";
 static constexpr char MATRIX_TYPE[] = "spirv.CooperativeMatrixKHR";
 
+Type *getInnermostType(Type *Ty) {
+  while (auto *ArrayTy = dyn_cast<ArrayType>(Ty))
+    Ty = ArrayTy->getElementType();
+  return Ty;
+}
+
+Type *replaceInnermostType(Type *Ty, Type *NewInnermostTy) {
+  if (auto *ArrayTy = dyn_cast<ArrayType>(Ty))
+    return ArrayType::get(
+        replaceInnermostType(ArrayTy->getElementType(), NewInnermostTy),
+        ArrayTy->getNumElements());
+  return NewInnermostTy;
+}
+
+// This function is a copy of llvm::stripPointerCastsAndOffsets,
+// simplified and modified to strip non-zero GEP indices as well and also
+// find nearest GEP instruction.
+Value *stripPointerCastsAndOffsets(Value *V, bool StopOnGEP = false) {
+  if (!V->getType()->isPointerTy())
+    return V;
+
+  // Even though we don't look through PHI nodes, we could be called on an
+  // instruction in an unreachable block, which may be on a cycle.
+  SmallPtrSet<Value *, 4> Visited;
+
+  Visited.insert(V);
+  do {
+    if (auto *GEP = dyn_cast<GEPOperator>(V)) {
+      if (StopOnGEP && isa<GetElementPtrInst>(GEP))
+        return V;
+      V = GEP->getPointerOperand();
+    } else if (Operator::getOpcode(V) == Instruction::BitCast) {
+      Value *NewV = cast<Operator>(V)->getOperand(0);
+      if (!NewV->getType()->isPointerTy())
+        return V;
+      V = NewV;
+    } else if (Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
+      V = cast<Operator>(V)->getOperand(0);
+    } else {
+      if (auto *Call = dyn_cast<CallBase>(V)) {
+        if (Value *RV = Call->getReturnedArgOperand()) {
+          V = RV;
+          continue;
+        }
+      }
+      return V;
+    }
+    assert(V->getType()->isPointerTy() && "Unexpected operand type!");
+  } while (Visited.insert(V).second);
+
+  return V;
+}
+
+TargetExtType *extractMatrixType(StructType *WrapperMatrixTy) {
+  if (!WrapperMatrixTy)
+    return nullptr;
+  TargetExtType *MatrixTy =
+      dyn_cast<TargetExtType>(WrapperMatrixTy->getElementType(0));
+
+  if (!MatrixTy)
+    return nullptr;
+  StringRef Name = MatrixTy->getName();
+  if (Name != MATRIX_TYPE)
+    return nullptr;
+  return MatrixTy;
+}
+
 // This function finds all calls to __spirv_AccessChain function and transforms
 // its users and operands to make LLVM IR more SPIR-V friendly.
 bool transformAccessChain(Function *F) {
@@ -60,34 +127,59 @@ bool transformAccessChain(Function *F) {
     // from sycl::joint_matrix class object if it's used in __spirv_AccessChain
     // function call. It's necessary because otherwise OpAccessChain indices
     // would be wrong.
-    Instruction *Ptr =
-        dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
+    Instruction *Ptr = dyn_cast<Instruction>(
+        stripPointerCastsAndOffsets(CI->getArgOperand(0)));
     if (!Ptr || !isa<AllocaInst>(Ptr))
       continue;
-    StructType *WrapperMatrixTy =
-        dyn_cast<StructType>(cast<AllocaInst>(Ptr)->getAllocatedType());
-    if (!WrapperMatrixTy)
-      continue;
-    TargetExtType *MatrixTy =
-        dyn_cast<TargetExtType>(WrapperMatrixTy->getElementType(0));
-    if (!MatrixTy)
-      continue;
-    StringRef Name = MatrixTy->getName();
-    if (Name != MATRIX_TYPE)
+
+    Type *AllocaTy = cast<AllocaInst>(Ptr)->getAllocatedType();
+    // It may happen that sycl::joint_matrix class object is wrapped into
+    // nested arrays. We need to find the innermost type to extract
+    if (StructType *WrapperMatrixTy =
+        dyn_cast<StructType>(getInnermostType(AllocaTy))) {
+      TargetExtType *MatrixTy = extractMatrixType(WrapperMatrixTy);
+      if (!MatrixTy)
+        continue;
+
+      AllocaInst *Alloca = nullptr;
+      {
+        IRBuilder Builder(CI);
+        IRBuilderBase::InsertPointGuard IG(Builder);
+        Builder.SetInsertPointPastAllocas(CI->getFunction());
+        Alloca = Builder.CreateAlloca(replaceInnermostType(AllocaTy, MatrixTy));
+        Alloca->takeName(Ptr);
+      }
+      Ptr->replaceAllUsesWith(Alloca);
+      Ptr->dropAllReferences();
+      Ptr->eraseFromParent();
+      ModuleChanged = true;
+    }
+
+    // In case spirv.CooperativeMatrixKHR is used in arrays, we also need to
+    // insert GEP to get pointer to target exention type and use it instead of
+    // pointer to sycl::joint_matrix class object when it is passed to
+    // __spirv_AccessChain
+    // First we check if the argument came from a GEP instruction
+    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(
+        stripPointerCastsAndOffsets(CI->getArgOperand(0), true));
+    if (!GEP)
       continue;
 
-    AllocaInst *Alloca = nullptr;
+    // Check if GEP return type is a pointer to sycl::joint_matrix class object
+    StructType *WrapperMatrixTy = dyn_cast<StructType>(GEP->getResultElementType());
+    if (!extractMatrixType(WrapperMatrixTy))
+      continue;
+
+    // Insert GEP right before the __spirv_AccessChain call
     {
       IRBuilder Builder(CI);
-      IRBuilderBase::InsertPointGuard IG(Builder);
-      Builder.SetInsertPointPastAllocas(CI->getFunction());
-      Alloca = Builder.CreateAlloca(MatrixTy);
+      Value *NewGEP = Builder.CreateInBoundsGEP(WrapperMatrixTy,
+        CI->getArgOperand(0), {Builder.getInt64(0), Builder.getInt32(0)});
+      CI->setArgOperand(0, NewGEP);
+      ModuleChanged = true;
     }
-    Ptr->replaceAllUsesWith(Alloca);
-    Ptr->dropAllReferences();
-    Ptr->eraseFromParent();
-    ModuleChanged = true;
   }
+
   return ModuleChanged;
 }
 } // namespace
