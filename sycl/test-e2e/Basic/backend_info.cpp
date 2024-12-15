@@ -1,6 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
+// RUN: %{build} -DTEST_ERRORS -D_GLIBCXX_USE_CXX11_ABI=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note
 
 //==--- backend_info.cpp - SYCL backend info test---------------------------==//
 //
@@ -12,17 +13,24 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 
 int main() {
+#if (defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI != 0) ||        \
+    !defined(_GLIBCXX_USE_CXX11_ABI) || TEST_ERRORS
   try {
     // Test get_backend_info for sycl::platform
     std::vector<platform> platform_list = platform::get_platforms();
     for (const auto &platform : platform_list) {
+      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
       std::cout << "  Backend device version: "
                 << platform.get_backend_info<info::device::version>()
                 << std::endl;
+      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
       std::cout << "  Backend platform version: "
                 << platform.get_backend_info<info::platform::version>()
                 << std::endl;
@@ -32,9 +40,13 @@ int main() {
     std::vector<device> device_list =
         device::get_devices(info::device_type::gpu);
     for (const auto &device : device_list) {
+      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
       std::cout << "  Backend device version: "
                 << device.get_backend_info<info::device::version>()
                 << std::endl;
+      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
       std::cout << "  Backend platform version: "
                 << device.get_backend_info<info::platform::version>()
                 << std::endl;
@@ -42,22 +54,34 @@ int main() {
 
     // Test get_backend_info for sycl::queue
     queue q;
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
     std::cout << "  Backend device version: "
               << q.get_backend_info<info::device::version>() << std::endl;
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
     std::cout << "  Backend platform version: "
               << q.get_backend_info<info::platform::version>() << std::endl;
 
     // Test get_backend_info for sycl::context
     context Ctx = q.get_context();
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
     std::cout << "  Backend device version: "
               << Ctx.get_backend_info<info::device::version>() << std::endl;
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
     std::cout << "  Backend platform version: "
               << Ctx.get_backend_info<info::platform::version>() << std::endl;
 
     // Test get_backend_info for sycl::event
     event e = q.single_task([=]() { return; });
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
     std::cout << "  Backend device version: "
               << e.get_backend_info<info::device::version>() << std::endl;
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
     std::cout << "  Backend platform version: "
               << e.get_backend_info<info::platform::version>() << std::endl;
 
@@ -72,8 +96,12 @@ int main() {
       auto acc = buf.get_access<access::mode::read_write>(cgh);
       cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
     });
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
     std::cout << "  Backend device version: "
               << krn.get_backend_info<info::device::version>() << std::endl;
+    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
+    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
     std::cout << "  Backend platform version: "
               << krn.get_backend_info<info::platform::version>() << std::endl;
   } catch (exception e) {
@@ -92,5 +120,6 @@ int main() {
     assert(has_non_opencl_backend && "unexpected error code");
   }
   std::cout << "  Backend info query tests passed" << std::endl;
+#endif
   return 0;
 }

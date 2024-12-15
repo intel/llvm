@@ -3020,6 +3020,39 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     }
     break;
   }
+  case Builtin::BI__builtin_sycl_is_kernel:
+  case Builtin::BI__builtin_sycl_is_single_task_kernel:
+  case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
+    unsigned int ExpNumArgs =
+        BuiltinID == Builtin::BI__builtin_sycl_is_nd_range_kernel ? 2 : 1;
+    // Builtin takes either 1 or 2 arguments.
+    if (TheCall->getNumArgs() != ExpNumArgs) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count)
+          << ExpNumArgs;
+      return ExprError();
+    }
+
+    const Expr *Arg = TheCall->getArg(0);
+    QualType ArgTy = Arg->getType();
+
+    if (!ArgTy->isFunctionProtoType() && !ArgTy->isFunctionPointerType()) {
+      Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
+          << 1 << /* pointer to function type */ 10 << ArgTy;
+      return ExprError();
+    }
+
+    if (ExpNumArgs == 2) {
+      int64_t DimArg =
+          TheCall->getArg(1)->EvaluateKnownConstInt(Context).getSExtValue();
+      if (DimArg <= 0) {
+        Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_value)
+            << 2 << DimArg;
+        return ExprError();
+      }
+    }
+
+    break;
+  }
   case Builtin::BI__builtin_counted_by_ref:
     if (BuiltinCountedByRef(TheCall))
       return ExprError();

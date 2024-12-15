@@ -33,6 +33,11 @@ on:
         default: '{}'
         required: False
 
+      compiler:
+        type: string
+        required: false
+        default: "cl"
+
 permissions: read-all
 
 jobs:
@@ -42,20 +47,23 @@ jobs:
     environment: WindowsCILock
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
-      with:
-        arch: amd64
-    - name: Set env
-      run: |
-        git config --system core.longpaths true
-        git config --global core.autocrlf false
-        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     # TODO: use cached_checkout
     - uses: actions/checkout@v4
       with:
         persist-credentials: false
         ref: ${{ inputs.ref || github.sha }}
         path: llvm
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      with:
+        arch: amd64
+    - name: Setup oneAPI env
+      uses: ./llvm/devops/actions/setup_windows_oneapi_env
+      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+    - name: Set env
+      run: |
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Register cleanup after job is finished
       uses: ./llvm/devops/actions/cleanup
     - name: Download compiler toolchain
@@ -84,6 +92,9 @@ jobs:
       shell: bash
       run: |
         # Run E2E tests.
+        if [[ ${{inputs.compiler}} == 'icx' ]]; then
+           export LIT_FILTER_OUT="compile_on_win_with_mdd"
+        fi
         export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e
     - name: Detect hung tests

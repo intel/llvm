@@ -59,7 +59,7 @@ namespace detail {
 template <typename MemOpFuncT, typename... MemOpArgTs>
 ur_result_t callMemOpHelper(MemOpFuncT &MemOpFunc, MemOpArgTs &&...MemOpArgs) {
   try {
-    MemOpFunc(MemOpArgs...);
+    MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...);
   } catch (sycl::exception &e) {
     return static_cast<ur_result_t>(get_ur_error(e));
   }
@@ -70,7 +70,7 @@ template <typename MemOpRet, typename MemOpFuncT, typename... MemOpArgTs>
 ur_result_t callMemOpHelperRet(MemOpRet &MemOpResult, MemOpFuncT &MemOpFunc,
                                MemOpArgTs &&...MemOpArgs) {
   try {
-    MemOpResult = MemOpFunc(MemOpArgs...);
+    MemOpResult = MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...);
   } catch (sycl::exception &e) {
     return static_cast<ur_result_t>(get_ur_error(e));
   }
@@ -956,7 +956,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
     MEvent->setEnqueued();
-    if (MShouldCompleteEventIfPossible &&
+    if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
 
@@ -2427,7 +2427,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
-    const RTDeviceBinaryImage *BinImage, const std::string &KernelName) {
+    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2446,6 +2447,17 @@ static ur_result_t SetKernelParamsAndLaunch(
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+
+  std::optional<int> ImplicitLocalArg =
+      ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    Adapter->call<UrApiKind::urKernelSetArgLocal>(
+        Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
+  }
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
 
@@ -2474,9 +2486,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
+  std::vector<ur_exp_launch_property_t> property_list;
   if (KernelUsesClusterLaunch) {
-    std::vector<ur_exp_launch_property_t> property_list;
-
     ur_exp_launch_property_value_t launch_property_value_cluster_range;
     launch_property_value_cluster_range.clusterDim[0] =
         NDRDesc.ClusterDimensions[0];
@@ -2494,13 +2505,20 @@ static ur_result_t SetKernelParamsAndLaunch(
       property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
                                launch_property_value_cooperative});
     }
-
+  }
+  // If there is no implicit arg, let the driver handle it via a property
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+    property_list.push_back(
+        {UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY, {{WorkGroupMemorySize}}});
+  }
+  if (!property_list.empty()) {
     ur_event_handle_t UREvent = nullptr;
     ur_result_t Error =
         Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchCustomExp>(
-            Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
-            LocalSize, property_list.size(), property_list.data(),
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+            Queue->getHandleRef(), Kernel, NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
+            property_list.size(), property_list.data(), RawEvents.size(),
+            RawEvents.empty() ? nullptr : &RawEvents[0],
             OutEventImpl ? &UREvent : nullptr);
     if (OutEventImpl) {
       OutEventImpl->setHandle(UREvent);
@@ -2692,7 +2710,8 @@ void enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch, const RTDeviceBinaryImage *BinImage) {
+    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
+    const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2784,7 +2803,8 @@ void enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch, BinImage, KernelName);
+        KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
+        BinImage, KernelName);
 
     const AdapterPtr &Adapter = Queue->getAdapter();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2871,7 +2891,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
                                                        &RawEvents[0]);
   }
 
-  ur_exp_command_buffer_sync_point_t OutSyncPoint;
+  ur_exp_command_buffer_sync_point_t OutSyncPoint{};
   ur_exp_command_buffer_command_handle_t OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
   case CGType::Kernel: {
@@ -3055,6 +3075,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
   detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
 
+  auto SetEventHandleOrDiscard = [&]() {
+    if (Event)
+      MEvent->setHandle(*Event);
+    else
+      MEvent->setStateDiscarded();
+  };
+
   switch (MCommandGroup->getType()) {
 
   case CGType::UpdateHost: {
@@ -3176,7 +3203,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                      SyclKernel, KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch, BinImage);
+                     ExecKernel->MKernelUsesClusterLaunch,
+                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3188,8 +3216,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
@@ -3200,8 +3227,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
@@ -3212,8 +3238,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
@@ -3225,8 +3250,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Copy2DUSM: {
@@ -3238,8 +3262,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill2DUSM: {
@@ -3251,8 +3274,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Memset2DUSM: {
@@ -3264,8 +3286,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CodeplayHostTask: {
@@ -3405,8 +3426,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     MQueue->getAdapter()->call<UrApiKind::urEnqueueNativeCommandExp>(
         MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData, ReqMems.size(),
         ReqMems.data(), nullptr, RawEvents.size(), RawEvents.data(), Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Barrier: {
@@ -3416,8 +3436,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::BarrierWaitlist: {
@@ -3434,8 +3453,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), UrEvents.size(), &UrEvents[0], Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
@@ -3482,8 +3500,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Adapter->call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
     }
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyToDeviceGlobal: {
@@ -3496,8 +3513,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyFromDeviceGlobal: {
@@ -3511,8 +3527,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::ReadWriteHostPipe: {
@@ -3543,8 +3558,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                 CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
                 RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
                 Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
 
     return Err;
   }
@@ -3560,8 +3574,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
 
     return UR_RESULT_SUCCESS;
   }

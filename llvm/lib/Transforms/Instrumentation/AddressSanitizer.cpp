@@ -1322,7 +1322,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
-  auto DL = M.getDataLayout();
+  const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
@@ -1379,7 +1379,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+    Types.push_back(llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1623,7 +1623,8 @@ static TargetExtType *getTargetExtType(Type *Ty) {
 // store float %1, ptr %call, align 4
 // clang-format on
 static bool isJointMatrixAccess(Value *V) {
-  if (auto *CI = dyn_cast<CallInst>(V)) {
+  auto *ActualV = V->stripInBoundsOffsets();
+  if (auto *CI = dyn_cast<CallInst>(ActualV)) {
     for (Value *Op : CI->args()) {
       if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
         if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
@@ -1704,7 +1705,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // SPIR constant address space
   PointerType *ConstASPtrTy =
-      Type::getInt8Ty(C)->getPointerTo(kSpirOffloadConstantAS);
+      llvm::PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
@@ -1863,9 +1864,9 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
   // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
   // this step
   initializeCallbacks(TLI);
-  IRB.CreateStore(
-      ConstantPointerNull::get(IntptrTy->getPointerTo(kSpirOffloadGlobalAS)),
-      AsanLaunchInfo);
+  IRB.CreateStore(ConstantPointerNull::get(
+                      llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
+                  AsanLaunchInfo);
 }
 
 // Instrument memset/memmove/memcpy
@@ -3457,7 +3458,7 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
       // )
       if (TargetTriple.isSPIROrSPIRV()) {
         auto *Int8PtrTy =
-            Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
+            llvm::PointerType::get(Type::getInt8Ty(*C), kSpirOffloadConstantAS);
 
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
@@ -3574,9 +3575,10 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
                               IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
-        "__AsanLaunchInfo", IntptrTy->getPointerTo(kSpirOffloadGlobalAS), [&] {
+        "__AsanLaunchInfo",
+        llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), [&] {
           return new GlobalVariable(
-              M, IntptrTy->getPointerTo(kSpirOffloadGlobalAS), false,
+              M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
               GlobalVariable::ExternalLinkage, nullptr, "__AsanLaunchInfo",
               nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
         });

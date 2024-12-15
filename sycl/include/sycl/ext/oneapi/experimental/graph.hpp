@@ -12,6 +12,7 @@
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
+#include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
@@ -59,7 +60,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_device_global = 6,
   sycl_ext_oneapi_bindless_images = 7,
   sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
-  sycl_ext_codeplay_enqueue_native_command = 9
+  sycl_ext_codeplay_enqueue_native_command = 9,
+  sycl_ext_oneapi_work_group_scratch_memory = 10
 };
 
 inline const char *
@@ -86,6 +88,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
   case UGF::sycl_ext_codeplay_enqueue_native_command:
     return "sycl_ext_codeplay_enqueue_native_command";
+  case UGF::sycl_ext_oneapi_work_group_scratch_memory:
+    return "sycl_ext_oneapi_work_group_scratch_memory";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -223,8 +227,8 @@ public:
       const command_graph<graph_state::modifiable> &Graph,
       const std::vector<std::function<void(handler &)>> &CGFList);
 
-  size_t get_active_cgf() const;
-  void set_active_cgf(size_t Index);
+  size_t get_active_index() const;
+  void set_active_index(size_t Index);
 
 private:
   template <class Obj>
@@ -236,7 +240,8 @@ private:
 
 namespace detail {
 // Templateless modifiable command-graph base class.
-class __SYCL_EXPORT modifiable_command_graph {
+class __SYCL_EXPORT modifiable_command_graph
+    : public sycl::detail::OwnerLessBase<modifiable_command_graph> {
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
@@ -385,7 +390,7 @@ protected:
 #ifdef __SYCL_GRAPH_IMPL_CPP
 // Magic combination found by trial and error:
 __SYCL_EXPORT
-#if WIN32
+#if _WIN32
 inline
 #endif
 #else
@@ -398,7 +403,8 @@ inline
 }
 
 // Templateless executable command-graph base class.
-class __SYCL_EXPORT executable_command_graph {
+class __SYCL_EXPORT executable_command_graph
+    : public sycl::detail::OwnerLessBase<executable_command_graph> {
 public:
   /// An executable command-graph is not user constructable.
   executable_command_graph() = delete;
