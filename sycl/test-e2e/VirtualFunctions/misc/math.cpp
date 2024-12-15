@@ -54,11 +54,8 @@ int main() try {
     sycl::buffer<int> mDataStorage;
     sycl::handler mCGH;
     KernelFunctor(T DeviceStorage, sycl::buffer<float> DataStorage,
-                  sycl::handler CGH) {
-      mDeviceStorage = DeviceStorage;
-      mDataStorage = DataStorage;
-      mCGH = CGH;
-    }
+                  sycl::handler CGH)
+        : mDeviceStorage(DeviceStorage), mDataStorage(DataStorage), mCGH(CGH) {}
 
     void operator()() const {
       sycl::accessor DataAcc(mDataStorage, mCGH, sycl::read_write);

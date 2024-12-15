@@ -75,10 +75,8 @@ void testRootGroup() {
   struct TestKernel1 {
     sycl::buffer<bool> m_dataBuf;
     sycl::handler m_h;
-    TestKernel1(sycl::buffer<bool> dataBuf, sycl::handler h) {
-      m_dataBuf = dataBuf;
-      m_h = h;
-    }
+    TestKernel1(sycl::buffer<bool> dataBuf, sycl::handler h)
+        : m_dataBuf(dataBuf), m_h(h) {}
     void operator()(sycl::nd_item<1> it) const {
       sycl::accessor data{m_dataBuf, m_h};
       volatile float X = 1.0f;
@@ -131,10 +129,8 @@ void testRootGroupFunctions() {
   struct TestKernel2 {
     sycl::buffer<bool> m_testResultsBuf;
     sycl::handler m_h;
-    TestKernel2(sycl::buffer<bool> testResultsBuf, sycl::handler h) {
-      m_testResultsBuf = testResultsBuf;
-      m_h = h;
-    }
+    TestKernel2(sycl::buffer<bool> testResultsBuf, sycl::handler h)
+        : m_testResultsBuf(testResultsBuf), m_h(h) {}
     void operator()(sycl::nd_item<1> it) const {
       sycl::accessor testResults{m_testResultsBuf, m_h};
       const auto root = it.ext_oneapi_get_root_group();
