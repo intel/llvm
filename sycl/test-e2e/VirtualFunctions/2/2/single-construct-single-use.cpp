@@ -72,8 +72,29 @@ int main() try {
   sycl::queue q(asyncHandler);
 
   // TODO: cover uses case when objects are passed through USM
-  constexpr oneapi::properties props{
-      oneapi::assume_indirect_calls_to<void, SetIncBy16>};
+  struct KernelFunctor {
+    sycl::buffer<storage_t> mDeviceStorage;
+    sycl::buffer<int> mDataStorage;
+    sycl::handler mCGH;
+    KernelFunctor(sycl::buffer<storage_t> DeviceStorage,
+                  sycl::buffer<int> DataStorage, sycl::handler CGH) {
+      mDeviceStorage = DeviceStorage;
+      mDataStorage = DataStorage;
+      mCGH = CGH;
+    }
+
+    void operator()() const {
+      sycl::accessor StorageAcc(mDeviceStorage, mCGH, sycl::read_write);
+      sycl::accessor DataAcc(mDataStorage, mCGH, sycl::write_only);
+      auto *Ptr = StorageAcc[0].getAs<BaseIncrement>();
+      Ptr->increment(
+          DataAcc.get_multi_ptr<sycl::access::decorated::no>().get());
+    }
+    auto get(oneapi::properties_tag) const {
+      return oneapi::properties{
+          oneapi::assume_indirect_calls_to<void, SetIncBy16>};
+    }
+  };
   for (unsigned TestCase = 0; TestCase < 5; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
@@ -88,13 +109,7 @@ int main() try {
     });
 
     q.submit([&](sycl::handler &CGH) {
-      sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::read_write);
-      sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
-      CGH.single_task(props, [=]() {
-        auto *Ptr = StorageAcc[0].getAs<BaseIncrement>();
-        Ptr->increment(
-            DataAcc.get_multi_ptr<sycl::access::decorated::no>().get());
-      });
+      CGH.single_task(KernelFunctor(DeviceStorage, DataStorage, CGH));
     });
 
     auto *Ptr =

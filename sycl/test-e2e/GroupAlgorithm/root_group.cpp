@@ -75,7 +75,7 @@ void testRootGroup() {
   struct TestKernel1 {
     sycl::buffer<bool> m_dataBuf;
     sycl::handler m_h;
-    TestKernel2(sycl::buffer<bool> dataBuf, sycl::handler h) {
+    TestKernel1(sycl::buffer<bool> dataBuf, sycl::handler h) {
       m_dataBuf = dataBuf;
       m_h = h;
     }

@@ -49,7 +49,26 @@ int main() try {
 
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
 
-  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
+  template <typename T> struct KernelFunctor {
+    T mDeviceStorage;
+    sycl::buffer<int> mDataStorage;
+    sycl::handler mCGH;
+    KernelFunctor(T DeviceStorage, sycl::buffer<float> DataStorage,
+                  sycl::handler CGH) {
+      mDeviceStorage = DeviceStorage;
+      mDataStorage = DataStorage;
+      mCGH = CGH;
+    }
+
+    void operator()() const {
+      sycl::accessor DataAcc(mDataStorage, mCGH, sycl::read_write);
+      auto *Ptr = DeviceStorage->getAs<BaseOp>();
+      DataAcc[0] = Ptr->apply(DataAcc[0]);
+    }
+    auto get(oneapi::properties_tag) const {
+      return oneapi::properties{oneapi::assume_indirect_calls};
+    }
+  };
   for (unsigned TestCase = 0; TestCase < 3; ++TestCase) {
     float HostData = 3.56;
     float Data = HostData;
@@ -62,11 +81,7 @@ int main() try {
      }).wait_and_throw();
 
     q.submit([&](sycl::handler &CGH) {
-      sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.single_task(props, [=]() {
-        auto *Ptr = DeviceStorage->getAs<BaseOp>();
-        DataAcc[0] = Ptr->apply(DataAcc[0]);
-      });
+      CGH.single_task(KernelFunctor(DeviceStorage, DataStorage, CGH));
     });
 
     auto *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);
