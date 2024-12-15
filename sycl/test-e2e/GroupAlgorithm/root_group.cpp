@@ -73,12 +73,12 @@ void testRootGroup() {
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   struct TestKernel1 {
-    sycl::buffer<bool> m_dataBuf;
-    sycl::handler m_h;
+    sycl::buffer<bool> *m_dataBuf;
+    sycl::handler *m_h;
     TestKernel1(sycl::buffer<bool> dataBuf, sycl::handler h)
-        : m_dataBuf(dataBuf), m_h(h) {}
+        : m_dataBuf(&dataBuf), m_h(&h) {}
     void operator()(sycl::nd_item<1> it) const {
-      sycl::accessor data{m_dataBuf, m_h};
+      sycl::accessor data{*m_dataBuf, *m_h};
       volatile float X = 1.0f;
       volatile float Y = 1.0f;
       auto root = it.ext_oneapi_get_root_group();
@@ -127,12 +127,12 @@ void testRootGroupFunctions() {
   sycl::buffer<bool> testResultsBuf{sycl::range{testCount}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   struct TestKernel2 {
-    sycl::buffer<bool> m_testResultsBuf;
-    sycl::handler m_h;
+    sycl::buffer<bool> *m_testResultsBuf;
+    sycl::handler *m_h;
     TestKernel2(sycl::buffer<bool> testResultsBuf, sycl::handler h)
-        : m_testResultsBuf(testResultsBuf), m_h(h) {}
+        : m_testResultsBuf(&testResultsBuf), m_h(&h) {}
     void operator()(sycl::nd_item<1> it) const {
-      sycl::accessor testResults{m_testResultsBuf, m_h};
+      sycl::accessor testResults{*m_testResultsBuf, *m_h};
       const auto root = it.ext_oneapi_get_root_group();
       if (root.leader() || root.get_local_id() == 3) {
         testResults[0] = root.get_group_id() == sycl::id<1>(0);
