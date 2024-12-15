@@ -42,11 +42,12 @@ void testQueriesAndProperties() {
           .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
                                    kernel_queue_specific::max_num_work_groups>(
               q, wgRange, wgRange.size() * sizeof(int));
-  const auto props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::use_root_sync};
   struct TestKernel0 {
     void operator()() const {}
-    auto get(sycl::ext::oneapi::experimental::properties_tag) { return props; }
+    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+      return sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::use_root_sync};
+    }
   };
   q.single_task<class QueryKernel>(TestKernel0{});
 
@@ -69,14 +70,11 @@ void testRootGroup() {
           .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
                                    kernel_queue_specific::max_num_work_groups>(
               q, WorkGroupSize, 0);
-  const auto props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   struct TestKernel1 {
-    sycl::accessor data;
-    TestKernel1(sycl::accessor data_param) { data = data_param; }
     void operator()(sycl::nd_item<1> it) const {
+      sycl::accessor data{dataBuf, h};
       volatile float X = 1.0f;
       volatile float Y = 1.0f;
       auto root = it.ext_oneapi_get_root_group();
@@ -95,11 +93,14 @@ void testRootGroup() {
       sycl::group_barrier(root);
       data[root.get_local_id()] = sum;
     }
-    auto get(sycl::ext::oneapi::experimental::properties_tag) { return props; }
+    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+      return sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::use_root_sync};
+      ;
+    }
   };
   q.submit([&](sycl::handler &h) {
-    sycl::accessor data{dataBuf, h};
-    h.parallel_for<class RootGroupKernel>(range, TestKernel1(data));
+    h.parallel_for<class RootGroupKernel>(range, TestKernel1{});
   });
   sycl::host_accessor data{dataBuf};
   const int workItemCount = static_cast<int>(range.get_global_range().size());
@@ -118,19 +119,12 @@ void testRootGroupFunctions() {
           .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
                                    kernel_queue_specific::max_num_work_groups>(
               q, WorkGroupSize, 0);
-  const auto props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::use_root_sync};
-
   constexpr int testCount = 9;
   sycl::buffer<bool> testResultsBuf{sycl::range{testCount}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
-
   struct TestKernel2 {
-    sycl::accessor testResults;
-    TestKernel2(sycl::accessor testResults_param) {
-      testResults = testResults_param;
-    }
     void operator()(sycl::nd_item<1> it) const {
+      sycl::accessor testResults{testResultsBuf, h};
       const auto root = it.ext_oneapi_get_root_group();
       if (root.leader() || root.get_local_id() == 3) {
         testResults[0] = root.get_group_id() == sycl::id<1>(0);
@@ -147,13 +141,14 @@ void testRootGroupFunctions() {
             root.get_local_linear_range() == root.get_local_range().size();
       }
     }
-    auto get(sycl::ext::oneapi::experimental::properties_tag) { return props; }
+    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+      return sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::use_root_sync};
+    }
   };
 
   q.submit([&](sycl::handler &h) {
-    sycl::accessor testResults{testResultsBuf, h};
-    h.parallel_for<class RootGroupFunctionsKernel>(range,
-                                                   TestKernel2(testResults));
+    h.parallel_for<class RootGroupFunctionsKernel>(range, TestKernel2{});
   });
   sycl::host_accessor testResults{testResultsBuf};
   for (int i = 0; i < testCount; i++) {
