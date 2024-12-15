@@ -16,6 +16,8 @@
 #include <fstream>
 #include <optional>
 
+#include <time.h>
+
 #if defined(__SYCL_RT_OS_POSIX_SUPPORT)
 #include <unistd.h>
 #else
@@ -402,6 +404,10 @@ void PersistentDeviceCodeCache::putItemToDisc(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const ur_program_handle_t &NativePrg) {
 
+#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
+  InstrumentCache Instrument{"putItemToDisc: "};
+#endif
+
   if (!areImagesCacheable(Imgs))
     return;
 
@@ -460,8 +466,12 @@ void PersistentDeviceCodeCache::putItemToDisc(
   }
 
   // Update the cache size file and trigger cache eviction if needed.
-  if (TotalSize)
+  if (TotalSize) {
+#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
+    InstrumentCache Instrument{"Eviction: "};
+#endif
     updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
+  }
 }
 
 void PersistentDeviceCodeCache::putCompiledKernelToDisc(
@@ -513,6 +523,10 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
   if (!areImagesCacheable(Imgs))
     return {};
 
+#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
+  InstrumentCache Instrument{"getItemFromDisc: "};
+#endif
+
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   std::vector<std::vector<char>> Binaries(Devices.size());
   std::string FileNames;
@@ -538,8 +552,12 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
 
           // Explicitly update the access time of the file. This is required for
           // eviction.
-          if (isEvictionEnabled())
+          if (isEvictionEnabled()) {
+#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
+            InstrumentCache Instrument{"Updating file access time: "};
+#endif
             updateFileModificationTime(FileName + ".bin");
+          }
 
           FileNames += FullFileName + ";";
           break;
