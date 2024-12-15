@@ -73,9 +73,9 @@ void testRootGroup() {
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   struct TestKernel1 {
-    sycl::buffer<bool> *m_dataBuf;
+    sycl::buffer<int> *m_dataBuf;
     sycl::handler *m_h;
-    TestKernel1(sycl::buffer<bool> *dataBuf, sycl::handler *h)
+    TestKernel1(sycl::buffer<int> *dataBuf, sycl::handler *h)
         : m_dataBuf(dataBuf), m_h(h) {}
     void operator()(sycl::nd_item<1> it) const {
       sycl::accessor data{*m_dataBuf, *m_h};
