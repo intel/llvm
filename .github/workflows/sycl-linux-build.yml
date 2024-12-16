@@ -156,6 +156,11 @@ jobs:
         ref: ${{ inputs.build_ref || github.sha }}
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
+    - name: Setup oneAPI env
+      if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
+      run: |
+         source /opt/whatever
+    
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
