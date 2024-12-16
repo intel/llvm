@@ -377,7 +377,13 @@ protected:
   /// added as dependencies.
   void addGraphLeafDependencies(node Node);
 
+#ifdef ___INTEL_PREVIEW_BREAKING_CHANGES
+  void print_graph(sycl::detail::string_view path, bool verbose = false) const {
+    print_graph(sycl::detail::string_view{path}, verbose);
+  }
+#else
   void print_graph(sycl::detail::string_view path, bool verbose = false) const;
+#endif
 
   template <class Obj>
   friend const decltype(Obj::impl) &
@@ -387,6 +393,7 @@ protected:
   std::shared_ptr<detail::graph_impl> impl;
 };
 
+#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_GRAPH_IMPL_CPP
 // Magic combination found by trial and error:
 __SYCL_EXPORT
@@ -401,6 +408,7 @@ inline
                                           bool verbose) const {
   print_graph(sycl::detail::string_view{path}, verbose);
 }
+#endif
 
 // Templateless executable command-graph base class.
 class __SYCL_EXPORT executable_command_graph
