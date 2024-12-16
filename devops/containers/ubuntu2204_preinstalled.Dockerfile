@@ -3,7 +3,7 @@ ARG base_image=ghcr.io/intel/llvm/ubuntu2204_intel_drivers
 
 FROM $base_image:$base_tag
 
-USER ROOT
+USER root
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 RUN mkdir -p /opt/sycl
