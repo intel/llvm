@@ -228,18 +228,18 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions.append(("%{run-unfiltered-devices}", run_unfiltered_substitution))
 
-        ignore_line_filtering = ("build-and-run-mode" in test.requires
-            and test.config.test_mode == "run-only"
-            and test.config.fallback_build_run_only
-        )
-
         new_script = []
         for directive in script:
             if not isinstance(directive, lit.TestRunner.CommandDirective):
                 new_script.append(directive)
                 continue
 
-            # Filter commands based on split-mode
+            # Filter commands based on testing mode
+            ignore_line_filtering = (
+                "build-and-run-mode" in test.requires
+                and test.config.test_mode == "run-only"
+                and test.config.fallback_build_run_only
+            )
             is_run_line = ignore_line_filtering or any(
                 i in directive.command
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
