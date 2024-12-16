@@ -1,6 +1,5 @@
 urEnqueueKernelLaunchTest.InvalidKernelArgs/*
 urEnqueueKernelLaunchKernelWgSizeTest.Success/*
-urEnqueueKernelLaunchWithVirtualMemory.Success/*
 {{OPT}}urEnqueueKernelLaunchIncrementTest.Success/*__UseEventsEnabled
 {{OPT}}urEnqueueKernelLaunchIncrementTest.Success/*__UseEventsDisabled
 {{OPT}}urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/UseEventsNoQueuePerThread

@@ -9,11 +9,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#include "context.hpp"
 #include "device.hpp"
 #include "logger/ur_logger.hpp"
 #include "physical_mem.hpp"
-#include "ur_level_zero.hpp"
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+#include "v2/context.hpp"
+#else
+#include "context.hpp"
+#endif
 
 namespace ur::level_zero {
 
@@ -30,7 +34,7 @@ ur_result_t urVirtualMemGranularityGetInfo(
     // aligned size.
     size_t PageSize;
     ZE2UR_CALL(zeVirtualMemQueryPageSize,
-               (hContext->ZeContext, hDevice->ZeDevice, 1, &PageSize));
+               (hContext->getZeHandle(), hDevice->ZeDevice, 1, &PageSize));
     return ReturnValue(PageSize);
   }
   default:
@@ -44,14 +48,15 @@ ur_result_t urVirtualMemGranularityGetInfo(
 ur_result_t urVirtualMemReserve(ur_context_handle_t hContext,
                                 const void *pStart, size_t size,
                                 void **ppStart) {
-  ZE2UR_CALL(zeVirtualMemReserve, (hContext->ZeContext, pStart, size, ppStart));
+  ZE2UR_CALL(zeVirtualMemReserve,
+             (hContext->getZeHandle(), pStart, size, ppStart));
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urVirtualMemFree(ur_context_handle_t hContext, const void *pStart,
                              size_t size) {
-  ZE2UR_CALL(zeVirtualMemFree, (hContext->ZeContext, pStart, size));
+  ZE2UR_CALL(zeVirtualMemFree, (hContext->getZeHandle(), pStart, size));
 
   return UR_RESULT_SUCCESS;
 }
@@ -66,7 +71,7 @@ ur_result_t urVirtualMemSetAccess(ur_context_handle_t hContext,
     AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READONLY;
 
   ZE2UR_CALL(zeVirtualMemSetAccessAttribute,
-             (hContext->ZeContext, pStart, size, AccessAttr));
+             (hContext->getZeHandle(), pStart, size, AccessAttr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -82,15 +87,15 @@ ur_result_t urVirtualMemMap(ur_context_handle_t hContext, const void *pStart,
     AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READONLY;
 
   ZE2UR_CALL(zeVirtualMemMap,
-             (hContext->ZeContext, pStart, size, hPhysicalMem->ZePhysicalMem,
-              offset, AccessAttr));
+             (hContext->getZeHandle(), pStart, size,
+              hPhysicalMem->ZePhysicalMem, offset, AccessAttr));
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urVirtualMemUnmap(ur_context_handle_t hContext, const void *pStart,
                               size_t size) {
-  ZE2UR_CALL(zeVirtualMemUnmap, (hContext->ZeContext, pStart, size));
+  ZE2UR_CALL(zeVirtualMemUnmap, (hContext->getZeHandle(), pStart, size));
 
   return UR_RESULT_SUCCESS;
 }
@@ -106,7 +111,7 @@ ur_result_t urVirtualMemGetInfo(ur_context_handle_t hContext,
     size_t QuerySize;
     ze_memory_access_attribute_t Access;
     ZE2UR_CALL(zeVirtualMemGetAccessAttribute,
-               (hContext->ZeContext, pStart, size, &Access, &QuerySize));
+               (hContext->getZeHandle(), pStart, size, &Access, &QuerySize));
     ur_virtual_mem_access_flags_t RetFlags = 0;
     if (Access & ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE)
       RetFlags |= UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE;

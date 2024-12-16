@@ -10,9 +10,13 @@
 
 #include "physical_mem.hpp"
 #include "common.hpp"
-#include "context.hpp"
 #include "device.hpp"
-#include "ur_level_zero.hpp"
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+#include "v2/context.hpp"
+#else
+#include "context.hpp"
+#endif
 
 namespace ur::level_zero {
 
@@ -25,7 +29,7 @@ ur_result_t urPhysicalMemCreate(
   PhysicalMemDesc.size = size;
 
   ze_physical_mem_handle_t ZePhysicalMem;
-  ZE2UR_CALL(zePhysicalMemCreate, (hContext->ZeContext, hDevice->ZeDevice,
+  ZE2UR_CALL(zePhysicalMemCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
                                    &PhysicalMemDesc, &ZePhysicalMem));
   try {
     *phPhysicalMem = new ur_physical_mem_handle_t_(ZePhysicalMem, hContext);
@@ -46,8 +50,8 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   if (!hPhysicalMem->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  ZE2UR_CALL(zePhysicalMemDestroy,
-             (hPhysicalMem->Context->ZeContext, hPhysicalMem->ZePhysicalMem));
+  ZE2UR_CALL(zePhysicalMemDestroy, (hPhysicalMem->Context->getZeHandle(),
+                                    hPhysicalMem->ZePhysicalMem));
   delete hPhysicalMem;
 
   return UR_RESULT_SUCCESS;
