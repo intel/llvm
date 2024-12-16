@@ -1577,7 +1577,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
     NewInst = Builder.CreateStore(
         NewCI,
         Builder.CreateBitCast(CastInstruction->getPointerOperand(),
-                              llvm::PointerType::getUnqual(CI.getContext())));
+                              llvm::PointerType::getUnqual(NewCI->getContext())));
   } else {
     NewInst = addCastInstIfNeeded(&CI, NewCI);
   }
