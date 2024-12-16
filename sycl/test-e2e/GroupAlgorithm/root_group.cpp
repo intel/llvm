@@ -61,15 +61,15 @@ void testQueriesAndProperties() {
 }
 
 template <typename T> class TestKernel1 {
-  T *m_data;
+  T &m_data;
 
 public:
-  TestKernel1(T *data) : m_data(data) {}
+  TestKernel1(T &data_) : m_data(data_) {}
   void operator()(sycl::nd_item<1> it) const {
     volatile float X = 1.0f;
     volatile float Y = 1.0f;
     auto root = it.ext_oneapi_get_root_group();
-    (*m_data)[root.get_local_id()] = root.get_local_id();
+    m_data[root.get_local_id()] = root.get_local_id();
     sycl::group_barrier(root);
     // Delay half of the workgroups with extra work to check that the barrier
     // synchronizes the whole device.
@@ -78,10 +78,10 @@ public:
       Y += sycl::cos(Y);
     }
     root = sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
-    int sum = (*m_data)[root.get_local_id()] +
-              (*m_data)[root.get_local_range() - root.get_local_id() - 1];
+    int sum = m_data[root.get_local_id()] +
+              m_data[root.get_local_range() - root.get_local_id() - 1];
     sycl::group_barrier(root);
-    (*m_data)[root.get_local_id()] = sum;
+    m_data[root.get_local_id()] = sum;
   }
   auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
@@ -104,7 +104,7 @@ void testRootGroup() {
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
     sycl::accessor data{dataBuf, h};
-    h.parallel_for<class RootGroupKernel>(range, TestKernel1(&data));
+    h.parallel_for<class RootGroupKernel>(range, TestKernel1(data));
   });
   sycl::host_accessor data{dataBuf};
   const int workItemCount = static_cast<int>(range.get_global_range().size());
@@ -114,26 +114,24 @@ void testRootGroup() {
 }
 
 template <typename T> class TestKernel2 {
-  T *m_testResults;
+  T &m_testResults;
 
 public:
-  TestKernel2(T *testResults) : m_testResults(testResults) {}
+  TestKernel2(T testResults_) : m_testResults(testResults_) {}
   void operator()(sycl::nd_item<1> it) const {
     const auto root = it.ext_oneapi_get_root_group();
     if (root.leader() || root.get_local_id() == 3) {
-      (*m_testResults)[0] = root.get_group_id() == sycl::id<1>(0);
-      (*m_testResults)[1] = root.leader()
-                                ? root.get_local_id() == sycl::id<1>(0)
-                                : root.get_local_id() == sycl::id<1>(3);
-      (*m_testResults)[2] = root.get_group_range() == sycl::range<1>(1);
-      (*m_testResults)[3] = root.get_local_range() == it.get_global_range();
-      (*m_testResults)[4] =
-          root.get_max_local_range() == root.get_local_range();
-      (*m_testResults)[5] = root.get_group_linear_id() == 0;
-      (*m_testResults)[6] =
+      m_testResults[0] = root.get_group_id() == sycl::id<1>(0);
+      m_testResults[1] = root.leader() ? root.get_local_id() == sycl::id<1>(0)
+                                       : root.get_local_id() == sycl::id<1>(3);
+      m_testResults[2] = root.get_group_range() == sycl::range<1>(1);
+      m_testResults[3] = root.get_local_range() == it.get_global_range();
+      m_testResults[4] = root.get_max_local_range() == root.get_local_range();
+      m_testResults[5] = root.get_group_linear_id() == 0;
+      m_testResults[6] =
           root.get_local_linear_id() == root.get_local_id().get(0);
-      (*m_testResults)[7] = root.get_group_linear_range() == 1;
-      (*m_testResults)[8] =
+      m_testResults[7] = root.get_group_linear_range() == 1;
+      m_testResults[8] =
           root.get_local_linear_range() == root.get_local_range().size();
     }
   }
