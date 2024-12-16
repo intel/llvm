@@ -1733,14 +1733,14 @@ void VPWidenIntOrFpInductionRecipe::execute(VPTransformState &State) {
   // factor. The last of those goes into the PHI.
   PHINode *VecInd = PHINode::Create(SteppedStart->getType(), 2, "vec.ind");
   VecInd->insertBefore(State.CFG.PrevBB->getFirstInsertionPt());
-  VecInd->setDebugLoc(EntryVal->getDebugLoc());
+  VecInd->setDebugLoc(getDebugLoc());
   State.set(this, VecInd);
 
   Instruction *LastInduction = cast<Instruction>(
       Builder.CreateBinOp(AddOp, VecInd, SplatVF, "vec.ind.next"));
   if (isa<TruncInst>(EntryVal))
     State.addMetadata(LastInduction, EntryVal);
-  LastInduction->setDebugLoc(EntryVal->getDebugLoc());
+  LastInduction->setDebugLoc(getDebugLoc());
 
   VecInd->addIncoming(SteppedStart, VectorPH);
   // Add induction update using an incorrect block temporarily. The phi node
@@ -3182,6 +3182,7 @@ void VPWidenPointerInductionRecipe::execute(VPTransformState &State) {
     NewPointerPhi = PHINode::Create(ScStValueType, 2, "pointer.phi",
                                     CanonicalIV->getIterator());
     NewPointerPhi->addIncoming(ScalarStartValue, VectorPH);
+    NewPointerPhi->setDebugLoc(getDebugLoc());
   } else {
     // The recipe has been unrolled. In that case, fetch the single pointer phi
     // shared among all unrolled parts of the recipe.

@@ -2891,6 +2891,11 @@ void OpenACCClauseEnqueue::VisitCreateClause(const OpenACCCreateClause &C) {
 void OpenACCClauseEnqueue::VisitAttachClause(const OpenACCAttachClause &C) {
   VisitVarList(C);
 }
+
+void OpenACCClauseEnqueue::VisitDetachClause(const OpenACCDetachClause &C) {
+  VisitVarList(C);
+}
+
 void OpenACCClauseEnqueue::VisitDevicePtrClause(
     const OpenACCDevicePtrClause &C) {
   VisitVarList(C);
@@ -2926,6 +2931,10 @@ void OpenACCClauseEnqueue::VisitAutoClause(const OpenACCAutoClause &C) {}
 void OpenACCClauseEnqueue::VisitIndependentClause(
     const OpenACCIndependentClause &C) {}
 void OpenACCClauseEnqueue::VisitSeqClause(const OpenACCSeqClause &C) {}
+void OpenACCClauseEnqueue::VisitFinalizeClause(const OpenACCFinalizeClause &C) {
+}
+void OpenACCClauseEnqueue::VisitIfPresentClause(
+    const OpenACCIfPresentClause &C) {}
 void OpenACCClauseEnqueue::VisitCollapseClause(const OpenACCCollapseClause &C) {
   Visitor.AddStmt(C.getLoopCount());
 }
