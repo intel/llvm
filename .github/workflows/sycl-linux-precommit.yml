@@ -82,13 +82,12 @@ jobs:
       runner: '["Linux", "build"]'
       image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:alldeps
       image_options: -u 1001
-      extra_lit_opts: --param test-mode=build-only
       ref: ${{ github.sha }}
       merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      upload_artifact: 'true'
+      e2e_testing_mode: 'build-only'
   run_prebuilt_e2e_tests:
     needs: [build, build_e2e_tests]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
@@ -110,7 +109,7 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: --param test-mode=run-only ${{ matrix.extra_lit_opts }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}
       merge_ref: ''
@@ -118,6 +117,7 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
       e2e_binaries_artifact: sycl_e2e_bin_default
+      e2e_testing_mode: 'run-only'
 
   test:
     needs: [build, detect_changes, determine_arc_tests]

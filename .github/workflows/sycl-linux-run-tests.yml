@@ -64,9 +64,9 @@ on:
         default: ''
         required: False
 
-      upload_artifact:
+      e2e_testing_mode:
         type: string
-        default: 'false'
+        default: 'full'
       artifact_suffix:
         type: string
         default: 'default'
@@ -159,11 +159,11 @@ on:
         options:
           - false
           - true
-      upload_artifact:
+      e2e_testing_mode:
         type: choice
         options:
-          - "false"
-          - "true"
+          - "full"
+          - "build-only"
 
 permissions:
   contents: read
@@ -321,7 +321,9 @@ jobs:
       shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+        LIT_OPTS: |
+        -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests
+        --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
       run: |
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
         exit_code=$?
@@ -409,10 +411,10 @@ jobs:
 
         exit $ret
     - name: Pack e2e binaries
-      if: ${{ always() && !cancelled() && inputs.upload_artifact == 'true'}}
+      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
       run: tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
     - name: Upload e2e binaries
-      if: ${{ always() && !cancelled() && inputs.upload_artifact == 'true'}}
+      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
       uses: actions/upload-artifact@v4
       with:
         name: sycl_e2e_bin_${{ inputs.artifact_suffix }}
