@@ -654,9 +654,15 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
+    // Must return 0 for *vector_width_double* if the device does not have fp64.
+    if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP64))
+      return ReturnValue(uint32_t{0});
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+    // Must return 0 for *vector_width_half* if the device does not have fp16.
+    if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
+      return ReturnValue(uint32_t{0});
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
