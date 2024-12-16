@@ -51,7 +51,7 @@ int main() {
   sycl::ext::oneapi::experimental::properties properties{
       cache_config(large_slm)};
 
-  // CHECK: parallel_for with sycl::range and KernelFunctor
+  // CHECK: parallel_for with sycl::range
   // CHECK: ZE ---> zeKernelSetCacheConfig
   std::cout << "parallel_for with sycl::range" << std::endl;
   q.parallel_for(range<2>{16, 16}, RangeKernelFunctor{}).wait();
