@@ -81,7 +81,6 @@ TEST_P(urKernelGetSubGroupInfoTest, SubGroupSizeIntel) {
     ASSERT_EQ(property_size, sizeof(uint32_t));
 
     std::vector<char> property_value(property_size);
->>>>>>> e048b8ea (Align Kernel CTS and Specification.)
     ASSERT_SUCCESS(urKernelGetSubGroupInfo(kernel, device, property_name,
                                            property_size, property_value.data(),
                                            nullptr));
