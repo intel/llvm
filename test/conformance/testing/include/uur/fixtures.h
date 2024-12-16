@@ -1324,7 +1324,20 @@ struct urBaseKernelTest : urProgramTest {
     }
 
     void Build() {
-        ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+        auto error = urProgramBuild(context, program, nullptr);
+        if (UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE == error) {
+            size_t property_size = 0;
+
+            urProgramGetBuildInfo(program, device, UR_PROGRAM_BUILD_INFO_LOG, 0,
+                                  nullptr, &property_size);
+
+            std::vector<char> property_value(property_size);
+            urProgramGetBuildInfo(program, device, UR_PROGRAM_BUILD_INFO_LOG,
+                                  property_size, property_value.data(),
+                                  nullptr);
+            std::cout.write(property_value.data(), property_size);
+        }
+        ASSERT_SUCCESS(error);
         ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
     }
 
@@ -1360,7 +1373,21 @@ struct urBaseKernelTestWithParam : urProgramTestWithParam<T> {
     }
 
     void Build() {
-        ASSERT_SUCCESS(urProgramBuild(this->context, this->program, nullptr));
+        auto error = urProgramBuild(this->context, this->program, nullptr);
+        if (UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE == error) {
+            size_t property_size = 0;
+
+            urProgramGetBuildInfo(this->program, this->device,
+                                  UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
+                                  &property_size);
+
+            std::vector<char> property_value(property_size);
+            urProgramGetBuildInfo(this->program, this->device,
+                                  UR_PROGRAM_BUILD_INFO_LOG, property_size,
+                                  property_value.data(), nullptr);
+            std::cout.write(property_value.data(), property_size);
+        }
+        ASSERT_SUCCESS(error);
         ASSERT_SUCCESS(
             urKernelCreate(this->program, kernel_name.data(), &kernel));
     }
