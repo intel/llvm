@@ -44,6 +44,10 @@ public:
 int main() {
   sycl::queue q;
 
+  static_assert(
+      oneapi::is_property_key<oneapi::indirectly_callable_key>::value);
+  static_assert(oneapi::is_property_key<oneapi::calls_indirectly_key>::value);
+
   oneapi::properties props_empty{oneapi::assume_indirect_calls};
   oneapi::properties props_void{oneapi::assume_indirect_calls_to<void>};
   oneapi::properties props_int{oneapi::assume_indirect_calls_to<int>};

@@ -1,7 +1,5 @@
 // Fails with opencl non-cpu, enable when fixed.
 // XFAIL: (opencl && !cpu && !accelerator)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14641
-
 // RUN: %{build} -I . -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
@@ -16,7 +14,6 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
-#include <sycl/kernel_bundle.hpp>
 
 static constexpr int WorkGroupSize = 32;
 
@@ -30,18 +27,13 @@ void testQueriesAndProperties() {
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   const auto kernel = bundle.get_kernel<class QueryKernel>();
-  const auto local_range = sycl::range<1>(1);
-  const auto maxWGs =
-      kernel
-          .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
-                                   kernel_queue_specific::max_num_work_groups>(
-              q, local_range, 0);
-  const auto wgRange = sycl::range<3>{WorkGroupSize, 1, 1};
-  const auto maxWGsWithLimits =
-      kernel
-          .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
-                                   kernel_queue_specific::max_num_work_groups>(
-              q, wgRange, wgRange.size() * sizeof(int));
+  const auto maxWGs = kernel.ext_oneapi_get_info<
+      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+          max_num_work_group_sync>(q);
+  const auto wgRange = sycl::range{WorkGroupSize, 1, 1};
+  const auto maxWGsWithLimits = kernel.ext_oneapi_get_info<
+      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+          max_num_work_group_sync>(q, wgRange, wgRange.size() * sizeof(int));
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   q.single_task<class QueryKernel>(props, []() {});
@@ -60,11 +52,9 @@ void testRootGroup() {
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   const auto kernel = bundle.get_kernel<class RootGroupKernel>();
-  const auto maxWGs =
-      kernel
-          .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
-                                   kernel_queue_specific::max_num_work_groups>(
-              q, WorkGroupSize, 0);
+  const auto maxWGs = kernel.ext_oneapi_get_info<
+      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+          max_num_work_group_sync>(q);
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
@@ -104,11 +94,9 @@ void testRootGroupFunctions() {
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   const auto kernel = bundle.get_kernel<class RootGroupFunctionsKernel>();
-  const auto maxWGs =
-      kernel
-          .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
-                                   kernel_queue_specific::max_num_work_groups>(
-              q, WorkGroupSize, 0);
+  const auto maxWGs = kernel.ext_oneapi_get_info<
+      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+          max_num_work_group_sync>(q);
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
 
