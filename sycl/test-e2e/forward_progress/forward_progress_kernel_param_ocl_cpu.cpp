@@ -22,9 +22,9 @@ void check_props(sycl::queue &q) {}
 
 // Full specializations for each progress guarantee
 
-struct KernelFunctor {
-  properties props;
-  KernelFunctor(properties &props_) : props(props_) {}
+template <typename T> struct KernelFunctor {
+  T props;
+  KernelFunctor(T &props_) : props(props_) {}
   void operator()() const {}
   auto get(properties_tag) const { return props; }
 };
