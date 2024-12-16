@@ -1,3 +1,6 @@
+// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
+// https://github.com/intel/llvm/issues/16320. Remove the flag once the issue is
+// resolved.
 // RUN: %clangxx -fsycl-device-only -S -Wno-deprecated-declarations -Xclang -emit-llvm -Xclang -disable-llvm-passes %s -o - | FileCheck %s --check-prefix CHECK-IR
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations -Xclang -verify %s
 // expected-no-diagnostics
