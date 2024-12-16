@@ -1,6 +1,7 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %{build} -o %t.out
+// TODO: Currently using the -Wno-deprecated-declarations flag due to issue https://github.com/intel/llvm/issues/16320. Remove the flag once the issue is resolved.
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <numeric>

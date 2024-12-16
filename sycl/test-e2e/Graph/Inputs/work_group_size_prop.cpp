@@ -40,9 +40,8 @@ template <size_t... Is> struct KernelFunctorWithWGSizeProp {
   }
 };
 
-template <Variant KernelVariant, size_t... Is, typename PropertiesT,
-          typename KernelType>
-int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
+template <Variant KernelVariant, size_t... Is, typename KernelType>
+int test(queue &Queue, KernelType KernelFunc) {
   constexpr size_t Dims = sizeof...(Is);
 
   // Positive test case: Specify local size that matches required size.
@@ -52,15 +51,13 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
 
     add_node(Graph, Queue, [&](handler &CGH) {
       CGH.parallel_for<ReqdWGSizePositiveA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-          KernelFunc);
+          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), KernelFunc);
     });
 
 #ifdef GRAPH_E2E_RECORD_REPLAY
     Graph.begin_recording(Queue);
     Queue.parallel_for<ReqdWGSizePositiveA<KernelVariant, true, Is...>>(
-        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-        KernelFunc);
+        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), KernelFunc);
     Graph.end_recording(Queue);
 #endif
 
@@ -83,8 +80,7 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
   try {
     add_node(GraphN, Queue, [&](handler &CGH) {
       CGH.parallel_for<ReqdWGSizeNegativeA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
-          KernelFunc);
+          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), KernelFunc);
     });
     auto ExecGraph = GraphN.finalize();
 
@@ -119,8 +115,7 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
     GraphN.begin_recording(Queue);
 
     Queue.parallel_for<ReqdWGSizeNegativeA<KernelVariant, true, Is...>>(
-        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
-        KernelFunc);
+        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), KernelFunc);
 
     GraphN.end_recording(Queue);
     auto ExecGraph = GraphN.finalize();
@@ -156,17 +151,10 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
 }
 
 template <size_t... Is> int test(queue &Queue) {
-  auto Props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::work_group_size<Is...>};
-  auto KernelFunction = [](auto) {};
-
-  auto EmptyProps = sycl::ext::oneapi::experimental::properties{};
   KernelFunctorWithWGSizeProp<Is...> KernelFunctor;
 
   int Res = 0;
-  Res += test<Variant::Function, Is...>(Queue, Props, KernelFunction);
-  Res += test<Variant::Functor, Is...>(Queue, EmptyProps, KernelFunctor);
-  Res += test<Variant::FunctorAndProperty, Is...>(Queue, Props, KernelFunctor);
+  Res += test<Variant::Functor, Is...>(Queue, KernelFunctor);
   return Res;
 }
 
