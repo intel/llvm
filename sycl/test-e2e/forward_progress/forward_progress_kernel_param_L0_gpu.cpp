@@ -25,7 +25,7 @@ void check_props(sycl::queue &q) {}
 
 template <typename T> struct KernelFunctor {
   T props;
-  KernelFunctor(T &props_) : props(props_) {}
+  KernelFunctor(const T &props_) : props(props_) {}
   void operator()() const {}
   auto get(properties_tag) const { return props; }
 };
