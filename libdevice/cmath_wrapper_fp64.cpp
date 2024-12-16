@@ -190,6 +190,16 @@ DEVICE_EXTERN_C_INLINE
 double rint(double x) { return __nv_rint(x); }
 #endif // __NVPTX__
 
+#ifdef __AMDGCN__
+extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
+DEVICE_EXTERN_C_INLINE
+double nearbyintf(double x) { return __ocml_nearbyint_f64(x); }
+
+extern "C" SYCL_EXTERNAL double __ocml_rint_f64(double);
+DEVICE_EXTERN_C_INLINE
+double rintf(double x) { return __ocml_rint_f64(x); }
+#endif // __AMDGCN__
+
 #if defined(_MSC_VER)
 #include <math.h>
 // FLOAT PROPERTIES
