@@ -831,12 +831,12 @@ ur_result_t urKernelGetGroupInfo(
     return ReturnValue(WgSize);
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE:
-    return ReturnValue(uint32_t{Kernel->ZeKernelProperties->localMemSize});
+    return ReturnValue(size_t{Kernel->ZeKernelProperties->localMemSize});
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     return ReturnValue(size_t{Device->ZeDeviceProperties->physicalEUSimdWidth});
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
-    return ReturnValue(uint32_t{Kernel->ZeKernelProperties->privateMemSize});
+    return ReturnValue(size_t{Kernel->ZeKernelProperties->privateMemSize});
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
