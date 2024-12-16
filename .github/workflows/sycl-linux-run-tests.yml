@@ -321,9 +321,7 @@ jobs:
       shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
-        LIT_OPTS: |
-        -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests
-        --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
       run: |
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
         exit_code=$?
