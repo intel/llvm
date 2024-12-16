@@ -156,7 +156,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         devices_for_test = []
         triples = set()
-        ignore_line_filtering = False
         if test.config.test_mode == "build-only":
             if "build-and-run-mode" in test.requires or "true" in test.unsupported:
                 return lit.Test.Result(
@@ -173,12 +172,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             for sycl_device in devices_for_test:
                 (backend, _) = sycl_device.split(":")
                 triples.add(get_triple(test, backend))
-
-            if (
-                "build-and-run-mode" in test.requires
-                and test.config.fallback_build_run_only
-            ):
-                ignore_line_filtering = True
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
@@ -234,6 +227,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         run_unfiltered_substitution += test.config.run_launcher
 
         substitutions.append(("%{run-unfiltered-devices}", run_unfiltered_substitution))
+
+        ignore_line_filtering = ("build-and-run-mode" in test.requires
+            and test.config.test_mode == "run-only"
+            and test.config.fallback_build_run_only
+        )
 
         new_script = []
         for directive in script:
