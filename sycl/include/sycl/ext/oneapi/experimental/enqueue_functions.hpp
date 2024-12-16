@@ -334,8 +334,7 @@ template <typename T>
 void copy(queue Q, const T *Src, T *Dest, size_t Count,
           const sycl::detail::code_location &CodeLoc =
               sycl::detail::code_location::current()) {
-  submit(
-      Q, [&](handler &CGH) { copy<T>(CGH, Src, Dest, Count); }, CodeLoc);
+  submit(Q, [&](handler &CGH) { copy<T>(CGH, Src, Dest, Count); }, CodeLoc);
 }
 
 inline void memset(handler &CGH, void *Ptr, int Value, size_t NumBytes) {
@@ -355,8 +354,7 @@ template <typename T>
 void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
           const sycl::detail::code_location &CodeLoc =
               sycl::detail::code_location::current()) {
-  submit(
-      Q, [&](handler &CGH) { fill<T>(CGH, Ptr, Pattern, Count); }, CodeLoc);
+  submit(Q, [&](handler &CGH) { fill<T>(CGH, Ptr, Pattern, Count); }, CodeLoc);
 }
 
 inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
@@ -376,8 +374,7 @@ inline void prefetch(queue Q, void *Ptr, size_t NumBytes,
                      prefetch_type type = prefetch_type::device,
                      const sycl::detail::code_location &CodeLoc =
                          sycl::detail::code_location::current()) {
-  submit(
-      Q, [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, type); }, CodeLoc);
+  submit(Q, [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, type); }, CodeLoc);
 }
 
 inline void mem_advise(handler &CGH, void *Ptr, size_t NumBytes, int Advice) {
@@ -392,8 +389,7 @@ inline void barrier(handler &CGH) { CGH.ext_oneapi_barrier(); }
 
 inline void barrier(queue Q, const sycl::detail::code_location &CodeLoc =
                                  sycl::detail::code_location::current()) {
-  submit(
-      Q, [&](handler &CGH) { barrier(CGH); }, CodeLoc);
+  submit(Q, [&](handler &CGH) { barrier(CGH); }, CodeLoc);
 }
 
 inline void partial_barrier(handler &CGH, const std::vector<event> &Events) {
@@ -403,8 +399,7 @@ inline void partial_barrier(handler &CGH, const std::vector<event> &Events) {
 inline void partial_barrier(queue Q, const std::vector<event> &Events,
                             const sycl::detail::code_location &CodeLoc =
                                 sycl::detail::code_location::current()) {
-  submit(
-      Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
+  submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
 }
 
 inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
