@@ -1420,7 +1420,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     getContext()->logger.debug("==== urKernelSetArgValue");
 
     std::shared_ptr<MemBuffer> MemBuffer;
-    std::shared_ptr<KernelInfo> KernelInfo;
     if (argSize == sizeof(ur_mem_handle_t) &&
         (MemBuffer = getAsanInterceptor()->getMemBuffer(
              *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
@@ -1453,7 +1452,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     getContext()->logger.debug("==== urKernelSetArgMemObj");
 
     std::shared_ptr<MemBuffer> MemBuffer;
-    std::shared_ptr<KernelInfo> KernelInfo;
     if ((MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue))) {
         auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
