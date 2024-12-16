@@ -118,8 +118,6 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
       e2e_binaries_artifact: sycl_e2e_bin_default
-      e2e_binaries_archive: ${{ needs.build_e2e_tests.outputs.artifact_archive_name }}
-      e2e_binaries_decompress_command: ${{ needs.build_e2e_tests.outputs.artifact_decompress_command }}
 
   test:
     needs: [build, detect_changes, determine_arc_tests]

@@ -63,14 +63,6 @@ on:
         type: string
         default: ''
         required: False
-      e2e_binaries_archive:
-        type: string
-        default: ''
-        required: False
-      e2e_binaries_decompress_command:
-        type: string
-        default: ''
-        required: False
 
       upload_artifact:
         type: string
@@ -78,9 +70,6 @@ on:
       artifact_suffix:
         type: string
         default: 'default'
-      artifact_archive_name:
-        type: string
-        default: e2e_binaries.tar.zst
       retention-days:
         description: 'E2E binaries artifact retention period'
         type: string
@@ -104,12 +93,6 @@ on:
         type: string
         default: 'false'
         required: False
-
-    outputs:
-      artifact_archive_name:
-        value: ${{ jobs.run.outputs.artifact_archive_name }}
-      artifact_decompress_command:
-        value: ${{ jobs.run.outputs.artifact_decompress_command }}
 
   workflow_dispatch:
     inputs:
@@ -193,30 +176,8 @@ jobs:
     container:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
-    outputs:
-      artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
-      artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - name: Deduce artifact archive params
-      if: inputs.upload_artifact == 'true'
-      id: artifact_info
-      run: |
-        NAME="${{inputs.artifact_archive_name}}"
-        if [ -z "$NAME" ]; then
-          NAME=e2e_binaries.tar.zst
-        fi
-        echo ARCHIVE_NAME="$NAME" >> $GITHUB_OUTPUT
-        if [ "${NAME}" != "${NAME%.tar.gz}" ]; then
-          echo COMPRESS="gzip" >> $GITHUB_OUTPUT
-          echo DECOMPRESS="gunzip" >> $GITHUB_OUTPUT
-        elif [ "${NAME}" != "${NAME%.tar.zst}" ]; then
-          echo COMPRESS="zstd -9" >> $GITHUB_OUTPUT
-          echo DECOMPRESS="zstd" >> $GITHUB_OUTPUT
-        else
-          echo "Unsupported extension"
-          exit 1
-        fi
     - name: Reset Intel GPU
       if: inputs.reset_intel_gpu == 'true'
       run: |
@@ -340,8 +301,7 @@ jobs:
       if: inputs.e2e_binaries_artifact != ''
       run: |
         mkdir build-e2e
-        tar -I '${{ inputs.e2e_binaries_decompress_command }}' -xf ${{ inputs.e2e_binaries_archive }} -C build-e2e
-        rm -f ${{ inputs.e2e_binaries_artifact }}
+        tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
 
     - name: Deduce E2E CMake options
       if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact == ''
@@ -450,11 +410,11 @@ jobs:
         exit $ret
     - name: Pack e2e binaries
       if: ${{ always() && !cancelled() && inputs.upload_artifact == 'true'}}
-      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C ./build-e2e .
+      run: tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
     - name: Upload e2e binaries
       if: ${{ always() && !cancelled() && inputs.upload_artifact == 'true'}}
       uses: actions/upload-artifact@v4
       with:
         name: sycl_e2e_bin_${{ inputs.artifact_suffix }}
-        path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        path: e2e_binaries.tar.zst
         retention-days: ${{ inputs.retention-days }}
