@@ -18,6 +18,10 @@
 :OpCooperativeMatrixLoadCheckedINTEL_token: 6193
 :OpCooperativeMatrixStoreCheckedINTEL_token: 6194
 :OpCooperativeMatrixConstructCheckedINTEL_token: 6195
+:capability_offset_name: CooperativeMatrixOffsetInstructionsINTEL
+:capability_offset_token: 6238
+:OpCooperativeMatrixLoadOffsetINTEL_token: 6239
+:OpCooperativeMatrixStoreOffsetINTEL_token: 6240
 
 
 :DPCPP_URL: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_intel_matrix.asciidoc
@@ -124,6 +128,7 @@ This extension introduces new capabilities:
 {bf16_capability_name}
 {capability_checked_name}
 {capability_prefetch_name}
+{capability_offset_name}
 ----
 
 == New Instructions
@@ -154,6 +159,13 @@ OpCooperativeMatrixConstructCheckedINTEL
 
 ----
 
+Instructions added under the *{capability_offset_name}* capability:
+
+----
+OpCooperativeMatrixLoadOffsetINTEL
+OpCooperativeMatrixStoreOffsetINTEL
+----
+
 == Token Number Assignments
 
 [width="40%"]
@@ -172,6 +184,9 @@ OpCooperativeMatrixConstructCheckedINTEL
 |*OpCooperativeMatrixLoadCheckedINTEL*     | {OpCooperativeMatrixLoadCheckedINTEL_token}
 |*OpCooperativeMatrixStoreCheckedINTEL*    | {OpCooperativeMatrixStoreCheckedINTEL_token}
 |*OpCooperativeMatrixConstructCheckedINTEL*     | {OpCooperativeMatrixConstructCheckedINTEL_token}
+|*{capability_offset_name}*                     | {capability_offset_token}
+|*OpCooperativeMatrixLoadOffsetINTEL*           | {OpCooperativeMatrixLoadOffsetINTEL_token}
+|*OpCooperativeMatrixStoreOffsetINTEL*          | {OpCooperativeMatrixStoreOffsetINTEL_token}
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.6 and SPV_KHR_cooperative_matrix, Revision 3
@@ -556,6 +571,114 @@ the 'Function'. +
 'Matrix'
 |=====
 
+[cols="1,1,8*3",width="100%"]
+|=====
+9+|[[OpCooperativeMatrixLoadOffsetINTEL]]*OpCooperativeMatrixLoadOffsetINTEL* +
+ +
+ Load a cooperative matrix from memory specified using a pointer and
+ separate offsets. +
+ +
+'Result Type' is the type of the loaded object. It must be a cooperative matrix
+type. +
+ +
+'Pointer' is a pointer. Its type must be an *OpTypePointer* whose
+'Type' operand is a scalar or vector type. If the *Shader* capability
+was declared, 'Pointer' must point into an array and any *ArrayStride*
+decoration on 'Pointer' is ignored. +
+ +
+'Rows Offset' must be a scalar integer type. It specifies
+offset in number of rows from the 'Pointer' where the loaded memory
+region starts from. +
+ +
+'Columns Offset' must be a scalar integer type. It specifies
+offset in number of columns from the 'Pointer' where the loaded memory
+region starts from. +
+ +
+'MemoryLayout' specifies how matrix elements are laid out in
+memory. It must come from a 32-bit integer 'constant instruction'
+whose value corresponds to a 'Cooperative Matrix Layout'. See the
+_Cooperative Matrix Layout_ table for a description of the layouts and
+detailed layout-specific rules. +
+ +
+'Stride' further qualifies how matrix elements are laid out in
+memory. It must be a scalar integer type and its exact semantics
+depend on 'MemoryLayout'. +
+ +
+'Memory Operand' must be a +Memory Operand+ literal. If not present, it is the
+same as specifying *None*. +
+ +
+All the operands to this instruction must be dynamically uniform within every
+instance of the 'Scope' of the cooperative matrix. +
+ +
+Note: To specify cache level for *OpCooperativeMatrixLoadOffsetINTEL* one
+can use *CacheControlLoadINTEL* decoration from
+{cache_control_url}[SPV_INTEL_cache_controls extension]. +
+ +
+1+|Capability: +
+*{capability_offset_name}*
+1+| 7+variable | {OpCooperativeMatrixLoadOffsetINTEL_token} | '<id>' +
+'Result Type' |'Result <id>' | '<id>' +
+'Pointer' | '<id>' +
+'Rows Offset' | '<id>' +
+'Columns Offset' | '<id>' +
+'MemoryLayout' | '<id>' +
+'Stride' | Optional +
+'Memory Operand' |
+|=====
+
+[cols="1,1,7*3",width="100%"]
+|=====
+8+|[[OpCooperativeMatrixStoreOffsetINTEL]]*OpCooperativeMatrixStoreOffsetINTEL* +
+ +
+Store a cooperative matrix to memory specified using a pointer and
+separate offsets. +
+ +
+'Pointer' is a pointer. Its type must be an *OpTypePointer* whose
+'Type' operand is a scalar or vector type. If the *Shader* capability
+was declared, 'Pointer' must point into an array and any *ArrayStride*
+decoration on 'Pointer' is ignored. +
+ +
+'Rows Offset' must be a scalar integer type. It specifies
+offset in number of rows from the 'Pointer' where the loaded memory
+region starts from. +
+ +
+'Columns Offset' must be a scalar integer type. It specifies
+offset in number of columns from the 'Pointer' where the loaded memory
+region starts from. +
+ +
+'Object' is the object to store. Its type must be a _cooperative matrix_. +
+ +
+'MemoryLayout' specifies how matrix elements are laid out in
+memory. It must come from a 32-bit integer 'constant instruction'
+whose value corresponds to a 'Cooperative Matrix Layout'. See the
+_Cooperative Matrix Layout_ table for a description of the layouts and
+detailed layout-specific rules. +
+ +
+'Stride' further qualifies how matrix elements are laid out in
+memory. It must be a scalar integer type and its exact semantics
+depend on 'MemoryLayout'. +
+ +
+'Memory Operand' must be a +Memory Operand+ literal. If not present, it is the
+same as specifying *None*. +
+ +
+All the operands to this instruction must be dynamically uniform within every
+instance of the 'Scope' of the cooperative matrix. +
+ +
+Note: To specify cache level for *OpCooperativeMatrixStoreOffsetINTEL* one
+can use *CacheControlStoreINTEL* decoration from
+{cache_control_url}[SPV_INTEL_cache_controls extension]. +
+ +
+1+|Capability: +
+*{capability_offset_name}*
+1+| 6+variable | {OpCooperativeMatrixStoreOffsetINTEL_token} | '<id>' +
+'Pointer' | '<id>' +
+'Rows Offset' | '<id>' +
+'Columns Offset' | '<id>' +
+'Object' | '<id>' +
+'MemoryLayout' | '<id>' +
+'Stride' | Optional +
+'Memory Operand' |
+|=====
 
 === Issues
 
@@ -588,4 +711,5 @@ Revision History
 |14|2023-10-11|Dmitry Sidorov|Add matrix prefetch instruction
 |15|2023-11-06|Dmitry Sidorov|Put deprecation note on OpCooperativeMatrixGetElementCoordINTEL
 |16|2023-11-06|Dmitry Sidorov|Add checked load, store and construct instructions
+|17|2024-12-16|Dounia Khaldi|Add and store with offset
 |========================================
