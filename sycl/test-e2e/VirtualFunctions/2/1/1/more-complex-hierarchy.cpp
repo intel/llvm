@@ -48,12 +48,16 @@ void applyOp(int *Data, AbstractOp *Obj) { Obj->applyOp(Data); }
 template <typename T1, typename T2> struct KernelFunctor {
   T1 mStorageAcc;
   T2 mDataAcc;
-  KernelFunctor(T1 &StorageAcc, T2 &DataAcc)
-      : mStorageAcc(StorageAcc), mDataAcc(DataAcc) {}
+  unsigned mTestCase;
+  KernelFunctor(T1 &StorageAcc, T2 &DataAcc, unsigned TestCase)
+      : mStorageAcc(StorageAcc), mDataAcc(DataAcc), mTestCase(TestCase) {}
 
   void operator()() const {
-    auto *Ptr = mStorageAcc[0].construct</* ret type = */ AbstractOp>(TestCase);
-    applyOp(mDataAcc.get_multi_ptr<sycl::access::decorated::no>().get(), Ptr);
+    auto *Ptr = mStorageAcc[0].template construct</* ret type = */ AbstractOp>(
+        mTestCase);
+    applyOp(
+        mDataAcc.template get_multi_ptr<sycl::access::decorated::no>().get(),
+        Ptr);
   }
   auto get(oneapi::properties_tag) const {
     return oneapi::properties{oneapi::assume_indirect_calls};
@@ -82,7 +86,7 @@ int main() try {
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::write_only);
       sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
-      CGH.single_task(KernelFunctor(StorageAcc, DataAcc));
+      CGH.single_task(KernelFunctor(StorageAcc, DataAcc, TestCase));
     });
 
     auto *Ptr = HostStorage.construct</* ret type = */ AbstractOp>(TestCase);

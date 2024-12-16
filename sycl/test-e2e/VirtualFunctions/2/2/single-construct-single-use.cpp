@@ -60,11 +60,12 @@ public:
 template <typename T1, typename T2> struct KernelFunctor {
   T1 mStorageAcc;
   T2 mDataAcc;
-  KernelFunctor(T1 StorageAcc, T2 DataAcc)
+  KernelFunctor(T1 &StorageAcc, T2 &DataAcc)
       : mStorageAcc(StorageAcc), mDataAcc(DataAcc) {}
   void operator()() const {
-    auto *Ptr = mStorageAcc[0].getAs<BaseIncrement>();
-    Ptr->increment(mDataAcc.get_multi_ptr<sycl::access::decorated::no>().get());
+    auto *Ptr = mStorageAcc[0].template getAs<BaseIncrement>();
+    Ptr->increment(
+        mDataAcc.template get_multi_ptr<sycl::access::decorated::no>().get());
   }
   auto get(oneapi::properties_tag) const {
     return oneapi::properties{
