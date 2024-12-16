@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c -Wno-deprecated-declarations -Xclang -verify %s -o %t.ignored
+// RUN: %clangxx -fsycl -c -Xclang -verify %s -o %t.ignored
 //
 // This test is intended to check that no diagnostics are emitted when a kernel
 // performing virtual function calls is submitted with the right properties.

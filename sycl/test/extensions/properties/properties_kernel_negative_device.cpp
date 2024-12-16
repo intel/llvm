@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -Wno-deprecated-declarations -Xclang -fsycl-is-device -ferror-limit=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -ferror-limit=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include <sycl/sycl.hpp>
 

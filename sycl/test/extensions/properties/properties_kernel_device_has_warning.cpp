@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -Wno-deprecated-declarations -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 // Tests for warnings when propagated aspects do not match the aspects available
 // in a function, as specified through the 'sycl::device_has' property.
