@@ -14,6 +14,7 @@ urCommandBufferCommandsTest.urCommandBufferAppendMemBufferFillExp/*
 urCommandBufferCommandsTest.urCommandBufferAppendUSMPrefetchExp/*
 urCommandBufferCommandsTest.urCommandBufferAppendUSMAdviseExp/*
 urCommandBufferAppendKernelLaunchExpTest.Basic/*
+urCommandBufferAppendKernelLaunchExpTest.FinalizeTwice/*
 urCommandBufferFillCommandsTest.Buffer/*
 urCommandBufferFillCommandsTest.USM/*
 KernelCommandEventSyncTest.Basic/*

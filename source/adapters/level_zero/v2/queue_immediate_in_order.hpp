@@ -77,6 +77,11 @@ private:
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
       ur_command_t commandType);
 
+  ur_result_t
+  enqueueEventsWaitWithBarrierImpl(uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent);
+
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
                                 const ur_queue_properties_t *);

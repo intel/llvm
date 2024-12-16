@@ -25,8 +25,9 @@ class Result:
     # values below should not be set by the benchmark
     name: str = ""
     lower_is_better: bool = True
-    git_hash: str = ''
+    git_hash: str = ""
     date: Optional[datetime] = None
+    suite: str = ""
 
 @dataclass_json
 @dataclass

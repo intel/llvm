@@ -431,6 +431,12 @@ ur_result_t AsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
     auto ProgramInfo = getProgramInfo(Program);
     assert(ProgramInfo != nullptr && "unregistered program!");
 
+    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+    for (auto AI : ProgramInfo->AllocInfoForGlobals) {
+        m_AllocationMap.erase(AI->AllocBegin);
+    }
+    ProgramInfo->AllocInfoForGlobals.clear();
+
     ProgramInfo->InstrumentedKernels.clear();
 
     return UR_RESULT_SUCCESS;
@@ -549,6 +555,10 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
                           {}});
 
             ContextInfo->insertAllocInfo({Device}, AI);
+            ProgramInfo->AllocInfoForGlobals.emplace(AI);
+
+            std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+            m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
         }
     }
 

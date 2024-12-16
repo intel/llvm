@@ -7,6 +7,7 @@ add_conformance_test_with_devices_environment(virtual_memory
     urPhysicalMemCreate.cpp
     urPhysicalMemRelease.cpp
     urPhysicalMemRetain.cpp
+    urPhysicalMemGetInfo.cpp
     urVirtualMemFree.cpp
     urVirtualMemGetInfo.cpp
     urVirtualMemGranularityGetInfo.cpp

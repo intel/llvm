@@ -92,7 +92,7 @@ TEST_F(urEnqueueEventsWaitMultiDeviceTest, EnqueueWaitOnADifferentQueue) {
     uur::raii::Event event;
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queues[0], false, ptrs[1], ptrs[0], size,
                                       0, nullptr, event.ptr()));
-    ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], 1, event.ptr(), nullptr));
+    ASSERT_SUCCESS(urEnqueueEventsWait(queues[1], 1, event.ptr(), nullptr));
     ASSERT_SUCCESS(urQueueFinish(queues[0]));
 
     verifyData(ptrs[1], pattern);

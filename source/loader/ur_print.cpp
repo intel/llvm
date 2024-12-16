@@ -604,6 +604,14 @@ urPrintPhysicalMemProperties(const struct ur_physical_mem_properties_t params,
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintPhysicalMemInfo(enum ur_physical_mem_info_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintProgramMetadataType(enum ur_program_metadata_type_t value,
                                        char *buffer, const size_t buff_size,
                                        size_t *out_size) {
@@ -2229,6 +2237,14 @@ ur_result_t urPrintPhysicalMemRetainParams(
 
 ur_result_t urPrintPhysicalMemReleaseParams(
     const struct ur_physical_mem_release_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintPhysicalMemGetInfoParams(
+    const struct ur_physical_mem_get_info_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;

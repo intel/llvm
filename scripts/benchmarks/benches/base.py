@@ -13,8 +13,9 @@ import urllib.request
 import tarfile
 
 class Benchmark:
-    def __init__(self, directory):
+    def __init__(self, directory, suite):
         self.directory = directory
+        self.suite = suite
 
     @staticmethod
     def get_adapter_full_path():
@@ -26,7 +27,7 @@ class Benchmark:
         assert False, \
             f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
-    def run_bench(self, command, env_vars, ld_library=[]):
+    def run_bench(self, command, env_vars, ld_library=[], add_sycl=True):
         env_vars_with_forced_adapter = env_vars.copy()
         if options.ur is not None:
             env_vars_with_forced_adapter.update(
@@ -35,7 +36,7 @@ class Benchmark:
         return run(
             command=command,
             env_vars=env_vars_with_forced_adapter,
-            add_sycl=True,
+            add_sycl=add_sycl,
             cwd=options.benchmark_cwd,
             ld_library=ld_library
         ).stdout.decode()
@@ -71,8 +72,17 @@ class Benchmark:
     def teardown(self):
         raise NotImplementedError()
 
+    def stddev_threshold(self):
+        return None
+
+    def get_suite_name(self) -> str:
+        return self.suite.name()
+
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
+        raise NotImplementedError()
+
+    def name(self) -> str:
         raise NotImplementedError()
 
     def setup(self):
