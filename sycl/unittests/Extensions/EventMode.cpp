@@ -12,10 +12,13 @@
 
 #include <gtest/gtest.h>
 
+#include <utility>
+
 inline thread_local size_t counter_urEnqueueEventsWaitWithBarrierExt = 0;
 inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto Params =
       *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
+  std::ignore = Params;
 
   assert(*Params.ppProperties != nullptr);
   assert((*Params.ppProperties)->flags &
