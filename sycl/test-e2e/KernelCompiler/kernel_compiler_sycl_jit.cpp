@@ -203,7 +203,12 @@ int test_build_and_run() {
       ctx, syclex::source_language::sycl_jit, SYCLSource,
       syclex::properties{incFiles2});
 
-  exe_kb kbExe3 = syclex::build(kbSrc2);
+  exe_kb kbExe3 = syclex::build(
+      kbSrc2, syclex::properties{
+                  syclex::build_options{"-fsycl-device-code-split=per_kernel"},
+                  syclex::registered_kernel_names{"ff_templated<int>"}});
+  assert(std::distance(kbExe3.begin(), kbExe3.end()) == 2 &&
+         "Expected 2 device images");
   sycl::kernel k3 = kbExe3.ext_oneapi_get_kernel("ff_cp");
   test_1(q, k3, 37 + 7);
 
@@ -322,9 +327,7 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
   CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
-  CheckUnsupported({"-fsycl-device-code-split=kernel"});
   CheckUnsupported({"-fno-sycl-device-code-split-esimd"});
-  CheckUnsupported({"-fsycl-dead-args-optimization"});
 
   return 0;
 }

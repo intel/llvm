@@ -23,10 +23,11 @@ enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
-struct RTCBundleInfo;
+struct RTCDevImgInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
+using RTCBundleInfo = DynArray<RTCDevImgInfo>;
 } // namespace jit_compiler
 
 namespace sycl {

@@ -376,6 +376,19 @@ public:
     Language = Lang;
   }
 
+  // oneapi_ext_kernel_compiler
+  // experimental program manager integration, only for sycl_jit language
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+                     const std::vector<kernel_id> &KernelIDs,
+                     std::vector<std::string> KNames, std::string Pfx,
+                     syclex::source_language Lang)
+      : kernel_bundle_impl(Ctx, Devs, KernelIDs, bundle_state::executable) {
+    assert(Lang == syclex::source_language::sycl_jit);
+    KernelNames = KNames;
+    Prefix = Pfx;
+    Language = Lang;
+  }
+
   std::string trimXsFlags(std::string &str) {
     // Trim first and last quote if they exist, but no others.
     char EncounteredQuote = '\0';
@@ -482,8 +495,6 @@ public:
       auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
           SourceStr, IncludePairs, BuildOptions, LogPtr, RegisteredKernelNames);
 
-      assert(Binaries->NumDeviceBinaries == 1);
-
       auto &PM = detail::ProgramManager::getInstance();
       PM.addImages(Binaries);
 
@@ -501,13 +512,8 @@ public:
         }
       }
 
-      auto DevImgs = PM.getSYCLDeviceImages(MContext, MDevices, KernelIDs,
-                                            bundle_state::executable);
-      assert(DevImgs.size() == 1);
-      assert(!DevImgs.front().hasDeps());
-
       return std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, DevImgs.front().getMain(), KernelNames, Language);
+          MContext, MDevices, KernelIDs, KernelNames, Prefix, Language);
     }
 
     ur_program_handle_t UrProgram = nullptr;
@@ -645,6 +651,29 @@ public:
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel '" + AdjustedName +
                                 "' not found in kernel_bundle");
+
+    if (Language == syclex::source_language::sycl_jit) {
+      auto &PM = ProgramManager::getInstance();
+      auto KID = PM.getSYCLKernelID(Prefix + AdjustedName);
+
+      for (const auto &DevImgWithDeps : MDeviceImages) {
+        const auto &DevImg = DevImgWithDeps.getMain();
+        if (!DevImg.has_kernel(KID))
+          continue;
+
+        const auto &DevImgImpl = getSyclObjImpl(DevImg);
+        auto UrProgram = DevImgImpl->get_ur_program_ref();
+        auto [UrKernel, CacheMutex, ArgMask] =
+            PM.getOrCreateKernel(MContext, AdjustedName,
+                                 /*PropList=*/{}, UrProgram);
+        auto KernelImpl = std::make_shared<kernel_impl>(
+            UrKernel, getSyclObjImpl(MContext), DevImgImpl, Self, ArgMask,
+            UrProgram, CacheMutex);
+        return createSyclObjFromImpl<kernel>(KernelImpl);
+      }
+
+      assert(false && "Malformed RTC kernel bundle");
+    }
 
     assert(MDeviceImages.size() > 0);
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
@@ -923,6 +952,7 @@ private:
   const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
+  std::string Prefix;
   include_pairs_t IncludePairs;
 };
 
