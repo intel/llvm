@@ -509,7 +509,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   //       be processed.
 
   // TODO: This allocation assumes that there are no further splits required,
-  //       i.e. due to mixed SYCL/ESIMD modules.
+  //       i.e. there are no mixed SYCL/ESIMD modules.
   RTCBundleInfo BundleInfo{Splitter->remainingSplits()};
   SmallVector<std::unique_ptr<llvm::Module>> Modules;
 
