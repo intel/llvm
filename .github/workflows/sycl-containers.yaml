@@ -74,7 +74,7 @@ jobs:
           file: ${{ matrix.file }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          sycl_passwd: ${{ secrets.DOCKER_SUDO_PASSWORD }}
+          sycl_ci_passwd: ${{ secrets.DOCKER_SUDO_PASSWORD }}
           tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}

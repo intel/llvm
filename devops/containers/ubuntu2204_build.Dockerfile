@@ -31,7 +31,7 @@ RUN apt update && apt install -yqq rocm-dev && \
   rm -rf /var/lib/apt/lists/*
 
 COPY scripts/create-sycl-user.sh /user-setup.sh
-RUN --mount=type=secret,id=sycl_passwd /user-setup.sh
+RUN --mount=type=secret,id=sycl_ci_passwd /user-setup.sh
 
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
