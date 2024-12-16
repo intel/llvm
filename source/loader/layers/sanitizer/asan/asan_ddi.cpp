@@ -464,6 +464,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
                           pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
                           workDim);
+    UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
 
     UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
