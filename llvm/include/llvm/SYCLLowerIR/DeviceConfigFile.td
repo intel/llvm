@@ -193,7 +193,7 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 // values is to run sycl-ls --verbose on the target machine. However,
 // if you don't have access to the target machine, then you can look in
 // the intel/compute-runtime source code to get the values. For 
-// the fp64 and atomic64 asepcts, look for the definition 
+// the fp64 and atomic64 aspects, look for the definition 
 // of specific RuntimeCapabilityTable's. These will be defined in 
 // a file called hw_info_<device>.cpp. For example, for PVC, it 
 // would be hw_info_pvc.cpp. For fp16, this is supported by all 
@@ -202,7 +202,7 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 // it is not as straightforward. They are defined per family in 
 // GfxCoreHelperHw<Family>::getDeviceSubGroupSizes and by default
 // the default sub-group sizes are 8, 16, and 32. (see gfx_core_helper_base.inl)
-// However, this can be overrided by specific families. For example,
+// However, this can be overriden by specific families. For example,
 // gfx_core_helper_xe_hpc_core.cpp defines the supported sub-group 
 // sizes to be 16 and 32, which corresponds to PVC having 16 and 32 
 // as sub-group sizes the supported sub-group sizes. 
