@@ -35,7 +35,7 @@ RUN --mount=type=secret,id=sycl_passwd /user-setup.sh
 
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
-USER sycl
+USER sycl_ci
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
 

@@ -16,6 +16,6 @@ COPY actions/cleanup /actions/cleanup
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 COPY scripts/install_drivers.sh /opt/install_drivers.sh
 
-USER sycl
+USER sycl_ci
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
