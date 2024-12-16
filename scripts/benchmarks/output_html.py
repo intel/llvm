@@ -15,6 +15,7 @@ import numpy as np
 @dataclass
 class BenchmarkMetadata:
     unit: str
+    suite: str
     lower_is_better: bool
 
 @dataclass
@@ -26,6 +27,7 @@ class BenchmarkSeries:
 @dataclass
 class BenchmarkChart:
     label: str
+    suite: str
     html: str
 
 def tooltip_css() -> str:
@@ -74,13 +76,6 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
                 targets=targets)
             mpld3.plugins.connect(fig, tooltip)
 
-        # This is so that the stddev doesn't fill the entire y axis on the chart
-        if all_values and all_stddevs:
-            max_value = max(all_values)
-            min_value = min(all_values)
-            max_stddev = max(all_stddevs)
-            ax.set_ylim(min_value - 3 * max_stddev, max_value + 3 * max_stddev)
-
         ax.set_title(benchmark.label, pad=20)
         performance_indicator = "lower is better" if benchmark.metadata.lower_is_better else "higher is better"
         ax.text(0.5, 1.05, f"({performance_indicator})",
@@ -98,7 +93,7 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
         ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter('%Y-%m-%d %H:%M:%S'))
 
         plt.tight_layout()
-        html_charts.append(BenchmarkChart(html=mpld3.fig_to_html(fig), label=benchmark.label))
+        html_charts.append(BenchmarkChart(html=mpld3.fig_to_html(fig), label=benchmark.label, suite=benchmark.metadata.suite))
         plt.close(fig)
 
     return html_charts
@@ -119,7 +114,7 @@ def create_explicit_groups(benchmark_runs: list[BenchmarkRun], compare_names: li
                 if res.explicit_group != '':
                     if res.explicit_group not in groups:
                         groups[res.explicit_group] = ExplicitGroup(name=res.explicit_group, nnames=len(compare_names),
-                                metadata=BenchmarkMetadata(unit=res.unit, lower_is_better=res.lower_is_better),
+                                metadata=BenchmarkMetadata(unit=res.unit, lower_is_better=res.lower_is_better, suite=res.suite),
                                 runs={})
 
                     group = groups[res.explicit_group]
@@ -157,6 +152,9 @@ def create_grouped_bar_charts(groups: list[ExplicitGroup]) -> list[BenchmarkChar
             ax.bar_label(rects, fmt='')
 
             for rect, run, res in zip(rects, run_results.keys(), run_results.values()):
+                if res is None:
+                    continue
+
                 height = rect.get_height()
                 if height > max_height:
                     max_height = height
@@ -204,7 +202,7 @@ def create_grouped_bar_charts(groups: list[ExplicitGroup]) -> list[BenchmarkChar
                 color='#666666')
 
         plt.tight_layout()
-        html_charts.append(BenchmarkChart(label=group.name, html=mpld3.fig_to_html(fig)))
+        html_charts.append(BenchmarkChart(label=group.name, html=mpld3.fig_to_html(fig), suite=group.metadata.suite))
         plt.close(fig)
 
     return html_charts
@@ -221,7 +219,8 @@ def process_benchmark_data(benchmark_runs: list[BenchmarkRun], compare_names: li
             if result.label not in benchmark_metadata:
                 benchmark_metadata[result.label] = BenchmarkMetadata(
                     unit=result.unit,
-                    lower_is_better=result.lower_is_better
+                    lower_is_better=result.lower_is_better,
+                    suite=result.suite
                 )
 
             result.date = run.date
@@ -246,12 +245,15 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
     benchmarks = process_benchmark_data(benchmark_runs, compare_names)
 
     timeseries = create_time_series_chart(benchmarks, github_repo)
-    timeseries_charts_html = '\n'.join(f'<div class="chart" data-label="{ts.label}"><div>{ts.html}</div></div>' for ts in timeseries)
+    timeseries_charts_html = '\n'.join(f'<div class="chart" data-label="{ts.label}" data-suite="{ts.suite}"><div>{ts.html}</div></div>' for ts in timeseries)
 
     explicit_groups = create_explicit_groups(benchmark_runs, compare_names)
 
     bar_charts = create_grouped_bar_charts(explicit_groups)
-    bar_charts_html = '\n'.join(f'<div class="chart" data-label="{bc.label}"><div>{bc.html}</div></div>' for bc in bar_charts)
+    bar_charts_html = '\n'.join(f'<div class="chart" data-label="{bc.label}" data-suite="{bc.suite}"><div>{bc.html}</div></div>' for bc in bar_charts)
+
+    suite_names = {t.suite for t in timeseries}
+    suite_checkboxes_html = ' '.join(f'<label><input type="checkbox" class="suite-checkbox" data-suite="{suite}" checked> {suite}</label>' for suite in suite_names)
 
     html_template = f"""
     <!DOCTYPE html>
@@ -314,6 +316,16 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
                 width: 400px;
                 max-width: 100%;
             }}
+            .suite-filter-container {{
+                text-align: center;
+                margin-bottom: 24px;
+                padding: 16px;
+                background: #e9ecef;
+                border-radius: 8px;
+            }}
+            .suite-checkbox {{
+                margin: 0 8px;
+            }}
             details {{
                 margin-bottom: 24px;
             }}
@@ -339,46 +351,76 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
             function filterCharts() {{
                 const regexInput = document.getElementById('bench-filter').value;
                 const regex = new RegExp(regexInput, 'i');
+                const activeSuites = Array.from(document.querySelectorAll('.suite-checkbox:checked')).map(checkbox => checkbox.getAttribute('data-suite'));
                 const charts = document.querySelectorAll('.chart');
-                let timeseriesVisible = false;
-                let barChartsVisible = false;
 
                 charts.forEach(chart => {{
                     const label = chart.getAttribute('data-label');
-                    if (regex.test(label)) {{
+                    const suite = chart.getAttribute('data-suite');
+                    if (regex.test(label) && activeSuites.includes(suite)) {{
                         chart.style.display = '';
-                        if (chart.closest('.timeseries')) {{
-                            timeseriesVisible = true;
-                        }} else if (chart.closest('.bar-charts')) {{
-                            barChartsVisible = true;
-                        }}
                     }} else {{
                         chart.style.display = 'none';
                     }}
                 }});
 
-                updateURL(regexInput);
-
-                document.querySelector('.timeseries').open = timeseriesVisible;
-                document.querySelector('.bar-charts').open = barChartsVisible;
+                updateURL();
             }}
 
-            function updateURL(regex) {{
+            function updateURL() {{
                 const url = new URL(window.location);
+                const regex = document.getElementById('bench-filter').value;
+                const activeSuites = Array.from(document.querySelectorAll('.suite-checkbox:checked')).map(checkbox => checkbox.getAttribute('data-suite'));
+
                 if (regex) {{
                     url.searchParams.set('regex', regex);
                 }} else {{
                     url.searchParams.delete('regex');
                 }}
+
+                if (activeSuites.length > 0) {{
+                    url.searchParams.set('suites', activeSuites.join(','));
+                }} else {{
+                    url.searchParams.delete('suites');
+                }}
+
                 history.replaceState(null, '', url);
             }}
 
             document.addEventListener('DOMContentLoaded', (event) => {{
                 const regexParam = getQueryParam('regex');
+                const suitesParam = getQueryParam('suites');
+
                 if (regexParam) {{
                     document.getElementById('bench-filter').value = regexParam;
-                    filterCharts();
                 }}
+
+                const suiteCheckboxes = document.querySelectorAll('.suite-checkbox');
+                if (suitesParam) {{
+                    const suites = suitesParam.split(',');
+                    suiteCheckboxes.forEach(checkbox => {{
+                        if (suites.includes(checkbox.getAttribute('data-suite'))) {{
+                            checkbox.checked = true;
+                        }} else {{
+                            checkbox.checked = false;
+                        }}
+                    }});
+                }} else {{
+                    suiteCheckboxes.forEach(checkbox => {{
+                        checkbox.checked = true;
+                    }});
+                }}
+                filterCharts();
+
+                suiteCheckboxes.forEach(checkbox => {{
+                    checkbox.addEventListener('change', () => {{
+                        filterCharts();
+                    }});
+                }});
+
+                document.getElementById('bench-filter').addEventListener('input', () => {{
+                    filterCharts();
+                }});
             }});
         </script>
     </head>
@@ -386,7 +428,10 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
         <div class="container">
             <h1>Benchmark Results</h1>
             <div class="filter-container">
-                <input type="text" id="bench-filter" placeholder="Regex..." oninput="filterCharts()">
+                <input type="text" id="bench-filter" placeholder="Regex...">
+            </div>
+            <div class="suite-filter-container">
+                {suite_checkboxes_html}
             </div>
             <details class="timeseries">
                 <summary>Historical Results</summary>

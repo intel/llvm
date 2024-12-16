@@ -5,6 +5,7 @@
 {{OPT}}urCommandBufferRetainCommandExpTest.Success/*
 {{OPT}}urCommandBufferRetainCommandExpTest.InvalidNullHandle/*
 {{OPT}}urCommandBufferAppendKernelLaunchExpTest.Basic/*
+{{OPT}}urCommandBufferAppendKernelLaunchExpTest.FinalizeTwice/*
 {{OPT}}BufferFillCommandTest.UpdateParameters/*
 {{OPT}}BufferFillCommandTest.UpdateGlobalSize/*
 {{OPT}}BufferFillCommandTest.SeparateUpdateCalls/*

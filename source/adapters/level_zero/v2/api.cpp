@@ -156,6 +156,13 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t hPhysicalMem, ur_physical_mem_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t
 urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_sampler_properties_t *pProperties,
@@ -177,21 +184,6 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
                                               const size_t *pGlobalWorkOffset,
                                               const size_t *pGlobalWorkSize,
                                               size_t *pSuggestedLocalWorkSize) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
-                                   ur_native_handle_t *phNativeEvent) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t
-urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
-                              ur_context_handle_t hContext,
-                              const ur_event_native_properties_t *pProperties,
-                              ur_event_handle_t *phEvent) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

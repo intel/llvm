@@ -12,6 +12,7 @@ class Options:
     sycl: str = None
     ur: str = None
     ur_adapter: str = None
+    umf: str = None
     rebuild: bool = True
     benchmark_cwd: str = "INVALID"
     timeout: float = 600

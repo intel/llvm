@@ -105,7 +105,8 @@ ur_event_handle_t
 ur_queue_immediate_in_order_t::getSignalEvent(ur_event_handle_t *hUserEvent,
                                               ur_command_t commandType) {
   if (hUserEvent) {
-    *hUserEvent = eventPool->allocate(this, commandType);
+    *hUserEvent = eventPool->allocate();
+    (*hUserEvent)->resetQueueAndCommand(this, commandType);
     return *hUserEvent;
   } else {
     return nullptr;
@@ -282,14 +283,46 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWait(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierImpl(
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier");
+
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
+
+  if (!numEventsInWaitList && !phEvent) {
+    // nop
+    return UR_RESULT_SUCCESS;
+  }
+
+  auto signalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (handler.commandList.get(), signalEvent->getZeEvent(),
+              numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   // For in-order queue we don't need a real barrier, just wait for
   // requested events in potentially different queues and add a "barrier"
   // event signal because it is already guaranteed that previous commands
-  // in this queue are completed when the signal is started.
-  return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
+  // in this queue are completed when the signal is started. However, we do
+  // need to use barrier if profiling is enabled: see
+  // zeCommandListAppendWaitOnEvents
+  if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
+    return enqueueEventsWaitWithBarrierImpl(numEventsInWaitList,
+                                            phEventWaitList, phEvent);
+  } else {
+    return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
+  }
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
@@ -756,8 +789,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMPrefetch(
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
   if (pWaitEvents) {
-    ZE2UR_CALL(zeCommandListAppendBarrier, (handler.commandList.get(), nullptr,
-                                            numWaitEvents, pWaitEvents));
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (handler.commandList.get(), numWaitEvents, pWaitEvents));
   }
   // TODO: figure out how to translate "flags"
   ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
@@ -788,8 +821,8 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
   auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
 
   if (pWaitEvents) {
-    ZE2UR_CALL(zeCommandListAppendBarrier, (handler.commandList.get(), nullptr,
-                                            numWaitEvents, pWaitEvents));
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (handler.commandList.get(), numWaitEvents, pWaitEvents));
   }
 
   // TODO: figure out how to translate "flags"

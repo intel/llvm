@@ -52,4 +52,21 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t hPhysicalMem, ur_physical_mem_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hPhysicalMem->RefCount.load());
+  }
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace ur::level_zero

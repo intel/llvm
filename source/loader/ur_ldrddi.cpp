@@ -2516,6 +2516,90 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory object to query.
+    ur_physical_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    [[maybe_unused]] auto context = getContext();
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_physical_mem_object_t *>(hPhysicalMem)->dditable;
+    auto pfnGetInfo = dditable->ur.PhysicalMem.pfnGetInfo;
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hPhysicalMem =
+        reinterpret_cast<ur_physical_mem_object_t *>(hPhysicalMem)->handle;
+
+    // this value is needed for converting adapter handles to loader handles
+    size_t sizeret = 0;
+    if (pPropSizeRet == NULL) {
+        pPropSizeRet = &sizeret;
+    }
+
+    // forward to device-platform
+    result =
+        pfnGetInfo(hPhysicalMem, propName, propSize, pPropValue, pPropSizeRet);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_PHYSICAL_MEM_INFO_CONTEXT: {
+                ur_context_handle_t *handles =
+                    reinterpret_cast<ur_context_handle_t *>(pPropValue);
+                size_t nelements = *pPropSizeRet / sizeof(ur_context_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    if (handles[i] != nullptr) {
+                        handles[i] = reinterpret_cast<ur_context_handle_t>(
+                            context->factories.ur_context_factory.getInstance(
+                                handles[i], dditable));
+                    }
+                }
+            } break;
+            case UR_PHYSICAL_MEM_INFO_DEVICE: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = *pPropSizeRet / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    if (handles[i] != nullptr) {
+                        handles[i] = reinterpret_cast<ur_device_handle_t>(
+                            context->factories.ur_device_factory.getInstance(
+                                handles[i], dditable));
+                    }
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
@@ -10354,6 +10438,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
             pDdiTable->pfnCreate = ur_loader::urPhysicalMemCreate;
             pDdiTable->pfnRetain = ur_loader::urPhysicalMemRetain;
             pDdiTable->pfnRelease = ur_loader::urPhysicalMemRelease;
+            pDdiTable->pfnGetInfo = ur_loader::urPhysicalMemGetInfo;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable = ur_loader::getContext()

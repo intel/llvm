@@ -355,7 +355,7 @@ struct ur_exp_command_buffer_handle_t_ {
   // Cuda Graph handle
   CUgraph CudaGraph;
   // Cuda Graph Exec handle
-  CUgraphExec CudaGraphExec;
+  CUgraphExec CudaGraphExec = nullptr;
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
   std::atomic_uint32_t RefCountInternal;
