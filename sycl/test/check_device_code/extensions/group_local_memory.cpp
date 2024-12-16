@@ -18,14 +18,12 @@ int main() {
 
   Q.submit([&](handler &Cgh) {
     Cgh.parallel_for(nd_range<1>({1}, {1}), [=](nd_item<1> Item) {
-      auto Ptr0 = ext::oneapi::group_local_memory_for_overwrite<int>(
-              Item.get_group());
-      auto Ptr1 = ext::oneapi::group_local_memory_for_overwrite<int>(
-              Item.get_group());
-      auto Ptr2 = ext::oneapi::group_local_memory<int>(
-              Item.get_group());
-      auto Ptr3 = ext::oneapi::group_local_memory<int>(
-              Item.get_group());
+      auto Ptr0 =
+          ext::oneapi::group_local_memory_for_overwrite<int>(Item.get_group());
+      auto Ptr1 =
+          ext::oneapi::group_local_memory_for_overwrite<int>(Item.get_group());
+      auto Ptr2 = ext::oneapi::group_local_memory<int>(Item.get_group());
+      auto Ptr3 = ext::oneapi::group_local_memory<int>(Item.get_group());
       Out[0] = Ptr0;
       Out[1] = Ptr1;
       Out[2] = Ptr2;
