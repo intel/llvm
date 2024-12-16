@@ -112,6 +112,9 @@ jobs:
   build:
     name: Build + LIT
     runs-on: [Linux, build]
+    defaults:
+      run:
+         shell: bash
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
