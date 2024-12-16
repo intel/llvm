@@ -27,7 +27,7 @@ class Result:
     lower_is_better: bool = True
     git_hash: str = ""
     date: Optional[datetime] = None
-    suite: str = ""
+    suite: str = "Unknown"
 
 @dataclass_json
 @dataclass
