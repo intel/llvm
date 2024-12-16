@@ -162,7 +162,17 @@ jobs:
     - name: Setup oneAPI env
       if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
       run: |
+         env_before=$(env | sort)
+         
          source /opt/intel/oneapi/setvars.sh
+
+         env_after=$(env | sort)
+
+         changed_envvars=$(comm -13 <(echo "$env_before") <(echo "$env_after"))
+
+         while IFS= read -r line; do
+           echo "$line" >> $GITHUB_ENV
+         done <<< "$changed_envvars"
     
     - name: Configure
       env:
