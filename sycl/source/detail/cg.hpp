@@ -15,11 +15,12 @@
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
-#include <sycl/kernel.hpp>          // for kernel_impl
-#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
+#include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetch_type
 #endif
+#include <sycl/kernel.hpp>          // for kernel_impl
+#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
@@ -463,12 +464,16 @@ public:
 class CGBarrier : public CG {
 public:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
 
   CGBarrier(std::vector<detail::EventImplPtr> EventsWaitWithBarrier,
+            ext::oneapi::experimental::event_mode_enum EventMode,
             CG::StorageInitHelper CGData, CGType Type,
             detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
-        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)),
+        MEventMode(EventMode) {}
 };
 
 class CGProfilingTag : public CG {

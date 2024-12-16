@@ -286,8 +286,9 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
 // solution for the issue that barrier with wait list could not
 // handle empty ur event handles when kernel is enqueued on host task
 // completion.
-std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
-    const std::vector<EventImplPtr> &EventImpls) const {
+std::vector<ur_event_handle_t>
+Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
+                             bool HasEventMode) const {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     // Throwaway events created with empty constructor will not have a context
@@ -314,7 +315,11 @@ std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (MWorkerQueue && EventImpl->getWorkerQueue() == MWorkerQueue &&
+    // If the resulting event is supposed to have a specific event mode,
+    // redundant events may still differ from the resulting event, so they are
+    // kept.
+    if (!HasEventMode && MWorkerQueue &&
+        EventImpl->getWorkerQueue() == MWorkerQueue &&
         MWorkerQueue->isInOrder() && !isHostTask())
       continue;
 
@@ -3501,11 +3506,22 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   }
   case CGType::Barrier: {
     assert(MQueue && "Barrier submission should have an associated queue");
+    CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
+
+    // Create properties for the barrier.
+    ur_exp_enqueue_ext_properties_t Properties{};
+    Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
+    Properties.pNext = nullptr;
+    Properties.flags = 0;
+    if (Barrier->MEventMode ==
+        ext::oneapi::experimental::event_mode_enum::low_power)
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), 0, nullptr, Event);
+    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        MQueue->getHandleRef(), &Properties, 0, nullptr, Event);
     SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
@@ -3513,16 +3529,30 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<ur_event_handle_t> UrEvents = getUrEventsBlocking(Events);
+    bool HasEventMode =
+        Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
+    std::vector<ur_event_handle_t> UrEvents =
+        getUrEventsBlocking(Events, HasEventMode);
     if (UrEvents.empty()) {
       // If Events is empty, then the barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
+
+    // Create properties for the barrier.
+    ur_exp_enqueue_ext_properties_t Properties{};
+    Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
+    Properties.pNext = nullptr;
+    Properties.flags = 0;
+    if (Barrier->MEventMode ==
+        ext::oneapi::experimental::event_mode_enum::low_power)
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), UrEvents.size(), &UrEvents[0], Event);
+    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        MQueue->getHandleRef(), &Properties, UrEvents.size(), &UrEvents[0],
+        Event);
     SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
