@@ -145,6 +145,10 @@ ur_result_t urEnqueueEventsWait(
     std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
+  if (OutEvent && (*OutEvent)->Completed) {
+    UR_CALL(CleanupCompletedEvent((*OutEvent), false, false));
+    UR_CALL(urEventReleaseInternal((*OutEvent)));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -955,7 +959,6 @@ ur_result_t urEventCreateWithNativeHandle(
     UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
                                      Context, UR_EXT_COMMAND_TYPE_USER,
                                      Properties->isNativeHandleOwned);
-
     UREvent->RefCountExternal++;
 
   } catch (const std::bad_alloc &) {
