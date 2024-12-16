@@ -45,6 +45,21 @@ class IncrementBy8 : public IncrementOp {
 
 void applyOp(int *Data, AbstractOp *Obj) { Obj->applyOp(Data); }
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mStorageAcc;
+  T2 mDataAcc;
+  KernelFunctor(T1 &StorageAcc, T2 &DataAcc)
+      : mStorageAcc(StorageAcc), mDataAcc(DataAcc) {}
+
+  void operator()() const {
+    auto *Ptr = mStorageAcc[0].construct</* ret type = */ AbstractOp>(TestCase);
+    applyOp(mDataAcc.get_multi_ptr<sycl::access::decorated::no>().get(), Ptr);
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
+
 int main() try {
   using storage_t =
       obj_storage_t<IncrementBy1, IncrementBy2, IncrementBy4, IncrementBy8>;
@@ -59,32 +74,15 @@ int main() try {
 
   sycl::queue q(asyncHandler);
 
-  struct KernelFunctor {
-    sycl::buffer<storage_t> mDeviceStorage;
-    sycl::buffer<int> mDataStorage;
-    sycl::handler mCGH;
-    KernelFunctor(sycl::buffer<storage_t> DeviceStorage,
-                  sycl::buffer<int> DataStorage, sycl::handler CGH)
-        : mDeviceStorage(DeviceStorage), mDataStorage(DataStorage), mCGH(CGH) {}
-
-    void operator()() const {
-      sycl::accessor StorageAcc(mDeviceStorage, mCGH, sycl::write_only);
-      sycl::accessor DataAcc(mDataStorage, mCGH, sycl::write_only);
-      auto *Ptr =
-          StorageAcc[0].construct</* ret type = */ AbstractOp>(TestCase);
-      applyOp(DataAcc.get_multi_ptr<sycl::access::decorated::no>().get(), Ptr);
-    }
-    auto get(oneapi::properties_tag) const {
-      return oneapi::properties{oneapi::assume_indirect_calls};
-    }
-  };
   for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
     sycl::buffer<int> DataStorage(&Data, sycl::range{1});
 
     q.submit([&](sycl::handler &CGH) {
-      CGH.single_task(KernelFunctor(DeviceStorage, DataStorage, CGH));
+      sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::write_only);
+      sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
+      CGH.single_task(KernelFunctor(StorageAcc, DataAcc));
     });
 
     auto *Ptr = HostStorage.construct</* ret type = */ AbstractOp>(TestCase);

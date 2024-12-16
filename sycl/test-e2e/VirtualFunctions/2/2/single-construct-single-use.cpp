@@ -57,6 +57,21 @@ public:
   void increment(int *Data) override { *Data += 16 + Mod; }
 };
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mStorageAcc;
+  T2 mDataAcc;
+  KernelFunctor(T1 StorageAcc, T2 DataAcc)
+      : mStorageAcc(StorageAcc), mDataAcc(DataAcc) {}
+  void operator()() const {
+    auto *Ptr = mStorageAcc[0].getAs<BaseIncrement>();
+    Ptr->increment(mDataAcc.get_multi_ptr<sycl::access::decorated::no>().get());
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{
+        oneapi::assume_indirect_calls_to<void, SetIncBy16>};
+  }
+};
+
 int main() try {
   using storage_t = obj_storage_t<BaseIncrement, IncrementBy2, IncrementBy4,
                                   IncrementBy8, IncrementBy16>;
@@ -72,25 +87,6 @@ int main() try {
   sycl::queue q(asyncHandler);
 
   // TODO: cover uses case when objects are passed through USM
-  struct KernelFunctor {
-    sycl::buffer<storage_t> mDeviceStorage;
-    sycl::buffer<int> mDataStorage;
-    sycl::handler mCGH;
-    KernelFunctor(sycl::buffer<storage_t> DeviceStorage,
-                  sycl::buffer<int> DataStorage, sycl::handler CGH)
-        : mDeviceStorage(DeviceStorage), mDataStorage(DataStorage), mCGH(CGH) {}
-    void operator()() const {
-      sycl::accessor StorageAcc(mDeviceStorage, mCGH, sycl::read_write);
-      sycl::accessor DataAcc(mDataStorage, mCGH, sycl::write_only);
-      auto *Ptr = StorageAcc[0].getAs<BaseIncrement>();
-      Ptr->increment(
-          DataAcc.get_multi_ptr<sycl::access::decorated::no>().get());
-    }
-    auto get(oneapi::properties_tag) const {
-      return oneapi::properties{
-          oneapi::assume_indirect_calls_to<void, SetIncBy16>};
-    }
-  };
   for (unsigned TestCase = 0; TestCase < 5; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
@@ -105,7 +101,9 @@ int main() try {
     });
 
     q.submit([&](sycl::handler &CGH) {
-      CGH.single_task(KernelFunctor(DeviceStorage, DataStorage, CGH));
+      sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::read_write);
+      sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
+      CGH.single_task(KernelFunctor(StorageAcc, DataAcc));
     });
 
     auto *Ptr =
