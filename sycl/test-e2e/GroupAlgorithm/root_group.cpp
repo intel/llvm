@@ -61,7 +61,7 @@ void testQueriesAndProperties() {
 }
 
 template <typename T> class TestKernel1 {
-  T &m_data;
+  T m_data;
 
 public:
   TestKernel1(T &data_) : m_data(data_) {}
@@ -114,10 +114,10 @@ void testRootGroup() {
 }
 
 template <typename T> class TestKernel2 {
-  T &m_testResults;
+  T m_testResults;
 
 public:
-  TestKernel2(T testResults_) : m_testResults(testResults_) {}
+  TestKernel2(T &testResults_) : m_testResults(testResults_) {}
   void operator()(sycl::nd_item<1> it) const {
     const auto root = it.ext_oneapi_get_root_group();
     if (root.leader() || root.get_local_id() == 3) {
