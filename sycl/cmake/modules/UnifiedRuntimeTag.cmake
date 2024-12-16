@@ -1,7 +1,7 @@
-# commit b7047f6c36ec17b8560c2f1cd9ac9521715a9127
-# Merge: 73e5f3c6ff2d fcddf077c290
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 13 14:20:15 2024 +0000
-#     Merge pull request #2454 from Bensuo/l0_cmd-buf_multi-device
-#     Fix L0 command-buffer consumption of multi-device kernels
-set(UNIFIED_RUNTIME_TAG be27d8f06e559890ca47c131b3346e0e2a551057)
+# commit 39df0317814c164f5242eda8d6f08550f6268492
+# Merge: 68d93efd be27d8f0
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Dec 16 13:53:13 2024 +0000
+#     Merge pull request #2467 from nrspruit/fix_external_import_function_call
+#     [L0] Fix external semaphore import function calls to match the header
+set(UNIFIED_RUNTIME_TAG 39df0317814c164f5242eda8d6f08550f6268492)
