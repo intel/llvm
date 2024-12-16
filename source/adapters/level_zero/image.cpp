@@ -1237,7 +1237,7 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
   }
 
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
-             (hDevice->ZeDevice, &ExtSemaphoreHandle, &SemDesc));
+             (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
   *phExternalSemaphoreHandle =
       (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
 
@@ -1310,7 +1310,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
       reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                  .zexCommandListAppendWaitExternalSemaphoresExp,
-             (ZeCommandList, &hExtSemaphore, &WaitParams, 1, ZeEvent,
+             (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   return UR_RESULT_SUCCESS;
@@ -1373,7 +1373,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
 
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                  .zexCommandListAppendSignalExternalSemaphoresExp,
-             (ZeCommandList, &hExtSemaphore, &SignalParams, 1, ZeEvent,
+             (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   return UR_RESULT_SUCCESS;
