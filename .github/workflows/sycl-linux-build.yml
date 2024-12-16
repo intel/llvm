@@ -159,7 +159,7 @@ jobs:
     - name: Setup oneAPI env
       if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
       run: |
-         source /opt/whatever
+         source /opt/intel/oneapi/setvars.sh
     
     - name: Configure
       env:

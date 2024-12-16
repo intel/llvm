@@ -32,7 +32,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_build_oneapi:latest"
+      build_image: "ghcr.io/intel/llvm/ubuntu2404_build_oneapi:latest"
       build_cache_root: "/__w/llvm"
       build_cache_suffix: icx
       build_artifact_suffix: default
