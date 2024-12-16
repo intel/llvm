@@ -62,6 +62,8 @@ void testQueriesAndProperties() {
 
 template <typename T> class TestKernel1 {
   T *m_data;
+
+public:
   TestKernel1(T *data) : m_data(data) {}
   void operator()(sycl::nd_item<1> it) const {
     volatile float X = 1.0f;
@@ -113,6 +115,9 @@ void testRootGroup() {
 
 template <typename T> class TestKernel2 {
   T *m_testResults;
+
+public:
+  TestKernel2(T *testResults) : m_testResults(testResults) {}
   void operator()(sycl::nd_item<1> it) const {
     const auto root = it.ext_oneapi_get_root_group();
     if (root.leader() || root.get_local_id() == 3) {
@@ -134,9 +139,6 @@ template <typename T> class TestKernel2 {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::use_root_sync};
   }
-
-public:
-  TestKernel2(T *testResults) : m_testResults(testResults) {}
 };
 
 void testRootGroupFunctions() {
