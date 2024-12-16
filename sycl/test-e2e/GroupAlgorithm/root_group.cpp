@@ -157,7 +157,7 @@ void testRootGroupFunctions() {
   q.submit([&](sycl::handler &h) {
     sycl::accessor testResults{testResultsBuf, h};
     h.parallel_for<class RootGroupFunctionsKernel>(range,
-                                                   TestKernel2(&testResults));
+                                                   TestKernel2(testResults));
   });
   sycl::host_accessor testResults{testResultsBuf};
   for (int i = 0; i < testCount; i++) {
