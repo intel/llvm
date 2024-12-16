@@ -3,7 +3,7 @@
 // This test checks that SYCL math built-in functions work correctly
 // inside virtual functions.
 //
-// RUN: %{build} -o %t.out %helper-includes -Wno-deprecated-declarations
+// RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
 #include <sycl/builtins.hpp>

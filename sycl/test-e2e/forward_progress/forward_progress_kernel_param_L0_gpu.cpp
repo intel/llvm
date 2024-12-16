@@ -1,5 +1,5 @@
 // REQUIRES: level_zero, gpu
-// RUN: %{build} -o %t.out -Wno-deprecated-declarations
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // The purpose of this test is to check that the forward_progress_guarantee
