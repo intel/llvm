@@ -60,10 +60,8 @@ void testQueriesAndProperties() {
   check_max_num_work_group_sync(maxWGsWithLimits);
 }
 
-template <typename T> class TestKernel1 {
+template <typename T> struct TestKernel1 {
   T m_data;
-
-public:
   TestKernel1(T &data_) : m_data(data_) {}
   void operator()(sycl::nd_item<1> it) const {
     volatile float X = 1.0f;
@@ -113,10 +111,8 @@ void testRootGroup() {
   }
 }
 
-template <typename T> class TestKernel2 {
+template <typename T> struct TestKernel2 {
   T m_testResults;
-
-public:
   TestKernel2(T &testResults_) : m_testResults(testResults_) {}
   void operator()(sycl::nd_item<1> it) const {
     const auto root = it.ext_oneapi_get_root_group();
