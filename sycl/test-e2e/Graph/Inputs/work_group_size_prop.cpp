@@ -80,7 +80,8 @@ int test(queue &Queue, KernelType KernelFunc) {
   try {
     add_node(GraphN, Queue, [&](handler &CGH) {
       CGH.parallel_for<ReqdWGSizeNegativeA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), KernelFunc);
+          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
+          KernelFunc);
     });
     auto ExecGraph = GraphN.finalize();
 
@@ -115,7 +116,8 @@ int test(queue &Queue, KernelType KernelFunc) {
     GraphN.begin_recording(Queue);
 
     Queue.parallel_for<ReqdWGSizeNegativeA<KernelVariant, true, Is...>>(
-        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), KernelFunc);
+        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
+        KernelFunc);
 
     GraphN.end_recording(Queue);
     auto ExecGraph = GraphN.finalize();
