@@ -55,6 +55,10 @@ jobs:
             file: ubuntu2204_intel_drivers
             tag: latest
             build_args: "use_latest=false"
+          - name: Intel Drivers Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
+            tag: latest
+            build_args: "use_latest=false"
           - name: Intel Drivers (unstable) Ubuntu 24.04 Docker image
             file: ubuntu2404_intel_drivers
             tag: unstable
