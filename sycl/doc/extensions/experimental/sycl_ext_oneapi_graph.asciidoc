@@ -9,6 +9,7 @@
 :encoding: utf-8
 :lang: en
 :sectnums:
+:sectnumlevels: 4
 :dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
@@ -223,6 +224,14 @@ Table {counter: tableNumber}. Terminology.
 
 | Edge
 | Dependency between commands as a happens-before relationship.
+
+| Dynamic Parameter
+| An instance of the `dynamic_parameter`, `dynamic_accessor`, `dynamic_local_accessor` or
+`dynamic_work_group_memory` classes. Used to update the parameters of a graph node.
+
+| Dynamic Command Group
+| An instance of the `dynamic_command_group` class. Used to update the command group
+function of a graph node.
 
 |===
 
@@ -472,6 +481,55 @@ Exceptions:
 
 ==== Dynamic Parameters
 
+The following classes provide a mechanism by which a parameter of a graph 
+node can be updated. They are arguments to a node's command-group which can
+be updated by the user after the node has been added to a graph. The choice
+of which class to use depends on the type of the argument that needs to be updated:
+
+[#parameter-update-classes]
+- <<dynamic-parameter-class, dynamic_parameter class>>: used to update pointers
+to a USM allocation, scalars passed by value, or instances of `raw_kernel_arg`
+(as defined in the 
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg] extension).
+
+- <<dynamic-accessor-class, dynamic_accessor class>>: used to update the accessors
+to `sycl::buffer` arguments.
+
+- <<dynamic-local-accessor-class, dynamic_local_accessor class>>: used to update the
+allocation size of `sycl::local_accessor` arguments.
+
+- <<dynamic-work-group-memory-class, dynamic_work_group_memory class>>: used to update
+the number of elements in `work_group_memory` arguments (as defined in the
+link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[sycl_ext_oneapi_work_group_memory]
+extension).
+
+
+For simplicity, in this document the classes mentioned above are referred to as
+dynamic parameters. Any references to the term "dynamic parameter(s)" will apply
+not only to the `dynamic_parameter` class, but also to the `dynamic_accessor`,
+`dynamic_local_accessor` and `dynamic_work_group_memory` classes.
+
+Dynamic parameters can be registered with nodes in a modifiable graph,
+with each registration associating one or more node arguments to the class instance.
+Registration happens inside the command-group that the node
+represents, and is done when the dynamic parameter is set as a parameter to the
+kernel using `handler::set_arg()`/`handler::set_args()`. It is valid for a node
+argument to be registered with more than one dynamic parameter instance.
+
+After registration, updating the value of a dynamic parameter will be reflected
+immediately in the modifiable graph which contains the node. These updated
+nodes can then be passed to an executable graph to update it with new values.
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating node parameters.
+
+===== The dynamic_parameter class [[dynamic-parameter-class]]
+
+The type of the underlying object a dynamic parameter represents is set at
+compile time using a template parameter. This underlying type can be a pointer
+to a USM allocation, scalar passed by value, or a raw byte representation of the
+argument. The raw byte representation is intended to enable updating arguments set
+using link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+
 [source,c++]
 ----
 namespace ext::oneapi::experimental{
@@ -484,29 +542,6 @@ public:
 };
 }
 ----
-
-Dynamic parameters are arguments to a node's command-group which can be updated
-by the user after the node has been added to a graph. Updating the value of a
-dynamic parameter will be reflected in the modifiable graph which contains this
-node. These updated nodes can then be passed to an executable graph to update
-it with new values.
-
-The type of the underlying object a dynamic parameter represents is set at
-compile time using a template parameter. This underlying type can be an
-accessor, a pointer to a USM allocation, scalar passed by value, or a raw byte
-representation of the argument. The raw byte representation is intended to
-enable updating arguments set using
-link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
-
-Dynamic parameters are registered with nodes in a modifiable graph, with each
-registration associating one or more node arguments to the dynamic parameter
-instance. Registration happens inside the command-group that the node
-represents, and is done when dynamic parameters are set as parameters to the
-kernel using `handler::set_arg()`/`handler::set_args()`. It is valid for a node
-argument to be registered with more than one dynamic parameter instance.
-
-See <<executable-graph-update, Executable Graph Update>> for more information
-about updating node parameters.
 
 The `dynamic_parameter` class provides the {crs}[common reference semantics].
 
@@ -548,6 +583,548 @@ registered nodes.
 Parameters:
 
 * `newValue` - Value to update the registered node parameters to.
+
+|===
+
+===== The dynamic_accessor class [[dynamic-accessor-class]]
+
+[source,c++]
+----
+namespace ext::oneapi::experimental{
+template <typename DataT, int Dimensions,
+          access_mode AccessMode =
+              (std::is_const_v<DataT> ? access_mode::read
+                                      : access_mode::read_write),
+          target AccessTarget = target::device>
+class dynamic_accessor {
+public:
+  template <typename AllocatorT>
+  dynamic_accessor(
+        command_graph<graph_state::modifiable> &graph,
+        buffer<DataT, 1, AllocatorT> &bufferRef,
+        const property_list &propList = {});
+
+  template <typename AllocatorT>
+  dynamic_accessor(
+        command_graph<graph_state::modifiable> &graph,
+        buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+        const property_list &propList = {});
+
+  template <typename AllocatorT, typename TagT>
+  dynamic_accessor(
+        command_graph<graph_state::modifiable> &graph,
+        buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+        TagT tag, const property_list &propList = {});
+
+  template <typename AllocatorT>
+  dynamic_accessor(
+        command_graph<graph_state::modifiable> &graph,
+        buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+        range<Dimensions> accessRange,
+        const property_list &propList = {});
+
+  template <typename AllocatorT, typename TagT>
+  dynamic_accessor(
+        command_graph<graph_state::modifiable> &graph,
+        buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+        range<Dimensions> accessRange, TagT tag,
+        const property_list &propList = {});
+
+  template <typename AllocatorT>
+  dynamic_accessor(
+        command_graph<graph_state::modifiable> &graph,
+        buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+        range<Dimensions> accessRange,
+        id<Dimensions> accessOffset,
+        const property_list &propList = {});
+
+  template <typename AllocatorT, typename TagT>
+  dynamic_accessor(
+        command_graph<graph_state::modifiable> &graph,
+        buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+        range<Dimensions> accessRange,
+        id<Dimensions> accessOffset,
+        TagT tag, const property_list &propList = {});
+
+  template <typename AllocatorT>
+  void update(
+        buffer<DataT, Dimensions, AllocatorT> &newBufferRef);
+
+  template <typename AllocatorT>
+  void update(
+        buffer<DataT, Dimensions, AllocatorT> &newBufferRef,
+        range<Dimensions> accessRange);
+
+  template <typename AllocatorT>
+  void update(
+        buffer<DataT, Dimensions, AllocatorT> &newBufferRef,
+        range<Dimensions> accessRange,
+        id<Dimensions> accessOffset);
+
+  accessor<DataT, Dimensions, AccessMode, AccessTarget> get(handler &cgh);
+};
+}
+----
+
+The `dynamic_accessor` class provides the {crs}[common reference semantics].
+
+:acbt: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:accessor.command.buffer.tags
+
+Table {counter: tableNumber}. Member functions of the `dynamic_accessor` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+template <AllocatorT>
+dynamic_accessor(
+      command_graph<graph_state::modifiable> &graph,
+      buffer<DataT, 1, AllocatorT> &bufferRef,
+      const property_list &propList = {})
+----
+|Available only when `(Dimensions == 0)`.
+
+Constructs a dynamic accessor for accessing the first element of a buffer.
+This object can be registered with command graph nodes.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic accessor.
+* `bufferRef` - The buffer to access.
+* `propList` - List of properties for the underlying accessor.
+
+|
+[source,c++]
+----
+template <AllocatorT>
+dynamic_accessor(
+      command_graph<graph_state::modifiable> &graph,
+      buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+      const property_list &propList = {})
+----
+|Available only when `(Dimensions > 0)`.
+
+Constructs a dynamic accessor for accessing a buffer. This object can be registered
+with command graph nodes.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic accessor.
+* `bufferRef` - The buffer to access.
+* `propList` - List of properties for the underlying accessor.
+
+|
+[source,c++]
+----
+template <typename AllocatorT, typename TagT>
+dynamic_accessor(
+      command_graph<graph_state::modifiable> &graph,
+      buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+      TagT tag, const property_list &propList = {})
+----
+|Available only when `(Dimensions > 0)`.
+
+Constructs a dynamic accessor for accessing a buffer. This object can be registered
+with command graph nodes.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic accessor.
+* `bufferRef` - The buffer to access.
+* `tag` - A {acbt}[deduction tag] for the template arguments of the dynamic accessor.
+* `propList` - List of properties for the underlying accessor.
+
+|
+[source,c++]
+----
+template <typename AllocatorT>
+dynamic_accessor(
+      command_graph<graph_state::modifiable> &graph,
+      buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+      range<Dimensions> accessRange,
+      const property_list &propList = {})
+----
+|Available only when `(Dimensions > 0)`.
+
+Constructs a dynamic accessor that is a ranged accessor, where the range starts
+at the beginning of the buffer. This object can be registered with command graph nodes.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic accessor.
+* `bufferRef` - The buffer to access.
+* `accessRange` - The access range for the ranged accessor.
+* `propList` - List of properties for the underlying accessor.
+
+Exceptions:
+
+Throws an exception with the `errc::invalid` error code if `accessRange` exceeds
+the range of `bufferRef` in any dimension.
+
+|
+[source,c++]
+----
+template <typename AllocatorT, typename TagT>
+dynamic_accessor(
+      command_graph<graph_state::modifiable> &graph,
+      buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+      range<Dimensions> accessRange,
+      TagT tag, const property_list &propList = {})
+----
+|Available only when `(Dimensions > 0)`.
+
+Constructs a dynamic accessor that is a ranged accessor, where the range starts
+at the beginning of the buffer. This object can be registered with command graph nodes.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic accessor.
+* `bufferRef` - The buffer to access.
+* `accessRange` - The access range for the ranged accessor.
+* `tag` - A {acbt}[deduction tag] for the template arguments of the dynamic accessor.
+* `propList` - List of properties for the underlying accessor.
+
+Exceptions:
+
+Throws an exception with the `errc::invalid` error code if `accessRange` exceeds
+the range of `bufferRef` in any dimension.
+
+|
+[source,c++]
+----
+template <typename AllocatorT>
+dynamic_accessor(
+      command_graph<graph_state::modifiable> &graph,
+      buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+      range<Dimensions> accessRange,
+      id<Dimensions> accessOffset,
+      const property_list &propList = {})
+----
+|Available only when `(Dimensions > 0)`.
+
+Constructs a dynamic accessor that is a ranged accessor, where the range starts
+at an offset from the beginning of the buffer. This object can be registered
+with command graph nodes.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic accessor.
+* `bufferRef` - The buffer to access.
+* `accessRange` - The access range for the ranged accessor.
+* `accessOffset` - The offset for the range.
+* `propList` - List of properties for the underlying accessor.
+
+Exceptions:
+
+Throws an exception with the `errc::invalid` error code if the sum of
+`accessRange` and `accessOffset` exceeds the range of `bufferRef` in any dimension.
+
+|
+[source,c++]
+----
+template <typename AllocatorT, typename TagT>
+dynamic_accessor(
+      command_graph<graph_state::modifiable> &graph,
+      buffer<DataT, Dimensions, AllocatorT> &bufferRef,
+      range<Dimensions> accessRange,
+      id<Dimensions> accessOffset,
+      TagT tag, const property_list &propList = {})
+----
+|Available only when `(Dimensions > 0)`.
+
+Constructs a dynamic accessor that is a ranged accessor, where the range starts
+at an offset from the beginning of the buffer. This object can be registered
+with command graph nodes.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic accessor.
+* `bufferRef` - The buffer to access.
+* `accessRange` - The access range for the ranged accessor.
+* `accessOffset` - The offset for the range.
+* `tag` - A {acbt}[deduction tag] for the template arguments of the dynamic accessor.
+* `propList` - List of properties for the underlying accessor.
+
+Exceptions:
+
+Throws an exception with the `errc::invalid` error code if the sum of
+`accessRange` and `accessOffset` exceeds the range of `bufferRef` in any dimension.
+
+|
+[source,c++]
+----
+template <typename AllocatorT>
+void update(buffer<DataT, Dimensions, AllocatorT> &newBufferRef);
+----
+
+|Updates the buffer that this dynamic accessor provides access to in all graph nodes
+where it is registered. This new value will be reflected immediately in the modifiable
+graph which contains the registered nodes. The new value will not be reflected in any
+executable graphs created from that modifiable graph until `command_graph::update()`
+is called passing the modified nodes, or a new executable graph is finalized from
+the modifiable graph.
+
+It is not an error if `newBufferRef` is set to the current parameter value in any
+registered nodes.
+
+Parameters:
+
+* `newBufferRef` - The new buffer that the dynamic accessor will provide access to
+in all registered graph nodes.
+
+|
+[source,c++]
+----
+template <typename AllocatorT>
+void update(
+        buffer<DataT, Dimensions, AllocatorT> &newBufferRef,
+        range<Dimensions> newAccessRange);
+----
+
+|Updates the buffer that this dynamic accessor provides access to in all graph nodes
+where it is registered. This new value will be reflected immediately in the modifiable
+graph which contains the registered nodes. The new value will not be reflected in any
+executable graphs created from that modifiable graph until `command_graph::update()`
+is called passing the modified nodes, or a new executable graph is finalized from
+the modifiable graph.
+
+It is not an error if `newBufferRef` is set to the current parameter value in any
+registered nodes.
+
+Parameters:
+
+* `newBufferRef` - The new buffer that the dynamic accessor will provide access to
+in all registered graph nodes.
+* `newAccessRange` - Access range for the accessor of the new buffer parameter.
+
+Exceptions:
+
+Throws an exception with the `errc::invalid` error code if `newAccessRange` exceeds
+the range of `bufferRef` in any dimension.
+
+|
+[source,c++]
+----
+template <typename AllocatorT>
+void update(
+        buffer<DataT, Dimensions, AllocatorT> &newBufferRef,
+        range<Dimensions> newAccessRange,
+        id<Dimensions> newAccessOffset);
+----
+
+|Updates the buffer that this dynamic accessor provides access to in all graph nodes
+where it is registered. This new value will be reflected immediately in the modifiable
+graph which contains the registered nodes. The new value will not be reflected in any
+executable graphs created from that modifiable graph until `command_graph::update()`
+is called passing the modified nodes, or a new executable graph is finalized from
+the modifiable graph.
+
+It is not an error if `newBufferRef` is set to the current parameter value in any
+registered nodes.
+
+Parameters:
+
+* `newBufferRef` - The new buffer that the dynamic accessor will provide access to
+in all registered graph nodes.
+* `newAccessRange` - Access range for the accessor of the new buffer parameter.
+* `newAccessOffset` - Access offset for the range of the new buffer parameter.
+
+Exceptions:
+
+Throws an exception with the `errc::invalid` error code if the sum of
+`newAccessRange` and `newAccessOffset` exceeds the range of `bufferRef` in any dimension.
+
+|
+[source,c++]
+----
+accessor<DataT, Dimensions, AccessMode, AccessTarget> get(handler &cgh);
+----
+
+| Returns a `sycl::accessor` to use in the current command-group.
+The accessor is registered with this `dynamic_accessor` instance
+and will be updated whenever `dynamic_accessor::update()` is called.
+
+Parameters:
+
+* `cgh` - The kernel handler that represents the current submission.
+
+Returns: 
+
+An instance of `sycl::accessor` to use in the current command-group.
+
+|===
+
+===== The dynamic_local_accessor class [[dynamic-local-accessor-class]]
+
+[source,c++]
+----
+namespace ext::oneapi::experimental{
+template <typename DataT, int Dimensions = 1>
+class dynamic_local_accessor {
+public:
+  dynamic_local_accessor(
+        command_graph<graph_state::modifiable> graph,
+        range<Dimensions> allocationSize,
+        const property_list &propList = {});
+
+  void update(range<Dimensions> newAllocationSize);
+
+  local_accessor<DataT, Dimensions> get(handler &cgh);
+};
+}
+----
+
+The `dynamic_local_accessor` class provides the {crs}[common reference semantics].
+
+Table {counter: tableNumber}. Member functions of the `dynamic_local_accessor` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+template <typename DataT, int Dimensions = 1>
+dynamic_local_accessor(
+        command_graph<graph_state::modifiable> graph,
+        range<Dimensions> allocationSize);
+----
+|Available only when `(Dimensions > 0)`.
+
+Constructs a dynamic local accessor object that can be registered with command graph.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic local accessor.
+* `allocationSize` - The size of the local accessor.
+
+|
+[source,c++]
+----
+void update(range<Dimensions> newAllocationSize);
+----
+
+|Updates the allocation size of this dynamic local accessor in all graph nodes
+where it is registered. This new size will be reflected immediately in the
+modifiable graph which contains the registered nodes. The new size will not be
+reflected in any executable graphs created from that modifiable graph until
+`command_graph::update()` is called passing the modified nodes, or a new
+executable graph is finalized from the modifiable graph.
+
+It is not an error if `newAllocationSize` is set to the current allocation size
+of any registered nodes.
+
+Parameters:
+
+* `newAllocationSize` - The new allocation size that this dynamic local accessor will
+use in all the graph nodes where it is registered.
+
+|
+[source,c++]
+----
+local_accessor<DataT, Dimensions> get(handler &cgh);
+----
+
+| Returns a `sycl::local_accessor` to use in the current command-group.
+The local accessor is registered with this `dynamic_local_accessor`
+instance and will be updated whenever `dynamic_local_accessor::update()`
+is called.
+
+Parameters:
+
+* `cgh` - The kernel handler that represents the current submission.
+
+Returns: 
+
+An instance of `sycl::local_accessor` to use in the current command-group.
+
+|===
+
+===== The dynamic_work_group_memory class [[dynamic-work-group-memory-class]]
+
+The `dynamic_work_group_memory` class is a wrapper for the
+link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[sycl_ext_oneapi_work_group_memory]
+extension. It provides a mechanism to update the local memory size allocated in graph kernel nodes.
+
+[source,c++]
+----
+namespace ext::oneapi::experimental{
+template <typename DataT, typename PropertyListT = empty_properties_t>
+class dynamic_work_group_memory {
+public:
+  dynamic_work_group_memory(
+        command_graph<graph_state::modifiable> graph,
+        size_t num);
+
+  void update(size_t newNum);
+
+  work_group_memory<DataT, PropertyListT> get(handler &cgh);
+};
+}
+----
+
+The `dynamic_work_group_memory` class provides the {crs}[common reference semantics].
+
+Table {counter: tableNumber}. Member functions of the `dynamic_work_group_memory` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+dynamic_work_group_memory(
+      command_graph<graph_state::modifiable> graph,
+      size_t num);
+----
+|Constructs a dynamic work group memory object that can be registered with command graph.
+
+Parameters:
+
+* `graph` - Graph which will contain the nodes that use the dynamic work group memory.
+* `num` - The number of `DataT` elements in the dynamic work group memory.
+
+|
+[source,c++]
+----
+void update(size_t newNum);
+----
+
+|Updates the number of `DataT` elements that this dynamic work group memory will
+allocate memory for in all graph nodes where it is registered. This new value will
+be reflected immediately in the modifiable graph which contains the registered nodes.
+The new value will not be reflected in any executable graphs created from that modifiable
+graph until `command_graph::update()` is called passing the modified nodes, or a new
+executable graph is finalized from the modifiable graph.
+
+It is not an error if `newNum` is set to its current value in any registered nodes.
+
+Parameters:
+
+* `newNum` - The new number of `DataT` elements that this dynamic work group memory
+will allocate memory for in all the graph nodes where it is registered.
+
+|
+[source,c++]
+----
+work_group_memory<DataT, PropertyListT> get(handler &cgh);
+----
+
+| Returns a `work_group_memory` object to use in the current command-group.
+The work group memory is registered with this `dynamic_work_group_memory`
+instance and will be updated whenever `dynamic_work_group_memory::update()`
+is called.
+
+Parameters:
+
+* `cgh` - The kernel handler that represents the current submission.
+
+Returns: 
+
+An instance of `ext::oneapi::experimental::work_group_memory` to use
+in the current command-group.
 
 |===
 
@@ -856,16 +1433,17 @@ of the node that requires updating, different API's should be used:
 ====== Parameter Updates
 
 Parameters to individual nodes in a graph in the `executable` state can be
-updated between graph executions using dynamic parameters. A `dynamic_parameter`
-object is created with a modifiable state graph and an initial value for the
-parameter. Dynamic parameters can then be registered with nodes in that graph
-when passed to calls to `set_arg()/set_args()`.
+updated between graph executions using <<Dynamic Parameters, dynamic parameters>>.
+A dynamic parameter is created with a modifiable state graph. Dynamic parameters
+can then be registered with nodes in that graph when passed to calls to
+`set_arg()/set_args()`.
 
-Parameter updates are performed using a `dynamic_parameter` instance by calling
-`dynamic_parameter::update()` to update all the parameters of nodes to which the
-`dynamic_parameter` is registered. Updates will not affect any nodes which were
-not registered, even if they use the same parameter value as a
-`dynamic_parameter`.
+Parameter updates are performed using an instance of one of the
+<<parameter-update-classes, parameter update classes>> by calling
+their `update()` member function which updates all the nodes to which
+they are registered. Updates will not affect any nodes which were not
+registered, even if they use the same parameter value as a dynamic
+parameter.
 
 Since the structure of the graph became fixed when finalizing, updating
 parameters on a node will not change the already defined dependencies between
@@ -877,10 +1455,11 @@ behavior of a graph when executed.
 For example, if there are two nodes (NodeA and NodeB) which are connected
 by an edge due to a dependency on the same buffer, both nodes must have
 this buffer parameter updated to the new value. This maintains the correct
-data dependency and prevents unexpected behavior. To achieve this, one
-dynamic parameter for the buffer can be registered with all the nodes which
-use the buffer as a parameter. Then a single `dynamic_parameter::update()` call
-will maintain the graphs data dependencies.
+data dependency and prevents unexpected behavior. To achieve this, the buffer 
+accessor should be registered for update with all the nodes which
+use the buffer as a parameter. Since it is an accessor, the registration should
+be done using an instance of the `dynamic_accessor` class. Then, a single `update()`
+call will maintain the graph's data dependencies.
 
 ====== Execution Range Updates
 
@@ -908,9 +1487,9 @@ state graph and a list of possible command-group functions. Command-group functi
 within a dynamic command-group can then be set to active by using the member function
 `dynamic_command_group::set_active_index()`.
 
-Dynamic command-groups are compatible with dynamic parameters. This means that
-dynamic parameters can be used in command-group functions that are part of
-dynamic command-groups. Updates to such dynamic parameters will be reflected
+Dynamic command-groups are compatible with <<Dynamic Parameters, dynamic parameters>>.
+This means that dynamic parameters can be used in command-group functions that are
+part of dynamic command-groups. Updates to such dynamic parameters will be reflected
 in the command-group functions once they are activated.
 
 Note that the execution range is tied to the command-group, therefore updating
@@ -971,10 +1550,10 @@ satisfy the conditions of topological identity results in undefined behaviour,
 as it may prevent the runtime from pairing nodes in the source and target
 graphs.
 
-It is valid to use nodes that contain dynamic parameters in whole graph updates.
-If a node containing a dynamic parameter is updated through the whole graph
-update API, then any previous updates to the dynamic parameter will be reflected
-in the new graph.
+It is valid to use nodes that contain <<Dynamic Parameters, dynamic parameters>>
+in whole graph updates. If a node containing a dynamic parameter is updated
+through the whole graph update API, then any previous updates to the
+dynamic parameter will be reflected in the new graph.
 
 ==== Graph Properties [[graph-properties]]
 
@@ -1206,7 +1785,8 @@ Exceptions:
   <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
 * Throws with error code `invalid` if the type of the command-group is not a
-  kernel execution and a `dynamic_parameter` was registered inside `cgf`.
+  kernel execution and a `dynamic_parameter`, `dynamic_accessor`,
+  `dynamic_local_accessor` or `dynamic_work_group_memory` was registered inside `cgf`.
 
 |
 [source,c++]
@@ -1866,39 +2446,9 @@ Exceptions:
 |
 [source,c++]
 ----
-template <typename DataT, int Dims, access::mode AccMode, access::target
-AccTarget, access::placeholder IsPlaceholder> void
-handler::require(ext::oneapi::experimental::dynamic_parameter<
-              accessor<DataT, Dims, AccMode, AccTarget, IsPlaceholder>>
-                  dynamicParamAcc)
-----
-
-|Requires access to a memory object associated with an accessor contained in a
-dynamic parameter.
-
-Parameters:
-
-* `dynamicParamAcc` - The dynamic parameter which contains the accessor that is
-required.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if this function is called from
-a command-group submitted to a queue with is currently recording to a graph.
-
-* Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
-
-* Throws synchronously with error code `invalid` if the graph which will be
-associated with the graph node resulting from this command-group submission is
-different from the one with which `dynamicParameterAcc` was created.
-
-|
-[source,c++]
-----
 template <typename T>
 void handler::set_arg(int argIndex,
-              ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam);
+        ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam);
 ----
 
 |Sets an argument to a kernel based on the value inside a dynamic parameter, and
@@ -1914,7 +2464,7 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if this function is called from
-a command-group submitted to a queue with is currently recording to a graph.
+a command-group submitted to a queue which is currently recording to a graph.
 
 * Throws synchronously with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
@@ -1922,6 +2472,104 @@ a normal SYCL command-group submission.
 * Throws synchronously with error code `invalid` if the graph which will be
 associated with the graph node resulting from this command-group submission is
 different from the one with which the dynamic_parameter was created.
+
+|
+[source,c++]
+----
+template <typename DataT, int Dims, access::mode AccMode,
+        access::target AccTarget>
+void handler::set_arg(
+        int argIndex, ext::oneapi::experimental::dynamic_accessor
+        <DataT, Dims, AccMode, AccTarget> &dynamicAccessor);
+----
+
+|Sets a memory object argument to a kernel based on the value represented
+by a dynamic accessor, and registers that dynamic accessor with the graph
+node encapsulating the submission of the command-group that calls this function.
+
+Parameters:
+
+* `argIndex` - The index of the kernel argument.
+
+* `dynamicAccessor` - The dynamic accessor that represents the memory
+object argument.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+a command-group submitted to a queue which is currently recording to a graph.
+
+* Throws synchronously with error code `invalid` if this function is called from
+a normal SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the graph which will be
+associated with the graph node resulting from this command-group submission is
+different from the one with which `dynamicAccessor` was created.
+
+|
+[source,c++]
+----
+template <typename DataT, int Dims>
+void handler::set_arg(int argIndex,
+        ext::oneapi::experimental::dynamic_local_accessor
+        <DataT, Dims> &dynamicLocalAccessor);
+----
+
+|Sets a local memory argument to a kernel based on a dynamic local accessor, and
+registers that dynamic accessor with the graph node encapsulating the submission
+of the command-group that calls this function.
+
+Parameters:
+
+* `argIndex` - The index of the kernel argument.
+
+* `dynamicLocalAccessor` - The dynamic local accessor that represents the local
+memory argument.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+a command-group submitted to a queue which is currently recording to a graph.
+
+* Throws synchronously with error code `invalid` if this function is called from
+a normal SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the graph which will be
+associated with the graph node resulting from this command-group submission is
+different from the one with which `dynamicLocalAccessor` was created.
+
+|
+[source,c++]
+----
+template <typename DataT, typename PropertyListT = 
+        ext::oneapi::experimental::empty_properties_t>
+void handler::set_arg(int argIndex,
+        ext::oneapi::experimental::dynamic_work_group_memory
+        <DataT, PropertyListT> &dynamicWorkGroupMemory);
+----
+
+|Sets a local memory argument to a kernel based on a `dynamic_work_group_memory`
+object, and registers that dynamic work group memory with the graph node
+encapsulating the submission of the command-group that calls this function.
+
+Parameters:
+
+* `argIndex` - The index of the kernel argument.
+
+* `dynamicWorkGroupMemory` - The dynamic work group memory that represents the
+local memory argument.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+a command-group submitted to a queue which is currently recording to a graph.
+
+* Throws synchronously with error code `invalid` if this function is called from
+a normal SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the graph which will be
+associated with the graph node resulting from this command-group submission is
+different from the one with which `dynamicWorkGroupMemory` was created.
 
 |===
 
