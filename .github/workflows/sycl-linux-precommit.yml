@@ -92,14 +92,14 @@ jobs:
             reset_intel_gpu: false
           - name: Intel
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
@@ -160,12 +160,12 @@ jobs:
         include:
           - name: Intel GEN12 Graphics system
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
             reset_intel_gpu: true
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
             reset_intel_gpu: true
           - name: AMD system
