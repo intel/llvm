@@ -10344,9 +10344,13 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (WrapperCompileEnabled) {
       // TODO Use TC.SelectTool().
+      // Pass -Wno-override-module to the compilation to restrict the warning
+      // that is emitted due to the target in the generated IR from the wrapping
+      // step.
       ArgStringList ClangArgs{
-          TCArgs.MakeArgString("--target=" + TC.getAuxTriple()->str()), "-c",
-          "-o", Output.getFilename(), WrapperFileName};
+          TCArgs.MakeArgString("--target=" + TC.getAuxTriple()->str()),
+          "-Wno-override-module", "-c", "-o", Output.getFilename(),
+          WrapperFileName};
       llvm::Reloc::Model RelocationModel;
       unsigned PICLevel;
       bool IsPIE;
