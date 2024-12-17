@@ -379,3 +379,104 @@ Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's
 a non-standard mechanism. Use `UNSUPPORTED: true` instead, we track
 `UNSUPPORTED` tests using the mechanism described above. Otherwise the test
 risks remaining untraceable.
+
+## Compiling and executing tests on separate systems
+
+The execution of e2e tests can be separated into compilation and execution 
+stages via the `test-mode` lit parameter. This allows us to reduce testing time 
+by compiling tests on more powerful systems and reusing the binaries on other
+machines. By default the `test-mode` parameter is set to `full`, indicating 
+that both stages will run. This parameter can be set to `build-only`, or 
+`run-only`, to only run the compilation stage, or the execution stage 
+respectively.
+
+The modes work as follow:
+### `--param test-mode=full`
+This is the default mode tests run in. Tests are marked as unsupported if no
+device on the machine can fulfill the `REQUIRES`/`UNSUPPORTED` statements. In
+this mode all `RUN:` lines are executed normally, and two extra features are
+added: the `build-and-run-mode` and `run-mode`.
+
+To make a test only run in `full` mode add a `REQUIRES: build-and-run-mode` line.
+
+### `--param test-mode=build-only`
+This mode can be used to compile all test binaries. To do this all `UNSUPPORTED` 
+and `REQUIRES` statements are ignored unless they contain `UNSUPPORTED: true` or 
+`REQUIRES: build-and-run-mode` (NOTE: currently a WIP to make this mode properly 
+react to features). All `RUN:` lines within a test are ran in this mode unless 
+they contain the following expansions: `%{run}`, `%{run-unfiltered-devices}`, 
+or `%if run-mode`.
+
+Currently the only triple supported for `build-only` mode is `spir64`
+
+### `--param test-mode=run-only`
+In this mode tests will not be compiled, they will only run. To do this only the 
+`RUN:` lines that contain `%{run}`, `%{run-unfiltered-devices}` or `%if run-mode` 
+are executed. Tests are marked as unsupported in the same manner as `full` mode.
+Since tests are not compiled in this mode, for any test to pass the test 
+binaries should already be in the `test_exec_root` directory, either by having 
+ran `full` or `build-only` modes previously on the system, or having 
+transferred the test binaries into that directory. The `run-mode` feature is 
+added when in this mode.
+
+### Resolving common Issues with separate compilation and execution:
+A number of extra considerations need to be taken to write tests that are able
+to be compiled and executed on separate machines.
+
+- Tests that build and execute multiple binaries need to be written such that 
+the output of each compilation has a different name. This way no files are
+overwritten, and all the necessary binaries can be transferred to the running
+system.
+
+- Two scenarios need to be considered for tests that expectedly fail:
+  - Tests that are expected to fail on compilation, and thus also during 
+  execution, need to be marked as `XFAIL` with a feature that is device 
+  agnostic, or with `XFAIL: *`. Device agnostic features are those which are
+  added added through a method other than processing the output of sycl-ls, for 
+  example the OS, or the presence of a library. This needs to be done because 
+  sycl-ls is not ran in `build-only` mode.
+  - If the expected failure occurs during run-time we will need to mark the test
+  with `XFAIL` on a device specific feature (A feature that we add through 
+  processing sycl-ls output), or if its expected to always fail on run-time we 
+  can use `XFAIL: run-mode`. This is because otherwise the test would compile 
+  and pass on `build-only` mode and be reported as an `XPASS`.
+
+- To separate compilation and execution of tests we classify `RUN:` directives 
+as being either build or run lines. If a line contains `%{run}`, 
+`%{run-unfiltered-devices}` or `%if run-mode` it is classified as a run line, 
+otherwise it is classified as a build line.
+  - All `RUN:` lines that execute test binaries should be marked with either
+  `%{run}` or `%{run-unfiltered-devices}`. Otherwise they will be incorrectly 
+  marked as a build line, likely causing a failure at the `build-only` stage as
+  we try to execute the program without having the appropriate devices.
+  - The vast majority of `RUN:` lines that do not execute the test binaries are 
+  needed to either set up files prior to compilation, or to compile the binary,
+  as such `RUN:` lines are by default considered as build lines. In the case 
+  that we need to run a line on the `run-only` system, and it does not make
+  sense to mark them with `%{run}` or `%{run-unfiltered-devices}`, we can mark 
+  a line with `%if run-mode` to specifically make the line a run line. This 
+  situation usually appears when we need to run a command in response to the
+  execution of the test binary.
+
+- Currently the `build-only` mode does not support logic to properly assess the
+features in `REQUIRES`/`UNSUPPORTED` to know if a test can be built in the
+system environment, or for `spir64`. Only tests that are marked with
+`REQUIRES: build-and-run-mode` or `UNSUPPORTED: true` are skipped. Thus if a
+test will fail building for the build environment we have on CI or for `spir64`
+we will need to mark this as `REQUIRES: build-and-run-mode`. This is only 
+temporary solution, until further work is done to properly mark tests as
+unsupported on `build-only` based on features.
+
+- CPU and FPGA AOT tests are currently expected to fail when compiling and 
+executing on separate machines. These failures occur on the `run-only` side, 
+because during compilation the host machine's CPU architecture is targeted,
+which may be different than that of the running machine. These tests are marked
+as `REQUIRES: build-and-run-mode` as a result, until they can be refactored to 
+compile for the architectures that will be used on the run side.
+
+### Falling back to `full` testing mode on `run-only`
+To not lose coverage of tests marked as `REQUIRES: build-and-run-mode` when 
+using `run-only` mode, lit can be called using 
+`--param build-instead-of-skip-run-only=True`. When this option is enabled in 
+`run-only` mode, tests marked as requiring `build-and-run-mode` will fallback 
+to running on `full` mode, instead of being reported as unsupported.
