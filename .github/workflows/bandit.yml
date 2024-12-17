@@ -20,4 +20,4 @@ jobs:
 
       - name: Run Bandit
         run: |
-          bandit -c .github/workflows/bandit.config -r .
+          bandit -c devops/bandit.config -r .
