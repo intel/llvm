@@ -40,6 +40,15 @@ const std::shared_ptr<detail::queue_impl> &
 SubmissionInfo::SecondaryQueue() const {
   return impl->MSecondaryQueue;
 }
+
+ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
+  return impl->MEventMode;
+}
+
+const ext::oneapi::experimental::event_mode_enum &
+SubmissionInfo::EventMode() const {
+  return impl->MEventMode;
+}
 } // namespace detail
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
