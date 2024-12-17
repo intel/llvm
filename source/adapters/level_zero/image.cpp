@@ -265,7 +265,7 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   return UR_RESULT_SUCCESS;
 }
 
-bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
+static bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
   switch (ChannelOrder) {
   case UR_IMAGE_CHANNEL_ORDER_RGB:
   case UR_IMAGE_CHANNEL_ORDER_RGX:
