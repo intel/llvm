@@ -14,7 +14,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; TODO: enable back once the reverse translation with untyped pointers is fixed
-; R/UN: llvm-spirv -r %t.spv --spirv-force-joint-matrix -o %t.rev.bc
+; R/UN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; R/UN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-GENERAL
 
 ; R/UN: llvm-spirv -r %t.spv -o %t.rev.bc
