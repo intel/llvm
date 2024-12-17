@@ -1,4 +1,6 @@
 // REQUIRES: linux
+// XFAIL: any-device-is-opencl && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16405
 // RUN: %{build} %device_asan_flags -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t
 // RUN: %{run} %t 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags %if cpu %{ -fsycl-targets=spir64_x86_64 %} %if gpu %{ -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %} -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t2
