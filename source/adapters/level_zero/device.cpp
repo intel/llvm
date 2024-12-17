@@ -883,9 +883,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
-  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
-    // currently not supported in level zero runtime
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_BFLOAT16: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(ur_bool_t{false});
@@ -1187,6 +1184,10 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 #endif
   }
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+    return ReturnValue(false);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,

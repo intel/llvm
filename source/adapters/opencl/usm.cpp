@@ -669,7 +669,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
     PropNameCL = CL_MEM_ALLOC_DEVICE_INTEL;
     break;
   default:
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
   size_t CheckPropSize = 0;

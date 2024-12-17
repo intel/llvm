@@ -124,7 +124,7 @@ etors:
     - name: ATTRIBUTES
       desc: "[char[]] Return null-terminated kernel attributes string."
     - name: NUM_REGS
-      desc: "[uint32_t] Return the number of registers used by the compiled kernel (device specific)."
+      desc: "[uint32_t][optional-query] Return the number of registers used by the compiled kernel."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel Work Group information"
@@ -133,7 +133,7 @@ name: $x_kernel_group_info_t
 typed_etors: True
 etors:
     - name: GLOBAL_WORK_SIZE
-      desc: "[size_t[3]] Return Work Group maximum global size"
+      desc: "[size_t[3]][optional-query] Return Work Group maximum global size"
     - name: WORK_GROUP_SIZE
       desc: "[size_t] Return maximum Work Group size"
     - name: COMPILE_WORK_GROUP_SIZE
@@ -146,12 +146,12 @@ etors:
       desc: "[size_t] Return minimum amount of private memory in bytes used by each work item in the Kernel"
     - name: COMPILE_MAX_WORK_GROUP_SIZE
       desc: |
-            [size_t[3]] Return the maximum Work Group size guaranteed by the
-            source code, or (0, 0, 0) if unspecified
+            [size_t[3]][optional-query] Return the maximum Work Group size guaranteed
+            by the source code, or (0, 0, 0) if unspecified
     - name: COMPILE_MAX_LINEAR_WORK_GROUP_SIZE
       desc: |
-            [size_t] Return the maximum linearized Work Group size (X * Y * Z)
-            guaranteed by the source code, or 0 if unspecified
+            [size_t][optional-query] Return the maximum linearized Work Group size
+            (X * Y * Z) guaranteed by the source code, or 0 if unspecified
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel SubGroup information"
