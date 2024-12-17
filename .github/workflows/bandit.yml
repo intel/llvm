@@ -1,0 +1,32 @@
+name: Scan Python code with Bandit
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+    paths:
+      - '**/*.py'
+      - '.github/workflows/bandit.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bandit:
+    name: Bandit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone the git repo
+        uses: actions/checkout@v4
+
+      - name: Install Bandit
+        run: sudo apt-get update && sudo apt-get install python3-bandit
+
+      - name: Run Bandit
+        run: |
+          bandit -c .github/workflows/bandit.config -r .
