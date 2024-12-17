@@ -42,8 +42,8 @@ public:
   using EnqueueListT = std::vector<Command *>;
 
   // Make first command depend on the second
-  using AllocateDependencyF =
-      std::function<void(Command *, Command *, const MemObjRecord *, EnqueueListT &)>;
+  using AllocateDependencyF = std::function<void(
+      Command *, Command *, const MemObjRecord *, EnqueueListT &)>;
 
   template <bool IsConst> class IteratorT;
 

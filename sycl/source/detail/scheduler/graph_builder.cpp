@@ -241,17 +241,15 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   return MemObject->MRecord.get();
 }
 
-void Scheduler::GraphBuilder::updateLeaves(Command *NewCmd, const std::set<Command *> &Cmds,
-                                           MemObjRecord *Record,
-                                           access::mode AccessMode,
-                                           const MapOfDependentCmds &DependentCmdsOfNewCmd,
-                                           const QueueImplPtr &Queue,
-                                           std::vector<Command *> &ToCleanUp,
-                                           std::vector<Command *> &ToEnqueue) {
+void Scheduler::GraphBuilder::updateLeaves(
+    Command *NewCmd, const std::set<Command *> &Cmds, MemObjRecord *Record,
+    access::mode AccessMode, const MapOfDependentCmds &DependentCmdsOfNewCmd,
+    const QueueImplPtr &Queue, std::vector<Command *> &ToCleanUp,
+    std::vector<Command *> &ToEnqueue) {
 
   const bool ReadOnlyReq = AccessMode == access::mode::read;
   for (Command *Cmd : Cmds) {
-    if (! ReadOnlyReq) {
+    if (!ReadOnlyReq) {
       bool WasLeaf = Cmd->MLeafCounter > 0;
       Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
       Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
@@ -284,19 +282,23 @@ bool Scheduler::GraphBuilder::detectDuplicates(
   if (!DepCommand->isCleanupSubject())
     return false;
   // any dependence of DepCommand already covered by NewCmd
-  return std::all_of(DepCommand->MDeps.begin(), DepCommand->MDeps.end(),
-    [&DependentCmdsOfNewCmd](const DepDesc &DepOfDep) {
+  return std::all_of(
+      DepCommand->MDeps.begin(), DepCommand->MDeps.end(),
+      [&DependentCmdsOfNewCmd](const DepDesc &DepOfDep) {
         return DependentCmdsOfNewCmd.isMemObjExist(
-          std::make_pair(DepOfDep.MDepRequirement->MSYCLMemObj, DepOfDep.MDepRequirement->MAccessMode));
-    });
+            std::make_pair(DepOfDep.MDepRequirement->MSYCLMemObj,
+                           DepOfDep.MDepRequirement->MAccessMode));
+      });
 }
 
 void Scheduler::GraphBuilder::commandToCleanup(
     Command *NewCmd, Command *DepCommand, MemObjRecord *Record,
     std::vector<Command *> &ToEnqueue) {
-  // must remove DepCommand from leaves of all mem objects it depends on before AllocateDependency
+  // must remove DepCommand from leaves of all mem objects it depends on before
+  // AllocateDependency call
   for (const DepDesc &DepOfDep : DepCommand->MDeps) {
-    MemObjRecord *Record = getMemObjRecord(DepOfDep.MDepRequirement->MSYCLMemObj);
+    MemObjRecord *Record =
+        getMemObjRecord(DepOfDep.MDepRequirement->MSYCLMemObj);
     DepCommand->MLeafCounter -= Record->MReadLeaves.remove(DepCommand);
     DepCommand->MLeafCounter -= Record->MWriteLeaves.remove(DepCommand);
   }
@@ -306,11 +308,13 @@ void Scheduler::GraphBuilder::commandToCleanup(
 void Scheduler::GraphBuilder::commandToCleanup(
     Command *DepCommand, std::vector<Command *> &ToCleanUp) {
   for (const DepDesc &DepOfDep : DepCommand->MDeps) {
-          MemObjRecord *Record = getMemObjRecord(DepOfDep.MDepRequirement->MSYCLMemObj);
-          DepCommand->MLeafCounter -= Record->MReadLeaves.remove(DepCommand);
-          DepCommand->MLeafCounter -= Record->MWriteLeaves.remove(DepCommand);
+    MemObjRecord *Record =
+        getMemObjRecord(DepOfDep.MDepRequirement->MSYCLMemObj);
+    DepCommand->MLeafCounter -= Record->MReadLeaves.remove(DepCommand);
+    DepCommand->MLeafCounter -= Record->MWriteLeaves.remove(DepCommand);
   }
-  assert(!DepCommand->MLeafCounter && "A command before cleanup must have no leaves.");
+  assert(!DepCommand->MLeafCounter &&
+         "A command before cleanup must have no leaves.");
   ToCleanUp.push_back(DepCommand);
 }
 
@@ -336,7 +340,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
   }
   const MapOfDependentCmds DependentCmdsOfNewCmd(UpdateCommand->MDeps);
   updateLeaves(UpdateCommand, Deps, Record, Req->MAccessMode,
-    DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
+               DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
   addNodeToLeaves(Record, UpdateCommand, Req->MAccessMode, ToEnqueue);
   for (Command *Cmd : ToCleanUp)
     cleanupCommand(Cmd);
@@ -498,7 +502,8 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
 
   const MapOfDependentCmds DependentCmdsOfNewCmd(UnMapCmd->MDeps);
   updateLeaves(UnMapCmd, Deps, Record, access::mode::read_write,
-    DependentCmdsOfNewCmd, LinkedAllocaCmd->getQueue(), ToCleanUp, ToEnqueue);
+               DependentCmdsOfNewCmd, LinkedAllocaCmd->getQueue(), ToCleanUp,
+               ToEnqueue);
   addNodeToLeaves(Record, MapCmd, access::mode::read_write, ToEnqueue);
   for (Command *Cmd : ToCleanUp)
     cleanupCommand(Cmd);
@@ -543,8 +548,8 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
   }
 
   const MapOfDependentCmds DependentCmdsOfNewCmd(MemCpyCmd->MDeps);
-  updateLeaves(MemCpyCmd, Deps, Record, Req->MAccessMode,
-    DependentCmdsOfNewCmd, SrcAllocaCmd->getQueue(), ToCleanUp, ToEnqueue);
+  updateLeaves(MemCpyCmd, Deps, Record, Req->MAccessMode, DependentCmdsOfNewCmd,
+               SrcAllocaCmd->getQueue(), ToCleanUp, ToEnqueue);
   addNodeToLeaves(Record, MemCpyCmd, Req->MAccessMode, ToEnqueue);
   for (Command *Cmd : ToCleanUp)
     cleanupCommand(Cmd);
@@ -871,7 +876,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           }
           const MapOfDependentCmds DependentCmdsOfNewCmd(AllocaCmd->MDeps);
           updateLeaves(AllocaCmd, Deps, Record, Req->MAccessMode,
-            DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
+                       DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
           addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode, ToEnqueue);
         }
       }
@@ -933,7 +938,8 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
 
-    updateLeaves(EmptyCmd, {Cmd}, Record, Req->MAccessMode, DependentCmdsOfNewCmd, nullptr, ToCleanUp, ToEnqueue);
+    updateLeaves(EmptyCmd, {Cmd}, Record, Req->MAccessMode,
+                 DependentCmdsOfNewCmd, nullptr, ToCleanUp, ToEnqueue);
     addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
   }
   for (Command *Cmd : ToCleanUp)
@@ -1078,7 +1084,7 @@ Command *Scheduler::GraphBuilder::addCG(
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves(NewCmd.get(), {Dep.MDepCommand}, Record, Req->MAccessMode,
-      DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
+                 DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
   }
 
@@ -1400,7 +1406,7 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves(NewCmd.get(), {Dep.MDepCommand}, Record, Req->MAccessMode,
-      DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
+                 DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
   }
 

@@ -132,15 +132,17 @@ public:
     return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode, ToEnqueue);
   }
 
-  void updateLeaves(sycl::detail::Command *NewCmd, const std::set<sycl::detail::Command *> &Cmds,
-                    sycl::detail::MemObjRecord *Record,
-                    sycl::access::mode AccessMode,
-                    const sycl::detail::MapOfDependentCmds &DependentCmdsOfNewCmd,
-                    const sycl::detail::QueueImplPtr &Queue,
-                    std::vector<sycl::detail::Command *> &ToCleanUp,
-                    std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.updateLeaves(NewCmd, Cmds, Record, AccessMode, DependentCmdsOfNewCmd,
-                                      Queue, ToCleanUp, ToEnqueue);
+  void
+  updateLeaves(sycl::detail::Command *NewCmd, const std::set<sycl::detail::Command *> &Cmds,
+               sycl::detail::MemObjRecord *Record,
+               sycl::access::mode AccessMode,
+               const sycl::detail::MapOfDependentCmds &DependentCmdsOfNewCmd,
+               const sycl::detail::QueueImplPtr &Queue,
+               std::vector<sycl::detail::Command *> &ToCleanUp,
+                std::vector<sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.updateLeaves(NewCmd, Cmds, Record, AccessMode,
+                                      DependentCmdsOfNewCmd, Queue, ToCleanUp,
+                                      ToEnqueue);
   }
 
   static bool enqueueCommand(sycl::detail::Command *Cmd,

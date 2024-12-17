@@ -273,8 +273,9 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
         const detail::MapOfDependentCmds DependentCmdsOfNewCmd(
             AllocaCmd->MDeps);
         for (std::unique_ptr<MockCommand> &MockCmd : Leaves)
-          MS.updateLeaves(AllocaCmd, {MockCmd.get()}, Record, access::mode::read_write,
-                          DependentCmdsOfNewCmd, QueueImpl, ToCleanUp, ToEnqueue);
+          MS.updateLeaves(AllocaCmd, {MockCmd.get()}, Record,
+                          access::mode::read_write, DependentCmdsOfNewCmd,
+                          QueueImpl, ToCleanUp, ToEnqueue);
         EXPECT_TRUE(ToCleanUp.empty());
       });
 }

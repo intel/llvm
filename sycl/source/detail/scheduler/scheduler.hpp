@@ -623,17 +623,19 @@ protected:
 
     /// Removes commands from leaves.
     void updateLeaves(Command *NewCmd, const std::set<Command *> &Cmds,
-                             MemObjRecord *Record, access::mode AccessMode,
-                             const MapOfDependentCmds &DependentCmdsOfNewCmd,
-                             const QueueImplPtr &Queue,
-                             std::vector<Command *> &ToCleanUp,
-                             std::vector<Command *> &ToEnqueue);
+                      MemObjRecord *Record, access::mode AccessMode,
+                      const MapOfDependentCmds &DependentCmdsOfNewCmd,
+                      const QueueImplPtr &Queue,
+                      std::vector<Command *> &ToCleanUp,
+                      std::vector<Command *> &ToEnqueue);
 
     /// Prepare a command to cleanup
-    void commandToCleanup(Command *NewCmd, Command *DepCommand, MemObjRecord *Record,
+    void commandToCleanup(Command *NewCmd, Command *DepCommand,
+                          MemObjRecord *Record,
                           std::vector<Command *> &ToEnqueue);
 
-    void commandToCleanup(Command *DepCommand, std::vector<Command *> &ToCleanUp);
+    void commandToCleanup(Command *DepCommand,
+                          std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
@@ -704,7 +706,8 @@ protected:
 
     /// If all dependences of a dependent cmd already covered by NewCmd,
     /// move the dependent cmd in ToCleanUp
-    bool detectDuplicates(Command *DepCommand, const MapOfDependentCmds &DependentCmdsOfNewCmd);
+    bool detectDuplicates(Command *DepCommand,
+                          const MapOfDependentCmds &DependentCmdsOfNewCmd);
 
   protected:
     /// Finds a command dependency corresponding to the record.
@@ -923,8 +926,7 @@ class MapOfDependentCmds {
 
   std::array<std::byte, 4 * 1024> MDependentCmdsOfNewCmdBuf;
   std::pmr::monotonic_buffer_resource MDependentCmdsOfNewCmdBufRes{
-      MDependentCmdsOfNewCmdBuf.data(),
-                                                                   MDependentCmdsOfNewCmdBuf.size()};
+      MDependentCmdsOfNewCmdBuf.data(), MDependentCmdsOfNewCmdBuf.size()};
   CommandModePairSet MDependentCmdsOfNewCmd{&MDependentCmdsOfNewCmdBufRes};
 
   void addDep(const DepDesc &Dep) {
