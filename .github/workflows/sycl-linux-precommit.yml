@@ -97,17 +97,6 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
-          - name: E2E tests on Intel Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
-          - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
-            use_igc_dev: true
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest

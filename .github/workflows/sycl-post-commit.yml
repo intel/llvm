@@ -60,6 +60,19 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             reset_intel_gpu: false
+          - name: E2E tests on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            extra_lit_opts: --param gpu-intel-pvc=True -j 100
+          - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            use_igc_dev: true
+            extra_lit_opts: --param gpu-intel-pvc=True -j 100
           # Performance tests below. Specifics:
           #  - only run performance tests (use LIT_FILTER env)
           #  - ask llvm-lit to show all the output, even for PASS (-a)
