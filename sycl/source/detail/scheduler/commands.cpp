@@ -2564,9 +2564,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   // they can simply be launched directly.
   if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
       KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    auto KernelName = CommandGroup.MKernelName;
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel_id KernelID = detail::ProgramManager::getInstance().getSYCLKernelID(
+        CommandGroup.MKernelName);
 
     kernel SyclKernel =
         KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
@@ -2770,8 +2769,8 @@ void enqueueImpKernel(
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
       ContextImpl->initializeDeviceGlobals(Program, Queue);
-  std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
+    std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
                                         DeviceGlobalInitEvents.size());
     EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
@@ -2779,7 +2778,7 @@ void enqueueImpKernel(
     EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
-    EventsWaitList = EventsWithDeviceGlobalInits;
+    EventsWaitList = std::move(EventsWithDeviceGlobalInits);
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;
