@@ -192,13 +192,6 @@ ur_result_t urContextSetExtendedDeleter(
 } // namespace ur::level_zero
 
 ur_result_t ur_context_handle_t_::initialize() {
-
-  // We may allocate memory to this root device so create allocators.
-  if (SingleRootDevice &&
-      DeviceMemPools.find(SingleRootDevice->ZeDevice) == DeviceMemPools.end()) {
-    createUSMAllocators(SingleRootDevice);
-  }
-
   // Create the immediate command list to be used for initializations.
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
@@ -209,7 +202,7 @@ ur_result_t ur_context_handle_t_::initialize() {
   // D2D migartion, if no P2P, is broken since it should use
   // immediate command-list for the specfic devices, and this single one.
   //
-  ur_device_handle_t Device = SingleRootDevice ? SingleRootDevice : Devices[0];
+  ur_device_handle_t Device = Devices[0];
 
   // Prefer to use copy engine for initialization copies,
   // if available and allowed (main copy engine with index 0).
