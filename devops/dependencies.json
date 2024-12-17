@@ -7,9 +7,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
-      "github_tag": "igc-1.0.17791.9",
-      "version": "1.0.17791.9",
-      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.17791.9",
+      "github_tag": "v2.1.12",
+      "version": "2.1.12",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/v2.1.12",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
