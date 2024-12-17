@@ -29,6 +29,7 @@ struct GlobalBinImageProps {
   bool EmitDeviceGlobalPropSet;
 };
 bool isModuleUsingAsan(const Module &M);
+bool isModuleUsingMsan(const Module &M);
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 using EntryPointSet = SetVector<Function *>;
 
