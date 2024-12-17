@@ -116,7 +116,11 @@ jobs:
       && success()
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
-
+    with:
+      compiler: icx
+      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt=-DCMAKE_CXX_FLAGS="/clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt="-DCMAKE_EXE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_MODULE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_SHARED_LINKER_FLAGS=/manifest:no" 
+      build_cache_suffix: icx
+      
   e2e-win:
     needs: build-win
     # Continue if build was successful.
@@ -130,6 +134,7 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
+      compiler: icx
 
   macos_default:
     name: macOS

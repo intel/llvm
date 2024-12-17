@@ -15,9 +15,9 @@
 
 using namespace sycl;
 
-ur_result_t redefineEnqueueEventsWaitWithBarrier(void *pParams) {
+ur_result_t redefineEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
-      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
 
   for (uint32_t i = 0; i != *params.pnumEventsInWaitList; ++i)
     EXPECT_NE((*params.pphEventWaitList)[i], nullptr);
@@ -51,7 +51,8 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   sycl::platform Plt = sycl::platform();
 
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefineEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefineEnqueueEventsWaitWithBarrierExt);
 
   queue Queue{Plt.get_devices()[0]};
   sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
@@ -77,7 +78,8 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
 
   for (auto &Arg : InputEventWaitLists) {
     std::unique_ptr<detail::CG> CommandGroup(new detail::CGBarrier(
-        std::move(Arg), detail::CG::StorageInitHelper({}, {}, {}, {}, {}),
+        std::move(Arg), ext::oneapi::experimental::event_mode_enum::none,
+        detail::CG::StorageInitHelper({}, {}, {}, {}, {}),
         detail::CGType::BarrierWaitlist, {}));
     MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl,
                         /*EventNeeded=*/true);

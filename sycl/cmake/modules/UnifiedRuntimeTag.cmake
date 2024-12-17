@@ -1,7 +1,7 @@
-# commit 06f48f674445532d8c04be431474901b82c3c449
-# Merge: 098deca1f9f3 1b373f83c71e
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 12 11:04:15 2024 +0000
-#     Merge pull request #2356 from npmiller/hip-images
-#     [HIP] Disable SYCL images by default
-set(UNIFIED_RUNTIME_TAG 06f48f674445532d8c04be431474901b82c3c449)
+# commit 39df0317814c164f5242eda8d6f08550f6268492
+# Merge: 68d93efd be27d8f0
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Dec 16 13:53:13 2024 +0000
+#     Merge pull request #2467 from nrspruit/fix_external_import_function_call
+#     [L0] Fix external semaphore import function calls to match the header
+set(UNIFIED_RUNTIME_TAG 39df0317814c164f5242eda8d6f08550f6268492)
