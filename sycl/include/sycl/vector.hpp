@@ -1207,6 +1207,16 @@ private:
   };
 
 public:
+  template <int... swizzleIndexes>
+  ConstSwizzle<Indexer<swizzleIndexes>::value...> swizzle() const {
+    return m_Vector;
+  }
+
+  template <int... swizzleIndexes>
+  Swizzle<Indexer<swizzleIndexes>::value...> swizzle() {
+    return m_Vector;
+  }
+
 #ifdef __SYCL_ACCESS_RETURN
 #error "Undefine __SYCL_ACCESS_RETURN macro"
 #endif

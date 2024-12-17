@@ -1,7 +1,8 @@
 #!/bin/bash
 
 if [ -d "$GITHUB_WORKSPACE" ]; then
-  sudo chown -R sycl:sycl $GITHUB_WORKSPACE
+  chown -R sycl:sycl $GITHUB_WORKSPACE
+  su sycl
 fi
 
 exec "$@"
