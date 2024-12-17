@@ -1673,6 +1673,8 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     // Return empty file
     return StringRef("");
   }
+  case Triple::loongarch64:
+    return generic::clang(InputFiles, Args);
   default:
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
