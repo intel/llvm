@@ -98,13 +98,6 @@ struct ur_context_handle_t_ : _ur_object {
   // compute and copy command list caches.
   ur_mutex ZeCommandListCacheMutex;
 
-  // If context contains one device or sub-devices of the same device, we want
-  // to save this device.
-  // This field is only set at ur_context_handle_t creation time, and cannot
-  // change. Therefore it can be accessed without holding a lock on this
-  // ur_context_handle_t.
-  ur_device_handle_t SingleRootDevice = nullptr;
-
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
