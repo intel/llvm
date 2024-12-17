@@ -8,6 +8,7 @@
 // REQUIRES: aspect-ext_intel_matrix
 
 // XFAIL: !igc-dev
+// XFAIL-TRACKER: GSD-6376
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

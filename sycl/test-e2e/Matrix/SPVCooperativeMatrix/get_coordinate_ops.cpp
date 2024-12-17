@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu || !igc-dev
+// XFAIL-TRACKER: GSD-6376
 
 #include "../common.hpp"
 #include "../get_coordinate_ops_impl.hpp"
