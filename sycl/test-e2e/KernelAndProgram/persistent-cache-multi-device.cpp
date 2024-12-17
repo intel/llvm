@@ -5,6 +5,9 @@
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir env -u XDG_CACHE_HOME env -u HOME %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-BUILD
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir env -u XDG_CACHE_HOME env -u HOME %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-CACHE
 
+// XFAIL: arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
+
 // Test checks that persistent cache works correctly with multiple devices.
 
 #include <sycl/detail/core.hpp>

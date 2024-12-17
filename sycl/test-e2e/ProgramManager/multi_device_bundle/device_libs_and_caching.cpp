@@ -28,6 +28,9 @@
 // Check the case when in-memory caching of the programs is disabled.
 // RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
 
+// XFAIL: arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
+
 #include <cmath>
 #include <complex>
 #include <sycl/detail/core.hpp>
