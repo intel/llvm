@@ -10349,7 +10349,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // step.
       ArgStringList ClangArgs{
           TCArgs.MakeArgString("--target=" + TC.getAuxTriple()->str()),
-          "-Wno-override-module", "-c", "-o", Output.getFilename(),
+          "-Wno-override-module",
+          "-c",
+          "-o",
+          Output.getFilename(),
           WrapperFileName};
       llvm::Reloc::Model RelocationModel;
       unsigned PICLevel;
