@@ -51,7 +51,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 18
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 17
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been properly XFAIL-ed.
@@ -60,7 +60,6 @@
 // CHECK-NEXT: Basic/max_linear_work_group_size_props.cpp
 // CHECK-NEXT: Basic/max_work_group_size_props.cpp
 // CHECK-NEXT: DeviceLib/assert-windows.cpp
-// CHECK-NEXT: ESIMD/hardware_dispatch.cpp
 // CHECK-NEXT: InlineAsm/asm_multiple_instructions.cpp
 // CHECK-NEXT: NewOffloadDriver/multisource.cpp
 // CHECK-NEXT: NewOffloadDriver/split-per-source-main.cpp
