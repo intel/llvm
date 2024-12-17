@@ -291,22 +291,24 @@ public:
   }
 };
 
-inline umf::pool_unique_handle_t
+template <typename Tag>
+umf::pool_unique_handle_t
 makeDisjointPool(umf::provider_unique_handle_t &&provider,
-                 usm::umf_disjoint_pool_config_t &poolParams) {
+                 usm::umf_disjoint_pool_config_t &poolParams, const Tag &tag) {
   auto umfParams = getUmfParamsHandle(poolParams);
   auto [ret, poolHandle] =
       umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(provider),
-                                 static_cast<void *>(umfParams.get()));
+                                 static_cast<void *>(umfParams.get()), tag);
   if (ret != UMF_RESULT_SUCCESS)
     throw umf::umf2urResult(ret);
   return std::move(poolHandle);
 }
 
+template <typename Tag>
 inline umf::pool_unique_handle_t
-makeProxyPool(umf::provider_unique_handle_t &&provider) {
+makeProxyPool(umf::provider_unique_handle_t &&provider, const Tag &tag) {
   auto [ret, poolHandle] = umf::poolMakeUniqueFromOps(
-      umfProxyPoolOps(), std::move(provider), nullptr);
+      umfProxyPoolOps(), std::move(provider), nullptr, tag);
   if (ret != UMF_RESULT_SUCCESS)
     throw umf::umf2urResult(ret);
 
