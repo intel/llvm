@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
-// XFAIL: igc-dev && !arch-intel_gpu_pvc
+// XFAIL: igc-dev && gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16388
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
