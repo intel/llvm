@@ -1334,6 +1334,19 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   bool ProfilingEnabled =
       ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
+  ur_event_flags_t Flags = 0;
+  if (ProfilingEnabled)
+    Flags |= EVENT_FLAG_WITH_PROFILING;
+  if (UsingImmediateCommandlists)
+    Flags |= EVENT_FLAG_IMM_CMDLIST;
+  if (HostVisible)
+    Flags |= EVENT_FLAG_HOST_VISIBLE;
+  if (IsMultiDevice)
+    Flags |= EVENT_FLAG_MULTIDEVICE;
+  if (CounterBasedEventEnabled)
+    Flags |= EVENT_FLAG_COUNTER;
+  if (InterruptBasedEventEnabled)
+    Flags |= EVENT_FLAG_INTERRUPT;
 
   ur_device_handle_t Device = nullptr;
 
@@ -1341,9 +1354,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
     Device = Queue->Device;
   }
 
-  if (auto CachedEvent = Context->getEventFromContextCache(
-          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled,
-          InterruptBasedEventEnabled)) {
+  if (auto CachedEvent = Context->getEventFromContextCache(Flags, Device)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -1353,10 +1364,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
 
   size_t Index = 0;
 
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
-          CounterBasedEventEnabled, UsingImmediateCommandlists,
-          InterruptBasedEventEnabled))
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index,
+                                                         Flags, Device))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
@@ -1393,6 +1402,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   if (HostVisible)
     (*RetEvent)->HostVisibleEvent =
         reinterpret_cast<ur_event_handle_t>(*RetEvent);
+  (*RetEvent)->Flags = Flags;
 
   return UR_RESULT_SUCCESS;
 }

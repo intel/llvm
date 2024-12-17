@@ -139,6 +139,8 @@ struct ur_event_handle_t_ : _ur_object {
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
+  ur_event_flags_t Flags;
+
   // In case we use device-only events this holds their host-visible
   // counterpart. If this event is itself host-visble then HostVisibleEvent
   // points to this event. If this event is not host-visible then this field can
