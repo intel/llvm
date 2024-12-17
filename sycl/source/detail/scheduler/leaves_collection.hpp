@@ -43,7 +43,7 @@ public:
 
   // Make first command depend on the second
   using AllocateDependencyF =
-      std::function<void(Command *, Command *, MemObjRecord *, EnqueueListT &)>;
+      std::function<void(Command *, Command *, const MemObjRecord *, EnqueueListT &)>;
 
   template <bool IsConst> class IteratorT;
 

@@ -622,15 +622,18 @@ protected:
                          std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
-    static void updateLeaves(const std::set<Command *> &Cmds,
+    void updateLeaves(Command *NewCmd, const std::set<Command *> &Cmds,
                              MemObjRecord *Record, access::mode AccessMode,
                              const MapOfDependentCmds &DependentCmdsOfNewCmd,
                              const QueueImplPtr &Queue,
-                             std::vector<Command *> &ToCleanUp);
+                             std::vector<Command *> &ToCleanUp,
+                             std::vector<Command *> &ToEnqueue);
 
     /// Prepare a command to cleanup
-    static void commandToCleanup(Command *DepCommand,
-                                 std::vector<Command *> &ToCleanUp);
+    void commandToCleanup(Command *NewCmd, Command *DepCommand, MemObjRecord *Record,
+                          std::vector<Command *> &ToEnqueue);
+
+    void commandToCleanup(Command *DepCommand, std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
@@ -701,13 +704,11 @@ protected:
 
     /// If all dependences of a dependent cmd already covered by NewCmd,
     /// move the dependent cmd in ToCleanUp
-    static void detectDuplicates(Command *DepCommand,
-                          const MapOfDependentCmds &DependentCmdsOfNewCmd,
-                          std::vector<Command *> &ToCleanUp);
+    bool detectDuplicates(Command *DepCommand, const MapOfDependentCmds &DependentCmdsOfNewCmd);
 
   protected:
     /// Finds a command dependency corresponding to the record.
-    DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
+    DepDesc findDepForRecord(Command *Cmd, const MemObjRecord *Record);
 
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
@@ -735,6 +736,8 @@ protected:
     std::queue<Command *> MCmdsToVisit;
     /// Used to track commands that have been visited during graph traversal.
     std::vector<Command *> MVisitedCmds;
+
+    LeavesCollection::AllocateDependencyF MAllocateDependency;
 
     /// Prints contents of graph to text file in DOT format
     ///
