@@ -5626,7 +5626,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           }
         }
         CmdArgs.push_back(OptLevel.data());
-    }
+      }
 
       // Add the integration header option to generate the header.
       StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
