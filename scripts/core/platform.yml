@@ -77,7 +77,9 @@ etors:
     - name: BACKEND
       value: "6"
       desc: "[$x_platform_backend_t] The backend of the platform. Identifies the native backend adapter implementing this platform."
-
+    - name: ADAPTER
+      value: "7"
+      desc: "[$x_adapter_handle_t] The adapter handle associated with the platform."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about platform"
