@@ -2,7 +2,6 @@
 //
 // FIXME: OpenCL CPU backend compiler crashes on a call to _wassert.
 // Disable the test until the fix reaches SYCL test infrastructure.
-// XFAIL: *
 //
 // RUN: %{build} -o %t.out
 //

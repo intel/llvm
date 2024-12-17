@@ -3,7 +3,6 @@
 // RUN: %{build} -DSOURCE2 --offload-new-driver -c -o %t2.o
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl -fsycl-targets=%{sycl_triple} --offload-new-driver %t1.o %t2.o -o %t.exe
 // RUN: %{run} %t.exe
-// XFAIL: cuda
 
 #ifdef SOURCE1
 #include <iostream>

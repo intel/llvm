@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: cuda
 // UNSUPPORTED: hip
 
 // Windows doesn't yet have full shutdown().

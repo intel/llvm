@@ -5,8 +5,6 @@
 // RUN: FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
-// XFAIL: *
-
 #include <stdio.h>
 #include <sycl/detail/core.hpp>
 

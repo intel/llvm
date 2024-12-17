@@ -2,7 +2,6 @@
 // RUN: --offload-new-driver -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 //
-// XFAIL: hip_nvidia, cuda
 
 #include "Inputs/split-per-source.h"
 
