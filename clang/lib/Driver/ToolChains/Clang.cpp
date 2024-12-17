@@ -5606,26 +5606,26 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-Wno-sycl-strict");
       }
 
-    // If no optimization controlling flags (-O) are provided, check if
-    // any debug information flags(-g) are passed.
-    // "-fintelfpga" implies "-g" and we preserve the default optimization for
-    // this flow(-O2).
-    // if "-g" is explicitly passed from the command-line, set default
-    // optimization to -O0.
+      // If no optimization controlling flags (-O) are provided, check if
+      // any debug information flags(-g) are passed.
+      // "-fintelfpga" implies "-g" and we preserve the default optimization for
+      // this flow(-O2).
+      // if "-g" is explicitly passed from the command-line, set default
+      // optimization to -O0.
 
-    if (!Args.hasArgNoClaim(options::OPT_O_Group, options::OPT__SLASH_O)) {
-      StringRef OptLevel = "-O2";
-      const Arg *DebugInfoGroup = Args.getLastArg(options::OPT_g_Group);
-      // -fintelfpga -g case
-      if ((Args.hasArg(options::OPT_fintelfpga) &&
-           Args.hasMultipleArgs(options::OPT_g_Group)) ||
-          /* -fsycl -g case */ (!Args.hasArg(options::OPT_fintelfpga) &&
-                                DebugInfoGroup)) {
-        if (!DebugInfoGroup->getOption().matches(options::OPT_g0)) {
-          OptLevel = "-O0";
+      if (!Args.hasArgNoClaim(options::OPT_O_Group, options::OPT__SLASH_O)) {
+        StringRef OptLevel = "-O2";
+        const Arg *DebugInfoGroup = Args.getLastArg(options::OPT_g_Group);
+        // -fintelfpga -g case
+        if ((Args.hasArg(options::OPT_fintelfpga) &&
+             Args.hasMultipleArgs(options::OPT_g_Group)) ||
+            /* -fsycl -g case */ (!Args.hasArg(options::OPT_fintelfpga) &&
+                                  DebugInfoGroup)) {
+          if (!DebugInfoGroup->getOption().matches(options::OPT_g0)) {
+            OptLevel = "-O0";
+          }
         }
-      }
-      CmdArgs.push_back(OptLevel.data());
+        CmdArgs.push_back(OptLevel.data());
     }
 
       // Add the integration header option to generate the header.
