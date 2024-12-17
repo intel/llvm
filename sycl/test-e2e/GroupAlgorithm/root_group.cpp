@@ -17,7 +17,7 @@
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/kernel_bundle.hpp>
-
+// TODO: AAAAA
 static constexpr int WorkGroupSize = 32;
 
 void testFeatureMacro() {
