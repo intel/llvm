@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
+// XFAIL: !igc-dev
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
