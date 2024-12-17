@@ -384,6 +384,22 @@ struct map_type<T, From, To, Rest...> {
 template <typename T, typename... Ts>
 constexpr bool check_type_in_v = ((std::is_same_v<T, Ts> || ...));
 
+#if __has_builtin(__type_pack_element)
+template <int N, typename... Ts>
+using nth_type_t = __type_pack_element<N, Ts...>;
+#else
+template <int N, typename T, typename... Ts> struct nth_type {
+  using type = typename nth_type<N - 1, Ts...>::type;
+};
+
+template <typename T, typename... Ts> struct nth_type<0, T, Ts...> {
+  using type = T;
+};
+
+template <int N, typename... Ts>
+using nth_type_t = typename nth_type<N, Ts...>::type;
+#endif
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -50,7 +50,10 @@ The following containers are publicly available for DPC++ compiler development:
    development kits for NVidia/AMD from the `ubuntu2204_build` container.
 - `ghcr.io/intel/llvm/ubuntu2404_intel_drivers`: contains everything from the
    Ubuntu 24.04 base container + pre-installed Intel drivers.
-   The image comes in two flavors/tags:
+   The image comes in three flavors/tags:
+   * `latest`: Intel drivers are downloaded from release/tag and saved in
+    dependencies.json. The drivers are tested/validated everytime we upgrade
+    the driver.
    * `devigc`: Intel Graphics Compiler driver from github actions artifacts,
    other drivers are downloaded from release/tag and saved in dependencies.json.
    * `unstable`: Intel drivers are downloaded from release/latest.
