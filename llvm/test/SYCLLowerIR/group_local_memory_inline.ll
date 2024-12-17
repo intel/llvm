@@ -39,7 +39,7 @@ entry:
 ; CHECK-NOT: define {{.*}} @_ZN4sycl3_V13ext6oneapi32group_local_memory_for_overwriteIiNS0_5groupILi1EEEEENSt9enable_ifIXaasr3stdE27is_trivially_destructible_vIT_Esr4sycl6detail8is_groupIT0_EE5valueENS0_9multi_ptrIS7_LNS0_6access13address_spaceE3ELNSA_9decoratedE2EEEE4typeES8_(
 
 ; Function Attrs: alwaysinline
-define spir_func void @_ZN4sycl3_V13ext6oneapi32group_local_memory_for_overwriteIiNS0_5groupILi1EEEEENSt9enable_ifIXaasr3stdE27is_trivially_destructible_vIT_Esr4sycl6detail8is_groupIT0_EE5valueENS0_9multi_ptrIS7_LNS0_6access13address_spaceE3ELNSA_9decoratedE2EEEE4typeES8_(ptr addrspace(4) sret(%"class.sycl::_V1::multi_ptr") align 8 %agg.result, ptr byval(%"class.sycl::_V1::group") align 8 %g) #0 {
+define spir_func void @_ZN4sycl3_V13ext6oneapi32group_local_memory_for_overwriteIiNS0_5groupILi1EEEEENSt9enable_ifIXaasr3stdE27is_trivially_destructible_vIT_Esr4sycl6detail8is_groupIT0_EE5valueENS0_9multi_ptrIS7_LNS0_6access13address_spaceE3ELNSA_9decoratedE2EEEE4typeES8_(ptr addrspace(4) sret(%"class.sycl::_V1::multi_ptr") align 8 %agg.result, ptr byval(%"class.sycl::_V1::group") align 8 %g) #1 {
 entry:
   %AllocatedMem = alloca ptr addrspace(3), align 8
   %AllocatedMem.ascast = addrspacecast ptr %AllocatedMem to ptr addrspace(4)
@@ -51,7 +51,7 @@ entry:
 ; CHECK-NOT: define {{.*}} @_ZN4sycl3_V13ext6oneapi18group_local_memoryIiNS0_5groupILi1EEEJEEENSt9enable_ifIXaasr3stdE27is_trivially_destructible_vIT_Esr4sycl6detail8is_groupIT0_EE5valueENS0_9multi_ptrIS7_LNS0_6access13address_spaceE3ELNSA_9decoratedE2EEEE4typeES8_DpOT1_(
 
 ; Function Attrs: alwaysinline
-define spir_func void @_ZN4sycl3_V13ext6oneapi18group_local_memoryIiNS0_5groupILi1EEEJEEENSt9enable_ifIXaasr3stdE27is_trivially_destructible_vIT_Esr4sycl6detail8is_groupIT0_EE5valueENS0_9multi_ptrIS7_LNS0_6access13address_spaceE3ELNSA_9decoratedE2EEEE4typeES8_DpOT1_(ptr addrspace(4) sret(%"class.sycl::_V1::multi_ptr") align 8 %agg.result, ptr byval(%"class.sycl::_V1::group") align 8 %g) #0 {
+define spir_func void @_ZN4sycl3_V13ext6oneapi18group_local_memoryIiNS0_5groupILi1EEEJEEENSt9enable_ifIXaasr3stdE27is_trivially_destructible_vIT_Esr4sycl6detail8is_groupIT0_EE5valueENS0_9multi_ptrIS7_LNS0_6access13address_spaceE3ELNSA_9decoratedE2EEEE4typeES8_DpOT1_(ptr addrspace(4) sret(%"class.sycl::_V1::multi_ptr") align 8 %agg.result, ptr byval(%"class.sycl::_V1::group") align 8 %g) #1 {
 entry:
   %AllocatedMem = alloca ptr addrspace(3), align 8
   %AllocatedMem.ascast = addrspacecast ptr %AllocatedMem to ptr addrspace(4)
@@ -63,3 +63,4 @@ entry:
 declare spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 noundef, i64 noundef)
 
 attributes #0 = { alwaysinline }
+attributes #1 = { "sycl_forceinline"="true" }

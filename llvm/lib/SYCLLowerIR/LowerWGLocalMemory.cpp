@@ -99,13 +99,7 @@ static bool inlineGroupLocalMemoryFunc(Module &M) {
   bool Changed = false;
   for (auto *U : ALMFunc->users()) {
     auto *Caller = cast<CallInst>(U)->getFunction();
-    if (!Caller->hasFnAttribute(Attribute::AlwaysInline)) {
-      // Already inlined.
-      continue;
-    }
-    std::string FName = llvm::demangle(Caller->getName());
-    if (FName.find("sycl::_V1::ext::oneapi::group_local_memory") ==
-        std::string::npos) {
+    if (!Caller->hasFnAttribute("sycl_forceinline")) {
       // Already inlined.
       continue;
     }
