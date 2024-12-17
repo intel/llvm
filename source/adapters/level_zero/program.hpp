@@ -169,7 +169,7 @@ struct ur_program_handle_t_ : _ur_object {
     DeviceDataMap[ZeDevice].BuildFlags += Options;
   }
 
-  std::string getBuildOptions(ze_device_handle_t ZeDevice) {
+  std::string &getBuildOptions(ze_device_handle_t ZeDevice) {
     return DeviceDataMap[ZeDevice].BuildFlags;
   }
 
