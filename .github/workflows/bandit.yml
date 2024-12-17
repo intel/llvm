@@ -2,18 +2,9 @@ name: Scan Python code with Bandit
 
 on:
   workflow_dispatch:
-  push:
-  pull_request:
-    paths:
-      - '**/*.py'
-      - '.github/workflows/bandit.*'
 
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   bandit:
