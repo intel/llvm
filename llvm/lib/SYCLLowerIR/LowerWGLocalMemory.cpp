@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -91,29 +92,35 @@ ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
 // inlined first before each __sycl_allocateLocalMemory call can be lowered to a
 // unique global variable. Inlining them here so that this pass doesn't have
 // implicit dependency on AlwaysInlinerPass.
+//
+// syclcompat::local_mem, which represents a unique allocation, calls
+// group_local_memory_for_overwrite. So local_mem should be inlined as well.
 static bool inlineGroupLocalMemoryFunc(Module &M) {
   Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
   if (!ALMFunc || ALMFunc->use_empty())
     return false;
 
-  bool Changed = false;
-  for (auto *U : ALMFunc->users()) {
-    auto *Caller = cast<CallInst>(U)->getFunction();
-    if (!Caller->hasFnAttribute("sycl_forceinline")) {
-      // Already inlined.
-      continue;
+  SmallVector<Function *, 4> WorkList{ALMFunc};
+  DenseSet<Function *> Visited;
+  while (!WorkList.empty()) {
+    auto *F = WorkList.pop_back_val();
+    for (auto *U : make_early_inc_range(F->users())) {
+      auto *CI = cast<CallInst>(U);
+      auto *Caller = CI->getFunction();
+      if (Caller->hasFnAttribute("sycl-forceinline") &&
+          Visited.insert(Caller).second)
+        WorkList.push_back(Caller);
+      if (F != ALMFunc) {
+        InlineFunctionInfo IFI;
+        [[maybe_unused]] auto Result = InlineFunction(*CI, IFI);
+        assert(Result.isSuccess() && "inlining failed");
+      }
     }
-    for (auto *U2 : make_early_inc_range(Caller->users())) {
-      auto *CI = cast<CallInst>(U2);
-      InlineFunctionInfo IFI;
-      [[maybe_unused]] auto Result = InlineFunction(*CI, IFI);
-      assert(Result.isSuccess() && "inlining failed");
-    }
-    Caller->eraseFromParent();
-    Changed = true;
   }
+  for (auto *F : Visited)
+    F->eraseFromParent();
 
-  return Changed;
+  return !Visited.empty();
 }
 
 // TODO: It should be checked that __sycl_allocateLocalMemory (or its source

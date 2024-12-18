@@ -22,7 +22,7 @@ inline namespace _V1 {
 namespace ext::oneapi {
 template <typename T, typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function("sycl_forceinline", true)]]
+[[__sycl_detail__::add_ir_attributes_function("sycl-forceinline", true)]]
 #endif
 std::enable_if_t<
     std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
@@ -48,7 +48,7 @@ group_local_memory_for_overwrite(Group g) {
 
 template <typename T, typename Group, typename... Args>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function("sycl_forceinline", true)]]
+[[__sycl_detail__::add_ir_attributes_function("sycl-forceinline", true)]]
 #endif
 std::enable_if_t<
     std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,

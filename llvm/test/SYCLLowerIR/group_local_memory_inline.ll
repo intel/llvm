@@ -63,4 +63,4 @@ entry:
 declare spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 noundef, i64 noundef)
 
 attributes #0 = { alwaysinline }
-attributes #1 = { "sycl_forceinline"="true" }
+attributes #1 = { "sycl-forceinline"="true" }
