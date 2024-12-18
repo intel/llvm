@@ -32,22 +32,17 @@ wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
 | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
 echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
 | tee /etc/apt/sources.list.d/oneAPI.list && \
-apt update
 # Install the ROCM kernel driver and oneAPI
-RUN apt install -yqq rocm-dev intel-oneapi-compiler-dpcpp-cpp && \
+RUN apt update && apt install -yqq rocm-dev intel-oneapi-compiler-dpcpp-cpp && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
-# By default Ubuntu sets an arbitrary UID value, that is different from host
-# system. When CI passes default UID value of 1001, some of LLVM tools fail to
-# discover user home directory and fail a few LIT tests. Fixes UID and GID to
-# 1001, that is used as default by GitHub Actions.
-RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
-# Add sycl user to video/irc groups so that it can access GPU
-RUN usermod -aG video sycl
-RUN usermod -aG irc sycl
+COPY scripts/create-sycl-user.sh /user-setup.sh
+RUN --mount=type=secret,id=sycl_ci_passwd /user-setup.sh
 
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
+
+USER sycl_ci
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
 
