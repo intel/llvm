@@ -143,10 +143,20 @@ instructions.
 
 ## Changing Docker user
 
-By default all processes inside Docker run as root. Some LLVM or Clang tests
-expect your user to be anything but root. You can change the user by specifying
-`-u <username or uid>` option. All Docker containers come with user `sycl`
-created.
+By default all processes within our containers are run as `sycl_ci` user.
+Note: it **does not** have password-less `root` access.
+
+If you want to change the user, you can do that by specifying
+`-u <username or uid>` option when running the container.
+
+All containers come with `/user-setup.sh` script which can used to create `sycl`
+user which has all the same groups as `sycl_ci` user, but also has passwrod-less
+access to `root`. Use the script as follows:
+
+```bash
+# Note: the script requires root permissions to create a new user
+/user-setup.sh --regular
+```
 
 ## Managing downloaded Docker images
 

@@ -12,10 +12,7 @@ ADD sycl_linux.tar.gz /opt/sycl/
 ENV PATH /opt/sycl/bin:$PATH
 ENV LD_LIBRARY_PATH /opt/sycl/lib:$LD_LIBRARY_PATH
 
-# For preinstalled containers we create a different user which has
-# password-less sudo access
-RUN /user-setup.sh --regular
-USER sycl
+USER sycl_ci
 
 ENTRYPOINT ["/bin/bash", "/drivers_entrypoint.sh"]
 
