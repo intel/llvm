@@ -90,10 +90,10 @@ ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
 // In sycl header __sycl_allocateLocalMemory builtin call is wrapped in
 // group_local_memory/group_local_memory_for_overwrite functions, which must be
 // inlined first before each __sycl_allocateLocalMemory call can be lowered to a
-// unique global variable. Inlining them here so that this pass doesn't have
+// distinct global variable. Inlining them here so that this pass doesn't have
 // implicit dependency on AlwaysInlinerPass.
 //
-// syclcompat::local_mem, which represents a unique allocation, calls
+// syclcompat::local_mem, which represents a distinct allocation, calls
 // group_local_memory_for_overwrite. So local_mem should be inlined as well.
 static bool inlineGroupLocalMemoryFunc(Module &M) {
   Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
