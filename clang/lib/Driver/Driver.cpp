@@ -56,7 +56,6 @@
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
@@ -824,8 +823,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
       T.getOS() == llvm::Triple::CUDA && !T.hasEnvironment())
     return true;
 
-  // AMDGCN is valid for SYCL
-  if (T.isAMDGCN())
+  // 'amdgcn-amd-amdhsa' is the valid SYCL triple for AMD GPUs.
+  if (T.getArch() == llvm::Triple::amdgcn &&
+      T.getVendor() == llvm::Triple::AMD && T.getOS() == llvm::Triple::AMDHSA &&
+      !T.hasEnvironment())
     return true;
 
   // Check for invalid SYCL device triple values.
@@ -7821,7 +7822,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
       // Use the -mcpu=? flag as the dummy input to cc1.
       Actions.clear();
-      Action *InputAc = C.MakeAction<InputAction>(*A, types::TY_C);
+      Action *InputAc = C.MakeAction<InputAction>(
+          *A, IsFlangMode() ? types::TY_Fortran : types::TY_C);
       Actions.push_back(
           C.MakeAction<PrecompileJobAction>(InputAc, types::TY_Nothing));
       for (auto &I : Inputs)
@@ -10482,8 +10484,8 @@ bool Driver::ShouldUseFlangCompiler(const JobAction &JA) const {
     return false;
 
   // And say "no" if this is not a kind of action flang understands.
-  if (!isa<PreprocessJobAction>(JA) && !isa<CompileJobAction>(JA) &&
-      !isa<BackendJobAction>(JA))
+  if (!isa<PreprocessJobAction>(JA) && !isa<PrecompileJobAction>(JA) &&
+      !isa<CompileJobAction>(JA) && !isa<BackendJobAction>(JA))
     return false;
 
   return true;
