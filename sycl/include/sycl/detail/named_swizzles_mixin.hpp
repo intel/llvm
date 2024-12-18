@@ -816,6 +816,7 @@ template <typename Self, int NumElements> struct NamedSwizzlesMixinBoth {
 #undef __SYCL_SWIZZLE_MIXIN_METHOD_CONST
 #undef __SYCL_SWIZZLE_MIXIN_METHOD_NON_CONST
 
+#undef __SYCL_SWIZZLE_MIXIN_ALL_SWIZZLES
 #undef __SYCL_SWIZZLE_MIXIN_SIMPLE_SWIZZLES
 
 } // namespace detail
