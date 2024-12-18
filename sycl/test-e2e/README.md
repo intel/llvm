@@ -407,10 +407,10 @@ react to features). All `RUN:` lines within a test are ran in this mode unless
 they contain the following expansions: `%{run}`, `%{run-unfiltered-devices}`, 
 or `%if run-mode`.
 
-Currently the only triple supported for `build-only` mode is `spir64`
+Currently, the only triple supported for `build-only` mode is `spir64`.
 
 ### `--param test-mode=run-only`
-In this mode tests will not be compiled, they will only run. To do this only the 
+In this mode, tests will not be compiled, they will only run. To do this only the 
 `RUN:` lines that contain `%{run}`, `%{run-unfiltered-devices}` or `%if run-mode` 
 are executed. Tests are marked as unsupported in the same manner as `full` mode.
 Since tests are not compiled in this mode, for any test to pass the test 
@@ -441,7 +441,7 @@ system.
   can use `XFAIL: run-mode`. This is because otherwise the test would compile 
   and pass on `build-only` mode and be reported as an `XPASS`.
 
-- To separate compilation and execution of tests we classify `RUN:` directives 
+- To separate compilation and execution of tests, we classify `RUN:` directives 
 as being either build or run lines. If a line contains `%{run}`, 
 `%{run-unfiltered-devices}` or `%if run-mode` it is classified as a run line, 
 otherwise it is classified as a build line.
