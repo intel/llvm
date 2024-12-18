@@ -422,6 +422,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     for (auto &EventCache : EventCaches) {
       for (auto &Event : EventCache) {
         auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+        Event->ZeEvent = nullptr;
         // Gracefully handle the case that L0 was already unloaded.
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return ze2urResult(ZeResult);
