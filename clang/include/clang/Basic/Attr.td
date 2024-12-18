@@ -2229,7 +2229,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
-  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost, CUDA];
   let SupportsNonconformingLambdaSyntax = 1;
   let Accessors =
     [Accessor<"isSYCL2020Spelling", [CXX11<"intel", "sub_group_size">]>];

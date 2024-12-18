@@ -3020,11 +3020,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     }
     break;
   }
-  case Builtin::BI__builtin_counted_by_ref:
-    if (BuiltinCountedByRef(TheCall))
-      return ExprError();
-    break;
-
   case Builtin::BI__builtin_sycl_is_kernel:
   case Builtin::BI__builtin_sycl_is_single_task_kernel:
   case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
@@ -3058,6 +3053,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     break;
   }
+  case Builtin::BI__builtin_counted_by_ref:
+    if (BuiltinCountedByRef(TheCall))
+      return ExprError();
+    break;
   }
 
   if (getLangOpts().HLSL && HLSL().CheckBuiltinFunctionCall(BuiltinID, TheCall))
