@@ -1,9 +1,6 @@
 // RUN: %{build} -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: arch-intel_gpu_pvc && igc-dev
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
-
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

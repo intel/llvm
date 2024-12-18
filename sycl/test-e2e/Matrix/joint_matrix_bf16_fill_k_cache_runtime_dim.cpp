@@ -17,8 +17,5 @@
 // XFAIL: !igc-dev || gpu-intel-dg2
 // XFAIL-TRACKER: CMPLRLLVM-63710
 
-// XFAIL: arch-intel_gpu_pvc && igc-dev
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
-
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"
