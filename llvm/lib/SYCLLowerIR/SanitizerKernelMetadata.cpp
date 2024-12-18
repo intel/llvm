@@ -42,7 +42,7 @@ PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
   {
     assert(KernelMetadata->getValueType()->isArrayTy());
 
-    auto Name = KernelMetadata->getName();
+    auto Name = KernelMetadata->getName().str();
     KernelMetadata->setName(Name + "_del");
     auto *KernelMetadataOld = KernelMetadata;
 
