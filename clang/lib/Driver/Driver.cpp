@@ -56,7 +56,6 @@
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
@@ -153,13 +152,9 @@ static std::optional<llvm::Triple>
 getHIPOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   if (!Args.hasArg(options::OPT_offload_EQ)) {
     auto OffloadArchs = Args.getAllArgValues(options::OPT_offload_arch_EQ);
-    if (llvm::is_contained(OffloadArchs, "amdgcnspirv")) {
-      if (OffloadArchs.size() == 1)
-        return llvm::Triple("spirv64-amd-amdhsa");
-      // Mixing specific & SPIR-V compilation is not supported for now.
-      D.Diag(diag::err_drv_only_one_offload_target_supported);
-      return std::nullopt;
-    }
+    if (llvm::is_contained(OffloadArchs, "amdgcnspirv") &&
+        OffloadArchs.size() == 1)
+      return llvm::Triple("spirv64-amd-amdhsa");
     return llvm::Triple("amdgcn-amd-amdhsa"); // Default HIP triple.
   }
   auto TT = getOffloadTargetTriple(D, Args);
@@ -476,6 +471,7 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
     // some build systems. We don't try to be complete here because we don't
     // care to encourage this usage model.
     if (A->getOption().matches(options::OPT_Wp_COMMA) &&
+        A->getNumValues() > 0 &&
         (A->getValue(0) == StringRef("-MD") ||
          A->getValue(0) == StringRef("-MMD"))) {
       // Rewrite to -MD/-MMD along with -MF.
@@ -4531,9 +4527,11 @@ class OffloadingActionBuilder final {
       llvm::StringMap<bool> Features;
       // getHIPOffloadTargetTriple() is known to return valid value as it has
       // been called successfully in the CreateOffloadingDeviceToolChains().
-      auto ArchStr = parseTargetID(
-          *getHIPOffloadTargetTriple(C.getDriver(), C.getInputArgs()), IdStr,
-          &Features);
+      auto T =
+          (IdStr == "amdgcnspirv")
+              ? llvm::Triple("spirv64-amd-amdhsa")
+              : *getHIPOffloadTargetTriple(C.getDriver(), C.getInputArgs());
+      auto ArchStr = parseTargetID(T, IdStr, &Features);
       if (!ArchStr) {
         C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << IdStr;
         C.setContainsError();
@@ -7284,7 +7282,7 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
     if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
         LTOMode != LTOK_None &&
         !Args.getLastArgValue(options::OPT_fuse_ld_EQ)
-             .equals_insensitive("lld"))
+             .starts_with_insensitive("lld"))
       Diag(clang::diag::err_drv_lto_without_lld);
 
     // If -dumpdir is not specified, give a default prefix derived from the link
@@ -7822,7 +7820,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
       // Use the -mcpu=? flag as the dummy input to cc1.
       Actions.clear();
-      Action *InputAc = C.MakeAction<InputAction>(*A, types::TY_C);
+      Action *InputAc = C.MakeAction<InputAction>(
+          *A, IsFlangMode() ? types::TY_Fortran : types::TY_C);
       Actions.push_back(
           C.MakeAction<PrecompileJobAction>(InputAc, types::TY_Nothing));
       for (auto &I : Inputs)
@@ -8238,6 +8237,11 @@ Action *Driver::ConstructPhaseAction(
   // encode this in the steps because the intermediate type depends on
   // arguments. Just special case here.
   if (Phase == phases::Assemble && Input->getType() != types::TY_PP_Asm)
+    return Input;
+
+  // Use of --sycl-link will only allow for the link phase to occur. This is
+  // for all input files.
+  if (Args.hasArg(options::OPT_sycl_link) && Phase != phases::Link)
     return Input;
 
   // Build the appropriate action.
@@ -9484,7 +9488,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // We only have to generate a prefix for the host if this is not a
       // top-level action.
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-        A->getOffloadingDeviceKind(), TC->getTriple().normalize(),
+        A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
         /*CreatePrefixForHost=*/isa<OffloadPackagerJobAction>(A) ||
             !(A->getOffloadingHostActiveKinds() == Action::OFK_None ||
               AtTopLevel));
@@ -10478,8 +10482,8 @@ bool Driver::ShouldUseFlangCompiler(const JobAction &JA) const {
     return false;
 
   // And say "no" if this is not a kind of action flang understands.
-  if (!isa<PreprocessJobAction>(JA) && !isa<CompileJobAction>(JA) &&
-      !isa<BackendJobAction>(JA))
+  if (!isa<PreprocessJobAction>(JA) && !isa<PrecompileJobAction>(JA) &&
+      !isa<CompileJobAction>(JA) && !isa<BackendJobAction>(JA))
     return false;
 
   return true;

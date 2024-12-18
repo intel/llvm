@@ -110,7 +110,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: ${{ matrix.tests_selector }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}
       merge_ref: ''
@@ -168,7 +168,7 @@ jobs:
 
   cuda-aws-stop:
     needs: [cuda-aws-start, cuda-run-tests]
-    if: always()
+    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
     uses: ./.github/workflows/sycl-aws.yml
     secrets: inherit
     with:
@@ -198,7 +198,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8
+      uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974
       with:
         files: |
           sycl_linux.tar.gz

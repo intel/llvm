@@ -30,7 +30,6 @@
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclOpenMP.h"
 #include "clang/Basic/CodeGenOptions.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/Sema/Sema.h"
@@ -217,7 +216,11 @@ void CodeGenFunction::EmitVarDecl(const VarDecl &D) {
   if (D.getType().getAddressSpace() == LangAS::opencl_local)
     return CGM.getOpenCLRuntime().EmitWorkGroupLocalVarDecl(*this, D);
 
-  if (D.getAttr<SYCLScopeAttr>() && D.getAttr<SYCLScopeAttr>()->isWorkGroup())
+  SYCLScopeAttr *ScopeAttr = D.getAttr<SYCLScopeAttr>();
+  if (!ScopeAttr)
+    if (auto *RD = D.getType()->getAsCXXRecordDecl())
+      ScopeAttr = RD->getAttr<SYCLScopeAttr>();
+  if (ScopeAttr && ScopeAttr->isWorkGroup())
     return CGM.getSYCLRuntime().emitWorkGroupLocalVarDecl(*this, D);
 
   assert(D.hasLocalStorage());
@@ -1954,13 +1957,16 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
   const Address Loc =
       locIsByrefHeader ? emission.getObjectAddress(*this) : emission.Addr;
 
+  auto hasNoTrivialAutoVarInitAttr = [&](const Decl *D) {
+    return D && D->hasAttr<NoTrivialAutoVarInitAttr>();
+  };
   // Note: constexpr already initializes everything correctly.
   LangOptions::TrivialAutoVarInitKind trivialAutoVarInit =
-      (D.isConstexpr()
+      ((D.isConstexpr() || D.getAttr<UninitializedAttr>() ||
+        hasNoTrivialAutoVarInitAttr(type->getAsTagDecl()) ||
+        hasNoTrivialAutoVarInitAttr(CurFuncDecl))
            ? LangOptions::TrivialAutoVarInitKind::Uninitialized
-           : (D.getAttr<UninitializedAttr>()
-                  ? LangOptions::TrivialAutoVarInitKind::Uninitialized
-                  : getContext().getLangOpts().getTrivialAutoVarInit()));
+           : getContext().getLangOpts().getTrivialAutoVarInit());
 
   auto initializeWhatIsTechnicallyUninitialized = [&](Address Loc) {
     if (trivialAutoVarInit ==
@@ -1999,13 +2005,13 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
                                   replaceUndef(CGM, isPattern, constant));
     }
 
-    if (constant && D.getType()->isBitIntType() &&
-        CGM.getTypes().typeRequiresSplitIntoByteArray(D.getType())) {
+    if (constant && type->isBitIntType() &&
+        CGM.getTypes().typeRequiresSplitIntoByteArray(type)) {
       // Constants for long _BitInt types are split into individual bytes.
       // Try to fold these back into an integer constant so it can be stored
       // properly.
-      llvm::Type *LoadType = CGM.getTypes().convertTypeForLoadStore(
-          D.getType(), constant->getType());
+      llvm::Type *LoadType =
+          CGM.getTypes().convertTypeForLoadStore(type, constant->getType());
       constant = llvm::ConstantFoldLoadFromConst(
           constant, LoadType, llvm::APInt::getZero(32), CGM.getDataLayout());
     }
@@ -2022,8 +2028,7 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
       // It may be that the Init expression uses other uninitialized memory,
       // but auto-var-init here would not help, as auto-init would get
       // overwritten by Init.
-      if (!D.getType()->isScalarType() || capturedByInit ||
-          isAccessedBy(D, Init)) {
+      if (!type->isScalarType() || capturedByInit || isAccessedBy(D, Init)) {
         initializeWhatIsTechnicallyUninitialized(Loc);
       }
     }

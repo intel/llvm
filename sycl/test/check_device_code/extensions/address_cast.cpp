@@ -13,7 +13,7 @@ using namespace sycl::ext::oneapi::experimental;
 
 namespace static_as_cast {
 // CHECK-LABEL: define dso_local spir_func void @_ZN14static_as_cast19to_global_decoratedEN4sycl3_V19multi_ptrIiLNS1_6access13address_spaceE6ELNS3_9decoratedE1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8:![0-9]+]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
@@ -25,7 +25,7 @@ SYCL_EXTERNAL auto to_global_decorated(decorated_generic_ptr<int> p) {
   return static_address_cast<access::address_space::global_space>(p);
 }
 // CHECK-LABEL: define dso_local spir_func void @_ZN14static_as_cast23to_global_not_decoratedEPi(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.1") align 8 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] !srcloc [[META19:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.1") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] !srcloc [[META19:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z33__spirv_GenericCastToPtr_ToGlobalPvi(ptr addrspace(4) noundef [[P]], i32 noundef 5) #[[ATTR5]]
 // CHECK-NEXT:    store ptr addrspace(1) [[CALL_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA20:![0-9]+]], !alias.scope [[META22:![0-9]+]]
@@ -35,7 +35,7 @@ SYCL_EXTERNAL auto to_global_not_decorated(int *p) {
   return static_address_cast<access::address_space::global_space>(p);
 }
 // CHECK-LABEL: define dso_local spir_func void @_ZN14static_as_cast20to_generic_decoratedEN4sycl3_V19multi_ptrIiLNS1_6access13address_spaceE6ELNS3_9decoratedE1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.0") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] !srcloc [[META25:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.0") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] !srcloc [[META25:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
 // CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA8]], !alias.scope [[META26:![0-9]+]]
@@ -45,7 +45,7 @@ SYCL_EXTERNAL auto to_generic_decorated(decorated_generic_ptr<int> p) {
   return static_address_cast<access::address_space::generic_space>(p);
 }
 // CHECK-LABEL: define dso_local spir_func void @_ZN14static_as_cast24to_generic_not_decoratedEPi(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.2") align 8 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] !srcloc [[META29:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.2") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] !srcloc [[META29:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store ptr addrspace(4) [[P]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA30:![0-9]+]], !alias.scope [[META32:![0-9]+]]
 // CHECK-NEXT:    ret void
@@ -55,7 +55,7 @@ SYCL_EXTERNAL auto to_generic_not_decorated(int *p) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_ZN14static_as_cast16to_global_deviceEPi(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.3") align 8 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4]] !srcloc [[META35:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.3") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4]] !srcloc [[META35:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = addrspacecast ptr addrspace(4) [[P]] to ptr addrspace(5)
 // CHECK-NEXT:    store ptr addrspace(5) [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA36:![0-9]+]], !alias.scope [[META38:![0-9]+]]
@@ -66,7 +66,7 @@ SYCL_EXTERNAL auto to_global_device(int *p) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_ZN14static_as_cast14to_global_hostEPi(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.4") align 8 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4]] !srcloc [[META41:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.4") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4]] !srcloc [[META41:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = addrspacecast ptr addrspace(4) [[P]] to ptr addrspace(6)
 // CHECK-NEXT:    store ptr addrspace(6) [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA42:![0-9]+]], !alias.scope [[META44:![0-9]+]]
@@ -79,7 +79,7 @@ SYCL_EXTERNAL auto to_global_host(int *p) {
 
 namespace dynamic_as_cast {
 // CHECK-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast19to_global_decoratedEN4sycl3_V19multi_ptrIiLNS1_6access13address_spaceE6ELNS3_9decoratedE1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META47:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META47:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
@@ -91,7 +91,7 @@ SYCL_EXTERNAL auto to_global_decorated(decorated_generic_ptr<int> p) {
   return dynamic_address_cast<access::address_space::global_space>(p);
 }
 // CHECK-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast23to_global_not_decoratedEPi(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.1") align 8 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR2]] !srcloc [[META53:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.1") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR2]] !srcloc [[META53:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[P]], i32 noundef 5) #[[ATTR5]]
 // CHECK-NEXT:    store ptr addrspace(1) [[CALL_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA20]], !alias.scope [[META54:![0-9]+]]
@@ -101,7 +101,7 @@ SYCL_EXTERNAL auto to_global_not_decorated(int *p) {
   return dynamic_address_cast<access::address_space::global_space>(p);
 }
 // CHECK-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast20to_generic_decoratedEN4sycl3_V19multi_ptrIiLNS1_6access13address_spaceE6ELNS3_9decoratedE1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.0") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR3]] !srcloc [[META57:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.0") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR3]] !srcloc [[META57:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
 // CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA8]], !alias.scope [[META58:![0-9]+]]
@@ -111,7 +111,7 @@ SYCL_EXTERNAL auto to_generic_decorated(decorated_generic_ptr<int> p) {
   return dynamic_address_cast<access::address_space::generic_space>(p);
 }
 // CHECK-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast24to_generic_not_decoratedEPi(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.2") align 8 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4]] !srcloc [[META61:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr.2") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4]] !srcloc [[META61:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store ptr addrspace(4) [[P]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA30]], !alias.scope [[META62:![0-9]+]]
 // CHECK-NEXT:    ret void

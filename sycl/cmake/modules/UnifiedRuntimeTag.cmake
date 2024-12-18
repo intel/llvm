@@ -1,7 +1,7 @@
-# commit 0a90db9b2c36960c9b28ce18557ca15760724c4d
-# Merge: c4d9fdb4 6e0bdeb9
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 27 12:16:44 2024 +0000
-#     Merge pull request #2369 from Bensuo/ben/kernel-binary-update-l0
-#     [CMDBUF] Implement kernel binary update for L0 adapter
-set(UNIFIED_RUNTIME_TAG 0a90db9b2c36960c9b28ce18557ca15760724c4d)
+# commit 39df0317814c164f5242eda8d6f08550f6268492
+# Merge: 68d93efd be27d8f0
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Dec 16 13:53:13 2024 +0000
+#     Merge pull request #2467 from nrspruit/fix_external_import_function_call
+#     [L0] Fix external semaphore import function calls to match the header
+set(UNIFIED_RUNTIME_TAG 39df0317814c164f5242eda8d6f08550f6268492)

@@ -10,6 +10,7 @@
 #include <random>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -156,6 +157,13 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
+template <typename F, typename T>
+void matrix_apply(unsigned int rows, unsigned int cols, T *mat, F op) {
+  for (unsigned int i = 0; i < rows; i++)
+    for (unsigned int j = 0; j < cols; j++)
+      mat[i * cols + j] = op(mat[i * cols + j]);
+}
+
 template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
@@ -173,7 +181,7 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                     << ", Epsilon: " << FLOAT_EPSILON << "\n";
           return false;
         }
-      } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
+      } else if constexpr (exact || std::is_integral_v<T1>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
           std::cout << "Incorrect result in matrix."
                     << "i: " << i << ", j: " << j

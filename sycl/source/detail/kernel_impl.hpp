@@ -133,6 +133,32 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type
+  ext_oneapi_get_info(queue Queue, const range<1> &MaxWorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type
+  ext_oneapi_get_info(queue Queue, const range<2> &MaxWorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type
   ext_oneapi_get_info(queue Queue, const range<3> &MaxWorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
 
@@ -193,10 +219,48 @@ private:
 
   /// Check if the occupancy limits are exceeded for the given kernel launch
   /// configuration.
+  template <int Dimensions>
   bool exceedsOccupancyResourceLimits(const device &Device,
-                                      const range<3> &WorkGroupSize,
+                                      const range<Dimensions> &WorkGroupSize,
                                       size_t DynamicLocalMemorySize) const;
+  template <int Dimensions>
+  size_t queryMaxNumWorkGroups(queue Queue,
+                               const range<Dimensions> &WorkGroupSize,
+                               size_t DynamicLocalMemorySize) const;
 };
+
+template <int Dimensions>
+bool kernel_impl::exceedsOccupancyResourceLimits(
+    const device &Device, const range<Dimensions> &WorkGroupSize,
+    size_t DynamicLocalMemorySize) const {
+  // Respect occupancy limits for WorkGroupSize and DynamicLocalMemorySize.
+  // Generally, exceeding hardware resource limits will yield in an error when
+  // the kernel is launched.
+  const size_t MaxWorkGroupSize =
+      get_info<info::kernel_device_specific::work_group_size>(Device);
+  const size_t MaxLocalMemorySizeInBytes =
+      Device.get_info<info::device::local_mem_size>();
+
+  if (WorkGroupSize.size() > MaxWorkGroupSize)
+    return true;
+
+  if (DynamicLocalMemorySize > MaxLocalMemorySizeInBytes)
+    return true;
+
+  // It will be impossible to launch a kernel for Cuda when the hardware limit
+  // for the 32-bit registers page file size is exceeded.
+  if (Device.get_backend() == backend::ext_oneapi_cuda) {
+    const uint32_t RegsPerWorkItem =
+        get_info<info::kernel_device_specific::ext_codeplay_num_regs>(Device);
+    const uint32_t MaxRegsPerWorkGroup =
+        Device.get_info<ext::codeplay::experimental::info::device::
+                            max_registers_per_work_group>();
+    if ((MaxWorkGroupSize * RegsPerWorkItem) > MaxRegsPerWorkGroup)
+      return true;
+  }
+
+  return false;
+}
 
 template <typename Param>
 inline typename Param::return_type kernel_impl::get_info() const {
@@ -244,13 +308,11 @@ kernel_impl::get_info(const device &Device,
 
 namespace syclex = ext::oneapi::experimental;
 
-template <>
-inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
-    return_type
-    kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_num_work_groups>(
-        queue Queue, const range<3> &WorkGroupSize,
-        size_t DynamicLocalMemorySize) const {
+template <int Dimensions>
+size_t
+kernel_impl::queryMaxNumWorkGroups(queue Queue,
+                                   const range<Dimensions> &WorkGroupSize,
+                                   size_t DynamicLocalMemorySize) const {
   if (WorkGroupSize.size() == 0)
     throw exception(sycl::make_error_code(errc::invalid),
                     "The launch work-group size cannot be zero.");
@@ -259,12 +321,21 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
   const auto &Handle = getHandleRef();
   auto Device = Queue.get_device();
 
+  size_t WG[Dimensions];
+  WG[0] = WorkGroupSize[0];
+  if constexpr (Dimensions >= 2)
+    WG[1] = WorkGroupSize[1];
+  if constexpr (Dimensions == 3)
+    WG[2] = WorkGroupSize[2];
+
   uint32_t GroupCount{0};
   if (auto Result = Adapter->call_nocheck<
                     UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
-          Handle, WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
-      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    // The feature is supported. Check for other errors and throw if any.
+          Handle, Dimensions, WG, DynamicLocalMemorySize, &GroupCount);
+      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
+      Result != UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE) {
+    // The feature is supported and the group size is valid. Check for other
+    // errors and throw if any.
     Adapter->checkUrResult(Result);
     return GroupCount;
   }
@@ -278,30 +349,36 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
 }
 
 template <>
-inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
     return_type
     kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-        queue Queue, const range<3> &WorkGroupSize,
+        syclex::info::kernel_queue_specific::max_num_work_groups>(
+        queue Queue, const range<1> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  return ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_num_work_groups>(
-      Queue, WorkGroupSize, DynamicLocalMemorySize);
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 template <>
-inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
     return_type
     kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-        queue Queue) const {
-  auto Device = Queue.get_device();
-  const auto MaxWorkGroupSize =
-      get_info<info::kernel_device_specific::work_group_size>(Device);
-  const sycl::range<3> WorkGroupSize{MaxWorkGroupSize, 1, 1};
-  return ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-      Queue, WorkGroupSize, /* DynamicLocalMemorySize */ 0);
+        syclex::info::kernel_queue_specific::max_num_work_groups>(
+        queue Queue, const range<2> &WorkGroupSize,
+        size_t DynamicLocalMemorySize) const {
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_num_work_groups>(
+        queue Queue, const range<3> &WorkGroupSize,
+        size_t DynamicLocalMemorySize) const {
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 } // namespace detail

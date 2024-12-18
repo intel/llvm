@@ -1,0 +1,173 @@
+= sycl_ext_oneapi_num_compute_units
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+SYCL 2020 allows developers to query the maximum number of compute units in a
+device via the `info::device::max_compute_units` query.
+There are two issues with this existing query: first, that it refers to a
+"maximum", despite the number of compute units being a fixed property of a
+device; and second, that the definition of "compute units" is vague. Different
+implementations and backends do not provide consistent interpretations of this
+query, which makes it difficult for developers to use the number of compute
+units in a portable way.
+
+This extension provides a new query, `info::device::num_compute_units`, with
+the aim to clarify the meaning of "compute units" in SYCL and drive consistency
+across implementations.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_NUM_COMPUTE_UNITS` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== Compute units
+
+A SYCL device is divided into one or more compute units, which are each divided
+into one or more processing elements.
+
+All work-items in a given work-group must execute on exactly one compute unit.
+The mapping of work-groups to compute units is not guaranteed: work-groups may
+be dispatched to compute units in any order, and this order may be different
+for every kernel launch.
+
+An implementation may execute multiple work-groups on a single compute unit
+simultaneously, subject to the resource constraints described by other device
+and kernel queries.
+
+The representation of specific hardware architectures in terms of compute units
+is tied to the execution model exposed by an implementation and is thus
+implementation-defined.
+
+[_Note_: To improve the portability of SYCL programs, implementations are
+encouraged to define compute units such that it is possible to fully utilize
+the hardware resources of a device by launching one work-group of
+size `max_work_group_size` on each compute unit.{endnote}]
+
+
+=== Device queries
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::info::device {
+
+struct num_compute_units;
+
+}
+----
+
+[%header,cols="1,5,5"]
+|===
+|Device Descriptor
+|Return Type
+|Description
+
+|`ext::oneapi::info::device::num_compute_units`
+|`size_t`
+|Return the number of compute units in the device.
+The minimum value is 1.
+
+[_Note_: The value is not required to be equal to the value returned by
+`max_compute_units`.{endnote}]
+|===
+
+
+== Implementation in {dpcpp}
+
+This section is non-normative and applies only to the {dpcpp} implementation.
+
+The table below explains how {dpcpp} calculates the number of compute units for
+different combinations of device and backend.
+
+[%header,cols="1,5,10"]
+|===
+|Device Type
+|Backend(s)
+|Number of Domains
+
+|CPU
+|OpenCL
+|Number of logical cores.
+
+|Intel GPU
+|Any
+|Number of Xe cores.
+
+|NVIDIA GPU
+|Any
+|Number of streaming multiprocessors (SMs).
+
+|===
+
+
+== Issues
+
+None.

@@ -1,6 +1,7 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class KernelName;
 

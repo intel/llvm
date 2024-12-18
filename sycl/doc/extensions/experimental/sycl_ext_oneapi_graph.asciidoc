@@ -426,7 +426,7 @@ Exceptions:
 template <int Dimensions>
 void update_nd_range(nd_range<Dimensions> executionRange);
 ----
-| Updates the ND-Range for this node with a new value. This new value will not
+| Updates the ND-range for this node with a new value. This new value will not
 affect any executable graphs this node is part of until it is passed to the
 executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
@@ -434,15 +434,12 @@ about updating kernel nodes.
 
 Parameters:
 
-* `executionRange` - The new value for the ND-Range.
+* `executionRange` - The new value for the ND-range.
 
 Exceptions:
 
 * Throws with error code `invalid` if `Dimensions` does not match the dimensions
-  of the nd_range the kernel was originally created with.
-
-* Throws with error code `invalid` if the kernel node was originally created
-  with a `sycl::range`.
+  of the existing kernel execution range.
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -453,7 +450,7 @@ Exceptions:
 template <int Dimensions>
 void update_range(range<Dimensions> executionRange);
 ----
-| Updates the execution Range for this node with a new value. This new value
+| Updates the execution range for this node with a new value. This new value
 will not affect any executable graphs this node is part of until it is
 passed to the executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
@@ -461,15 +458,12 @@ about updating kernel nodes.
 
 Parameters:
 
-* `executionRange` - The new value for the Range.
+* `executionRange` - The new value for the range.
 
 Exceptions:
 
 * Throws with error code `invalid` if `Dimensions` does not match the dimensions
-  of the range the kernel was originally created with.
-
-* Throws with error code `invalid` if the kernel node was originally created
-  with a `sycl::nd_range`.
+  of the existing kernel execution range.
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -524,7 +518,7 @@ Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
 |
 [source,c++]
 ----
-dynamic_parameter(command_graph<graph_state::modifiable> graph, 
+dynamic_parameter(command_graph<graph_state::modifiable> graph,
                   const ValueT &initialValue);
 ----
 |Constructs a dynamic parameter object that can be registered with command graph
@@ -554,6 +548,119 @@ registered nodes.
 Parameters:
 
 * `newValue` - Value to update the registered node parameters to.
+
+|===
+
+==== Dynamic Command Groups
+
+[source,c++]
+----
+namespace ext::oneapi::experimental {
+class dynamic_command_group {
+public:
+  dynamic_command_group(
+      command_graph<graph_state::modifiable> &graph,
+      const std::vector<std::function<void(handler &)>>& cgfList);
+
+  size_t get_active_index() const;
+  void set_active_index(size_t cgfIndex);
+};
+----
+
+Dynamic command-groups can be added as nodes to a graph. They provide a
+mechanism that allows updating the command-group function of a node after the
+graph is finalized. There is always one command-group function in the dynamic
+command-group that is set as active, this is the kernel which will execute for
+the node when the graph is finalized into an executable state `command_graph`,
+and all the other command-group functions in `cgfList` will be ignored. The
+executable `command_graph` node can then be updated to a different kernel in
+`cgfList`, by selecting a new active index on the dynamic command-group object
+and calling the `update(node& node)` method on the executable `command_graph`.
+
+The `dynamic_command_group` class provides the {crs}[common reference semantics].
+
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating command-groups.
+
+===== Limitations
+
+Dynamic command-groups can only contain kernel operations. Trying to construct
+a dynamic command-group with functions that contain other operations will
+result in an error.
+
+All the command-group functions in a dynamic command-group must have identical dependencies.
+It is not allowed for a dynamic command-group to have command-group functions that would
+result in a change to the graph topology when set to active. In practice, this means that
+any calls to `handler.depends_on()` must be identical for all the command-group functions
+in a dynamic command-group. The dependencies created by buffer accessors must also create
+identical node dependencies across all of the command-group functions.
+
+Table {counter: tableNumber}. Member functions of the `dynamic_command_group` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+dynamic_command_group(
+command_graph<graph_state::modifiable> &graph,
+const std::vector<std::function<void(handler &)>>& cgfList);
+----
+
+|Constructs a dynamic command-group object that can be added as a node to a `command_graph`.
+
+Parameters:
+
+* `graph` - Graph to be associated with this `dynamic_command_group`.
+* `cgfList` - The list of command-group functions that can be activated for this dynamic command-group.
+              The command-group function at index 0 will be active by default.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the graph wasn't created with
+  the `property::graph::assume_buffer_outlives_graph` property and the `dynamic_command_group`
+  is created with any command-group function that uses buffers. See the
+  <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
+  property for more information.
+
+* Throws with error code `invalid` if the `dynamic_command_group` is created with
+  command-group functions that are not kernel executions.
+
+* Throws with error code `invalid` if `cgfList` is empty.
+
+|
+[source,c++]
+----
+size_t get_active_index() const;
+----
+|Returns the index of the currently active command-group function in this
+`dynamic_command_group`.
+
+|
+[source,c++]
+----
+void set_active_index(size_t cgfIndex);
+----
+| Sets the command-group function with index `cgfIndex` as active. The index of the
+command-group function in a `dynamic_command_group` is identical to its index in the
+`cgfList` vector when it was passed to the `dynamic_command_group` constructor.
+
+This change will be reflected immediately in the modifiable graph which contains this
+`dynamic_command_group`. The new value will not be reflected in any executable graphs
+created from that modifiable graph until `command_graph::update()` is called, passing
+the modified nodes, or a new executable graph is finalized from the modifiable graph.
+
+Setting `cgfIndex` to the index of the currently active command-group function is
+a no-op.
+
+Parameters:
+
+* `cgfIndex` - The index of the command-group function that should be set as active.
+
+Exceptions:
+
+* Throw with error code `invalid` if `cgfIndex` is not a valid index.
 
 |===
 
@@ -631,6 +738,8 @@ public:
 
   template<typename T>
   node add(T cgf, const property_list& propList = {});
+
+  node add(dynamic_command_group& dynamicCG, const property_list& propList = {});
 
   void make_edge(node& src, node& dest);
 
@@ -712,21 +821,39 @@ Updates to a graph will be scheduled after any in-flight executions of the same
 graph and will not affect previous submissions of the same graph. The user is
 not required to wait on any previous submissions of a graph before updating it.
 
-The only type of nodes that are currently able to be updated in a graph are
-kernel execution nodes.
-
-The aspects of a kernel execution node that can be configured during update are:
-
-* Parameters to the kernel.
-* Execution ND-Range of the kernel.
-
 To update an executable graph, the `property::graph::updatable` property must
 have been set when the graph was created during finalization. Otherwise, an
 exception will be thrown if a user tries to update an executable graph. This
 guarantee allows the backend to provide a more optimized implementation, if
 possible.
 
-===== Individual Node Update
+===== Supported Features
+
+The only types of nodes that are currently able to be updated in a graph are
+kernel execution nodes.
+
+There are two different API's that can be used to update a graph:
+
+* <<individual-node-update, Individual Node Update>> which allows updating
+individual nodes of a command-graph.
+* <<whole-graph-update, Whole Graph Update>> which allows updating the
+entirety of the graph simultaneously by using another graph as a
+reference.
+
+The aspects of a kernel execution node that can be changed during update are
+different depending on the API used to perform the update:
+
+* For the <<individual-node-update, Individual Node Update>> API it's possible to update
+the kernel function, the parameters to the kernel, and the ND-range.
+* For the <<whole-graph-update, Whole Graph Update>> API, only the parameters of the kernel
+and the ND-range can be updated.
+
+===== Individual Node Update [[individual-node-update]]
+
+Individual nodes of an executable graph can be updated directly. Depending on the attribute
+of the node that requires updating, different API's should be used:
+
+====== Parameter Updates
 
 Parameters to individual nodes in a graph in the `executable` state can be
 updated between graph executions using dynamic parameters. A `dynamic_parameter`
@@ -739,14 +866,6 @@ Parameter updates are performed using a `dynamic_parameter` instance by calling
 `dynamic_parameter` is registered. Updates will not affect any nodes which were
 not registered, even if they use the same parameter value as a
 `dynamic_parameter`.
-
-The other node configuration that can be updated is the execution range of the
-kernel, this can be set through `node::update_nd_range()` or
-`node::update_range()` but does not require any prior registration.
-
-The executable graph can then be updated by passing the updated nodes to
-`command_graph<graph_state::executable>::update(node& node)` or
-`command_graph<graph_state::executable>::update(const std::vector<node>& nodes)`.
 
 Since the structure of the graph became fixed when finalizing, updating
 parameters on a node will not change the already defined dependencies between
@@ -762,6 +881,55 @@ data dependency and prevents unexpected behavior. To achieve this, one
 dynamic parameter for the buffer can be registered with all the nodes which
 use the buffer as a parameter. Then a single `dynamic_parameter::update()` call
 will maintain the graphs data dependencies.
+
+====== Execution Range Updates
+
+Another configuration that can be updated is the execution range of the
+kernel, this can be set through `node::update_nd_range()` or
+`node::update_range()` but does not require any prior registration.
+
+An alternative way to update the execution range of a node is to do so while
+updating command groups as described in the next section. Using this mechanism
+lifts the restriction from `node::update_nd_range()` / `node::update_range()`
+of only being to update the execution range in the same dimension. As the
+update being tied to a change in command-group means that the updated kernel
+code may be defined as operating in a different dimension.
+
+====== Command Group Updates
+
+The command-groups of a kernel node can be updated using dynamic command-groups.
+Dynamic command-groups allow replacing the command-group function of a kernel
+node with a different one. This effectively allows updating the kernel function
+and/or the kernel execution range.
+
+Command-group updates are performed by creating an instance of the
+`dynamic_command_group` class. A dynamic command-group is created with a modifiable
+state graph and a list of possible command-group functions. Command-group functions
+within a dynamic command-group can then be set to active by using the member function
+`dynamic_command_group::set_active_index()`.
+
+Dynamic command-groups are compatible with dynamic parameters. This means that
+dynamic parameters can be used in command-group functions that are part of
+dynamic command-groups. Updates to such dynamic parameters will be reflected
+in the command-group functions once they are activated.
+
+Note that the execution range is tied to the command-group, therefore updating
+the range of a node which uses a dynamic command-group will update the
+execution range of the currently active command-group. If the dynamic
+command-group is shared by another node, it will also update the execution
+range of the other nodes sharing that dynamic command-group. Activating a
+command-group with `set_active_index` to a command-group that previously had
+its execution range updated with `node::update_range()` or
+`node::update_nd_range()` will not reset the execution range to the original
+value, but instead use the most recently updated value.
+
+====== Committing Updates
+
+Updating a node using the methods mentioned above will take effect immediately
+for nodes in modifiable command-graphs. However, for graphs that are in the executable
+state, in order to commit the update, the updated nodes must be passed to
+`command_graph<graph_state::executable>::update(node& node)` or
+`command_graph<graph_state::executable>::update(const std::vector<node>& nodes)`.
 
 ===== Whole Graph Update [[whole-graph-update]]
 
@@ -1043,6 +1211,50 @@ Exceptions:
 |
 [source,c++]
 ----
+node add(dynamic_command_group& dynamicCG, const property_list& propList = {});
+----
+
+| Adds the dynamic command-group `dynamicCG` as a node to the graph and sets the
+current active command-group function in `dynamicCG` as the executable for future
+executions of this graph node.
+
+The current active command-group function in `dynamicCG` will be executed asynchronously
+when the graph is submitted to a queue. The requisites of this command-group
+function will be used to identify any dependent nodes in the graph
+to form edges with. The other command-group functions in `dynamicCG` will be captured
+into the graph but will not be executed in a graph submission unless they are
+set to active.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `dynamicCG` - Dynamic command-group object to be added as a node.
+
+* `propList` - Zero or more properties can be provided to the constructed node
+  via an instance of `property_list`. The `property::node::depends_on` property
+  can be passed here with a list of nodes to create dependency edges on.
+
+Returns: The dynamic command-group object node which has been added to the graph.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if a queue is recording
+  commands to the graph.
+
+* Throws synchronously with error code `invalid` if the graph does not match
+  the graph used on construction of `dynamicCG`.
+
+* Throws with error code `invalid` if the command-group functions in `cgfList` have
+  event or accessor dependencies that are incompatible with each other and
+  would result in different graph topologies when set to active.
+
+|
+[source,c++]
+----
 void make_edge(node& src, node& dest);
 ----
 
@@ -1158,8 +1370,9 @@ void update(node& node);
 ----
 
 | Updates an executable graph node that corresponds to `node`. `node` must be a
-kernel execution node. Kernel arguments and the ND-range of the node will be
-updated inside the executable graph to reflect the current values in `node`.
+kernel execution node. The command-group function of the node will be updated,
+inside the executable graph, to reflect the current values in `node`. This
+includes the kernel function, the kernel nd-range and the kernel parameters.
 
 Updating these values will not change the structure of the graph.
 
@@ -1191,9 +1404,10 @@ void update(const std::vector<node>& nodes);
 ----
 
 | Updates all executable graph nodes that corresponds to the nodes contained in
-`nodes`. All nodes must be kernel nodes. Kernel arguments and the ND-range of
-each node will be updated inside the executable graph to reflect the current
-values in each node in `nodes`.
+`nodes`. All nodes must be kernel nodes. The command-group function of each node
+will be updated, inside the executable graph, to reflect the current values in
+`nodes`. This includes the kernel function, the kernel nd-range and the kernel
+parameters".
 
 Updating these values will not change the structure of the graph.
 
@@ -1750,6 +1964,10 @@ the call to `queue::submit()` or `command_graph::add()` along with the calls to
 handler functions and this will not be reflected on future executions of the
 graph.
 
+Similarly, any command-group function inside a `dynamic_command_group` will be
+evaluated once, in index order, when submitted to the graph using
+`command_graph::add()`.
+
 Any code like this should be moved to a separate host-task and added to the
 graph via the recording or explicit APIs in order to be compatible with this
 extension.
@@ -1857,6 +2075,45 @@ recording mode, as opposed to throwing.
 This section defines the interaction of `sycl_ext_oneapi_graph` with other
 extensions.
 
+==== sycl_ext_codeplay_enqueue_native_command
+
+`ext_codeplay_enqueue_native_command`, defined in
+link:../experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc[sycl_ext_codeplay_enqueue_native_command]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_intel_queue_index
+
+The compute index queue property defined by
+link:../supported/sycl_ext_intel_queue_index.asciidoc[sycl_ext_intel_queue_index]
+is ignored during queue recording.
+
+Using this information is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_bindless_images
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_device_global
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
 ==== sycl_ext_oneapi_discard_queue_events
 
 When recording a `sycl::queue` which has been created with the
@@ -1890,6 +2147,39 @@ nodes that are recorded from multiple queues and/or added by the explicit API:
 * The only commands which have an implicit dependency on the barrier command
   are those recorded from the same queue the barrier command was submitted to.
 
+==== sycl_ext_oneapi_enqueue_functions
+
+The command submission functions defined in
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+can be used adding nodes to a graph when creating a graph from queue recording.
+New methods are also defined that enable submitting an executable graph,
+e.g. directly to a queue without returning an event.
+
+==== sycl_ext_oneapi_free_function_kernels
+
+`sycl_ext_oneapi_free_function_kernels`, defined in
+link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
+can be used with SYCL Graphs.
+
+==== sycl_ext_oneapi_kernel_compiler_spirv
+
+The kernels loaded using
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+behave as normal when used in graph nodes.
+
+==== sycl_ext_oneapi_kernel_properties
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+can be used in graph nodes in the same way as they are used in normal queue
+submission. 
+
+==== sycl_ext_oneapi_local_memory
+
+Allocating local memory inside a graph kernel node with `sycl::ext::oneapi::group_local_memory()` or
+`sycl::ext::oneapi::group_local_memory_for_overwrite()` is supported. These methods are defined by
+link:../supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory.]
+
 ==== sycl_ext_oneapi_memcpy2d
 
 The new handler methods, and queue shortcuts, defined by
@@ -1900,11 +2190,12 @@ error code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
-==== sycl_ext_oneapi_queue_priority
+==== sycl_ext_oneapi_prod
 
-The queue priority property defined by
-link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
-is ignored during queue recording.
+The new `sycl::queue::ext_oneapi_prod()` method added by
+link:../proposed/sycl_ext_oneapi_prod.asciidoc[sycl_ext_oneapi_prod]
+behaves as normal during queue recording and is not captured to the graph.
+Recorded commands are not counted as submitted for the purposes of its operation.
 
 ==== sycl_ext_oneapi_queue_empty
 
@@ -1913,78 +2204,27 @@ link:../supported/sycl_ext_oneapi_queue_empty.asciidoc[sycl_ext_oneapi_queue_emp
 extension behaves as normal during queue recording and is not captured to the graph.
 Recorded commands are not counted as submitted for the purposes of this query.
 
-==== sycl_ext_intel_queue_index
+==== sycl_ext_oneapi_queue_priority
 
-The compute index queue property defined by
-link:../supported/sycl_ext_intel_queue_index.asciidoc[sycl_ext_intel_queue_index]
+The queue priority property defined by
+link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
 is ignored during queue recording.
 
-Using this information is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
+==== sycl_ext_oneapi_work_group_memory
 
-==== sycl_ext_oneapi_kernel_properties
+Using the `work_group_memory` object defined in
+link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[sycl_ext_oneapi_work_group_memory]
+inside graph kernel nodes is supported.
 
-The new handler methods, and queue shortcuts, defined by
-link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
-can be used in graph nodes in the same way as they are used in normal queue
-submission. 
+==== sycl_ext_oneapi_work_group_scratch_memory
 
-==== sycl_ext_oneapi_prod
-
-The new `sycl::queue::ext_oneapi_prod()` method added by
-link:../proposed/sycl_ext_oneapi_prod.asciidoc[sycl_ext_oneapi_prod]
-behaves as normal during queue recording and is not captured to the graph.
-Recorded commands are not counted as submitted for the purposes of its operation.
-
-==== sycl_ext_oneapi_device_global
-
-The new handler methods, and queue shortcuts, defined by
-link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
+The new property defined by
+link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[sycl_ext_oneapi_work_group_scratch_memory]
 cannot be used in graph nodes. A synchronous exception will be thrown with error
 code `invalid` if a user tries to add them to a graph.
 
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
-
-==== sycl_ext_oneapi_bindless_images
-
-The new handler methods, and queue shortcuts, defined by
-link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
-
-==== sycl_ext_oneapi_kernel_compiler_spirv
-
-The kernels loaded using
-link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
-behave as normal when used in graph nodes.
-
-==== sycl_ext_codeplay_enqueue_native_command
-
-`ext_codeplay_enqueue_native_command`, defined in
-link:../experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc[sycl_ext_codeplay_enqueue_native_command]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
-
-==== sycl_ext_oneapi_enqueue_functions
-
-The command submission functions defined in
-link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
-can be used adding nodes to a graph when creating a graph from queue recording.
-New methods are also defined that enable submitting an executable graph, 
-e.g. directly to a queue without returning an event.
-
-==== sycl_ext_oneapi_free_function_kernels
-
-`sycl_ext_oneapi_free_function_kernels`, defined in 
-link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
-can be used with SYCL Graphs. 
 
 == Examples and Usage Guide
 
@@ -2129,6 +2369,16 @@ to ensure this is desired and makes sense to users.
 
 **UNRESOLVED** Needs more discussion.
 
+=== Updatable command-groups in the Record & Replay API:
+
+Currently the only way to update command-groups in a graph is to use the
+Explicit API. There is a limitation in some backends that requires all
+the command-groups used for updating to be specified before the graph
+is finalized. This restriction makes it hard to implement the
+Record & Replay API in a performant manner.
+
+**UNRESOLVED** Needs more discussion.
+
 === Multi Device Graph
 
 Allow an executable graph to contain nodes targeting different devices.
@@ -2183,8 +2433,8 @@ if used in application code.
 
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Synchronization between multiple executions of the same command-buffer 
-  must be handled in the host for level-zero backend, which may involve 
+. Synchronization between multiple executions of the same command-buffer
+  must be handled in the host for level-zero backend, which may involve
   extra latency for subsequent submissions.
 
 == Revision History

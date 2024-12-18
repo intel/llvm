@@ -6,11 +6,13 @@ on:
       - sycl
     paths:
       - 'devops/actions/build_container/**'
+      - 'devops/scripts/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
   pull_request:
     paths:
       - 'devops/actions/build_container/**'
+      - 'devops/scripts/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
 
@@ -26,9 +28,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Intel Drivers Ubuntu 22.04 Docker image with dev IGC
-            dockerfile: ubuntu2204_intel_drivers_igc_dev
-            imagefile: ubuntu2204_intel_drivers
+          - name: Intel Drivers Ubuntu 24.04 Docker image with dev IGC
+            dockerfile: ubuntu2404_intel_drivers_igc_dev
+            imagefile: ubuntu2404_intel_drivers
             tag: devigc
             build_args: |
                   "use_latest=false"
