@@ -32,7 +32,6 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
-#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
@@ -155,6 +154,7 @@ class pipe;
 namespace ext::oneapi::experimental {
 template <typename, typename> class work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
 void prefetch(handler &CGH, void *Ptr, size_t NumBytes, prefetch_type type);
 } // namespace ext::oneapi::experimental
 
