@@ -402,10 +402,9 @@ To make a test only run in `full` mode add a `REQUIRES: build-and-run-mode` line
 ### `--param test-mode=build-only`
 This mode can be used to compile all test binaries. To do this all `UNSUPPORTED` 
 and `REQUIRES` statements are ignored unless they contain `UNSUPPORTED: true` or 
-`REQUIRES: build-and-run-mode` (NOTE: currently a WIP to make this mode properly 
-react to features). All `RUN:` lines within a test are ran in this mode unless 
-they contain the following expansions: `%{run}`, `%{run-unfiltered-devices}`, 
-or `%if run-mode`.
+`REQUIRES: build-and-run-mode`. All `RUN:` lines within a test are ran in this
+mode unless they contain the following expansions: `%{run}`,
+`%{run-unfiltered-devices}`, or `%if run-mode`.
 
 Currently, the only triple supported for `build-only` mode is `spir64`.
 
