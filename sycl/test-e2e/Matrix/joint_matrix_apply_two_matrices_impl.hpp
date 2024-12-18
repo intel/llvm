@@ -20,6 +20,7 @@ bool apply_verify(Tc *C, Tc *D, Tc *ref) {
 
   matrix_apply(M, N, refcopy, add5<Tc>);
   res &= matrix_compare(M, N, C, refcopy);
+  std::free(refcopy);
   return res;
 }
 

@@ -1,5 +1,6 @@
 // Check that when we see the expected data layouts for NVPTX when we pass the
 // -nvptx-short-ptr option.
+// REQUIRES: nvptx-registered-target
 
 // RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes \
 // RUN:  -triple nvptx-nvidia-cuda -emit-llvm %s -o - \
