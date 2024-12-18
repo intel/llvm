@@ -54,7 +54,7 @@
 // NUMBER-OF-XFAIL-WITHOUT-TRACKER: 0
 //
 // List of improperly XFAIL-ed tests.
-// As an example, if test test-e2e/Foo/foo.cpp is improperly XFAIL-ed, 
-// add this line at the end of this file: // CHECK: Foo/foo.cpp 
+// As an example, if test test-e2e/Foo/foo.cpp is improperly XFAIL-ed,
+// add this line at the end of this file: // CHECK: Foo/foo.cpp
 // or // CHECK-NEXT: Foo/foo.cpp in case the list is not empty.
 // Remove the CHECK once the test has been properly XFAIL-ed.
