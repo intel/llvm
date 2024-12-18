@@ -1,6 +1,6 @@
 // FIXME: the rocm include path and link path are highly platform dependent,
 // we should set this with some variable instead.
-// RUN: %{build} -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
+// RUN: %{build} -Wno-error=deprecated-pragma -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
 // RUN: %{run} %t.out
 // REQUIRES: hip
 // REQUIRES: build-and-run-mode

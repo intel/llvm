@@ -807,6 +807,12 @@ public:
       return nullptr;
     return Loc->second;
   }
+  SPIRVExecutionModeId *getExecutionModeId(SPIRVExecutionModeKind EMK) const {
+    auto Loc = ExecModes.find(EMK);
+    if (Loc == ExecModes.end())
+      return nullptr;
+    return static_cast<SPIRVExecutionModeId *>(Loc->second);
+  }
   SPIRVExecutionModeRange
   getExecutionModeRange(SPIRVExecutionModeKind EMK) const {
     return ExecModes.equal_range(EMK);
