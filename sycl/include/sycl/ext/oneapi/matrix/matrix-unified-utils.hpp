@@ -104,6 +104,23 @@ constexpr uint32_t CalculateMatrixOperand() {
   }
   return 0;
 }
+  
+#ifdef __SPIRV_USE_APPLY 
+template <typename T>
+struct reference_wrapper {
+  reference_wrapper(T& val) : ref(&val) {}
+  operator T&() const {
+    return *ref;
+  }
+  private:
+    T *ref;
+};
+template <typename T>
+reference_wrapper<T> ref(T& val) {
+  return reference_wrapper<T>(val);
+}
+#endif // __SPIRV_USE_APPLY
+
 #endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
 } // namespace detail

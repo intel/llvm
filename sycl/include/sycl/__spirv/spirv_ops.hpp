@@ -304,6 +304,14 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixStoreCheckedINTEL(
     __spv::__spirv_CooperativeMatrixKHR<Tp, S, R, C, U> *Object,
     __spv::MatrixLayout Layout = L, uint32_t Height = 0, uint32_t Width = 0,
     std::size_t Stride = 0, int MemOperand = 0);
+
+template <typename Ts, typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U, __spv::MatrixLayout L, __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup,
+          typename F>
+extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_CooperativeMatrixKHR<T, S, R, C, U> *
+__spirv_CooperativeMatrixApplyFunctionINTEL(
+					    F &&, __spv::__spirv_CooperativeMatrixKHR<T, S, R, C, U> *Src);
+
 #endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
 template <typename T>
