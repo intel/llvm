@@ -36,7 +36,7 @@ usermod -aG render $USER_NAME
 
 if [[ $SET_PASSWD == true ]]; then
   if [[ ! -f /run/secrets/sycl_ci_passwd ]]; then
-    echo "Password is requested, but /run/secrtes/sycl_ci_passwd doesn't exist!"
+    echo "Password is requested, but /run/secrets/sycl_ci_passwd doesn't exist!"
     exit 2
   fi
 
