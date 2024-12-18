@@ -247,7 +247,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
 void Scheduler::GraphBuilder::updateLeaves(
     Command *NewCmd, const std::set<Command *> &Cmds, MemObjRecord *Record,
     access::mode AccessMode, const MapOfDependentCmds &DependentCmdsOfNewCmd,
-    const QueueImplPtr &Queue, std::vector<Command *> &ToCleanUp,
+    const QueueImplPtr &/*Queue*/, std::vector<Command *> &ToCleanUp,
     std::vector<Command *> &ToEnqueue) {
 
   const bool ReadOnlyReq = AccessMode == access::mode::read;
@@ -448,7 +448,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
       ToEnqueue.push_back(ConnCmd);
   }
   const MapOfDependentCmds DependentCmdsOfNewCmd(NewCmd->MDeps);
-  updateLeaves(NewCmd, Deps, Record, access::mode::read_write, DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
+  updateLeaves(NewCmd, Deps, Record, access::mode::read_write,
+               DependentCmdsOfNewCmd, Queue, ToCleanUp, ToEnqueue);
   addNodeToLeaves(Record, NewCmd, access::mode::read_write, ToEnqueue);
   for (Command *Cmd : ToCleanUp)
     cleanupCommand(Cmd);
