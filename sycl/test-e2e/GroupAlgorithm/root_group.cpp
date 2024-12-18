@@ -42,14 +42,14 @@ void testQueriesAndProperties() {
           .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
                                    kernel_queue_specific::max_num_work_groups>(
               q, wgRange, wgRange.size() * sizeof(int));
-  struct TestKernel0 {
+  struct QueryKernel {
     void operator()() const {}
     auto get(sycl::ext::oneapi::experimental::properties_tag) {
       return sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::use_root_sync};
     }
   };
-  q.single_task<class QueryKernel>(TestKernel0{});
+  q.single_task(QueryKernel{});
 
   static auto check_max_num_work_group_sync = [](auto Result) {
     static_assert(std::is_same_v<std::remove_cv_t<decltype(Result)>, size_t>,
