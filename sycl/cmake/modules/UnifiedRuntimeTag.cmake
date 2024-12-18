@@ -4,4 +4,4 @@
 # Date:   Mon Dec 16 13:53:13 2024 +0000
 #     Merge pull request #2467 from nrspruit/fix_external_import_function_call
 #     [L0] Fix external semaphore import function calls to match the header
-set(UNIFIED_RUNTIME_TAG 39df0317814c164f5242eda8d6f08550f6268492)
+set(UNIFIED_RUNTIME_TAG 56a3c841f75e1d12310e9ed13c7a2fcf7398712b)
