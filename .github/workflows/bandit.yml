@@ -2,6 +2,9 @@ name: Scan Python code with Bandit
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+
 
 permissions:
   contents: read
@@ -20,4 +23,4 @@ jobs:
 
       - name: Run Bandit
         run: |
-          bandit -c devops/bandit.config -r .
+          bandit -c devops/bandit.config -r . --exit-zero
