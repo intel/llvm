@@ -341,8 +341,7 @@ public:
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
 #ifdef ___INTEL_PREVIEW_BREAKING_CHANGES
-  void modifiable_command_graph::print_graph(const std::string path,
-                                             bool verbose) const {
+  void print_graph(const std::string path, bool verbose = false) const {
     print_graph(sycl::detail::string_view{path}, verbose);
   }
 #else
