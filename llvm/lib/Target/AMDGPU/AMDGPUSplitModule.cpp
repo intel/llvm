@@ -46,22 +46,18 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <iterator>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -153,7 +149,8 @@ static constexpr unsigned InvalidPID = -1;
 /// \param Dem denominator
 /// \returns a printable object to print (Num/Dem) using "%0.2f".
 static auto formatRatioOf(CostType Num, CostType Dem) {
-  return format("%0.2f", (static_cast<double>(Num) / Dem) * 100);
+  CostType DemOr1 = Dem ? Dem : 1;
+  return format("%0.2f", (static_cast<double>(Num) / DemOr1) * 100);
 }
 
 /// Checks whether a given function is non-copyable.

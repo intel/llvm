@@ -1,7 +1,7 @@
-# commit 4739d4cc30534d80fba4c876bfbafa51d3cad53a
-# Merge: b0d133d5d5e8 44b4ff98ae79
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 13 11:30:56 2024 +0000
-#     Merge pull request #2437 from bashbaug/add-opencl-device-queries
-#     add a few missing Intel GPU device queries, fix device ID query
-set(UNIFIED_RUNTIME_TAG 4739d4cc30534d80fba4c876bfbafa51d3cad53a)
+# commit 39df0317814c164f5242eda8d6f08550f6268492
+# Merge: 68d93efd be27d8f0
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Dec 16 13:53:13 2024 +0000
+#     Merge pull request #2467 from nrspruit/fix_external_import_function_call
+#     [L0] Fix external semaphore import function calls to match the header
+set(UNIFIED_RUNTIME_TAG 39df0317814c164f5242eda8d6f08550f6268492)

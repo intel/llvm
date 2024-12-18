@@ -27,23 +27,21 @@ define i32 @fcvt_wu_s(float %a) nounwind {
 define i32 @fcvt_wu_s_multiple_use(float %x, ptr %y) nounwind {
 ; RV32IF-LABEL: fcvt_wu_s_multiple_use:
 ; RV32IF:       # %bb.0:
-; RV32IF-NEXT:    fcvt.wu.s a1, fa0, rtz
-; RV32IF-NEXT:    li a0, 1
-; RV32IF-NEXT:    beqz a1, .LBB2_2
+; RV32IF-NEXT:    fcvt.wu.s a0, fa0, rtz
+; RV32IF-NEXT:    bnez a0, .LBB2_2
 ; RV32IF-NEXT:  # %bb.1:
-; RV32IF-NEXT:    mv a0, a1
+; RV32IF-NEXT:    li a0, 1
 ; RV32IF-NEXT:  .LBB2_2:
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: fcvt_wu_s_multiple_use:
 ; RV64IF:       # %bb.0:
-; RV64IF-NEXT:    fcvt.wu.s a1, fa0, rtz
-; RV64IF-NEXT:    slli a0, a1, 32
-; RV64IF-NEXT:    srli a2, a0, 32
-; RV64IF-NEXT:    li a0, 1
-; RV64IF-NEXT:    beqz a2, .LBB2_2
+; RV64IF-NEXT:    fcvt.wu.s a0, fa0, rtz
+; RV64IF-NEXT:    slli a1, a0, 32
+; RV64IF-NEXT:    srli a1, a1, 32
+; RV64IF-NEXT:    bnez a1, .LBB2_2
 ; RV64IF-NEXT:  # %bb.1:
-; RV64IF-NEXT:    mv a0, a1
+; RV64IF-NEXT:    li a0, 1
 ; RV64IF-NEXT:  .LBB2_2:
 ; RV64IF-NEXT:    ret
   %a = fptoui float %x to i32
@@ -101,11 +99,17 @@ define float @fcvt_s_wu(i32 %a) nounwind {
 }
 
 define float @fcvt_s_wu_load(ptr %p) nounwind {
-; CHECKIF-LABEL: fcvt_s_wu_load:
-; CHECKIF:       # %bb.0:
-; CHECKIF-NEXT:    lw a0, 0(a0)
-; CHECKIF-NEXT:    fcvt.s.wu fa0, a0
-; CHECKIF-NEXT:    ret
+; RV32IF-LABEL: fcvt_s_wu_load:
+; RV32IF:       # %bb.0:
+; RV32IF-NEXT:    lw a0, 0(a0)
+; RV32IF-NEXT:    fcvt.s.wu fa0, a0
+; RV32IF-NEXT:    ret
+;
+; RV64IF-LABEL: fcvt_s_wu_load:
+; RV64IF:       # %bb.0:
+; RV64IF-NEXT:    lwu a0, 0(a0)
+; RV64IF-NEXT:    fcvt.s.wu fa0, a0
+; RV64IF-NEXT:    ret
   %a = load i32, ptr %p
   %1 = uitofp i32 %a to float
   ret float %1

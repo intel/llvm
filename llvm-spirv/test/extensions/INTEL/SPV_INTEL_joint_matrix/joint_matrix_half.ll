@@ -9,6 +9,18 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_bfloat16_conversion,+SPV_INTEL_joint_matrix,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
+; TODO: enable back once the reverse translation with untyped pointers is fixed
+; R/UN: llvm-spirv -r %t.spv -o %t.rev.bc
+; R/UN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-GENERAL
+
+; R/UN: llvm-spirv -r %t.spv -o %t.rev.bc
+; R/UN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-INTEL
+
+
 ; CHECK-SPIRV-DAG: TypeInt [[#INT:]] 32
 ; CHECK-SPIRV-DAG: TypeFloat [[#Half:]] 16
 ; CHECK-SPIRV-DAG: TypeFloat [[#Float:]] 32

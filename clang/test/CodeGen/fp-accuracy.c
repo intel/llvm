@@ -28,7 +28,7 @@
 // RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F5 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
-// RUN: "-ffp-builtin-accuracy=medium high:[sin,atan]" \
+// RUN: "-ffp-builtin-accuracy=medium high:[sin,atan] low:[atan2]" \
 // RUN: -Wno-return-type -Wno-implicit-function-declaration \
 // RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F6 %s
 
@@ -102,7 +102,7 @@ double rsqrt(double);
 // CHECK-F1: call double @llvm.asin.f64(double {{.*}})
 // CHECK-F1: call double @asinh(double {{.*}})
 // CHECK-F1: call double @llvm.atan.f64(double {{.*}})
-// CHECK-F1: call double @atan2(double {{.*}}, double {{.*}})
+// CHECK-F1: call double @llvm.atan2.f64(double {{.*}}, double {{.*}})
 // CHECK-F1: call double @atanh(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F1_HIGH:[0-9]+]]
 // CHECK-F1: call double @llvm.cosh.f64(double {{.*}})
@@ -264,7 +264,7 @@ double rsqrt(double);
 // CHECK-F5: call double @llvm.asin.f64(double {{.*}})
 // CHECK-F5: call double @asinh(double {{.*}})
 // CHECK-F5: call double @llvm.atan.f64(double {{.*}})
-// CHECK-F5: call double @atan2(double {{.*}}, double {{.*}})
+// CHECK-F5: call double  @llvm.atan2.f64(double {{.*}}, double {{.*}})
 // CHECK-F5: call double @atanh(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F5_MEDIUM:[0-9]+]]
 // CHECK-F5: call double @llvm.cosh.f64(double {{.*}})
@@ -301,7 +301,7 @@ double rsqrt(double);
 // CHECK-F6: call double @llvm.fpbuiltin.asin.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.asinh.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.atan.f64(double {{.*}}) #[[ATTR_F6_HIGH:[0-9]+]]
-// CHECK-F6: call double @llvm.fpbuiltin.atan2.f64(double {{.*}}, double {{.*}}) #[[ATTR_F6_MEDIUM]]
+// CHECK-F6: call double @llvm.fpbuiltin.atan2.f64(double {{.*}}, double {{.*}}) #[[ATTR_F6_LOW:[0-9]+]]
 // CHECK-F6: call double @llvm.fpbuiltin.atanh.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.cosh.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
@@ -499,6 +499,7 @@ void f1(float a, float b) {
 
 // CHECK-F6: attributes #[[ATTR_F6_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
 // CHECK-F6: attributes #[[ATTR_F6_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
+// CHECK-F6: attributes #[[ATTR_F6_LOW]] = {{.*}}"fpbuiltin-max-error"="67108864.0"
 //
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f2
 // CHECK-SPIR: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_SYCL1]]
@@ -565,7 +566,7 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call double @llvm.asin.f64(double {{.*}})
 // CHECK-DEFAULT: call double @asinh(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.atan.f64(double {{.*}})
-// CHECK-DEFAULT: call double @atan2(double {{.*}}, double {{.*}})
+// CHECK-DEFAULT: call double @llvm.atan2.f64(double {{.*}}, double {{.*}})
 // CHECK-DEFAULT: call double @atanh(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.cos.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.cosh.f64(double {{.*}})

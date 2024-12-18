@@ -6,11 +6,13 @@ on:
       - sycl
     paths:
       - 'devops/actions/build_container/**'
+      - 'devops/scripts/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
   pull_request:
     paths:
       - 'devops/actions/build_container/**'
+      - 'devops/scripts/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
 
