@@ -104,8 +104,8 @@ void testRootGroup() {
   }
 }
 
-template <typename T> struct RootGroupFunctionsKernel {
-  T m_testResults;
+template <typename T> class RootGroupFunctionsKernel {
+public:
   RootGroupFunctionsKernel(T &testResults_) : m_testResults(testResults_) {}
   void operator()(sycl::nd_item<1> it) const {
     const auto root = it.ext_oneapi_get_root_group();
@@ -128,6 +128,9 @@ template <typename T> struct RootGroupFunctionsKernel {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::use_root_sync};
   }
+
+private:
+  T m_testResults;
 };
 
 void testRootGroupFunctions() {
