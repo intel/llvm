@@ -242,7 +242,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             ignore_line_filtering = (
                 "build-and-run-mode" in test.requires
-                and test.config.test_mode == "run-only"
                 and test.config.fallback_build_run_only
             )
             if not ignore_line_filtering and (
