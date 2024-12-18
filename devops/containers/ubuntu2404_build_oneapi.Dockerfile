@@ -31,7 +31,8 @@ echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' \
 wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor \
 | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
 echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
-| tee /etc/apt/sources.list.d/oneAPI.list && \
+| tee /etc/apt/sources.list.d/oneAPI.list
+
 # Install the ROCM kernel driver and oneAPI
 RUN apt update && apt install -yqq rocm-dev intel-oneapi-compiler-dpcpp-cpp && \
   apt-get clean && \
