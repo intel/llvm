@@ -21,12 +21,6 @@
 #include <thread>
 #include <vector>
 
-#define __SYCL_INSTRUMENT_PERSISTENT_CACHE
-
-#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
-#include <chrono>
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -97,29 +91,6 @@ class PersistentDeviceCodeCache {
    *  - on cache read operation it is treated as cache miss.
    */
 private:
-#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
-  // Class to instrument cache operations.
-  class InstrumentCache {
-    std::string PrintMsg;
-    std::chrono::high_resolution_clock::time_point StartTime;
-
-  public:
-    InstrumentCache(const std::string &Name) : PrintMsg(Name) {
-      // Store start time.
-      StartTime = std::chrono::high_resolution_clock::now();
-    }
-    ~InstrumentCache() {
-      // Calculate time spent and print message.
-      auto EndTime = std::chrono::high_resolution_clock::now();
-      auto Duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                          EndTime - StartTime)
-                          .count();
-      PersistentDeviceCodeCache::trace(PrintMsg + std::to_string(Duration) +
-                                       "ns");
-    }
-  };
-#endif
-
   /* Write built binary to persistent cache
    * Format: BinarySize, Binary
    */
@@ -258,6 +229,8 @@ private:
   // Evict LRU items from the cache to make space for new items.
   static void evictItemsFromCache(const std::string &CacheRoot,
                                   size_t CacheSize, size_t MaxCacheSize);
+
+  static void saveCurrentTimeInAFile(std::string FileName);
 
   // Check if eviction is enabled.
   static bool isEvictionEnabled() {

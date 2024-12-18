@@ -285,106 +285,43 @@ int OSUtil::makeDir(const char *Dir) {
   return 0;
 }
 
-// Get size of a directory in bytes.
-size_t getDirectorySize(const std::string &Path, bool IgnoreError = false) {
-  size_t DirSizeVar = 0;
-  std::error_code EC;
-  for (auto It = fs::recursive_directory_iterator(Path, EC);
-       It != fs::recursive_directory_iterator(); It.increment(EC)) {
-    // Errors can happen if a file was removed/added during the iteration.
-    if (EC && !IgnoreError)
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to get directory size: " + Path + "\n" +
-                                EC.message());
-
-    if (fs::is_regular_file(It->path()))
-      DirSizeVar += getFileSize(It->path().string());
-  }
-  return DirSizeVar;
-}
-
 // Get size of file in bytes.
 size_t getFileSize(const std::string &Path) {
   return static_cast<size_t>(fs::file_size(Path));
 }
 
-// Get list of all files in the directory along with its last modification time.
-std::vector<std::pair<uint64_t, std::string>>
-getFilesWithLastModificationTime(const std::string &Path,
-                                 bool IgnoreError = false) {
-  std::vector<std::pair<uint64_t, std::string>> Files = {};
+// Function to recursively iterate over the directory and execute
+// 'Func' on each regular file.
+void fileTreeWalk(const std::string Path,
+                  std::function<void(const std::string)> Func) {
+
   std::error_code EC;
   for (auto It = fs::recursive_directory_iterator(Path, EC);
        It != fs::recursive_directory_iterator(); It.increment(EC)) {
+
     // Errors can happen if a file was removed/added during the iteration.
-    if (EC && !IgnoreError)
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to get files with access time: " + Path +
-                                "\n" + EC.message());
+    if (EC)
+      throw sycl::exception(
+          make_error_code(errc::runtime),
+          "Failed to do File Tree Walk. Ensure that the directory is not "
+          "getting updated while FileTreeWalk is in progress.: " +
+              Path + "\n" + EC.message());
 
-    const std::string FileName = It->path().string();
-    if (fs::is_regular_file(It->path())) {
-// For Linux and Darwin, use stats.
-#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
-      struct stat StatBuf;
-      if (stat(FileName.c_str(), &StatBuf) == 0)
-        Files.push_back({StatBuf.st_atim.tv_nsec, FileName});
-#elif defined(__SYCL_RT_OS_WINDOWS)
-      // Use GetFileAttributeExA to get file modification time.
-      WIN32_FILE_ATTRIBUTE_DATA FileAttr;
-      if (GetFileAttributesExA(FileName.c_str(), GetFileExInfoStandard,
-                               &FileAttr)) {
-        ULARGE_INTEGER AccessTime;
-        AccessTime.HighPart = FileAttr.ftLastWriteTime.dwHighDateTime;
-        AccessTime.LowPart = FileAttr.ftLastWriteTime.dwLowDateTime;
-        Files.push_back({AccessTime.QuadPart, FileName});
-      } else
-        throw sycl::exception(make_error_code(errc::runtime),
-                              "Failed to get file attributes for: " + FileName);
-#endif // __SYCL_RT_OS
-    }
+    if (fs::is_regular_file(It->path()))
+      Func(It->path().string());
   }
-
-  return Files;
 }
 
-// Function to update file modification time with current time.
-void updateFileModificationTime(const std::string &Path) {
+// Get size of a directory in bytes.
+size_t getDirectorySize(const std::string &Path, bool IgnoreError = false) {
+  size_t DirSizeVar = 0;
 
-#if defined(__SYCL_RT_OS_WINDOWS)
-  // For Windows, use SetFileTime to update file access time.
+  auto CollectFIleSize = [&DirSizeVar](const std::string Path) {
+    DirSizeVar += getFileSize(Path);
+  };
+  fileTreeWalk(Path, CollectFIleSize);
 
-  // Open file with FILE_FLAG_WRITE_THROUGH and FILE_FLAG_NO_BUFFERING flags
-  // to ensure that the file time is updated on disk, asap.
-  HANDLE hFile = CreateFileA(
-      Path.c_str(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING,
-      NULL);
-  if (hFile != INVALID_HANDLE_VALUE) {
-    FILETIME ft;
-    GetSystemTimeAsFileTime(&ft);
-    if (!SetFileTime(hFile, NULL, NULL, &ft)) {
-      // Print full error.
-      char *errorText = nullptr;
-      FormatMessageA(
-          FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER |
-              FORMAT_MESSAGE_IGNORE_INSERTS,
-          NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-          (LPSTR)&errorText, 0, NULL);
-
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to update file access time: " + Path);
-    }
-    CloseHandle(hFile);
-  } else {
-    throw sycl::exception(make_error_code(errc::runtime),
-                          "Failed to open file: " + Path);
-  }
-
-#elif defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
-  // For Linux and Darwin, use utimensat to update file modification time.
-  utimensat(0, Path.c_str(), nullptr, 0);
-#endif // __SYCL_RT_OS
+  return DirSizeVar;
 }
 
 } // namespace detail

@@ -180,6 +180,25 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
   return Result;
 }
 
+// Save the current time in a file.
+void PersistentDeviceCodeCache::saveCurrentTimeInAFile(std::string FileName) {
+  // Lock the file to prevent concurrent writes.
+  LockCacheItem Lock{FileName};
+  if (Lock.isOwned()) {
+    try {
+      std::ofstream FileStream{FileName, std::ios::trunc};
+      FileStream << std::chrono::high_resolution_clock::now()
+                        .time_since_epoch()
+                        .count();
+      FileStream.close();
+    } catch (std::exception &e) {
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to save current time in a file: " +
+                                FileName + "\n" + std::string(e.what()));
+    }
+  }
+}
+
 // Check if cache_size.txt file is present in the cache root directory.
 // If not, create it and populate it with the size of the cache directory.
 void PersistentDeviceCodeCache::repopulateCacheSizeFile(
@@ -245,16 +264,25 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   // modification time.
   std::vector<std::pair<uint64_t, std::string>> FilesWithAccessTime;
 
-  // getFileWithLastModificationTime can throw if any new file is created or
-  // removed during the iteration. Retry in that case. When eviction is in
-  // progress,, we don't insert any new item but processes can still read the
-  // cache. Reading from cache can create/remove .lock file which can cause the
-  // exception.
+  auto CollectFileAccessTime = [&FilesWithAccessTime](const std::string File) {
+    if (File.find("_access_time.txt") != std::string::npos) {
+      std::ifstream FileStream{File};
+      uint64_t AccessTime;
+      FileStream >> AccessTime;
+      FilesWithAccessTime.push_back({AccessTime, File});
+    }
+  };
+
+  // fileTreeWalk can throw if any new file is created or removed during the
+  // iteration. Retry in that case. When eviction is in progress, we don't
+  // insert any new item but processes can still read the cache. Reading from
+  // cache can create/remove .lock file which can cause the exception.
   while (true) {
     try {
-      FilesWithAccessTime = getFilesWithLastModificationTime(CacheRoot, false);
+      fileTreeWalk(CacheRoot, CollectFileAccessTime);
       break;
     } catch (...) {
+      FilesWithAccessTime.clear();
       // If the cache directory is removed during the iteration, retry.
       continue;
     }
@@ -272,14 +300,8 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   size_t CurrCacheSize = CacheSize;
   for (const auto &File : FilesWithAccessTime) {
 
-    // Remove .bin/.src/.lock extension from the file name.
-    auto ExtLoc = File.second.find_last_of(".");
-    const std::string FileNameWOExt = File.second.substr(0, ExtLoc);
-    const std::string Extension = File.second.substr(ExtLoc);
-
-    if (Extension != ".bin")
-      continue;
-
+    int pos = File.second.find("_access_time.txt");
+    const std::string FileNameWOExt = File.second.substr(0, pos);
     const std::string BinFile = FileNameWOExt + ".bin";
     const std::string SrcFile = FileNameWOExt + ".src";
 
@@ -404,10 +426,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const ur_program_handle_t &NativePrg) {
 
-#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
-  InstrumentCache Instrument{"putItemToDisc: "};
-#endif
-
   if (!areImagesCacheable(Imgs))
     return;
 
@@ -451,6 +469,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
         // Update Total cache size after adding the new items.
         TotalSize += getFileSize(FileName + ".src");
         TotalSize += getFileSize(FileName + ".bin");
+
+        saveCurrentTimeInAFile(FileName + "_access_time.txt");
       } else {
         PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
       }
@@ -466,12 +486,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
   }
 
   // Update the cache size file and trigger cache eviction if needed.
-  if (TotalSize) {
-#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
-    InstrumentCache Instrument{"Eviction: "};
-#endif
+  if (TotalSize)
     updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
-  }
 }
 
 void PersistentDeviceCodeCache::putCompiledKernelToDisc(
@@ -523,10 +539,6 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
   if (!areImagesCacheable(Imgs))
     return {};
 
-#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
-  InstrumentCache Instrument{"getItemFromDisc: "};
-#endif
-
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   std::vector<std::vector<char>> Binaries(Devices.size());
   std::string FileNames;
@@ -552,12 +564,8 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
 
           // Explicitly update the access time of the file. This is required for
           // eviction.
-          if (isEvictionEnabled()) {
-#ifdef __SYCL_INSTRUMENT_PERSISTENT_CACHE
-            InstrumentCache Instrument{"Updating file access time: "};
-#endif
-            updateFileModificationTime(FileName + ".bin");
-          }
+          if (isEvictionEnabled())
+            saveCurrentTimeInAFile(FileName + "_access_time.txt");
 
           FileNames += FullFileName + ";";
           break;

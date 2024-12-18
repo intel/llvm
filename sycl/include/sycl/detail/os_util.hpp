@@ -12,10 +12,10 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdlib>    // for size_t
+#include <cstdlib> // for size_t
+#include <functional>
 #include <string>     // for string
 #include <sys/stat.h> // for stat
-#include <vector>     // for vector
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -100,12 +100,10 @@ size_t getDirectorySize(const std::string &Path, bool ignoreError);
 // Get size of file in bytes.
 size_t getFileSize(const std::string &Path);
 
-// Get list of all files in the directory along with its last modification time.
-std::vector<std::pair<uint64_t, std::string>>
-getFilesWithLastModificationTime(const std::string &Path, bool ignoreError);
-
-// Function to update file modification time with current time.
-void updateFileModificationTime(const std::string &Path);
+// Function to recursively iterate over the directory and execute
+// 'Func' on each regular file.
+void fileTreeWalk(const std::string Path,
+                  std::function<void(const std::string)> Func);
 
 } // namespace detail
 } // namespace _V1
