@@ -9,6 +9,7 @@
 
 // XFAIL: !igc-dev
 // XFAIL-TRACKER: GSD-6376
+// REQUIRES-INTEL-DRIVER: lin: 30049
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

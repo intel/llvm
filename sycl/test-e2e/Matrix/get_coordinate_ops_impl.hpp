@@ -136,7 +136,7 @@ void test_get_coord_op() {
   matrix_sum<T, TResult, Rows, Cols, SROWS, SCOLS, Use, Layout, VF>(
       MM, sum_rows, sum_cols);
 
-  // This condition check can be removed once the IGC PR resolving the Matrix B 
+  // This condition check can be removed once the IGC PR resolving the Matrix B
   // row coordinate bug is pull downed to the driver.
   if (Use != use::b) {
     for (int i = 0; i < Rows; i++) {
