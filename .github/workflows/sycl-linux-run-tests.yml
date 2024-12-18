@@ -60,17 +60,26 @@ on:
         required: False
 
       e2e_binaries_artifact:
+        description: |
+          By setting this the E2E binaries folder will not be created, rather it
+          will be downloaded and extracted from the specified artifact. When
+          running tests in `run-only` mode this must be provided.
         type: string
         default: ''
         required: False
       e2e_testing_mode:
+        description: |
+          Testing mode to run E2E tests in, can be either `full`, `build-only`
+          or `run-only`. In `build-only` mode an artifact of the E2E binaries
+          will be uploaded.
         type: string
         default: 'full'
       artifact_suffix:
+        description: 'Suffix for E2E binaries artifact that is output when in `build-only`.'
         type: string
         default: 'default'
       retention-days:
-        description: 'E2E binaries artifact retention period'
+        description: 'E2E binaries artifact retention period.'
         type: string
         default: 1
 
