@@ -245,9 +245,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 and test.config.fallback_build_run_only
             )
             if not ignore_line_filtering and (
-                (is_run_line and test.config.test_mode == "build-only") or
-                (not is_run_line and test.config.test_mode == "run-only")
-                ):
+                (is_run_line and test.config.test_mode == "build-only")
+                or (not is_run_line and test.config.test_mode == "run-only")
+            ):
                 directive.command = ""
 
             if "%{run}" not in directive.command:
