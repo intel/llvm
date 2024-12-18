@@ -4,6 +4,7 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl -fsycl-targets=%{sycl_triple} --offload-new-driver %t1.o %t2.o -o %t.exe
 // RUN: %{run} %t.exe
 // XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
 
 #ifdef SOURCE1
 #include <iostream>

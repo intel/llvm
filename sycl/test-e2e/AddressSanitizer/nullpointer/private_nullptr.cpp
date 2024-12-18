@@ -8,6 +8,7 @@
 
 // FIXME: There's an issue in gfx driver, so this test pending here.
 // XFAIL: *
+// XFAIL-TRACKER: GSD-9911
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>

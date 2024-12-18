@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 //
 // XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
 // UNSUPPORTED: hip
 
 // Windows doesn't yet have full shutdown().

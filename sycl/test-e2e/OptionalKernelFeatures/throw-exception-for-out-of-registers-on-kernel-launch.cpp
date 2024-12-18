@@ -2,6 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: *
+// XFAIL-TRACKER: CMPLRTST-24904
 
 #include <numeric>
 #include <string_view>

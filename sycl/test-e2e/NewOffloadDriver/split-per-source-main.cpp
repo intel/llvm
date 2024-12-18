@@ -2,7 +2,8 @@
 // RUN: --offload-new-driver -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 //
-// XFAIL: hip_nvidia, cuda
+// XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
 
 #include "Inputs/split-per-source.h"
 
