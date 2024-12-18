@@ -85,6 +85,9 @@ struct KernelInfo {
     ur_kernel_handle_t Handle;
     std::atomic<int32_t> RefCount = 1;
 
+    // sanitized kernel
+    bool IsInstrumented = false;
+
     // lock this mutex if following fields are accessed
     ur_shared_mutex Mutex;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
@@ -94,7 +97,8 @@ struct KernelInfo {
     // Need preserve the order of local arguments
     std::map<uint32_t, LocalArgsInfo> LocalArgs;
 
-    explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
+    explicit KernelInfo(ur_kernel_handle_t Kernel, bool IsInstrumented)
+        : Handle(Kernel), IsInstrumented(IsInstrumented) {
         [[maybe_unused]] auto Result =
             getContext()->urDdiTable.Kernel.pfnRetain(Kernel);
         assert(Result == UR_RESULT_SUCCESS);
@@ -348,10 +352,8 @@ class AsanInterceptor {
 
     std::shared_ptr<KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {
         std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-        if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
-            return m_KernelMap[Kernel];
-        }
-        return nullptr;
+        assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
+        return m_KernelMap[Kernel];
     }
 
     const AsanOptions &getOptions() { return m_Options; }
