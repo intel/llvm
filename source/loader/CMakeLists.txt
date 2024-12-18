@@ -189,7 +189,7 @@ if(UR_ENABLE_SANITIZER)
             if(NOT EXISTS ${LIBCXX_PATH} OR NOT EXISTS ${LIBCXX_ABI_PATH})
                 message(FATAL_ERROR "libc++ is required but can't find the libraries")
             endif()
-            target_link_libraries(ur_loader PRIVATE ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
+            target_link_libraries(ur_loader PRIVATE gcc_s ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
         endif()
     endif()
 
