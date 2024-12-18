@@ -1,4 +1,4 @@
-/ This test is intended to ensure that we have no tests marked as XFAIL
+// This test is intended to ensure that we have no tests marked as XFAIL
 // without a tracker information added to a test.
 // For more info see: sycl/test-e2e/README.md
 //
@@ -52,4 +52,3 @@
 // (i.e. reduce) the number and the list below.
 //
 // NUMBER-OF-XFAIL-WITHOUT-TRACKER: 0
-//
