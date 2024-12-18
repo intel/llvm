@@ -1,4 +1,4 @@
-// This test is intended to ensure that we have no tests marked as XFAIL
+/ This test is intended to ensure that we have no tests marked as XFAIL
 // without a tracker information added to a test.
 // For more info see: sycl/test-e2e/README.md
 //
@@ -51,26 +51,5 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 18
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 0
 //
-// List of improperly XFAIL-ed tests.
-// Remove the CHECK once the test has been properly XFAIL-ed.
-//
-// CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
-// CHECK-NEXT: Basic/max_linear_work_group_size_props.cpp
-// CHECK-NEXT: Basic/max_work_group_size_props.cpp
-// CHECK-NEXT: DeviceLib/assert-windows.cpp
-// CHECK-NEXT: ESIMD/hardware_dispatch.cpp
-// CHECK-NEXT: InlineAsm/asm_multiple_instructions.cpp
-// CHECK-NEXT: NewOffloadDriver/multisource.cpp
-// CHECK-NEXT: NewOffloadDriver/split-per-source-main.cpp
-// CHECK-NEXT: NewOffloadDriver/sycl-external-with-optional-features.cpp
-// CHECK-NEXT: OptionalKernelFeatures/throw-exception-for-out-of-registers-on-kernel-launch.cpp
-// CHECK-NEXT: PerformanceTests/Reduction/reduce_over_sub_group.cpp
-// CHECK-NEXT: Reduction/reduction_big_data.cpp
-// CHECK-NEXT: Reduction/reduction_nd_reducer_skip.cpp
-// CHECK-NEXT: Reduction/reduction_reducer_op_eq.cpp
-// CHECK-NEXT: Regression/build_log.cpp
-// CHECK-NEXT: Regression/complex_global_object.cpp
-// CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
-// CHECK-NEXT: Regression/reduction_resource_leak_dw.cpp
