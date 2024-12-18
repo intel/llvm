@@ -14,7 +14,7 @@ using namespace sycl;
 int main() {
   queue Q;
 
-  int **Out = malloc_shared<int *>(4, Q);
+  int **Out = malloc_shared<int *>(2, Q);
 
   Q.submit([&](handler &Cgh) {
     Cgh.parallel_for(nd_range<1>({1}, {1}), [=](nd_item<1> Item) {
