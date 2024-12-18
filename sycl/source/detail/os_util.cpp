@@ -311,7 +311,7 @@ void fileTreeWalk(const std::string Path,
 }
 
 // Get size of a directory in bytes.
-size_t getDirectorySize(const std::string &Path, bool IgnoreError = false) {
+size_t getDirectorySize(const std::string &Path) {
   size_t DirSizeVar = 0;
 
   auto CollectFIleSize = [&DirSizeVar](const std::string Path) {

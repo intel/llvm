@@ -95,7 +95,7 @@ public:
 // exporting them as ABI. They are only used in persistent cache
 // implementation and should not be exposed to the end users.
 // Get size of directory in bytes.
-size_t getDirectorySize(const std::string &Path, bool ignoreError);
+size_t getDirectorySize(const std::string &Path);
 
 // Get size of file in bytes.
 size_t getFileSize(const std::string &Path);

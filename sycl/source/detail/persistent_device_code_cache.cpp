@@ -233,7 +233,7 @@ void PersistentDeviceCodeCache::repopulateCacheSizeFile(
         // Calculate the size of the cache directory.
         // During directory size calculation, do not add anything
         // in the cache. Otherwise, we'll get a std::fs_error.
-        size_t CacheSize = getDirectorySize(CacheRoot, true);
+        size_t CacheSize = getDirectorySize(CacheRoot);
 
         std::ofstream FileStream{CacheSizeFile};
         FileStream << CacheSize;
