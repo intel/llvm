@@ -452,11 +452,9 @@ ur_result_t urProgramLinkExp(
       // Build flags may be different for different devices, so handle them
       // here. Clear values of the previous device first.
       BuildFlagPtrs.clear();
-      std::vector<std::string> TemporaryOptionsStrings;
       for (uint32_t I = 0; I < count; I++) {
-        TemporaryOptionsStrings.push_back(
-            phPrograms[I]->getBuildOptions(ZeDevice));
-        BuildFlagPtrs.push_back(TemporaryOptionsStrings.back().c_str());
+        BuildFlagPtrs.push_back(
+            phPrograms[I]->getBuildOptions(ZeDevice).c_str());
       }
       ZeExtModuleDesc.pBuildFlags = BuildFlagPtrs.data();
       if (count == 1)
