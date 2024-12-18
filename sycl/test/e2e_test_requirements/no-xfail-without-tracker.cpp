@@ -51,9 +51,4 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 1
-//
-// List of improperly XFAIL-ed tests.
-// Remove the CHECK once the test has been properly XFAIL-ed.
-//
-// CHECK: ESIMD/hardware_dispatch.cpp
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 0
