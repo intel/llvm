@@ -631,11 +631,7 @@ protected:
 
     /// Prepare a command to cleanup
     void commandToCleanup(Command *NewCmd, Command *DepCommand,
-                          MemObjRecord *Record,
                           std::vector<Command *> &ToEnqueue);
-
-    void commandToCleanup(Command *DepCommand,
-                          std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command

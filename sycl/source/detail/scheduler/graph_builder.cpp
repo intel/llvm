@@ -128,7 +128,10 @@ Scheduler::GraphBuilder::GraphBuilder() {
     if (ConnectionCmd)
       ToEnqueue.push_back(ConnectionCmd);
 
+    unsigned old = Dependency->MLeafCounter;
     --(Dependency->MLeafCounter);
+    assert(old > Dependency->MLeafCounter &&
+           "Leaf counter should be decremented");
     if (Dependency->readyForCleanup())
       ToCleanUp.push_back(Dependency);
     for (Command *Cmd : ToCleanUp)
@@ -258,12 +261,16 @@ void Scheduler::GraphBuilder::updateLeaves(
       }
     }
     if (detectDuplicates(Cmd, DependentCmdsOfNewCmd))
-      commandToCleanup(NewCmd, Cmd, Record, ToEnqueue);
+      commandToCleanup(NewCmd, Cmd, ToEnqueue);
+#if 0
+    // CGType::CopyAccToAcc implementation requires that dependent command is
+    // not a cleanup subject. So disable this code for now.
 
     // For in-order queue, we may cleanup all dependent command from our queue
     if (Queue && Queue->isInOrder() && Cmd->getQueue() == Queue &&
         Cmd->isCleanupSubject())
-      commandToCleanup(NewCmd, Cmd, Record, ToEnqueue);
+      commandToCleanup(NewCmd, Cmd, ToEnqueue);
+#endif
   }
 }
 
@@ -292,30 +299,15 @@ bool Scheduler::GraphBuilder::detectDuplicates(
 }
 
 void Scheduler::GraphBuilder::commandToCleanup(
-    Command *NewCmd, Command *DepCommand, MemObjRecord *Record,
-    std::vector<Command *> &ToEnqueue) {
-  // must remove DepCommand from leaves of all mem objects it depends on before
-  // AllocateDependency call
+    Command *NewCmd, Command *DepCommand, std::vector<Command *> &ToEnqueue) {
   for (const DepDesc &DepOfDep : DepCommand->MDeps) {
     MemObjRecord *Record =
         getMemObjRecord(DepOfDep.MDepRequirement->MSYCLMemObj);
-    DepCommand->MLeafCounter -= Record->MReadLeaves.remove(DepCommand);
-    DepCommand->MLeafCounter -= Record->MWriteLeaves.remove(DepCommand);
+    if (Record->MReadLeaves.remove(DepCommand))
+      MAllocateDependency(NewCmd, DepCommand, Record, ToEnqueue);
+    if (Record->MWriteLeaves.remove(DepCommand))
+      MAllocateDependency(NewCmd, DepCommand, Record, ToEnqueue);
   }
-  MAllocateDependency(NewCmd, DepCommand, Record, ToEnqueue);
-}
-
-void Scheduler::GraphBuilder::commandToCleanup(
-    Command *DepCommand, std::vector<Command *> &ToCleanUp) {
-  for (const DepDesc &DepOfDep : DepCommand->MDeps) {
-    MemObjRecord *Record =
-        getMemObjRecord(DepOfDep.MDepRequirement->MSYCLMemObj);
-    DepCommand->MLeafCounter -= Record->MReadLeaves.remove(DepCommand);
-    DepCommand->MLeafCounter -= Record->MWriteLeaves.remove(DepCommand);
-  }
-  assert(!DepCommand->MLeafCounter &&
-         "A command before cleanup must have no leaves.");
-  ToCleanUp.push_back(DepCommand);
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
@@ -1097,7 +1089,7 @@ Command *Scheduler::GraphBuilder::addCG(
     // already covered by NewCmd, can move the command in ToCleanUp
     if (auto *Cmd = static_cast<Command *>(e->getCommand()))
       if (detectDuplicates(Cmd, DependentCmdsOfNewCmd))
-        commandToCleanup(Cmd, ToCleanUp);
+        commandToCleanup(NewCmd.get(), Cmd, ToEnqueue);
   }
 
   if (MPrintOptionsArray[AfterAddCG])
@@ -1423,7 +1415,7 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     // already covered by NewCmd, can move the cmd in ToCleanUp
     if (auto *Cmd = static_cast<Command *>(e->getCommand()))
       if (detectDuplicates(Cmd, DependentCmdsOfNewCmd))
-        commandToCleanup(Cmd, ToCleanUp);
+        commandToCleanup(NewCmd.get(), Cmd, ToEnqueue);
   }
 
   if (MPrintOptionsArray[AfterAddCG])
