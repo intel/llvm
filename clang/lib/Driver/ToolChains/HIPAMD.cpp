@@ -247,7 +247,7 @@ void HIPAMDToolChain::addClangTargetOptions(
           DeviceOffloadingKind == Action::OFK_SYCL) &&
          "Only HIP and SYCL offloading kinds are supported for GPUs.");
 
-  CC1Args.push_back("-fcuda-is-device");
+  CC1Args.append({"-fcuda-is-device", "-fno-threadsafe-statics"});
 
   if (!DriverArgs.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                           false))

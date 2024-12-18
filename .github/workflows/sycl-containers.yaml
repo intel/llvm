@@ -55,6 +55,10 @@ jobs:
             file: ubuntu2204_intel_drivers
             tag: latest
             build_args: "use_latest=false"
+          - name: Intel Drivers Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
+            tag: latest
+            build_args: "use_latest=false"
           - name: Intel Drivers (unstable) Ubuntu 24.04 Docker image
             file: ubuntu2404_intel_drivers
             tag: unstable
@@ -78,6 +82,7 @@ jobs:
           file: ${{ matrix.file }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          sycl_ci_passwd: ${{ secrets.DOCKER_SUDO_PASSWORD }}
           tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
