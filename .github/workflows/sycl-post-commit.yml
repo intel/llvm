@@ -36,7 +36,7 @@ jobs:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: icx
       build_artifact_suffix: default
-      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON" --cmake-opt="-DCOMPILER_RT_BUILD_SANITIZERS=Off" --cmake-opt="-DCOMPILER_RT_BUILD_MEMPROF=Off"
+      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt=-DSYCL_ENABLE_STACK_PRINTING=ON --cmake-opt=-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON --cmake-opt=-DCOMPILER_RT_BUILD_SANITIZERS=Off --cmake-opt=-DCOMPILER_RT_BUILD_MEMPROF=Off
       merge_ref: ''
       cc: icx
       cxx: icpx
