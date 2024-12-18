@@ -760,7 +760,6 @@ public:
         TlsCodeLocCapture.query());
   }
 
-
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
   /// to be available.

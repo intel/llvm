@@ -181,7 +181,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         substitutions.append(
             (
                 "%{build}",
-                "%clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%{sycl_triple} %verbose_print %s",
+                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s",
             )
         )
         if platform.system() == "Windows":
