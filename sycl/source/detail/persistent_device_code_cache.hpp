@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <chrono>
 #include <detail/config.hpp>
 #include <detail/device_binary_image.hpp>
 #include <fcntl.h>
@@ -236,6 +235,13 @@ private:
   static bool isEvictionEnabled() {
     return SYCLConfig<SYCL_CACHE_MAX_SIZE>::isPersistentCacheEvictionEnabled();
   }
+
+  // Suffix for access time file. Every cache entry will have one.
+  static inline std::string CacheEntryAccessTimeSuffix = "_access_time.txt";
+  // Suffix for eviction in progress file. It is created when eviction is
+  // triggered and removed when eviction is done.
+  static inline std::string EvictionInProgressFileSuffix =
+      "_eviction_in_progress";
 };
 } // namespace detail
 } // namespace _V1

@@ -10,7 +10,6 @@
 #include <sycl/exception.hpp>
 
 #include <cassert>
-#include <iostream>
 #include <limits>
 
 // For GCC versions less than 8, use experimental/filesystem.
@@ -51,7 +50,6 @@ namespace fs = std::experimental::filesystem;
 #elif defined(__SYCL_RT_OS_DARWIN)
 
 #include <dlfcn.h>
-#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/types.h>
 

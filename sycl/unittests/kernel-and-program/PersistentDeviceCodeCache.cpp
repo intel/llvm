@@ -559,24 +559,14 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
 
   std::string BuildOptions{"--eviction"};
   // Put 3 items to the cache.
-  // On Windows, for NTFS, the file timestamp resolution is 100ns,
-  // but on Linux, for EXT4, the file timestamp resolution is few milliseconds.
-  // So, to make this test deterministic, we need to sleep for a while,
-  // say 20ms, between each putItemToDisc/getItemFromDisc call.
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
   // Retrieve 0.bin from the cache.
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(

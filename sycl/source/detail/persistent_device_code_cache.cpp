@@ -12,11 +12,10 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <optional>
-
-#include <time.h>
 
 #if defined(__SYCL_RT_OS_POSIX_SUPPORT)
 #include <unistd.h>
@@ -252,7 +251,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   // Create a file eviction_in_progress.lock to indicate that eviction is in
   // progress. This file is used to prevent two processes from evicting the
   // cache at the same time.
-  LockCacheItem Lock{CacheRoot + "/eviction_in_progress"};
+  LockCacheItem Lock{CacheRoot + EvictionInProgressFileSuffix};
   if (!Lock.isOwned()) {
     // If some other process is evicting the cache, return.
     PersistentDeviceCodeCache::trace(
@@ -265,7 +264,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   std::vector<std::pair<uint64_t, std::string>> FilesWithAccessTime;
 
   auto CollectFileAccessTime = [&FilesWithAccessTime](const std::string File) {
-    if (File.find("_access_time.txt") != std::string::npos) {
+    if (File.find(CacheEntryAccessTimeSuffix) != std::string::npos) {
       std::ifstream FileStream{File};
       uint64_t AccessTime;
       FileStream >> AccessTime;
@@ -300,7 +299,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   size_t CurrCacheSize = CacheSize;
   for (const auto &File : FilesWithAccessTime) {
 
-    int pos = File.second.find("_access_time.txt");
+    int pos = File.second.find(CacheEntryAccessTimeSuffix);
     const std::string FileNameWOExt = File.second.substr(0, pos);
     const std::string BinFile = FileNameWOExt + ".bin";
     const std::string SrcFile = FileNameWOExt + ".src";
@@ -434,7 +433,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
   // Do not insert any new item if eviction is in progress.
   // Since evictions are rare, we can afford to spin lock here.
   const std::string EvictionInProgressFile =
-      getRootDir() + "/eviction_in_progress.lock";
+      getRootDir() + EvictionInProgressFileSuffix;
   // Stall until the other process finishes eviction.
   while (OSUtil::isPathPresent(EvictionInProgressFile))
     continue;
@@ -470,7 +469,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
         TotalSize += getFileSize(FileName + ".src");
         TotalSize += getFileSize(FileName + ".bin");
 
-        saveCurrentTimeInAFile(FileName + "_access_time.txt");
+        saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
       } else {
         PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
       }
@@ -565,7 +564,7 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
           // Explicitly update the access time of the file. This is required for
           // eviction.
           if (isEvictionEnabled())
-            saveCurrentTimeInAFile(FileName + "_access_time.txt");
+            saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
 
           FileNames += FullFileName + ";";
           break;
