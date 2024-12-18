@@ -116,9 +116,9 @@ static bool inlineGroupLocalMemoryFunc(Module &M) {
         assert(Result.isSuccess() && "inlining failed");
       }
     }
+    if (F != ALMFunc)
+      F->eraseFromParent();
   }
-  for (auto *F : Visited)
-    F->eraseFromParent();
 
   return !Visited.empty();
 }
