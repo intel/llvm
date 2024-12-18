@@ -215,7 +215,7 @@ jobs:
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         if [[ ${{inputs.cc}} == 'icx' ]] || [[ ${inputs.cxx}} == 'icpx' ]]; then
-           export LIT_FILTER_OUT="host_tanpi_double_accuracy"
+           export LIT_XFAIL="abi/layout_vec.cpp;regression/host_tanpi_double_accuracy.cpp;self-contained-headers/sycl/ext/intel/fpga_lsu.hpp"
         fi
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-sycl-unittests

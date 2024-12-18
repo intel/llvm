@@ -62,6 +62,9 @@ on:
       reset_intel_gpu:
         type: string
         required: False
+      is_icx:
+        type: string
+        default: 'false'
       install_igc_driver:
         type: string
         required: False
@@ -189,6 +192,7 @@ jobs:
       if: inputs.tests_selector == 'cts'
       run: |
         git -C khronos_sycl_cts submodule update --init
+ 
     - name: Install drivers
       if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
@@ -199,6 +203,21 @@ jobs:
             sudo apt-get install -yqq libllvm14 || true;
         fi
         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+    - name: Setup oneAPI env
+      if: ${{ inputs.is_icx == 'true' }}
+      run: |
+         env_before=$(env | sort)
+         
+         source /opt/intel/oneapi/setvars.sh
+
+         env_after=$(env | sort)
+
+         changed_envvars=$(comm -13 <(echo "$env_before") <(echo "$env_after"))
+
+         while IFS= read -r line; do
+           echo "$line" >> $GITHUB_ENV
+         done <<< "$changed_envvars"
+    
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
