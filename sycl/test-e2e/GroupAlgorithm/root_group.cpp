@@ -60,6 +60,34 @@ void testQueriesAndProperties() {
   check_max_num_work_group_sync(maxWGsWithLimits);
 }
 
+template <typename T> struct TestKernel1 {
+  T &m_data;
+  TestKernel1(T &data_) : m_data(data_) {}
+  void operator()(sycl::nd_item<1> it) const {
+    volatile float X = 1.0f;
+    volatile float Y = 1.0f;
+    auto root = it.ext_oneapi_get_root_group();
+    m_data[root.get_local_id()] = root.get_local_id();
+    sycl::group_barrier(root);
+    // Delay half of the workgroups with extra work to check that the barrier
+    // synchronizes the whole device.
+    if (it.get_group(0) % 2 == 0) {
+      X += sycl::sin(X);
+      Y += sycl::cos(Y);
+    }
+    root = sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
+    int sum = m_data[root.get_local_id()] +
+              m_data[root.get_local_range() - root.get_local_id() - 1];
+    sycl::group_barrier(root);
+    m_data[root.get_local_id()] = sum;
+  }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::use_root_sync};
+    ;
+  }
+};
+
 void testRootGroup() {
   sycl::queue q;
   const auto bundle =
@@ -70,32 +98,11 @@ void testRootGroup() {
           .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
                                    kernel_queue_specific::max_num_work_groups>(
               q, WorkGroupSize, 0);
-  const auto props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
     sycl::accessor data{dataBuf, h};
-    h.parallel_for<
-        class RootGroupKernel>(range, props, [=](sycl::nd_item<1> it) {
-      volatile float X = 1.0f;
-      volatile float Y = 1.0f;
-      auto root = it.ext_oneapi_get_root_group();
-      data[root.get_local_id()] = root.get_local_id();
-      sycl::group_barrier(root);
-      // Delay half of the workgroups with extra work to check that the barrier
-      // synchronizes the whole device.
-      if (it.get_group(0) % 2 == 0) {
-        X += sycl::sin(X);
-        Y += sycl::cos(Y);
-      }
-      root =
-          sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
-      int sum = data[root.get_local_id()] +
-                data[root.get_local_range() - root.get_local_id() - 1];
-      sycl::group_barrier(root);
-      data[root.get_local_id()] = sum;
-    });
+    h.parallel_for<class RootGroupKernel>(range, TestKernel1(data));
   });
   sycl::host_accessor data{dataBuf};
   const int workItemCount = static_cast<int>(range.get_global_range().size());
@@ -104,9 +111,9 @@ void testRootGroup() {
   }
 }
 
-template <typename T> class RootGroupFunctionsKernel {
-public:
-  RootGroupFunctionsKernel(T &testResults_) : m_testResults(testResults_) {}
+template <typename T> struct TestKernel2 {
+  T m_testResults;
+  TestKernel2(T &testResults_) : m_testResults(testResults_) {}
   void operator()(sycl::nd_item<1> it) const {
     const auto root = it.ext_oneapi_get_root_group();
     if (root.leader() || root.get_local_id() == 3) {
@@ -128,9 +135,6 @@ public:
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::use_root_sync};
   }
-
-private:
-  T m_testResults;
 };
 
 void testRootGroupFunctions() {
@@ -149,7 +153,8 @@ void testRootGroupFunctions() {
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
     sycl::accessor testResults{testResultsBuf, h};
-    h.parallel_for(range, RootGroupFunctionsKernel(testResults));
+    h.parallel_for<class RootGroupFunctionsKernel>(range,
+                                                   TestKernel2(testResults));
   });
   sycl::host_accessor testResults{testResultsBuf};
   for (int i = 0; i < testCount; i++) {
