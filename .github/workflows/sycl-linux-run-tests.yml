@@ -63,7 +63,6 @@ on:
         type: string
         default: ''
         required: False
-
       e2e_testing_mode:
         type: string
         default: 'full'
@@ -408,10 +407,10 @@ jobs:
         grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
         exit $ret
-    - name: Pack e2e binaries
+    - name: Pack E2E binaries
       if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
       run: tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
-    - name: Upload e2e binaries
+    - name: Upload E2E binaries
       if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
       uses: actions/upload-artifact@v4
       with:
