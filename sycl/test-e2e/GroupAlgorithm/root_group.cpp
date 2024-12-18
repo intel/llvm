@@ -104,9 +104,9 @@ void testRootGroup() {
   }
 }
 
-template <typename T> struct TestKernel2 {
+template <typename T> struct RootGroupFunctionsKernel {
   T m_testResults;
-  TestKernel2(T &testResults_) : m_testResults(testResults_) {}
+  RootGroupFunctionsKernel(T &testResults_) : m_testResults(testResults_) {}
   void operator()(sycl::nd_item<1> it) const {
     const auto root = it.ext_oneapi_get_root_group();
     if (root.leader() || root.get_local_id() == 3) {
@@ -146,8 +146,7 @@ void testRootGroupFunctions() {
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
     sycl::accessor testResults{testResultsBuf, h};
-    h.parallel_for<class RootGroupFunctionsKernel>(range,
-                                                   TestKernel2(testResults));
+    h.parallel_for(range, RootGroupFunctionsKernel(testResults));
   });
   sycl::host_accessor testResults{testResultsBuf};
   for (int i = 0; i < testCount; i++) {
