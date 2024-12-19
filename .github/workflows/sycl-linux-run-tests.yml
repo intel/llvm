@@ -211,7 +211,7 @@ jobs:
          | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
          sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
          | sudo tee /etc/apt/sources.list.d/oneAPI.list && \
-         sudo apt update && sudo apt-get install intel-oneapi-compiler-dpcpp-cpp 
+         sudo apt update && sudo apt-get -y install intel-oneapi-compiler-dpcpp-cpp 
          env_before=$(env | sort)
          
          source /opt/intel/oneapi/setvars.sh
