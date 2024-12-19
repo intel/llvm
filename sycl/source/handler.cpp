@@ -424,9 +424,9 @@ event handler::finalize() {
       CommandGroup.reset(new detail::CG(detail::CGType::Barrier,
                                         std::move(impl->CGData), MCodeLoc));
     } else {
-      CommandGroup.reset(
-          new detail::CGBarrier(std::move(impl->MEventsWaitWithBarrier),
-                                std::move(impl->CGData), getType(), MCodeLoc));
+      CommandGroup.reset(new detail::CGBarrier(
+          std::move(impl->MEventsWaitWithBarrier), impl->MEventMode,
+          std::move(impl->CGData), getType(), MCodeLoc));
     }
     break;
   }
@@ -543,11 +543,10 @@ event handler::finalize() {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
-      auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
           Deps;
-      if (DependentNode) {
-        Deps.push_back(DependentNode);
+      if (auto DependentNode = GraphImpl->getLastInorderNode(MQueue)) {
+        Deps.push_back(std::move(DependentNode));
       }
       NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
@@ -571,7 +570,7 @@ event handler::finalize() {
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, NodeImpl);
+    GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -2052,12 +2051,16 @@ void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
   setType(detail::CGType::CodeplayHostTask);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: This function is not used anymore, remove it in the next
+// ABI-breaking window.
 void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
   // Add accessor to the list of requirements.
   impl->CGData.MRequirements.push_back(Accessor.get());
   // Store copy of the accessor.
   impl->CGData.MAccStorage.push_back(std::move(Accessor));
 }
+#endif
 
 void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));

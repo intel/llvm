@@ -50,7 +50,10 @@ The following containers are publicly available for DPC++ compiler development:
    development kits for NVidia/AMD from the `ubuntu2204_build` container.
 - `ghcr.io/intel/llvm/ubuntu2404_intel_drivers`: contains everything from the
    Ubuntu 24.04 base container + pre-installed Intel drivers.
-   The image comes in two flavors/tags:
+   The image comes in three flavors/tags:
+   * `latest`: Intel drivers are downloaded from release/tag and saved in
+    dependencies.json. The drivers are tested/validated everytime we upgrade
+    the driver.
    * `devigc`: Intel Graphics Compiler driver from github actions artifacts,
    other drivers are downloaded from release/tag and saved in dependencies.json.
    * `unstable`: Intel drivers are downloaded from release/latest.
@@ -140,10 +143,22 @@ instructions.
 
 ## Changing Docker user
 
-By default all processes inside Docker run as root. Some LLVM or Clang tests
-expect your user to be anything but root. You can change the user by specifying
-`-u <username or uid>` option. All Docker containers come with user `sycl`
-created.
+By default all processes within our containers are run as the `sycl_ci` user.
+Note: it **does not** have password-less `root` access.
+
+If you want to change the user, you can do that by specifying the
+`-u <username or uid>` option when running the container.
+
+All containers come with the `/user-setup.sh` script which can used to create
+the `sycl` user which has all the same groups as the `sycl_ci` user, but also
+has password-less access to `root`. Use the script as follows:
+
+```bash
+# Note: the script requires root permissions to create a new user
+/user-setup.sh --regular
+# Switch to the newly created user
+su - sycl
+```
 
 ## Managing downloaded Docker images
 

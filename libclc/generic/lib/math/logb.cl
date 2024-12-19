@@ -1,7 +1,7 @@
 #include "math.h"
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF float logb(float x) {
     return __spirv_ocl_logb(x);

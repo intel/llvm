@@ -15,6 +15,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-4181
 
 #include "../common.hpp"
 

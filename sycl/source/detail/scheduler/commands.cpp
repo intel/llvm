@@ -59,7 +59,7 @@ namespace detail {
 template <typename MemOpFuncT, typename... MemOpArgTs>
 ur_result_t callMemOpHelper(MemOpFuncT &MemOpFunc, MemOpArgTs &&...MemOpArgs) {
   try {
-    MemOpFunc(MemOpArgs...);
+    MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...);
   } catch (sycl::exception &e) {
     return static_cast<ur_result_t>(get_ur_error(e));
   }
@@ -70,7 +70,7 @@ template <typename MemOpRet, typename MemOpFuncT, typename... MemOpArgTs>
 ur_result_t callMemOpHelperRet(MemOpRet &MemOpResult, MemOpFuncT &MemOpFunc,
                                MemOpArgTs &&...MemOpArgs) {
   try {
-    MemOpResult = MemOpFunc(MemOpArgs...);
+    MemOpResult = MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...);
   } catch (sycl::exception &e) {
     return static_cast<ur_result_t>(get_ur_error(e));
   }
@@ -285,8 +285,9 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
 // solution for the issue that barrier with wait list could not
 // handle empty ur event handles when kernel is enqueued on host task
 // completion.
-std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
-    const std::vector<EventImplPtr> &EventImpls) const {
+std::vector<ur_event_handle_t>
+Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
+                             bool HasEventMode) const {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     // Throwaway events created with empty constructor will not have a context
@@ -313,7 +314,11 @@ std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (MWorkerQueue && EventImpl->getWorkerQueue() == MWorkerQueue &&
+    // If the resulting event is supposed to have a specific event mode,
+    // redundant events may still differ from the resulting event, so they are
+    // kept.
+    if (!HasEventMode && MWorkerQueue &&
+        EventImpl->getWorkerQueue() == MWorkerQueue &&
         MWorkerQueue->isInOrder() && !isHostTask())
       continue;
 
@@ -956,7 +961,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
     MEvent->setEnqueued();
-    if (MShouldCompleteEventIfPossible &&
+    if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
 
@@ -2564,9 +2569,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   // they can simply be launched directly.
   if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
       KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    auto KernelName = CommandGroup.MKernelName;
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel_id KernelID = detail::ProgramManager::getInstance().getSYCLKernelID(
+        CommandGroup.MKernelName);
 
     kernel SyclKernel =
         KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
@@ -2770,8 +2774,8 @@ void enqueueImpKernel(
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
       ContextImpl->initializeDeviceGlobals(Program, Queue);
-  std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
+    std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
                                         DeviceGlobalInitEvents.size());
     EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
@@ -2779,7 +2783,7 @@ void enqueueImpKernel(
     EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
-    EventsWaitList = EventsWithDeviceGlobalInits;
+    EventsWaitList = std::move(EventsWithDeviceGlobalInits);
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;
@@ -2891,7 +2895,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
                                                        &RawEvents[0]);
   }
 
-  ur_exp_command_buffer_sync_point_t OutSyncPoint;
+  ur_exp_command_buffer_sync_point_t OutSyncPoint{};
   ur_exp_command_buffer_command_handle_t OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
   case CGType::Kernel: {
@@ -3075,6 +3079,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
   detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
 
+  auto SetEventHandleOrDiscard = [&]() {
+    if (Event)
+      MEvent->setHandle(*Event);
+    else
+      MEvent->setStateDiscarded();
+  };
+
   switch (MCommandGroup->getType()) {
 
   case CGType::UpdateHost: {
@@ -3209,8 +3220,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
@@ -3221,8 +3231,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
@@ -3233,8 +3242,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
@@ -3246,8 +3254,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Copy2DUSM: {
@@ -3259,8 +3266,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill2DUSM: {
@@ -3272,8 +3278,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Memset2DUSM: {
@@ -3285,8 +3290,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CodeplayHostTask: {
@@ -3426,37 +3430,59 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     MQueue->getAdapter()->call<UrApiKind::urEnqueueNativeCommandExp>(
         MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData, ReqMems.size(),
         ReqMems.data(), nullptr, RawEvents.size(), RawEvents.data(), Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::Barrier: {
     assert(MQueue && "Barrier submission should have an associated queue");
+    CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
+
+    // Create properties for the barrier.
+    ur_exp_enqueue_ext_properties_t Properties{};
+    Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
+    Properties.pNext = nullptr;
+    Properties.flags = 0;
+    if (Barrier->MEventMode ==
+        ext::oneapi::experimental::event_mode_enum::low_power)
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), 0, nullptr, Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        MQueue->getHandleRef(), &Properties, 0, nullptr, Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::BarrierWaitlist: {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<ur_event_handle_t> UrEvents = getUrEventsBlocking(Events);
+    bool HasEventMode =
+        Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
+    std::vector<ur_event_handle_t> UrEvents =
+        getUrEventsBlocking(Events, HasEventMode);
     if (UrEvents.empty()) {
       // If Events is empty, then the barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
+
+    // Create properties for the barrier.
+    ur_exp_enqueue_ext_properties_t Properties{};
+    Properties.stype = UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES;
+    Properties.pNext = nullptr;
+    Properties.flags = 0;
+    if (Barrier->MEventMode ==
+        ext::oneapi::experimental::event_mode_enum::low_power)
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), UrEvents.size(), &UrEvents[0], Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        MQueue->getHandleRef(), &Properties, UrEvents.size(), &UrEvents[0],
+        Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
@@ -3503,8 +3529,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Adapter->call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
     }
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyToDeviceGlobal: {
@@ -3517,8 +3542,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyFromDeviceGlobal: {
@@ -3532,8 +3556,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::ReadWriteHostPipe: {
@@ -3564,8 +3587,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                 CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
                 RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
                 Event);
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
 
     return Err;
   }
@@ -3581,8 +3603,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    if (Event)
-      MEvent->setHandle(*Event);
+    SetEventHandleOrDiscard();
 
     return UR_RESULT_SUCCESS;
   }
@@ -3620,6 +3641,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // we don't need to enqueue anything.
       return UR_RESULT_SUCCESS;
     }
+    assert(MQueue && "Empty node should have an associated queue");
     const detail::AdapterPtr &Adapter = MQueue->getAdapter();
     ur_event_handle_t Event;
     ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(

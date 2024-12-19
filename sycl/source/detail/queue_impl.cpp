@@ -308,8 +308,9 @@ void queue_impl::addEvent(const event &Event) {
       addSharedEvent(Event);
   }
   // As long as the queue supports urQueueFinish we only need to store events
-  // for unenqueued commands and host tasks.
-  else if (MEmulateOOO || EImpl->getHandle() == nullptr) {
+  // for undiscarded, unenqueued commands and host tasks.
+  else if (MEmulateOOO ||
+           (EImpl->getHandle() == nullptr && !EImpl->isDiscarded())) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -357,6 +358,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+  auto HandlerImpl = detail::getSyclObjImpl(Handler);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -367,12 +369,14 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = detail::getSyclObjImpl(Handler)->MCGType;
+  const CGType Type = HandlerImpl->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
+
+  HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
   if (SubmitInfo.PostProcessorFunc()) {
     auto &PostProcess = *SubmitInfo.PostProcessorFunc();
@@ -412,13 +416,24 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
-  return submit(
+  SubmissionInfo SI{};
+  if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+    submit_without_event(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          HandlerFunc(CGH);
+        },
+        Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+    return createDiscardedEvent();
+  }
+  return submit_with_event(
       [&](handler &CGH) {
         CGH.depends_on(DepEvents);
         HandlerFunc(CGH);
       },
-      Self, /*CodeLoc*/ {}, /*SubmissionInfo*/ {}, /*IsTopCodeLoc*/ true);
+      Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
@@ -446,7 +461,16 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
-        return createDiscardedEvent();
+
+        event DiscardedEvent = createDiscardedEvent();
+        if (isInOrder()) {
+          // Store the discarded event for proper in-order dependency tracking.
+          auto &EventToStoreIn = MGraph.expired()
+                                     ? MDefaultGraphDeps.LastEventPtr
+                                     : MExtGraphDeps.LastEventPtr;
+          EventToStoreIn = detail::getSyclObjImpl(DiscardedEvent);
+        }
+        return DiscardedEvent;
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
@@ -471,7 +495,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       return discard_or_return(ResEvent);
     }
   }
-  return submitWithHandler(Self, DepEvents, HandlerFunc);
+  return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,

@@ -1452,6 +1452,7 @@ static bool isSignedCharDefault(const llvm::Triple &Triple) {
     return false;
 
   case llvm::Triple::hexagon:
+  case llvm::Triple::msp430:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64le:
   case llvm::Triple::riscv32:
@@ -4639,6 +4640,8 @@ static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
 
   Args.addOptOutFlag(CmdArgs, options::OPT_fspell_checking,
                      options::OPT_fno_spell_checking);
+
+  Args.addLastArg(CmdArgs, options::OPT_warning_suppression_mappings_EQ);
 }
 
 DwarfFissionKind tools::getDebugFissionKind(const Driver &D,
@@ -5662,9 +5665,27 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-Wno-sycl-strict");
       }
 
-      // Set O2 optimization level by default
-      if (!Args.getLastArg(options::OPT_O_Group))
-        CmdArgs.push_back("-O2");
+      // If no optimization controlling flags (-O) are provided, check if
+      // any debug information flags(-g) are passed.
+      // "-fintelfpga" implies "-g" and we preserve the default optimization for
+      // this flow(-O2).
+      // if "-g" is explicitly passed from the command-line, set default
+      // optimization to -O0.
+
+      if (!Args.hasArgNoClaim(options::OPT_O_Group, options::OPT__SLASH_O)) {
+        StringRef OptLevel = "-O2";
+        const Arg *DebugInfoGroup = Args.getLastArg(options::OPT_g_Group);
+        // -fintelfpga -g case
+        if ((Args.hasArg(options::OPT_fintelfpga) &&
+             Args.hasMultipleArgs(options::OPT_g_Group)) ||
+            /* -fsycl -g case */ (!Args.hasArg(options::OPT_fintelfpga) &&
+                                  DebugInfoGroup)) {
+          if (!DebugInfoGroup->getOption().matches(options::OPT_g0)) {
+            OptLevel = "-O0";
+          }
+        }
+        CmdArgs.push_back(OptLevel.data());
+      }
 
       // Add the integration header option to generate the header.
       StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
@@ -6520,7 +6541,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
             << Name << Triple.getArchName();
     } else if (Name == "SLEEF" || Name == "ArmPL") {
       if (Triple.getArch() != llvm::Triple::aarch64 &&
-          Triple.getArch() != llvm::Triple::aarch64_be)
+          Triple.getArch() != llvm::Triple::aarch64_be &&
+          Triple.getArch() != llvm::Triple::riscv64)
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Name << Triple.getArchName();
     }
@@ -8105,6 +8127,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                         (!IsWindowsMSVC || IsMSVC2015Compatible)))
     CmdArgs.push_back("-fno-threadsafe-statics");
 
+  if (!Args.hasFlag(options::OPT_fms_tls_guards, options::OPT_fno_ms_tls_guards,
+                    true))
+    CmdArgs.push_back("-fno-ms-tls-guards");
+
   // Add -fno-assumptions, if it was specified.
   if (!Args.hasFlag(options::OPT_fassumptions, options::OPT_fno_assumptions,
                     true))
@@ -8593,7 +8619,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (IsCuda) {
+  // Propagate -fcuda-short-ptr if compiling CUDA or SYCL for NVPTX
+  if (IsCuda || (IsSYCLDevice && Triple.isNVPTX())) {
     if (Args.hasFlag(options::OPT_fcuda_short_ptr,
                      options::OPT_fno_cuda_short_ptr, false))
       CmdArgs.push_back("-fcuda-short-ptr");
@@ -10922,7 +10949,25 @@ static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
                     [=](char c) { return c == S[0]; }))
       return std::string("-O") + S[0];
   }
+  // If no optimization controlling flags (-O) are provided, check if
+  // any debug information flags(-g) are passed.
+  // "-fintelfpga" implies "-g" and we preserve the default optimization for
+  // this flow(-O2).
+  // if "-g" is explicitly passed from the command-line, set default
+  // optimization to -O0.
 
+  if (!Args.hasArg(options::OPT_O_Group)) {
+    const Arg *DebugInfoGroup = Args.getLastArg(options::OPT_g_Group);
+    // -fintelfpga -g case
+    if ((Args.hasArg(options::OPT_fintelfpga) &&
+         Args.hasMultipleArgs(options::OPT_g_Group)) ||
+        /* -fsycl -g case */
+        (!Args.hasArg(options::OPT_fintelfpga) && DebugInfoGroup)) {
+      if (!DebugInfoGroup->getOption().matches(options::OPT_g0)) {
+        return "-O0";
+      }
+    }
+  }
   // The default for SYCL device code optimization
   return "-O2";
 }

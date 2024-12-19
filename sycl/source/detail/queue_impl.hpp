@@ -71,6 +71,8 @@ enum QueueOrder { Ordered, OOO };
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
 };
 
 class queue_impl {
@@ -868,7 +870,7 @@ protected:
   template <typename HandlerFuncT>
   event submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                           const std::vector<event> &DepEvents,
-                          HandlerFuncT HandlerFunc);
+                          bool CallerNeedsEvent, HandlerFuncT HandlerFunc);
 
   /// Performs submission of a memory operation directly if scheduler can be
   /// bypassed, or with a handler otherwise.

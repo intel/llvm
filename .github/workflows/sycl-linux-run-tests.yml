@@ -159,8 +159,8 @@ jobs:
     - name: Reset Intel GPU
       if: inputs.reset_intel_gpu == 'true'
       run: |
-        sudo mount -t debugfs none /sys/kernel/debug
-        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
+        cat /run/secrets/sycl_passwd | sudo -S mount -t debugfs none /sys/kernel/debug
+        cat /run/secrets/sycl_passwd | sudo -S bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.ref }}
@@ -196,9 +196,9 @@ jobs:
       run: |
         if [ "${{ inputs.install_dev_igc_driver }}" = "true" ]; then
             # If libllvm14 is already installed (dev igc docker), still return true.
-            sudo apt-get install -yqq libllvm14 || true;
+            cat /run/secrets/sycl_passwd | sudo -S apt-get install -yqq libllvm14 || true;
         fi
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+        cat /run/secrets/sycl_passwd | sudo -S -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |

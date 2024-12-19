@@ -320,6 +320,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
   const auto &Adapter = getAdapter();
   const auto &Handle = getHandleRef();
   auto Device = Queue.get_device();
+  auto DeviceHandleRef = sycl::detail::getSyclObjImpl(Device)->getHandleRef();
 
   size_t WG[Dimensions];
   WG[0] = WorkGroupSize[0];
@@ -331,7 +332,8 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
   uint32_t GroupCount{0};
   if (auto Result = Adapter->call_nocheck<
                     UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
-          Handle, Dimensions, WG, DynamicLocalMemorySize, &GroupCount);
+          Handle, DeviceHandleRef, Dimensions, WG, DynamicLocalMemorySize,
+          &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
       Result != UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE) {
     // The feature is supported and the group size is valid. Check for other
@@ -355,7 +357,8 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
         syclex::info::kernel_queue_specific::max_num_work_groups>(
         queue Queue, const range<1> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  return queryMaxNumWorkGroups(Queue, WorkGroupSize, DynamicLocalMemorySize);
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 template <>
@@ -365,7 +368,8 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
         syclex::info::kernel_queue_specific::max_num_work_groups>(
         queue Queue, const range<2> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  return queryMaxNumWorkGroups(Queue, WorkGroupSize, DynamicLocalMemorySize);
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 template <>
@@ -375,7 +379,8 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
         syclex::info::kernel_queue_specific::max_num_work_groups>(
         queue Queue, const range<3> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  return queryMaxNumWorkGroups(Queue, WorkGroupSize, DynamicLocalMemorySize);
+  return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
+                               DynamicLocalMemorySize);
 }
 
 } // namespace detail

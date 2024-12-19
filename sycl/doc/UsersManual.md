@@ -40,6 +40,7 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * amdgcn-amd-amdhsa - generate code ahead of time for HIP target;
     * native_cpu - allows to run SYCL applications with no need of an 
     additional backend (note that this feature is WIP and experimental, and 
     currently overrides all the other specified SYCL targets when enabled.)
@@ -47,6 +48,8 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
+    * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
+    * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
     * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
     * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture

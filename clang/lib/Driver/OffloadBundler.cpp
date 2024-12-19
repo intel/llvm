@@ -17,7 +17,6 @@
 #include "clang/Driver/OffloadBundler.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/TargetID.h"
-#include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -692,7 +691,7 @@ class ObjectFileHandler final : public FileHandler {
         if (SF->isIR() &&
             (Name == "llvm.used" || Name == "llvm.compiler.used" ||
              Name == "__AsanDeviceGlobalMetadata" ||
-             Name == "__AsanKernelMetadata"))
+             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.

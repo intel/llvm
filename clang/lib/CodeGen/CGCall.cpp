@@ -42,7 +42,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <optional>
 using namespace clang;
@@ -3020,6 +3019,21 @@ namespace {
   };
 }
 
+static bool hasSYCLRestrictPropertyIRAttr(const VarDecl *Arg,
+                                          const ASTContext &Context) {
+  auto *IRAttr = Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>();
+  if (!IRAttr)
+    return false;
+
+  SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+      IRAttr->getAttributeNameValuePairs(Context);
+  return std::any_of(
+      NameValuePairs.begin(), NameValuePairs.end(),
+      [](const std::pair<std::string, std::string> &NameValuePair) {
+        return NameValuePair.first == "sycl-restrict";
+      });
+}
+
 void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
                                          llvm::Function *Fn,
                                          const FunctionArgList &Args) {
@@ -3244,9 +3258,10 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
         // Set 'noalias' if an argument type has the `restrict` qualifier.
         if (Arg->getType().isRestrictQualified() ||
-            (CurCodeDecl &&
-             CurCodeDecl->hasAttr<SYCLIntelKernelArgsRestrictAttr>() &&
-             Arg->getType()->isPointerType()) ||
+            (Arg->getType()->isPointerType() &&
+             ((CurCodeDecl &&
+               CurCodeDecl->hasAttr<SYCLIntelKernelArgsRestrictAttr>()) ||
+              hasSYCLRestrictPropertyIRAttr(Arg, getContext()))) ||
             (Arg->hasAttr<RestrictAttr>() && Arg->getType()->isPointerType()))
           AI->addAttr(llvm::Attribute::NoAlias);
       }
@@ -5193,9 +5208,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
   // Some architectures (such as x86-64) have the ABI changed based on
   // attribute-target/features. Give them a chance to diagnose.
-  CGM.getTargetCodeGenInfo().checkFunctionCallABI(
-      CGM, Loc, dyn_cast_or_null<FunctionDecl>(CurCodeDecl),
-      dyn_cast_or_null<FunctionDecl>(TargetDecl), CallArgs, RetTy);
+  const FunctionDecl *CallerDecl = dyn_cast_or_null<FunctionDecl>(CurCodeDecl);
+  const FunctionDecl *CalleeDecl = dyn_cast_or_null<FunctionDecl>(TargetDecl);
+  CGM.getTargetCodeGenInfo().checkFunctionCallABI(CGM, Loc, CallerDecl,
+                                                  CalleeDecl, CallArgs, RetTy);
 
   // 1. Set up the arguments.
 
@@ -5776,7 +5792,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     Attrs = Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::NoInline);
 
   // Add call-site always_inline attribute if exists.
-  if (InAlwaysInlineAttributedStmt)
+  // Note: This corresponds to the [[clang::always_inline]] statement attribute.
+  if (InAlwaysInlineAttributedStmt &&
+      !CGM.getTargetCodeGenInfo().wouldInliningViolateFunctionCallABI(
+          CallerDecl, CalleeDecl))
     Attrs =
         Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);
 
@@ -5800,7 +5819,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // FIXME: should this really take priority over __try, below?
   if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
       !InNoInlineAttributedStmt &&
-      !(TargetDecl && TargetDecl->hasAttr<NoInlineAttr>())) {
+      !(TargetDecl && TargetDecl->hasAttr<NoInlineAttr>()) &&
+      !CGM.getTargetCodeGenInfo().wouldInliningViolateFunctionCallABI(
+          CallerDecl, CalleeDecl)) {
     Attrs =
         Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);
   }

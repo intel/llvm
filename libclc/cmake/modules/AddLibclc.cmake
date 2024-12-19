@@ -456,13 +456,13 @@ function(add_libclc_builtin_set)
             "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
           COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-          COMMAND libclc::libclc-remangler
+          COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
           --long-width=${long_width}
           --char-signedness=${signedness}
           --input-ir=${builtins_lib}
           ${dummy_in}
-          DEPENDS ${builtins_lib} libclc::libclc-remangler ${dummy_in})
+          DEPENDS ${builtins_lib} ${libclc-remangler_target} ${dummy_in})
         add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
           DEPENDS "${builtins_remangle_path}" "${dummy_in}")
         set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"
@@ -489,12 +489,12 @@ function(add_libclc_builtin_set)
       math(EXPR libclc-remangler-test-no "${libclc-remangler-test-no}+1")
       set(current-test "libclc-remangler-test-${obj_suffix}-${libclc-remangler-test-no}")
       add_custom_target(${current-test}
-        COMMAND libclc::libclc-remangler
+        COMMAND ${libclc-remangler_exe}
         --long-width=l32
         --char-signedness=signed
         --input-ir=${target-ir}
         ${dummy_in} -t -o -
-        DEPENDS ${builtins_lib} "${dummy_in}" libclc::libclc-remangler)
+        DEPENDS ${builtins_lib} "${dummy_in}" ${libclc-remangler_target})
       list(APPEND libclc-remangler-tests ${current-test})
     endforeach()
   endif()
@@ -555,7 +555,7 @@ function(libclc_configure_lib_source LIB_FILE_LIST)
   set( source_list )
   foreach( l ${ARG_DIRS} )
     foreach( s "SOURCES" "SOURCES_${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}" )
-      if( ARG_CLC_INTERNAL )
+      if( ARG_CLC_INTERNAL OR ARG_LIB_ROOT_DIR STREQUAL libspirv )
         file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${ARG_LIB_DIR}/${l}/${s} file_loc )
       else()
         file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${l}/${ARG_LIB_DIR}/${s} file_loc )

@@ -19,29 +19,30 @@ include( AddLibclc )
 include( GNUInstallDirs )
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   amdgcn-amdhsa/lib/SOURCES;
-  amdgcn-amdhsa/libspirv/SOURCES;
   amdgcn/lib/SOURCES;
-  amdgcn/libspirv/SOURCES;
   amdgcn-mesa3d/lib/SOURCES;
   amdgpu/lib/SOURCES;
   clspv/lib/SOURCES;
   clspv64/lib/SOURCES;
   generic/lib/SOURCES;
-  generic/libspirv/SOURCES;
   ptx/lib/SOURCES;
   ptx-nvidiacl/lib/SOURCES;
-  ptx-nvidiacl/libspirv/SOURCES;
   r600/lib/SOURCES;
-  r600/libspirv/SOURCES;
   spirv/lib/SOURCES;
   spirv64/lib/SOURCES;
-  native_cpu-unknown-linux/libspirv/SOURCES;
   # CLC internal libraries
   clc/lib/generic/SOURCES;
   clc/lib/clspv/SOURCES;
   clc/lib/clspv64/SOURCES;
   clc/lib/spirv/SOURCES;
   clc/lib/spirv64/SOURCES;
+  # libspirv libraries
+  libspirv/lib/generic/SOURCES;
+  libspirv/lib/amdgcn-amdhsa/SOURCES;
+  libspirv/lib/amdgcn/SOURCES;
+  libspirv/lib/ptx-nvidiacl/SOURCES;
+  libspirv/lib/r600/SOURCES;
+  libspirv/lib/native_cpu-unknown-linux/SOURCES;
 )
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
@@ -69,7 +70,7 @@ if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DI
 
   # Import required tools
   if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
-    foreach( tool IN ITEMS clang llvm-as llvm-link opt )
+    foreach( tool IN ITEMS clang llvm-as llvm-link llvm-spirv opt )
       find_program( LLVM_TOOL_${tool} ${tool} PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
       set( ${tool}_exe ${LLVM_TOOL_${tool}} )
       set( ${tool}_target )
@@ -92,6 +93,7 @@ else()
     get_host_tool_path( clang CLANG clang_exe clang_target )
     get_host_tool_path( llvm-as LLVM_AS llvm-as_exe llvm-as_target )
     get_host_tool_path( llvm-link LLVM_LINK llvm-link_exe llvm-link_target )
+    get_host_tool_path( llvm-spirv LLVM_SPIRV llvm-spirv_exe llvm-spirv_target )
     get_host_tool_path( opt OPT opt_exe opt_target )
   endif()
 endif()
@@ -113,13 +115,15 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
 
   # If we've requested a custom binary directory, there are some otherwise
   # optional tools which we want to ensure are present.
-  if( NOT TARGET libclc::llvm-spirv OR NOT TARGET libclc::libclc-remangler )
-    message( FATAL_ERROR "libclc toolchain incomplete!" )
-  endif()
+  foreach( tool IN ITEMS llvm-spirv libclc-remangler )
+    if( NOT EXISTS "${${tool}_exe}" AND "${${tool}_target}" STREQUAL "" )
+      message( FATAL_ERROR "libclc toolchain incomplete!" )
+    endif()
+  endforeach()
 endif()
 
 foreach( tool IN ITEMS clang opt llvm-as llvm-link )
-  if( NOT EXISTS "${${tool}_exe}" AND "${tool}_target" STREQUAL "" )
+  if( NOT EXISTS "${${tool}_exe}" AND "${${tool}_target}" STREQUAL "" )
     message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
   endif()
 endforeach()
@@ -264,8 +268,8 @@ endif()
 
 find_package( Python3 REQUIRED COMPONENTS Interpreter )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
-file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
-file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_core_convert.py core_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_convert.py spirv_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
 add_custom_command(
   OUTPUT convert.cl
@@ -363,7 +367,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       list( APPEND opencl_gen_files clspv-convert.cl )
     elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
       list( APPEND opencl_gen_files convert-clc.cl )
-      list( APPEND opencl_lib_files generic/libspirv/subnormal_use_default.ll )
+      list( APPEND opencl_lib_files generic/lib/subnormal_use_default.ll )
     endif()
   endif()
 
@@ -380,13 +384,13 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       list( APPEND libspirv_gen_files clspv-convert.cl )
     elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
       list( APPEND libspirv_gen_files convert-spirv.cl convert-core.cl )
-      list( APPEND libspirv_lib_files generic/libspirv/subnormal_use_default.ll )
+      list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
     endif()
   endif()
 
   libclc_configure_lib_source(
     libspirv_lib_files
-    LIB_DIR libspirv
+    LIB_ROOT_DIR libspirv
     DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
   )
 
@@ -531,8 +535,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${clc_lib_files}
     )
 
-    list( APPEND build_flags
+    set( spirv_build_flags ${build_flags} )
+    list( APPEND spirv_build_flags
       -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
+      -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
     )
 
     add_libclc_builtin_set(
@@ -540,7 +546,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       ARCH_SUFFIX libspirv-${arch_suffix}
       TRIPLE ${clang_triple}
       TARGET_ENV libspirv-
-      COMPILE_FLAGS ${build_flags}
+      COMPILE_FLAGS ${spirv_build_flags}
       OPT_FLAGS ${opt_flags}
       LIB_FILES ${libspirv_lib_files}
       GEN_FILES ${libspirv_gen_files}
@@ -550,11 +556,18 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
     )
 
+    set( opencl_build_flags ${build_flags} )
+    list( APPEND opencl_build_flags
+      -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
+      # FIXME: OpenCL bindings shouldn't depend on libspirv
+      -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
+    )
+
     add_libclc_builtin_set(
       ARCH ${ARCH}
       ARCH_SUFFIX ${arch_suffix}
       TRIPLE ${clang_triple}
-      COMPILE_FLAGS ${build_flags}
+      COMPILE_FLAGS ${opencl_build_flags}
       OPT_FLAGS ${opt_flags}
       LIB_FILES ${opencl_lib_files}
       GEN_FILES ${opencl_gen_files}

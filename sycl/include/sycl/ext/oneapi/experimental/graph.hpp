@@ -12,6 +12,7 @@
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
+#include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
@@ -239,7 +240,8 @@ private:
 
 namespace detail {
 // Templateless modifiable command-graph base class.
-class __SYCL_EXPORT modifiable_command_graph {
+class __SYCL_EXPORT modifiable_command_graph
+    : public sycl::detail::OwnerLessBase<modifiable_command_graph> {
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
@@ -338,7 +340,13 @@ public:
   /// @param path The path to write the DOT file to.
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
+#ifdef ___INTEL_PREVIEW_BREAKING_CHANGES
+  void print_graph(const std::string path, bool verbose = false) const {
+    print_graph(sycl::detail::string_view{path}, verbose);
+  }
+#else
   void print_graph(const std::string path, bool verbose = false) const;
+#endif
 
   /// Get a list of all nodes contained in this graph.
   std::vector<node> get_nodes() const;
@@ -385,6 +393,7 @@ protected:
   std::shared_ptr<detail::graph_impl> impl;
 };
 
+#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_GRAPH_IMPL_CPP
 // Magic combination found by trial and error:
 __SYCL_EXPORT
@@ -399,9 +408,11 @@ inline
                                           bool verbose) const {
   print_graph(sycl::detail::string_view{path}, verbose);
 }
+#endif
 
 // Templateless executable command-graph base class.
-class __SYCL_EXPORT executable_command_graph {
+class __SYCL_EXPORT executable_command_graph
+    : public sycl::detail::OwnerLessBase<executable_command_graph> {
 public:
   /// An executable command-graph is not user constructable.
   executable_command_graph() = delete;
