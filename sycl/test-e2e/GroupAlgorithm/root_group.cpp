@@ -68,6 +68,13 @@ template <typename T> struct TestKernel1 {
     volatile float Y = 1.0f;
     auto root = it.ext_oneapi_get_root_group();
     m_data[root.get_local_id()] = root.get_local_id();
+    sycl::group_barrier(root);
+    // Delay half of the workgroups with extra work to check that the barrier
+    // synchronizes the whole device.
+    if (it.get_group(0) % 2 == 0) {
+      X += sycl::sin(X);
+      Y += sycl::cos(Y);
+    }
   }
   auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
