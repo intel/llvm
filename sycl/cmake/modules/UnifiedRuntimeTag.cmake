@@ -1,7 +1,7 @@
-# commit 58e4d76c2ace154c053b51592f2645fc43437646
-# Merge: e23a75034bb2 bc5d6a695dc8
+# commit d18d52393aadf0083a32912096baaac558378a99
+# Merge: c45de9a5f7bf 05f94a8ab2a9
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Dec 11 15:14:14 2024 +0000
-#     Merge pull request #2436 from igchor/umf_params_bump
-#     [UMF] bump UMF version to v0.10.0 and adjust code
-set(UNIFIED_RUNTIME_TAG 58e4d76c2ace154c053b51592f2645fc43437646)
+# Date:   Wed Dec 18 15:01:30 2024 +0000
+#     Merge pull request #2415 from AllanZyne/review/yang/fix_metadata_assert
+#     [DeviceASAN] Fix ASAN with kernel assert
+set(UNIFIED_RUNTIME_TAG d18d52393aadf0083a32912096baaac558378a99)
