@@ -532,6 +532,11 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
 endif()
 
+if(INSTALL_DEVICE_CONFIG_FILE)
+  add_dependencies(sycl-toolchain DeviceConfigFile)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS DeviceConfigFile)
+endif()
+
 # Use it as fake dependency in order to force another command(s) to execute.
 add_custom_command(OUTPUT __force_it
   COMMAND "${CMAKE_COMMAND}" -E echo

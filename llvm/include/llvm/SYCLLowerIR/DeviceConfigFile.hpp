@@ -9,10 +9,7 @@
 #include <map>
 #include <string>
 #include <vector>
-
-namespace llvm {
-class StringRef;
-}
+#include <string_view>
 
 namespace DeviceConfigFile {
 
@@ -22,7 +19,7 @@ namespace DeviceConfigFile {
 // DeviceConfigFile.td.
 struct TargetInfo {
   bool maySupportOtherAspects;
-  std::vector<llvm::StringRef> aspects;
+  std::vector<std::string_view> aspects;
   std::vector<unsigned> subGroupSizes;
   std::string aotToolchain;
   std::string aotToolchainOptions;

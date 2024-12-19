@@ -6,13 +6,14 @@
 // config file.
 
 // UNSUPPORTED: accelerator
-// RUN: %{build} -o %t.out -I %llvm_main_include_dir
+// UNSUPPORTED-INTENDED: Accelerator is not supported by sycl_ext_oneapi_device_architecture
+// REQURIES: device-config-file
+// RUN: %{build} -o %t.out %device_config_file_include_flag
 // RUN: %{run} %t.out
 #include <map>
 
-#include <llvm/ADT/StringRef.h>
+#include <sycl/detail/core.hpp>
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>
-#include <sycl/sycl.hpp>
 
 #define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)                    \
   __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)

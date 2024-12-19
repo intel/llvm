@@ -3,7 +3,6 @@
 //
 #include <map>
 
-#include <llvm/ADT/StringRef.h>
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>
 #include <sycl/sycl.hpp>
 
@@ -16,7 +15,7 @@ int main() {
   auto aspectsList = testAspects->second.aspects;
 
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                      \
-  llvm::StringRef s##ASPECT(#ASPECT);                                          \
+  std::string_view s##ASPECT(#ASPECT);                                          \
   assert(std::find(aspectsList.begin(), aspectsList.end(), s##ASPECT) !=       \
          aspectsList.end());
 
@@ -29,7 +28,7 @@ int main() {
   assert(testDeprecatedAspects != DeviceConfigFile::TargetTable.end());
   auto deprecatedAspectsList = testDeprecatedAspects->second.aspects;
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ASPECT_VAL, MSG)                      \
-  llvm::StringRef s##ASPECT(#ASPECT);                                          \
+  std::string_view s##ASPECT(#ASPECT);                                          \
   assert(std::find(deprecatedAspectsList.begin(), deprecatedAspectsList.end(), \
                    s##ASPECT) != deprecatedAspectsList.end());
 

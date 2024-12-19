@@ -147,7 +147,6 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
-config.substitutions.append(("%llvm_main_include_dir", config.llvm_main_include_dir))
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 if platform.system() == "Windows":
     config.substitutions.append(
@@ -827,6 +826,18 @@ else:
     )
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
+    )
+
+if config.llvm_main_include_dir:
+    config.available_features.add("device-config-file")
+    config.substitutions.append(
+        ("%device_config_file_include_flag", 
+         f"-I {config.llvm_main_include_dir}")
+    )
+elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hpp"):
+    config.available_features.add("device-config-file")
+    config.substitutions.append(
+        ("%device_config_file_include_flag", "")
     )
 
 # Set timeout for a single test
