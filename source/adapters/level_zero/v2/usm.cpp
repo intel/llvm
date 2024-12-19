@@ -461,4 +461,39 @@ ur_result_t urUSMGetMemAllocInfo(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+
+ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *hostPtr,
+                           size_t size) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Promote the host ptr to USM host memory.
+  if (ZeUSMImport.Supported && hostPtr != nullptr) {
+    // Query memory type of the host pointer
+    ze_device_handle_t hDevice;
+    ZeStruct<ze_memory_allocation_properties_t> zeMemoryAllocationProperties;
+    ZE2UR_CALL(zeMemGetAllocProperties,
+               (hContext->getZeHandle(), hostPtr, &zeMemoryAllocationProperties,
+                &hDevice));
+
+    // If not shared of any type, we can import the ptr
+    if (zeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      // Promote the host ptr to USM host memory
+      ze_driver_handle_t driverHandle =
+          hContext->getPlatform()->ZeDriverHandleExpTranslated;
+      ZeUSMImport.doZeUSMImport(driverHandle, hostPtr, size);
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *hostPtr) {
+  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Release the imported memory.
+  if (ZeUSMImport.Supported && hostPtr != nullptr)
+    ZeUSMImport.doZeUSMRelease(
+        hContext->getPlatform()->ZeDriverHandleExpTranslated, hostPtr);
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace ur::level_zero
