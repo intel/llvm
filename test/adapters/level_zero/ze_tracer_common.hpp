@@ -5,7 +5,7 @@
 
 #include "uur/fixtures.h"
 
-#include <level_zero/layers/zel_tracing_api.h>
+#include <layers/zel_tracing_api.h>
 #include <loader/ze_loader.h>
 
 #include <memory>
