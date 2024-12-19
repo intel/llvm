@@ -14,7 +14,7 @@
 
 // Waiting for the commit in IGC to be pulled into the driver to resolve the
 // test.
-// XFAIL: !igc-dev || gpu-intel-dg2
+// XFAIL: (!igc-dev || gpu-intel-dg2) && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-63710
 
 #include "common.hpp"
