@@ -485,6 +485,6 @@ compile for the architectures that will be used on the run side.
 ### Falling back to `full` testing mode on `run-only`
 To not lose coverage of tests marked as `REQUIRES: build-and-run-mode` when
 using `run-only` mode, lit can be called using
-`--param build-instead-of-skip-run-only=True`. When this option is enabled in
-`run-only` mode, tests marked as requiring `build-and-run-mode` will fallback
-to running on `full` mode, instead of being reported as unsupported.
+`--param fallback-to-build-if-requires-build-and-run=True`. When this option is
+enabled in `run-only` mode, tests marked as requiring `build-and-run-mode` will
+fallback to running on `full` mode, instead of being reported as unsupported.
