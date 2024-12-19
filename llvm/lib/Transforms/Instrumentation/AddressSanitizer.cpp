@@ -1344,7 +1344,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
 
       auto KernelName = F.getName();
       auto *KernelNameGV = GetOrCreateGlobalString(
-          M, "__asan_kernel", KernelName, kSpirOffloadGlobalAS);
+          M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
           StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
           ConstantInt::get(IntptrTy, KernelName.size())));

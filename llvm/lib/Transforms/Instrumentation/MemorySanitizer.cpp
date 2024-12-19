@@ -763,7 +763,7 @@ Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
 static void extendSpirKernelArgs(Module &M) {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
-  auto DL = M.getDataLayout();
+  const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
@@ -781,7 +781,7 @@ static void extendSpirKernelArgs(Module &M) {
 
     auto KernelName = F.getName();
     auto *KernelNameGV = getOrCreateGlobalString(M, "__msan_kernel", KernelName,
-                                                 kSpirOffloadGlobalAS);
+                                                 kSpirOffloadConstantAS);
     SpirKernelsMetadata.emplace_back(ConstantStruct::get(
         StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
         ConstantInt::get(IntptrTy, KernelName.size())));
