@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_api.h
- * @version v0.11-r0
+ * @version v0.12-r0
  *
  */
 #ifndef UR_API_H_INCLUDED
@@ -231,6 +231,9 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP = 244,              ///< Enumerator for ::urCommandBufferUpdateWaitEventsExp
     UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 245,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
     UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,               ///< Enumerator for ::urEnqueueEventsWaitWithBarrierExt
+    UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP = 247,                     ///< Enumerator for ::urTensorMapEncodeIm2ColExp
+    UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP = 248,                        ///< Enumerator for ::urTensorMapEncodeTiledExp
+    UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,                              ///< Enumerator for ::urPhysicalMemGetInfo
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -967,6 +970,9 @@ typedef enum ur_adapter_info_t {
                                          ///< The reference count returned should be considered immediately stale.
                                          ///< It is unsuitable for general use in applications. This feature is
                                          ///< provided for identifying memory leaks.
+    UR_ADAPTER_INFO_VERSION = 2,         ///< [uint32_t] Specifies the adapter version, initial value of 1 and
+                                         ///< incremented unpon major changes, e.g. when multiple versions of an
+                                         ///< adapter may exist in parallel.
     /// @cond
     UR_ADAPTER_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -988,7 +994,7 @@ typedef enum ur_adapter_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///         + `::UR_ADAPTER_INFO_VERSION < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1087,6 +1093,8 @@ typedef enum ur_platform_info_t {
                                       ///< info needs to be dynamically queried.
     UR_PLATFORM_INFO_BACKEND = 6,     ///< [::ur_platform_backend_t] The backend of the platform. Identifies the
                                       ///< native backend adapter implementing this platform.
+    UR_PLATFORM_INFO_ADAPTER = 7,     ///< [::ur_adapter_handle_t] The adapter handle associated with the
+                                      ///< platform.
     /// @cond
     UR_PLATFORM_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1112,7 +1120,7 @@ typedef enum ur_platform_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PLATFORM_INFO_BACKEND < propName`
+///         + `::UR_PLATFORM_INFO_ADAPTER < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1150,7 +1158,8 @@ typedef enum ur_api_version_t {
     UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),      ///< version 0.9
     UR_API_VERSION_0_10 = UR_MAKE_VERSION(0, 10),    ///< version 0.10
     UR_API_VERSION_0_11 = UR_MAKE_VERSION(0, 11),    ///< version 0.11
-    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 11), ///< latest known version
+    UR_API_VERSION_0_12 = UR_MAKE_VERSION(0, 12),    ///< version 0.12
+    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 12), ///< latest known version
     /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1486,7 +1495,7 @@ urDeviceGetSelected(
 typedef enum ur_device_info_t {
     UR_DEVICE_INFO_TYPE = 0,                                         ///< [::ur_device_type_t] type of the device
     UR_DEVICE_INFO_VENDOR_ID = 1,                                    ///< [uint32_t] vendor Id of the device
-    UR_DEVICE_INFO_DEVICE_ID = 2,                                    ///< [uint32_t] Id of the device
+    UR_DEVICE_INFO_DEVICE_ID = 2,                                    ///< [uint32_t][optional-query] Id of the device
     UR_DEVICE_INFO_MAX_COMPUTE_UNITS = 3,                            ///< [uint32_t] the number of compute units
     UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = 4,                     ///< [uint32_t] max work item dimensions
     UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 5,                          ///< [size_t[]] return an array of max work item sizes
@@ -1513,7 +1522,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE = 23,                  ///< [uint32_t] native vector width for double
     UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF = 24,                    ///< [uint32_t] native vector width for half float
     UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY = 25,                         ///< [uint32_t] max clock frequency in MHz
-    UR_DEVICE_INFO_MEMORY_CLOCK_RATE = 26,                           ///< [uint32_t] memory clock frequency in MHz
+    UR_DEVICE_INFO_MEMORY_CLOCK_RATE = 26,                           ///< [uint32_t][optional-query] memory clock frequency in MHz
     UR_DEVICE_INFO_ADDRESS_BITS = 27,                                ///< [uint32_t] address bits
     UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,                          ///< [uint64_t] max memory allocation size
     UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,                             ///< [::ur_bool_t] images are supported
@@ -1537,7 +1546,8 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE = 44,                   ///< [uint32_t] global memory cache line size in bytes
     UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE = 45,                       ///< [uint64_t] size of global memory cache in bytes
     UR_DEVICE_INFO_GLOBAL_MEM_SIZE = 46,                             ///< [uint64_t] size of global memory in bytes
-    UR_DEVICE_INFO_GLOBAL_MEM_FREE = 47,                             ///< [uint64_t] size of global memory which is free in bytes
+    UR_DEVICE_INFO_GLOBAL_MEM_FREE = 47,                             ///< [uint64_t][optional-query] size of global memory which is free in
+                                                                     ///< bytes
     UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE = 48,                    ///< [uint64_t] max constant buffer size in bytes
     UR_DEVICE_INFO_MAX_CONSTANT_ARGS = 49,                           ///< [uint32_t] max number of __const declared arguments in a kernel
     UR_DEVICE_INFO_LOCAL_MEM_TYPE = 50,                              ///< [::ur_device_local_mem_type_t] local memory type
@@ -1594,15 +1604,16 @@ typedef enum ur_device_info_t {
                                                                      ///< shared memory access
     UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,                   ///< [::ur_device_usm_access_capability_flags_t] support USM system wide
                                                                      ///< shared memory access
-    UR_DEVICE_INFO_UUID = 88,                                        ///< [uint8_t[]] return device UUID
-    UR_DEVICE_INFO_PCI_ADDRESS = 89,                                 ///< [char[]] return device PCI address
-    UR_DEVICE_INFO_GPU_EU_COUNT = 90,                                ///< [uint32_t] return Intel GPU EU count
-    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                           ///< [uint32_t] return Intel GPU EU SIMD width
-    UR_DEVICE_INFO_GPU_EU_SLICES = 92,                               ///< [uint32_t] return Intel GPU number of slices
-    UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 93,                   ///< [uint32_t] return Intel GPU EU count per subslice
-    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 94,                     ///< [uint32_t] return Intel GPU number of subslices per slice
-    UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 95,                       ///< [uint32_t] return Intel GPU number of threads per EU
-    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 96,                        ///< [uint32_t] return max memory bandwidth in Mb/s
+    UR_DEVICE_INFO_UUID = 88,                                        ///< [uint8_t[]][optional-query] return device UUID
+    UR_DEVICE_INFO_PCI_ADDRESS = 89,                                 ///< [char[]][optional-query] return device PCI address
+    UR_DEVICE_INFO_GPU_EU_COUNT = 90,                                ///< [uint32_t][optional-query] return Intel GPU EU count
+    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                           ///< [uint32_t][optional-query] return Intel GPU EU SIMD width
+    UR_DEVICE_INFO_GPU_EU_SLICES = 92,                               ///< [uint32_t][optional-query] return Intel GPU number of slices
+    UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 93,                   ///< [uint32_t][optional-query] return Intel GPU EU count per subslice
+    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 94,                     ///< [uint32_t][optional-query] return Intel GPU number of subslices per
+                                                                     ///< slice
+    UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 95,                       ///< [uint32_t][optional-query] return Intel GPU number of threads per EU
+    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 96,                        ///< [uint32_t][optional-query] return max memory bandwidth in Mb/s
     UR_DEVICE_INFO_IMAGE_SRGB = 97,                                  ///< [::ur_bool_t] device supports sRGB images
     UR_DEVICE_INFO_BUILD_ON_SUBDEVICE = 98,                          ///< [::ur_bool_t] Return true if sub-device should do its own program
                                                                      ///< build
@@ -1621,23 +1632,24 @@ typedef enum ur_device_info_t {
                                                                      ///< available for this device.
     UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 106,        ///< [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
                                                                      ///< point
-    UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                           ///< [uint32_t] return the width in bits of the memory bus interface of the
-                                                                     ///< device.
+    UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                           ///< [uint32_t][optional-query] return the width in bits of the memory bus
+                                                                     ///< interface of the device.
     UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                         ///< [size_t[3]] return max 3D work groups
     UR_DEVICE_INFO_ASYNC_BARRIER = 109,                              ///< [::ur_bool_t] return true if Async Barrier is supported
     UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                        ///< [::ur_bool_t] return true if specifying memory channels is supported
     UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,             ///< [::ur_bool_t] Return true if the device supports enqueueing commands
                                                                      ///< to read and write pipes from the host.
-    UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,               ///< [uint32_t] The maximum number of registers available per block.
-    UR_DEVICE_INFO_IP_VERSION = 113,                                 ///< [uint32_t] The device IP version. The meaning of the device IP version
-                                                                     ///< is implementation-defined, but newer devices should have a higher
-                                                                     ///< version than older devices.
+    UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,               ///< [uint32_t][optional-query] The maximum number of registers available
+                                                                     ///< per block.
+    UR_DEVICE_INFO_IP_VERSION = 113,                                 ///< [uint32_t][optional-query] The device IP version. The meaning of the
+                                                                     ///< device IP version is implementation-defined, but newer devices should
+                                                                     ///< have a higher version than older devices.
     UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT = 114,                     ///< [::ur_bool_t] return true if the device supports virtual memory.
     UR_DEVICE_INFO_ESIMD_SUPPORT = 115,                              ///< [::ur_bool_t] return true if the device supports ESIMD.
-    UR_DEVICE_INFO_COMPONENT_DEVICES = 116,                          ///< [::ur_device_handle_t[]] The set of component devices contained by
-                                                                     ///< this composite device.
-    UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                           ///< [::ur_device_handle_t] The composite device containing this component
-                                                                     ///< device.
+    UR_DEVICE_INFO_COMPONENT_DEVICES = 116,                          ///< [::ur_device_handle_t[]][optional-query] The set of component devices
+                                                                     ///< contained by this composite device.
+    UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                           ///< [::ur_device_handle_t][optional-query] The composite device containing
+                                                                     ///< this component device.
     UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT = 118,                    ///< [::ur_bool_t] return true if the device supports the
                                                                      ///< `EnqueueDeviceGlobalVariableWrite` and
                                                                      ///< `EnqueueDeviceGlobalVariableRead` entry points.
@@ -2283,15 +2295,15 @@ typedef enum ur_context_info_t {
                                                           ///< supported.
     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,               ///< [::ur_bool_t] to indicate if the ::urEnqueueUSMFill2D entrypoint is
                                                           ///< supported.
-    UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 5, ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
-                                                          ///< memory order capabilities.
-    UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6, ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
-                                                          ///< memory scope capabilities.
-    UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 7,  ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
-                                                          ///< memory fence order capabilities.
+    UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 5, ///< [::ur_memory_order_capability_flags_t][optional-query] return a
+                                                          ///< bit-field of atomic memory order capabilities.
+    UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6, ///< [::ur_memory_scope_capability_flags_t][optional-query] return a
+                                                          ///< bit-field of atomic memory scope capabilities.
+    UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 7,  ///< [::ur_memory_order_capability_flags_t][optional-query] return a
+                                                          ///< bit-field of atomic memory fence order capabilities.
                                                           ///< Zero is returned if the backend does not support context-level fences.
-    UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,  ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
-                                                          ///< memory fence scope capabilities.
+    UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,  ///< [::ur_memory_scope_capability_flags_t][optional-query] return a
+                                                          ///< bit-field of atomic memory fence scope capabilities.
                                                           ///< Zero is returned if the backend does not support context-level fences.
     /// @cond
     UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
@@ -2520,7 +2532,7 @@ typedef enum ur_mem_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory Information type
 typedef enum ur_mem_info_t {
-    UR_MEM_INFO_SIZE = 0,            ///< [size_t] actual size of of memory object in bytes
+    UR_MEM_INFO_SIZE = 0,            ///< [size_t] actual size of the memory object in bytes
     UR_MEM_INFO_CONTEXT = 1,         ///< [::ur_context_handle_t] context in which the memory object was created
     UR_MEM_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the memory object.
                                      ///< The reference count returned should be considered immediately stale.
@@ -3388,7 +3400,7 @@ typedef enum ur_usm_alloc_info_t {
     UR_USM_ALLOC_INFO_BASE_PTR = 1, ///< [void *] Memory allocation base pointer info
     UR_USM_ALLOC_INFO_SIZE = 2,     ///< [size_t] Memory allocation size info
     UR_USM_ALLOC_INFO_DEVICE = 3,   ///< [::ur_device_handle_t] Memory allocation device info
-    UR_USM_ALLOC_INFO_POOL = 4,     ///< [::ur_usm_pool_handle_t] Memory allocation pool info
+    UR_USM_ALLOC_INFO_POOL = 4,     ///< [::ur_usm_pool_handle_t][optional-query] Memory allocation pool info
     /// @cond
     UR_USM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -3660,6 +3672,11 @@ urUSMSharedAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Free the USM memory object
+///
+/// @details
+///     - Note that implementations are required to wait for previously enqueued
+///       commands that may be accessing `pMem` to finish before freeing the
+///       memory.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -4128,6 +4145,50 @@ urPhysicalMemRelease(
     ur_physical_mem_handle_t hPhysicalMem ///< [in][release] handle of the physical memory object to release.
 );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Physical memory range info queries.
+typedef enum ur_physical_mem_info_t {
+    UR_PHYSICAL_MEM_INFO_CONTEXT = 0,         ///< [::ur_context_handle_t] context in which the physical memory object
+                                              ///< was created.
+    UR_PHYSICAL_MEM_INFO_DEVICE = 1,          ///< [::ur_device_handle_t] device associated with this physical memory
+                                              ///< object.
+    UR_PHYSICAL_MEM_INFO_SIZE = 2,            ///< [size_t] actual size of the physical memory object in bytes.
+    UR_PHYSICAL_MEM_INFO_PROPERTIES = 3,      ///< [::ur_physical_mem_properties_t] properties set when creating this
+                                              ///< physical memory object.
+    UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT = 4, ///< [uint32_t] Reference count of the physical memory object.
+                                              ///< The reference count returned should be considered immediately stale.
+                                              ///< It is unsuitable for general use in applications. This feature is
+                                              ///< provided for identifying memory leaks.
+    /// @cond
+    UR_PHYSICAL_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_physical_mem_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get information about a physical memory object.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPhysicalMem`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT < propName`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t hPhysicalMem, ///< [in] handle of the physical memory object to query.
+    ur_physical_mem_info_t propName,       ///< [in] type of the info to query.
+    size_t propSize,                       ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *pPropValue,                      ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                           ///< the info. If propSize is less than the real number of bytes needed to
+                                           ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+                                           ///< returned and pPropValue is not used.
+    size_t *pPropSizeRet                   ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -4529,9 +4590,10 @@ typedef enum ur_program_info_t {
     UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< [size_t[]] Return program binary sizes for each device.
     UR_PROGRAM_INFO_BINARIES = 6,        ///< [unsigned char[]] Return program binaries for all devices for this
                                          ///< Program.
-    UR_PROGRAM_INFO_NUM_KERNELS = 7,     ///< [size_t] Number of kernels in Program, return type size_t.
-    UR_PROGRAM_INFO_KERNEL_NAMES = 8,    ///< [char[]] Return a null-terminated, semi-colon separated list of kernel
-                                         ///< names in Program.
+    UR_PROGRAM_INFO_NUM_KERNELS = 7,     ///< [size_t][optional-query] Number of kernels in Program, return type
+                                         ///< size_t.
+    UR_PROGRAM_INFO_KERNEL_NAMES = 8,    ///< [char[]][optional-query] Return a null-terminated, semi-colon
+                                         ///< separated list of kernel names in Program.
     /// @cond
     UR_PROGRAM_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4882,8 +4944,8 @@ typedef enum ur_kernel_info_t {
     UR_KERNEL_INFO_CONTEXT = 3,         ///< [::ur_context_handle_t] Return Context object associated with Kernel.
     UR_KERNEL_INFO_PROGRAM = 4,         ///< [::ur_program_handle_t] Return Program object associated with Kernel.
     UR_KERNEL_INFO_ATTRIBUTES = 5,      ///< [char[]] Return null-terminated kernel attributes string.
-    UR_KERNEL_INFO_NUM_REGS = 6,        ///< [uint32_t] Return the number of registers used by the compiled kernel
-                                        ///< (device specific).
+    UR_KERNEL_INFO_NUM_REGS = 6,        ///< [uint32_t][optional-query] Return the number of registers used by the
+                                        ///< compiled kernel.
     /// @cond
     UR_KERNEL_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4893,7 +4955,7 @@ typedef enum ur_kernel_info_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel Work Group information
 typedef enum ur_kernel_group_info_t {
-    UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE = 0,                   ///< [size_t[3]] Return Work Group maximum global size
+    UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE = 0,                   ///< [size_t[3]][optional-query] Return Work Group maximum global size
     UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE = 1,                    ///< [size_t] Return maximum Work Group size
     UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE = 2,            ///< [size_t[3]] Return Work Group size required by the source code, such
                                                                  ///< as __attribute__((required_work_group_size(X,Y,Z)), or (0, 0, 0) if
@@ -4902,10 +4964,10 @@ typedef enum ur_kernel_group_info_t {
     UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4, ///< [size_t] Return preferred multiple of Work Group size for launch
     UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = 5,                   ///< [size_t] Return minimum amount of private memory in bytes used by each
                                                                  ///< work item in the Kernel
-    UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE = 6,        ///< [size_t[3]] Return the maximum Work Group size guaranteed by the
-                                                                 ///< source code, or (0, 0, 0) if unspecified
-    UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE = 7, ///< [size_t] Return the maximum linearized Work Group size (X * Y * Z)
-                                                                 ///< guaranteed by the source code, or 0 if unspecified
+    UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE = 6,        ///< [size_t[3]][optional-query] Return the maximum Work Group size guaranteed
+                                                                 ///< by the source code, or (0, 0, 0) if unspecified
+    UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE = 7, ///< [size_t][optional-query] Return the maximum linearized Work Group size
+                                                                 ///< (X * Y * Z) guaranteed by the source code, or 0 if unspecified
     /// @cond
     UR_KERNEL_GROUP_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -5424,8 +5486,8 @@ typedef enum ur_queue_info_t {
     UR_QUEUE_INFO_SIZE = 5,            ///< [uint32_t] The size of the queue on the device. Only a valid query
                                        ///< if the queue was created with the `ON_DEVICE` queue flag, otherwise
                                        ///< `::urQueueGetInfo` will return `::UR_RESULT_ERROR_INVALID_QUEUE`.
-    UR_QUEUE_INFO_EMPTY = 6,           ///< [::ur_bool_t] return true if the queue was empty at the time of the
-                                       ///< query
+    UR_QUEUE_INFO_EMPTY = 6,           ///< [::ur_bool_t][optional-query] return true if the queue was empty at
+                                       ///< the time of the query.
     /// @cond
     UR_QUEUE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -8507,6 +8569,7 @@ urCommandBufferReleaseExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION - "If `hCommandBuffer` has already been finalized"
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -9481,13 +9544,17 @@ urEnqueueCooperativeKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pLocalWorkSize`
 ///         + `NULL == pGroupCountRet`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
-    size_t localWorkSize,           ///< [in] number of local work-items that will form a work-group when the
-                                    ///< kernel is launched
+    uint32_t workDim,               ///< [in] number of dimensions, from 1 to 3, to specify the work-group
+                                    ///< work-items
+    const size_t *pLocalWorkSize,   ///< [in] pointer to an array of workDim unsigned values that specify the
+                                    ///< number of local work-items forming a work-group that will execute the
+                                    ///< kernel function.
     size_t dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
                                     ///< that will be used when the kernel is launched
     uint32_t *pGroupCountRet        ///< [out] pointer to maximum number of groups
@@ -9560,6 +9627,7 @@ typedef enum ur_exp_launch_property_id_t {
     UR_EXP_LAUNCH_PROPERTY_ID_IGNORE = 0,            ///< The property has no effect
     UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,       ///< Whether to launch a cooperative kernel
     UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2, ///< work-group cluster dimensions
+    UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY = 3, ///< Implicit work group memory allocation
     /// @cond
     UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -9573,10 +9641,12 @@ typedef enum ur_exp_launch_property_id_t {
 ///   _Analogues_
 ///     - **CUlaunchAttributeValue**
 typedef union ur_exp_launch_property_value_t {
-    uint32_t clusterDim[3]; ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
-                            ///< value must be a divisor of the corresponding global work-size
-                            ///< dimension (in units of work-group).
-    int cooperative;        ///< [in] non-zero value indicates a cooperative kernel
+    uint32_t clusterDim[3];    ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+                               ///< value must be a divisor of the corresponding global work-size
+                               ///< dimension (in units of work-group).
+    int cooperative;           ///< [in] non-zero value indicates a cooperative kernel
+    size_t workgroup_mem_size; ///< [in] non-zero value indicates the amount of work group memory to
+                               ///< allocate in bytes
 
 } ur_exp_launch_property_value_t;
 
@@ -9617,6 +9687,7 @@ typedef struct ur_exp_launch_property_t {
 ///         + NULL == hQueue
 ///         + NULL == hKernel
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == launchPropList`
 ///         + NULL == pGlobalWorkSize
@@ -9645,6 +9716,8 @@ urEnqueueKernelLaunchCustomExp(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
     uint32_t workDim,                               ///< [in] number of dimensions, from 1 to 3, to specify the global and
                                                     ///< work-group work-items
+    const size_t *pGlobalWorkOffset,                ///< [in] pointer to an array of workDim unsigned values that specify the
+                                                    ///< offset used to calculate the global ID of a work-item
     const size_t *pGlobalWorkSize,                  ///< [in] pointer to an array of workDim unsigned values that specify the
                                                     ///< number of global work-items in workDim that will execute the kernel
                                                     ///< function
@@ -10159,6 +10232,207 @@ urEnqueueNativeCommandExp(
     ur_event_handle_t *phEvent                                     ///< [out][optional] return an event object that identifies the work that has
                                                                    ///< been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
                                                                    ///< not NULL, phEvent must not refer to an element of the phEventWaitList array.
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental API for mapping tensor objects
+#if !defined(__GNUC__)
+#pragma region tensor_map_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of tensor map object
+typedef struct ur_exp_tensor_map_handle_t_ *ur_exp_tensor_map_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Tensor map data type
+typedef uint32_t ur_exp_tensor_map_data_type_flags_t;
+typedef enum ur_exp_tensor_map_data_type_flag_t {
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_UINT8 = UR_BIT(0),         ///< 1 byte
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_UINT16 = UR_BIT(1),        ///< 2 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_UINT32 = UR_BIT(2),        ///< 4 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_INT32 = UR_BIT(3),         ///< 4 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_UINT64 = UR_BIT(4),        ///< 8 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_INT64 = UR_BIT(5),         ///< 8 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_FLOAT16 = UR_BIT(6),       ///< 2 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_FLOAT32 = UR_BIT(7),       ///< 4 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_FLOAT64 = UR_BIT(8),       ///< 8 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_BFLOAT16 = UR_BIT(9),      ///< 2 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_FLOAT32_FTZ = UR_BIT(10),  ///< 4 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_TFLOAT32 = UR_BIT(11),     ///< 4 bytes
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_TFLOAT32_FTZ = UR_BIT(12), ///< 4 bytes
+    /// @cond
+    UR_EXP_TENSOR_MAP_DATA_TYPE_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_tensor_map_data_type_flag_t;
+/// @brief Bit Mask for validating ur_exp_tensor_map_data_type_flags_t
+#define UR_EXP_TENSOR_MAP_DATA_TYPE_FLAGS_MASK 0xffffe000
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Tensor map interleave
+typedef uint32_t ur_exp_tensor_map_interleave_flags_t;
+typedef enum ur_exp_tensor_map_interleave_flag_t {
+    UR_EXP_TENSOR_MAP_INTERLEAVE_FLAG_NONE = UR_BIT(0), ///< No interleave
+    UR_EXP_TENSOR_MAP_INTERLEAVE_FLAG_16B = UR_BIT(1),  ///< 16B interleave
+    UR_EXP_TENSOR_MAP_INTERLEAVE_FLAG_32B = UR_BIT(2),  ///< 32B interleave
+    /// @cond
+    UR_EXP_TENSOR_MAP_INTERLEAVE_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_tensor_map_interleave_flag_t;
+/// @brief Bit Mask for validating ur_exp_tensor_map_interleave_flags_t
+#define UR_EXP_TENSOR_MAP_INTERLEAVE_FLAGS_MASK 0xfffffff8
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Tensor map l2 promotion
+typedef uint32_t ur_exp_tensor_map_l2_promotion_flags_t;
+typedef enum ur_exp_tensor_map_l2_promotion_flag_t {
+    UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAG_NONE = UR_BIT(0), ///< No promotion type
+    UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAG_64B = UR_BIT(1),  ///< 64B promotion type
+    UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAG_128B = UR_BIT(2), ///< 128B promotion type
+    UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAG_256B = UR_BIT(3), ///< 256B promotion type
+    /// @cond
+    UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_tensor_map_l2_promotion_flag_t;
+/// @brief Bit Mask for validating ur_exp_tensor_map_l2_promotion_flags_t
+#define UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAGS_MASK 0xfffffff0
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Tensor map swizzle
+typedef uint32_t ur_exp_tensor_map_swizzle_flags_t;
+typedef enum ur_exp_tensor_map_swizzle_flag_t {
+    UR_EXP_TENSOR_MAP_SWIZZLE_FLAG_NONE = UR_BIT(0), ///< No swizzle
+    UR_EXP_TENSOR_MAP_SWIZZLE_FLAG_32B = UR_BIT(1),  ///< 32B swizzle
+    UR_EXP_TENSOR_MAP_SWIZZLE_FLAG_64B = UR_BIT(2),  ///< 64B swizzle
+    UR_EXP_TENSOR_MAP_SWIZZLE_FLAG_128B = UR_BIT(3), ///< 128B swizzle
+    /// @cond
+    UR_EXP_TENSOR_MAP_SWIZZLE_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_tensor_map_swizzle_flag_t;
+/// @brief Bit Mask for validating ur_exp_tensor_map_swizzle_flags_t
+#define UR_EXP_TENSOR_MAP_SWIZZLE_FLAGS_MASK 0xfffffff0
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Tensor map OOB fill
+typedef uint32_t ur_exp_tensor_map_oob_fill_flags_t;
+typedef enum ur_exp_tensor_map_oob_fill_flag_t {
+    UR_EXP_TENSOR_MAP_OOB_FILL_FLAG_NONE = UR_BIT(0),             ///< No OOB fill
+    UR_EXP_TENSOR_MAP_OOB_FILL_FLAG_REQUEST_ZERO_FMA = UR_BIT(1), ///< Refer to NVIDIA docs
+    /// @cond
+    UR_EXP_TENSOR_MAP_OOB_FILL_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_tensor_map_oob_fill_flag_t;
+/// @brief Bit Mask for validating ur_exp_tensor_map_oob_fill_flags_t
+#define UR_EXP_TENSOR_MAP_OOB_FILL_FLAGS_MASK 0xfffffffc
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Encode tensor map with image data
+///
+/// @details
+///     - Map encode using im2col.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_TENSOR_MAP_DATA_TYPE_FLAGS_MASK & TensorMapType`
+///         + `::UR_EXP_TENSOR_MAP_INTERLEAVE_FLAGS_MASK & Interleave`
+///         + `::UR_EXP_TENSOR_MAP_SWIZZLE_FLAGS_MASK & Swizzle`
+///         + `::UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAGS_MASK & L2Promotion`
+///         + `::UR_EXP_TENSOR_MAP_OOB_FILL_FLAGS_MASK & OobFill`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == GlobalAddress`
+///         + `NULL == GlobalDim`
+///         + `NULL == GlobalStrides`
+///         + `NULL == PixelBoxLowerCorner`
+///         + `NULL == PixelBoxUpperCorner`
+///         + `NULL == ElementStrides`
+///         + `NULL == hTensorMap`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `TensorRank < 3`
+UR_APIEXPORT ur_result_t UR_APICALL
+urTensorMapEncodeIm2ColExp(
+    ur_device_handle_t hDevice,                         ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t TensorMapType,  ///< [in] Data type of the tensor object.
+    uint32_t TensorRank,                                ///< [in] Dimensionality of tensor; must be at least 3.
+    void *GlobalAddress,                                ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *GlobalDim,                          ///< [in] Array containing tensor size (number of elements) along each of
+                                                        ///< the TensorRank dimensions.
+    const uint64_t *GlobalStrides,                      ///< [in] Array containing stride size (in bytes) along each of the
+                                                        ///< TensorRank - 1 dimensions.
+    const int *PixelBoxLowerCorner,                     ///< [in] Array containing DHW dimensions of lower box corner.
+    const int *PixelBoxUpperCorner,                     ///< [in] Array containing DHW dimensions of upper box corner.
+    uint32_t ChannelsPerPixel,                          ///< [in] Number of channels per pixel.
+    uint32_t PixelsPerColumn,                           ///< [in] Number of pixels per column.
+    const uint32_t *ElementStrides,                     ///< [in] Array containing traversal stride in each of the TensorRank
+                                                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t Interleave,    ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t Swizzle,          ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t OobFill,         ///< [in] Indicates whether zero or special NaN constant will be used to
+                                                        ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t *hTensorMap              ///< [out] Handle of the tensor map object.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Encode tensor map with tiled data
+///
+/// @details
+///     - Tiled map encode.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_TENSOR_MAP_DATA_TYPE_FLAGS_MASK & TensorMapType`
+///         + `::UR_EXP_TENSOR_MAP_INTERLEAVE_FLAGS_MASK & Interleave`
+///         + `::UR_EXP_TENSOR_MAP_SWIZZLE_FLAGS_MASK & Swizzle`
+///         + `::UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAGS_MASK & L2Promotion`
+///         + `::UR_EXP_TENSOR_MAP_OOB_FILL_FLAGS_MASK & OobFill`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == GlobalAddress`
+///         + `NULL == GlobalDim`
+///         + `NULL == GlobalStrides`
+///         + `NULL == BoxDim`
+///         + `NULL == ElementStrides`
+///         + `NULL == hTensorMap`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `TensorRank < 3`
+UR_APIEXPORT ur_result_t UR_APICALL
+urTensorMapEncodeTiledExp(
+    ur_device_handle_t hDevice,                         ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t TensorMapType,  ///< [in] Data type of the tensor object.
+    uint32_t TensorRank,                                ///< [in] Dimensionality of tensor; must be at least 3.
+    void *GlobalAddress,                                ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *GlobalDim,                          ///< [in] Array containing tensor size (number of elements) along each of
+                                                        ///< the TensorRank dimensions.
+    const uint64_t *GlobalStrides,                      ///< [in] Array containing stride size (in bytes) along each of the
+                                                        ///< TensorRank - 1 dimensions.
+    const uint32_t *BoxDim,                             ///< [in] Array containing traversal box size (number of elments) along
+                                                        ///< each of the TensorRank dimensions. Specifies how many elements to be
+                                                        ///< traversed along each tensor dimension.
+    const uint32_t *ElementStrides,                     ///< [in] Array containing traversal stride in each of the TensorRank
+                                                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t Interleave,    ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t Swizzle,          ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t OobFill,         ///< [in] Indicates whether zero or special NaN constant will be used to
+                                                        ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t *hTensorMap              ///< [out] Handle of the tensor map object.
 );
 
 #if !defined(__GNUC__)
@@ -10816,7 +11090,8 @@ typedef struct ur_kernel_set_specialization_constants_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t {
     ur_kernel_handle_t *phKernel;
-    size_t *plocalWorkSize;
+    uint32_t *pworkDim;
+    const size_t **ppLocalWorkSize;
     size_t *pdynamicSharedMemorySize;
     uint32_t **ppGroupCountRet;
 } ur_kernel_suggest_max_cooperative_group_count_exp_params_t;
@@ -11094,6 +11369,18 @@ typedef struct ur_physical_mem_retain_params_t {
 typedef struct ur_physical_mem_release_params_t {
     ur_physical_mem_handle_t *phPhysicalMem;
 } ur_physical_mem_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urPhysicalMemGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_physical_mem_get_info_params_t {
+    ur_physical_mem_handle_t *phPhysicalMem;
+    ur_physical_mem_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_physical_mem_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urAdapterGet
@@ -11554,6 +11841,7 @@ typedef struct ur_enqueue_kernel_launch_custom_exp_params_t {
     ur_queue_handle_t *phQueue;
     ur_kernel_handle_t *phKernel;
     uint32_t *pworkDim;
+    const size_t **ppGlobalWorkOffset;
     const size_t **ppGlobalWorkSize;
     const size_t **ppLocalWorkSize;
     uint32_t *pnumPropsInLaunchPropList;
@@ -12332,6 +12620,49 @@ typedef struct ur_command_buffer_command_get_info_exp_params_t {
     void **ppPropValue;
     size_t **ppPropSizeRet;
 } ur_command_buffer_command_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urTensorMapEncodeIm2ColExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_tensor_map_encode_im_2_col_exp_params_t {
+    ur_device_handle_t *phDevice;
+    ur_exp_tensor_map_data_type_flags_t *pTensorMapType;
+    uint32_t *pTensorRank;
+    void **pGlobalAddress;
+    const uint64_t **pGlobalDim;
+    const uint64_t **pGlobalStrides;
+    const int **pPixelBoxLowerCorner;
+    const int **pPixelBoxUpperCorner;
+    uint32_t *pChannelsPerPixel;
+    uint32_t *pPixelsPerColumn;
+    const uint32_t **pElementStrides;
+    ur_exp_tensor_map_interleave_flags_t *pInterleave;
+    ur_exp_tensor_map_swizzle_flags_t *pSwizzle;
+    ur_exp_tensor_map_l2_promotion_flags_t *pL2Promotion;
+    ur_exp_tensor_map_oob_fill_flags_t *pOobFill;
+    ur_exp_tensor_map_handle_t **phTensorMap;
+} ur_tensor_map_encode_im_2_col_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urTensorMapEncodeTiledExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_tensor_map_encode_tiled_exp_params_t {
+    ur_device_handle_t *phDevice;
+    ur_exp_tensor_map_data_type_flags_t *pTensorMapType;
+    uint32_t *pTensorRank;
+    void **pGlobalAddress;
+    const uint64_t **pGlobalDim;
+    const uint64_t **pGlobalStrides;
+    const uint32_t **pBoxDim;
+    const uint32_t **pElementStrides;
+    ur_exp_tensor_map_interleave_flags_t *pInterleave;
+    ur_exp_tensor_map_swizzle_flags_t *pSwizzle;
+    ur_exp_tensor_map_l2_promotion_flags_t *pL2Promotion;
+    ur_exp_tensor_map_oob_fill_flags_t *pOobFill;
+    ur_exp_tensor_map_handle_t **phTensorMap;
+} ur_tensor_map_encode_tiled_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp

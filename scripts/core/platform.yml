@@ -77,7 +77,9 @@ etors:
     - name: BACKEND
       value: "6"
       desc: "[$x_platform_backend_t] The backend of the platform. Identifies the native backend adapter implementing this platform."
-
+    - name: ADAPTER
+      value: "7"
+      desc: "[$x_adapter_handle_t] The adapter handle associated with the platform."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about platform"
@@ -148,6 +150,9 @@ etors:
     - name: "0_11"
       value: "$X_MAKE_VERSION( 0, 11 )"
       desc: "version 0.11"
+    - name: "0_12"
+      value: "$X_MAKE_VERSION( 0, 12 )"
+      desc: "version 0.12"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Returns the API version supported by the specified platform"

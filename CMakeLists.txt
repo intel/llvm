@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
-project(unified-runtime VERSION 0.11.0)
+project(unified-runtime VERSION 0.12.0)
 
 # Check if unified runtime is built as a standalone project.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR UR_STANDALONE_BUILD)
@@ -27,7 +27,7 @@ option(UR_USE_ASAN "enable AddressSanitizer" OFF)
 option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
 option(UR_USE_MSAN "enable MemorySanitizer" OFF)
 option(UR_USE_TSAN "enable ThreadSanitizer" OFF)
-option(UR_USE_CFI "enable Control Flow Integrity checks (requires clang and implies -flto)" ON)
+option(UR_USE_CFI "enable Control Flow Integrity checks (requires clang and implies -flto)" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UR_ENABLE_SANITIZER "enable device sanitizer" ON)
 option(UR_ENABLE_SYMBOLIZER "enable symoblizer for sanitizer" OFF)

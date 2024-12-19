@@ -35,6 +35,13 @@
 
 namespace uur {
 
+struct urAdapterTest : ::testing::Test,
+                       ::testing::WithParamInterface<ur_adapter_handle_t> {
+    void SetUp() override { adapter = GetParam(); }
+
+    ur_adapter_handle_t adapter;
+};
+
 struct urPlatformTest : ::testing::Test {
     void SetUp() override {
         platform = uur::PlatformEnvironment::instance->platform;
@@ -95,6 +102,7 @@ struct urDeviceTest : urPlatformTest,
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         device = GetParam();
+        EXPECT_SUCCESS(urDeviceRetain(device));
     }
 
     void TearDown() override {
@@ -105,6 +113,14 @@ struct urDeviceTest : urPlatformTest,
     ur_device_handle_t device;
 };
 } // namespace uur
+
+#define UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(FIXTURE)                          \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(uur::AdapterEnvironment::instance->adapters),      \
+        [](const ::testing::TestParamInfo<ur_adapter_handle_t> &info) {        \
+            return uur::GetAdapterBackendName(info.param);                     \
+        })
 
 #define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
     INSTANTIATE_TEST_SUITE_P(                                                  \
@@ -963,13 +979,9 @@ struct urPhysicalMemTest : urVirtualMemGranularityTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemGranularityTest::SetUp());
         size = granularity * 256;
-        ur_physical_mem_properties_t props{
-            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
-            nullptr,
-            0 /*flags*/,
-        };
-        ASSERT_SUCCESS(
-            urPhysicalMemCreate(context, device, size, &props, &physical_mem));
+
+        ASSERT_SUCCESS(urPhysicalMemCreate(context, device, size, &properties,
+                                           &physical_mem));
         ASSERT_NE(physical_mem, nullptr);
     }
 
@@ -982,6 +994,11 @@ struct urPhysicalMemTest : urVirtualMemGranularityTest {
 
     size_t size = 0;
     ur_physical_mem_handle_t physical_mem = nullptr;
+    ur_physical_mem_properties_t properties{
+        UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+        nullptr,
+        0 /*flags*/,
+    };
 };
 
 template <class T>
@@ -1096,6 +1113,12 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
             GTEST_SKIP() << "Device USM in not supported";
         }
         if (use_pool) {
+            ur_bool_t poolSupport = false;
+            ASSERT_SUCCESS(
+                uur::GetDeviceUSMPoolSupport(this->device, poolSupport));
+            if (!poolSupport) {
+                GTEST_SKIP() << "USM pools are not supported.";
+            }
             ur_usm_pool_desc_t pool_desc = {};
             ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
         }

@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_api_funcs.def
- * @version v0.11-r0
+ * @version v0.12-r0
  *
  */
 
@@ -96,6 +96,7 @@ _UR_API(urMemImageGetInfo)
 _UR_API(urPhysicalMemCreate)
 _UR_API(urPhysicalMemRetain)
 _UR_API(urPhysicalMemRelease)
+_UR_API(urPhysicalMemGetInfo)
 _UR_API(urAdapterGet)
 _UR_API(urAdapterRelease)
 _UR_API(urAdapterRetain)
@@ -185,6 +186,8 @@ _UR_API(urCommandBufferUpdateSignalEventExp)
 _UR_API(urCommandBufferUpdateWaitEventsExp)
 _UR_API(urCommandBufferGetInfoExp)
 _UR_API(urCommandBufferCommandGetInfoExp)
+_UR_API(urTensorMapEncodeIm2ColExp)
+_UR_API(urTensorMapEncodeTiledExp)
 _UR_API(urUsmP2PEnablePeerAccessExp)
 _UR_API(urUsmP2PDisablePeerAccessExp)
 _UR_API(urUsmP2PPeerAccessGetInfoExp)

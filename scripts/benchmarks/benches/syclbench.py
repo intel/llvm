@@ -19,6 +19,9 @@ class SyclBench(Suite):
         self.directory = directory
         return
 
+    def name(self) -> str:
+        return "SYCL-Bench"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -87,11 +90,11 @@ class SyclBench(Suite):
 
 class SyclBenchmark(Benchmark):
     def __init__(self, bench, name, test):
+        super().__init__(bench.directory, bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
         self.done = False
-        super().__init__(bench.directory)
 
     def bin_args(self) -> list[str]:
         return []

@@ -430,6 +430,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
   ScopedContext Active(hDevice);
   try {
     UR_CHECK_ERROR(cuArrayDestroy((CUarray)hImageMem));
+    if (auto it = hDevice->ChildCuarrayFromMipmapMap.find((CUarray)hImageMem);
+        it != hDevice->ChildCuarrayFromMipmapMap.end()) {
+      UR_CHECK_ERROR(cuMipmappedArrayDestroy((CUmipmappedArray)it->second));
+      hDevice->ChildCuarrayFromMipmapMap.erase(it);
+    }
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -1103,6 +1108,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     } else {
       CUarray memArray;
       UR_CHECK_ERROR(cuMipmappedArrayGetLevel(&memArray, memMipMap, 0));
+
+      hDevice->ChildCuarrayFromMipmapMap.emplace(memArray, memMipMap);
 
       *phImageMem = (ur_exp_image_mem_native_handle_t)memArray;
     }

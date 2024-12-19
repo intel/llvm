@@ -3,9 +3,26 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "fixtures.h"
+#include <uur/fixtures.h>
 
-using urAdapterGetTest = uur::runtime::urTest;
+struct urAdapterGetTest : ::testing::Test {
+    void SetUp() override {
+        ur_device_init_flags_t device_flags = 0;
+        ASSERT_SUCCESS(urLoaderConfigCreate(&loader_config));
+        ASSERT_SUCCESS(urLoaderConfigEnableLayer(loader_config,
+                                                 "UR_LAYER_FULL_VALIDATION"));
+        ASSERT_SUCCESS(urLoaderInit(device_flags, loader_config));
+    }
+
+    void TearDown() override {
+        if (loader_config) {
+            ASSERT_SUCCESS(urLoaderConfigRelease(loader_config));
+        }
+        ASSERT_SUCCESS(urLoaderTearDown());
+    }
+
+    ur_loader_config_handle_t loader_config = nullptr;
+};
 
 TEST_F(urAdapterGetTest, Success) {
     uint32_t adapter_count;

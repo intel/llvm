@@ -182,6 +182,10 @@ ur_result_t urPhysicalMemCreate(ur_context_handle_t hContext,
                                 ur_physical_mem_handle_t *phPhysicalMem);
 ur_result_t urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem);
 ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem);
+ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
+                                 ur_physical_mem_info_t propName,
+                                 size_t propSize, void *pPropValue,
+                                 size_t *pPropSizeRet);
 ur_result_t urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
                                   size_t length,
                                   const ur_program_properties_t *pProperties,
@@ -687,15 +691,15 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
 ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, size_t localWorkSize,
+    ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pLocalWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet);
 ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
 ur_result_t urEnqueueKernelLaunchCustomExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t numPropsInLaunchPropList,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
     const ur_exp_launch_property_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
@@ -735,6 +739,30 @@ ur_result_t urEnqueueNativeCommandExp(
     const ur_exp_enqueue_native_command_properties_t *pProperties,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
+ur_result_t urTensorMapEncodeIm2ColExp(
+    ur_device_handle_t hDevice,
+    ur_exp_tensor_map_data_type_flags_t TensorMapType, uint32_t TensorRank,
+    void *GlobalAddress, const uint64_t *GlobalDim,
+    const uint64_t *GlobalStrides, const int *PixelBoxLowerCorner,
+    const int *PixelBoxUpperCorner, uint32_t ChannelsPerPixel,
+    uint32_t PixelsPerColumn, const uint32_t *ElementStrides,
+    ur_exp_tensor_map_interleave_flags_t Interleave,
+    ur_exp_tensor_map_swizzle_flags_t Swizzle,
+    ur_exp_tensor_map_l2_promotion_flags_t L2Promotion,
+    ur_exp_tensor_map_oob_fill_flags_t OobFill,
+    ur_exp_tensor_map_handle_t *hTensorMap);
+ur_result_t
+urTensorMapEncodeTiledExp(ur_device_handle_t hDevice,
+                          ur_exp_tensor_map_data_type_flags_t TensorMapType,
+                          uint32_t TensorRank, void *GlobalAddress,
+                          const uint64_t *GlobalDim,
+                          const uint64_t *GlobalStrides, const uint32_t *BoxDim,
+                          const uint32_t *ElementStrides,
+                          ur_exp_tensor_map_interleave_flags_t Interleave,
+                          ur_exp_tensor_map_swizzle_flags_t Swizzle,
+                          ur_exp_tensor_map_l2_promotion_flags_t L2Promotion,
+                          ur_exp_tensor_map_oob_fill_flags_t OobFill,
+                          ur_exp_tensor_map_handle_t *hTensorMap);
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif

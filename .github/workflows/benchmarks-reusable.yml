@@ -156,14 +156,49 @@ jobs:
     - name: Install UR
       run: cmake --install ${{github.workspace}}/ur_build
 
+    - name: Checkout UMF
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      with:
+        repository: oneapi-src/unified-memory-framework
+        ref: main
+        path: umf-repo
+        fetch-depth: 1
+        fetch-tags: false
+
+    - name: Configure UMF
+      run: >
+        cmake -DCMAKE_BUILD_TYPE=Release
+        -S${{github.workspace}}/umf-repo
+        -B${{github.workspace}}/umf_build
+        -DUMF_BUILD_BENCHMARKS=ON
+        -DUMF_TESTS_FAIL_ON_SKIP=ON
+
+    - name: Build UMF
+      run: cmake --build ${{github.workspace}}/umf_build -j $(nproc)
+
+    - name: Compute core range
+      run: |
+        # Compute the core range for the first NUMA node, skipping the first 4 cores.
+        # This is to avoid the first cores that the kernel is likely to schedule more work on.
+        CORES=$(lscpu | awk '
+          /NUMA node0 CPU|On-line CPU/ {line=$0}
+          END {
+            split(line, a, " ")
+            split(a[4], b, ",")
+            sub(/^0/, "4", b[1])
+            print b[1]
+          }')
+        echo "CORES=$CORES" >> $GITHUB_ENV
+
     - name: Run benchmarks
       working-directory: ${{ github.workspace }}/ur-repo/
       id: benchmarks
       run: >
-        numactl -N 0 ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py
+        taskset -c ${{ env.CORES }} ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py
         ~/bench_workdir
         --sycl ${{ github.workspace }}/sycl_build
         --ur ${{ github.workspace }}/ur_install
+        --umf ${{ github.workspace }}/umf_build
         --adapter ${{ matrix.adapter.str_name }}
         ${{ inputs.upload_report && '--output-html' || '' }}
         ${{ inputs.bench_script_params }}

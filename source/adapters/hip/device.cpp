@@ -12,6 +12,7 @@
 #include "adapter.hpp"
 #include "context.hpp"
 #include "event.hpp"
+#include "logger/ur_logger.hpp"
 
 #include <sstream>
 
@@ -223,7 +224,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint64_t{MaxAlloc});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
-    return ReturnValue(ur_bool_t{true});
+    bool Enabled = false;
+
+    if (std::getenv("UR_HIP_ENABLE_IMAGE_SUPPORT") != nullptr) {
+      Enabled = true;
+    } else {
+      logger::always(
+          "Images are not fully supported by the HIP BE, their support is "
+          "disabled by default. Their partial support can be activated by "
+          "setting UR_HIP_ENABLE_IMAGE_SUPPORT environment variable at "
+          "runtime.");
+    }
+
+    return ReturnValue(Enabled);
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to HIP as it doesn't have images, but instead
@@ -891,6 +904,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(ur_bool_t{true});
+  case UR_DEVICE_INFO_BFLOAT16:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_IL_VERSION:
+    return ReturnValue("");
+
   // TODO: Investigate if this information is available on HIP.
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
@@ -901,9 +921,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
-  case UR_DEVICE_INFO_BFLOAT16:
-  case UR_DEVICE_INFO_IL_VERSION:
-  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_IP_VERSION:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
