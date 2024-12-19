@@ -422,6 +422,9 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
       << "Item with corrupted binary file was read";
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
+// Death tests (ASSERT_DEATH) rely on assert which is not available in release
+// mode.
+#ifndef NDEBUG
   // Unexpected 2 binaries in a single file.
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
@@ -438,6 +441,7 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
                    {Dev}, {&Img}, {}, BuildOptions),
                "NumBinaries == 1");
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+#endif
 }
 
 /* Checks that lock file affects cache operations as expected:
