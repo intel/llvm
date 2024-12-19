@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
-// XFAIL: (opencl && cpu)
-// XFAIL-TRACKER: https://github.com/oneapi-src/unified-runtime/issues/2440
 
 /**
  * Test of the queue::fill interface with a range of pattern sizes and values.
