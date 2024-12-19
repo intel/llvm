@@ -162,6 +162,9 @@ InstallIGFX () {
     echo "Install libopencl-clang"
     # Workaround only, will download deb and install with dpkg once fixed.
     cp -d libopencl-clang.so.14*  /usr/local/lib/
+    rm /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
     echo "Clean up"
     rm *.deb libopencl-clang.so.14*
     echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
