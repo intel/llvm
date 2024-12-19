@@ -61,8 +61,8 @@ void testQueriesAndProperties() {
 }
 
 template <typename T> struct TestKernel1 {
-  T &m_data;
-  TestKernel1(T &data_) : m_data(data_) {}
+  T m_data;
+  TestKernel1(T data_) : m_data(data_) {}
   void operator()(sycl::nd_item<1> it) const {
     volatile float X = 1.0f;
     volatile float Y = 1.0f;
