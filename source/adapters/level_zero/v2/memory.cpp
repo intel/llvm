@@ -419,8 +419,6 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   auto accessMode = getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
-    // TODO: assert that if hostPtr is set, either UR_MEM_FLAG_USE_HOST_POINTER
-    // or UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER is set?
     auto hostPtrAction =
         flags & UR_MEM_FLAG_USE_HOST_POINTER
             ? ur_integrated_mem_handle_t::host_ptr_action_t::import
