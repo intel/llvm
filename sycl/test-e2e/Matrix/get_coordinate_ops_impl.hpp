@@ -122,7 +122,7 @@ void test_get_coord_op() {
   TResult sum_cols[Cols] = {0};
   TResult sum_cols_ref[Cols] = {0};
 
-  matrix_fill(Rows, Cols, (T *)M, [](int i, int j) { return T(1) * (i + j); });
+  matrix_fill(Rows, Cols, (T *)M, [](int i, int j) { return T(i + j); });
 
   matrix_vnni<T>(Rows, Cols, *M, *Mvnni, VF);
   big_matrix<T, Rows / VF, Cols * VF> MM((T *)&Mvnni);
