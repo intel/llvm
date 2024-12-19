@@ -16,7 +16,7 @@ void reduce_and_accumulate(sub_group sg, size_t sg_size, size_t global_idy,
                            AccessorType &global_acc, TResult *local_sums,
                            size_t count) {
   for (size_t i = 0; i < count; i++) {
-   local_sums[i] = reduce_over_group(sg, local_sums[i], sycl::plus<>());
+    local_sums[i] = reduce_over_group(sg, local_sums[i], sycl::plus<>());
 
     // Only the subgroup leader performs the global accumulation
     if (global_idy % sg_size == 0) {
@@ -24,7 +24,7 @@ void reduce_and_accumulate(sub_group sg, size_t sg_size, size_t global_idy,
                        sycl::memory_scope::device>
           aref(global_acc[i]);
       aref.fetch_add(local_sums[i]);
-     }
+    }
   }
 }
 
