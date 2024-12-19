@@ -212,7 +212,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 )
 
             if "cuda:gpu" in sycl_devices:
-                extra_env.append("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1")
+                extra_env.append("UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
+
+            if "hip:gpu" in sycl_devices:
+                extra_env.append("UR_HIP_ENABLE_IMAGE_SUPPORT=1")
 
             return extra_env
 
@@ -231,14 +234,19 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 new_script.append(directive)
                 continue
 
-            # Filter commands based on split-mode
+            # Filter commands based on testing mode
             is_run_line = any(
                 i in directive.command
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
             )
 
-            if (is_run_line and test.config.test_mode == "build-only") or (
-                not is_run_line and test.config.test_mode == "run-only"
+            ignore_line_filtering = (
+                "build-and-run-mode" in test.requires
+                and test.config.fallback_build_run_only
+            )
+            if not ignore_line_filtering and (
+                (is_run_line and test.config.test_mode == "build-only")
+                or (not is_run_line and test.config.test_mode == "run-only")
             ):
                 continue
 

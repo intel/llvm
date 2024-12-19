@@ -39,12 +39,16 @@ config.unsupported_features = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
+config.fallback_build_run_only = False
 if config.test_mode == "full":
     config.available_features.add("run-mode")
     config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
+    if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
+        config.available_features.add("build-and-run-mode")
+        config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
@@ -149,10 +153,13 @@ if platform.system() == "Windows":
         ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
     )
     config.substitutions.append(("%obj_ext", ".obj"))
+    config.substitutions.append(
+        ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
+    )
 elif platform.system() == "Linux":
     config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
-config.substitutions.append(("%sycl_include", config.sycl_include))
+    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
@@ -378,7 +385,7 @@ if cl_options:
         )
     )
     config.substitutions.append(("%include_option", "/FI"))
-    config.substitutions.append(("%debug_option", "/DEBUG"))
+    config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
     config.substitutions.append(("%cxx_std_option", "/std:"))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
@@ -663,7 +670,9 @@ for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+    if sycl_device.startswith("hip:"):
+        env["UR_HIP_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
