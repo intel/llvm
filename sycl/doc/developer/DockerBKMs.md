@@ -156,6 +156,8 @@ has password-less access to `root`. Use the script as follows:
 ```bash
 # Note: the script requires root permissions to create a new user
 /user-setup.sh --regular
+# Switch to the newly created user
+su - sycl
 ```
 
 ## Managing downloaded Docker images
