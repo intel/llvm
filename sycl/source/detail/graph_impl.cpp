@@ -1000,7 +1000,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       }
 
       NewEvent = CreateNewEvent();
-      assert(NewEvent);
       ur_event_handle_t UREvent = nullptr;
       // Merge requirements from the nodes into requirements (if any) from the
       // handler.
