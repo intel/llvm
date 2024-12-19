@@ -98,11 +98,11 @@ private:
 };
 
 struct host_allocation_desc_t {
-  host_allocation_desc_t(void *ptr, size_t size, size_t offset,
+  host_allocation_desc_t(usm_unique_ptr_t ptr, size_t size, size_t offset,
                          ur_map_flags_t flags)
-      : ptr(ptr), size(size), offset(offset), flags(flags) {}
+      : ptr(std::move(ptr)), size(size), offset(offset), flags(flags) {}
 
-  void *ptr;
+  usm_unique_ptr_t ptr;
   size_t size;
   size_t offset;
   ur_map_flags_t flags;
@@ -146,10 +146,13 @@ private:
   // If not null, copy the buffer content back to this memory on release.
   void *writeBackPtr = nullptr;
 
+  // If not null, mapHostPtr should map memory to this ptr
+  void *mapToPtr = nullptr;
+
   std::vector<host_allocation_desc_t> hostAllocations;
 
+  void *getActiveDeviceAlloc(size_t offset = 0);
   void *allocateOnDevice(ur_device_handle_t hDevice, size_t size);
-
   ur_result_t migrateBufferTo(ur_device_handle_t hDevice, void *src,
                               size_t size);
 };

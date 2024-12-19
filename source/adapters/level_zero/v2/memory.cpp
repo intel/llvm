@@ -209,7 +209,7 @@ ur_discrete_mem_handle_t::ur_discrete_mem_handle_t(
     device_access_mode_t accessMode)
     : ur_mem_handle_t_(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
-      activeAllocationDevice(nullptr), hostAllocations() {
+      activeAllocationDevice(nullptr), mapToPtr(hostPtr), hostAllocations() {
   if (hostPtr) {
     auto initialDevice = hContext->getDevices()[0];
     UR_CALL_THROWS(migrateBufferTo(initialDevice, hostPtr, size));
@@ -246,10 +246,16 @@ ur_discrete_mem_handle_t::~ur_discrete_mem_handle_t() {
   if (!activeAllocationDevice || !writeBackPtr)
     return;
 
-  auto srcPtr = ur_cast<char *>(
-      deviceAllocations[activeAllocationDevice->Id.value()].get());
+  auto srcPtr = getActiveDeviceAlloc();
   synchronousZeCopy(hContext, activeAllocationDevice, writeBackPtr, srcPtr,
                     getSize());
+}
+
+void *ur_discrete_mem_handle_t::getActiveDeviceAlloc(size_t offset) {
+  assert(activeAllocationDevice);
+  return ur_cast<char *>(
+             deviceAllocations[activeAllocationDevice->Id.value()].get()) +
+         offset;
 }
 
 void *ur_discrete_mem_handle_t::getDevicePtr(
@@ -272,10 +278,8 @@ void *ur_discrete_mem_handle_t::getDevicePtr(
     hDevice = activeAllocationDevice;
   }
 
-  char *ptr;
   if (activeAllocationDevice == hDevice) {
-    ptr = ur_cast<char *>(deviceAllocations[hDevice->Id.value()].get());
-    return ptr + offset;
+    return getActiveDeviceAlloc(offset);
   }
 
   auto &p2pDevices = hContext->getP2PDevices(hDevice);
@@ -288,9 +292,7 @@ void *ur_discrete_mem_handle_t::getDevicePtr(
   }
 
   // TODO: see if it's better to migrate the memory to the specified device
-  return ur_cast<char *>(
-             deviceAllocations[activeAllocationDevice->Id.value()].get()) +
-         offset;
+  return getActiveDeviceAlloc(offset);
 }
 
 void *ur_discrete_mem_handle_t::mapHostPtr(
@@ -299,21 +301,27 @@ void *ur_discrete_mem_handle_t::mapHostPtr(
   TRACK_SCOPE_LATENCY("ur_discrete_mem_handle_t::mapHostPtr");
   // TODO: use async alloc?
 
-  void *ptr;
-  UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
-      hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &ptr));
-
-  hostAllocations.emplace_back(ptr, size, offset, flags);
-
-  if (activeAllocationDevice && (flags & UR_MAP_FLAG_READ)) {
-    auto srcPtr =
-        ur_cast<char *>(
-            deviceAllocations[activeAllocationDevice->Id.value()].get()) +
-        offset;
-    migrate(srcPtr, hostAllocations.back().ptr, size);
+  void *ptr = mapToPtr;
+  if (!ptr) {
+    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+        hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &ptr));
   }
 
-  return hostAllocations.back().ptr;
+  usm_unique_ptr_t mappedPtr =
+      usm_unique_ptr_t(ptr, [ownsAlloc = bool(mapToPtr), this](void *p) {
+        if (ownsAlloc) {
+          UR_CALL_THROWS(hContext->getDefaultUSMPool()->free(p));
+        }
+      });
+
+  hostAllocations.emplace_back(std::move(mappedPtr), size, offset, flags);
+
+  if (activeAllocationDevice && (flags & UR_MAP_FLAG_READ)) {
+    auto srcPtr = getActiveDeviceAlloc(offset);
+    migrate(srcPtr, hostAllocations.back().ptr.get(), size);
+  }
+
+  return hostAllocations.back().ptr.get();
 }
 
 void ur_discrete_mem_handle_t::unmapHostPtr(
@@ -321,33 +329,32 @@ void ur_discrete_mem_handle_t::unmapHostPtr(
     std::function<void(void *src, void *dst, size_t)> migrate) {
   TRACK_SCOPE_LATENCY("ur_discrete_mem_handle_t::unmapHostPtr");
 
-  for (auto &hostAllocation : hostAllocations) {
-    if (hostAllocation.ptr == pMappedPtr) {
-      void *devicePtr = nullptr;
-      if (activeAllocationDevice) {
-        devicePtr =
-            ur_cast<char *>(
-                deviceAllocations[activeAllocationDevice->Id.value()].get()) +
-            hostAllocation.offset;
-      } else if (!(hostAllocation.flags &
-                   UR_MAP_FLAG_WRITE_INVALIDATE_REGION)) {
-        devicePtr = ur_cast<char *>(getDevicePtr(
-            hContext->getDevices()[0], device_access_mode_t::read_only,
-            hostAllocation.offset, hostAllocation.size, migrate));
-      }
+  auto hostAlloc =
+      std::find_if(hostAllocations.begin(), hostAllocations.end(),
+                   [pMappedPtr](const host_allocation_desc_t &desc) {
+                     return desc.ptr.get() == pMappedPtr;
+                   });
 
-      if (devicePtr) {
-        migrate(hostAllocation.ptr, devicePtr, hostAllocation.size);
-      }
-
-      // TODO: use async free here?
-      UR_CALL_THROWS(hContext->getDefaultUSMPool()->free(hostAllocation.ptr));
-      return;
-    }
+  if (hostAlloc == hostAllocations.end()) {
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
 
-  // No mapping found
-  throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+  bool shouldMigrateToDevice =
+      !(hostAlloc->flags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION);
+
+  if (!activeAllocationDevice && shouldMigrateToDevice) {
+    allocateOnDevice(hContext->getDevices()[0], getSize());
+  }
+
+  // TODO: tests require that memory is migrated even for
+  // UR_MAP_FLAG_WRITE_INVALIDATE_REGION when there is an active device
+  // allocation. is this correct?
+  if (activeAllocationDevice) {
+    migrate(hostAlloc->ptr.get(), getActiveDeviceAlloc(hostAlloc->offset),
+            hostAlloc->size);
+  }
+
+  hostAllocations.erase(hostAlloc);
 }
 
 static bool useHostBuffer(ur_context_handle_t hContext) {
