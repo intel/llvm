@@ -21,9 +21,14 @@
 //   allows us to get the line *after* XFAIL
 // - in those lines, check that XFAIL-TRACKER is present and correct. Once
 //   again, invert the search to get all "bad" lines. Because there should be no
-//   bad lines, check that the search fails using the negation operator !.
+//   bad lines, check that the search fails using the negation operator not.
 //
 // RUN: grep -rI "XFAIL:" %S/../../test-e2e \
 // RUN: -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
-// RUN: ! grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)"
+// RUN: not grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)"
+//
+// If you see this test failed for your patch, it means that you either
+// introduced XFAIL directive to a test improperly, or broke the format of an
+// existing XFAIL-ed tests. Note in particular that XFAIL-TRACKER should appear in the 
+// next line following the XFAIL.
