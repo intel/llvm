@@ -111,7 +111,7 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});
   try {
-    // no supported properties now
+    // unsupported property
     auto ExecBundle = sycl::build(KernelBundle, sycl::property::no_init{});
     FAIL();
   } catch (sycl::exception &e) {
