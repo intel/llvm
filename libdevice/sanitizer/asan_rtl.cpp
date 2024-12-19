@@ -87,14 +87,6 @@ static __SYCL_CONSTANT__ const char __generic_to[] =
     }                                                                          \
   } while (false)
 
-enum ADDRESS_SPACE : uint32_t {
-  ADDRESS_SPACE_PRIVATE = 0,
-  ADDRESS_SPACE_GLOBAL = 1,
-  ADDRESS_SPACE_CONSTANT = 2,
-  ADDRESS_SPACE_LOCAL = 3,
-  ADDRESS_SPACE_GENERIC = 4,
-};
-
 namespace {
 
 void __asan_report_unknown_device();

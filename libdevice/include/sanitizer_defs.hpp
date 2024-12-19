@@ -19,6 +19,14 @@ using s16 = int16_t;
 using s32 = int32_t;
 using s64 = int64_t;
 
+enum ADDRESS_SPACE : uint32_t {
+  ADDRESS_SPACE_PRIVATE = 0,
+  ADDRESS_SPACE_GLOBAL = 1,
+  ADDRESS_SPACE_CONSTANT = 2,
+  ADDRESS_SPACE_LOCAL = 3,
+  ADDRESS_SPACE_GENERIC = 4,
+};
+
 #define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 #define NORETURN __declspec(noreturn)
