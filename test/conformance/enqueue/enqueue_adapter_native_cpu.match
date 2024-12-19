@@ -139,16 +139,6 @@ urEnqueueEventsWaitWithBarrierOrderingTest.SuccessNonEventDependencies/*_
 {{OPT}}urEnqueueUSMPrefetchTest.InvalidSizeZero/*
 {{OPT}}urEnqueueUSMPrefetchTest.InvalidSizeTooLarge/*
 {{OPT}}urEnqueueUSMPrefetchTest.InvalidEventWaitList/*
-{{OPT}}urEnqueueReadHostPipeTest.InvalidNullHandleQueue/*
-{{OPT}}urEnqueueReadHostPipeTest.InvalidNullHandleProgram/*
-{{OPT}}urEnqueueReadHostPipeTest.InvalidNullPointerPipeSymbol/*
-{{OPT}}urEnqueueReadHostPipeTest.InvalidNullPointerBuffer/*
-{{OPT}}urEnqueueReadHostPipeTest.InvalidEventWaitList/*
-{{OPT}}urEnqueueWriteHostPipeTest.InvalidNullHandleQueue/*
-{{OPT}}urEnqueueWriteHostPipeTest.InvalidNullHandleProgram/*
-{{OPT}}urEnqueueWriteHostPipeTest.InvalidNullPointerPipeSymbol/*
-{{OPT}}urEnqueueWriteHostPipeTest.InvalidNullPointerBuffer/*
-{{OPT}}urEnqueueWriteHostPipeTest.InvalidEventWaitList/*
 urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/*
 urEnqueueKernelLaunchIncrementMultiDeviceTest.Success/*
 urEnqueueKernelLaunchIncrementTest.Success/*
