@@ -30,5 +30,5 @@
 //
 // If you see this test failed for your patch, it means that you either
 // introduced XFAIL directive to a test improperly, or broke the format of an
-// existing XFAIL-ed tests. Note in particular that XFAIL-TRACKER should appear in the 
+// existing XFAIL-ed tests. Note in particular that XFAIL-TRACKER should appear in the
 // next line following the XFAIL.
