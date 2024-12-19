@@ -8633,6 +8633,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    ur_device_handle_t hDevice, ///< [in] handle of the device object
     uint32_t
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the work-group
                  ///< work-items
@@ -8654,7 +8655,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     }
 
     ur_kernel_suggest_max_cooperative_group_count_exp_params_t params = {
-        &hKernel, &workDim, &pLocalWorkSize, &dynamicSharedMemorySize,
+        &hKernel,
+        &hDevice,
+        &workDim,
+        &pLocalWorkSize,
+        &dynamicSharedMemorySize,
         &pGroupCountRet};
     uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
@@ -8664,7 +8669,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     logger.info("   ---> urKernelSuggestMaxCooperativeGroupCountExp\n");
 
     ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
-        hKernel, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+        hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
         pGroupCountRet);
 
     getContext()->notify_end(
