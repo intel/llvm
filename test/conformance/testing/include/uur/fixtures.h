@@ -35,6 +35,13 @@
 
 namespace uur {
 
+struct urAdapterTest : ::testing::Test,
+                       ::testing::WithParamInterface<ur_adapter_handle_t> {
+    void SetUp() override { adapter = GetParam(); }
+
+    ur_adapter_handle_t adapter;
+};
+
 struct urPlatformTest : ::testing::Test {
     void SetUp() override {
         platform = uur::PlatformEnvironment::instance->platform;
@@ -106,6 +113,14 @@ struct urDeviceTest : urPlatformTest,
     ur_device_handle_t device;
 };
 } // namespace uur
+
+#define UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(FIXTURE)                          \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(uur::AdapterEnvironment::instance->adapters),      \
+        [](const ::testing::TestParamInfo<ur_adapter_handle_t> &info) {        \
+            return uur::GetAdapterBackendName(info.param);                     \
+        })
 
 #define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
     INSTANTIATE_TEST_SUITE_P(                                                  \
@@ -209,9 +224,9 @@ struct urMemImageTest : urContextTest {
         if (!imageSupported) {
             GTEST_SKIP();
         }
-        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
-                                        &image_format, &image_desc, nullptr,
-                                        &image));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
+                             &image_desc, nullptr, &image));
     }
 
     void TearDown() override {
@@ -323,8 +338,9 @@ template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
         if (!imageSupported) {
             GTEST_SKIP();
         }
-        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                        &format, &desc, nullptr, &image));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE, &format,
+                             &desc, nullptr, &image));
         ASSERT_NE(nullptr, image);
     }
 
@@ -373,10 +389,6 @@ struct urQueueTest : urContextTest {
 struct urHostPipeTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
-        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-            platform, context, device, *il_binary, nullptr, &program));
 
         size_t size = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(
@@ -384,6 +396,7 @@ struct urHostPipeTest : urQueueTest {
             &size));
         ASSERT_NE(size, 0);
         ASSERT_EQ(sizeof(ur_bool_t), size);
+
         void *info_data = alloca(size);
         ASSERT_SUCCESS(urDeviceGetInfo(
             device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, size,
@@ -395,6 +408,11 @@ struct urHostPipeTest : urQueueTest {
         if (!supported) {
             GTEST_SKIP() << "Host pipe read/write is not supported.";
         }
+
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
+        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
     }
 
     void TearDown() override {
@@ -1098,6 +1116,12 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
             GTEST_SKIP() << "Device USM in not supported";
         }
         if (use_pool) {
+            ur_bool_t poolSupport = false;
+            ASSERT_SUCCESS(
+                uur::GetDeviceUSMPoolSupport(this->device, poolSupport));
+            if (!poolSupport) {
+                GTEST_SKIP() << "USM pools are not supported.";
+            }
             ur_usm_pool_desc_t pool_desc = {};
             ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
         }

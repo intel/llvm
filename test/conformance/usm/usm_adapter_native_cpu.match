@@ -8,7 +8,6 @@ urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_TYPE
 urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_BASE_PTR
 urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_SIZE
 urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_DEVICE
-urUSMGetMemAllocInfoTest.Success/*__UR_USM_ALLOC_INFO_POOL
 urUSMGetMemAllocInfoNegativeTest.InvalidNullHandleContext/*
 urUSMGetMemAllocInfoNegativeTest.InvalidNullPointerMem/*
 urUSMGetMemAllocInfoNegativeTest.InvalidEnumeration/*

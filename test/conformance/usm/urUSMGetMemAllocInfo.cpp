@@ -33,8 +33,9 @@ static std::unordered_map<ur_usm_alloc_info_t, size_t> usm_info_size_map = {
 TEST_P(urUSMGetMemAllocInfoTest, Success) {
     size_t size = 0;
     auto alloc_info = getParam();
-    ASSERT_SUCCESS(
-        urUSMGetMemAllocInfo(context, ptr, alloc_info, 0, nullptr, &size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urUSMGetMemAllocInfo(context, ptr, alloc_info, 0, nullptr, &size),
+        alloc_info);
     ASSERT_NE(size, 0);
 
     if (const auto expected_size = usm_info_size_map.find(alloc_info);

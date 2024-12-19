@@ -3,7 +3,9 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <sstream>
 #include <string_view>
+#include <ur_print.hpp>
 #include <uur/utils.h>
 
 namespace uur {
@@ -689,4 +691,12 @@ ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
     }
 }
 
+std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter) {
+    ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+    urAdapterGetInfo(hAdapter, UR_ADAPTER_INFO_BACKEND, sizeof(backend),
+                     &backend, nullptr);
+    std::stringstream ss;
+    ss << backend;
+    return ss.str();
+}
 } // namespace uur
