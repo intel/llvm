@@ -15,7 +15,7 @@ int main() {
   auto aspectsList = testAspects->second.aspects;
 
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                      \
-  std::string_view s##ASPECT(#ASPECT);                                          \
+  std::string_view s##ASPECT(#ASPECT);                                         \
   assert(std::find(aspectsList.begin(), aspectsList.end(), s##ASPECT) !=       \
          aspectsList.end());
 
@@ -28,7 +28,7 @@ int main() {
   assert(testDeprecatedAspects != DeviceConfigFile::TargetTable.end());
   auto deprecatedAspectsList = testDeprecatedAspects->second.aspects;
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ASPECT_VAL, MSG)                      \
-  std::string_view s##ASPECT(#ASPECT);                                          \
+  std::string_view s##ASPECT(#ASPECT);                                         \
   assert(std::find(deprecatedAspectsList.begin(), deprecatedAspectsList.end(), \
                    s##ASPECT) != deprecatedAspectsList.end());
 

@@ -831,14 +831,11 @@ else:
 if config.llvm_main_include_dir:
     config.available_features.add("device-config-file")
     config.substitutions.append(
-        ("%device_config_file_include_flag", 
-         f"-I {config.llvm_main_include_dir}")
+        ("%device_config_file_include_flag", f"-I {config.llvm_main_include_dir}")
     )
 elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hpp"):
     config.available_features.add("device-config-file")
-    config.substitutions.append(
-        ("%device_config_file_include_flag", "")
-    )
+    config.substitutions.append(("%device_config_file_include_flag", ""))
 
 # Set timeout for a single test
 try:
