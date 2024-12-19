@@ -67,6 +67,7 @@ template <typename T> struct TestKernel1 {
     volatile float X = 1.0f;
     volatile float Y = 1.0f;
     auto root = it.ext_oneapi_get_root_group();
+    m_data[root.get_local_id()] = root.get_local_id();
   }
   auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
