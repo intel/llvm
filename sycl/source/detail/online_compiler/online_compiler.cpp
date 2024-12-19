@@ -98,12 +98,18 @@ compileToSPIRV(string_view Src, sycl::info::device_type DeviceType,
 #else
     static const std::string OclocLibraryName = "libocloc.so";
 #endif
-    void *OclocLibrary = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
+    auto CustomDeleter = [](void *StoredPtr) {
+      if (!StoredPtr)
+        return;
+      std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
+    };
+    std::unique_ptr<void, decltype(CustomDeleter)> OclocLibrary(
+        sycl::detail::ur::loadOsLibrary(OclocLibraryName), CustomDeleter);
     if (!OclocLibrary)
       throw online_compile_error("Cannot load ocloc library: " +
                                  OclocLibraryName);
-    void *OclocVersionHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
+    void *OclocVersionHandle = sycl::detail::ur::getOsLibraryFuncAddress(
+        OclocLibrary.get(), "oclocVersion");
     // The initial versions of ocloc library did not have the oclocVersion()
     // function. Those versions had the same API as the first version of ocloc
     // library having that oclocVersion() function.
@@ -129,18 +135,21 @@ compileToSPIRV(string_view Src, sycl::info::device_type DeviceType,
           std::to_string(CurrentVersionMajor) +
           ".N), where (N >= " + std::to_string(CurrentVersionMinor) + ").");
 
-    CompileToSPIRVHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+    CompileToSPIRVHandle = sycl::detail::ur::getOsLibraryFuncAddress(
+        OclocLibrary.get(), "oclocInvoke");
     if (!CompileToSPIRVHandle)
       throw online_compile_error("Cannot load oclocInvoke() function");
     FreeSPIRVOutputsHandle = sycl::detail::ur::getOsLibraryFuncAddress(
-        OclocLibrary, "oclocFreeOutput");
-    if (!FreeSPIRVOutputsHandle)
+        OclocLibrary.get(), "oclocFreeOutput");
+    if (!FreeSPIRVOutputsHandle) {
+      CompileToSPIRVHandle = NULL;
       throw online_compile_error("Cannot load oclocFreeOutput() function");
+    }
+    OclocLibrary.release();
   }
 
   std::string CombinedUserArgs;
-  for (auto UserArg : UserArgs) {
+  for (const auto &UserArg : UserArgs) {
     if (UserArg == "")
       continue;
     if (CombinedUserArgs != "")

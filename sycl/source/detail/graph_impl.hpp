@@ -140,7 +140,8 @@ public:
   /// @param NodeType Type of the command-group.
   /// @param CommandGroup The CG which stores the command information for this
   /// node.
-  node_impl(node_type NodeType, std::shared_ptr<sycl::detail::CG> CommandGroup)
+  node_impl(node_type NodeType,
+            const std::shared_ptr<sycl::detail::CG> &CommandGroup)
       : MCGType(CommandGroup->getType()), MNodeType(NodeType),
         MCommandGroup(CommandGroup) {
     if (NodeType == node_type::subgraph) {
