@@ -543,11 +543,10 @@ event handler::finalize() {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
-      auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
           Deps;
-      if (DependentNode) {
-        Deps.push_back(DependentNode);
+      if (auto DependentNode = GraphImpl->getLastInorderNode(MQueue)) {
+        Deps.push_back(std::move(DependentNode));
       }
       NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
@@ -571,7 +570,7 @@ event handler::finalize() {
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, NodeImpl);
+    GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }

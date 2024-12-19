@@ -2569,9 +2569,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   // they can simply be launched directly.
   if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
       KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    auto KernelName = CommandGroup.MKernelName;
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel_id KernelID = detail::ProgramManager::getInstance().getSYCLKernelID(
+        CommandGroup.MKernelName);
 
     kernel SyclKernel =
         KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
@@ -2775,8 +2774,8 @@ void enqueueImpKernel(
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
       ContextImpl->initializeDeviceGlobals(Program, Queue);
-  std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
+    std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
                                         DeviceGlobalInitEvents.size());
     EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
@@ -2784,7 +2783,7 @@ void enqueueImpKernel(
     EventsWithDeviceGlobalInits.insert(EventsWithDeviceGlobalInits.end(),
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
-    EventsWaitList = EventsWithDeviceGlobalInits;
+    EventsWaitList = std::move(EventsWithDeviceGlobalInits);
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;
@@ -3642,6 +3641,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // we don't need to enqueue anything.
       return UR_RESULT_SUCCESS;
     }
+    assert(MQueue && "Empty node should have an associated queue");
     const detail::AdapterPtr &Adapter = MQueue->getAdapter();
     ur_event_handle_t Event;
     ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
