@@ -27,7 +27,7 @@
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
 // CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
 // CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=,kind=sycl{{.*}}"
-// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-fsycl-is-host"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
+// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
 /// Verify options passed to clang-linker-wrapper
@@ -163,12 +163,12 @@
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--cpu-tool-arg=-backend-cpu-opt"
 
 /// Verify arch settings for nvptx and amdgcn targets
-// RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-gpu -fno-sycl-libspirv \
+// RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
 // RUN:          -nocudalib --offload-new-driver \
-// RUN:          -Xsycl-target-backend=amdgcn-amd-gpu --offload-arch=gfx600 \
+// RUN:          -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx600 \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix AMD_ARCH %s
-// AMD_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=amdgcn-amd-gpu,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
+// AMD_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=amdgcn-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
 
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver %s 2>&1 \
@@ -187,7 +187,7 @@
 // RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix COMMA_FILE %s
-// COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl"
+// COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode"
 
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
@@ -195,3 +195,19 @@
 // RUN:          --offload-new-driver 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
 // NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}} "--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"
+
+/// Check for -sycl-allow-device-image-dependencies transmission to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -###  --offload-new-driver \
+// RUN:          -fsycl-allow-device-image-dependencies %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_DYNAMIC_LINKING %s
+// CHECK_DYNAMIC_LINKING: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
+
+/// Check that -sycl-allow-device-image-dependencies is not passed to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### --offload-new-driver \
+// RUN:          -fno-sycl-allow-device-image-dependencies %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
+
+/// Check that -sycl-allow-device-image-dependencies is not passed to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
+// CHECK_NO_DYNAMIC_LINKING-NOT: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"

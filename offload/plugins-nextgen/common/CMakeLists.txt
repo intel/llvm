@@ -34,14 +34,9 @@ elseif(${LIBOMPTARGET_GPU_LIBC_SUPPORT})
     # We may need to get the headers directly from the 'libc' source directory.
     target_include_directories(PluginCommon PRIVATE
                                ${CMAKE_SOURCE_DIR}/../libc/utils/gpu/server
+                               ${CMAKE_SOURCE_DIR}/../libc/
                                ${CMAKE_SOURCE_DIR}/../libc/include)
   endif()
-endif()
-
-# If we have OMPT enabled include it in the list of sources.
-if (OMPT_TARGET_DEFAULT AND LIBOMPTARGET_OMPT_SUPPORT)
-  target_sources(PluginCommon PRIVATE OMPT/OmptCallback.cpp)
-  target_include_directories(PluginCommon PRIVATE OMPT)
 endif()
 
 # Define the TARGET_NAME and DEBUG_PREFIX.

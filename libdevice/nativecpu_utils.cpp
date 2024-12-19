@@ -14,10 +14,10 @@
 
 #if defined(__SYCL_NATIVE_CPU__)
 
-#include "CL/__spirv/spirv_ops.hpp"
 #include "device.h"
 #include <cstdint>
-#include <sycl/types.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/vector.hpp>
 
 // including state definition from Native CPU UR adapter
 #include "nativecpu_state.hpp"

@@ -39,18 +39,37 @@ jobs:
             file: ubuntu2204_base
             tag: latest
             build_args: ""
+          - name: Base Ubuntu 24.04 Docker image
+            file: ubuntu2404_base
+            tag: latest
+            build_args: ""
           - name: Build Ubuntu Docker image
             file: ubuntu2204_build
+            tag: latest
+            build_args: ""
+          - name: Build Ubuntu 24.04 oneAPI Docker image
+            file: ubuntu2404_build_oneapi
             tag: latest
             build_args: ""
           - name: Intel Drivers Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
             tag: latest
             build_args: "use_latest=false"
-          - name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
-            file: ubuntu2204_intel_drivers
+          - name: Intel Drivers Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
+            tag: latest
+            build_args: "use_latest=false"
+          - name: Intel Drivers (unstable) Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
             tag: unstable
             build_args: "use_latest=true"
+          - name: Build + Intel Drivers Ubuntu 22.04 Docker image
+            file: ubuntu2204_intel_drivers
+            tag: alldeps
+            build_args: |
+              base_image=ghcr.io/intel/llvm/ubuntu2204_build
+              base_tag=latest
+              use_latest=false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,6 +82,7 @@ jobs:
           file: ${{ matrix.file }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+          sycl_ci_passwd: ${{ secrets.DOCKER_SUDO_PASSWORD }}
           tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}

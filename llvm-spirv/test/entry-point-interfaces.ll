@@ -3,17 +3,28 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val --target-env spv1.4 %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o %t.from.spv.spt
-; RUN: FileCheck < %t.from.spv.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.from.spv.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 
 ; RUN: llvm-spirv -spirv-text %t.bc -o %t.from.bc.spt
-; RUN: FileCheck < %t.from.bc.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.from.bc.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
+
+; Check the same with untyped pointers enabled
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: spirv-val --target-env spv1.4 %t.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers -to-text %t.spv -o %t.from.spv.spt
+; RUN: FileCheck < %t.from.spv.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers -spirv-text %t.bc -o %t.from.bc.spt
+; RUN: FileCheck < %t.from.bc.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 
 ; CHECK-SPIRV: 7 EntryPoint 6 [[#]] "test" [[#Interface1:]] [[#Interface2:]]
 ; CHECK-SPIRV: TypeInt [[#TypeInt:]] 32 0
 ; CHECK-SPIRV: Constant [[#TypeInt]] [[#Constant1:]] 1
 ; CHECK-SPIRV: Constant [[#TypeInt]] [[#Constant2:]] 3
-; CHECK-SPIRV: Variable [[#]] [[#Interface1]] 0 [[#Constant1]]
-; CHECK-SPIRV: Variable [[#]] [[#Interface2]] 0 [[#Constant2]]
+; CHECK-SPIRV-TYPED-PTR: Variable [[#]] [[#Interface1]] 0 [[#Constant1]]
+; CHECK-SPIRV-TYPED-PTR: Variable [[#]] [[#Interface2]] 0 [[#Constant2]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[#]] [[#Interface1]] 0 [[#TypeInt]] [[#Constant1]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[#]] [[#Interface2]] 0 [[#TypeInt]] [[#Constant2]]
 
 ; ModuleID = 'source.cpp'
 source_filename = "source.cpp"

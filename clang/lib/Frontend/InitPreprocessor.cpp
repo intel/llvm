@@ -699,10 +699,9 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
                         LangOpts.CPlusPlus23   ? "202211L"
                         : LangOpts.CPlusPlus17 ? "201603L"
                                                : "200907");
-    Builder.defineMacro("__cpp_static_assert", LangOpts.CPlusPlus26 ? "202306L"
-                                               : LangOpts.CPlusPlus17
-                                                   ? "201411L"
-                                                   : "200410");
+    // C++17 / C++26 static_assert supported as an extension in earlier language
+    // modes, so we use the C++26 value.
+    Builder.defineMacro("__cpp_static_assert", "202306L");
     Builder.defineMacro("__cpp_decltype", "200707L");
     Builder.defineMacro("__cpp_attributes", "200809L");
     Builder.defineMacro("__cpp_rvalue_references", "200610L");
@@ -1132,7 +1131,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   assert(TI.getCharWidth() == 8 && "Only support 8-bit char so far");
   Builder.defineMacro("__CHAR_BIT__", Twine(TI.getCharWidth()));
 
-  Builder.defineMacro("__BOOL_WIDTH__", Twine(TI.getBoolWidth()));
+  // The macro is specifying the number of bits in the width, not the number of
+  // bits the object requires for its in-memory representation, which is what
+  // getBoolWidth() will return. The bool/_Bool data type is only ever one bit
+  // wide. See C23 6.2.6.2p2 for the rules in C. Note that
+  // C++23 [basic.fundamental]p10 allows an implementation-defined value
+  // representation for bool; when lowering to LLVM, Clang represents bool as an
+  // i8 in memory but as an i1 when the value is needed, so '1' is also correct
+  // for C++.
+  Builder.defineMacro("__BOOL_WIDTH__", "1");
   Builder.defineMacro("__SHRT_WIDTH__", Twine(TI.getShortWidth()));
   Builder.defineMacro("__INT_WIDTH__", Twine(TI.getIntWidth()));
   Builder.defineMacro("__LONG_WIDTH__", Twine(TI.getLongWidth()));
@@ -1491,9 +1498,10 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   }
 
   // CUDA device path compilaton
-  if (LangOpts.CUDAIsDevice && !LangOpts.HIP) {
+  if (LangOpts.CUDAIsDevice && !LangOpts.HIP && !LangOpts.isSYCL()) {
     // The CUDA_ARCH value is set for the GPU target specified in the NVPTX
     // backend's target defines.
+    // Note: SYCL targeting nvptx-cuda relies on __SYCL_CUDA_ARCH__ instead.
     Builder.defineMacro("__CUDA_ARCH__");
   }
 
@@ -1513,7 +1521,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
     if (DeviceTriple.isNVPTX() || DeviceTriple.isAMDGPU() ||
         (DeviceTriple.isSPIR() &&
-         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga))
+         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga) ||
+        LangOpts.SYCLIsNativeCPU)
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
     // Enable generation of USM address spaces for FPGA.
     if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga) {
@@ -1661,6 +1670,13 @@ void clang::InitializePreprocessor(Preprocessor &PP,
   for (unsigned i = 0, e = InitOpts.Includes.size(); i != e; ++i) {
     const std::string &Path = InitOpts.Includes[i];
     AddImplicitInclude(Builder, Path);
+  }
+
+  // Process -include-internal-header directive.
+  if (!LangOpts.SYCLIsDevice) {
+    if (!InitOpts.IncludeHeader.empty()) {
+      AddImplicitInclude(Builder, InitOpts.IncludeHeader);
+    }
   }
 
   // Instruct the preprocessor to skip the preamble.

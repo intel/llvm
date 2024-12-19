@@ -2,6 +2,7 @@
 // cannot do that reliably when number of devices is unknown.
 //
 // REQUIRES: level_zero, ocloc
+// REQUIRES: build-and-run-mode
 //
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{build_cmd} = %{build}
@@ -66,8 +67,8 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 
-// CHECK-CACHE-WRITE: Code caching: device binary has been cached
-// CHECK-CACHE-READ: Code caching: using cached device binary
+// CHECK-CACHE-WRITE: [Persistent Cache]: device binary has been cached
+// CHECK-CACHE-READ: [Persistent Cache]: using cached device binary
 
 // RESULT1: Result (0): 1
 // RESULT1: Result (1): 1

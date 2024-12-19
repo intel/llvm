@@ -16,7 +16,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/config.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/Support/Endian.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -708,6 +707,13 @@ StringRef remove_leading_dotslash(StringRef Path, Style style) {
     while (Path.size() > 0 && is_separator(Path[0], style))
       Path = Path.substr(1);
   }
+  return Path;
+}
+
+StringRef remove_leading_dotbackslash_only(StringRef Path) {
+  // Remove leading ".\\".
+  if (Path.size() > 2 && Path[0] == '.' && Path[1] == '\\')
+    Path = Path.substr(2);
   return Path;
 }
 

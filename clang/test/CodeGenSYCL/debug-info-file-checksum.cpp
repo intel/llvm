@@ -16,8 +16,8 @@
 // COMP1-SAME: checksumkind: CSK_MD5, checksum: "259269f735d83ec32c46a11352458493")
 
 // RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsycl-is-host \
-// RUN: -include %t.header.h -dependency-filter %t.header.h \
-// RUN: -include-footer %t.footer.h -dependency-filter %t.footer.h \
+// RUN: -include-internal-header %t.header.h -dependency-filter %t.header.h \
+// RUN: -include-internal-footer %t.footer.h -dependency-filter %t.footer.h \
 // RUN: -main-file-name %S/Inputs/checksum.cpp \
 // RUN: -gcodeview -debug-info-kind=limited -emit-llvm -O0 -o - \
 // RUN: "%S/Inputs/checksum.cpp" \

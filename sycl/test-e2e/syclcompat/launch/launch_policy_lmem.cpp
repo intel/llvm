@@ -20,14 +20,11 @@
  *     launch<F> with policy & use local memory tests
  **************************************************************************/
 
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/15275
 // UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15275
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -58,14 +55,19 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   constexpr size_t num_elements = memsize / sizeof(T);
   T *typed_local_mem = reinterpret_cast<T *>(local_mem);
 
-  const int id =
-      sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_global_linear_id();
-  if (id < num_elements) {
-    typed_local_mem[id] = static_cast<T>(id);
-  }
-  syclcompat::wg_barrier();
-  if (id < num_elements) {
-    data[id] = typed_local_mem[num_elements - id - 1];
+  const int local_id =
+      sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_local_linear_id();
+  const int group_id =
+      sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_group_linear_id();
+  // Only operate in first work-group
+  if (group_id == 0) {
+    if (local_id < num_elements) {
+      typed_local_mem[local_id] = static_cast<T>(local_id);
+    }
+    syclcompat::wg_barrier();
+    if (local_id < num_elements) {
+      data[local_id] = typed_local_mem[num_elements - local_id - 1];
+    }
   }
 };
 

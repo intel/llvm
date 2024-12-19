@@ -50,7 +50,6 @@ TEST(ValueTest, UsedInBasicBlock) {
 
 TEST(GlobalTest, CreateAddressSpace) {
   LLVMContext Ctx;
-  Ctx.setOpaquePointers(true);
   std::unique_ptr<Module> M(new Module("TestModule", Ctx));
   Type *Int8Ty = Type::getInt8Ty(Ctx);
   Type *Int32Ty = Type::getInt32Ty(Ctx);
@@ -118,7 +117,6 @@ TEST(ValueTest, printSlots) {
   // Check that Value::print() and Value::printAsOperand() work with and
   // without a slot tracker.
   LLVMContext C;
-  C.setOpaquePointers(true);
 
   const char *ModuleString = "@g0 = external global %500\n"
                              "@g1 = external global %900\n"
@@ -159,13 +157,13 @@ TEST(ValueTest, printSlots) {
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->print(OS);                                                         \
-      EXPECT_EQ(STR, OS.str());                                                \
+      EXPECT_EQ(STR, S);                                                       \
     }                                                                          \
     {                                                                          \
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->print(OS, MST);                                                    \
-      EXPECT_EQ(STR, OS.str());                                                \
+      EXPECT_EQ(STR, S);                                                       \
     }                                                                          \
   } while (false)
   CHECK_PRINT(I0, "  %0 = add i32 %y, 1");
@@ -178,13 +176,13 @@ TEST(ValueTest, printSlots) {
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->printAsOperand(OS, TYPE);                                          \
-      EXPECT_EQ(StringRef(STR), StringRef(OS.str()));                          \
+      EXPECT_EQ(StringRef(STR), StringRef(S));                                 \
     }                                                                          \
     {                                                                          \
       std::string S;                                                           \
       raw_string_ostream OS(S);                                                \
       INST->printAsOperand(OS, TYPE, MST);                                     \
-      EXPECT_EQ(StringRef(STR), StringRef(OS.str()));                          \
+      EXPECT_EQ(StringRef(STR), StringRef(S));                                 \
     }                                                                          \
   } while (false)
   CHECK_PRINT_AS_OPERAND(I0, false, "%0");

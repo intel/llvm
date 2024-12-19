@@ -1,7 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
-; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 ; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
@@ -25,11 +31,12 @@
 
 ; CHECK-SPIRV: TypePipe [[READ_PIPE:[0-9]+]] 0
 ; CHECK-SPIRV: TypeStruct [[READ_PIPE_WRAPPER:[0-9]+]] [[READ_PIPE]]
-; CHECK-SPIRV: TypePointer [[READ_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[READ_PIPE_WRAPPER]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[READ_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[READ_PIPE_WRAPPER]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[PTR:[0-9]+]] 7
 ; CHECK-SPIRV: TypePipe [[WRITE_PIPE:[0-9]+]] 1
 ; CHECK-SPIRV: TypeStruct [[WRITE_PIPE_WRAPPER:[0-9]+]] [[WRITE_PIPE]]
 
-; CHECK-SPIRV: TypePointer [[WRITE_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[WRITE_PIPE_WRAPPER]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[WRITE_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[WRITE_PIPE_WRAPPER]]
 
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -50,8 +57,10 @@ entry:
   ; CHECK-SPV-IR: %myrpipe = alloca %"[[CL_READ_PIPE_NAME]]", align 4
   ; CHECK-SPV-IR: %mywpipe = alloca %"[[CL_WRITE_PIPE_NAME]]", align 4
 
-  ; CHECK-SPIRV: Variable [[READ_PIPE_WRAPPER_PTR]] [[READ_PIPE_WRAPPER_ID]] 7
-  ; CHECK-SPIRV: Variable [[WRITE_PIPE_WRAPPER_PTR]] [[WRITE_PIPE_WRAPPER_ID]] 7
+  ; CHECK-SPIRV-TYPED-PTR: Variable [[READ_PIPE_WRAPPER_PTR]] [[READ_PIPE_WRAPPER_ID]] 7
+  ; CHECK-SPIRV-TYPED-PTR: Variable [[WRITE_PIPE_WRAPPER_PTR]] [[WRITE_PIPE_WRAPPER_ID]] 7
+  ; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[PTR]] [[READ_PIPE_WRAPPER_ID]] 7 [[READ_PIPE_WRAPPER]]
+  ; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[PTR]] [[WRITE_PIPE_WRAPPER_ID]] 7 [[WRITE_PIPE_WRAPPER]]
 
   %myrpipe = alloca %"class.cl::pipe<int __attribute__((ext_vector_type(4))), cl::pipe_access::read>", align 4
   %mywpipe = alloca %"class.cl::pipe<int __attribute__((ext_vector_type(4))), cl::pipe_access::write>", align 4
@@ -61,8 +70,8 @@ entry:
   ; CHECK-SPV-IR: %[[ID1:[0-9]+]] = getelementptr %"[[CL_PIPE_STORAGE_NAME]]", ptr addrspace(4) %[[ID0]], i32 0, i32 0
 
   ; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[SPIRV0:[0-9]+]] [[PIPE_STORAGE_ID]]
-  ; CHECK-SPIRV: PtrAccessChain {{[0-9]+}} [[SPIRV1:[0-9]+]] [[SPIRV0]] [[CONSTANT_ZERO_ID]] [[CONSTANT_ZERO_ID]]
-
+  ; CHECK-SPIRV-TYPED-PTR: PtrAccessChain {{[0-9]+}} [[SPIRV1:[0-9]+]] [[SPIRV0]] [[CONSTANT_ZERO_ID]] [[CONSTANT_ZERO_ID]]
+  ; CHECK-SPIRV-UNTYPED-PTR: UntypedPtrAccessChainKHR {{[0-9]+}} [[SPIRV1:[0-9]+]] [[#]] [[SPIRV0]] [[CONSTANT_ZERO_ID]] [[CONSTANT_ZERO_ID]]
   %0 = addrspacecast ptr addrspace(1) @mygpipe to ptr addrspace(4)
   %1 = getelementptr %"class.cl::pipe_storage<int __attribute__((ext_vector_type(4))), 1>", ptr addrspace(4) %0, i32 0, i32 0
 

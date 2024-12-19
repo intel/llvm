@@ -652,9 +652,11 @@ bool RecursiveASTVisitor<Derived>::PostVisitStmt(Stmt *S) {
 
 #undef DISPATCH_STMT
 
+// Inlining this method can lead to large code size and compile-time increases
+// without any benefit to runtime performance.
 template <typename Derived>
-bool RecursiveASTVisitor<Derived>::TraverseStmt(Stmt *S,
-                                                DataRecursionQueue *Queue) {
+LLVM_ATTRIBUTE_NOINLINE bool
+RecursiveASTVisitor<Derived>::TraverseStmt(Stmt *S, DataRecursionQueue *Queue) {
   if (!S)
     return true;
 
@@ -2880,6 +2882,7 @@ DEF_TRAVERSE_STMT(SYCLUniqueStableNameExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeSourceInfo()->getTypeLoc()));
 })
 DEF_TRAVERSE_STMT(SYCLUniqueStableIdExpr, {})
+DEF_TRAVERSE_STMT(OpenACCAsteriskSizeExpr, {})
 DEF_TRAVERSE_STMT(PredefinedExpr, {})
 DEF_TRAVERSE_STMT(ShuffleVectorExpr, {})
 DEF_TRAVERSE_STMT(ConvertVectorExpr, {})
@@ -3356,6 +3359,14 @@ bool RecursiveASTVisitor<Derived>::VisitOMPSimdlenClause(OMPSimdlenClause *C) {
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPSizesClause(OMPSizesClause *C) {
   for (Expr *E : C->getSizesRefs())
+    TRY_TO(TraverseStmt(E));
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPPermutationClause(
+    OMPPermutationClause *C) {
+  for (Expr *E : C->getArgsRefs())
     TRY_TO(TraverseStmt(E));
   return true;
 }
@@ -4053,21 +4064,14 @@ bool RecursiveASTVisitor<Derived>::VisitOpenACCClauseList(
 
   for (const auto *C : Clauses)
     TRY_TO(VisitOpenACCClause(C));
-//    if (const auto *WithCond = dyn_cast<OopenACCClauseWithCondition>(C);
-//        WithCond && WIthCond->hasConditionExpr()) {
-//      TRY_TO(TraverseStmt(WithCond->getConditionExpr());
-//    } else if (const auto *
-//  }
-//  OpenACCClauseWithCondition::getConditionExpr/hasConditionExpr
-//OpenACCClauseWithExprs::children (might be null?)
-  // TODO OpenACC: When we have Clauses with expressions, we should visit them
-  // here.
   return true;
 }
 
 DEF_TRAVERSE_STMT(OpenACCComputeConstruct,
                   { TRY_TO(TraverseOpenACCAssociatedStmtConstruct(S)); })
 DEF_TRAVERSE_STMT(OpenACCLoopConstruct,
+                  { TRY_TO(TraverseOpenACCAssociatedStmtConstruct(S)); })
+DEF_TRAVERSE_STMT(OpenACCCombinedConstruct,
                   { TRY_TO(TraverseOpenACCAssociatedStmtConstruct(S)); })
 
 // Traverse HLSL: Out argument expression

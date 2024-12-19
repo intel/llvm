@@ -1,8 +1,8 @@
-// REQUIRES: linux
-// RUN: %{build} %device_asan_flags -DTEST1 -O0 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK1 %s
-// RUN: %{build} %device_asan_flags -DTEST2 -O0 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK2 %s
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_asan_flags -DTEST1 -O0 -g -o %t1.out
+// RUN: %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK1 %s
+// RUN: %{build} %device_asan_flags -DTEST2 -O0 -g -o %t2.out
+// RUN: %{run} not %t2.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK2 %s
 
 #include <sycl/detail/core.hpp>
 

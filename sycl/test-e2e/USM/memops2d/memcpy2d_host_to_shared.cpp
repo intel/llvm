@@ -13,8 +13,8 @@
 // Temporarily disabled until the failure is addressed.
 // UNSUPPORTED: (level_zero && windows)
 
-// https://github.com/intel/llvm/issues/15648
-// XFAIL: gpu-intel-dg2 && linux
+// UNSUPPORTED: (gpu-intel-dg2 || hip_amd) && linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15648
 
 #include "memcpy2d_common.hpp"
 

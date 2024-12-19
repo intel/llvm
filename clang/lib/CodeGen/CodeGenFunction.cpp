@@ -45,7 +45,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/Support/CRC.h"
 #include "llvm/Support/xxhash.h"
 #include "llvm/Transforms/Scalar/LowerExpectIntrinsic.h"
@@ -284,6 +283,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::ObjCObjectPointer:
     case Type::Pipe:
     case Type::BitInt:
+    case Type::HLSLAttributedResource:
       return TEK_Scalar;
 
     // Complexes.
@@ -465,7 +465,7 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
     EscapeArgs.resize(EscapedLocals.size());
     for (auto &Pair : EscapedLocals)
       EscapeArgs[Pair.second] = Pair.first;
-    llvm::Function *FrameEscapeFn = llvm::Intrinsic::getDeclaration(
+    llvm::Function *FrameEscapeFn = llvm::Intrinsic::getOrInsertDeclaration(
         &CGM.getModule(), llvm::Intrinsic::localescape);
     CGBuilderTy(*this, AllocaInsertPt).CreateCall(FrameEscapeFn, EscapeArgs);
   }
@@ -488,7 +488,7 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   if (IndirectBranch) {
     llvm::PHINode *PN = cast<llvm::PHINode>(IndirectBranch->getAddress());
     if (PN->getNumIncomingValues() == 0) {
-      PN->replaceAllUsesWith(llvm::UndefValue::get(PN->getType()));
+      PN->replaceAllUsesWith(llvm::PoisonValue::get(PN->getType()));
       PN->eraseFromParent();
     }
   }
@@ -644,7 +644,9 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   if (FD->hasAttr<OpenCLKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>())
     CGM.GenKernelArgMetadata(Fn, FD, this);
 
-  if (!getLangOpts().OpenCL && !getLangOpts().SYCLIsDevice)
+  if (!(getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
+        (getLangOpts().CUDA &&
+         getContext().getTargetInfo().getTriple().isSPIRV())))
     return;
 
   if (const VecTypeHintAttr *A = FD->getAttr<VecTypeHintAttr>()) {
@@ -1054,6 +1056,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       for (const FunctionEffectWithCondition &Fe : FD->getFunctionEffects()) {
         if (Fe.Effect.kind() == FunctionEffect::Kind::NonBlocking)
           Fn->addFnAttr(llvm::Attribute::SanitizeRealtime);
+        else if (Fe.Effect.kind() == FunctionEffect::Kind::Blocking)
+          Fn->addFnAttr(llvm::Attribute::SanitizeRealtimeBlocking);
       }
 
   // Apply fuzzing attribute to the function.
@@ -1266,6 +1270,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   }
 
   if (FD && (getLangOpts().OpenCL ||
+             (getLangOpts().CUDA &&
+              getContext().getTargetInfo().getTriple().isSPIRV()) ||
              ((getLangOpts().HIP || getLangOpts().OffloadViaLLVM) &&
               getLangOpts().CUDAIsDevice) || getLangOpts().SYCLIsDevice)) {
     // Add metadata for a kernel function.
@@ -1358,8 +1364,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // Create a marker to make it easy to insert allocas into the entryblock
   // later.  Don't create this with the builder, because we don't want it
   // folded.
-  llvm::Value *Undef = llvm::UndefValue::get(Int32Ty);
-  AllocaInsertPt = new llvm::BitCastInst(Undef, Int32Ty, "allocapt", EntryBB);
+  llvm::Value *Poison = llvm::PoisonValue::get(Int32Ty);
+  AllocaInsertPt = new llvm::BitCastInst(Poison, Int32Ty, "allocapt", EntryBB);
 
   ReturnBlock = getJumpDestInCurrentScope("return");
 
@@ -1786,6 +1792,9 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     if (SyclOptReport.HasOptReportInfo(FD)) {
       llvm::OptimizationRemarkEmitter ORE(Fn);
       for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
+        // Temporarily apply arg location to ensure SourceLocToDebugLoc
+        // picks up the expected file.
+        ApplyDebugLocation TempApplyLoc(*this, ORI.value().KernelArgLoc);
         llvm::DiagnosticLocation DL =
             SourceLocToDebugLoc(ORI.value().KernelArgLoc);
         StringRef NameInDesc = ORI.value().KernelArgDescName;
@@ -1886,7 +1895,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       llvm::Value *IsFalse = Builder.getFalse();
       EmitCheck(std::make_pair(IsFalse, SanitizerKind::Return),
                 SanitizerHandler::MissingReturn,
-                EmitCheckSourceLocation(FD->getLocation()), std::nullopt);
+                EmitCheckSourceLocation(FD->getLocation()), {});
     } else if (ShouldEmitUnreachable) {
       if (CGM.getCodeGenOpts().OptimizationLevel == 0)
         EmitTrapCall(llvm::Intrinsic::trap);
@@ -2056,6 +2065,8 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   if (!InstrumentRegions || !isInstrumentedCondition(Cond))
     return EmitBranchOnBoolExpr(Cond, TrueBlock, FalseBlock, TrueCount, LH);
 
+  const Stmt *CntrStmt = (CntrIdx ? CntrIdx : Cond);
+
   llvm::BasicBlock *ThenBlock = nullptr;
   llvm::BasicBlock *ElseBlock = nullptr;
   llvm::BasicBlock *NextBlock = nullptr;
@@ -2108,7 +2119,7 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   EmitBlock(CounterIncrBlock);
 
   // Increment corresponding counter; if index not provided, use Cond as index.
-  incrementProfileCounter(CntrIdx ? CntrIdx : Cond);
+  incrementProfileCounter(CntrStmt);
 
   // Go to the next block.
   EmitBranch(NextBlock);
@@ -3277,10 +3288,141 @@ void CodeGenFunction::EmitMultiVersionResolver(
   case llvm::Triple::aarch64:
     EmitAArch64MultiVersionResolver(Resolver, Options);
     return;
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64:
+    EmitRISCVMultiVersionResolver(Resolver, Options);
+    return;
 
   default:
-    assert(false && "Only implemented for x86 and AArch64 targets");
+    assert(false && "Only implemented for x86, AArch64 and RISC-V targets");
   }
+}
+
+static unsigned getPriorityFromAttrString(StringRef AttrStr) {
+  SmallVector<StringRef, 8> Attrs;
+
+  AttrStr.split(Attrs, ';');
+
+  // Default Priority is zero.
+  unsigned Priority = 0;
+  for (auto Attr : Attrs) {
+    if (Attr.consume_front("priority=")) {
+      unsigned Result;
+      if (!Attr.getAsInteger(0, Result))
+        Priority = Result;
+    }
+  }
+
+  return Priority;
+}
+
+void CodeGenFunction::EmitRISCVMultiVersionResolver(
+    llvm::Function *Resolver, ArrayRef<MultiVersionResolverOption> Options) {
+
+  if (getContext().getTargetInfo().getTriple().getOS() !=
+      llvm::Triple::OSType::Linux) {
+    CGM.getDiags().Report(diag::err_os_unsupport_riscv_fmv);
+    return;
+  }
+
+  llvm::BasicBlock *CurBlock = createBasicBlock("resolver_entry", Resolver);
+  Builder.SetInsertPoint(CurBlock);
+  EmitRISCVCpuInit();
+
+  bool SupportsIFunc = getContext().getTargetInfo().supportsIFunc();
+  bool HasDefault = false;
+  unsigned DefaultIndex = 0;
+
+  SmallVector<CodeGenFunction::MultiVersionResolverOption, 10> CurrOptions(
+      Options);
+
+  llvm::stable_sort(
+      CurrOptions, [](const CodeGenFunction::MultiVersionResolverOption &LHS,
+                      const CodeGenFunction::MultiVersionResolverOption &RHS) {
+        return getPriorityFromAttrString(LHS.Conditions.Features[0]) >
+               getPriorityFromAttrString(RHS.Conditions.Features[0]);
+      });
+
+  // Check the each candidate function.
+  for (unsigned Index = 0; Index < CurrOptions.size(); Index++) {
+
+    if (CurrOptions[Index].Conditions.Features[0].starts_with("default")) {
+      HasDefault = true;
+      DefaultIndex = Index;
+      continue;
+    }
+
+    Builder.SetInsertPoint(CurBlock);
+
+    std::vector<std::string> TargetAttrFeats =
+        getContext()
+            .getTargetInfo()
+            .parseTargetAttr(CurrOptions[Index].Conditions.Features[0])
+            .Features;
+
+    if (TargetAttrFeats.empty())
+      continue;
+
+    // FeaturesCondition: The bitmask of the required extension has been
+    // enabled by the runtime object.
+    // (__riscv_feature_bits.features[i] & REQUIRED_BITMASK) ==
+    // REQUIRED_BITMASK
+    //
+    // When condition is met, return this version of the function.
+    // Otherwise, try the next version.
+    //
+    // if (FeaturesConditionVersion1)
+    //     return Version1;
+    // else if (FeaturesConditionVersion2)
+    //     return Version2;
+    // else if (FeaturesConditionVersion3)
+    //     return Version3;
+    // ...
+    // else
+    //     return DefaultVersion;
+
+    // TODO: Add a condition to check the length before accessing elements.
+    // Without checking the length first, we may access an incorrect memory
+    // address when using different versions.
+    llvm::SmallVector<StringRef, 8> CurrTargetAttrFeats;
+
+    for (auto &Feat : TargetAttrFeats) {
+      StringRef CurrFeat = Feat;
+      if (CurrFeat.starts_with('+'))
+        CurrTargetAttrFeats.push_back(CurrFeat.substr(1));
+    }
+
+    Builder.SetInsertPoint(CurBlock);
+    llvm::Value *FeatsCondition = EmitRISCVCpuSupports(CurrTargetAttrFeats);
+
+    llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
+    CGBuilderTy RetBuilder(*this, RetBlock);
+    CreateMultiVersionResolverReturn(
+        CGM, Resolver, RetBuilder, CurrOptions[Index].Function, SupportsIFunc);
+    llvm::BasicBlock *ElseBlock = createBasicBlock("resolver_else", Resolver);
+
+    Builder.SetInsertPoint(CurBlock);
+    Builder.CreateCondBr(FeatsCondition, RetBlock, ElseBlock);
+
+    CurBlock = ElseBlock;
+  }
+
+  // Finally, emit the default one.
+  if (HasDefault) {
+    Builder.SetInsertPoint(CurBlock);
+    CreateMultiVersionResolverReturn(CGM, Resolver, Builder,
+                                     CurrOptions[DefaultIndex].Function,
+                                     SupportsIFunc);
+    return;
+  }
+
+  // If no generic/default, emit an unreachable.
+  Builder.SetInsertPoint(CurBlock);
+  llvm::CallInst *TrapCall = EmitTrapCall(llvm::Intrinsic::trap);
+  TrapCall->setDoesNotReturn();
+  TrapCall->setDoesNotThrow();
+  Builder.CreateUnreachable();
+  Builder.ClearInsertionPoint();
 }
 
 void CodeGenFunction::EmitAArch64MultiVersionResolver(
@@ -3382,7 +3524,7 @@ void CodeGenFunction::emitAlignmentAssumptionCheck(
     llvm::Instruction *Assumption) {
   assert(isa_and_nonnull<llvm::CallInst>(Assumption) &&
          cast<llvm::CallInst>(Assumption)->getCalledOperand() ==
-             llvm::Intrinsic::getDeclaration(
+             llvm::Intrinsic::getOrInsertDeclaration(
                  Builder.GetInsertBlock()->getParent()->getParent(),
                  llvm::Intrinsic::assume) &&
          "Assumption should be a call to llvm.assume().");

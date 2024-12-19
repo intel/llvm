@@ -781,7 +781,7 @@ public:
   virtual void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                                  llvm::opt::ArgStringList &CC1Args) const;
 
-  /// Add arguments to use SYCL specific includes.
+  /// Add arguments to use system-specific SYCL includes.
   virtual void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                                   llvm::opt::ArgStringList &CC1Args) const;
 

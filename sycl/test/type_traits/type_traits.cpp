@@ -28,17 +28,6 @@ template <typename T, bool Expected = true> void test_is_arithmetic() {
   static_assert(d::is_arithmetic<T>::value == Expected, "");
 }
 
-template <typename T, typename TL, typename CheckedT, bool Expected = true>
-void test_make_type_t() {
-  static_assert(is_same<d::make_type_t<T, TL>, CheckedT>::value == Expected,
-                "");
-}
-
-template <typename T, typename CheckedT, bool Expected = true>
-void test_make_larger_t() {
-  static_assert(is_same<d::make_larger_t<T>, CheckedT>::value == Expected, "");
-}
-
 template <typename T, typename T2, typename CheckedT, bool Expected = true>
 void test_change_base_type_t() {
   static_assert(
@@ -106,26 +95,6 @@ int main() {
   test_is_arithmetic<s::float2>();
   test_is_arithmetic<s::half>();
   test_is_arithmetic<s::half2>();
-
-  test_make_type_t<int, d::gtl::scalar_unsigned_int_list, unsigned int>();
-  test_make_type_t<s::opencl::cl_int, d::gtl::scalar_float_list,
-                   s::opencl::cl_float>();
-  test_make_type_t<s::vec<s::opencl::cl_int, 3>,
-                   d::gtl::scalar_unsigned_int_list,
-                   s::vec<s::opencl::cl_uint, 3>>();
-  test_make_type_t<s::vec<s::opencl::cl_int, 3>, d::gtl::scalar_float_list,
-                   s::vec<s::opencl::cl_float, 3>>();
-
-  test_make_larger_t<s::half, float>();
-  test_make_larger_t<s::half3, s::float3>();
-  test_make_larger_t<float, double>();
-  test_make_larger_t<s::float3, s::double3>();
-  test_make_larger_t<double, void>();
-  test_make_larger_t<s::double3, void>();
-  test_make_larger_t<int32_t, int64_t>();
-  test_make_larger_t<s::vec<int32_t, 8>, s::vec<int64_t, 8>>();
-  test_make_larger_t<int64_t, void>();
-  test_make_larger_t<s::vec<int64_t, 8>, void>();
 
   test_change_base_type_t<int, float, float>();
   test_change_base_type_t<s::int2, float, s::float2>();

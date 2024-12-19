@@ -1,5 +1,6 @@
 // REQUIRES: cuda || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
+// REQUIRES: build-and-run-mode
 
 // RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -147,7 +148,7 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
   syclexp::free_image_mem(handles.input_mem_handle_1,
                           syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_1,
+  syclexp::free_image_mem(handles.input_mem_handle_2,
                           syclexp::image_type::standard, dev, ctxt);
   syclexp::free_image_mem(handles.output_mem_handle,
                           syclexp::image_type::standard, dev, ctxt);

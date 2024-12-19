@@ -1,10 +1,10 @@
-// REQUIRES: linux
-// RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: %{run} not %t 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -O1 -g -o %t
-// RUN: %{run} not %t 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -O2 -g -o %t
-// RUN: %{run} not %t 2>&1 | FileCheck %s
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
+// RUN: %{run} not %t1.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O1 -g -o %t2.out
+// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
+// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
 // FIXME: There's an issue in gfx driver, so this test pending here.
 // XFAIL: *
@@ -22,8 +22,7 @@ int main() {
         sycl::nd_range<1>(N, 1), [=](sycl::nd_item<1> item) {
           auto private_array =
               sycl::ext::oneapi::experimental::static_address_cast<
-                  sycl::access::address_space::private_space,
-                  sycl::access::decorated::no>(array);
+                  sycl::access::address_space::private_space>(array);
           private_array[0] = 0;
         });
     Q.wait();

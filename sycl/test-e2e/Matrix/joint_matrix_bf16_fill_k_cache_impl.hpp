@@ -75,7 +75,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
         // loop localrange
         [=](nd_item<2> it)
 #ifdef SG_SZ
-            [[intel::reqd_sub_group_size(SG_SZ)]]
+            [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif // SG_SZ
         {
           // sg::load and sg::store expect decorations to be ON
@@ -493,8 +493,8 @@ size_t matrix_size = -1;
 
       test<bfloat16, float, VnniFactor, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, MCache1,
            NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
-      // test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16, MCache1,
-      //      NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
+      test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16,
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
       break;
     }
   }

@@ -5,14 +5,15 @@
 // REQUIRES: linux
 
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 // CHECK-LABEL: define dso_local spir_func void @_Z18TestBFtoFDeviceRNERN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec") align 16 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I:%.*]] = alloca <3 x i16>, align 8
 // CHECK-NEXT:    [[DST_I_I_I_I:%.*]] = alloca [4 x float], align 4
@@ -37,7 +38,7 @@ SYCL_EXTERNAL auto TestBFtoFDeviceRNE(vec<bfloat16, 3> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z17TestBFtoFDeviceRZRN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec") align 16 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META14:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META14:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I:%.*]] = alloca <3 x i16>, align 8
 // CHECK-NEXT:    [[DST_I_I_I_I:%.*]] = alloca [4 x float], align 4
@@ -71,7 +72,7 @@ SYCL_EXTERNAL auto TestBFtoFDeviceRZ(vec<bfloat16, 3> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i32> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EE7CONVERTIILNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x i16> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
@@ -92,7 +93,7 @@ SYCL_EXTERNAL auto TestBFtointDeviceRZ(vec<bfloat16, 3> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z20TestBFtointDeviceRNERN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.10") align 4 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 2 dereferenceable(2) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META24:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.10") align 4 initializes((0, 4)) [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 2 dereferenceable(2) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META24:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META25:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr addrspace(4) [[INP]], align 2, !tbaa [[TBAA11]], !noalias [[META25]]
@@ -105,7 +106,7 @@ SYCL_EXTERNAL auto TestBFtointDeviceRNE(vec<bfloat16, 1> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z18TestFtoBFDeviceRNERN4sycl3_V13vecIfLi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.0") align 8 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 16 dereferenceable(16) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META28:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.0") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 16 dereferenceable(16) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META28:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I:%.*]] = alloca <3 x float>, align 16
 // CHECK-NEXT:    [[DST_I_I_I_I:%.*]] = alloca [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -139,7 +140,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRNE(vec<float, 3> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i16> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIFLI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x float> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
@@ -169,7 +170,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRZ(vec<float, 3> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i16> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIILI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x i32> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
@@ -190,7 +191,7 @@ SYCL_EXTERNAL auto TestInttoBFDeviceRZ(vec<int, 3> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z19TestLLtoBFDeviceRTPRN4sycl3_V13vecIxLi1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.15") align 2 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META42:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.15") align 2 initializes((0, 2)) [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META42:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META43:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[INP]], align 8, !tbaa [[TBAA46:![0-9]+]], !noalias [[META43]]
@@ -211,7 +212,7 @@ SYCL_EXTERNAL auto TestLLtoBFDeviceRTP(vec<long long, 1> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_0_I_I_I:%.*]] = phi <2 x i16> [ undef, [[ENTRY:%.*]] ], [ [[VECINS_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 2
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 2
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECISLI2EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE4EEENS1_IT_LI2EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <2 x i16> [[TMP0]], i32 [[I_0_I_I_I]]

@@ -192,7 +192,9 @@ set(GENERIC_SOURCES
 set(BF16_SOURCES
     extendbfsf2.c
     truncdfbf2.c
+    truncxfbf2.c
     truncsfbf2.c
+    trunctfbf2.c
 )
 
 set(GENERIC_TF_SOURCES
@@ -294,6 +296,7 @@ endif ()
 # long double is not 80 bits on Android or MSVC.
 set(x86_80_BIT_SOURCES
   divxc3.c
+  extendhfxf2.c
   extendxftf2.c
   fixxfdi.c
   fixxfti.c
