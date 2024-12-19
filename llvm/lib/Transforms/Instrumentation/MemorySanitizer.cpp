@@ -1257,16 +1257,16 @@ static unsigned TypeSizeToSizeIndex(TypeSize TS) {
 }
 
 static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
+  if (isa<Instruction>(Addr) &&
+      cast<Instruction>(Addr)->getMetadata(LLVMContext::MD_nosanitize)) {
+    return true;
+  }
+
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   assert(OrigValue != nullptr);
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
     return true;
-
-  if (isa<Instruction>(OrigValue) &&
-      cast<Instruction>(OrigValue)->getMetadata(LLVMContext::MD_nosanitize)) {
-    return true;
-  }
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
