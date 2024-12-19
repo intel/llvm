@@ -66,8 +66,9 @@ template <typename T> struct TestKernel1 {
   void operator()(sycl::nd_item<1> it) const {
     volatile float X = 1.0f;
     volatile float Y = 1.0f;
-    auto root = it.ext_oneapi_get_root_group();
+    auto root = it.get_group();
     m_data[root.get_local_id()] = root.get_local_id();
+    sycl::group_barrier(root);
     // Delay half of the workgroups with extra work to check that the barrier
     // synchronizes the whole device.
     if (it.get_group(0) % 2 == 0) {
@@ -77,6 +78,7 @@ template <typename T> struct TestKernel1 {
     root = sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
     int sum = m_data[root.get_local_id()] +
               m_data[root.get_local_range() - root.get_local_id() - 1];
+    sycl::group_barrier(root);
     m_data[root.get_local_id()] = sum;
   }
   auto get(sycl::ext::oneapi::experimental::properties_tag) {
