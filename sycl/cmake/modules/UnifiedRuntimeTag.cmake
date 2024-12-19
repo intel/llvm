@@ -4,4 +4,4 @@
 # Date:   Tue Feb 11 12:09:29 2025 +0000
 #     Merge pull request #2688 from Bensuo/revert_2606
 #     Revert "Merge pull request #2606 from Bensuo/cmd-buf_enqueue_refactor"
-set(UNIFIED_RUNTIME_TAG 98756a20d7792636c87b6193fe1ff47ec4f78914)
+set(UNIFIED_RUNTIME_TAG dc6996157d8a573a2a9c6e964d90cc4e0609d053)
