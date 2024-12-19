@@ -1051,6 +1051,26 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
   return UR_RESULT_SUCCESS;
 }
 
+/**
+ * @brief Destructor for the ur_event_handle_t_ class.
+ *
+ * This destructor is responsible for cleaning up the event handle when the
+ * object is destroyed. It checks if the event (`ZeEvent`) is valid and if the
+ * event has been completed (`Completed`). If both conditions are met, it
+ * further checks if the associated queue (`UrQueue`) is valid and if it is not
+ * set to discard events. If all conditions are satisfied, it calls
+ * `zeEventDestroy` to destroy the event.
+ *
+ * This ensures that resources are properly released and avoids potential memory
+ * leaks or resource mismanagement.
+ */
+ur_event_handle_t_::~ur_event_handle_t_() {
+  if (this->ZeEvent && this->Completed) {
+    if (this->UrQueue && !this->UrQueue->isDiscardEvents())
+      ZE_CALL_NOCHECK(zeEventDestroy, (this->ZeEvent));
+  }
+}
+
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   if (!Event->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
@@ -1073,6 +1093,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
       auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+      Event->ZeEvent = nullptr;
       // Gracefully handle the case that L0 was already unloaded.
       if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         return ze2urResult(ZeResult);
