@@ -1011,10 +1011,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // If we have no requirements or dependent events for the command buffer,
       // enqueue it directly
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
-        if (NewEvent != nullptr) {
-          NewEvent->setSubmissionTime();
-          NewEvent->setHostEnqueueTime();
-        }
+        NewEvent->setSubmissionTime();
+        NewEvent->setHostEnqueueTime();
         ur_result_t Res =
             Queue->getAdapter()
                 ->call_nocheck<

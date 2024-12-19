@@ -1,7 +1,7 @@
-# commit b7047f6c36ec17b8560c2f1cd9ac9521715a9127
-# Merge: 73e5f3c6ff2d fcddf077c290
+# commit ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c
+# Merge: bb64b3e9f6d3 4a89e1c69a65
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 13 14:20:15 2024 +0000
-#     Merge pull request #2454 from Bensuo/l0_cmd-buf_multi-device
-#     Fix L0 command-buffer consumption of multi-device kernels
-set(UNIFIED_RUNTIME_TAG b7047f6c36ec17b8560c2f1cd9ac9521715a9127)
+# Date:   Thu Dec 19 11:26:01 2024 +0000
+#     Merge pull request #2277 from igchor/cooperative_fix
+#     [Spec] fix urKernelSuggestMaxCooperativeGroupCountExp
+set(UNIFIED_RUNTIME_TAG ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c)

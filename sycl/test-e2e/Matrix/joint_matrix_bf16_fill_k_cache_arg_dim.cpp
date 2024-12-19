@@ -14,8 +14,8 @@
 
 // Waiting for the commit in IGC to be pulled into the driver to resolve the
 // test.
-// XFAIL: gpu
-// XFAIL-TRACKER: CMPLRLLVM-63710
+// XFAIL: !igc-dev || gpu-intel-dg2
+// XFAIL-TRACKER: GSD-10510
 
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

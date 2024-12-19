@@ -92,12 +92,24 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
 } // namespace detail
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
-                                 const std::string &Extension) {
+// Magic combination found by trial and error:
+__SYCL_EXPORT
+#if _WIN32
+inline
+#endif
+    bool
+    has_extension(const sycl::device &SyclDevice,
+                  const std::string &Extension) {
   return detail::has_extension(SyclDevice, detail::string_view{Extension});
 }
-__SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
-                                 const std::string &Extension) {
+// Magic combination found by trial and error:
+__SYCL_EXPORT
+#if _WIN32
+inline
+#endif
+    bool
+    has_extension(const sycl::platform &SyclPlatform,
+                  const std::string &Extension) {
   return detail::has_extension(SyclPlatform, detail::string_view{Extension});
 }
 #endif
