@@ -205,7 +205,13 @@ jobs:
         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Setup oneAPI env
       if: ${{ inputs.is_icx == 'true' }}
+      shell: bash
       run: |
+         wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor \
+         | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
+         sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+         | sudo tee /etc/apt/sources.list.d/oneAPI.list && \
+         sudo apt update && sudo apt-get install intel-oneapi-compiler-dpcpp-cpp 
          env_before=$(env | sort)
          
          source /opt/intel/oneapi/setvars.sh
