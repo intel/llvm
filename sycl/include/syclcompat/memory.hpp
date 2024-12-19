@@ -72,7 +72,7 @@ template <typename AllocT>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::add_ir_attributes_function("sycl-forceinline", true)]]
 #endif
-auto *local_mem() {
+__SYCL_ALWAYS_INLINE auto *local_mem() {
   sycl::multi_ptr<AllocT, sycl::access::address_space::local_space>
       As_multi_ptr =
           sycl::ext::oneapi::group_local_memory_for_overwrite<AllocT>(
