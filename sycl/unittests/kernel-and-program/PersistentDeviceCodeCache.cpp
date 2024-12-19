@@ -394,14 +394,14 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
   // Binary file is corrupted
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
-  std::ofstream FileStream(ItemDir + "/0.bin",
-                           std::ofstream::out | std::ofstream::trunc);
-  /* Emulate binary built for 2 devices: first is OK, second is trancated
-   * from 23 bytes to 4
-   */
-  FileStream << 2 << 12 << "123456789012" << 23 << "1234";
-  FileStream.close();
-  EXPECT_FALSE(FileStream.fail()) << "Failed to create trancated binary file";
+  {
+    std::ofstream FileStream(ItemDir + "/0.bin",
+                             std::ofstream::out | std::ofstream::trunc);
+    // Emulate binary which is truncated from 23 bytes to 4.
+    FileStream << 1 << 23 << "1234";
+    FileStream.close();
+    EXPECT_FALSE(FileStream.fail()) << "Failed to create trancated binary file";
+  }
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc({Dev}, {&Img}, {},
                                                            BuildOptions);
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
@@ -420,6 +420,23 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
                                                            BuildOptions);
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
       << "Item with corrupted binary file was read";
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+
+  // Unexpected 2 binaries in a single file.
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+  {
+    std::ofstream FileStream(ItemDir + "/0.bin",
+                             std::ofstream::out | std::ofstream::trunc);
+    // Emulate binaries for 2 devices in a single file.
+    FileStream << 2 << 12 << "123456789012" << 4 << "1234";
+    FileStream.close();
+    EXPECT_FALSE(FileStream.fail())
+        << "Failed to create a file containing 2 binaries";
+  }
+  ASSERT_DEATH(detail::PersistentDeviceCodeCache::getItemFromDisc(
+                   {Dev}, {&Img}, {}, BuildOptions),
+               "NumBinaries == 1");
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 
