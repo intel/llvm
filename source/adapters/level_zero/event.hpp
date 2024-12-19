@@ -156,6 +156,8 @@ struct ur_event_handle_t_ : _ur_object {
                reinterpret_cast<ur_event_handle_t_ *>(HostVisibleEvent));
   }
 
+  ~ur_event_handle_t_();
+
   // Provide direct access to Context, instead of going via queue.
   // Not every PI event has a queue, and we need a handle to Context
   // to get to event pool related information.

@@ -365,7 +365,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D:
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
+  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
+  case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
+  case UR_DEVICE_INFO_IP_VERSION:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
@@ -400,7 +404,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // These two are exclusive of L0.
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
-    CASE_UR_UNSUPPORTED(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return ReturnValue(false);
 
@@ -416,6 +419,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
     return ReturnValue(false);
+
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+    return ReturnValue(ur_bool_t{false});
 
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(false);

@@ -180,6 +180,8 @@ ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
     return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
+std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter);
+
 inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
     std::string platform_name;
     GetPlatformInfo<std::string>(hPlatform, UR_PLATFORM_INFO_NAME,

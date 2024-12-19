@@ -390,6 +390,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] uint32_t workDim,
     [[maybe_unused]] const size_t *pLocalWorkSize,
     [[maybe_unused]] size_t dynamicSharedMemorySize,

@@ -68,6 +68,14 @@ struct urPlatformTest : urPlatformsTest {
     ur_platform_handle_t platform;
 };
 
+#define UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(FIXTURE)                         \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices),       \
+        [](const ::testing::TestParamInfo<ur_device_handle_t> &info) {         \
+            return uur::GetPlatformAndDeviceName(info.param);                  \
+        })
+
 } // namespace platform
 } // namespace uur
 

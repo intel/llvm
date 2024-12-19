@@ -289,9 +289,42 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     // convert loader handle to platform handle
     hPlatform = reinterpret_cast<ur_platform_object_t *>(hPlatform)->handle;
 
+    // this value is needed for converting adapter handles to loader handles
+    size_t sizeret = 0;
+    if (pPropSizeRet == NULL) {
+        pPropSizeRet = &sizeret;
+    }
+
     // forward to device-platform
     result =
         pfnGetInfo(hPlatform, propName, propSize, pPropValue, pPropSizeRet);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        if (pPropValue != nullptr) {
+            switch (propName) {
+            case UR_PLATFORM_INFO_ADAPTER: {
+                ur_adapter_handle_t *handles =
+                    reinterpret_cast<ur_adapter_handle_t *>(pPropValue);
+                size_t nelements = *pPropSizeRet / sizeof(ur_adapter_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    if (handles[i] != nullptr) {
+                        handles[i] = reinterpret_cast<ur_adapter_handle_t>(
+                            context->factories.ur_adapter_factory.getInstance(
+                                handles[i], dditable));
+                    }
+                }
+            } break;
+            default: {
+            } break;
+            }
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -8844,6 +8877,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    ur_device_handle_t hDevice, ///< [in] handle of the device object
     uint32_t
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the work-group
                  ///< work-items
@@ -8871,9 +8905,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     // convert loader handle to platform handle
     hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
 
+    // convert loader handle to platform handle
+    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
     // forward to device-platform
     result = pfnSuggestMaxCooperativeGroupCountExp(
-        hKernel, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+        hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
         pGroupCountRet);
 
     return result;
