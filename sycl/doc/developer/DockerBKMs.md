@@ -143,15 +143,15 @@ instructions.
 
 ## Changing Docker user
 
-By default all processes within our containers are run as `sycl_ci` user.
+By default all processes within our containers are run as the `sycl_ci` user.
 Note: it **does not** have password-less `root` access.
 
-If you want to change the user, you can do that by specifying
+If you want to change the user, you can do that by specifying the
 `-u <username or uid>` option when running the container.
 
-All containers come with `/user-setup.sh` script which can used to create `sycl`
-user which has all the same groups as `sycl_ci` user, but also has passwrod-less
-access to `root`. Use the script as follows:
+All containers come with the `/user-setup.sh` script which can used to create
+the `sycl` user which has all the same groups as the `sycl_ci` user, but also
+has password-less access to `root`. Use the script as follows:
 
 ```bash
 # Note: the script requires root permissions to create a new user
