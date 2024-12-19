@@ -1,5 +1,9 @@
 // REQUIRES: cpu,windows
 //
+// FIXME: OpenCL CPU backend compiler crashes on a call to _wassert.
+// Disable the test until the fix reaches SYCL test infrastructure.
+// XFAIL: *
+// XFAIL-TRACKER: CMPLRLLVM-24218
 // RUN: %{build} -o %t.out
 //
 // MSVC implementation of assert does not call an unreachable built-in, so the
