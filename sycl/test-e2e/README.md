@@ -390,6 +390,9 @@ that both stages will run. This parameter can be set to `build-only`, or
 `run-only`, to only run the compilation stage, or the execution stage
 respectively.
 
+**NOTE:** This feature is a work-in-progress and current limitations are expected
+to be addressed in the near future.
+
 The modes work as follow:
 ### `--param test-mode=full`
 This is the default mode tests run in. Tests are marked as unsupported if no
@@ -407,6 +410,12 @@ mode unless they contain the following expansions: `%{run}`,
 `%{run-unfiltered-devices}`, or `%if run-mode`.
 
 Currently, the only triple supported for `build-only` mode is `spir64`.
+
+#### `build-only` future work
+Note, the fact that `build-only` ignores general `UNSUPPORTED`/`REQUIRES`
+statements is a current limitation. The logic for taking into account the
+features that affect compilation, and ignoring those that are only relevant to
+the execution of the program is currently being worked on.
 
 ### `--param test-mode=run-only`
 In this mode, tests will not be compiled, they will only run. To do this only the
