@@ -1,7 +1,7 @@
-# commit d18d52393aadf0083a32912096baaac558378a99
-# Merge: c45de9a5f7bf 05f94a8ab2a9
+# commit bb64b3e9f6d30b232b204590b94250ce2da6967b
+# Merge: d23739306f2c e625bfdaa99b
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Dec 18 15:01:30 2024 +0000
-#     Merge pull request #2415 from AllanZyne/review/yang/fix_metadata_assert
-#     [DeviceASAN] Fix ASAN with kernel assert
-set(UNIFIED_RUNTIME_TAG d18d52393aadf0083a32912096baaac558378a99)
+# Date:   Martin Grant <martin.morrisongrant@codeplay.com>
+#     Merge pull request #2471 from Bensuo/ben/l0-include-fix
+#     [L0] Fix issue with test include path
+set(UNIFIED_RUNTIME_TAG bb64b3e9f6d30b232b204590b94250ce2da6967b)
