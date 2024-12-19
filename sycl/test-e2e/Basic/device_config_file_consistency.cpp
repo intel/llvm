@@ -7,7 +7,7 @@
 
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: Accelerator is not supported by sycl_ext_oneapi_device_architecture
-// REQURIES: device-config-file
+// REQUIRES: device-config-file
 // RUN: %{build} -o %t.out %device_config_file_include_flag
 // RUN: %{run} %t.out
 #include <map>
