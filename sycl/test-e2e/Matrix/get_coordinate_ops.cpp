@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
-// XFAIL: !igc-dev
+// XFAIL: !igc-dev && run-mode
 // XFAIL-TRACKER: GSD-6376
 // REQUIRES-INTEL-DRIVER: lin: 30049
 
