@@ -20,7 +20,7 @@
 // - in the result, search for "XFAIL" again, but invert the result - this
 //   allows us to get the line *after* XFAIL
 // - in those lines, check that XFAIL-TRACKER is present and correct. Once
-//   again, invert the search to get all "bad" lines. Because there should be no 
+//   again, invert the search to get all "bad" lines. Because there should be no
 //   bad lines, check that the search fails using the negation operator !.
 //
 // RUN: grep -rI "XFAIL:" %S/../../test-e2e \
