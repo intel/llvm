@@ -339,7 +339,7 @@ protected:
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   std::shared_ptr<detail::graph_impl> impl;
 
-  void checkNodePropertiesAndThrow(const property_list &Properties);
+  static void checkNodePropertiesAndThrow(const property_list &Properties);
 };
 
 #ifdef __SYCL_GRAPH_IMPL_CPP
