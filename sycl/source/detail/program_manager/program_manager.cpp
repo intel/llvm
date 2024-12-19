@@ -799,9 +799,9 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       RootDevImpl->getHandleRef(), UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
       sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
 
-  DeviceImplPtr Dev = (MustBuildOnSubdevice == true) ? DeviceImpl : RootDevImpl;
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
-  auto Device = createSyclObjFromImpl<device>(Dev);
+  auto Device = createSyclObjFromImpl<device>(
+      MustBuildOnSubdevice == true ? DeviceImpl : RootDevImpl);
   const RTDeviceBinaryImage &Img =
       getDeviceImage(KernelName, Context, Device, JITCompilationIsRequired);
 
@@ -822,7 +822,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::copy(DeviceImagesToLink.begin(), DeviceImagesToLink.end(),
             std::back_inserter(AllImages));
 
-  return getBuiltURProgram(std::move(AllImages), Context, {Device});
+  return getBuiltURProgram(std::move(AllImages), Context, {std::move(Device)});
 }
 
 ur_program_handle_t ProgramManager::getBuiltURProgram(
@@ -1008,7 +1008,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         }
       }
       // Change device in the cache key to reduce copying of spec const data.
-      CacheKey.second = Subset;
+      CacheKey.second = std::move(Subset);
       bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
       if (DidInsert) {
         // For every cached copy of the program, we need to increment its
