@@ -541,6 +541,18 @@ class function_traits:
         except:
             return False
 
+"""
+    Extracts traits from an enumerator
+"""
+class etor_traits:
+    RE_OPTIONAL_QUERY = r".*\[optional-query\].*"
+
+    @classmethod
+    def is_optional_query(cls, item):
+        try:
+            return True if re.match(cls.RE_OPTIONAL_QUERY, item['desc']) else False
+        except:
+            return False
 
 """
 Public:
@@ -780,7 +792,7 @@ Private:
     returns the associated type of an etor from a typed enum
 """
 def etor_get_associated_type(namespace, tags, item):
-    match = re.match(r'^\[(.+)\]\s', item['desc'])
+    match = re.match(r'^\[([$A-Za-z0-9_*[\] ]+)\]', item['desc'])
     if match:
         associated_type = match.group(1)
         return subt(namespace, tags, associated_type)
@@ -1692,3 +1704,24 @@ def transform_queue_related_function_name(namespace, tags, obj, format = ["name"
     params = params[1:]
 
     return "{}({})".format(function_name, ", ".join(params))
+
+"""
+Public:
+    Returns a dictionary mapping info enum types to the list of optional queries
+    within that enum. If an enum type doesn't have any optional queries it will
+    not appear in the dictionary as a key.
+"""
+def get_optional_queries(specs, namespace, tags):
+    optional_queries = {}
+    for s in specs:
+        for obj in s['objects']:
+            if obj['type'] == 'enum':
+                optional_etors = []
+                for e in obj['etors']:
+                    if etor_traits.is_optional_query(e):
+                        name = make_enum_name(namespace, tags, e)
+                        optional_etors.append(name)
+                if optional_etors:
+                    type_name = make_type_name(namespace, tags, obj)
+                    optional_queries[type_name] = optional_etors
+    return optional_queries

@@ -71,11 +71,11 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
         }
     }
 
-    ur_result_t result = pfnAdapterRelease(hAdapter);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hAdapter, true);
     }
+
+    ur_result_t result = pfnAdapterRelease(hAdapter);
 
     return result;
 }
@@ -99,7 +99,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
 
     ur_result_t result = pfnAdapterRetain(hAdapter);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hAdapter, true);
     }
 
@@ -182,7 +182,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_ADAPTER_INFO_REFERENCE_COUNT < propName) {
+        if (UR_ADAPTER_INFO_VERSION < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -280,7 +280,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_PLATFORM_INFO_BACKEND < propName) {
+        if (UR_PLATFORM_INFO_ADAPTER < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -558,7 +558,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
 
     ur_result_t result = pfnRetain(hDevice);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hDevice, false);
     }
 
@@ -583,11 +583,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hDevice);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hDevice, false);
     }
+
+    ur_result_t result = pfnRelease(hDevice);
 
     return result;
 }
@@ -861,7 +861,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 
     ur_result_t result = pfnRetain(hContext);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hContext, false);
     }
 
@@ -886,11 +886,11 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hContext);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hContext, false);
     }
+
+    ur_result_t result = pfnRelease(hContext);
 
     return result;
 }
@@ -1248,7 +1248,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 
     ur_result_t result = pfnRetain(hMem);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hMem, false);
     }
 
@@ -1273,11 +1273,11 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hMem);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hMem, false);
     }
+
+    ur_result_t result = pfnRelease(hMem);
 
     return result;
 }
@@ -1657,7 +1657,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
 
     ur_result_t result = pfnRetain(hSampler);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hSampler, false);
     }
 
@@ -1682,11 +1682,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hSampler);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hSampler, false);
     }
+
+    ur_result_t result = pfnRelease(hSampler);
 
     return result;
 }
@@ -2154,7 +2154,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
 
     ur_result_t result = pfnPoolRetain(pPool);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(pPool, false);
     }
 
@@ -2178,11 +2178,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
         }
     }
 
-    ur_result_t result = pfnPoolRelease(pPool);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(pPool, false);
     }
+
+    ur_result_t result = pfnPoolRelease(pPool);
 
     return result;
 }
@@ -2631,7 +2631,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
 
     ur_result_t result = pfnRetain(hPhysicalMem);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hPhysicalMem, false);
     }
 
@@ -2656,11 +2656,54 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hPhysicalMem);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hPhysicalMem, false);
     }
+
+    ur_result_t result = pfnRelease(hPhysicalMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urPhysicalMemGetInfo
+__urdlllocal ur_result_t UR_APICALL urPhysicalMemGetInfo(
+    ur_physical_mem_handle_t
+        hPhysicalMem, ///< [in] handle of the physical memory object to query.
+    ur_physical_mem_info_t propName, ///< [in] type of the info to query.
+    size_t
+        propSize, ///< [in] size in bytes of the memory pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+    ///< the info. If propSize is less than the real number of bytes needed to
+    ///< return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName."
+) {
+    auto pfnGetInfo = getContext()->urDdiTable.PhysicalMem.pfnGetInfo;
+
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (getContext()->enableParameterValidation) {
+        if (NULL == hPhysicalMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+    }
+
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hPhysicalMem)) {
+        getContext()->refCountContext->logInvalidReference(hPhysicalMem);
+    }
+
+    ur_result_t result =
+        pfnGetInfo(hPhysicalMem, propName, propSize, pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -2952,7 +2995,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 
     ur_result_t result = pfnRetain(hProgram);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hProgram, false);
     }
 
@@ -2977,11 +3020,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hProgram);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hProgram, false);
     }
+
+    ur_result_t result = pfnRelease(hProgram);
 
     return result;
 }
@@ -3618,7 +3661,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 
     ur_result_t result = pfnRetain(hKernel);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hKernel, false);
     }
 
@@ -3643,11 +3686,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hKernel);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hKernel, false);
     }
+
+    ur_result_t result = pfnRelease(hKernel);
 
     return result;
 }
@@ -4138,7 +4181,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
 
     ur_result_t result = pfnRetain(hQueue);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hQueue, false);
     }
 
@@ -4163,11 +4206,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hQueue);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hQueue, false);
     }
+
+    ur_result_t result = pfnRelease(hQueue);
 
     return result;
 }
@@ -4454,7 +4497,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
 
     ur_result_t result = pfnRetain(hEvent);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hEvent, false);
     }
 
@@ -4478,11 +4521,11 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hEvent);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hEvent, false);
     }
+
+    ur_result_t result = pfnRelease(hEvent);
 
     return result;
 }
@@ -9613,9 +9656,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    size_t
-        localWorkSize, ///< [in] number of local work-items that will form a work-group when the
-                       ///< kernel is launched
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the work-group
+                 ///< work-items
+    const size_t *
+        pLocalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of local work-items forming a work-group that will execute the
+    ///< kernel function.
     size_t
         dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
     ///< that will be used when the kernel is launched
@@ -9634,6 +9681,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == pLocalWorkSize) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (NULL == pGroupCountRet) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -9645,7 +9696,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     }
 
     ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
-        hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
+        hKernel, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+        pGroupCountRet);
 
     return result;
 }
@@ -9727,6 +9779,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
                  ///< work-group work-items
     const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< offset used to calculate the global ID of a work-item
+    const size_t *
         pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
     ///< number of global work-items in workDim that will execute the kernel
     ///< function
@@ -9766,6 +9821,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == pGlobalWorkOffset) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (NULL == pGlobalWorkSize) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -9794,9 +9853,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     }
 
     ur_result_t result = pfnKernelLaunchCustomExp(
-        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
-        numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
+        numEventsInWaitList, phEventWaitList, phEvent);
 
     return result;
 }
@@ -10270,6 +10329,229 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_result_t result = pfnNativeCommandExp(
         hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList,
         pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTensorMapEncodeIm2ColExp
+__urdlllocal ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const int *
+        PixelBoxLowerCorner, ///< [in] Array containing DHW dimensions of lower box corner.
+    const int *
+        PixelBoxUpperCorner, ///< [in] Array containing DHW dimensions of upper box corner.
+    uint32_t ChannelsPerPixel, ///< [in] Number of channels per pixel.
+    uint32_t PixelsPerColumn,  ///< [in] Number of pixels per column.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+) {
+    auto pfnEncodeIm2ColExp =
+        getContext()->urDdiTable.TensorMapExp.pfnEncodeIm2ColExp;
+
+    if (nullptr == pfnEncodeIm2ColExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (getContext()->enableParameterValidation) {
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == GlobalAddress) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == GlobalDim) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == GlobalStrides) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == PixelBoxLowerCorner) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == PixelBoxUpperCorner) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == ElementStrides) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == hTensorMap) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXP_TENSOR_MAP_DATA_TYPE_FLAGS_MASK & TensorMapType) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_INTERLEAVE_FLAGS_MASK & Interleave) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_SWIZZLE_FLAGS_MASK & Swizzle) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAGS_MASK & L2Promotion) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_OOB_FILL_FLAGS_MASK & OobFill) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (TensorRank < 3) {
+            return UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
+    }
+
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hDevice)) {
+        getContext()->refCountContext->logInvalidReference(hDevice);
+    }
+
+    ur_result_t result = pfnEncodeIm2ColExp(
+        hDevice, TensorMapType, TensorRank, GlobalAddress, GlobalDim,
+        GlobalStrides, PixelBoxLowerCorner, PixelBoxUpperCorner,
+        ChannelsPerPixel, PixelsPerColumn, ElementStrides, Interleave, Swizzle,
+        L2Promotion, OobFill, hTensorMap);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTensorMapEncodeTiledExp
+__urdlllocal ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
+    ur_device_handle_t hDevice, ///< [in] Handle of the device object.
+    ur_exp_tensor_map_data_type_flags_t
+        TensorMapType,   ///< [in] Data type of the tensor object.
+    uint32_t TensorRank, ///< [in] Dimensionality of tensor; must be at least 3.
+    void *
+        GlobalAddress, ///< [in] Starting address of memory region described by tensor.
+    const uint64_t *
+        GlobalDim, ///< [in] Array containing tensor size (number of elements) along each of
+                   ///< the TensorRank dimensions.
+    const uint64_t *
+        GlobalStrides, ///< [in] Array containing stride size (in bytes) along each of the
+                       ///< TensorRank - 1 dimensions.
+    const uint32_t *
+        BoxDim, ///< [in] Array containing traversal box size (number of elments) along
+    ///< each of the TensorRank dimensions. Specifies how many elements to be
+    ///< traversed along each tensor dimension.
+    const uint32_t *
+        ElementStrides, ///< [in] Array containing traversal stride in each of the TensorRank
+                        ///< dimensions.
+    ur_exp_tensor_map_interleave_flags_t
+        Interleave, ///< [in] Type of interleaved layout the tensor addresses
+    ur_exp_tensor_map_swizzle_flags_t
+        Swizzle, ///< [in] Bank swizzling pattern inside shared memory
+    ur_exp_tensor_map_l2_promotion_flags_t
+        L2Promotion, ///< [in] L2 promotion size.
+    ur_exp_tensor_map_oob_fill_flags_t
+        OobFill, ///< [in] Indicates whether zero or special NaN constant will be used to
+                 ///< fill out-of-bounds elements.
+    ur_exp_tensor_map_handle_t
+        *hTensorMap ///< [out] Handle of the tensor map object.
+) {
+    auto pfnEncodeTiledExp =
+        getContext()->urDdiTable.TensorMapExp.pfnEncodeTiledExp;
+
+    if (nullptr == pfnEncodeTiledExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (getContext()->enableParameterValidation) {
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == GlobalAddress) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == GlobalDim) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == GlobalStrides) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == BoxDim) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == ElementStrides) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == hTensorMap) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXP_TENSOR_MAP_DATA_TYPE_FLAGS_MASK & TensorMapType) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_INTERLEAVE_FLAGS_MASK & Interleave) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_SWIZZLE_FLAGS_MASK & Swizzle) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_L2_PROMOTION_FLAGS_MASK & L2Promotion) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (UR_EXP_TENSOR_MAP_OOB_FILL_FLAGS_MASK & OobFill) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (TensorRank < 3) {
+            return UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
+    }
+
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hDevice)) {
+        getContext()->refCountContext->logInvalidReference(hDevice);
+    }
+
+    ur_result_t result = pfnEncodeTiledExp(
+        hDevice, TensorMapType, TensorRank, GlobalAddress, GlobalDim,
+        GlobalStrides, BoxDim, ElementStrides, Interleave, Swizzle, L2Promotion,
+        OobFill, hTensorMap);
 
     return result;
 }
@@ -11061,6 +11343,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
     dditable.pfnRelease = pDdiTable->pfnRelease;
     pDdiTable->pfnRelease = ur_validation_layer::urPhysicalMemRelease;
 
+    dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+    pDdiTable->pfnGetInfo = ur_validation_layer::urPhysicalMemGetInfo;
+
     return result;
 }
 
@@ -11340,6 +11625,45 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
     pDdiTable->pfnCreateWithNativeHandle =
         ur_validation_layer::urSamplerCreateWithNativeHandle;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TensorMapExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetTensorMapExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_tensor_map_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::getContext()->urDdiTable.TensorMapExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnEncodeIm2ColExp = pDdiTable->pfnEncodeIm2ColExp;
+    pDdiTable->pfnEncodeIm2ColExp =
+        ur_validation_layer::urTensorMapEncodeIm2ColExp;
+
+    dditable.pfnEncodeTiledExp = pDdiTable->pfnEncodeTiledExp;
+    pDdiTable->pfnEncodeTiledExp =
+        ur_validation_layer::urTensorMapEncodeTiledExp;
 
     return result;
 }
@@ -11709,6 +12033,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetSamplerProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Sampler);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetTensorMapExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->TensorMapExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {

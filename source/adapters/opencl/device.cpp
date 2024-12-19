@@ -323,6 +323,14 @@ static cl_int mapURDeviceInfoToCL(ur_device_info_t URPropName) {
     return CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL;
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
     return CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL;
+  case UR_DEVICE_INFO_GPU_EU_SLICES:
+    return CL_DEVICE_NUM_SLICES_INTEL;
+  case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+    return CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL;
+  case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+    return CL_DEVICE_NUM_SUB_SLICES_PER_SLICE_INTEL;
+  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
+    return CL_DEVICE_NUM_THREADS_PER_EU_INTEL;
   case UR_DEVICE_INFO_IP_VERSION:
     return CL_DEVICE_IP_VERSION_INTEL;
   default:
@@ -369,18 +377,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_DEVICE_ID: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
-        cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_pci_bus_info"},
-        Supported));
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
 
     if (!Supported) {
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
-    cl_device_pci_bus_info_khr PciInfo = {};
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_PCI_BUS_INFO_KHR,
-        sizeof(PciInfo), &PciInfo, nullptr));
-    return ReturnValue(PciInfo.pci_device);
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_ID_INTEL, propSize,
+        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
   }
 
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
@@ -528,7 +536,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, Supported));
 
       if (!Supported) {
-        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+        // If we don't support the extension then our capabilities are 0.
+        ur_device_fp_capability_flags_t halfCapabilities = 0;
+        return ReturnValue(halfCapabilities);
       }
     }
 
@@ -771,9 +781,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   }
 
-  case UR_DEVICE_INFO_BFLOAT16: {
-    return ReturnValue(false);
-  }
   case UR_DEVICE_INFO_ATOMIC_64: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
@@ -993,6 +1000,58 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_PCI_ADDRESS: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_pci_bus_info"},
+        Supported));
+
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    cl_device_pci_bus_info_khr PciInfo = {};
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_PCI_BUS_INFO_KHR,
+        sizeof(PciInfo), &PciInfo, nullptr));
+
+    constexpr size_t AddressBufferSize = 13;
+    char AddressBuffer[AddressBufferSize];
+    std::snprintf(AddressBuffer, AddressBufferSize, "%04x:%02x:%02x.%01x",
+                  PciInfo.pci_domain, PciInfo.pci_bus, PciInfo.pci_device,
+                  PciInfo.pci_function);
+    return ReturnValue(AddressBuffer);
+  }
+  case UR_DEVICE_INFO_GPU_EU_COUNT: {
+    /* The EU count can be queried using CL_DEVICE_MAX_COMPUTE_UNITS for Intel
+     * GPUs. */
+
+    bool Supported;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    cl_device_type CLType;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_TYPE,
+                        sizeof(cl_device_type), &CLType, nullptr));
+    if (!(CLType & CL_DEVICE_TYPE_GPU)) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_COMPUTE_UNITS,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_GPU_EU_SLICES:
+  case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
+  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_IP_VERSION: {
     bool Supported;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
@@ -1066,7 +1125,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UUID);
   }
 
-  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
+  // We can't query to check if these are supported, they will need to be
+  // manually updated if support is ever implemented.
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
+  case UR_DEVICE_INFO_BFLOAT16:
+  case UR_DEVICE_INFO_ASYNC_BARRIER: {
     return ReturnValue(false);
   }
 
@@ -1078,22 +1141,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    * EU device-specific information extensions. Some of the queries are
    * enabled by cl_intel_device_attribute_query extension, but it's not yet in
    * the Registry. */
-  case UR_DEVICE_INFO_COMPONENT_DEVICES:
-  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
-  case UR_DEVICE_INFO_PCI_ADDRESS:
-  case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
-  case UR_DEVICE_INFO_GPU_EU_SLICES:
-  case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
-  case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
-  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   /* This enums have no equivalent in OpenCL */
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
     bool Is2DBlockIOSupported = false;

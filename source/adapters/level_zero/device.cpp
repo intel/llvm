@@ -485,6 +485,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
     // TODO: To find out correct value
     return ReturnValue("");
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -652,9 +654,15 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
+    // Must return 0 for *vector_width_double* if the device does not have fp64.
+    if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP64))
+      return ReturnValue(uint32_t{0});
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+    // Must return 0 for *vector_width_half* if the device does not have fp16.
+    if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
+      return ReturnValue(uint32_t{0});
     return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
@@ -875,9 +883,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
-  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
-    // currently not supported in level zero runtime
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_BFLOAT16: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(ur_bool_t{false});
@@ -1155,8 +1160,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
-    return ReturnValue(false);
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
     const auto ZeDeviceBlockArrayFlags =
@@ -1181,6 +1184,10 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 #endif
   }
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+    return ReturnValue(false);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
@@ -1518,14 +1525,28 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
 
   static const bool UseDriverInOrderLists = [&] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
-        1, 3, L0_DRIVER_INORDER_MIN_VERSION);
+    // bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
+    //     1, 3, L0_DRIVER_INORDER_MIN_VERSION);
     if (!UrRet)
-      return CompatibleDriver;
+      return false;
     return std::atoi(UrRet) != 0;
   }();
 
   return UseDriverInOrderLists;
+}
+
+bool ur_device_handle_t_::useDriverCounterBasedEvents() {
+  // Use counter-based events implementation from L0 driver.
+
+  static const bool DriverCounterBasedEventsEnabled = [] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
+    if (!UrRet) {
+      return true;
+    }
+    return std::atoi(UrRet) != 0;
+  }();
+
+  return DriverCounterBasedEventsEnabled;
 }
 
 ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,

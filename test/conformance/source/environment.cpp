@@ -24,6 +24,49 @@ namespace uur {
 
 constexpr char ERROR_NO_ADAPTER[] = "Could not load adapter";
 
+AdapterEnvironment *AdapterEnvironment::instance = nullptr;
+
+AdapterEnvironment::AdapterEnvironment() {
+    instance = this;
+
+    ur_loader_config_handle_t config;
+    if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
+        if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
+            UR_RESULT_SUCCESS) {
+            urLoaderConfigRelease(config);
+            error = "Failed to enable validation layer";
+            return;
+        }
+    } else {
+        error = "Failed to create loader config handle";
+        return;
+    }
+
+    ur_device_init_flags_t device_flags = 0;
+    auto initResult = urLoaderInit(device_flags, config);
+    auto configReleaseResult = urLoaderConfigRelease(config);
+    switch (initResult) {
+    case UR_RESULT_SUCCESS:
+        break;
+    case UR_RESULT_ERROR_UNINITIALIZED:
+        error = ERROR_NO_ADAPTER;
+        return;
+    default:
+        error = "urLoaderInit() failed";
+        return;
+    }
+
+    if (configReleaseResult) {
+        error = "Failed to destroy loader config handle";
+        return;
+    }
+
+    uint32_t adapter_count = 0;
+    urAdapterGet(0, nullptr, &adapter_count);
+    adapters.resize(adapter_count);
+    urAdapterGet(adapter_count, adapters.data(), nullptr);
+}
+
 PlatformEnvironment *PlatformEnvironment::instance = nullptr;
 
 constexpr std::pair<const char *, ur_platform_backend_t> backends[] = {
@@ -75,42 +118,11 @@ std::ostream &operator<<(std::ostream &out,
 }
 
 uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
-    : platform_options{parsePlatformOptions(argc, argv)} {
+    : AdapterEnvironment(), platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
+
     // Check for errors from parsing platform options
     if (!error.empty()) {
-        return;
-    }
-
-    ur_loader_config_handle_t config;
-    if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
-        if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
-            UR_RESULT_SUCCESS) {
-            urLoaderConfigRelease(config);
-            error = "Failed to enable validation layer";
-            return;
-        }
-    } else {
-        error = "Failed to create loader config handle";
-        return;
-    }
-
-    ur_device_init_flags_t device_flags = 0;
-    auto initResult = urLoaderInit(device_flags, config);
-    auto configReleaseResult = urLoaderConfigRelease(config);
-    switch (initResult) {
-    case UR_RESULT_SUCCESS:
-        break;
-    case UR_RESULT_ERROR_UNINITIALIZED:
-        error = ERROR_NO_ADAPTER;
-        return;
-    default:
-        error = "urLoaderInit() failed";
-        return;
-    }
-
-    if (configReleaseResult) {
-        error = "Failed to destroy loader config handle";
         return;
     }
 
@@ -118,11 +130,6 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
 }
 
 void uur::PlatformEnvironment::selectPlatformFromOptions() {
-    uint32_t adapter_count = 0;
-    urAdapterGet(0, nullptr, &adapter_count);
-    adapters.resize(adapter_count);
-    urAdapterGet(adapter_count, adapters.data(), nullptr);
-
     struct platform_info {
         ur_adapter_handle_t adapter;
         ur_platform_handle_t platform;
@@ -222,7 +229,7 @@ void uur::PlatformEnvironment::selectPlatformFromOptions() {
         std::stringstream errstr;
         errstr << "Multiple possible platforms found; please select one of the "
                   "following or set --platforms_count=1:\n";
-        for (auto p : platforms_filtered) {
+        for (const auto &p : platforms_filtered) {
             errstr << "  --backend=" << backend_to_str(p.backend)
                    << " --platform=\"" << p.name << "\"\n";
         }
@@ -287,7 +294,7 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
         } else if (std::strncmp(arg, "--backend=", sizeof("--backend=") - 1) ==
                    0) {
             std::string backend_string{&arg[std::strlen("--backend=")]};
-            if (!parse_backend(backend_string)) {
+            if (!parse_backend(std::move(backend_string))) {
                 return options;
             }
         } else if (std::strncmp(arg, "--platforms_count=",

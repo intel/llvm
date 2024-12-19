@@ -259,15 +259,6 @@ ur_result_t ur_program_handle_t_::getGlobalVariablePointer(
   return UR_RESULT_SUCCESS;
 }
 
-/// Finds kernel names by searching for entry points in the PTX source, as the
-/// HIP driver API doesn't expose an operation for this.
-/// Note: This is currently only being used by the SYCL program class for the
-///       has_kernel method, so an alternative would be to move the has_kernel
-///       query to UR and use hipModuleGetFunction to check for a kernel.
-ur_result_t getKernelNames(ur_program_handle_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 /// A program must be specific to a device so this entry point is UNSUPPORTED
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
@@ -408,9 +399,19 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->Binary, 1);
   case UR_PROGRAM_INFO_KERNEL_NAMES:
-    return getKernelNames(hProgram);
-  case UR_PROGRAM_INFO_IL:
+    // HIP has no way to query a list of kernels from a binary.
+    // In SYCL this is only used in kernel bundle when building from source
+    // which isn't currently supported for HIP.
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_PROGRAM_INFO_NUM_KERNELS:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_PROGRAM_INFO_IL:
+    // HIP only supports urProgramCreateWithBinary, so we can always return
+    // nothing for INFO_IL.
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   default:
     break;
   }

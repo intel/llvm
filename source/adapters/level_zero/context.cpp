@@ -48,6 +48,8 @@ ur_result_t urContextCreate(
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (umf_result_t e) {
+    return umf::umf2urResult(e);
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -196,36 +198,41 @@ ur_result_t ur_context_handle_t_::initialize() {
     auto MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
                            reinterpret_cast<ur_context_handle_t>(this), Device)
                            .second;
+    auto UmfDeviceParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Device]);
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(
-                            umfDisjointPoolOps(), std::move(MemProvider),
-                            &DisjointPoolConfigInstance
-                                 .Configs[usm::DisjointPoolMemType::Device])
+        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
+                                                   std::move(MemProvider),
+                                                   UmfDeviceParamsHandle.get())
                             .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
                       .second;
+
+    auto UmfSharedParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Shared]);
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(
-                            umfDisjointPoolOps(), std::move(MemProvider),
-                            &DisjointPoolConfigInstance
-                                 .Configs[usm::DisjointPoolMemType::Shared])
+        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
+                                                   std::move(MemProvider),
+                                                   UmfSharedParamsHandle.get())
                             .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
                       .second;
+
+    auto UmfSharedROParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigInstance
+            .Configs[usm::DisjointPoolMemType::SharedReadOnly]);
     SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUniqueFromOps(
-                umfDisjointPoolOps(), std::move(MemProvider),
-                &DisjointPoolConfigInstance
-                     .Configs[usm::DisjointPoolMemType::SharedReadOnly])
-                .second));
+        std::make_tuple(umf::poolMakeUniqueFromOps(
+                            umfDisjointPoolOps(), std::move(MemProvider),
+                            UmfSharedROParamsHandle.get())
+                            .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
@@ -273,10 +280,11 @@ ur_result_t ur_context_handle_t_::initialize() {
   auto MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
                          reinterpret_cast<ur_context_handle_t>(this), nullptr)
                          .second;
+  auto UmfHostParamsHandle = getUmfParamsHandle(
+      DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host]);
   HostMemPool =
-      umf::poolMakeUniqueFromOps(
-          umfDisjointPoolOps(), std::move(MemProvider),
-          &DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
+      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
+                                 UmfHostParamsHandle.get())
           .second;
 
   MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
@@ -319,9 +327,16 @@ ur_result_t ur_context_handle_t_::initialize() {
 
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
+  if (Device->useDriverInOrderLists() &&
+      Device->useDriverCounterBasedEvents()) {
+    logger::debug(
+        "L0 Synchronous Immediate Command List needed with In Order property.");
+    ZeCommandQueueDesc.flags |= ZE_COMMAND_LIST_FLAG_IN_ORDER;
+  }
   ZE2UR_CALL(
       zeCommandListCreateImmediate,
       (ZeContext, Device->ZeDevice, &ZeCommandQueueDesc, &ZeCommandListInit));
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -478,7 +493,8 @@ static const uint32_t MaxNumEventsPerPool = [] {
 ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
     bool ProfilingEnabled, ur_device_handle_t Device,
-    bool CounterBasedEventEnabled, bool UsingImmCmdList) {
+    bool CounterBasedEventEnabled, bool UsingImmCmdList,
+    bool InterruptBasedEventEnabled) {
   // Lock while updating event pool machinery.
   std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
 
@@ -487,9 +503,9 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   if (Device) {
     ZeDevice = Device->ZeDevice;
   }
-  std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(HostVisible, ProfilingEnabled,
-                          CounterBasedEventEnabled, UsingImmCmdList, ZeDevice);
+  std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
+      HostVisible, ProfilingEnabled, CounterBasedEventEnabled, UsingImmCmdList,
+      InterruptBasedEventEnabled, ZeDevice);
 
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
@@ -537,6 +553,14 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
                     counterBasedExt.flags);
       ZeEventPoolDesc.pNext = &counterBasedExt;
     }
+    if (InterruptBasedEventEnabled) {
+      ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
+          ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
+      eventSyncMode.syncModeFlags =
+          ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
+          ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+      ZeEventPoolDesc.pNext = &eventSyncMode;
+    }
 
     std::vector<ze_device_handle_t> ZeDevices;
     if (ZeDevice) {
@@ -563,20 +587,32 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
 
 ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
     bool HostVisible, bool WithProfiling, ur_device_handle_t Device,
-    bool CounterBasedEventEnabled) {
+    bool CounterBasedEventEnabled, bool InterruptBasedEventEnabled) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
-  auto Cache = getEventCache(HostVisible, WithProfiling, Device);
-  if (Cache->empty())
+  auto Cache =
+      getEventCache(HostVisible, WithProfiling, Device,
+                    CounterBasedEventEnabled, InterruptBasedEventEnabled);
+  if (Cache->empty()) {
+    logger::info("Cache empty (Host Visible: {}, Profiling: {}, Counter: {}, "
+                 "Interrupt: {}, Device: {})",
+                 HostVisible, WithProfiling, CounterBasedEventEnabled,
+                 InterruptBasedEventEnabled, Device);
     return nullptr;
+  }
 
   auto It = Cache->begin();
   ur_event_handle_t Event = *It;
-  if (Event->CounterBasedEventsEnabled != CounterBasedEventEnabled) {
-    return nullptr;
-  }
+
   Cache->erase(It);
   // We have to reset event before using it.
   Event->reset();
+
+  logger::info("Using {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
+               "Interrupt: {}, Device: {}) from cache {}",
+               Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
+               Event->CounterBasedEventsEnabled,
+               Event->InterruptBasedEventsEnabled, Device, Cache);
+
   return Event;
 }
 
@@ -588,8 +624,13 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
     Device = Event->UrQueue->Device;
   }
 
-  auto Cache = getEventCache(Event->isHostVisible(),
-                             Event->isProfilingEnabled(), Device);
+  auto Cache = getEventCache(
+      Event->isHostVisible(), Event->isProfilingEnabled(), Device,
+      Event->CounterBasedEventsEnabled, Event->InterruptBasedEventsEnabled);
+  logger::info("Inserting {} event (Host Visible: {}, Profiling: {}, Counter: "
+               "{}, Device: {}) into cache {}",
+               Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
+               Event->CounterBasedEventsEnabled, Device, Cache);
   Cache->emplace_back(Event);
 }
 
@@ -614,7 +655,8 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
 
   std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
       Event->isHostVisible(), Event->isProfilingEnabled(),
-      Event->CounterBasedEventsEnabled, UsingImmediateCommandlists, ZeDevice);
+      Event->CounterBasedEventsEnabled, UsingImmediateCommandlists,
+      Event->InterruptBasedEventsEnabled, ZeDevice);
 
   // Put the empty pool to the cache of the pools.
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)

@@ -14,7 +14,17 @@
 #include <ur_api.h>
 namespace uur {
 
-struct PlatformEnvironment : ::testing::Environment {
+struct AdapterEnvironment : ::testing::Environment {
+
+    AdapterEnvironment();
+    virtual ~AdapterEnvironment() override = default;
+
+    std::string error{};
+    std::vector<ur_adapter_handle_t> adapters{};
+    static AdapterEnvironment *instance;
+};
+
+struct PlatformEnvironment : AdapterEnvironment {
 
     struct PlatformOptions {
         std::string platform_name;
@@ -31,9 +41,7 @@ struct PlatformEnvironment : ::testing::Environment {
     void selectPlatformFromOptions();
     PlatformOptions parsePlatformOptions(int argc, char **argv);
 
-    std::string error{};
     PlatformOptions platform_options;
-    std::vector<ur_adapter_handle_t> adapters{};
     ur_adapter_handle_t adapter = nullptr;
     ur_platform_handle_t platform = nullptr;
     static PlatformEnvironment *instance;

@@ -52,12 +52,6 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     return UR_RESULT_SUCCESS;
 }
 
-bool isInstrumentedKernel(ur_kernel_handle_t hKernel) {
-    auto hProgram = GetProgram(hKernel);
-    auto PI = getAsanInterceptor()->getProgramInfo(hProgram);
-    return PI->isKernelInstrumented(hKernel);
-}
-
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -290,8 +284,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     UR_CALL(pfnRetain(hProgram));
 
     auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
-    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-    ProgramInfo->RefCount++;
+    if (ProgramInfo != nullptr) {
+        ProgramInfo->RefCount++;
+    }
 
     return UR_RESULT_SUCCESS;
 }
@@ -364,6 +359,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
     UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
 
+    UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
     UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
@@ -395,6 +391,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
     UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                               phPrograms, pOptions, phProgram));
 
+    UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
     UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
@@ -417,8 +414,7 @@ ur_result_t UR_APICALL urProgramRelease(
     UR_CALL(pfnProgramRelease(hProgram));
 
     auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
-    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-    if (--ProgramInfo->RefCount == 0) {
+    if (ProgramInfo != nullptr && --ProgramInfo->RefCount == 0) {
         UR_CALL(getAsanInterceptor()->unregisterProgram(hProgram));
         UR_CALL(getAsanInterceptor()->eraseProgram(hProgram));
     }
@@ -465,16 +461,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     getContext()->logger.debug("==== urEnqueueKernelLaunch");
 
-    if (!isInstrumentedKernel(hKernel)) {
-        return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numEventsInWaitList, phEventWaitList, phEvent);
-    }
-
-    USMLaunchInfo LaunchInfo(GetContext(hKernel), GetDevice(hQueue),
-                             pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                             workDim);
-    UR_CALL(LaunchInfo.initialize());
+    LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
+                          pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
+                          workDim);
+    UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
 
     UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -1362,9 +1352,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     getContext()->logger.debug("==== urKernelCreate");
 
     UR_CALL(pfnCreate(hProgram, pKernelName, phKernel));
-    if (isInstrumentedKernel(*phKernel)) {
-        UR_CALL(getAsanInterceptor()->insertKernel(*phKernel));
-    }
+    UR_CALL(getAsanInterceptor()->insertKernel(*phKernel));
 
     return UR_RESULT_SUCCESS;
 }
@@ -1385,9 +1373,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     UR_CALL(pfnRetain(hKernel));
 
     auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
-    if (KernelInfo) {
-        KernelInfo->RefCount++;
-    }
+    KernelInfo->RefCount++;
 
     return UR_RESULT_SUCCESS;
 }
@@ -1407,10 +1393,8 @@ __urdlllocal ur_result_t urKernelRelease(
     UR_CALL(pfnRelease(hKernel));
 
     auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
-    if (KernelInfo) {
-        if (--KernelInfo->RefCount == 0) {
-            UR_CALL(getAsanInterceptor()->eraseKernel(hKernel));
-        }
+    if (--KernelInfo->RefCount == 0) {
+        UR_CALL(getAsanInterceptor()->eraseKernel(hKernel));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1436,11 +1420,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     getContext()->logger.debug("==== urKernelSetArgValue");
 
     std::shared_ptr<MemBuffer> MemBuffer;
-    std::shared_ptr<KernelInfo> KernelInfo;
     if (argSize == sizeof(ur_mem_handle_t) &&
         (MemBuffer = getAsanInterceptor()->getMemBuffer(
-             *ur_cast<const ur_mem_handle_t *>(pArgValue))) &&
-        (KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel))) {
+             *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
+        auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
         KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
@@ -1469,9 +1452,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     getContext()->logger.debug("==== urKernelSetArgMemObj");
 
     std::shared_ptr<MemBuffer> MemBuffer;
-    std::shared_ptr<KernelInfo> KernelInfo;
-    if ((MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue)) &&
-        (KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel))) {
+    if ((MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue))) {
+        auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
         KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
@@ -1501,7 +1483,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
         "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex,
         argSize);
 
-    if (auto KI = getAsanInterceptor()->getKernelInfo(hKernel)) {
+    {
+        auto KI = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         // TODO: get local variable alignment
         auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
@@ -1538,8 +1521,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         pArgValue);
 
     std::shared_ptr<KernelInfo> KI;
-    if (getAsanInterceptor()->getOptions().DetectKernelArguments &&
-        (KI = getAsanInterceptor()->getKernelInfo(hKernel))) {
+    if (getAsanInterceptor()->getOptions().DetectKernelArguments) {
+        auto KI = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
     }
@@ -1548,6 +1531,52 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
 
     return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceGetInfo
+__urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
+    ur_device_handle_t hDevice, ///< [in] handle of the device instance
+    ur_device_info_t propName,  ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If propSize is not equal to or greater than the real number of bytes
+    ///< needed to return the info
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    ///< pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+) {
+    auto pfnGetInfo = getContext()->urDdiTable.Device.pfnGetInfo;
+
+    if (nullptr == pfnGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    // For unsupported features for device address sanitizer, we override the result.
+    static std::unordered_set<ur_device_info_t> UnsupportedFeatures = {
+        // Virtual Memory
+        UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
+
+        // Command Buffer
+        UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+        UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
+    };
+    if (UnsupportedFeatures.find(propName) != UnsupportedFeatures.end()) {
+        UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+        // handle non-bool return type queries
+        if (propName == UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP) {
+            ur_device_command_buffer_update_capability_flags_t flag = 0;
+            return ReturnValue(flag);
+        }
+
+        return ReturnValue(false);
+    }
+
+    return pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1839,28 +1868,174 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     return result;
 }
 
-} // namespace asan
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Device table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_device_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
 
-ur_result_t context_t::init(ur_dditable_t *dditable,
-                            const std::set<std::string> &enabledLayerNames,
-                            [[maybe_unused]] codeloc_data codelocData) {
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    if (enabledLayerNames.count("UR_LAYER_ASAN")) {
-        enabledType = SanitizerType::AddressSanitizer;
-        initAsanInterceptor();
-    } else if (enabledLayerNames.count("UR_LAYER_MSAN")) {
-        enabledType = SanitizerType::MemorySanitizer;
-    } else if (enabledLayerNames.count("UR_LAYER_TSAN")) {
-        enabledType = SanitizerType::ThreadSanitizer;
+    pDdiTable->pfnGetInfo = ur_sanitizer_layer::asan::urDeviceGetInfo;
+
+    return result;
+}
+
+template <class A, class B> struct NotSupportedApi;
+
+template <class MsgType, class R, class... A>
+struct NotSupportedApi<MsgType, R (*)(A...)> {
+    R static ReportError(A...) {
+        getContext()->logger.error(MsgType::value);
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+};
+
+struct DevAsanNotSupportCommandBufferMsg {
+    static constexpr const char *value =
+        "CommandBuffer extension is not supported by UR_LAYER_ASAN";
+};
+
+struct DevAsanNotSupportVirtualMemoryMsg {
+    static constexpr const char *value =
+        "VirtualMemory extension is not supported by UR_LAYER_ASAN";
+};
+
+template <class T>
+using CommandBufferNotSupported =
+    NotSupportedApi<DevAsanNotSupportCommandBufferMsg, T>;
+
+template <class T>
+using VirtualMemoryNotSupported =
+    NotSupportedApi<DevAsanNotSupportVirtualMemoryMsg, T>;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's CommandBufferExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_command_buffer_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    // Only support AddressSanitizer now
-    if (enabledType != SanitizerType::AddressSanitizer) {
-        return result;
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
-    urDdiTable = *dditable;
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+#define SET_UNSUPPORTED(FuncPtr)                                               \
+    do {                                                                       \
+        FuncPtr = CommandBufferNotSupported<decltype(FuncPtr)>::ReportError;   \
+    } while (0)
+
+    SET_UNSUPPORTED(pDdiTable->pfnCreateExp);
+    SET_UNSUPPORTED(pDdiTable->pfnRetainExp);
+    SET_UNSUPPORTED(pDdiTable->pfnReleaseExp);
+    SET_UNSUPPORTED(pDdiTable->pfnFinalizeExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendKernelLaunchExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendUSMFillExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferCopyExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferWriteExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferReadExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferCopyRectExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferWriteRectExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferReadRectExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferFillExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendUSMPrefetchExp);
+    SET_UNSUPPORTED(pDdiTable->pfnAppendUSMAdviseExp);
+    SET_UNSUPPORTED(pDdiTable->pfnEnqueueExp);
+    SET_UNSUPPORTED(pDdiTable->pfnRetainCommandExp);
+    SET_UNSUPPORTED(pDdiTable->pfnReleaseCommandExp);
+    SET_UNSUPPORTED(pDdiTable->pfnUpdateKernelLaunchExp);
+    SET_UNSUPPORTED(pDdiTable->pfnUpdateSignalEventExp);
+    SET_UNSUPPORTED(pDdiTable->pfnUpdateWaitEventsExp);
+    SET_UNSUPPORTED(pDdiTable->pfnGetInfoExp);
+    SET_UNSUPPORTED(pDdiTable->pfnCommandGetInfoExp);
+
+#undef SET_UNSUPPORTED
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's VirtualMem table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_virtual_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+#define SET_UNSUPPORTED(FuncPtr)                                               \
+    do {                                                                       \
+        FuncPtr = VirtualMemoryNotSupported<decltype(FuncPtr)>::ReportError;   \
+    } while (0)
+
+    SET_UNSUPPORTED(pDdiTable->pfnGranularityGetInfo);
+    SET_UNSUPPORTED(pDdiTable->pfnReserve);
+    SET_UNSUPPORTED(pDdiTable->pfnFree);
+    SET_UNSUPPORTED(pDdiTable->pfnMap);
+    SET_UNSUPPORTED(pDdiTable->pfnUnmap);
+    SET_UNSUPPORTED(pDdiTable->pfnSetAccess);
+    SET_UNSUPPORTED(pDdiTable->pfnGetInfo);
+
+#undef SET_UNSUPPORTED
+
+    return result;
+}
+} // namespace asan
+
+ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    getContext()->logger.always("==== DeviceSanitizer: ASAN");
 
     if (UR_RESULT_SUCCESS == result) {
         result = ur_sanitizer_layer::asan::urGetGlobalProcAddrTable(
@@ -1905,6 +2080,26 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_sanitizer_layer::asan::urGetUSMProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->USM);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::asan::urGetDeviceProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Device);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::asan::urGetCommandBufferExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->CommandBufferExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::asan::urGetVirtualMemProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->VirtualMem);
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        getContext()->logger.error("Initialize ASAN DDI table failed: {}",
+                                   result);
     }
 
     return result;

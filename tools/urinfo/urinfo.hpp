@@ -28,6 +28,8 @@ inline void printAdapterInfos(ur_adapter_handle_t hAdapter,
                               std::string_view prefix = "  ") {
     std::cout << prefix;
     printAdapterInfo<ur_adapter_backend_t>(hAdapter, UR_ADAPTER_INFO_BACKEND);
+    std::cout << prefix;
+    printAdapterInfo<uint32_t>(hAdapter, UR_ADAPTER_INFO_VERSION);
 }
 
 inline void printPlatformInfos(ur_platform_handle_t hPlatform,
@@ -45,6 +47,8 @@ inline void printPlatformInfos(ur_platform_handle_t hPlatform,
     std::cout << prefix;
     printPlatformInfo<ur_platform_backend_t>(hPlatform,
                                              UR_PLATFORM_INFO_BACKEND);
+    std::cout << prefix;
+    printPlatformInfo<ur_adapter_handle_t>(hPlatform, UR_PLATFORM_INFO_ADAPTER);
 }
 
 inline void printDeviceInfos(ur_device_handle_t hDevice,

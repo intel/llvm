@@ -15,6 +15,9 @@ class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
 
+    def name(self) -> str:
+        return "Compute Benchmarks"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -50,6 +53,8 @@ class ComputeBench(Suite):
             return []
 
         benches = [
+            SubmitKernelL0(self, 0),
+            SubmitKernelL0(self, 1),
             SubmitKernelSYCL(self, 0),
             SubmitKernelSYCL(self, 1),
             QueueInOrderMemcpy(self, 0, 'Device', 'Device', 1024),
@@ -59,14 +64,16 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, 'Device', 'Device', 1024),
             ExecImmediateCopyQueue(self, 1, 1, 'Device', 'Host', 1024),
             VectorSum(self),
-            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1),
-            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1),
+            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1, 1),
+            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
+            MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
+            MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
         ]
 
         if options.ur is not None:
@@ -82,14 +89,14 @@ def parse_unit_type(compute_unit):
         return "instr"
     elif "[us]" in compute_unit:
         return "μs"
-    return "unknown"
+    return compute_unit.replace("[", "").replace("]", "")
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
+        super().__init__(bench.directory, bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
-        super().__init__(bench.directory)
 
     def bin_args(self) -> list[str]:
         return []
@@ -99,6 +106,9 @@ class ComputeBenchmark(Benchmark):
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.directory, 'compute-benchmarks-build', 'bin', self.bench_name)
+
+    def explicit_group(self):
+        return ""
 
     def run(self, env_vars) -> list[Result]:
         command = [
@@ -114,9 +124,10 @@ class ComputeBenchmark(Benchmark):
         result = self.run_bench(command, env_vars)
         parsed_results = self.parse_output(result)
         ret = []
-        for label, mean, unit in parsed_results:
-            extra_label = " CPU count" if parse_unit_type(unit) == "CPU count" else ""
-            ret.append(Result(label=self.name() + extra_label, value=mean, command=command, env=env_vars, stdout=result, unit=parse_unit_type(unit)))
+        for label, median, stddev, unit in parsed_results:
+            extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
+            explicit_group = self.explicit_group() + extra_label if self.explicit_group() != "" else ""
+            ret.append(Result(label=self.name() + extra_label, explicit_group=explicit_group, value=median, stddev=stddev, command=command, env=env_vars, stdout=result, unit=parse_unit_type(unit)))
         return ret
 
     def parse_output(self, output):
@@ -131,8 +142,11 @@ class ComputeBenchmark(Benchmark):
             try:
                 label = data_row[0]
                 mean = float(data_row[1])
+                median = float(data_row[2])
+                # compute benchmarks report stddev as %
+                stddev = mean * (float(data_row[3].strip('%')) / 100.0)
                 unit = data_row[7]
-                results.append((label, mean, unit))
+                results.append((label, median, stddev, unit))
             except (ValueError, IndexError) as e:
                 raise ValueError(f"Error parsing output: {e}")
         if len(results) == 0:
@@ -150,6 +164,9 @@ class SubmitKernelSYCL(ComputeBenchmark):
     def name(self):
         order = "in order" if self.ioq else "out of order"
         return f"api_overhead_benchmark_sycl SubmitKernel {order}"
+
+    def explicit_group(self):
+        return "SubmitKernel"
 
     def bin_args(self) -> list[str]:
         return [
@@ -170,6 +187,32 @@ class SubmitKernelUR(ComputeBenchmark):
     def name(self):
         order = "in order" if self.ioq else "out of order"
         return f"api_overhead_benchmark_ur SubmitKernel {order}"
+
+    def explicit_group(self):
+        return "SubmitKernel"
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--Ioq={self.ioq}",
+            "--DiscardEvents=0",
+            "--MeasureCompletion=0",
+            "--iterations=100000",
+            "--Profiling=0",
+            "--NumKernels=10",
+            "--KernelExecTime=1"
+        ]
+
+class SubmitKernelL0(ComputeBenchmark):
+    def __init__(self, bench, ioq):
+        self.ioq = ioq
+        super().__init__(bench, "api_overhead_benchmark_l0", "SubmitKernel")
+
+    def name(self):
+        order = "in order" if self.ioq else "out of order"
+        return f"api_overhead_benchmark_l0 SubmitKernel {order}"
+
+    def explicit_group(self):
+        return "SubmitKernel"
 
     def bin_args(self) -> list[str]:
         return [
@@ -255,6 +298,10 @@ class StreamMemory(ComputeBenchmark):
     def name(self):
         return f"memory_benchmark_sycl StreamMemory, placement {self.placement}, type {self.type}, size {self.size}"
 
+    # measurement is in GB/s
+    def lower_is_better(self):
+        return False
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=10000",
@@ -282,22 +329,23 @@ class VectorSum(ComputeBenchmark):
         ]
 
 class MemcpyExecute(ComputeBenchmark):
-    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations, srcUSM, dstUSM):
+    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations, srcUSM, dstUSM, useEvent):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
         self.iterations = iterations
         self.srcUSM = srcUSM
         self.dstUSM = dstUSM
+        self.useEvents = useEvent
         super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
 
     def name(self):
-        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
+        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}" + (" without events" if not self.useEvents else "")
 
     def bin_args(self) -> list[str]:
         return [
             "--Ioq=1",
-            "--UseEvents=1",
+            f"--UseEvents={self.useEvents}",
             "--MeasureCompletion=1",
             "--UseQueuePerThread=1",
             f"--AllocSize={self.allocSize}",

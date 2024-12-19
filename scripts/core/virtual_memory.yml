@@ -303,3 +303,52 @@ params:
     - type: $x_physical_mem_handle_t
       name: hPhysicalMem
       desc: "[in][release] handle of the physical memory object to release."
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Physical memory range info queries."
+class: $xPhysicalMem
+name: $x_physical_mem_info_t
+typed_etors: True
+etors:
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] context in which the physical memory object was created."
+    - name: DEVICE
+      desc: "[$x_device_handle_t] device associated with this physical memory object."
+    - name: SIZE
+      desc: "[size_t] actual size of the physical memory object in bytes."
+    - name: PROPERTIES
+      desc: "[$x_physical_mem_properties_t] properties set when creating this physical memory object."
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the physical memory object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get information about a physical memory object."
+class: $xPhysicalMem
+name: GetInfo
+params:
+    - type: $x_physical_mem_handle_t
+      name: hPhysicalMem
+      desc: "[in] handle of the physical memory object to query."
+    - type: $x_physical_mem_info_t
+      name: propName
+      desc: "[in] type of the info to query."
+    - type: size_t
+      name: propSize
+      desc: "[in] size in bytes of the memory pointed to by pPropValue."
+    - type: void*
+      name: pPropValue
+      desc: >
+          [out][optional][typename(propName, propSize)] array of bytes holding
+          the info. If propSize is less than the real number of bytes needed to
+          return the info then the $X_RESULT_ERROR_INVALID_SIZE error is
+          returned and pPropValue is not used.
+    - type: size_t*
+      name: pPropSizeRet
+      desc: >
+          [out][optional] pointer to the actual size in bytes of the queried
+          propName."

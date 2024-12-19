@@ -50,10 +50,9 @@ struct LocalArgsInfo {
 
 constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
-struct LaunchInfo {
+struct AsanRuntimeData {
     uintptr_t GlobalShadowOffset = 0;
     uintptr_t GlobalShadowOffsetEnd = 0;
-
     uintptr_t PrivateShadowOffset = 0;
     uintptr_t PrivateShadowOffsetEnd = 0;
 
@@ -67,7 +66,7 @@ struct LaunchInfo {
     uint32_t Debug = 0;
 
     int ReportFlag = 0;
-    AsanErrorReport Report[ASAN_MAX_NUM_REPORTS];
+    AsanErrorReport Report[ASAN_MAX_NUM_REPORTS] = {};
 };
 
 constexpr unsigned ASAN_SHADOW_SCALE = 4;
