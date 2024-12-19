@@ -109,7 +109,7 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      extra_lit_opts: --param fallback-to-build-if-requires-build-and-run=True ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}
       merge_ref: ''
