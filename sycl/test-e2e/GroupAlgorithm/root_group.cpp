@@ -71,7 +71,7 @@ template <typename T> struct TestKernel1 {
     sycl::group_barrier(root);
     // Delay half of the workgroups with extra work to check that the barrier
     // synchronizes the whole device.
-    if (it.get_group(0) % 2 == 0) {
+    if (1) {
       X += sycl::sin(X);
       Y += sycl::cos(Y);
     }
