@@ -8,5 +8,5 @@ tablegen(LLVM DeviceConfigFile.inc -gen-dynamic-tables)
 add_public_tablegen_target(DeviceConfigFile)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/DeviceConfigFile.hpp"
               "${CMAKE_CURRENT_BINARY_DIR}/DeviceConfigFile.inc"
-        DESTINATION llvm/SYCLLowerIR
+        DESTINATION include/llvm/SYCLLowerIR
         COMPONENT DeviceConfigFile)
