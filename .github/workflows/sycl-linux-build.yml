@@ -173,7 +173,7 @@ jobs:
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
-          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
+          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV" \
           --cmake-opt="-DINSTALL_DEVICE_CONFIG_FILE=ON"
     - name: Compile
       id: build
