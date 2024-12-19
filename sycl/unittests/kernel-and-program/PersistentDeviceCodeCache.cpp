@@ -562,6 +562,10 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
 
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      Dev, {&Img}, {}, BuildOptions);
+  size_t SizeOfOneEntry = (size_t)(detail::getDirectorySize(ItemDir));
+
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
 
@@ -573,35 +577,33 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
       {Dev}, {&Img}, {}, BuildOptions);
 
   // Get the number of binary files in the cached item folder.
-  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, {&Img}, {}, BuildOptions);
   auto BinFiles = getBinaryFileNames(ItemDir);
-
   EXPECT_EQ(BinFiles.size(), static_cast<size_t>(3))
       << "Missing binary files. Eviction should not have happened.";
 
-  // Get Cache size and size of each entry. Set eviction threshold so that
-  // just one item is evicted.
-  size_t SizeOfOneEntry =
-      (size_t)(detail::getDirectorySize(CacheRoot, false)) + 10;
-
   // Set SYCL_CACHE_MAX_SIZE.
-  SetDiskCacheEvictionEnv(std::to_string(SizeOfOneEntry).c_str());
+  SetDiskCacheEvictionEnv(std::to_string(3 * SizeOfOneEntry).c_str());
 
-  // Put 4th item to the cache. This should trigger eviction. Only the first
-  // item should be evicted.
+  // Put 4th item to the cache. This should trigger eviction. Three of the
+  // items should be evicted as we evict till the size of cache is less than
+  // the half of cache size.
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
 
-  // We should have three binary files: 0.bin, 2.bin, 3.bin.
+  // We should have two binary files: 0.bin, 3.bin.
   BinFiles = getBinaryFileNames(ItemDir);
-  EXPECT_EQ(BinFiles.size(), static_cast<size_t>(3))
+  EXPECT_EQ(BinFiles.size(), static_cast<size_t>(1))
       << "Eviction failed. Wrong number of binary files in the cache.";
 
-  // Check that 1.bin was evicted.
-  for (const auto &File : BinFiles)
+  // Check that 1.bin, 2.bin, and 0.bin was evicted.
+  for (const auto &File : BinFiles) {
     EXPECT_NE(File, "1.bin")
         << "Eviction failed. 1.bin should have been evicted.";
+    EXPECT_NE(File, "2.bin")
+        << "Eviction failed. 2.bin should have been evicted.";
+    EXPECT_NE(File, "0.bin")
+        << "Eviction failed. 0.bin should have been evicted.";
+  }
 
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }

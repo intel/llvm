@@ -248,6 +248,9 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
     const std::string &CacheRoot, size_t CacheSize, size_t MaxCacheSize) {
   PersistentDeviceCodeCache::trace("Cache eviction triggered.");
 
+  // EVict half of the cache.
+  constexpr float HowMuchCacheToEvict = 0.5;
+
   // Create a file eviction_in_progress.lock to indicate that eviction is in
   // progress. This file is used to prevent two processes from evicting the
   // cache at the same time.
@@ -340,7 +343,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
     }
 
     // If the cache size is less than the threshold, break.
-    if (CurrCacheSize <= MaxCacheSize)
+    if (CurrCacheSize <= (size_t)(HowMuchCacheToEvict * MaxCacheSize))
       break;
   }
 
