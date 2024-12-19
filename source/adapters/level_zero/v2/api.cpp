@@ -474,15 +474,4 @@ ur_result_t urCommandBufferCommandGetInfoExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *pMem,
-                           size_t size) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *pMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 } // namespace ur::level_zero
