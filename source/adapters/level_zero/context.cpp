@@ -435,7 +435,7 @@ ur_result_t ur_context_handle_t_::finalize() {
   }
   {
     std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
-    for (auto &ZePoolCache : ZeEventPoolCache) {
+    for (auto &ZePoolCache : ZeEventPoolCaches) {
       for (auto &ZePool : ZePoolCache) {
         auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
         // Gracefully handle the case that L0 was already unloaded.
