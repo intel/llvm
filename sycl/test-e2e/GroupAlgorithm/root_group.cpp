@@ -75,7 +75,7 @@ template <typename T> struct TestKernel1 {
       X += sycl::sin(X);
       Y += sycl::cos(Y);
     }
-    root = sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
+    root = sycl::ext::oneapi::experimental::this_work_item::get_group();
     int sum = m_data[root.get_local_id()] +
               m_data[root.get_local_range() - root.get_local_id() - 1];
     sycl::group_barrier(root);
