@@ -12,20 +12,20 @@ template <typename T, size_t Rows, size_t Cols, layout Layout, use Use>
 class matrix_process;
 
 template <typename TResult, typename AccessorType>
-void reduce_and_accumulate(sub_group sg, size_t sg_size, size_t global_idy, 
-                           AccessorType &global_acc, TResult *local_sums, 
+void reduce_and_accumulate(sub_group sg, size_t sg_size, size_t global_idy,
+                           AccessorType &global_acc, TResult *local_sums,
                            size_t count) {
-    for (size_t i = 0; i < count; i++) {
-        local_sums[i] = reduce_over_group(sg, local_sums[i], sycl::plus<>());
+  for (size_t i = 0; i < count; i++) {
+   local_sums[i] = reduce_over_group(sg, local_sums[i], sycl::plus<>());
 
-        // Only the subgroup leader performs the global accumulation
-        if (global_idy % sg_size == 0) {
-            sycl::atomic_ref<TResult, sycl::memory_order::relaxed,
-                             sycl::memory_scope::device>
-                aref(global_acc[i]);
-            aref.fetch_add(local_sums[i]);
-        }
-    }
+    // Only the subgroup leader performs the global accumulation
+    if (global_idy % sg_size == 0) {
+      sycl::atomic_ref<TResult, sycl::memory_order::relaxed,
+                       sycl::memory_scope::device>
+          aref(global_acc[i]);
+      aref.fetch_add(local_sums[i]);
+     }
+  }
 }
 
 template <typename T, typename TResult, size_t NUM_ROWS, size_t NUM_COLS,
@@ -100,8 +100,10 @@ void matrix_sum(big_matrix<T, NUM_ROWS / VF, NUM_COLS * VF> &M,
                  });
            }
 
-           reduce_and_accumulate(sg, sg_size, global_idy, v_rows, sum_local_rows, NUM_ROWS);
-           reduce_and_accumulate(sg, sg_size, global_idy, v_cols, sum_local_cols, NUM_COLS);
+           reduce_and_accumulate(sg, sg_size, global_idy, v_rows,
+                                 sum_local_rows, NUM_ROWS);
+           reduce_and_accumulate(sg, sg_size, global_idy, v_cols,
+                                 sum_local_cols, NUM_COLS);
          }); // parallel for
    }).wait();
 }
@@ -120,8 +122,7 @@ void test_get_coord_op() {
   TResult sum_cols[Cols] = {0};
   TResult sum_cols_ref[Cols] = {0};
 
-  matrix_fill(Rows, Cols, (T *)M,
-              [](int i, int j) { return T(1) * (i + j); });
+  matrix_fill(Rows, Cols, (T *)M, [](int i, int j) { return T(1) * (i + j); });
 
   matrix_vnni<T>(Rows, Cols, *M, *Mvnni, VF);
   big_matrix<T, Rows / VF, Cols * VF> MM((T *)&Mvnni);
