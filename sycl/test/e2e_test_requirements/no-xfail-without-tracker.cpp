@@ -31,7 +31,6 @@
 // RUN: grep -v "XFAIL:" | \
 // RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
-// RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | wc - l | [ $(cat)  -gt 0 ] && FileCheck %s
 //
 // The number below is a number of tests which are *improperly* XFAIL-ed, i.e.
 // we either don't have a tracker associated with a failure listed in those
@@ -47,14 +46,5 @@
 // If you see this test failed for your patch, it means that you either
 // introduced XFAIL directive to a test improperly, or broke the format of an
 // existing XFAIL-ed tests.
-// Another possibility (and that is a good option) is that you updated some
-// tests to match the required format and in that case you should just update
-// (i.e. reduce) the number and the list below.
 //
 // NUMBER-OF-XFAIL-WITHOUT-TRACKER: 0
-//
-// List of improperly XFAIL-ed tests.
-// As an example, if test test-e2e/Foo/foo.cpp is improperly XFAIL-ed,
-// add this line at the end of this file: // CHECK: Foo/foo.cpp
-// or // CHECK-NEXT: Foo/foo.cpp in case the list is not empty.
-// Remove the CHECK once the test has been properly XFAIL-ed.
