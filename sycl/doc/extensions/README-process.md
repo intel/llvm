@@ -15,7 +15,7 @@ is very specific to Intel hardware in which case we use the string "intel".
 The template uses the string "oneapi", so you must change occurrences of that
 string if your extension is specific to Intel hardware.
 
-[1]: <template.asciidoc>
+[1]: <template.rst>
 [2]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#chapter.extensions>
 
 Some sections in the template are optional.  Remove these sections if they are
@@ -28,7 +28,7 @@ something appropriate.  Use lower case, and separate words with underbars.
 Each extension also has a feature-test macro, which is the same as the
 extension's name, except it uses all upper case.  Finally, the name of the
 specification file should match the name of the extension, for example
-"sycl\_ext\_oneapi\_myextension.asciidoc".
+"sycl\_ext\_oneapi\_myextension.rst".
 
 Usually new extensions are first created in the "proposed" state, so the
 document should be added to that directory.  However, it is also possible to

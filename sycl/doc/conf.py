@@ -48,8 +48,18 @@ html_theme = "haiku"
 source_suffix = [".rst", ".md"]
 
 exclude_patterns = [
-    # Extensions are mostly in asciidoc which has poor support in Sphinx.
-    "extensions/*",
+    # We are migrating the SYCL extensions to reStructuredText, but some of the
+    # older *.rst files in the extensions directories have errors, so ignore
+    # them.
+    "extensions/supported/C-CXX-StandardLibrary.rst",
+    "extensions/supported/sycl_ext_intel_esimd/*",
+    # These files are instructions to developers about how to write extensions,
+    # so do not build them into the extensions documentation.
+    "extensions/template.rst",
+    "extensions/*.md",
+    "extensions/*/*.md",
+    # These OpenCL and SPIR-V extensions are asciidoc which has poor support in
+    # Sphinx.
     "design/opencl-extensions/*",
     "design/spirv-extensions/*",
     # Sphinx complains about syntax errors in these files.

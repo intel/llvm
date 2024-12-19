@@ -2213,7 +2213,7 @@ is ignored during queue recording.
 ==== sycl_ext_oneapi_work_group_memory
 
 Using the `work_group_memory` object defined in
-link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[sycl_ext_oneapi_work_group_memory]
+link:../experimental/sycl_ext_oneapi_work_group_memory.rst[sycl_ext_oneapi_work_group_memory]
 inside graph kernel nodes is supported.
 
 ==== sycl_ext_oneapi_work_group_scratch_memory
