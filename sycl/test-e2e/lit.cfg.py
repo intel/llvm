@@ -173,11 +173,9 @@ if lit_config.params.get("gpu-intel-pvc-vg", False):
 if lit_config.params.get("igc-dev", False):
     config.available_features.add("igc-dev")
 
-# Map between architecture types and device name.
-device_name_arch_map = {
-    # <Device name> : Set of architectures types (and aliases)
-    # DG1
-    "gpu-intel-dg1": {"intel_gpu_dg1"},
+# Map between device family and architecture types.
+device_family_arch_map = {
+    # <Family name> : Set of architectures types (and aliases)
     # DG2
     "gpu-intel-dg2": {
         "intel_gpu_acm_g12",
@@ -193,11 +191,10 @@ device_name_arch_map = {
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
 }
 
-
-def get_device_name_from_arch(arch):
-    for device_name, arch_set in device_name_arch_map.items():
+def get_device_family_from_arch(arch):
+    for device_family, arch_set in device_family_arch_map.items():
         if arch in arch_set:
-            return device_name
+            return device_family
     return None
 
 def check_igc_tag_and_add_feature():
@@ -795,19 +792,19 @@ for sycl_device in config.sycl_devices:
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
     architecture_feature = set("arch-" + s for s in architectures)
-    # Add device name features like intel-gpu-gen12, intel-gpu-dg2 based on
+    # Add device family features like intel-gpu-gen12, intel-gpu-dg2 based on
     # the architecture reported by sycl-ls.
-    device_names = set(
-        get_device_name_from_arch(arch)
+    device_family = set(
+        get_device_family_from_arch(arch)
         for arch in architectures
-        if get_device_name_from_arch(arch) is not None
+        if get_device_family_from_arch(arch) is not None
     )
 
     # Print the detected GPU family name.
-    if len(device_names) > 0:
+    if len(device_family) > 0:
         lit_config.note(
             "Detected GPU family for {}: {}".format(
-                sycl_device, ", ".join(device_names)
+                sycl_device, ", ".join(device_family)
             )
         )
 
@@ -815,7 +812,7 @@ for sycl_device in config.sycl_devices:
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
-    features.update(device_names)
+    features.update(device_family)
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
