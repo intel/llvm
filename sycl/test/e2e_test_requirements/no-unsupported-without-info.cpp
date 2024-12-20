@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 381
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 379
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -264,9 +264,7 @@
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops_int8_packed.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_sizes.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_int8_matB.cpp
+// CHECK-NEXT: Matrix/SG32/get_coordinate_ops.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_all_sizes.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_apply_bf16.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_apply_two_matrices.cpp
