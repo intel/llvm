@@ -316,6 +316,8 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
         auto RemoveFileAndSubtractSize = [&CurrCacheSize](
                                              const std::string &FileName) {
           // If the file is not present, return.
+          // Src file is not present inj kernel_compiler cache, we will
+          // skip removing it.
           if (!OSUtil::isPathPresent(FileName))
             return;
 
@@ -495,7 +497,20 @@ void PersistentDeviceCodeCache::putItemToDisc(
 void PersistentDeviceCodeCache::putCompiledKernelToDisc(
     const std::vector<device> &Devices, const std::string &BuildOptionsString,
     const std::string &SourceStr, const ur_program_handle_t &NativePrg) {
+
+  repopulateCacheSizeFile(getRootDir());
+
+  // Do not insert any new item if eviction is in progress.
+  // Since evictions are rare, we can afford to spin lock here.
+  const std::string EvictionInProgressFile =
+      getRootDir() + EvictionInProgressFileSuffix;
+  // Stall until the other process finishes eviction.
+  while (OSUtil::isPathPresent(EvictionInProgressFile))
+    continue;
+
   auto BinaryData = getProgramBinaryData(NativePrg, Devices);
+  // Total size of the item that we are writing to the cache.
+  size_t TotalSize = 0;
 
   for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
     // If we don't have binary for the device, skip it.
@@ -513,6 +528,9 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
         writeBinaryDataToFile(FullFileName, BinaryData[DeviceIndex]);
         PersistentDeviceCodeCache::trace_KernelCompiler(
             "binary has been cached: " + FullFileName);
+
+        TotalSize += getFileSize(FullFileName);
+        saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
       } else {
         PersistentDeviceCodeCache::trace_KernelCompiler(
             "cache lock not owned " + FileName);
@@ -525,6 +543,10 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
           std::string("error outputting cache: ") + std::strerror(errno));
     }
   }
+
+  // Update the cache size file and trigger cache eviction if needed.
+  if (TotalSize)
+    updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
 }
 
 /* Program binaries built for one or more devices are read from persistent
@@ -611,6 +633,12 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
         try {
           std::string FullFileName = FileName + ".bin";
           Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+
+          // Explicitly update the access time of the file. This is required for
+          // eviction.
+          if (isEvictionEnabled())
+            saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
+
           FileNames += FullFileName + ";";
           break;
         } catch (...) {
