@@ -36,20 +36,10 @@ static const __SYCL_CONSTANT__ char __msan_print_report[] =
 static const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
 
-static __SYCL_CONSTANT__ const char __msan_print_generic_to[] =
+static const __SYCL_CONSTANT__ char __msan_print_generic_to[] =
     "[kernel] %p(4) - %p(%d)\n";
 
 #if defined(__SPIR__) || defined(__SPIRV__)
-
-#if defined(__SYCL_DEVICE_ONLY__)
-#define __USE_SPIR_BUILTIN__ 1
-#endif
-
-#if __USE_SPIR_BUILTIN__
-extern SYCL_EXTERNAL int
-__spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
-extern "C" SYCL_EXTERNAL void __devicelib_exit();
-#endif
 
 #define MSAN_DEBUG(X)                                                          \
   do {                                                                         \
@@ -61,16 +51,6 @@ extern "C" SYCL_EXTERNAL void __devicelib_exit();
   } while (false)
 
 namespace {
-
-__SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
-}
-__SYCL_LOCAL__ void *ToLocal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToLocal(ptr, 4);
-}
-__SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
-}
 
 inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
   auto old = addr;

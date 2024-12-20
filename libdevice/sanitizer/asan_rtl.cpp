@@ -17,37 +17,6 @@ __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
-#if defined(__SYCL_DEVICE_ONLY__)
-
-#define __USE_SPIR_BUILTIN__ 1
-
-#ifndef SYCL_EXTERNAL
-#define SYCL_EXTERNAL
-#endif // SYCL_EXTERNAL
-
-#else // __SYCL_DEVICE_ONLY__
-
-#define __USE_SPIR_BUILTIN__
-
-#endif // __SYCL_DEVICE_ONLY__
-
-#if __USE_SPIR_BUILTIN__
-extern SYCL_EXTERNAL int
-__spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
-
-extern SYCL_EXTERNAL __SYCL_GLOBAL__ void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(void *, int);
-extern SYCL_EXTERNAL __SYCL_LOCAL__ void *
-__spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
-extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
-__spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
-
-extern SYCL_EXTERNAL __attribute__((convergent)) void
-__spirv_ControlBarrier(uint32_t Execution, uint32_t Memory, uint32_t Semantics);
-
-extern "C" SYCL_EXTERNAL void __devicelib_exit();
-#endif // __USE_SPIR_BUILTIN__
-
 static const __SYCL_CONSTANT__ char __asan_shadow_value_start[] =
     "[kernel] %p(%d) -> %p:";
 static const __SYCL_CONSTANT__ char __asan_shadow_value[] = " %02X";
