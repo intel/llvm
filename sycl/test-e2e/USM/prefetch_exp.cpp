@@ -43,7 +43,7 @@ int main() {
         });
 
     q.submit([&](handler &CGH) {
-      CGH.depends_on(init_prefetch);
+      CGH.depends_on(InitPrefetch);
       CGH.single_task<class double_dest>([=]() {
         for (int i = 0; i < Count; i++)
           Dest[i] = 2 * Src[i];
