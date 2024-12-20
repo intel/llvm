@@ -377,7 +377,7 @@ public:
   }
 
   // oneapi_ext_kernel_compiler
-  // experimental program manager integration, only for sycl_jit language
+  // program manager integration, only for sycl_jit language
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
                      std::vector<std::string> KNames, std::string Pfx,
