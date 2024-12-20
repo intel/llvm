@@ -497,9 +497,6 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     return createStringError("`invoke_simd` calls detected");
   }
 
-  // TODO: Implement actual device code splitting. We're just using the splitter
-  //       to obtain additional information about the module for now.
-
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
       ModuleDesc{std::move(Module)}, SplitMode,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints);
