@@ -226,6 +226,7 @@ jobs:
          done <<< "$changed_envvars"
     
     - name: Source OneAPI TBB vars.sh
+      if: ${{ inputs.is_icx == 'false' }}
       shell: bash
       run: |
         # https://github.com/actions/runner/issues/1964 prevents us from using
