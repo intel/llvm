@@ -14,8 +14,7 @@
 
 #include <cstdlib> // for size_t
 #include <functional>
-#include <string>     // for string
-#include <sys/stat.h> // for stat
+#include <string> // for string
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -80,15 +79,7 @@ public:
   static int makeDir(const char *Dir);
 
   /// Checks if specified path is present
-  static bool isPathPresent(const std::string &Path) {
-#ifdef __SYCL_RT_OS_WINDOWS
-    struct _stat Stat;
-    return !_stat(Path.c_str(), &Stat);
-#else
-    struct stat Stat;
-    return !stat(Path.c_str(), &Stat);
-#endif
-  }
+  static bool isPathPresent(const std::string &Path);
 };
 
 // These functions are not a part of OSUtils class to prevent
