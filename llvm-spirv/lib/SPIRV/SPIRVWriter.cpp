@@ -3999,6 +3999,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Asin;
   case Intrinsic::atan:
     return OpenCLLIB::Atan;
+  case Intrinsic::atan2:
+    return OpenCLLIB::Atan2;
   case Intrinsic::ceil:
     return OpenCLLIB::Ceil;
   case Intrinsic::copysign:
@@ -4220,6 +4222,14 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
   }
+  case Intrinsic::lround: {
+    SPIRVType *SourceTy = transType(II->getArgOperand(0)->getType());
+    SPIRVType *DestTy = transType(II->getType());
+    SPIRVValue *Rounded = BM->addExtInst(
+        SourceTy, BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Round,
+        {transValue(II->getArgOperand(0), BB)}, BB);
+    return BM->addUnaryInst(OpConvertFToS, DestTy, Rounded, BB);
+  }
   case Intrinsic::frexp: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
@@ -4247,6 +4257,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                           BB);
   }
   // Binary FP intrinsics
+  case Intrinsic::atan2:
   case Intrinsic::copysign:
   case Intrinsic::pow:
   case Intrinsic::powi:
@@ -6829,8 +6840,28 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
         SPRetTy = transType(F->getParamStructRetType(0));
         Args.erase(Args.begin());
       }
+      if (RetTy->isPointerTy() &&
+          BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
+        if (OC == OpAccessChain)
+          OC = OpUntypedAccessChainKHR;
+        else if (OC == OpInBoundsAccessChain)
+          OC = OpUntypedInBoundsAccessChainKHR;
+        else if (OC == OpPtrAccessChain)
+          OC = OpUntypedPtrAccessChainKHR;
+        else if (OC == OpInBoundsPtrAccessChain)
+          OC = OpUntypedInBoundsPtrAccessChainKHR;
+      }
       auto *SPI = SPIRVInstTemplateBase::create(OC);
       std::vector<SPIRVWord> SPArgs;
+      if (isUntypedAccessChainOpCode(OC)) {
+        // Untyped access chain instructions have an additional argument BaseTy.
+        Type *Ty = Scavenger->getScavengedType(Args[0]);
+        SPIRVType *PtrTy = nullptr;
+        if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
+          PtrTy = transType(TPT->getElementType());
+          SPArgs.push_back(PtrTy->getId());
+        }
+      }
       for (size_t I = 0, E = Args.size(); I != E; ++I) {
         if (Args[I]->getType()->isPointerTy()) {
           Value *Pointee = Args[I]->stripPointerCasts();

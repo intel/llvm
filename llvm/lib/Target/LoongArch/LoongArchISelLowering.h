@@ -44,6 +44,8 @@ enum NodeType : unsigned {
   ROTR_W,
 
   // unsigned 32-bit integer division
+  DIV_W,
+  MOD_W,
   DIV_WU,
   MOD_WU,
 
@@ -129,6 +131,7 @@ enum NodeType : unsigned {
   VILVH,
   VSHUF4I,
   VREPLVEI,
+  VREPLGR2VR,
   XVPERMI,
 
   // Extended vector element extraction
@@ -283,7 +286,7 @@ private:
                                    unsigned ValNo, MVT ValVT,
                                    CCValAssign::LocInfo LocInfo,
                                    ISD::ArgFlagsTy ArgFlags, CCState &State,
-                                   bool IsFixed, bool IsReg, Type *OrigTy);
+                                   bool IsFixed, bool IsRet, Type *OrigTy);
 
   void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
                         const SmallVectorImpl<ISD::InputArg> &Ins, bool IsRet,

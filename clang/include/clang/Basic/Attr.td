@@ -488,6 +488,9 @@ def TargetELF : TargetSpec {
 def TargetELFOrMachO : TargetSpec {
   let ObjectFormats = ["ELF", "MachO"];
 }
+def TargetIFuncSupport : TargetSpec {
+  let CustomCode = [{ Target.supportsIFunc() }];
+}
 def TargetWindowsArm64EC : TargetSpec {
   let CustomCode = [{ Target.getTriple().isWindowsArm64EC() }];
 }
@@ -2220,7 +2223,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
-  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let LangOpts = [OpenCL, SYCLIsDevice, SilentlyIgnoreSYCLIsHost, CUDA];
   let SupportsNonconformingLambdaSyntax = 1;
   let Accessors =
     [Accessor<"isSYCL2020Spelling", [CXX11<"intel", "sub_group_size">]>];
@@ -2514,7 +2517,7 @@ def IBOutletCollection : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def IFunc : Attr, TargetSpecificAttr<TargetELFOrMachO> {
+def IFunc : Attr, TargetSpecificAttr<TargetIFuncSupport> {
   let Spellings = [GCC<"ifunc">];
   let Args = [StringArgument<"Resolver">];
   let Subjects = SubjectList<[Function]>;
@@ -2545,8 +2548,38 @@ def LifetimeBound : DeclOrTypeAttr {
   let Spellings = [Clang<"lifetimebound", 0>];
   let Subjects = SubjectList<[ParmVar, ImplicitObjectParameter], ErrorDiag>;
   let Documentation = [LifetimeBoundDocs];
-  let LangOpts = [CPlusPlus];
   let SimpleHandler = 1;
+}
+
+def LifetimeCaptureBy : DeclOrTypeAttr {
+  let Spellings = [Clang<"lifetime_capture_by", 0>];
+  let Subjects = SubjectList<[ParmVar, ImplicitObjectParameter], ErrorDiag>;
+  let Args = [VariadicParamOrParamIdxArgument<"Params">];
+  let Documentation = [LifetimeCaptureByDocs];
+  let AdditionalMembers = [{
+private:
+  ArrayRef<IdentifierInfo*> ArgIdents;
+  ArrayRef<SourceLocation> ArgLocs;
+
+public:
+  static constexpr int THIS = 0;
+  static constexpr int INVALID = -1;
+  static constexpr int UNKNOWN = -2;
+  static constexpr int GLOBAL = -3;
+
+  void setArgs(ArrayRef<IdentifierInfo*> Idents, ArrayRef<SourceLocation> Locs) {
+    assert(Idents.size() == params_Size);
+    assert(Locs.size() == params_Size);
+    ArgIdents = Idents;
+    ArgLocs = Locs;
+  }
+  auto getArgIdents() const { return ArgIdents; }
+  auto getArgLocs() const { return ArgLocs; }
+  void setParamIdx(size_t Idx, int Val) {
+    assert(Idx < params_Size);
+    params_[Idx] = Val;
+  }
+}];
 }
 
 def TrivialABI : InheritableAttr {
@@ -4288,7 +4321,7 @@ def Target : InheritableAttr {
   }];
 }
 
-def TargetVersion : InheritableAttr {
+def TargetVersion : InheritableAttr, TargetSpecificAttr<TargetArch<!listconcat(TargetAArch64.Arches, TargetRISCV.Arches)>> {
   let Spellings = [GCC<"target_version">];
   let Args = [StringArgument<"NamesStr">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -5612,6 +5645,13 @@ def HLSLNumThreads: InheritableAttr {
   let Documentation = [NumThreadsDocs];
 }
 
+def HLSLSV_GroupID: HLSLAnnotationAttr {
+  let Spellings = [HLSLAnnotation<"SV_GroupID">];
+  let Subjects = SubjectList<[ParmVar, Field]>;
+  let LangOpts = [HLSL];
+  let Documentation = [HLSLSV_GroupIDDocs];
+}
+
 def HLSLSV_GroupIndex: HLSLAnnotationAttr {
   let Spellings = [HLSLAnnotation<"SV_GroupIndex">];
   let Subjects = SubjectList<[ParmVar, GlobalVar]>;
@@ -5628,7 +5668,7 @@ def HLSLResourceBinding: InheritableAttr {
   let AdditionalMembers = [{
   public:
       enum class RegisterType : unsigned { SRV, UAV, CBuffer, Sampler, C, I };
-  
+
   private:
       RegisterType RegType;
       unsigned SlotNumber;
@@ -5698,7 +5738,7 @@ def HLSLResource : InheritableAttr {
   let Spellings = [];
   let Subjects = SubjectList<[Struct]>;
   let LangOpts = [HLSL];
-  let Args = [    
+  let Args = [
     EnumArgument<
         "ResourceKind", "llvm::hlsl::ResourceKind",
         /*is_string=*/0,
@@ -5723,7 +5763,7 @@ def HLSLResource : InheritableAttr {
 
 def HLSLROV : TypeAttr {
   let Spellings = [CXX11<"hlsl", "is_rov">];
-  let LangOpts = [HLSL]; 
+  let LangOpts = [HLSL];
   let Documentation = [InternalOnly];
 }
 
@@ -5748,7 +5788,7 @@ def HLSLContainedType : TypeAttr {
 
 def HLSLRawBuffer : TypeAttr {
   let Spellings = [CXX11<"hlsl", "raw_buffer">];
-  let LangOpts = [HLSL]; 
+  let LangOpts = [HLSL];
   let Documentation = [InternalOnly];
 }
 
@@ -5877,5 +5917,12 @@ def ClspvLibclcBuiltin: InheritableAttr {
   let Spellings = [Clang<"clspv_libclc_builtin">];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [ClspvLibclcBuiltinDoc];
+  let SimpleHandler = 1;
+}
+
+def NoTrivialAutoVarInit: InheritableAttr {
+  let Spellings = [Declspec<"no_init_all">];
+  let Subjects = SubjectList<[Function, Tag]>;
+  let Documentation = [NoTrivialAutoVarInitDocs];
   let SimpleHandler = 1;
 }
