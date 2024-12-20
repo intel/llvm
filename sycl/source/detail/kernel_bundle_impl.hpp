@@ -488,7 +488,7 @@ public:
     }
 
     if (Language == syclex::source_language::sycl_jit) {
-      // Experimental: Build device images via the program manager.
+      // Build device images via the program manager.
       // TODO: Support persistent caching.
 
       const std::string &SourceStr = std::get<std::string>(this->Source);
