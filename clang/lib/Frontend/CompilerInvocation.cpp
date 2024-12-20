@@ -2537,6 +2537,11 @@ void CompilerInvocationBase::GenerateDiagnosticArgs(
 
     Consumer(StringRef("-R") + Remark);
   }
+
+  if (!Opts.DiagnosticSuppressionMappingsFile.empty()) {
+    GenerateArg(Consumer, OPT_warning_suppression_mappings_EQ,
+                Opts.DiagnosticSuppressionMappingsFile);
+  }
 }
 
 std::unique_ptr<DiagnosticOptions>
@@ -2612,6 +2617,9 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
         << Opts.TabStop << DiagnosticOptions::DefaultTabStop;
     Opts.TabStop = DiagnosticOptions::DefaultTabStop;
   }
+
+  if (const Arg *A = Args.getLastArg(OPT_warning_suppression_mappings_EQ))
+    Opts.DiagnosticSuppressionMappingsFile = A->getValue();
 
   addDiagnosticArgs(Args, OPT_W_Group, OPT_W_value_Group, Opts.Warnings);
   addDiagnosticArgs(Args, OPT_R_Group, OPT_R_value_Group, Opts.Remarks);
@@ -2862,9 +2870,6 @@ static void GenerateFrontendArgs(const FrontendOptions &Opts,
     case Language::ObjCXX:
       Lang = "objective-c++";
       break;
-    case Language::RenderScript:
-      Lang = "renderscript";
-      break;
     case Language::Asm:
       Lang = "assembler-with-cpp";
       break;
@@ -3087,7 +3092,6 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
                 .Case("c++", Language::CXX)
                 .Case("objective-c", Language::ObjC)
                 .Case("objective-c++", Language::ObjCXX)
-                .Case("renderscript", Language::RenderScript)
                 .Case("hlsl", Language::HLSL)
                 .Default(Language::Unknown);
 
@@ -3210,15 +3214,10 @@ static void GenerateHeaderSearchArgs(const HeaderSearchOptions &Opts,
   auto It = Opts.UserEntries.begin();
   auto End = Opts.UserEntries.end();
 
-  // Add -I..., -F..., and -index-header-map options in order.
-  for (; It < End && Matches(*It, {frontend::IndexHeaderMap, frontend::Angled},
-                             std::nullopt, true);
+  // Add -I... and -F... options in order.
+  for (; It < End && Matches(*It, {frontend::Angled}, std::nullopt, true);
        ++It) {
     OptSpecifier Opt = [It, Matches]() {
-      if (Matches(*It, frontend::IndexHeaderMap, true, true))
-        return OPT_F;
-      if (Matches(*It, frontend::IndexHeaderMap, false, true))
-        return OPT_I;
       if (Matches(*It, frontend::Angled, true, true))
         return OPT_F;
       if (Matches(*It, frontend::Angled, false, true))
@@ -3226,8 +3225,6 @@ static void GenerateHeaderSearchArgs(const HeaderSearchOptions &Opts,
       llvm_unreachable("Unexpected HeaderSearchOptions::Entry.");
     }();
 
-    if (It->Group == frontend::IndexHeaderMap)
-      GenerateArg(Consumer, OPT_index_header_map);
     GenerateArg(Consumer, Opt, It->Path);
   };
 
@@ -3339,8 +3336,7 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
         llvm::CachedHashString(MacroDef.split('=').first));
   }
 
-  // Add -I..., -F..., and -index-header-map options in order.
-  bool IsIndexHeaderMap = false;
+  // Add -I... and -F... options in order.
   bool IsSysrootSpecified =
       Args.hasArg(OPT__sysroot_EQ) || Args.hasArg(OPT_isysroot);
 
@@ -3359,20 +3355,10 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
     return A->getValue();
   };
 
-  for (const auto *A : Args.filtered(OPT_I, OPT_F, OPT_index_header_map)) {
-    if (A->getOption().matches(OPT_index_header_map)) {
-      // -index-header-map applies to the next -I or -F.
-      IsIndexHeaderMap = true;
-      continue;
-    }
-
-    frontend::IncludeDirGroup Group =
-        IsIndexHeaderMap ? frontend::IndexHeaderMap : frontend::Angled;
-
+  for (const auto *A : Args.filtered(OPT_I, OPT_F)) {
     bool IsFramework = A->getOption().matches(OPT_F);
-    Opts.AddPath(PrefixHeaderPath(A, IsFramework), Group, IsFramework,
-                 /*IgnoreSysroot*/ true);
-    IsIndexHeaderMap = false;
+    Opts.AddPath(PrefixHeaderPath(A, IsFramework), frontend::Angled,
+                 IsFramework, /*IgnoreSysroot=*/true);
   }
 
   // Add -iprefix/-iwithprefix/-iwithprefixbefore options.
@@ -3482,6 +3468,8 @@ static void GeneratePointerAuthArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_fptrauth_init_fini);
   if (Opts.PointerAuthInitFiniAddressDiscrimination)
     GenerateArg(Consumer, OPT_fptrauth_init_fini_address_discrimination);
+  if (Opts.PointerAuthELFGOT)
+    GenerateArg(Consumer, OPT_fptrauth_elf_got);
 }
 
 static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
@@ -3502,6 +3490,7 @@ static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
   Opts.PointerAuthInitFini = Args.hasArg(OPT_fptrauth_init_fini);
   Opts.PointerAuthInitFiniAddressDiscrimination =
       Args.hasArg(OPT_fptrauth_init_fini_address_discrimination);
+  Opts.PointerAuthELFGOT = Args.hasArg(OPT_fptrauth_elf_got);
 }
 
 /// Check if input file kind and language standard are compatible.
@@ -3515,7 +3504,6 @@ static bool IsInputCompatibleWithStandard(InputKind IK,
 
   case Language::C:
   case Language::ObjC:
-  case Language::RenderScript:
     return S.getLanguage() == Language::C;
 
   case Language::OpenCL:
@@ -3567,8 +3555,6 @@ static StringRef GetInputKindName(InputKind IK) {
     return "C++ for OpenCL";
   case Language::CUDA:
     return "CUDA";
-  case Language::RenderScript:
-    return "RenderScript";
   case Language::HIP:
     return "HIP";
 

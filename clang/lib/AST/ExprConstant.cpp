@@ -38,7 +38,6 @@
 #include "ExprConstShared.h"
 #include "clang/AST/APValue.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/CXXInheritance.h"
@@ -3262,8 +3261,8 @@ static bool HandleLValueDirectBase(EvalInfo &Info, const Expr *E, LValue &Obj,
     RL = &Info.Ctx.getASTRecordLayout(Derived);
   }
 
-  Obj.getLValueOffset() += RL->getBaseClassOffset(Base);
   Obj.addDecl(Info, E, Base, /*Virtual*/ false);
+  Obj.getLValueOffset() += RL->getBaseClassOffset(Base);
   return true;
 }
 
@@ -3287,8 +3286,8 @@ static bool HandleLValueBase(EvalInfo &Info, const Expr *E, LValue &Obj,
   // Find the virtual base class.
   if (DerivedDecl->isInvalidDecl()) return false;
   const ASTRecordLayout &Layout = Info.Ctx.getASTRecordLayout(DerivedDecl);
-  Obj.getLValueOffset() += Layout.getVBaseClassOffset(BaseDecl);
   Obj.addDecl(Info, E, BaseDecl, /*Virtual*/ true);
+  Obj.getLValueOffset() += Layout.getVBaseClassOffset(BaseDecl);
   return true;
 }
 
@@ -3331,8 +3330,8 @@ static bool HandleLValueMember(EvalInfo &Info, const Expr *E, LValue &LVal,
   }
 
   unsigned I = FD->getFieldIndex();
-  LVal.adjustOffset(Info.Ctx.toCharUnitsFromBits(RL->getFieldOffset(I)));
   LVal.addDecl(Info, E, FD);
+  LVal.adjustOffset(Info.Ctx.toCharUnitsFromBits(RL->getFieldOffset(I)));
   return true;
 }
 
@@ -3825,8 +3824,8 @@ static QualType getSubobjectType(QualType ObjType, QualType SubobjType,
 }
 
 /// Find the designated sub-object of an rvalue.
-template<typename SubobjectHandler>
-typename SubobjectHandler::result_type
+template <typename SubobjectHandler>
+static typename SubobjectHandler::result_type
 findSubobject(EvalInfo &Info, const Expr *E, const CompleteObject &Obj,
               const SubobjectDesignator &Sub, SubobjectHandler &handler) {
   if (Sub.Invalid)
@@ -7107,7 +7106,7 @@ static std::optional<DynAlloc *> CheckDeleteKind(EvalInfo &Info, const Expr *E,
 }
 
 // Perform a call to 'operator delete' or '__builtin_operator_delete'.
-bool HandleOperatorDeleteCall(EvalInfo &Info, const CallExpr *E) {
+static bool HandleOperatorDeleteCall(EvalInfo &Info, const CallExpr *E) {
   if (Info.checkingPotentialConstantExpression() ||
       Info.SpeculativeEvaluationDepth)
     return false;
@@ -11024,6 +11023,7 @@ namespace {
     bool VisitUnaryImag(const UnaryOperator *E);
     bool VisitBinaryOperator(const BinaryOperator *E);
     bool VisitUnaryOperator(const UnaryOperator *E);
+    bool VisitCallExpr(const CallExpr *E);
     bool VisitConvertVectorExpr(const ConvertVectorExpr *E);
     bool VisitShuffleVectorExpr(const ShuffleVectorExpr *E);
 
@@ -11321,6 +11321,35 @@ static bool handleVectorElementCast(EvalInfo &Info, const FPOptions FPO,
   return false;
 }
 
+bool VectorExprEvaluator::VisitCallExpr(const CallExpr *E) {
+  if (!IsConstantEvaluatedBuiltinCall(E))
+    return ExprEvaluatorBaseTy::VisitCallExpr(E);
+
+  switch (E->getBuiltinCallee()) {
+  default:
+    return false;
+  case Builtin::BI__builtin_elementwise_popcount: {
+    APValue Source;
+    if (!EvaluateAsRValue(Info, E->getArg(0), Source))
+      return false;
+
+    QualType DestEltTy = E->getType()->castAs<VectorType>()->getElementType();
+    unsigned SourceLen = Source.getVectorLength();
+    SmallVector<APValue, 4> ResultElements;
+    ResultElements.reserve(SourceLen);
+
+    for (unsigned EltNum = 0; EltNum < SourceLen; ++EltNum) {
+      APSInt Elt = Source.getVectorElt(EltNum).getInt();
+      ResultElements.push_back(
+          APValue(APSInt(APInt(Info.Ctx.getIntWidth(DestEltTy), Elt.popcount()),
+                         DestEltTy->isUnsignedIntegerOrEnumerationType())));
+    }
+
+    return Success(APValue(ResultElements.data(), ResultElements.size()), E);
+  }
+  }
+}
+
 bool VectorExprEvaluator::VisitConvertVectorExpr(const ConvertVectorExpr *E) {
   APValue Source;
   QualType SourceVecType = E->getSrcExpr()->getType();
@@ -11597,6 +11626,9 @@ bool ArrayExprEvaluator::VisitCXXParenListOrInitListExpr(
   LValue Subobject = This;
   Subobject.addArray(Info, ExprToVisit, CAT);
   auto Eval = [&](const Expr *Init, unsigned ArrayIndex) {
+    if (Init->isValueDependent())
+      return EvaluateDependentExpr(Init, Info);
+
     if (!EvaluateInPlace(Result.getArrayInitializedElt(ArrayIndex), Info,
                          Subobject, Init) ||
         !HandleLValueArrayAdjustment(Info, Init, Subobject,
@@ -12726,6 +12758,45 @@ static bool getBuiltinAlignArguments(const CallExpr *E, EvalInfo &Info,
   return true;
 }
 
+static bool isSYCLFreeFunctionKernel(IntExprEvaluator &IEV,
+                                     const EvalInfo &Info, const CallExpr *E,
+                                     StringRef NameStr1, StringRef NameStr2,
+                                     bool CheckNDRangeKernelDim = false) {
+  const Expr *ArgExpr = E->getArg(0)->IgnoreParenImpCasts();
+  while (isa<CastExpr>(ArgExpr))
+    ArgExpr = cast<CastExpr>(ArgExpr)->getSubExpr();
+  auto *DRE = dyn_cast<DeclRefExpr>(ArgExpr);
+  if (DRE) {
+    const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl());
+    if (FD) {
+      auto *SAIRAttr = FD->getAttr<SYCLAddIRAttributesFunctionAttr>();
+      if (!SAIRAttr)
+        return IEV.Success(false, E);
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          SAIRAttr->getFilteredAttributeNameValuePairs(Info.Ctx);
+      for (const auto &NVPair : NameValuePairs) {
+        if (!NVPair.first.compare(NameStr1) ||
+            (!NameStr2.empty() && !NVPair.first.compare(NameStr2))) {
+          if (CheckNDRangeKernelDim) {
+            uint64_t Dim =
+                E->getArg(1)->EvaluateKnownConstInt(Info.Ctx).getZExtValue();
+            // Return true only if the dimensions match.
+            if (std::stoul(NVPair.second) == Dim)
+              return IEV.Success(true, E);
+            else
+              return IEV.Success(false, E);
+          }
+          // Return true if it has the sycl-single-task-kernel or the
+          // sycl-nd-range-kernel attribute.
+          return IEV.Success(true, E);
+        }
+      }
+      return IEV.Success(false, E);
+    }
+  }
+  return false;
+}
+
 bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
                                             unsigned BuiltinOp) {
   switch (BuiltinOp) {
@@ -13146,6 +13217,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
   case Builtin::BI__builtin_popcountl:
   case Builtin::BI__builtin_popcountll:
   case Builtin::BI__builtin_popcountg:
+  case Builtin::BI__builtin_elementwise_popcount:
   case Builtin::BI__popcnt16: // Microsoft variants of popcount
   case Builtin::BI__popcnt:
   case Builtin::BI__popcnt64: {
@@ -13555,6 +13627,53 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     return Success(DidOverflow, E);
   }
 
+  case Builtin::BI__builtin_reduce_add:
+  case Builtin::BI__builtin_reduce_mul:
+  case Builtin::BI__builtin_reduce_and:
+  case Builtin::BI__builtin_reduce_or:
+  case Builtin::BI__builtin_reduce_xor: {
+    APValue Source;
+    if (!EvaluateAsRValue(Info, E->getArg(0), Source))
+      return false;
+
+    unsigned SourceLen = Source.getVectorLength();
+    APSInt Reduced = Source.getVectorElt(0).getInt();
+    for (unsigned EltNum = 1; EltNum < SourceLen; ++EltNum) {
+      switch (BuiltinOp) {
+      default:
+        return false;
+      case Builtin::BI__builtin_reduce_add: {
+        if (!CheckedIntArithmetic(
+                Info, E, Reduced, Source.getVectorElt(EltNum).getInt(),
+                Reduced.getBitWidth() + 1, std::plus<APSInt>(), Reduced))
+          return false;
+        break;
+      }
+      case Builtin::BI__builtin_reduce_mul: {
+        if (!CheckedIntArithmetic(
+                Info, E, Reduced, Source.getVectorElt(EltNum).getInt(),
+                Reduced.getBitWidth() * 2, std::multiplies<APSInt>(), Reduced))
+          return false;
+        break;
+      }
+      case Builtin::BI__builtin_reduce_and: {
+        Reduced &= Source.getVectorElt(EltNum).getInt();
+        break;
+      }
+      case Builtin::BI__builtin_reduce_or: {
+        Reduced |= Source.getVectorElt(EltNum).getInt();
+        break;
+      }
+      case Builtin::BI__builtin_reduce_xor: {
+        Reduced ^= Source.getVectorElt(EltNum).getInt();
+        break;
+      }
+      }
+    }
+
+    return Success(Reduced, E);
+  }
+
   case clang::X86::BI__builtin_ia32_addcarryx_u32:
   case clang::X86::BI__builtin_ia32_addcarryx_u64:
   case clang::X86::BI__builtin_ia32_subborrow_u32:
@@ -13670,6 +13789,19 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
       if (Msk[I])
         Result.setBitVal(P++, Val[I]);
     return Success(Result, E);
+  }
+
+  case Builtin::BI__builtin_sycl_is_kernel: {
+    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-single-task-kernel",
+                                    "sycl-nd-range-kernel");
+  }
+  case Builtin::BI__builtin_sycl_is_single_task_kernel: {
+    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-single-task-kernel",
+                                    "");
+  }
+  case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
+    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-nd-range-kernel", "",
+                                    /*CheckNDRangeDim=*/true);
   }
   }
 }

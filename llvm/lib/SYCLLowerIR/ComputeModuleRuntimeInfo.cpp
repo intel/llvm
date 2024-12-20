@@ -16,6 +16,7 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
@@ -47,6 +48,10 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
 
 bool isModuleUsingAsan(const Module &M) {
   return M.getNamedGlobal("__AsanKernelMetadata");
+}
+
+bool isModuleUsingMsan(const Module &M) {
+  return M.getNamedGlobal("__MsanKernelMetadata");
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
@@ -388,10 +393,19 @@ PropSetRegTy computeModuleProperties(const Module &M,
     for (const StringRef &FName : FuncNames)
       PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
   }
+  {
+    std::vector<std::pair<StringRef, int>> ArgPos =
+        getKernelNamesUsingImplicitLocalMem(M);
+    for (const auto &FuncAndArgPos : ArgPos)
+      PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, FuncAndArgPos.first,
+                  FuncAndArgPos.second);
+  }
 
   {
     if (isModuleUsingAsan(M))
-      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "asanUsed", true);
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
+    else if (isModuleUsingMsan(M))
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {

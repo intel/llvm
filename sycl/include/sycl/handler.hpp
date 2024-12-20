@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -39,6 +38,7 @@
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
@@ -169,6 +169,7 @@ class kernel_impl;
 class queue_impl;
 class stream_impl;
 class event_impl;
+class context_impl;
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
@@ -608,7 +609,6 @@ private:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
-    addAccessorReq(std::move(AccImpl));
     // Add accessor to the list of arguments.
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
            static_cast<int>(AccessTarget), ArgIndex);
@@ -812,6 +812,14 @@ private:
           prop.guarantee,
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
+    }
+
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::
+                          work_group_scratch_size>()) {
+      auto WorkGroupMemSize = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_scratch_size>();
+      setKernelWorkGroupMem(WorkGroupMemSize.size);
     }
 
     checkAndSetClusterRange(Props);
@@ -2540,9 +2548,6 @@ public:
 
     MSrcPtr = static_cast<void *>(AccImpl.get());
     MDstPtr = static_cast<void *>(Dst);
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory pointed by Src into the memory object
@@ -2578,9 +2583,6 @@ public:
 
     MSrcPtr = const_cast<T_Src *>(Src);
     MDstPtr = static_cast<void *>(AccImpl.get());
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImpl));
   }
 
   /// Copies the content of memory object accessed by Src to the memory
@@ -2635,10 +2637,6 @@ public:
 
     MSrcPtr = AccImplSrc.get();
     MDstPtr = AccImplDst.get();
-    // Store copy of accessor to the local storage to make sure it is alive
-    // until we finish
-    addAccessorReq(std::move(AccImplSrc));
-    addAccessorReq(std::move(AccImplDst));
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -2664,7 +2662,6 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    addAccessorReq(std::move(AccImpl));
   }
 
 public:
@@ -3420,7 +3417,6 @@ private:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MDstPtr = static_cast<void *>(AccImpl.get());
-    addAccessorReq(std::move(AccImpl));
 
     MPattern.resize(sizeof(T));
     auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
@@ -3520,6 +3516,9 @@ private:
 
   // Set using cuda thread block cluster launch flag and set the launch bounds.
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
+
+  // Set the request work group memory size (work_group_static ext).
+  void setKernelWorkGroupMem(size_t Size);
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time

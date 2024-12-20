@@ -1,7 +1,7 @@
-# commit eb076da108a49ef1426f38690547a71905f58015
-# Merge: d8d8ee90 46832dfd
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 29 15:54:31 2024 +0000
-#     Merge pull request #2396 from kswiecicki/init-results-fix
-#     [L0] Add nullopt check before init results access
-set(UNIFIED_RUNTIME_TAG eb076da108a49ef1426f38690547a71905f58015)
+# commit ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c
+# Merge: bb64b3e9f6d3 4a89e1c69a65
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Thu Dec 19 11:26:01 2024 +0000
+#     Merge pull request #2277 from igchor/cooperative_fix
+#     [Spec] fix urKernelSuggestMaxCooperativeGroupCountExp
+set(UNIFIED_RUNTIME_TAG ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c)

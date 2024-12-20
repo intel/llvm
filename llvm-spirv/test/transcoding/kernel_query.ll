@@ -63,8 +63,9 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt8:[0-9]+]] 8
 ; CHECK-SPIRV: TypeVoid [[VoidTy:[0-9]+]]
 ; CHECK-SPIRV: TypeStruct [[NDRangeTy:[0-9]+]] [[Int32Ty]] {{$}}
-; CHECK-SPIRV: TypePointer [[NDRangePtrTy:[0-9]+]] 7 [[NDRangeTy]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[NDRangePtrTy:[0-9]+]] 7 [[NDRangeTy]]
 ; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[NDRangePtrTy:[0-9]+]] 7
 ; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrGenTy:[0-9]+]] 8
 ; CHECK-SPIRV: TypeFunction [[BlockKerTy:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
 
@@ -72,7 +73,8 @@ target triple = "spir-unknown-unknown"
 define spir_kernel void @device_side_enqueue() #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !2 !kernel_arg_type !2 !kernel_arg_base_type !2 !kernel_arg_type_qual !2 {
 entry:
 
-; CHECK-SPIRV: Variable [[NDRangePtrTy]] [[NDRange:[0-9]+]]
+; CHECK-SPIRV-TYPED-PTR: Variable [[NDRangePtrTy]] [[NDRange:[0-9]+]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[NDRangePtrTy]] [[NDRange:[0-9]+]] [[#]] [[NDRangeTy]]
 
   %ndrange = alloca %struct.ndrange_t, align 4
 

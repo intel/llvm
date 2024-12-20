@@ -25,7 +25,7 @@ int main() {
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_0>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
-  auto KernelNode = Graph.add([&](handler &cgh) {
+  auto KernelNode = add_node(Graph, Queue, [&](handler &cgh) {
     cgh.set_arg(0, PtrA);
     cgh.single_task(Kernel);
   });

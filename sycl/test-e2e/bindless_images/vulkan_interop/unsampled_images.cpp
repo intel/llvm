@@ -148,7 +148,7 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
   syclexp::free_image_mem(handles.input_mem_handle_1,
                           syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_1,
+  syclexp::free_image_mem(handles.input_mem_handle_2,
                           syclexp::image_type::standard, dev, ctxt);
   syclexp::free_image_mem(handles.output_mem_handle,
                           syclexp::image_type::standard, dev, ctxt);

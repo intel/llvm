@@ -1622,6 +1622,16 @@ private:
   SPIRVId Matrix;
 };
 
+class SPIRVSizeOfInstBase : public SPIRVInstTemplateBase {
+protected:
+  VersionNumber getRequiredSPIRVVersion() const override {
+    return VersionNumber::SPIRV_1_1;
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVSizeOfInstBase, OpSizeOf, true, 4, false>
+    SPIRVSizeOf;
+
 class SPIRVUnary : public SPIRVInstTemplateBase {
 protected:
   void validate() const override {
@@ -1727,6 +1737,16 @@ public:
            OpCode == OpUntypedInBoundsAccessChainKHR ||
            OpCode == OpUntypedPtrAccessChainKHR ||
            OpCode == OpUntypedInBoundsPtrAccessChainKHR;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    if (isUntyped())
+      return getVec(CapabilityUntypedPointersKHR);
+    return {};
+  }
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    if (isUntyped())
+      return ExtensionID::SPV_KHR_untyped_pointers;
+    return {};
   }
 };
 
@@ -4245,7 +4265,9 @@ public:
     validate();
   }
 
-  SPIRVUntypedPrefetchKHR() : SPIRVInstruction(OC) {
+  SPIRVUntypedPrefetchKHR()
+      : SPIRVInstruction(OC), PtrTy(SPIRVID_INVALID),
+        NumBytes(SPIRVID_INVALID) {
     setHasNoId();
     setHasNoType();
   }

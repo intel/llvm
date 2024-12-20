@@ -16,7 +16,6 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>                           // for backend
-#include <sycl/context.hpp>                                 // for context
 #include <sycl/detail/backend_traits.hpp>                   // for BackendI...
 #include <sycl/device.hpp>                                  // for device
 #include <sycl/event.hpp>                                   // for event
@@ -45,6 +44,7 @@ typedef struct _ze_module_handle_t *ze_module_handle_t;
 namespace sycl {
 inline namespace _V1 {
 class queue;
+class context;
 
 namespace detail {
 
