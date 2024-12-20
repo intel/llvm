@@ -155,7 +155,7 @@ namespace ext::oneapi::experimental {
 template <typename, typename> class work_group_memory;
 struct image_descriptor;
 enum class prefetch_type;
-void prefetch(handler &CGH, void *Ptr, size_t NumBytes, prefetch_type type);
+void prefetch(handler &CGH, void *Ptr, size_t NumBytes, prefetch_type Type);
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
