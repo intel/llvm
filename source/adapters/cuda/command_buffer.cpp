@@ -54,7 +54,7 @@ ur_result_t commandHandleReleaseInternal(
   // of the `ur_event_t` object doesn't free the underlying CuEvent_t object and
   // we need to do it manually ourselves.
   if (Command->SignalNode) {
-    CUevent SignalEvent;
+    CUevent SignalEvent{};
     UR_CHECK_ERROR(
         cuGraphEventRecordNodeGetEvent(Command->SignalNode, &SignalEvent));
     UR_CHECK_ERROR(cuEventDestroy(SignalEvent));
@@ -90,7 +90,7 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 std::unique_ptr<ur_event_handle_t_>
 ur_exp_command_buffer_handle_t_::addSignalNode(CUgraphNode DepNode,
                                                CUgraphNode &SignalNode) {
-  CUevent Event;
+  CUevent Event{};
   UR_CHECK_ERROR(cuEventCreate(&Event, CU_EVENT_DEFAULT));
   UR_CHECK_ERROR(
       cuGraphAddEventRecordNode(&SignalNode, CudaGraph, &DepNode, 1, Event));
@@ -1430,7 +1430,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  CUevent SignalEvent;
+  CUevent SignalEvent{};
   UR_CHECK_ERROR(cuGraphEventRecordNodeGetEvent(SignalNode, &SignalEvent));
 
   if (phEvent) {

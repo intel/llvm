@@ -88,7 +88,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               UR_CHECK_ERROR(cuDevicePrimaryCtxRetain(&Context, Device));
 
               ScopedContext Active(Context); // Set native ctx as active
-              CUevent EvBase;
+              CUevent EvBase{};
               UR_CHECK_ERROR(cuEventCreate(&EvBase, CU_EVENT_DEFAULT));
 
               // Use default stream to record base event counter
