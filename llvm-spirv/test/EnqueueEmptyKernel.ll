@@ -35,7 +35,8 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: TypeVoid [[Void:[0-9]+]]
 ; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrGen:[0-9]+]] 8 [[Int8]]
 ; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrGen:[0-9]+]] 8
-; CHECK-SPIRV: Variable {{[0-9]+}} [[Block:[0-9]+]]
+; CHECK-SPIRV-TYPED-PTR: Variable {{[0-9]+}} [[Block:[0-9]+]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR {{[0-9]+}} [[Block:[0-9]+]]
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @test_enqueue_empty() #0 !kernel_arg_addr_space !0 !kernel_arg_access_qual !0 !kernel_arg_type !0 !kernel_arg_base_type !0 !kernel_arg_type_qual !0 {

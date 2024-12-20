@@ -6,13 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/Driver/SanitizerArgs.h"
-#include "ToolChains/CommonArgs.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/ToolChain.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Path.h"
@@ -68,9 +65,9 @@ static const SanitizerMask AlwaysRecoverable = SanitizerKind::KernelAddress |
 static const SanitizerMask NeedsLTO = SanitizerKind::CFI;
 static const SanitizerMask TrappingSupported =
     (SanitizerKind::Undefined & ~SanitizerKind::Vptr) | SanitizerKind::Integer |
-    SanitizerKind::Nullability | SanitizerKind::LocalBounds |
-    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero |
-    SanitizerKind::ObjCCast;
+    SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
+    SanitizerKind::LocalBounds | SanitizerKind::CFI |
+    SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast;
 static const SanitizerMask TrappingDefault = SanitizerKind::CFI;
 static const SanitizerMask CFIClasses =
     SanitizerKind::CFIVCall | SanitizerKind::CFINVCall |
@@ -1169,6 +1166,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   // SPIR/SPIRV sanitizer support is experimental and will pass a fixed set of
   // flags
   if (TC.getTriple().isSPIROrSPIRV()) {
+#if !defined(_WIN32)
     if (Sanitizers.has(SanitizerKind::Address)) {
       CmdArgs.push_back("-fsanitize=address");
       CmdArgs.push_back("-fsanitize-address-use-after-return=never");
@@ -1200,7 +1198,26 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
       addSpecialCaseListOpt(Args, CmdArgs,
                             "-fsanitize-ignorelist=", UserIgnorelistFiles);
+    } else if (Sanitizers.has(SanitizerKind::Memory)) {
+      CmdArgs.push_back("-fsanitize=memory");
+
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-msan-instrumentation-with-call-threshold=0");
+
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-msan-eager-checks=1");
     }
+#else // _WIN32
+    std::string SanitizeArg;
+    if (Sanitizers.has(SanitizerKind::Address))
+      SanitizeArg = "-fsanitize=address";
+    else if (Sanitizers.has(SanitizerKind::Memory))
+      SanitizeArg = "-fsanitize=memory";
+
+    if (!SanitizeArg.empty())
+      TC.getDriver().Diag(diag::warn_drv_unsupported_option_for_target)
+          << SanitizeArg << TC.getTripleString();
+#endif
     return;
   }
 

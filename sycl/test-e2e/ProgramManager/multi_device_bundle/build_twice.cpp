@@ -7,6 +7,7 @@
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class Kernel;
 

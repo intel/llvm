@@ -244,7 +244,10 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
-  auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgList);
+  std::string BuildLog;
+
+  auto ModuleOrErr =
+      compileDeviceCode(SourceFile, IncludeFiles, UserArgList, BuildLog);
   if (!ModuleOrErr) {
     return errorTo<RTCResult>(ModuleOrErr.takeError(),
                               "Device compilation failed");
@@ -254,16 +257,17 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
   Context.reset(&Module->getContext());
 
-  if (auto Error = linkDeviceLibraries(*Module, UserArgList)) {
+  if (auto Error = linkDeviceLibraries(*Module, UserArgList, BuildLog)) {
     return errorTo<RTCResult>(std::move(Error), "Device linking failed");
   }
 
-  auto BundleInfoOrError = performPostLink(*Module, UserArgList);
-  if (!BundleInfoOrError) {
-    return errorTo<RTCResult>(BundleInfoOrError.takeError(),
+  auto PostLinkResultOrError = performPostLink(std::move(Module), UserArgList);
+  if (!PostLinkResultOrError) {
+    return errorTo<RTCResult>(PostLinkResultOrError.takeError(),
                               "Post-link phase failed");
   }
-  auto BundleInfo = std::move(*BundleInfoOrError);
+  RTCBundleInfo BundleInfo;
+  std::tie(BundleInfo, Module) = std::move(*PostLinkResultOrError);
 
   auto BinaryInfoOrError =
       translation::KernelTranslator::translateBundleToSPIRV(
@@ -274,7 +278,7 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   }
   BundleInfo.BinaryInfo = std::move(*BinaryInfoOrError);
 
-  return RTCResult{std::move(BundleInfo)};
+  return RTCResult{std::move(BundleInfo), BuildLog.c_str()};
 }
 
 extern "C" KF_EXPORT_SYMBOL void resetJITConfiguration() {

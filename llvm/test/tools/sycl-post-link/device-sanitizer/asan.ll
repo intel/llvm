@@ -1,11 +1,11 @@
-; This test checks that the post-link tool properly generates "asanUsed=1"
+; This test checks that the post-link tool properly generates "sanUsed=asan"
 ; in prop file, and fixes the attributes and metadata of @__AsanKernelMetadata
 
 ; RUN: sycl-post-link -properties -split=kernel -symbols -S < %s -o %t.table
 
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefix CHECK-PROP
 ; CHECK-PROP: [SYCL/misc properties]
-; CHECK-PROP: asanUsed=1
+; CHECK-PROP: sanUsed=2|gAAAAAAAAAQYzFmb
 
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK-IR
 

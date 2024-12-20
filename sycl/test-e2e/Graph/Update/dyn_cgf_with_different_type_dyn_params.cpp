@@ -111,17 +111,17 @@ int main() {
   ExecuteGraphAndVerifyResults(0, UpdatedScalarValue, 0);
 
   // CGFB using PtrB in its dynamic parameter and immutable ScalarValue
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(0, ScalarValue, false);
 
   // CGFC using immutable PtrC and UpdatedScalarValue in its dynamic parameter
-  DynamicCG.set_active_cgf(2);
+  DynamicCG.set_active_index(2);
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(0, 0, UpdatedScalarValue);
 
   // CGFD using immutable PtrA and immutable ScalarValue for arguments
-  DynamicCG.set_active_cgf(3);
+  DynamicCG.set_active_index(3);
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(ScalarValue, 0, 0);
 

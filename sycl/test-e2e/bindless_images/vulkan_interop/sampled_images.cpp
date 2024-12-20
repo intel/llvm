@@ -23,6 +23,7 @@ struct handles_t {
   syclexp::sampled_image_handle imgInput;
   syclexp::image_mem_handle imgMem;
   syclexp::external_mem inputExternalMem;
+  syclexp::external_semaphore sycl_wait_external_semaphore;
 };
 
 template <typename DType, sycl::image_channel_type CType> struct OutputType {
@@ -33,12 +34,12 @@ template <> struct OutputType<uint8_t, sycl::image_channel_type::unorm_int8> {
   using type = float;
 };
 
-template <typename InteropHandleT>
-handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
-                              const syclexp::bindless_image_sampler &samp,
-                              InteropHandleT interopHandle,
-                              syclexp::image_descriptor desc,
-                              const size_t imgSize) {
+template <typename InteropHandleT, typename InteropSemHandleT>
+handles_t create_test_handles(
+    sycl::context &ctxt, sycl::device &dev,
+    const syclexp::bindless_image_sampler &samp, InteropHandleT interopHandle,
+    [[maybe_unused]] InteropSemHandleT sycl_wait_semaphore_handle,
+    syclexp::image_descriptor desc, const size_t imgSize) {
   // Extension: external memory descriptor
 #ifdef _WIN32
   syclexp::external_mem_descriptor<syclexp::resource_win32_handle>
@@ -62,13 +63,37 @@ handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
   syclexp::sampled_image_handle imgInput =
       syclexp::create_image(inputMappedMemHandle, samp, desc, dev, ctxt);
 
-  return {imgInput, inputMappedMemHandle, inputExternalMem};
+#ifdef TEST_SEMAPHORE_IMPORT
+  // Extension: import semaphores
+#ifdef _WIN32
+  syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
+      sycl_wait_external_semaphore_desc{
+          sycl_wait_semaphore_handle,
+          syclexp::external_semaphore_handle_type::win32_nt_handle};
+#else
+  syclexp::external_semaphore_descriptor<syclexp::resource_fd>
+      sycl_wait_external_semaphore_desc{
+          sycl_wait_semaphore_handle,
+          syclexp::external_semaphore_handle_type::opaque_fd};
+#endif
+
+  syclexp::external_semaphore sycl_wait_external_semaphore =
+      syclexp::import_external_semaphore(sycl_wait_external_semaphore_desc, dev,
+                                         ctxt);
+#else  // #ifdef TEST_SEMAPHORE_IMPORT
+  syclexp::external_semaphore sycl_wait_external_semaphore{};
+#endif // #ifdef TEST_SEMAPHORE_IMPORT
+
+  return {imgInput, inputMappedMemHandle, inputExternalMem,
+          sycl_wait_external_semaphore};
 }
 
-template <typename InteropHandleT, int NDims, typename DType, int NChannels,
-          sycl::image_channel_type CType, typename KernelName>
-bool run_sycl(InteropHandleT inputInteropMemHandle,
-              sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
+template <typename InteropHandleT, typename InteropSemHandleT, int NDims,
+          typename DType, int NChannels, sycl::image_channel_type CType,
+          typename KernelName>
+bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
+              InteropHandleT inputInteropMemHandle,
+              InteropSemHandleT sycl_wait_semaphore_handle) {
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
@@ -104,8 +129,14 @@ bool run_sycl(InteropHandleT inputInteropMemHandle,
   using OutType = typename OutputType<DType, CType>::type;
   using VecType = sycl::vec<OutType, NChannels>;
 
-  auto handles = create_test_handles(ctxt, dev, samp, inputInteropMemHandle,
-                                     desc, img_size);
+  auto handles =
+      create_test_handles(ctxt, dev, samp, inputInteropMemHandle,
+                          sycl_wait_semaphore_handle, desc, img_size);
+
+#ifdef TEST_SEMAPHORE_IMPORT
+  // Extension: wait for imported semaphore
+  q.ext_oneapi_wait_external_semaphore(handles.sycl_wait_external_semaphore);
+#endif
 
   std::vector<VecType> out(numElems);
   try {
@@ -167,6 +198,10 @@ bool run_sycl(InteropHandleT inputInteropMemHandle,
     });
     q.wait_and_throw();
 
+#ifdef TEST_SEMAPHORE_IMPORT
+    syclexp::release_external_semaphore(handles.sycl_wait_external_semaphore,
+                                        dev, ctxt);
+#endif
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
     syclexp::free_image_mem(handles.imgMem, syclexp::image_type::standard, dev,
                             ctxt);
@@ -326,6 +361,27 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     VK_CHECK_CALL(vkQueueWaitIdle(vk_compute_queue));
   }
 
+#ifdef TEST_SEMAPHORE_IMPORT
+  // Create semaphore to later import in SYCL
+  printString("Creating semaphores\n");
+  VkSemaphore syclWaitSemaphore;
+  {
+    VkExportSemaphoreCreateInfo esci = {};
+    esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+#ifdef _WIN32
+    esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
+    esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
+
+    VkSemaphoreCreateInfo sci = {};
+    sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    sci.pNext = &esci;
+    VK_CHECK_CALL(
+        vkCreateSemaphore(vk_device, &sci, nullptr, &syclWaitSemaphore));
+  }
+#endif // #ifdef TEST_SEMAPHORE_IMPORT
+
   printString("Copying staging memory to images\n");
   // Copy staging to main image memory
   {
@@ -344,10 +400,18 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                            1 /*regionCount*/, &copyRegion);
     VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
 
+    std::vector<VkPipelineStageFlags> stages{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+
     VkSubmitInfo submission = {};
     submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submission.commandBufferCount = 1;
     submission.pCommandBuffers = &vk_transferCmdBuffers[0];
+
+#ifdef TEST_SEMAPHORE_IMPORT
+    submission.signalSemaphoreCount = 1;
+    submission.pSignalSemaphores = &syclWaitSemaphore;
+#endif
+    submission.pWaitDstStageMask = stages.data();
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
                                 &submission, VK_NULL_HANDLE /*fence*/));
@@ -363,17 +427,36 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   auto input_mem_handle = vkutil::getMemoryOpaqueFD(inputMemory);
 #endif
 
+  printString("Getting semaphore interop handles\n");
+
+#ifdef TEST_SEMAPHORE_IMPORT
+  // Pass semaphores to SYCL for synchronization
+#ifdef _WIN32
+  auto sycl_wait_semaphore_handle =
+      vkutil::getSemaphoreWin32Handle(syclWaitSemaphore);
+#else
+  auto sycl_wait_semaphore_handle =
+      vkutil::getSemaphoreOpaqueFD(syclWaitSemaphore);
+#endif
+#else  // #ifdef TEST_SEMAPHORE_IMPORT
+  void *sycl_wait_semaphore_handle = nullptr;
+#endif // #ifdef TEST_SEMAPHORE_IMPORT
+
   printString("Calling into SYCL with interop memory handle\n");
 
   bool validated =
-      run_sycl<decltype(input_mem_handle), NDims, DType, NChannels, CType,
-               KernelName>(input_mem_handle, dims, localSize);
+      run_sycl<decltype(input_mem_handle), decltype(sycl_wait_semaphore_handle),
+               NDims, DType, NChannels, CType, KernelName>(
+          dims, localSize, input_mem_handle, sycl_wait_semaphore_handle);
 
   // Cleanup
   vkDestroyBuffer(vk_device, inputStagingBuffer, nullptr);
   vkDestroyImage(vk_device, inputImage, nullptr);
   vkFreeMemory(vk_device, inputStagingMemory, nullptr);
   vkFreeMemory(vk_device, inputMemory, nullptr);
+#ifdef TEST_SEMAPHORE_IMPORT
+  vkDestroySemaphore(vk_device, syclWaitSemaphore, nullptr);
+#endif
 
   return validated;
 }

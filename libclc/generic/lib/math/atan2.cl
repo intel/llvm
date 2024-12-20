@@ -21,10 +21,10 @@
  */
 
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 
-#include "../../libspirv/math/tables.h"
+#include <libspirv/math/tables.h>
 #include "math.h"
-#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float atan2(float y, float x)
 {

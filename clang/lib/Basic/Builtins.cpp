@@ -119,6 +119,9 @@ static bool builtinIsSupported(const Builtin::Info &BuiltinInfo,
   /* CUDA Unsupported */
   if (!LangOpts.CUDA && BuiltinInfo.Langs == CUDA_LANG)
     return false;
+  /* SYCL Unsupported */
+  if (!LangOpts.isSYCL() && BuiltinInfo.Langs == SYCL_LANG)
+    return false;
   /* CPlusPlus Unsupported */
   if (!LangOpts.CPlusPlus && BuiltinInfo.Langs == CXX_LANG)
     return false;

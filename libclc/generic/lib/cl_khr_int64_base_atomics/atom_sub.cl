@@ -1,5 +1,5 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 // TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
 

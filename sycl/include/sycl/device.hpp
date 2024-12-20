@@ -221,7 +221,12 @@ public:
   /// Queries this SYCL device for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<device, Param>()
+#endif
+            >
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
 

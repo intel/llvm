@@ -493,8 +493,8 @@ size_t matrix_size = -1;
 
       test<bfloat16, float, VnniFactor, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, MCache1,
            NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
-      // test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16, MCache1,
-      //      NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
+      test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16,
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
       break;
     }
   }

@@ -244,7 +244,6 @@ section below). All these features are related to HW detection and they should
 be considered deprecated, because we have HW auto-detection functionality in
 place. No new tests should use these features:
 
- * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
 
@@ -264,12 +263,6 @@ configure specific single test execution in the command line:
  * **gpu_aot_target_opts** - defines additional options which are passed to AOT
    compilation command line for GPU device. It can be also set by CMake variable
    GPU_AOT_TARGET_OPTS. If not specified "-device *" value is used.
- * **gpu-intel-dg1** - tells LIT infra that Intel GPU DG1 is present in the
-   system. It is developer / CI infra responsibility to make sure that the
-   device is available in the system. Tests requiring DG1 to run must use proper
-   device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
-   ONEAPI_DEVICE_SELECTOR to get proper configuration (see
-   [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
  * **gpu-intel-dg2** - tells LIT infra that Intel GPU DG2 is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.

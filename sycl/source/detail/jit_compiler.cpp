@@ -1021,7 +1021,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
       CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
-      false /* KernelUsesClusterLaunch*/));
+      false /* KernelUsesClusterLaunch*/, 0 /* KernelWorkGroupMemorySize */));
   return FusedCG;
 }
 
@@ -1242,12 +1242,13 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
 
-  if (Result.failed()) {
-    throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
+  if (LogPtr) {
+    LogPtr->append(Result.getBuildLog());
   }
 
-  // TODO: We currently don't have a meaningful build log.
-  (void)LogPtr;
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getBuildLog());
+  }
 
   return createDeviceBinaryImage(Result.getBundleInfo());
 }

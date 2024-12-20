@@ -723,7 +723,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !EndLoc && !Attrs.MustProgress)
     return;
 
-  TempLoopID = MDNode::getTemporary(Header->getContext(), std::nullopt);
+  TempLoopID = MDNode::getTemporary(Header->getContext(), {});
 }
 
 void LoopInfo::finish() {

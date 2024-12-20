@@ -324,6 +324,17 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       }
     }
 
+    UseNative = false;
+
+    // Check for intel_gpu_pvc as the target
+    if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      if (SYCLTarget->getValues().size() == 1) {
+        StringRef SYCLTargetStr = SYCLTarget->getValue();
+        if (SYCLTargetStr == "intel_gpu_pvc")
+          UseNative = true;
+      }
+    }
+
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats");
     };
@@ -334,8 +345,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       Params += Arg;
     }
     size_t DevicesPos = Params.find("-device ");
-    UseNative = false;
-    if (DevicesPos != std::string::npos) {
+    if (!UseNative && DevicesPos != std::string::npos) {
       UseNative = true;
       std::istringstream Devices(Params.substr(DevicesPos + 8));
       for (std::string S; std::getline(Devices, S, ',');)
@@ -545,6 +555,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-asan-cpu", "internal"},
       {"libsycl-asan-dg2", "internal"},
       {"libsycl-asan-pvc", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {{"libsycl-msan", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -575,6 +586,29 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       LibraryList.push_back(Args.MakeArgString(LibName));
     }
   };
+
+  addLibraries(SYCLDeviceWrapperLibs);
+  if (IsSpirvAOT)
+    addLibraries(SYCLDeviceFallbackLibs);
+
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
+
+  // Link in ITT annotations library unless fsycl-no-instrument-device-code
+  // is specified. This ensures that we are ABI-compatible with the
+  // instrumented device code, which was the default not so long ago.
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
+
+#if !defined(_WIN32)
 
   auto addSingleLibrary = [&](const DeviceLibOptInfo &Lib) {
     if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
@@ -636,35 +670,16 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     return JIT;
   };
 
-  addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT)
-    addLibraries(SYCLDeviceFallbackLibs);
-
-  bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
-  if (NeedBfloatLibs) {
-    // Add native or fallback bfloat16 library.
-    if (NativeBfloatLibs)
-      addLibraries(SYCLDeviceBfloat16NativeLib);
-    else
-      addLibraries(SYCLDeviceBfloat16FallbackLib);
-  }
-
-  // Link in ITT annotations library unless fsycl-no-instrument-device-code
-  // is specified. This ensures that we are ABI-compatible with the
-  // instrumented device code, which was the default not so long ago.
-  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
-    addLibraries(SYCLDeviceAnnotationLibs);
-
-#if !defined(_WIN32)
   std::string SanitizeVal;
+  std::string SanitizeArg;
   size_t sanitizer_lib_idx = getSingleBuildTarget();
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
                                options::OPT_fno_sanitize_EQ)) {
     if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
-        A->getValues().size() == 1)
+        A->getValues().size() == 1) {
       SanitizeVal = A->getValue();
+      SanitizeArg = A->getAsString(Args);
+    }
   } else {
     // User can pass -fsanitize=address to device compiler via
     // -Xsycl-target-frontend, sanitize device library must be
@@ -688,6 +703,12 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     for (const std::string &Arg : ArgVals) {
       if (Arg.find("-fsanitize=address") != std::string::npos) {
         SanitizeVal = "address";
+        SanitizeArg = Arg;
+        break;
+      }
+      if (Arg.find("-fsanitize=memory") != std::string::npos) {
+        SanitizeVal = "memory";
+        SanitizeArg = Arg;
         break;
       }
     }
@@ -695,7 +716,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
   if (SanitizeVal == "address")
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
-
+  else if (SanitizeVal == "memory")
+    addLibraries(SYCLDeviceMsanLibs);
 #endif
 
   if (isNativeCPU)
@@ -815,6 +837,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "asan-pvc",
     "asan-cpu",
     "asan-dg2",
+    "msan",
 #endif
     "imf",
     "imf-fp64",
@@ -1397,6 +1420,8 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases("intel_gpu_arl_h", "intel_gpu_12_74_4", "arl_h")
           .Cases("intel_gpu_bmg_g21", "intel_gpu_20_1_4", "bmg_g21")
           .Cases("intel_gpu_lnl_m", "intel_gpu_20_4_4", "lnl_m")
+          .Cases("intel_gpu_ptl_h", "intel_gpu_30_0_4", "ptl_h")
+          .Cases("intel_gpu_ptl_u", "intel_gpu_30_1_1", "ptl_u")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -1487,6 +1512,8 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("arl_h", "INTEL_GPU_ARL_H")
                       .Case("bmg_g21", "INTEL_GPU_BMG_G21")
                       .Case("lnl_m", "INTEL_GPU_LNL_M")
+                      .Case("ptl_h", "INTEL_GPU_PTL_H")
+                      .Case("ptl_u", "INTEL_GPU_PTL_U")
                       .Case("sm_50", "NVIDIA_GPU_SM_50")
                       .Case("sm_52", "NVIDIA_GPU_SM_52")
                       .Case("sm_53", "NVIDIA_GPU_SM_53")
@@ -1650,11 +1677,11 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       if (SupportedByNativeCPU(*this, Opt))
         continue;
       // All sanitizer options are not currently supported, except
-      // AddressSanitizer
+      // AddressSanitizer and MemorySanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address")
+        if (SanitizeVal == "address" || SanitizeVal == "memory")
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
@@ -1695,7 +1722,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
-          if (SanitizeVal == "address") {
+          if (SanitizeVal == "address" || SanitizeVal == "memory") {
             if (IsNewDAL)
               DAL->append(A);
             continue;
@@ -2104,5 +2131,5 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
-  return SanitizerKind::Address;
+  return SanitizerKind::Address | SanitizerKind::Memory;
 }

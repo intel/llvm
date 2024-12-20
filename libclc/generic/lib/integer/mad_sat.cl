@@ -1,8 +1,7 @@
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 #include <core/clc_core.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF char mad_sat(char x, char y, char z) {
   return __clc_mad_sat(x, y, z);

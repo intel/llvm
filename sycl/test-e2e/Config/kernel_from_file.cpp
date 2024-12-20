@@ -14,7 +14,7 @@
 // RUN: %if linux %{ llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc %t_asan.bc %} %else %{ llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc %}
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.spv %t_app.bc
-// RUN: %clangxx -Wno-error=ignored-attributes -isystem %sycl_include -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -fno-sycl-dead-args-optimization -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -Wno-error=ignored-attributes %sycl_include -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -fno-sycl-dead-args-optimization -Xclang -verify-ignore-unexpected=note,warning
 // RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out | FileCheck %s
 // CHECK: Passed
 
