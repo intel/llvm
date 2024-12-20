@@ -1,6 +1,6 @@
-# commit 8e819c2d4d3cd7e8a5d8b5ea64ed22dab575737f
-# Merge: 65ca7748 39df0317
+# commit 0f9407c51d689c87c1835c96ffad01601c92d23c
+# Merge: ff19760f 76a96238
 # Author: Li, Ian <ian.li@intel.com>
-# Date:   Mon Dec 16 10:05:24 2024 -0800
+# Date:   Fri Dec 20 08:32:03 2024 -0800
 #     Merge branch 'main' of https://github.com/oneapi-src/unified-runtime into ianayl/2way-prefetch
-set(UNIFIED_RUNTIME_TAG 8e819c2d4d3cd7e8a5d8b5ea64ed22dab575737f)
+set(UNIFIED_RUNTIME_TAG 0f9407c51d689c87c1835c96ffad01601c92d23c)

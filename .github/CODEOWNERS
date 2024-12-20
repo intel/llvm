@@ -170,11 +170,16 @@ sycl/test-e2e/LLVMIntrinsicLowering/ @intel/dpcpp-spirv-reviewers
 # Sanitizer
 clang/lib/Driver/SanitizerArgs.cpp @intel/dpcpp-sanitizers-review
 libdevice/include/asan_rtl.hpp @intel/dpcpp-sanitizers-review
+libdevice/include/msan_rtl.hpp @intel/dpcpp-sanitizers-review
 libdevice/include/sanitizer_defs.hpp @intel/dpcpp-sanitizers-review
 libdevice/sanitizer/ @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/MemorySanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
+llvm/test/Instrumentation/MemorySanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
+sycl/test-e2e/MemorySanitizer/ @intel/dpcpp-sanitizers-review

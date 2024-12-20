@@ -39,12 +39,16 @@ config.unsupported_features = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
+config.fallback_build_run_only = False
 if config.test_mode == "full":
     config.available_features.add("run-mode")
     config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
+    if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
+        config.available_features.add("build-and-run-mode")
+        config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
