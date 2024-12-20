@@ -235,7 +235,7 @@ environment:
  * **gpu-intel-dg2**  - Intel GPU DG2 availability; Automatically set if device
     architecture belongs to DG2 family;
  * **gpu-intel-gen11**  - Intel GPU Gen11 availability; Automatically set if device architecture belongs to Gen11 family;
- * **gpu-intel-gen12**  - Intel GPU DG2 availability; Automatically set if device architecture belongs to Gen12 family;
+ * **gpu-intel-gen12**  - Intel GPU Gen12 availability; Automatically set if device architecture belongs to Gen12 family;
 
 ### Manually-set features
 
