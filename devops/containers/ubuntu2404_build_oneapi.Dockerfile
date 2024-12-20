@@ -39,11 +39,11 @@ RUN apt update && apt install -yqq rocm-dev intel-oneapi-compiler-dpcpp-cpp && \
   rm -rf /var/lib/apt/lists/*
 
 COPY scripts/create-sycl-user.sh /user-setup.sh
-RUN --mount=type=secret,id=sycl_ci_passwd /user-setup.sh
+RUN /user-setup.sh
 
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
-USER sycl_ci
+USER sycl
 
 ENTRYPOINT ["/docker_entrypoint.sh"]
 
