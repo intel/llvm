@@ -157,7 +157,7 @@ jobs:
     env: ${{ fromJSON(inputs.env) }}
     steps:
     - name: Reset Intel GPU
-      if: inputs.reset_intel_gpu == 'true'
+      if: false
       run: |
         cat /run/secrets/sycl_passwd | sudo -S mount -t debugfs none /sys/kernel/debug
         cat /run/secrets/sycl_passwd | sudo -S bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
