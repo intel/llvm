@@ -318,7 +318,7 @@ branches to safely communicate between all work-items executing the same
 control flow.
 
 NOTE: This differs from the `fragment` returned by `get_opportunistic_group()`
-because a `tangle_group` requires the implementation to track group membership.
+because a `tangle` requires the implementation to track group membership.
 Which group type to use will depend on a combination of
 implementation/backend/device and programmer preference.
 
