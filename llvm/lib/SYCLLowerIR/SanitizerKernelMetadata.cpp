@@ -42,8 +42,6 @@ PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
   {
     assert(KernelMetadata->getValueType()->isArrayTy());
 
-    auto Name = KernelMetadata->getName().str();
-    KernelMetadata->setName(Name + "_del");
     auto *KernelMetadataOld = KernelMetadata;
 
     StructType *StructTypeWithArray = StructType::create(Ctx);
@@ -53,7 +51,8 @@ PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
         M, StructTypeWithArray, false, GlobalValue::ExternalLinkage,
         ConstantStruct::get(StructTypeWithArray,
                             KernelMetadataOld->getInitializer()),
-        Name, nullptr, GlobalValue::NotThreadLocal, 1);
+        "", nullptr, GlobalValue::NotThreadLocal, 1); // Global AddressSpace
+    KernelMetadata->takeName(KernelMetadataOld);
     KernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
     KernelMetadata->setDSOLocal(true);
     KernelMetadata->copyAttributesFrom(KernelMetadataOld);
