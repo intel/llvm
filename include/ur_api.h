@@ -9317,6 +9317,7 @@ urCommandBufferReleaseCommandExp(
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS is not supported by the device, but any of `pUpdateKernelLaunch->numNewMemObjArgs`, `pUpdateKernelLaunch->numNewPointerArgs`, or `pUpdateKernelLaunch->numNewValueArgs` are not zero.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is not supported by the device but `pUpdateKernelLaunch->pNewLocalWorkSize` is not nullptr.
+///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is not supported by the device but `pUpdateKernelLaunch->pNewLocalWorkSize` is nullptr and `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE is not supported by the device but `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET is not supported by the device but `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE is not supported by the device but `pUpdateKernelLaunch->hNewKernel` is not nullptr.
