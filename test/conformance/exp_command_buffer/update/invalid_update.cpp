@@ -446,6 +446,42 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, LocalSize) {
     ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
 }
 
+TEST_P(InvalidUpdateCommandBufferExpExecutionTest, ImplChosenLocalSize) {
+    bool local_update_support =
+        update_capability_flags &
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE;
+    bool global_update_support =
+        update_capability_flags &
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE;
+
+    if (local_update_support || !global_update_support) {
+        GTEST_SKIP()
+            << "Test requires device to not support local work size "
+               "update capability, but support global work size update.";
+    }
+
+    auto new_global_size = global_size * 2;
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        nullptr,          // hNewKernel
+        0,                // numNewMemObjArgs
+        0,                // numNewPointerArgs
+        0,                // numNewValueArgs
+        n_dimensions,     // newWorkDim
+        nullptr,          // pNewMemObjArgList
+        nullptr,          // pNewPointerArgList
+        nullptr,          // pNewValueArgList
+        nullptr,          // pNewGlobalWorkOffset
+        &new_global_size, // pNewGlobalWorkSize
+        nullptr,          // pNewLocalWorkSize
+    };
+
+    ur_result_t result =
+        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+    ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
+}
+
 TEST_P(InvalidUpdateCommandBufferExpExecutionTest, Kernel) {
     if (update_capability_flags &
         UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE) {
