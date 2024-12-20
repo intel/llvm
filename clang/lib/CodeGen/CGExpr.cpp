@@ -3555,7 +3555,7 @@ static void emitCheckHandlerCall(CodeGenFunction &CGF,
                                  ArrayRef<llvm::Value *> FnArgs,
                                  SanitizerHandler CheckHandler,
                                  CheckRecoverableKind RecoverKind, bool IsFatal,
-                                 llvm::BasicBlock *ContBB) {
+                                 llvm::BasicBlock *ContBB, bool NoMerge) {
   assert(IsFatal || RecoverKind != CheckRecoverableKind::Unrecoverable);
   std::optional<ApplyDebugLocation> DL;
   if (!CGF.Builder.getCurrentDebugLocation()) {
@@ -3590,10 +3590,9 @@ static void emitCheckHandlerCall(CodeGenFunction &CGF,
                                llvm::AttributeList::FunctionIndex, B),
       /*Local=*/true);
   llvm::CallInst *HandlerCall = CGF.EmitNounwindRuntimeCall(Fn, FnArgs);
-  bool NoMerge =
-      ClSanitizeDebugDeoptimization ||
-      !CGF.CGM.getCodeGenOpts().OptimizationLevel ||
-      (CGF.CurCodeDecl && CGF.CurCodeDecl->hasAttr<OptimizeNoneAttr>());
+  NoMerge = NoMerge || ClSanitizeDebugDeoptimization ||
+            !CGF.CGM.getCodeGenOpts().OptimizationLevel ||
+            (CGF.CurCodeDecl && CGF.CurCodeDecl->hasAttr<OptimizeNoneAttr>());
   if (NoMerge)
     HandlerCall->addFnAttr(llvm::Attribute::NoMerge);
   if (!MayReturn) {
@@ -3617,6 +3616,7 @@ void CodeGenFunction::EmitCheck(
   llvm::Value *FatalCond = nullptr;
   llvm::Value *RecoverableCond = nullptr;
   llvm::Value *TrapCond = nullptr;
+  bool NoMerge = false;
   for (int i = 0, n = Checked.size(); i < n; ++i) {
     llvm::Value *Check = Checked[i].first;
     // -fsanitize-trap= overrides -fsanitize-recover=.
@@ -3627,6 +3627,9 @@ void CodeGenFunction::EmitCheck(
                   ? RecoverableCond
                   : FatalCond;
     Cond = Cond ? Builder.CreateAnd(Cond, Check) : Check;
+
+    if (!CGM.getCodeGenOpts().SanitizeMergeHandlers.has(Checked[i].second))
+      NoMerge = true;
   }
 
   if (ClSanitizeGuardChecks) {
@@ -3641,7 +3644,7 @@ void CodeGenFunction::EmitCheck(
   }
 
   if (TrapCond)
-    EmitTrapCheck(TrapCond, CheckHandler);
+    EmitTrapCheck(TrapCond, CheckHandler, NoMerge);
   if (!FatalCond && !RecoverableCond)
     return;
 
@@ -3707,7 +3710,7 @@ void CodeGenFunction::EmitCheck(
     // Simple case: we need to generate a single handler call, either
     // fatal, or non-fatal.
     emitCheckHandlerCall(*this, FnType, Args, CheckHandler, RecoverKind,
-                         (FatalCond != nullptr), Cont);
+                         (FatalCond != nullptr), Cont, NoMerge);
   } else {
     // Emit two handler calls: first one for set of unrecoverable checks,
     // another one for recoverable.
@@ -3717,10 +3720,10 @@ void CodeGenFunction::EmitCheck(
     Builder.CreateCondBr(FatalCond, NonFatalHandlerBB, FatalHandlerBB);
     EmitBlock(FatalHandlerBB);
     emitCheckHandlerCall(*this, FnType, Args, CheckHandler, RecoverKind, true,
-                         NonFatalHandlerBB);
+                         NonFatalHandlerBB, NoMerge);
     EmitBlock(NonFatalHandlerBB);
     emitCheckHandlerCall(*this, FnType, Args, CheckHandler, RecoverKind, false,
-                         Cont);
+                         Cont, NoMerge);
   }
 
   EmitBlock(Cont);
@@ -3910,7 +3913,8 @@ void CodeGenFunction::EmitUnreachable(SourceLocation Loc) {
 }
 
 void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked,
-                                    SanitizerHandler CheckHandlerID) {
+                                    SanitizerHandler CheckHandlerID,
+                                    bool NoMerge) {
   llvm::BasicBlock *Cont = createBasicBlock("cont");
 
   // If we're optimizing, collapse all calls to trap down to just one per
@@ -3920,9 +3924,9 @@ void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked,
 
   llvm::BasicBlock *&TrapBB = TrapBBs[CheckHandlerID];
 
-  bool NoMerge = ClSanitizeDebugDeoptimization ||
-                 !CGM.getCodeGenOpts().OptimizationLevel ||
-                 (CurCodeDecl && CurCodeDecl->hasAttr<OptimizeNoneAttr>());
+  NoMerge = NoMerge || ClSanitizeDebugDeoptimization ||
+            !CGM.getCodeGenOpts().OptimizationLevel ||
+            (CurCodeDecl && CurCodeDecl->hasAttr<OptimizeNoneAttr>());
 
   if (TrapBB && !NoMerge) {
     auto Call = TrapBB->begin();

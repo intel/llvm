@@ -2963,6 +2963,17 @@ void TextNodeDumper::VisitOpenACCHostDataConstruct(
   OS << " " << S->getDirectiveKind();
 }
 
+void TextNodeDumper::VisitOpenACCWaitConstruct(const OpenACCWaitConstruct *S) {
+  OS << " " << S->getDirectiveKind();
+}
+void TextNodeDumper::VisitOpenACCInitConstruct(const OpenACCInitConstruct *S) {
+  OS << " " << S->getDirectiveKind();
+}
+void TextNodeDumper::VisitOpenACCShutdownConstruct(
+    const OpenACCShutdownConstruct *S) {
+  OS << " " << S->getDirectiveKind();
+}
+
 void TextNodeDumper::VisitEmbedExpr(const EmbedExpr *S) {
   AddChild("begin", [=] { OS << S->getStartingElementPos(); });
   AddChild("number of elements", [=] { OS << S->getDataElementCount(); });

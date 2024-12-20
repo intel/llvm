@@ -116,9 +116,9 @@ protected:
 
     /// The statement class.
     LLVM_PREFERRED_TYPE(StmtClass)
-    unsigned sClass : 8;
+    unsigned sClass : 9;
   };
-  enum { NumStmtBits = 8 };
+  enum { NumStmtBits = 9 };
 
   class NullStmtBitfields {
     friend class ASTStmtReader;
