@@ -15,99 +15,102 @@
 
 using namespace sycl;
 
-static constexpr int count = 100;
+static constexpr int Count = 100;
 
 int main() {
   queue q([](exception_list el) {
     for (auto &e : el)
       throw e;
   });
-  if (q.get_device().get_info<info::device::usm_shared_allocations>()) {
-    float *src = (float *)malloc_shared(sizeof(float) * count, q.get_device(),
-                                        q.get_context());
-    float *dest = (float *)malloc_shared(sizeof(float) * count, q.get_device(),
-                                         q.get_context());
-    for (int i = 0; i < count; i++)
-      src[i] = i;
 
-    {
-      // Test host to device handler::ext_oneapi_prefetch_exp
-      event init_prefetch =
-          ext::oneapi::experimental::submit_with_event(q, [&](handler &cgh) {
-            ext::oneapi::experimental::prefetch(cgh, src,
-                                                sizeof(float) * count);
-          });
-
-      q.submit([&](handler &cgh) {
-        cgh.depends_on(init_prefetch);
-        cgh.single_task<class double_dest>([=]() {
-          for (int i = 0; i < count; i++)
-            dest[i] = 2 * src[i];
-        });
-      });
-      q.wait_and_throw();
-
-      for (int i = 0; i < count; i++) {
-        assert(dest[i] == i * 2);
-      }
-
-      // Test device to host handler::ext_oneapi_prefetch_exp
-      q.submit([&](handler &cgh) {
-        cgh.single_task<class quadruple_dest>([=]() {
-          for (int i = 0; i < count; i++)
-            dest[i] = 4 * src[i];
-        });
-      });
-      event init_prefetch_back =
-          ext::oneapi::experimental::submit_with_event(q, [&](handler &cgh) {
-            ext::oneapi::experimental::prefetch(
-                cgh, src, sizeof(float) * count,
-                ext::oneapi::experimental::prefetch_type::host);
-          });
-      q.wait_and_throw();
-
-      for (int i = 0; i < count; i++) {
-        assert(dest[i] == i * 4);
-      }
-    }
-
-    // Test queue::prefetch
-    {
-      ext::oneapi::experimental::prefetch(
-          q, src, sizeof(float) * count,
-          ext::oneapi::experimental::prefetch_type::device);
-      q.wait_and_throw();
-
-      q.submit([&](handler &cgh) {
-        cgh.single_task<class triple_dest>([=]() {
-          for (int i = 0; i < count; i++)
-            dest[i] = 3 * src[i];
-        });
-      });
-      q.wait_and_throw();
-
-      for (int i = 0; i < count; i++) {
-        assert(dest[i] == i * 3);
-      }
-
-      q.submit([&](handler &cgh) {
-        cgh.single_task<class sixtuple_dest>([=]() {
-          for (int i = 0; i < count; i++)
-            dest[i] = 6 * src[i];
-        });
-      });
-      q.wait_and_throw();
-      ext::oneapi::experimental::prefetch(
-          q, src, sizeof(float) * count,
-          ext::oneapi::experimental::prefetch_type::host);
-      q.wait_and_throw();
-
-      for (int i = 0; i < count; i++) {
-        assert(dest[i] == i * 6);
-      }
-    }
-    free(src, q);
-    free(dest, q);
+  if (!q.get_device().get_info<info::device::usm_shared_allocations>()) {
+    // USM not supported, skipping test and returning early.
+    return 0;
   }
-  return 0;
+
+  float *Src = (float *)malloc_shared(sizeof(float) * Count, q.get_device(),
+                                      q.get_context());
+  float *Dest = (float *)malloc_shared(sizeof(float) * Count, q.get_device(),
+                                        q.get_context());
+  for (int i = 0; i < Count; i++)
+    Src[i] = i;
+
+  {
+    // Test host-to-device prefetch via prefetch(handler ...).
+    event InitPrefetch =
+        ext::oneapi::experimental::submit_with_event(q, [&](handler &CGH) {
+          ext::oneapi::experimental::prefetch(CGH, Src,
+                                              sizeof(float) * Count);
+        });
+
+    q.submit([&](handler &CGH) {
+      CGH.depends_on(init_prefetch);
+      CGH.single_task<class double_dest>([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 2 * Src[i];
+      });
+    });
+    q.wait_and_throw();
+
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 2);
+    }
+
+    // Test device-to-host prefetch via prefetch(handler ...).
+    q.submit([&](handler &CGH) {
+      CGH.single_task<class quadruple_dest>([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 4 * Src[i];
+      });
+    });
+    event InitPrefetchBack =
+        ext::oneapi::experimental::submit_with_event(q, [&](handler &CGH) {
+          ext::oneapi::experimental::prefetch(
+              CGH, Src, sizeof(float) * Count,
+              ext::oneapi::experimental::prefetch_type::host);
+        });
+    q.wait_and_throw();
+
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 4);
+    }
+  }
+
+  {
+    // Test host-to-device prefetch via prefetch(queue ...).
+    ext::oneapi::experimental::prefetch(
+        q, Src, sizeof(float) * Count,
+        ext::oneapi::experimental::prefetch_type::device);
+    q.wait_and_throw();
+    q.submit([&](handler &CGH) {
+      CGH.single_task<class triple_dest>([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 3 * Src[i];
+      });
+    });
+    q.wait_and_throw();
+
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 3);
+    }
+
+    // Test device-to-host prefetch via prefetch(queue ...).
+    q.submit([&](handler &CGH) {
+      CGH.single_task<class sixtuple_dest>([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 6 * Src[i];
+      });
+    });
+    q.wait_and_throw();
+    ext::oneapi::experimental::prefetch(
+        q, Src, sizeof(float) * Count,
+        ext::oneapi::experimental::prefetch_type::host);
+    q.wait_and_throw();
+
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 6);
+    }
+  }
+  free(Src, q);
+  free(Dest, q);
 }

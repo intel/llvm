@@ -358,11 +358,11 @@ void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
 }
 
 inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
-                     prefetch_type type = prefetch_type::device) {
+                     prefetch_type Type = prefetch_type::device) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  CGH.ext_oneapi_prefetch_exp(Ptr, NumBytes, type);
+  CGH.ext_oneapi_prefetch_exp(Ptr, NumBytes, Type);
 #else
-  if (type == prefetch_type::device) {
+  if (Type == prefetch_type::device) {
     CGH.prefetch(Ptr, NumBytes);
   } else {
     CGH.ext_oneapi_prefetch_d2h(Ptr, NumBytes);
@@ -371,10 +371,10 @@ inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
 }
 
 inline void prefetch(queue Q, void *Ptr, size_t NumBytes,
-                     prefetch_type type = prefetch_type::device,
+                     prefetch_type Type = prefetch_type::device,
                      const sycl::detail::code_location &CodeLoc =
                          sycl::detail::code_location::current()) {
-  submit(Q, [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, type); }, CodeLoc);
+  submit(Q, [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, Type); }, CodeLoc);
 }
 
 inline void mem_advise(handler &CGH, void *Ptr, size_t NumBytes, int Advice) {

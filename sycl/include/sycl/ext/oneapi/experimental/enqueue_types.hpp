@@ -12,7 +12,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-/// @brief Indicates the destination device for USM data to be prefetched to
+/// @brief Indicates the destination device for USM data to be prefetched to.
 enum class prefetch_type { device, host };
 
 } // namespace ext::oneapi::experimental

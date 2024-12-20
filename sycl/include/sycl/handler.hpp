@@ -3529,7 +3529,7 @@ private:
   // private function ext_oneapi_prefetch_d2h
   friend void sycl::ext::oneapi::experimental::prefetch(
       handler &CGH, void *Ptr, size_t NumBytes,
-      sycl::ext::oneapi::experimental::prefetch_type type);
+      sycl::ext::oneapi::experimental::prefetch_type Type);
 
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {
