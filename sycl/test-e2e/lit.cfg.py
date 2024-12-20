@@ -194,6 +194,7 @@ device_family_arch_map = {
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
 }
 
+
 def get_device_family_from_arch(arch):
     for device_family, arch_set in device_family_arch_map.items():
         if arch in arch_set:
