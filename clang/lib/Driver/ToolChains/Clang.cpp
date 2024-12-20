@@ -10348,12 +10348,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (WrapperCompileEnabled) {
       // TODO Use TC.SelectTool().
-      ArgStringList ClangArgs{
-          TCArgs.MakeArgString("--target=" + HostTripleStr),
-          "-c",
-          "-o",
-          Output.getFilename(),
-          WrapperFileName};
+      ArgStringList ClangArgs{TCArgs.MakeArgString("--target=" + HostTripleStr),
+                              "-c", "-o", Output.getFilename(),
+                              WrapperFileName};
       llvm::Reloc::Model RelocationModel;
       unsigned PICLevel;
       bool IsPIE;
