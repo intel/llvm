@@ -31,7 +31,7 @@ int main() {
   float *Src = (float *)malloc_shared(sizeof(float) * Count, q.get_device(),
                                       q.get_context());
   float *Dest = (float *)malloc_shared(sizeof(float) * Count, q.get_device(),
-                                        q.get_context());
+                                       q.get_context());
   for (int i = 0; i < Count; i++)
     Src[i] = i;
 
@@ -39,8 +39,7 @@ int main() {
     // Test host-to-device prefetch via prefetch(handler ...).
     event InitPrefetch =
         ext::oneapi::experimental::submit_with_event(q, [&](handler &CGH) {
-          ext::oneapi::experimental::prefetch(CGH, Src,
-                                              sizeof(float) * Count);
+          ext::oneapi::experimental::prefetch(CGH, Src, sizeof(float) * Count);
         });
 
     q.submit([&](handler &CGH) {
