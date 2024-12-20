@@ -80,7 +80,7 @@ jobs:
     with:
       name: Build e2e tests
       runner: '["Linux", "build"]'
-      image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:alldeps
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
       image_options: -u 1001
       ref: ${{ github.sha }}
       merge_ref: ''
