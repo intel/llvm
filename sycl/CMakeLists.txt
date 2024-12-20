@@ -532,7 +532,7 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
 endif()
 
-if(INSTALL_DEVICE_CONFIG_FILE)
+if(SYCL_INSTALL_DEVICE_CONFIG_FILE)
   add_dependencies(sycl-toolchain DeviceConfigFile)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS DeviceConfigFile)
 endif()
