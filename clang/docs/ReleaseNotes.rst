@@ -706,6 +706,8 @@ Improvements to Clang's diagnostics
       return ptr + index < ptr; // warning
     }
 
+- Fix -Wdangling false positives on conditional operators (#120206).
+
 Improvements to Clang's time-trace
 ----------------------------------
 
@@ -1205,6 +1207,8 @@ Sanitizers
 - Introduced an experimental Type Sanitizer, activated by using the
   ``-fsanitize=type`` flag. This sanitizer detects violations of C/C++ type-based
   aliasing rules.
+
+- Implemented ``-f[no-]sanitize-trap=local-bounds``, and ``-f[no-]sanitize-recover=local-bounds``.
 
 Python Binding Changes
 ----------------------
