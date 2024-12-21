@@ -12412,6 +12412,12 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
     return OpenACCNumWorkersClause::Create(getContext(), BeginLoc, LParenLoc,
                                            IntExpr, EndLoc);
   }
+  case OpenACCClauseKind::DeviceNum: {
+    SourceLocation LParenLoc = readSourceLocation();
+    Expr *IntExpr = readSubExpr();
+    return OpenACCDeviceNumClause::Create(getContext(), BeginLoc, LParenLoc,
+                                           IntExpr, EndLoc);
+  }
   case OpenACCClauseKind::VectorLength: {
     SourceLocation LParenLoc = readSourceLocation();
     Expr *IntExpr = readSubExpr();
@@ -12601,7 +12607,6 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
   case OpenACCClauseKind::Host:
   case OpenACCClauseKind::Link:
   case OpenACCClauseKind::Bind:
-  case OpenACCClauseKind::DeviceNum:
   case OpenACCClauseKind::DefaultAsync:
   case OpenACCClauseKind::Invalid:
     llvm_unreachable("Clause serialization not yet implemented");
