@@ -33,7 +33,7 @@ jobs:
             imagefile: ubuntu2404_intel_drivers
             tag: devigc
             build_args: |
-                  "use_latest=false"
+                  "use_unstable_driver=false"
                   "use_igc_dev=true"
     steps:
       - name: Checkout
