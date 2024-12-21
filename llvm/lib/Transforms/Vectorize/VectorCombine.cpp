@@ -139,6 +139,7 @@ private:
   }
 
   void eraseInstruction(Instruction &I) {
+    LLVM_DEBUG(dbgs() << "VC: Erasing: " << I << '\n');
     for (Value *Op : I.operands())
       Worklist.pushValue(Op);
     Worklist.remove(&I);
@@ -672,9 +673,10 @@ bool VectorCombine::foldInsExtFNeg(Instruction &I) {
                        m_ExtractElt(m_Value(SrcVec), m_SpecificInt(Index))))))
     return false;
 
-  // TODO: We could handle this with a length-changing shuffle.
   auto *VecTy = cast<FixedVectorType>(I.getType());
-  if (SrcVec->getType() != VecTy)
+  auto *ScalarTy = VecTy->getScalarType();
+  auto *SrcVecTy = dyn_cast<FixedVectorType>(SrcVec->getType());
+  if (!SrcVecTy || ScalarTy != SrcVecTy->getScalarType())
     return false;
 
   // Ignore bogus insert/extract index.
@@ -688,8 +690,6 @@ bool VectorCombine::foldInsExtFNeg(Instruction &I) {
   SmallVector<int> Mask(NumElts);
   std::iota(Mask.begin(), Mask.end(), 0);
   Mask[Index] = Index + NumElts;
-
-  Type *ScalarTy = VecTy->getScalarType();
   InstructionCost OldCost =
       TTI.getArithmeticInstrCost(Instruction::FNeg, ScalarTy, CostKind) +
       TTI.getVectorInstrCost(I, VecTy, CostKind, Index);
@@ -704,14 +704,33 @@ bool VectorCombine::foldInsExtFNeg(Instruction &I) {
       TTI.getArithmeticInstrCost(Instruction::FNeg, VecTy, CostKind) +
       TTI.getShuffleCost(TargetTransformInfo::SK_Select, VecTy, Mask, CostKind);
 
+  bool NeedLenChg = SrcVecTy->getNumElements() != NumElts;
+  // If the lengths of the two vectors are not equal,
+  // we need to add a length-change vector. Add this cost.
+  SmallVector<int> SrcMask;
+  if (NeedLenChg) {
+    SrcMask.assign(NumElts, PoisonMaskElem);
+    SrcMask[Index] = Index;
+    NewCost += TTI.getShuffleCost(TargetTransformInfo::SK_PermuteSingleSrc,
+                                  SrcVecTy, SrcMask, CostKind);
+  }
+
   if (NewCost > OldCost)
     return false;
 
-  // insertelt DestVec, (fneg (extractelt SrcVec, Index)), Index -->
-  // shuffle DestVec, (fneg SrcVec), Mask
+  Value *NewShuf;
+  // insertelt DestVec, (fneg (extractelt SrcVec, Index)), Index
   Value *VecFNeg = Builder.CreateFNegFMF(SrcVec, FNeg);
-  Value *Shuf = Builder.CreateShuffleVector(DestVec, VecFNeg, Mask);
-  replaceValue(I, *Shuf);
+  if (NeedLenChg) {
+    // shuffle DestVec, (shuffle (fneg SrcVec), poison, SrcMask), Mask
+    Value *LenChgShuf = Builder.CreateShuffleVector(VecFNeg, SrcMask);
+    NewShuf = Builder.CreateShuffleVector(DestVec, LenChgShuf, Mask);
+  } else {
+    // shuffle DestVec, (fneg SrcVec), Mask
+    NewShuf = Builder.CreateShuffleVector(DestVec, VecFNeg, Mask);
+  }
+
+  replaceValue(I, *NewShuf);
   return true;
 }
 
@@ -782,17 +801,21 @@ bool VectorCombine::foldBitcastShuffle(Instruction &I) {
       IsUnary ? TargetTransformInfo::SK_PermuteSingleSrc
               : TargetTransformInfo::SK_PermuteTwoSrc;
 
-  InstructionCost DestCost =
+  InstructionCost NewCost =
       TTI.getShuffleCost(SK, NewShuffleTy, NewMask, CostKind) +
       (NumOps * TTI.getCastInstrCost(Instruction::BitCast, NewShuffleTy, SrcTy,
                                      TargetTransformInfo::CastContextHint::None,
                                      CostKind));
-  InstructionCost SrcCost =
+  InstructionCost OldCost =
       TTI.getShuffleCost(SK, SrcTy, Mask, CostKind) +
       TTI.getCastInstrCost(Instruction::BitCast, DestTy, OldShuffleTy,
                            TargetTransformInfo::CastContextHint::None,
                            CostKind);
-  if (DestCost > SrcCost || !DestCost.isValid())
+
+  LLVM_DEBUG(dbgs() << "Found a bitcasted shuffle: " << I << "\n  OldCost: "
+                    << OldCost << " vs NewCost: " << NewCost << "\n");
+
+  if (NewCost > OldCost || !NewCost.isValid())
     return false;
 
   // bitcast (shuf V0, V1, MaskC) --> shuf (bitcast V0), (bitcast V1), MaskC'
@@ -2247,7 +2270,9 @@ bool VectorCombine::foldShuffleToIdentity(Instruction &I) {
         all_of(drop_begin(Item), [Item](InstLane &IL) {
           Value *FrontV = Item.front().first->get();
           Use *U = IL.first;
-          return !U || U->get() == FrontV;
+          return !U || (isa<Constant>(U->get()) &&
+                        cast<Constant>(U->get())->getSplatValue() ==
+                            cast<Constant>(FrontV)->getSplatValue());
         })) {
       SplatLeafs.insert(FrontU);
       continue;
@@ -2277,7 +2302,8 @@ bool VectorCombine::foldShuffleToIdentity(Instruction &I) {
         if (CI->getPredicate() != cast<CmpInst>(FrontV)->getPredicate())
           return false;
       if (auto *CI = dyn_cast<CastInst>(V))
-        if (CI->getSrcTy() != cast<CastInst>(FrontV)->getSrcTy())
+        if (CI->getSrcTy()->getScalarType() !=
+            cast<CastInst>(FrontV)->getSrcTy()->getScalarType())
           return false;
       if (auto *SI = dyn_cast<SelectInst>(V))
         if (!isa<VectorType>(SI->getOperand(0)->getType()) ||
@@ -2302,7 +2328,8 @@ bool VectorCombine::foldShuffleToIdentity(Instruction &I) {
         Worklist.push_back(generateInstLaneVectorFromOperand(Item, 0));
         Worklist.push_back(generateInstLaneVectorFromOperand(Item, 1));
         continue;
-      } else if (isa<UnaryOperator, TruncInst, ZExtInst, SExtInst>(FrontU)) {
+      } else if (isa<UnaryOperator, TruncInst, ZExtInst, SExtInst, FPToSIInst,
+                     FPToUIInst, SIToFPInst, UIToFPInst>(FrontU)) {
         Worklist.push_back(generateInstLaneVectorFromOperand(Item, 0));
         continue;
       } else if (auto *BitCast = dyn_cast<BitCastInst>(FrontU)) {
@@ -2991,6 +3018,10 @@ bool VectorCombine::foldInsExtVectorToShuffle(Instruction &I) {
   if (!Ext->hasOneUse())
     NewCost += TTI.getVectorInstrCost(*Ext, VecTy, CostKind, ExtIdx);
 
+  LLVM_DEBUG(dbgs() << "Found a insert/extract shuffle-like pair : " << I
+                    << "\n  OldCost: " << OldCost << " vs NewCost: " << NewCost
+                    << "\n");
+
   if (OldCost < NewCost)
     return false;
 
@@ -3016,12 +3047,16 @@ bool VectorCombine::run() {
   if (!TTI.getNumberOfRegisters(TTI.getRegisterClassForType(/*Vector*/ true)))
     return false;
 
+  LLVM_DEBUG(dbgs() << "\n\nVECTORCOMBINE on " << F.getName() << "\n");
+
   bool MadeChange = false;
   auto FoldInst = [this, &MadeChange](Instruction &I) {
     Builder.SetInsertPoint(&I);
     bool IsVectorType = isa<VectorType>(I.getType());
     bool IsFixedVectorType = isa<FixedVectorType>(I.getType());
     auto Opcode = I.getOpcode();
+
+    LLVM_DEBUG(dbgs() << "VC: Visiting: " << I << '\n');
 
     // These folds should be beneficial regardless of when this pass is run
     // in the optimization pipeline.

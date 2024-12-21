@@ -3268,8 +3268,10 @@ cc_library(
     includes = ["include"],
     local_defines = if_cuda_available(["MLIR_GPU_TO_CUBIN_PASS_ENABLE"]),
     deps = [
+        ":ArithToLLVM",
         ":ArithTransforms",
         ":BufferizationTransforms",
+        ":ControlFlowToLLVM",
         ":ConversionPasses",
         ":FuncDialect",
         ":GPUDialect",
@@ -10220,6 +10222,7 @@ cc_binary(
         ":ArithDialect",
         ":ArithToLLVM",
         ":BuiltinToLLVMIRTranslation",
+        ":ControlFlowToLLVM",
         ":ConvertToSPIRV",
         ":ExecutionEngineUtils",
         ":FuncDialect",
