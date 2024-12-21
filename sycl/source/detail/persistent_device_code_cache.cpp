@@ -54,8 +54,7 @@ LockCacheItem::~LockCacheItem() {
 }
 
 // Returns true if the specified format is either SPIRV or a native binary.
-static bool
-IsSupportedImageFormat(ur::DeviceBinaryType Format) {
+static bool IsSupportedImageFormat(ur::DeviceBinaryType Format) {
   return Format == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
          Format == SYCL_DEVICE_BINARY_TYPE_NATIVE;
 }
@@ -209,6 +208,16 @@ void PersistentDeviceCodeCache::repopulateCacheSizeFile(
 
   const std::string CacheSizeFileName = "cache_size.txt";
   const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
+
+  // Create cache root, if it does not exist.
+  try {
+    if (!OSUtil::isPathPresent(CacheRoot))
+      OSUtil::makeDir(CacheRoot.c_str());
+  } catch (...) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "Failed to create cache root directory: " +
+                              CacheRoot);
+  }
 
   // If the cache size file is not present, calculate the size of the cache size
   // directory and write it to the file.
