@@ -10,14 +10,16 @@
 
 // REQUIRES: ocloc && (opencl || level_zero)
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: kernel_compiler is not available for accelerator
+// devices.
 
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
 
 // -- Test again, with caching.
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir SYCL_CACHE_MAX_SIZE=23000
-// RUN: rm -rf %t/cache_dir
-// RUN: %{cache_vars} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: %if run-mode %{rm -rf %t/cache_dir%}
+// RUN: %{cache_vars} %{run} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
 
 // CHECK: [Persistent Cache]: enabled
 
