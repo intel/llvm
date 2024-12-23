@@ -4,11 +4,6 @@
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
-// XFAIL: gpu-intel-gen12 || gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16184
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
-
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
