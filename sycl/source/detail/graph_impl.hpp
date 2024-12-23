@@ -245,16 +245,10 @@ public:
       return createCGCopy<sycl::detail::CGPrefetchUSM>();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     case sycl::detail::CGType::PrefetchUSMExp:
-      throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
-                            "Prefetch as a part of the experimental enqueue "
-                            "function extension is currently not supported by "
-                            "SYCL Graph extension.");
-      // return createCGCopy<sycl::detail::CGPrefetchUSMExp>();
+      return createCGCopy<sycl::detail::CGPrefetchUSMExp>();
 #else
     case sycl::detail::CGType::PrefetchUSMExpD2H:
-      throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
-                            "Prefetch from device to host is currently not "
-                            "supported by SYCL Graph extension.");
+      return createCGCopy<sycl::detail::CGPrefetchUSMExpD2H>();
 #endif
     case sycl::detail::CGType::AdviseUSM:
       return createCGCopy<sycl::detail::CGAdviseUSM>();
@@ -649,6 +643,31 @@ private:
                << " Length: " << Prefetch->getLength() << "\\n";
       }
       break;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    case sycl::detail::CGType::PrefetchUSMExp:
+      Stream << "CGPrefetchUSMExp \\n";
+      if (Verbose) {
+        sycl::detail::CGPrefetchUSMExp *Prefetch =
+            static_cast<sycl::detail::CGPrefetchUSMExp *>(MCommandGroup.get());
+        Stream << "Dst: " << Prefetch->getDst()
+               << " Length: " << Prefetch->getLength() << " Type: "
+               << sycl::ext::oneapi::experimental::prefetchTypeToString(
+                      Prefetch->getPrefetchType())
+               << "\\n";
+      }
+      break;
+#else
+    case sycl::detail::CGType::PrefetchUSMExpD2H:
+      Stream << "CGPrefetchUSM (Experimental, Device-To-Host) \\n";
+      if (Verbose) {
+        sycl::detail::CGPrefetchUSMExpD2H *Prefetch =
+            static_cast<sycl::detail::CGPrefetchUSMExpD2H *>(
+                MCommandGroup.get());
+        Stream << "Dst: " << Prefetch->getDst()
+               << " Length: " << Prefetch->getLength() << "\\n";
+      }
+      break;
+#endif
     case sycl::detail::CGType::AdviseUSM:
       Stream << "CGAdviseUSM \\n";
       if (Verbose) {
