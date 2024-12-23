@@ -36,20 +36,30 @@ identical for Docker and Podman. Choose whatever is available on your system.
 
 The following containers are publicly available for DPC++ compiler development:
 
-- `ghcr.io/intel/llvm/ubuntu2204_base`: contains basic Ubuntu 22.04 environment
+### Ubuntu 22.04-based images
+- `ghcr.io/intel/llvm/ubuntu2204_base`: contains basic environment
    setup for building DPC++ compiler from source.
-- `ghcr.io/intel/llvm/ubuntu2404_base`: contains basic Ubuntu 24.04 environment
-   setup for building DPC++ compiler from source.
-- `ghcr.io/intel/llvm/ubuntu2204_intel_drivers`: contains everything from the
-   Ubuntu 22.04 base container + pre-installed Intel drivers.
+  - `ghcr.io/intel/llvm/ubuntu2204_intel_drivers`: contains everything from the
+   base container + pre-installed Intel drivers.
    The image comes in two flavors/tags:
    * `latest`: Intel drivers are downloaded from release/tag and saved in
     dependencies.json. The drivers are tested/validated everytime we upgrade
     the driver.
    * `alldeps`: Includes the same Intel drivers as `latest`, as well as the
    development kits for NVidia/AMD from the `ubuntu2204_build` container.
+- `ghcr.io/intel/llvm/ubuntu2204_build`: has development kits installed for
+   NVidia/AMD and can be used for building DPC++
+   compiler from source with all backends enabled or for end-to-end testing
+   with HIP/CUDA on machines with corresponding GPUs available.
+  - `ghcr.io/intel/llvm/sycl_ubuntu2204_nightly`: contains the latest successfully
+   built nightly build of DPC++ compiler. The image comes in three flavors:
+   with pre-installed Intel drivers (`latest`), without them (`no-drivers`) and
+   with development kits installed (`build`).
+### Ubuntu 24.04-based images
+- `ghcr.io/intel/llvm/ubuntu2404_base`: contains basic environment
+   setup for building DPC++ compiler from source.
 - `ghcr.io/intel/llvm/ubuntu2404_intel_drivers`: contains everything from the
-   Ubuntu 24.04 base container + pre-installed Intel drivers.
+   base container + pre-installed Intel drivers.
    The image comes in three flavors/tags:
    * `latest`: Intel drivers are downloaded from release/tag and saved in
     dependencies.json. The drivers are tested/validated everytime we upgrade
@@ -58,18 +68,11 @@ The following containers are publicly available for DPC++ compiler development:
    other drivers are downloaded from release/tag and saved in dependencies.json.
    * `unstable`: Intel drivers are downloaded from release/latest.
    The drivers are installed as it is, not tested or validated.
-- `ghcr.io/intel/llvm/ubuntu2204_build`: has development kits installed for
-   NVidia/AMD, is based on Ubuntu 22.04, and can be used for building DPC++
-   compiler from source with all backends enabled or for end-to-end testing
-   with HIP/CUDA on machines with corresponding GPUs available.
 - `ghcr.io/intel/llvm/ubuntu2404_build`: has development kits installed for
-   NVidia/AMD, is based on Ubuntu 24.04, and can be used for building DPC++
+   NVidia/AMD and can be used for building DPC++
    compiler from source with all backends enabled or for end-to-end testing
    with HIP/CUDA on machines with corresponding GPUs available.  
-- `ghcr.io/intel/llvm/sycl_ubuntu2204_nightly`: contains the latest successfully
-   built nightly build of DPC++ compiler. The image comes in three flavors:
-   with pre-installed Intel drivers (`latest`), without them (`no-drivers`) and
-   with development kits installed (`build`).
+
 
 ## Running Docker container interactively
 
