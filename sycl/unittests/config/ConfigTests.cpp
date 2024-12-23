@@ -387,3 +387,65 @@ TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
   InMemEvicType::reset();
   TestConfig(0);
 }
+
+// SYCL_CACHE_MAX_SIZE accepts an integer that specifies
+// the maximum size of the persistent Program cache.
+// Cache eviction is performed when the cache size exceeds the threshold.
+// The thresholds are specified in bytes.
+// The default value is "0" which means that eviction is disabled.
+TEST(ConfigTests, CheckPersistentCacheEvictionThresholdTest) {
+
+  using OnDiskEvicType = sycl::detail::SYCLConfig<SYCL_CACHE_MAX_SIZE>;
+
+  // Lambda to test parsing of SYCL_CACHE_MAX_SIZE.
+  auto TestConfig = [](int expectedProgramCacheSize) {
+    EXPECT_EQ(expectedProgramCacheSize, OnDiskEvicType::getProgramCacheSize());
+    EXPECT_EQ(expectedProgramCacheSize > 0,
+              OnDiskEvicType::isPersistentCacheEvictionEnabled());
+  };
+
+  // Lambda to set SYCL_CACHE_MAX_SIZE.
+  auto SetSyclDiskCacheEvictionThresholdEnv = [](const char *value) {
+#ifdef _WIN32
+    _putenv_s("SYCL_CACHE_MAX_SIZE", value);
+#else
+    setenv("SYCL_CACHE_MAX_SIZE", value, 1);
+#endif
+  };
+
+  // Lambda to test invalid inputs. An exception should be thrown
+  // when parsing invalid values.
+  auto TestInvalidValues = [&](const char *value, const char *errMsg) {
+    SetSyclDiskCacheEvictionThresholdEnv(value);
+    try {
+      OnDiskEvicType::reset();
+      TestConfig(0);
+      FAIL() << errMsg;
+    } catch (...) {
+    }
+  };
+
+  // Test eviction threshold with zero.
+  SetSyclDiskCacheEvictionThresholdEnv("0");
+  sycl::detail::readConfig(true);
+  TestConfig(0);
+
+  // Test invalid values.
+  TestInvalidValues("-1", "Should throw exception for negative value");
+  TestInvalidValues("a", "Should throw exception for non-integer value");
+
+  // Test valid values.
+  SetSyclDiskCacheEvictionThresholdEnv("1024");
+  OnDiskEvicType::reset();
+  TestConfig(1024);
+
+  // When SYCL_CACHE_MAX_SIZE is not set, it should default to
+  // 0:0:0.
+#ifdef _WIN32
+  _putenv_s("SYCL_CACHE_MAX_SIZE", "");
+#else
+  unsetenv("SYCL_CACHE_MAX_SIZE");
+#endif
+  OnDiskEvicType::reset();
+  TestConfig(0);
+}

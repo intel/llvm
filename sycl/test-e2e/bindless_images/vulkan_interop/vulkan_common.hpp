@@ -827,6 +827,8 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
       return VK_FORMAT_R8_UNORM;
     case sycl::image_channel_order::rg:
       return VK_FORMAT_R8G8_UNORM;
+    case sycl::image_channel_order::rgb:
+      return VK_FORMAT_R8G8B8_UNORM;
     case sycl::image_channel_order::rgba:
       return VK_FORMAT_R8G8B8A8_UNORM;
     default: {
@@ -894,6 +896,8 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
       return VK_FORMAT_R16_SFLOAT;
     case sycl::image_channel_order::rg:
       return VK_FORMAT_R16G16_SFLOAT;
+    case sycl::image_channel_order::rgb:
+      return VK_FORMAT_R16G16B16_SFLOAT;
     case sycl::image_channel_order::rgba:
       return VK_FORMAT_R16G16B16A16_SFLOAT;
     default: {

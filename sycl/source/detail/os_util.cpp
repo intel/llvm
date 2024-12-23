@@ -7,14 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/os_util.hpp>
+#include <sycl/exception.hpp>
 
 #include <cassert>
 #include <limits>
 
-#if __GNUC__ && __GNUC__ < 8
-// Don't include <filesystem> for GCC versions less than 8
+// For GCC versions less than 8, use experimental/filesystem.
+#if defined(__has_include) && __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif defined(__has_include) && __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #else
-#include <filesystem> // C++ 17 std::create_directories
+#error "OSUtils requires C++ filesystem support"
 #endif
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -275,6 +281,45 @@ int OSUtil::makeDir(const char *Dir) {
   std::filesystem::create_directories(path.make_preferred());
 #endif
   return 0;
+}
+
+// Get size of file in bytes.
+size_t getFileSize(const std::string &Path) {
+  return static_cast<size_t>(fs::file_size(Path));
+}
+
+// Function to recursively iterate over the directory and execute
+// 'Func' on each regular file.
+void fileTreeWalk(const std::string Path,
+                  std::function<void(const std::string)> Func) {
+
+  std::error_code EC;
+  for (auto It = fs::recursive_directory_iterator(Path, EC);
+       It != fs::recursive_directory_iterator(); It.increment(EC)) {
+
+    // Errors can happen if a file was removed/added during the iteration.
+    if (EC)
+      throw sycl::exception(
+          make_error_code(errc::runtime),
+          "Failed to do File Tree Walk. Ensure that the directory is not "
+          "getting updated while FileTreeWalk is in progress.: " +
+              Path + "\n" + EC.message());
+
+    if (fs::is_regular_file(It->path()))
+      Func(It->path().string());
+  }
+}
+
+// Get size of a directory in bytes.
+size_t getDirectorySize(const std::string &Path) {
+  size_t DirSizeVar = 0;
+
+  auto CollectFIleSize = [&DirSizeVar](const std::string Path) {
+    DirSizeVar += getFileSize(Path);
+  };
+  fileTreeWalk(Path, CollectFIleSize);
+
+  return DirSizeVar;
 }
 
 } // namespace detail
