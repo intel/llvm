@@ -4,9 +4,6 @@
 // RUN: %{build} %device_asan_aot_flags -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t2
 // RUN: %{run} %t2 2>&1 | FileCheck %s
 
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
-
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
