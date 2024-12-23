@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <cstdint>
 #include "spir_global_var.hpp"
+#include <cstdint>
 
 using uptr = uintptr_t;
 using u8 = uint8_t;
