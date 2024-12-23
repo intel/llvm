@@ -35,7 +35,7 @@ jobs:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: default
       build_artifact_suffix: default
-      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"      
+      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON --cmake-opt=-DCMAKE_CXX_FLAGS="-Wno-mismatched-new-delete"
       merge_ref: ''
 
   e2e-lin:
@@ -56,7 +56,7 @@ jobs:
             reset_intel_gpu: true
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             reset_intel_gpu: false
