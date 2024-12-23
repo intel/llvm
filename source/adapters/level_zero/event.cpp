@@ -1334,19 +1334,19 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   bool ProfilingEnabled =
       ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
-  ur_event_flags_t Flags = 0;
+  v2::event_flags_t Flags = 0;
   if (ProfilingEnabled)
-    Flags |= EVENT_FLAG_WITH_PROFILING;
+    Flags |= v2::EVENT_FLAGS_PROFILING_ENABLED;
   if (UsingImmediateCommandlists)
-    Flags |= EVENT_FLAG_IMM_CMDLIST;
+    Flags |= v2::EVENT_FLAGS_IMM_CMDLIST;
   if (HostVisible)
-    Flags |= EVENT_FLAG_HOST_VISIBLE;
+    Flags |= v2::EVENT_FLAGS_HOST_VISIBLE;
   if (IsMultiDevice)
-    Flags |= EVENT_FLAG_MULTIDEVICE;
+    Flags |= v2::EVENT_FLAGS_MULTIDEVICE;
   if (CounterBasedEventEnabled)
-    Flags |= EVENT_FLAG_COUNTER;
+    Flags |= v2::EVENT_FLAGS_COUNTER;
   if (InterruptBasedEventEnabled)
-    Flags |= EVENT_FLAG_INTERRUPT;
+    Flags |= v2::EVENT_FLAGS_INTERRUPT;
 
   ur_device_handle_t Device = nullptr;
 
