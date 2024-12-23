@@ -240,18 +240,6 @@ enum {
       2, // blocking UR calls, where supported (usually in enqueue commands)
 };
 
-using ur_event_flags_t = uint32_t;
-enum ur_event_flag_t {
-  EVENT_FLAG_HOST_VISIBLE = UR_BIT(0),
-  EVENT_FLAG_WITH_PROFILING = UR_BIT(1),
-  EVENT_FLAG_COUNTER = UR_BIT(2),
-  EVENT_FLAG_INTERRUPT = UR_BIT(3),
-  EVENT_FLAG_IMM_CMDLIST = UR_BIT(4),
-  EVENT_FLAG_MULTIDEVICE = UR_BIT(6),
-  EVENT_FLAG_DEVICE = UR_BIT(7), // if set, subsequent bits are device id
-  MAX_EVENT_FLAG_BITS = 8,
-};
-
 static const uint32_t UrL0Serialize = [] {
   const char *ZeSerializeMode = std::getenv("ZE_SERIALIZE");
   const char *UrL0SerializeMode = std::getenv("UR_L0_SERIALIZE");

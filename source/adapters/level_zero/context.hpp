@@ -22,6 +22,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include "./v2/event_provider.hpp"
 #include "common.hpp"
 #include "queue.hpp"
 
@@ -218,21 +219,21 @@ struct ur_context_handle_t_ : _ur_object {
   // slot for a host-visible event. The ProfilingEnabled tells is we need a
   // slot for an event with profiling capabilities.
   ur_result_t getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                             ur_event_flags_t Flags,
+                                             v2::event_flags_t Flags,
                                              ur_device_handle_t Device);
 
   // Get ur_event_handle_t from cache.
-  ur_event_handle_t getEventFromContextCache(ur_event_flags_t Flags,
+  ur_event_handle_t getEventFromContextCache(v2::event_flags_t Flags,
                                              ur_device_handle_t Device);
 
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
 
   std::list<ze_event_pool_handle_t> *
-  getZeEventPoolCache(ur_event_flags_t Flags, ze_device_handle_t ZeDevice) {
+  getZeEventPoolCache(v2::event_flags_t Flags, ze_device_handle_t ZeDevice) {
     size_t index = 0;
     index |= Flags;
-    bool WithProfiling = Flags & EVENT_FLAG_WITH_PROFILING;
+    bool WithProfiling = Flags & v2::EVENT_FLAGS_PROFILING_ENABLED;
 
     if (ZeDevice) {
       auto ZeEventPoolCacheMap =
@@ -296,12 +297,14 @@ private:
   std::vector<EventCache> EventCaches;
 
   // Get the cache of events for a provided scope and profiling mode.
-  EventCache *getEventCache(ur_event_flags_t Flags, ur_device_handle_t Device) {
+  EventCache *getEventCache(v2::event_flags_t Flags,
+                            ur_device_handle_t Device) {
 
     size_t index = 0;
     index |= Flags;
     if (Device) {
-      index |= EVENT_FLAG_DEVICE | (*Device->Id << MAX_EVENT_FLAG_BITS);
+      index |=
+          v2::EVENT_FLAGS_DEVICE | (*Device->Id << v2::MAX_EVENT_FLAG_BITS);
     }
 
     if (index >= EventCaches.size()) {
