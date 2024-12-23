@@ -79,7 +79,7 @@ on:
         type: string
         default: 'default'
       retention-days:
-        description: 'E2E binaries artifact retention period.'
+        description: 'E2E/SYCL-CTS binaries artifact retention period.'
         type: string
         default: 1
 
@@ -100,6 +100,16 @@ on:
       skip_run:
         type: string
         default: 'false'
+        required: False
+
+      cts_build_only:
+        type: string
+        default: 'false'
+        required: False
+
+      sycl_cts_artifact:
+        type: string
+        default: ''
         required: False
 
   workflow_dispatch:
@@ -339,7 +349,7 @@ jobs:
         fi
         exit $exit_code
     - name: Build SYCL CTS tests
-      if: inputs.tests_selector == 'cts'
+      if: inputs.tests_selector == 'cts' && inputs.sycl_cts_artifact == ''
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
@@ -371,9 +381,33 @@ jobs:
         # "test_conformance" target skips building "test_all" executable.
         ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
+    - name: Pack SYCL-CTS binaries
+      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only == 'true'
+      run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
+
+    - name: Upload SYCL-CTS binaries
+      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_cts_bin
+        path: sycl_cts_bin.tar.zst
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Download SYCL-CTS binaries
+      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.sycl_cts_artifact != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.sycl_cts_artifact }}
+
+    - name: Extract SYCL-CTS binaries
+      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.sycl_cts_artifact != ''
+      run: |
+        mkdir -p build-cts/bin
+        tar -I 'zstd' -xf sycl_cts_bin.tar.zst -C build-cts/bin
+
     - name: SYCL CTS List devices
       # Proceed with execution even if the 'build' step did not succeed.
-      if: inputs.tests_selector == 'cts' && (success() || failure())
+      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only != 'true'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
@@ -381,7 +415,7 @@ jobs:
 
     - name: Run SYCL CTS tests
       # Proceed with execution even if the previous two steps did not succeed.
-      if: inputs.tests_selector == 'cts' && (success() || failure())
+      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only != 'true'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       # This job takes ~100min usually. But sometimes some test isn't
