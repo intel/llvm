@@ -310,8 +310,19 @@ inline typename syclex::info::kernel_queue_specific::max_work_group_size::
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_work_group_size>(
         queue Queue) const {
-  auto Device = Queue.get_device();
-  return get_info<info::kernel_device_specific::work_group_size>(Device);
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
+
+  size_t KernelWGSize = 0;
+  if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+        MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
+        &KernelWGSize, nullptr);
+      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Adapter->checkUrResult(Result);
+    return KernelWGSize;
+  }
+  return 0;
 }
 
 } // namespace detail
