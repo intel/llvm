@@ -38,11 +38,6 @@ using plain_global_ptr = typename sycl::detail::DecoratedType<
     T, access::address_space::global_space>::type *;
 
 namespace blocked {
-// Ensure `detail::naive` always results in no block loads/stores.
-SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, int v,
-                              plain_global_ptr<int> p) {
-  group_store(sg, v, p, naive_blocked{});
-}
 // CHECK-LABEL: @_ZN7blocked10test_naiveERN4sycl3_V19sub_groupEiPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5:[0-9]+]]
@@ -52,12 +47,13 @@ SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, int v,
 // CHECK-NEXT:    store i32 [[V:%.*]], ptr addrspace(1) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8:![0-9]+]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Check that optimized implementation is selected.
-SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, int v,
-                                  plain_global_ptr<int> p) {
-  group_store(sg, v, p, opt_blocked{});
+//
+SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, int v,
+                              plain_global_ptr<int> p) {
+  // Ensure `detail::naive` always results in no block loads/stores.
+  group_store(sg, v, p, naive_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked14test_optimizedERN4sycl3_V19sub_groupEiPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
@@ -79,12 +75,13 @@ SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, int v,
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEIPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESP_RKSN_SO_SQ__EXIT]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT2_EEvE4typeESP_RKSN_SO_SQ_.exit:
 // CHECK-NEXT:    ret void
-
-// Check that contiguous_memory can be auto-detected.
-SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg, int v,
-                                               plain_global_ptr<int> p) {
-  group_store(sg, v, p, full_group_blocked{});
+//
+SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, int v,
+                                  plain_global_ptr<int> p) {
+  // Check that optimized implementation is selected.
+  group_store(sg, v, p, opt_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked27test_contiguous_auto_detectERN4sycl3_V19sub_groupEiPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
@@ -106,16 +103,17 @@ SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg, int v,
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEIPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESN_RKSL_SM_SO__EXIT]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT2_EEvE4typeESN_RKSL_SM_SO_.exit:
 // CHECK-NEXT:    ret void
+//
+SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg, int v,
+                                               plain_global_ptr<int> p) {
+  // Check that contiguous_memory can be auto-detected.
+  group_store(sg, v, p, full_group_blocked{});
+}
 
 // SYCL 2020's accessor can't be statically known to be contiguous.
 using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
                                  access::placeholder::false_t>::iterator;
 
-// Can't be optimized.
-SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, int v,
-                                      accessor_iter_t &iter) {
-  group_store(sg, v, iter, full_group_blocked{});
-}
 // CHECK-LABEL: @_ZN7blocked18test_accessor_iterERN4sycl3_V19sub_groupEiRNS1_6detail17accessor_iteratorIiLi1EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15:![0-9]+]]
@@ -129,13 +127,13 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, int v,
 // CHECK-NEXT:    store i32 [[V:%.*]], ptr addrspace(4) [[ADD_PTR_I_I_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Explicit property - optimize.
-SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
-                                                      int v,
-                                                      accessor_iter_t &iter) {
-  group_store(sg, v, iter, opt_blocked{});
+//
+SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, int v,
+                                      accessor_iter_t &iter) {
+  // Can't be optimized.
+  group_store(sg, v, iter, full_group_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked34test_accessor_iter_force_optimizedERN4sycl3_V19sub_groupEiRNS1_6detail17accessor_iteratorIiLi1EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15]]
@@ -165,13 +163,14 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEINS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESQ_RKSO_SP_SR__EXIT]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiNS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT2_EEvE4typeESQ_RKSO_SP_SR_.exit:
 // CHECK-NEXT:    ret void
-
-// Four shorts in blocked data layout could be stored as a single 64-bit
-// integer.
-SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
-                                    plain_global_ptr<short> p) {
-  group_store(sg, v, p, opt_blocked{});
+//
+SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
+                                                      int v,
+                                                      accessor_iter_t &iter) {
+  // Explicit property - optimize.
+  group_store(sg, v, iter, opt_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked16test_four_shortsERN4sycl3_V19sub_groupENS1_4spanIsLm4EEEPU3AS1s(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES_I:%.*]] = alloca [4 x i16], align 2
@@ -227,13 +226,14 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP29:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    ret void
-
-// Same, but make it `const short`.
-SYCL_EXTERNAL void test_four_const_shorts(sycl::sub_group &sg,
-                                          span<const short, 4> v,
-                                          plain_global_ptr<short> p) {
+//
+SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
+                                    plain_global_ptr<short> p) {
+  // Four shorts in blocked data layout could be stored as a single 64-bit
+  // integer.
   group_store(sg, v, p, opt_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked22test_four_const_shortsERN4sycl3_V19sub_groupENS1_4spanIKsLm4EEEPU3AS1s(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES_I:%.*]] = alloca [4 x i16], align 2
@@ -289,12 +289,14 @@ SYCL_EXTERNAL void test_four_const_shorts(sycl::sub_group &sg,
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP35:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_SR_.exit:
 // CHECK-NEXT:    ret void
-
-// Check for non-power-of-two size.
-SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg, span<int, 3> v,
-                                         plain_global_ptr<int> p) {
+//
+SYCL_EXTERNAL void test_four_const_shorts(sycl::sub_group &sg,
+                                          span<const short, 4> v,
+                                          plain_global_ptr<short> p) {
+  // Same, but make it `const short`.
   group_store(sg, v, p, opt_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked21test_non_power_of_twoERN4sycl3_V19sub_groupENS1_4spanIiLm3EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -320,13 +322,13 @@ SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg, span<int, 3> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Four int elements in blocked data layout don't map directly to any BlockWrite
-// API.
-SYCL_EXTERNAL void test_four_ints(sycl::sub_group &sg, span<int, 4> v,
-                                  plain_global_ptr<int> p) {
+//
+SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg, span<int, 3> v,
+                                         plain_global_ptr<int> p) {
+  // Check for non-power-of-two size.
   group_store(sg, v, p, opt_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked14test_four_intsERN4sycl3_V19sub_groupENS1_4spanIiLm4EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -352,12 +354,14 @@ SYCL_EXTERNAL void test_four_ints(sycl::sub_group &sg, span<int, 4> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm4EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Similar to four elements case but more complex to optimize.
-SYCL_EXTERNAL void test_seven_ints(sycl::sub_group &sg, span<int, 7> v,
-                                   plain_global_ptr<int> p) {
+//
+SYCL_EXTERNAL void test_four_ints(sycl::sub_group &sg, span<int, 4> v,
+                                  plain_global_ptr<int> p) {
+  // Four int elements in blocked data layout don't map directly to any
+  // BlockWrite API.
   group_store(sg, v, p, opt_blocked{});
 }
+
 // CHECK-LABEL: @_ZN7blocked15test_seven_intsERN4sycl3_V19sub_groupENS1_4spanIiLm7EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -383,17 +387,18 @@ SYCL_EXTERNAL void test_seven_ints(sycl::sub_group &sg, span<int, 7> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm7EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
+//
+SYCL_EXTERNAL void test_seven_ints(sycl::sub_group &sg, span<int, 7> v,
+                                   plain_global_ptr<int> p) {
+  // Similar to four elements case but more complex to optimize.
+  group_store(sg, v, p, opt_blocked{});
+}
 } // namespace blocked
 
 namespace striped {
 // Striped data layout with one element per work item isn't different from
 // blocked data layout, so use span version only in the checks below.
 
-// Ensure `detail::naive` always results in no block loads/stores.
-SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, span<int, 2> v,
-                              plain_global_ptr<int> p) {
-  group_store(sg, v, p, naive_striped{});
-}
 // CHECK-LABEL: @_ZN7striped10test_naiveERN4sycl3_V19sub_groupENS1_4spanIiLm2EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -420,12 +425,13 @@ SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, span<int, 2> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_SO_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Check that optimized implementation is selected.
-SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, span<int, 2> v,
-                                  plain_global_ptr<int> p) {
-  group_store(sg, v, p, opt_striped{});
+//
+SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, span<int, 2> v,
+                              plain_global_ptr<int> p) {
+  // Ensure `detail::naive` always results in no block loads/stores.
+  group_store(sg, v, p, naive_striped{});
 }
+
 // CHECK-LABEL: @_ZN7striped14test_optimizedERN4sycl3_V19sub_groupENS1_4spanIiLm2EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES_I:%.*]] = alloca [2 x i32], align 4
@@ -482,13 +488,13 @@ SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, span<int, 2> v,
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP67:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    ret void
-
-// Check that contiguous_memory can be auto-detected.
-SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg,
-                                               span<int, 2> v,
-                                               plain_global_ptr<int> p) {
-  group_store(sg, v, p, full_group_striped{});
+//
+SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, span<int, 2> v,
+                                  plain_global_ptr<int> p) {
+  // Check that optimized implementation is selected.
+  group_store(sg, v, p, opt_striped{});
 }
+
 // CHECK-LABEL: @_ZN7striped27test_contiguous_auto_detectERN4sycl3_V19sub_groupENS1_4spanIiLm2EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES_I:%.*]] = alloca [2 x i32], align 4
@@ -545,16 +551,18 @@ SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg,
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP76:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_SO_.exit:
 // CHECK-NEXT:    ret void
+//
+SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg,
+                                               span<int, 2> v,
+                                               plain_global_ptr<int> p) {
+  // Check that contiguous_memory can be auto-detected.
+  group_store(sg, v, p, full_group_striped{});
+}
 
 // SYCL 2020's accessor can't be statically known to be contiguous.
 using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
                                  access::placeholder::false_t>::iterator;
 
-// Can't be optimized.
-SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, span<int, 2> v,
-                                      accessor_iter_t &iter) {
-  group_store(sg, v, iter, full_group_striped{});
-}
 // CHECK-LABEL: @_ZN7striped18test_accessor_iterERN4sycl3_V19sub_groupENS1_4spanIiLm2EEERNS1_6detail17accessor_iteratorIiLi1EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -585,13 +593,13 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, span<int, 2> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_SP_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Explicit property - optimize.
-SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
-                                                      span<int, 2> v,
-                                                      accessor_iter_t &iter) {
-  group_store(sg, v, iter, opt_striped{});
+//
+SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, span<int, 2> v,
+                                      accessor_iter_t &iter) {
+  // Can't be optimized.
+  group_store(sg, v, iter, full_group_striped{});
 }
+
 // CHECK-LABEL: @_ZN7striped34test_accessor_iter_force_optimizedERN4sycl3_V19sub_groupENS1_4spanIiLm2EEERNS1_6detail17accessor_iteratorIiLi1EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES_I:%.*]] = alloca [2 x i32], align 4
@@ -656,13 +664,14 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP93:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_SR_.exit:
 // CHECK-NEXT:    ret void
-
-// Just because there is a blocked data layout testcase, nothing inherently
-// useful here.
-SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
-                                    plain_global_ptr<short> p) {
-  group_store(sg, v, p, opt_striped{});
+//
+SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
+                                                      span<int, 2> v,
+                                                      accessor_iter_t &iter) {
+  // Explicit property - optimize.
+  group_store(sg, v, iter, opt_striped{});
 }
+
 // CHECK-LABEL: @_ZN7striped16test_four_shortsERN4sycl3_V19sub_groupENS1_4spanIsLm4EEEPU3AS1s(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES_I:%.*]] = alloca [4 x i16], align 2
@@ -719,12 +728,14 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP102:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    ret void
-
-// Check for non-power-of-two size.
-SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg, span<int, 3> v,
-                                         plain_global_ptr<int> p) {
+//
+SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
+                                    plain_global_ptr<short> p) {
+  // Just because there is a blocked data layout testcase, nothing inherently
+  // useful here.
   group_store(sg, v, p, opt_striped{});
 }
+
 // CHECK-LABEL: @_ZN7striped21test_non_power_of_twoERN4sycl3_V19sub_groupENS1_4spanIiLm3EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -751,12 +762,13 @@ SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg, span<int, 3> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Even though power of two, still too many to map directly onto BloadWrite API.
-SYCL_EXTERNAL void test_sixteen_ints(sycl::sub_group &sg, span<int, 16> v,
-                                     plain_global_ptr<int> p) {
+//
+SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg, span<int, 3> v,
+                                         plain_global_ptr<int> p) {
+  // Check for non-power-of-two size.
   group_store(sg, v, p, opt_striped{});
 }
+
 // CHECK-LABEL: @_ZN7striped17test_sixteen_intsERN4sycl3_V19sub_groupENS1_4spanIiLm16EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -783,12 +795,14 @@ SYCL_EXTERNAL void test_sixteen_ints(sycl::sub_group &sg, span<int, 16> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm16EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
-
-// Non-power of two case bigger than max natively supported power of two case.
-SYCL_EXTERNAL void test_eleven_ints(sycl::sub_group &sg, span<int, 11> v,
-                                    plain_global_ptr<int> p) {
+//
+SYCL_EXTERNAL void test_sixteen_ints(sycl::sub_group &sg, span<int, 16> v,
+                                     plain_global_ptr<int> p) {
+  // Even though power of two, still too many to map directly onto BloadWrite
+  // API.
   group_store(sg, v, p, opt_striped{});
 }
+
 // CHECK-LABEL: @_ZN7striped16test_eleven_intsERN4sycl3_V19sub_groupENS1_4spanIiLm11EEEPU3AS1i(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA15]]
@@ -815,4 +829,10 @@ SYCL_EXTERNAL void test_eleven_ints(sycl::sub_group &sg, span<int, 11> v,
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm11EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
+//
+SYCL_EXTERNAL void test_eleven_ints(sycl::sub_group &sg, span<int, 11> v,
+                                    plain_global_ptr<int> p) {
+  // Non-power of two case bigger than max natively supported power of two case.
+  group_store(sg, v, p, opt_striped{});
+}
 } // namespace striped
