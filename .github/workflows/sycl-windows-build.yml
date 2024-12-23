@@ -119,7 +119,7 @@ jobs:
           --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache" ^
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=ccache" ^
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" ^
-          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV" \
+          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV" ^
           --cmake-opt="-DSYCL_INSTALL_DEVICE_CONFIG_FILE=ON"
     - name: Build
       id: build
