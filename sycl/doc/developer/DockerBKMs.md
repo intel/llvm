@@ -56,7 +56,9 @@ The following containers are publicly available for DPC++ compiler development:
    built nightly build of DPC++ compiler. The image comes in three flavors:
    with pre-installed Intel drivers (`latest`), without them (`no-drivers`) and
    with development kits installed (`build`).
+
 ### Ubuntu 24.04-based images
+
 - `ghcr.io/intel/llvm/ubuntu2404_base`: contains basic environment
    setup for building DPC++ compiler from source.
 - `ghcr.io/intel/llvm/ubuntu2404_intel_drivers`: contains everything from the
