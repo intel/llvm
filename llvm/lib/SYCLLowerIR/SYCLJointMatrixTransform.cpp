@@ -136,7 +136,7 @@ bool transformAccessChain(Function *F) {
     // It may happen that sycl::joint_matrix class object is wrapped into
     // nested arrays. We need to find the innermost type to extract
     if (StructType *WrapperMatrixTy =
-        dyn_cast<StructType>(getInnermostType(AllocaTy))) {
+            dyn_cast<StructType>(getInnermostType(AllocaTy))) {
       TargetExtType *MatrixTy = extractMatrixType(WrapperMatrixTy);
       if (!MatrixTy)
         continue;
@@ -166,15 +166,17 @@ bool transformAccessChain(Function *F) {
       continue;
 
     // Check if GEP return type is a pointer to sycl::joint_matrix class object
-    StructType *WrapperMatrixTy = dyn_cast<StructType>(GEP->getResultElementType());
+    StructType *WrapperMatrixTy =
+        dyn_cast<StructType>(GEP->getResultElementType());
     if (!extractMatrixType(WrapperMatrixTy))
       continue;
 
     // Insert GEP right before the __spirv_AccessChain call
     {
       IRBuilder Builder(CI);
-      Value *NewGEP = Builder.CreateInBoundsGEP(WrapperMatrixTy,
-        CI->getArgOperand(0), {Builder.getInt64(0), Builder.getInt32(0)});
+      Value *NewGEP =
+          Builder.CreateInBoundsGEP(WrapperMatrixTy, CI->getArgOperand(0),
+                                    {Builder.getInt64(0), Builder.getInt32(0)});
       CI->setArgOperand(0, NewGEP);
       ModuleChanged = true;
     }
