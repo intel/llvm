@@ -33,7 +33,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
                         ur_event_handle_t *RetEvent,
                         bool CounterBasedEventEnabled,
-                        bool ForceDisableProfiling);
+                        bool ForceDisableProfiling,
+                        bool InterruptBasedEventEnabled);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -155,6 +156,8 @@ struct ur_event_handle_t_ : _ur_object {
                reinterpret_cast<ur_event_handle_t_ *>(HostVisibleEvent));
   }
 
+  ~ur_event_handle_t_();
+
   // Provide direct access to Context, instead of going via queue.
   // Not every PI event has a queue, and we need a handle to Context
   // to get to event pool related information.
@@ -251,6 +254,8 @@ struct ur_event_handle_t_ : _ur_object {
   std::optional<ur_completion_batch_it> completionBatch;
   // Keeps track of whether we are using Counter-based Events.
   bool CounterBasedEventsEnabled = false;
+  // Keeps track of whether we are using Interrupt-based Events.
+  bool InterruptBasedEventsEnabled = false;
 };
 
 // Helper function to implement zeHostSynchronize.

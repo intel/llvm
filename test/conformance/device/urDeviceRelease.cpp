@@ -8,6 +8,8 @@ struct urDeviceReleaseTest : uur::urAllDevicesTest {};
 
 TEST_F(urDeviceReleaseTest, Success) {
     for (auto device : devices) {
+        ASSERT_SUCCESS(urDeviceRetain(device));
+
         uint32_t prevRefCount = 0;
         ASSERT_SUCCESS(uur::GetObjectReferenceCount(device, prevRefCount));
 

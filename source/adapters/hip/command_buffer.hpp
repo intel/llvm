@@ -175,7 +175,7 @@ struct ur_exp_command_buffer_handle_t_ {
   // HIP Graph handle
   hipGraph_t HIPGraph;
   // HIP Graph Exec handle
-  hipGraphExec_t HIPGraphExec;
+  hipGraphExec_t HIPGraphExec = nullptr;
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
   std::atomic_uint32_t RefCountInternal;

@@ -25,9 +25,13 @@ constexpr auto operator""_GB(unsigned long long x) -> size_t {
     return x * 1024 * 1024 * 1024;
 }
 
+umf_disjoint_pool_config_t::umf_disjoint_pool_config_t()
+    : SlabMinSize(0), MaxPoolableSize(0), Capacity(0),
+      MinBucketSize(UMF_DISJOINT_POOL_MIN_BUCKET_DEFAULT_SIZE), PoolTrace(0),
+      SharedLimits(nullptr), Name("disjoint_pool") {}
+
 DisjointPoolAllConfigs::DisjointPoolAllConfigs(int trace) {
     for (auto &Config : Configs) {
-        Config = umfDisjointPoolParamsDefault();
         Config.PoolTrace = trace;
     }
 
@@ -215,6 +219,8 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
         }
     }
 
+    AllConfigs.EnableBuffers = EnableBuffers;
+
     AllConfigs.limits = std::shared_ptr<umf_disjoint_pool_shared_limits_t>(
         umfDisjointPoolSharedLimitsCreate(MaxSize),
         umfDisjointPoolSharedLimitsDestroy);
@@ -222,10 +228,6 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
     for (auto &Config : AllConfigs.Configs) {
         Config.SharedLimits = AllConfigs.limits.get();
         Config.PoolTrace = trace;
-    }
-
-    if (!EnableBuffers) {
-        return {};
     }
 
     if (!trace) {

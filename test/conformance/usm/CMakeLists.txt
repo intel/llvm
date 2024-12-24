@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_test_with_devices_environment(usm 
+add_conformance_test_with_kernels_environment(usm
     urUSMDeviceAlloc.cpp
     urUSMFree.cpp
     urUSMGetMemAllocInfo.cpp

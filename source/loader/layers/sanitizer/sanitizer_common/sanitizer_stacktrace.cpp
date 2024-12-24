@@ -31,7 +31,7 @@ bool Contains(const std::string &s, const char *p) {
 
 // Parse back trace information in the following formats:
 //   <module_name>([function_name]+function_offset) [offset]
-void ParseBacktraceInfo(BacktraceInfo BI, std::string &ModuleName,
+void ParseBacktraceInfo(const BacktraceInfo &BI, std::string &ModuleName,
                         uptr &Offset) {
     // Parse module name
     size_t End = BI.find_first_of('(');

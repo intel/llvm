@@ -260,13 +260,16 @@ void *ur_discrete_mem_handle_t::getDevicePtr(
   std::ignore = access;
   std::ignore = size;
   std::ignore = migrate;
-
   if (!activeAllocationDevice) {
     if (!hDevice) {
       hDevice = hContext->getDevices()[0];
     }
 
     allocateOnDevice(hDevice, getSize());
+  }
+
+  if (!hDevice) {
+    hDevice = activeAllocationDevice;
   }
 
   char *ptr;
@@ -559,12 +562,10 @@ ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
 ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem,
                                  ur_device_handle_t hDevice,
                                  ur_native_handle_t *phNativeMem) try {
-  std::ignore = hDevice;
-
   std::scoped_lock<ur_shared_mutex> lock(hMem->getMutex());
 
   auto ptr = hMem->getDevicePtr(
-      nullptr, ur_mem_handle_t_::device_access_mode_t::read_write, 0,
+      hDevice, ur_mem_handle_t_::device_access_mode_t::read_write, 0,
       hMem->getSize(), nullptr);
   *phNativeMem = reinterpret_cast<ur_native_handle_t>(ptr);
   return UR_RESULT_SUCCESS;

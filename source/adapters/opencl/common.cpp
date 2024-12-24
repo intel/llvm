@@ -14,11 +14,14 @@ namespace cl_adapter {
 
 /* Global variables for urAdapterGetLastError() */
 thread_local int32_t ErrorMessageCode = 0;
-thread_local char ErrorMessage[MaxMessageSize];
+thread_local char ErrorMessage[MaxMessageSize]{};
 
 [[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode) {
-  assert(strlen(Message) <= cl_adapter::MaxMessageSize);
-  strcpy(cl_adapter::ErrorMessage, Message);
+  assert(strlen(Message) < cl_adapter::MaxMessageSize);
+  // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
+  // always null terminated.
+  strncpy(cl_adapter::ErrorMessage, Message, MaxMessageSize - 1);
+
   ErrorMessageCode = ErrorCode;
 }
 } // namespace cl_adapter

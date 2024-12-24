@@ -1,5 +1,6 @@
-{{OPT}}urPhysicalMemCreateTest.Success/*__3
-{{OPT}}urPhysicalMemCreateTest.Success/*__7
-{{OPT}}urPhysicalMemCreateTest.Success/*__12
-urPhysicalMemCreateTest.Success/*__44
-urPhysicalMemCreateTest.InvalidSize/*
+{{OPT}}urPhysicalMemCreateWithSizeParamTest.Success/*
+urPhysicalMemCreateWithSizeParamTest.InvalidSize/*
+urPhysicalMemGetInfoTest.Context/*
+urPhysicalMemGetInfoTest.Device/*
+urPhysicalMemGetInfoTest.Size/*
+urPhysicalMemGetInfoTest.Properties/*

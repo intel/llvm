@@ -27,10 +27,14 @@ struct ur_physical_mem_handle_t_ {
   native_type PhysicalMem;
   ur_context_handle_t_ *Context;
   ur_device_handle_t Device;
+  size_t Size;
+  ur_physical_mem_properties_t Properties;
 
   ur_physical_mem_handle_t_(native_type PhysMem, ur_context_handle_t_ *Ctx,
-                            ur_device_handle_t Device)
-      : RefCount(1), PhysicalMem(PhysMem), Context(Ctx), Device(Device) {
+                            ur_device_handle_t Device, size_t Size,
+                            ur_physical_mem_properties_t Properties)
+      : RefCount(1), PhysicalMem(PhysMem), Context(Ctx), Device(Device),
+        Size(Size), Properties(Properties) {
     urContextRetain(Context);
     urDeviceRetain(Device);
   }
@@ -51,4 +55,10 @@ struct ur_physical_mem_handle_t_ {
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
+
+  size_t getSize() const noexcept { return Size; }
+
+  ur_physical_mem_properties_t getProperties() const noexcept {
+    return Properties;
+  }
 };

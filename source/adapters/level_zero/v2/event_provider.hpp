@@ -40,7 +40,6 @@ class event_provider {
 public:
   virtual ~event_provider() = default;
   virtual raii::cache_borrowed_event allocate() = 0;
-  virtual ur_device_handle_t device() = 0;
   virtual event_flags_t eventFlags() const = 0;
 };
 

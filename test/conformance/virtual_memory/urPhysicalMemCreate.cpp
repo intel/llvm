@@ -25,14 +25,48 @@ struct urPhysicalMemCreateTest
     ur_physical_mem_handle_t physical_mem = nullptr;
 };
 
-UUR_TEST_SUITE_P(urPhysicalMemCreateTest, ::testing::Values(1, 2, 3, 7, 12, 44),
+using urPhysicalMemCreateWithSizeParamTest = urPhysicalMemCreateTest;
+UUR_TEST_SUITE_P(urPhysicalMemCreateWithSizeParamTest,
+                 ::testing::Values(1, 2, 3, 7, 12, 44),
                  uur::deviceTestWithParamPrinter<size_t>);
 
-TEST_P(urPhysicalMemCreateTest, Success) {
+TEST_P(urPhysicalMemCreateWithSizeParamTest, Success) {
     ASSERT_SUCCESS(
         urPhysicalMemCreate(context, device, size, nullptr, &physical_mem));
     ASSERT_NE(physical_mem, nullptr);
 }
+
+TEST_P(urPhysicalMemCreateWithSizeParamTest, InvalidSize) {
+    if (granularity == 1) {
+        GTEST_SKIP()
+            << "A granularity of 1 means that any size will be accepted.";
+    }
+    size_t invalid_size = size - 1;
+    ASSERT_EQ_RESULT(urPhysicalMemCreate(context, device, invalid_size, nullptr,
+                                         &physical_mem),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
+
+using urPhysicalMemCreateWithFlagsParamTest =
+    uur::urPhysicalMemTestWithParam<ur_physical_mem_flags_t>;
+UUR_TEST_SUITE_P(urPhysicalMemCreateWithFlagsParamTest,
+                 ::testing::Values(UR_PHYSICAL_MEM_FLAG_TBD),
+                 uur::deviceTestWithParamPrinter<ur_physical_mem_flags_t>);
+
+TEST_P(urPhysicalMemCreateWithFlagsParamTest, Success) {
+    ur_physical_mem_properties_t properties;
+    properties.stype = UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES;
+    properties.pNext = nullptr;
+    properties.flags = getParam();
+
+    ASSERT_SUCCESS(
+        urPhysicalMemCreate(context, device, size, &properties, &physical_mem));
+    ASSERT_NE(physical_mem, nullptr);
+}
+
+using urPhysicalMemCreateTest = urPhysicalMemCreateTest;
+UUR_TEST_SUITE_P(urPhysicalMemCreateTest, ::testing::Values(1),
+                 uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateTest, InvalidNullHandleContext) {
     ASSERT_EQ_RESULT(
@@ -52,13 +86,13 @@ TEST_P(urPhysicalMemCreateTest, InvalidNullPointerPhysicalMem) {
         UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-TEST_P(urPhysicalMemCreateTest, InvalidSize) {
-    if (granularity == 1) {
-        GTEST_SKIP()
-            << "A granularity of 1 means that any size will be accepted.";
-    }
-    size_t invalid_size = size - 1;
-    ASSERT_EQ_RESULT(urPhysicalMemCreate(context, device, invalid_size, nullptr,
-                                         &physical_mem),
-                     UR_RESULT_ERROR_INVALID_SIZE);
+TEST_P(urPhysicalMemCreateTest, InvalidEnumeration) {
+    ur_physical_mem_properties_t properties;
+    properties.stype = UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES;
+    properties.pNext = nullptr;
+    properties.flags = UR_PHYSICAL_MEM_FLAG_FORCE_UINT32;
+
+    ASSERT_EQ_RESULT(
+        urPhysicalMemCreate(context, device, size, &properties, &physical_mem),
+        UR_RESULT_ERROR_INVALID_ENUMERATION);
 }

@@ -180,12 +180,23 @@ ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
     return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
+std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter);
+
 inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
     std::string platform_name;
     GetPlatformInfo<std::string>(hPlatform, UR_PLATFORM_INFO_NAME,
                                  platform_name);
     return GTestSanitizeString(
         std::string(platform_name.data(), platform_name.size()));
+}
+
+inline std::string GetPlatformNameWithID(ur_platform_handle_t hPlatform) {
+    auto platform_name = GetPlatformName(hPlatform);
+    auto &platforms = uur::PlatformEnvironment::instance->all_platforms;
+    size_t platform_id =
+        std::find(platforms.begin(), platforms.end(), hPlatform) -
+        platforms.begin();
+    return platform_name + "_ID" + std::to_string(platform_id);
 }
 
 inline std::string GetDeviceName(ur_device_handle_t device) {

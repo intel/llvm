@@ -345,30 +345,33 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       umf::memoryProviderMakeUnique<USMHostMemoryProvider>(Context, nullptr)
           .second;
 
+  auto UmfHostParamsHandle = getUmfParamsHandle(
+      DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host]);
   HostMemPool =
-      umf::poolMakeUniqueFromOps(
-          umfDisjointPoolOps(), std::move(MemProvider),
-          &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
+      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
+                                 UmfHostParamsHandle.get())
           .second;
 
   for (const auto &Device : Context->getDevices()) {
     MemProvider =
         umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, Device)
             .second;
-    DeviceMemPool = umf::poolMakeUniqueFromOps(
-                        umfDisjointPoolOps(), std::move(MemProvider),
-                        &this->DisjointPoolConfigs
-                             .Configs[usm::DisjointPoolMemType::Device])
-                        .second;
+    auto UmfDeviceParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Device]);
+    DeviceMemPool =
+        umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
+                                   UmfDeviceParamsHandle.get())
+            .second;
 
     MemProvider =
         umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(Context, Device)
             .second;
-    SharedMemPool = umf::poolMakeUniqueFromOps(
-                        umfDisjointPoolOps(), std::move(MemProvider),
-                        &this->DisjointPoolConfigs
-                             .Configs[usm::DisjointPoolMemType::Shared])
-                        .second;
+    auto UmfSharedParamsHandle = getUmfParamsHandle(
+        DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Shared]);
+    SharedMemPool =
+        umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
+                                   UmfSharedParamsHandle.get())
+            .second;
     Context->addPool(this);
   }
 }
@@ -395,6 +398,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
   } catch (const UsmAllocationException &Ex) {
     return Ex.getError();
+  } catch (umf_result_t e) {
+    return umf::umf2urResult(e);
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
 #else

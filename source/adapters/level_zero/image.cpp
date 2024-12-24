@@ -265,6 +265,16 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   return UR_RESULT_SUCCESS;
 }
 
+static bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
+  switch (ChannelOrder) {
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGX:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Construct ZE image desc from UR image format and desc.
 ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                            const ur_image_desc_t *ImageDesc,
@@ -843,6 +853,14 @@ ur_result_t urBindlessImagesImageCopyExp(
   UR_CALL(ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, ZeImageDesc));
 
   bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
+  // Due to the limitation of the copy engine, disable usage of Copy Engine
+  // Given 3 channel image
+  if (Is3ChannelOrder(
+          ur_cast<ur_image_channel_order_t>(pSrcImageFormat->channelOrder)) ||
+      Is3ChannelOrder(
+          ur_cast<ur_image_channel_order_t>(pDstImageFormat->channelOrder))) {
+    UseCopyEngine = false;
+  }
 
   _ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -1190,41 +1208,130 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
     ur_exp_external_semaphore_type_t semHandleType,
     ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
     ur_exp_external_semaphore_handle_t *phExternalSemaphoreHandle) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = semHandleType;
-  std::ignore = pExternalSemaphoreDesc;
-  std::ignore = phExternalSemaphoreHandle;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  auto UrPlatform = hContext->getPlatform();
+  if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
+    logger::error(logger::LegacyMessage("[UR][L0] "),
+                  " {} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  ze_intel_external_semaphore_exp_desc_t SemDesc = {
+      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_EXP_DESC, nullptr,
+      ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD};
+  ze_intel_external_semaphore_exp_handle_t ExtSemaphoreHandle;
+  ze_intel_external_semaphore_desc_fd_exp_desc_t FDExpDesc = {
+      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_FD_EXP_DESC, nullptr, 0};
+  _ze_intel_external_semaphore_win32_exp_desc_t Win32ExpDesc = {
+      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXP_DESC, nullptr,
+      nullptr, nullptr};
+  void *pNext = const_cast<void *>(pExternalSemaphoreDesc->pNext);
+  while (pNext != nullptr) {
+    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
+    if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
+      auto FileDescriptor =
+          static_cast<const ur_exp_file_descriptor_t *>(pNext);
+      FDExpDesc.fd = FileDescriptor->fd;
+      SemDesc.pNext = &FDExpDesc;
+      SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD;
+    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+      SemDesc.pNext = &Win32ExpDesc;
+      auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+      switch (semHandleType) {
+      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
+        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32;
+        break;
+      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
+        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D12_FENCE;
+        break;
+      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD;
+        break;
+      default:
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
+      Win32ExpDesc.handle = Win32Handle->handle;
+    }
+    pNext = const_cast<void *>(BaseDesc->pNext);
+  }
+
+  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
+             (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
+  *phExternalSemaphoreHandle =
+      (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_semaphore_handle_t hExternalSemaphore) {
-  std::ignore = hContext;
   std::ignore = hDevice;
-  std::ignore = hExternalSemaphore;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  auto UrPlatform = hContext->getPlatform();
+  if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
+    logger::error(logger::LegacyMessage("[UR][L0] "),
+                  " {} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  ZE2UR_CALL(
+      UrPlatform->ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp,
+      ((ze_intel_external_semaphore_exp_handle_t)hExternalSemaphore));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hSemaphore;
-  std::ignore = hasValue;
-  std::ignore = waitValue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  logger::error(logger::LegacyMessage("[UR][L0] "),
-                " {} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  auto UrPlatform = hQueue->Context->getPlatform();
+  if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
+    logger::error(logger::LegacyMessage("[UR][L0] "),
+                  " {} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  bool UseCopyEngine = false;
+
+  // We want to batch these commands to avoid extra submissions (costly)
+  bool OkToBatch = true;
+
+  _ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
+
+  // Get a new command list to be used on this call
+  ur_command_list_ptr_t CommandList{};
+  UR_CALL(hQueue->Context->getAvailableCommandList(
+      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
+
+  ze_event_handle_t ZeEvent = nullptr;
+  ur_event_handle_t InternalEvent;
+  bool IsInternal = phEvent == nullptr;
+  ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
+  UR_CALL(createEventAndAssociateQueue(hQueue, Event,
+                                       UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP,
+                                       CommandList, IsInternal,
+                                       /*IsMultiDevice*/ false));
+  UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
+                         numEventsInWaitList, phEventWaitList,
+                         CommandList->second.ZeQueue));
+  (*Event)->WaitList = TmpWaitList;
+
+  const auto &ZeCommandList = CommandList->first;
+  const auto &WaitList = (*Event)->WaitList;
+
+  ze_intel_external_semaphore_wait_exp_params_t WaitParams = {
+      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP, nullptr, 0};
+  WaitParams.value = hasValue ? waitValue : 0;
+  const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
+      reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
+  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendWaitExternalSemaphoresExp,
+             (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
+              WaitList.Length, WaitList.ZeEventList));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
@@ -1238,9 +1345,56 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  auto UrPlatform = hQueue->Context->getPlatform();
+  if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
+    logger::error(logger::LegacyMessage("[UR][L0] "),
+                  " {} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  bool UseCopyEngine = false;
+
+  // We want to batch these commands to avoid extra submissions (costly)
+  bool OkToBatch = true;
+
+  _ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
+
+  // Get a new command list to be used on this call
+  ur_command_list_ptr_t CommandList{};
+  UR_CALL(hQueue->Context->getAvailableCommandList(
+      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
+
+  ze_event_handle_t ZeEvent = nullptr;
+  ur_event_handle_t InternalEvent;
+  bool IsInternal = phEvent == nullptr;
+  ur_event_handle_t *Event = phEvent ? phEvent : &InternalEvent;
+  UR_CALL(createEventAndAssociateQueue(hQueue, Event,
+                                       UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP,
+                                       CommandList, IsInternal,
+                                       /*IsMultiDevice*/ false));
+  UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
+                         numEventsInWaitList, phEventWaitList,
+                         CommandList->second.ZeQueue));
+  (*Event)->WaitList = TmpWaitList;
+
+  const auto &ZeCommandList = CommandList->first;
+  const auto &WaitList = (*Event)->WaitList;
+
+  ze_intel_external_semaphore_signal_exp_params_t SignalParams = {
+      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP, nullptr, 0};
+  SignalParams.value = hasValue ? signalValue : 0;
+  const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
+      reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
+
+  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendSignalExternalSemaphoresExp,
+             (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
+              WaitList.Length, WaitList.ZeEventList));
+
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero

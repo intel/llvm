@@ -240,3 +240,141 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest, CheckProgramGetInfo) {
         reinterpret_cast<char *>(property_value.data());
     ASSERT_STRNE(returned_kernel_names, "");
 }
+
+struct urMultiDeviceCommandBufferExpTest
+    : urMultiDeviceProgramCreateWithBinaryTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urMultiDeviceProgramCreateWithBinaryTest::SetUp());
+
+        auto kernelName =
+            uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
+
+        ASSERT_SUCCESS(urProgramBuild(context, binary_program, nullptr));
+        ASSERT_SUCCESS(
+            urKernelCreate(binary_program, kernelName.data(), &kernel));
+    }
+
+    void TearDown() override {
+        if (kernel) {
+            EXPECT_SUCCESS(urKernelRelease(kernel));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urMultiDeviceProgramCreateWithBinaryTest::TearDown());
+    }
+
+    static bool hasCommandBufferSupport(ur_device_handle_t device) {
+        ur_bool_t cmd_buffer_support = false;
+        auto res = urDeviceGetInfo(
+            device, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+            sizeof(cmd_buffer_support), &cmd_buffer_support, nullptr);
+
+        if (res) {
+            return false;
+        }
+
+        return cmd_buffer_support;
+    }
+
+    static bool hasCommandBufferUpdateSupport(ur_device_handle_t device) {
+        ur_device_command_buffer_update_capability_flags_t
+            update_capability_flags;
+        auto res = urDeviceGetInfo(
+            device, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
+            sizeof(update_capability_flags), &update_capability_flags, nullptr);
+
+        if (res) {
+            return false;
+        }
+
+        return (0 != update_capability_flags);
+    }
+
+    ur_kernel_handle_t kernel = nullptr;
+
+    static constexpr size_t global_offset = 0;
+    static constexpr size_t n_dimensions = 1;
+    static constexpr size_t global_size = 64;
+    static constexpr size_t local_size = 4;
+};
+
+TEST_F(urMultiDeviceCommandBufferExpTest, Enqueue) {
+    for (size_t i = 0; i < devices.size(); i++) {
+        auto device = devices[i];
+        if (!hasCommandBufferSupport(device)) {
+            continue;
+        }
+
+        // Create command-buffer
+        uur::raii::CommandBuffer cmd_buf_handle;
+        ASSERT_SUCCESS(urCommandBufferCreateExp(context, device, nullptr,
+                                                cmd_buf_handle.ptr()));
+
+        // Append kernel command to command-buffer and close command-buffer
+        ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+            cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
+            &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+            nullptr));
+        ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+
+        // Verify execution succeeds
+        ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+                                                 nullptr, nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queues[i]));
+    }
+}
+
+TEST_F(urMultiDeviceCommandBufferExpTest, Update) {
+    for (size_t i = 0; i < devices.size(); i++) {
+        auto device = devices[i];
+        if (!(hasCommandBufferSupport(device) &&
+              hasCommandBufferUpdateSupport(device))) {
+            continue;
+        }
+
+        // Create a command-buffer with update enabled.
+        ur_exp_command_buffer_desc_t desc{
+            UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, true, false,
+            false};
+
+        // Create command-buffer
+        uur::raii::CommandBuffer cmd_buf_handle;
+        ASSERT_SUCCESS(urCommandBufferCreateExp(context, device, &desc,
+                                                cmd_buf_handle.ptr()));
+
+        // Append kernel command to command-buffer and close command-buffer
+        uur::raii::CommandBufferCommand command;
+        ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+            cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
+            &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+            command.ptr()));
+        ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+
+        // Verify execution succeeds
+        ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+                                                 nullptr, nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queues[i]));
+
+        // Update kernel and enqueue command-buffer again
+        ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+            UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+            nullptr,      // pNext
+            kernel,       // hNewKernel
+            0,            // numNewMemObjArgs
+            0,            // numNewPointerArgs
+            0,            // numNewValueArgs
+            n_dimensions, // newWorkDim
+            nullptr,      // pNewMemObjArgList
+            nullptr,      // pNewPointerArgList
+            nullptr,      // pNewValueArgList
+            nullptr,      // pNewGlobalWorkOffset
+            nullptr,      // pNewGlobalWorkSize
+            nullptr,      // pNewLocalWorkSize
+        };
+        ASSERT_SUCCESS(
+            urCommandBufferUpdateKernelLaunchExp(command, &update_desc));
+        ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+                                                 nullptr, nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queues[i]));
+    }
+}

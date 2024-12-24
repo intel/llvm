@@ -14,6 +14,7 @@ urCommandBufferCommandsTest.urCommandBufferAppendMemBufferFillExp/*
 urCommandBufferCommandsTest.urCommandBufferAppendUSMPrefetchExp/*
 urCommandBufferCommandsTest.urCommandBufferAppendUSMAdviseExp/*
 urCommandBufferAppendKernelLaunchExpTest.Basic/*
+urCommandBufferAppendKernelLaunchExpTest.FinalizeTwice/*
 urCommandBufferFillCommandsTest.Buffer/*
 urCommandBufferFillCommandsTest.USM/*
 KernelCommandEventSyncTest.Basic/*
@@ -32,6 +33,8 @@ CommandEventSyncTest.USMPrefetchExp/*
 CommandEventSyncTest.USMAdviseExp/*
 CommandEventSyncTest.MultipleEventCommands/*
 CommandEventSyncTest.MultipleEventCommandsBetweenCommandBuffers/*
+CommandEventSyncTest.USMFillLargePatternExp/*
+CommandEventSyncTest.MemBufferFillLargePatternExp/*
 CommandEventSyncUpdateTest.USMMemcpyExp/*
 CommandEventSyncUpdateTest.USMFillExp/*
 CommandEventSyncUpdateTest.MemBufferCopyExp/*
@@ -44,3 +47,5 @@ CommandEventSyncUpdateTest.MemBufferFillExp/*
 CommandEventSyncUpdateTest.USMPrefetchExp/*
 CommandEventSyncUpdateTest.USMAdviseExp/*
 CommandEventSyncUpdateTest.MultipleEventCommands/*
+CommandEventSyncUpdateTest.USMFillLargePatternExp/*
+CommandEventSyncUpdateTest.MemBufferFillLargePatternExp/*

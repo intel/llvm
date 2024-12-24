@@ -8,6 +8,7 @@ urQueueGetInfoTest.Device/*
 urQueueGetInfoTest.Flags/*
 urQueueGetInfoTest.ReferenceCount/*
 urQueueGetInfoTest.InvalidSizeSmall/*
+urQueueGetInfoTest.EmptyQueue/*
 urQueueGetInfoDeviceQueueTestWithInfoParam.DeviceDefault/*
 urQueueGetInfoDeviceQueueTestWithInfoParam.Size/*
 urQueueRetainTest.Success/*

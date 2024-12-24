@@ -1,9 +1,6 @@
 urProgramBuildTest.BuildFailure/*
 # HIP hasn't implemented urProgramCreateWithNativeHandleTest
 {{OPT}}urProgramCreateWithNativeHandleTest.Success/*
-# HIP doesn't expose kernel numbers or names
-urProgramGetInfoTest.Success/*__UR_PROGRAM_INFO_NUM_KERNELS
-urProgramGetInfoTest.Success/*__UR_PROGRAM_INFO_KERNEL_NAMES
 
 # HIP hasn't implemented urProgramLink
 {{OPT}}urProgramLinkTest.Success/*

@@ -20,30 +20,31 @@ class TestSuite(Suite):
 
     def benchmarks(self) -> list[Benchmark]:
         bench_configs = [
-            ("Memory Bandwidth", 2000, 200),
-            ("Latency", 100, 20),
-            ("Throughput", 1500, 150),
-            ("FLOPS", 3000, 300),
-            ("Cache Miss Rate", 250, 25),
+            ("Memory Bandwidth", 2000, 200, "Foo Group"),
+            ("Latency", 100, 20, "Bar Group"),
+            ("Throughput", 1500, 150, "Foo Group"),
+            ("FLOPS", 3000, 300, "Foo Group"),
+            ("Cache Miss Rate", 250, 25, "Bar Group"),
         ]
 
         result = []
-        for base_name, base_value, base_diff in bench_configs:
+        for base_name, base_value, base_diff, group in bench_configs:
             for variant in range(6):
                 value_multiplier = 1.0 + (variant * 0.2)
                 name = f"{base_name} {variant+1}"
                 value = base_value * value_multiplier
                 diff = base_diff * value_multiplier
 
-                result.append(TestBench(name, value, diff))
+                result.append(TestBench(name, value, diff, group))
 
         return result
 
 class TestBench(Benchmark):
-    def __init__(self, name, value, diff):
+    def __init__(self, name, value, diff, group = ''):
         self.bname = name
         self.value = value
         self.diff = diff
+        self.group = group
         super().__init__("")
 
     def name(self):
@@ -58,7 +59,7 @@ class TestBench(Benchmark):
     def run(self, env_vars) -> list[Result]:
         random_value = self.value + random.uniform(-1 * (self.diff), self.diff)
         return [
-            Result(label=self.name(), value=random_value, command="", env={"A": "B"}, stdout="no output", unit="ms")
+            Result(label=self.name(), explicit_group=self.group, value=random_value, command="", env={"A": "B"}, stdout="no output", unit="ms")
         ]
 
     def teardown(self):

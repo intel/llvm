@@ -13,8 +13,9 @@ import urllib.request
 import tarfile
 
 class Benchmark:
-    def __init__(self, directory):
+    def __init__(self, directory, suite):
         self.directory = directory
+        self.suite = suite
 
     @staticmethod
     def get_adapter_full_path():
@@ -26,7 +27,7 @@ class Benchmark:
         assert False, \
             f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
-    def run_bench(self, command, env_vars, ld_library=[]):
+    def run_bench(self, command, env_vars, ld_library=[], add_sycl=True):
         env_vars_with_forced_adapter = env_vars.copy()
         if options.ur is not None:
             env_vars_with_forced_adapter.update(
@@ -35,24 +36,26 @@ class Benchmark:
         return run(
             command=command,
             env_vars=env_vars_with_forced_adapter,
-            add_sycl=True,
+            add_sycl=add_sycl,
             cwd=options.benchmark_cwd,
             ld_library=ld_library
         ).stdout.decode()
 
-    def create_data_path(self, name):
-        data_path = os.path.join(self.directory, "data", name)
-
-        if options.rebuild and Path(data_path).exists():
-           shutil.rmtree(data_path)
+    def create_data_path(self, name, skip_data_dir = False):
+        if skip_data_dir:
+            data_path = os.path.join(self.directory, name)
+        else:
+            data_path = os.path.join(self.directory, 'data', name)
+            if options.rebuild and Path(data_path).exists():
+                shutil.rmtree(data_path)
 
         Path(data_path).mkdir(parents=True, exist_ok=True)
 
         return data_path
 
-    def download(self, name, url, file, untar = False):
-        self.data_path = self.create_data_path(name)
-        return download(self.data_path, url, file, True)
+    def download(self, name, url, file, untar = False, unzip = False, skip_data_dir = False):
+        self.data_path = self.create_data_path(name, skip_data_dir)
+        return download(self.data_path, url, file, untar, unzip)
 
     def name(self):
         raise NotImplementedError()
@@ -69,11 +72,17 @@ class Benchmark:
     def teardown(self):
         raise NotImplementedError()
 
-    def ignore_iterations(self):
-        return False
+    def stddev_threshold(self):
+        return None
+
+    def get_suite_name(self) -> str:
+        return self.suite.name()
 
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
+        raise NotImplementedError()
+
+    def name(self) -> str:
         raise NotImplementedError()
 
     def setup(self):

@@ -35,7 +35,17 @@
 
 namespace uur {
 
-struct urPlatformTest : ::testing::Test {
+struct urAdapterTest : ::testing::Test,
+                       ::testing::WithParamInterface<ur_adapter_handle_t> {
+    void SetUp() override { adapter = GetParam(); }
+
+    ur_adapter_handle_t adapter;
+};
+
+// Inherit this to get the platform/adapter that was selected via the --backend
+// and --platform arguments (or defaulted to if only one platform was
+// discovered)
+struct urSelectedPlatformTest : ::testing::Test {
     void SetUp() override {
         platform = uur::PlatformEnvironment::instance->platform;
         adapter = uur::PlatformEnvironment::instance->adapter;
@@ -43,6 +53,17 @@ struct urPlatformTest : ::testing::Test {
 
     ur_platform_handle_t platform = nullptr;
     ur_adapter_handle_t adapter = nullptr;
+};
+
+// In the vein of urAdapterTest and urDeviceTest this is a parameterized
+// platform fixture which can be instantiated via
+// UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P to run tests on each discovered
+// platform.
+struct urPlatformTest : ::testing::Test,
+                        ::testing::WithParamInterface<ur_platform_handle_t> {
+    void SetUp() override { platform = GetParam(); }
+
+    ur_platform_handle_t platform = nullptr;
 };
 
 inline std::pair<bool, std::vector<ur_device_handle_t>>
@@ -70,9 +91,9 @@ inline bool hasDevicePartitionSupport(ur_device_handle_t device,
            properties.end();
 }
 
-struct urAllDevicesTest : urPlatformTest {
+struct urAllDevicesTest : urSelectedPlatformTest {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         auto devicesPair = GetDevices(platform);
         if (!devicesPair.first) {
             FAIL() << "Failed to get devices";
@@ -84,27 +105,45 @@ struct urAllDevicesTest : urPlatformTest {
         for (auto &device : devices) {
             EXPECT_SUCCESS(urDeviceRelease(device));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::TearDown());
     }
 
     std::vector<ur_device_handle_t> devices;
 };
 
-struct urDeviceTest : urPlatformTest,
+struct urDeviceTest : urSelectedPlatformTest,
                       ::testing::WithParamInterface<ur_device_handle_t> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         device = GetParam();
+        EXPECT_SUCCESS(urDeviceRetain(device));
     }
 
     void TearDown() override {
         EXPECT_SUCCESS(urDeviceRelease(device));
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
     }
 
     ur_device_handle_t device;
 };
 } // namespace uur
+
+#define UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(FIXTURE)                          \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(uur::AdapterEnvironment::instance->adapters),      \
+        [](const ::testing::TestParamInfo<ur_adapter_handle_t> &info) {        \
+            return uur::GetAdapterBackendName(info.param);                     \
+        })
+
+#define UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(FIXTURE)                         \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(                                                   \
+            uur::PlatformEnvironment::instance->all_platforms),                \
+        [](const ::testing::TestParamInfo<ur_platform_handle_t> &info) {       \
+            return uur::GetPlatformNameWithID(info.param);                     \
+        })
 
 #define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
     INSTANTIATE_TEST_SUITE_P(                                                  \
@@ -126,10 +165,10 @@ namespace uur {
 
 template <class T>
 struct urDeviceTestWithParam
-    : urPlatformTest,
+    : urSelectedPlatformTest,
       ::testing::WithParamInterface<std::tuple<ur_device_handle_t, T>> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         device = std::get<0>(this->GetParam());
     }
     // TODO - I don't like the confusion with GetParam();
@@ -208,9 +247,9 @@ struct urMemImageTest : urContextTest {
         if (!imageSupported) {
             GTEST_SKIP();
         }
-        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
-                                        &image_format, &image_desc, nullptr,
-                                        &image));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
+                             &image_desc, nullptr, &image));
     }
 
     void TearDown() override {
@@ -322,8 +361,9 @@ template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
         if (!imageSupported) {
             GTEST_SKIP();
         }
-        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                        &format, &desc, nullptr, &image));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE, &format,
+                             &desc, nullptr, &image));
         ASSERT_NE(nullptr, image);
     }
 
@@ -372,10 +412,6 @@ struct urQueueTest : urContextTest {
 struct urHostPipeTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
-        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-            platform, context, device, *il_binary, nullptr, &program));
 
         size_t size = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(
@@ -383,6 +419,7 @@ struct urHostPipeTest : urQueueTest {
             &size));
         ASSERT_NE(size, 0);
         ASSERT_EQ(sizeof(ur_bool_t), size);
+
         void *info_data = alloca(size);
         ASSERT_SUCCESS(urDeviceGetInfo(
             device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, size,
@@ -394,6 +431,11 @@ struct urHostPipeTest : urQueueTest {
         if (!supported) {
             GTEST_SKIP() << "Host pipe read/write is not supported.";
         }
+
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource("foo", il_binary));
+        ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
     }
 
     void TearDown() override {
@@ -542,9 +584,9 @@ struct urMultiQueueTestWithParam : urContextTestWithParam<T> {
 };
 
 template <size_t MinDevices = 2>
-struct urMultiDeviceContextTestTemplate : urPlatformTest {
+struct urMultiDeviceContextTestTemplate : urSelectedPlatformTest {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         auto &devices = DevicesEnvironment::instance->devices;
         if (devices.size() < MinDevices) {
             GTEST_SKIP();
@@ -557,7 +599,7 @@ struct urMultiDeviceContextTestTemplate : urPlatformTest {
         if (context) {
             ASSERT_SUCCESS(urContextRelease(context));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::TearDown());
     }
 
     ur_context_handle_t context = nullptr;
@@ -963,13 +1005,9 @@ struct urPhysicalMemTest : urVirtualMemGranularityTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemGranularityTest::SetUp());
         size = granularity * 256;
-        ur_physical_mem_properties_t props{
-            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
-            nullptr,
-            0 /*flags*/,
-        };
-        ASSERT_SUCCESS(
-            urPhysicalMemCreate(context, device, size, &props, &physical_mem));
+
+        ASSERT_SUCCESS(urPhysicalMemCreate(context, device, size, &properties,
+                                           &physical_mem));
         ASSERT_NE(physical_mem, nullptr);
     }
 
@@ -982,6 +1020,11 @@ struct urPhysicalMemTest : urVirtualMemGranularityTest {
 
     size_t size = 0;
     ur_physical_mem_handle_t physical_mem = nullptr;
+    ur_physical_mem_properties_t properties{
+        UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+        nullptr,
+        0 /*flags*/,
+    };
 };
 
 template <class T>
@@ -1096,6 +1139,12 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
             GTEST_SKIP() << "Device USM in not supported";
         }
         if (use_pool) {
+            ur_bool_t poolSupport = false;
+            ASSERT_SUCCESS(
+                uur::GetDeviceUSMPoolSupport(this->device, poolSupport));
+            if (!poolSupport) {
+                GTEST_SKIP() << "USM pools are not supported.";
+            }
             ur_usm_pool_desc_t pool_desc = {};
             ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
         }
