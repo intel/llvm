@@ -596,7 +596,12 @@ ur_event_handle_t
 ur_context_handle_t_::getEventFromContextCache(v2::event_flags_t Flags,
                                                ur_device_handle_t Device) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
-  auto Cache = getEventCache(Flags, Device);
+
+  auto Cache = getEventCache(Flags & v2::EVENT_FLAGS_HOST_VISIBLE,
+                             Flags & v2::EVENT_FLAGS_PROFILING_ENABLED, Device,
+                             Flags & v2::EVENT_FLAGS_COUNTER,
+                             Flags & v2::EVENT_FLAGS_INTERRUPT);
+
   if (Cache->empty()) {
     logger::info("Cache empty (Host Visible: {}, Profiling: {}, Counter: {}, "
                  "Interrupt: {}, Device: {})",
@@ -631,16 +636,9 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
     Device = Event->UrQueue->Device;
   }
 
-  v2::event_flags_t Flags = 0;
-  if (Event->HostVisibleEvent)
-    Flags |= v2::EVENT_FLAGS_HOST_VISIBLE;
-  if (Event->isProfilingEnabled())
-    Flags |= v2::EVENT_FLAGS_PROFILING_ENABLED;
-  if (Event->CounterBasedEventsEnabled)
-    Flags |= v2::EVENT_FLAGS_COUNTER;
-  if (Event->InterruptBasedEventsEnabled)
-    Flags |= v2::EVENT_FLAGS_INTERRUPT;
-  auto Cache = getEventCache(Flags, Device);
+  auto Cache = getEventCache(
+      Event->HostVisibleEvent, Event->isProfilingEnabled(), Device,
+      Event->CounterBasedEventsEnabled, Event->InterruptBasedEventsEnabled);
   logger::info("Inserting {} event (Host Visible: {}, Profiling: {}, Counter: "
                "{}, Device: {}) into cache {}",
                Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
