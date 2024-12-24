@@ -15,37 +15,47 @@
 ///
 /// In this test, the maximum size of quarantine cache is 5MB (5242880 bytes).
 
-constexpr size_t N = 1024 * 1024;
+constexpr size_t _1MB = 1024 * 1024;
 
 int main() {
   sycl::queue Q;
-  auto *array =
-      sycl::malloc_device<char>(N, Q); // allocated size: 1052672 <= 5242880
-  // 1. allocated size: {currently the size of all allocated memory} <= {maximum
-  // size of quarantine cache}"
-  // 2. 1052672 = 1024*1024 + 4096, 4096 is the size of red zone
+
+  // allocated size: 1MB+4KB(red zone) <= 5MB
+  auto *array = sycl::malloc_device<char>(_1MB, Q);
   // CHECK: Alloc={{\[}}[[ADDR1:0x[0-9a-f]+]]
   sycl::free(array, Q);
 
-  auto *temp =
-      sycl::malloc_device<char>(N, Q); // allocated size: 1052672*2 <= 5242880
+  // allocated size: 2MB+8KB < 5MB
+  auto *temp = sycl::malloc_device<char>(_1MB, Q);
   // CHECK: Alloc={{\[}}[[ADDR2:0x[0-9a-f]+]]
   sycl::free(temp, Q);
 
-  temp =
-      sycl::malloc_device<char>(N, Q); // allocated size: 1052672*3 <= 5242880
+  // allocated size: 3MB+12KB < 5MB
+  temp = sycl::malloc_device<char>(_1MB, Q);
   // CHECK: Alloc={{\[}}[[ADDR3:0x[0-9a-f]+]]
   sycl::free(temp, Q);
 
-  temp =
-      sycl::malloc_device<char>(N, Q); // allocated size: 1052672*4 <= 5242880
+  // allocated size: 4MB+16KB < 5MB
+  temp = sycl::malloc_device<char>(_1MB, Q);
   // CHECK: Alloc={{\[}}[[ADDR4:0x[0-9a-f]+]]
   sycl::free(temp, Q);
 
-  temp = sycl::malloc_device<char>(N, Q); // allocated size: 1052672*5 > 5242880
+  // allocated size: 5MB+20KB > 5MB, old allocation get actual freed
+  temp = sycl::malloc_device<char>(_1MB, Q);
   // CHECK: Alloc={{\[}}[[ADDR5:0x[0-9a-f]+]]
   sycl::free(temp, Q);
   // CHECK: Quarantine Free: [[ADDR1]]
+  // After free, it becomes 4MB+16KB again
+
+  temp = sycl::malloc_device<char>(_1MB, Q);
+  // CHECK: Alloc={{\[}}[[ADDR6:0x[0-9a-f]+]]
+  sycl::free(temp, Q);
+  // CHECK: Quarantine Free: [[ADDR2]]
+
+  // CHECK-DAG: Quarantine Free: [[ADDR3]]
+  // CHECK-DAG: Quarantine Free: [[ADDR4]]
+  // CHECK-DAG: Quarantine Free: [[ADDR5]]
+  // CHECK-DAG: Quarantine Free: [[ADDR6]]
 
   return 0;
 }
