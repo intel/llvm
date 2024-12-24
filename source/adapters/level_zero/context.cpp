@@ -500,12 +500,15 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
 
   ze_device_handle_t ZeDevice = nullptr;
+  size_t DeviceId;
 
   if (Device) {
     ZeDevice = Device->ZeDevice;
+    DeviceId =
+        Device->Id.has_value() ? static_cast<size_t>(Device->Id.value()) : 0;
   }
   std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(Flags, ZeDevice);
+      getZeEventPoolCache(Flags, ZeDevice, DeviceId);
 
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
@@ -657,17 +660,30 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
   }
 
   ze_device_handle_t ZeDevice = nullptr;
+  size_t DeviceId;
+
   bool UsingImmediateCommandlists =
       !Event->UrQueue || Event->UrQueue->UsingImmCmdLists;
 
   if (!Event->IsMultiDevice && Event->UrQueue) {
     ZeDevice = Event->UrQueue->Device->ZeDevice;
+    DeviceId = Event->UrQueue->Device->Id.has_value()
+                   ? static_cast<size_t>(Event->UrQueue->Device->Id.value())
+                   : 0;
   }
+  v2::event_flags_t Flags = 0;
   if (UsingImmediateCommandlists)
-    Event->Flags |= v2::EVENT_FLAGS_IMM_CMDLIST;
-
+    Flags |= v2::EVENT_FLAGS_IMM_CMDLIST;
+  if (Event->isHostVisible())
+    Flags |= v2::EVENT_FLAGS_HOST_VISIBLE;
+  if (Event->isProfilingEnabled())
+    Flags |= v2::EVENT_FLAGS_PROFILING_ENABLED;
+  if (Event->CounterBasedEventsEnabled)
+    Flags |= v2::EVENT_FLAGS_COUNTER;
+  if (Event->InterruptBasedEventsEnabled)
+    Flags |= v2::EVENT_FLAGS_INTERRUPT;
   std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(Event->Flags, ZeDevice);
+      getZeEventPoolCache(Flags, ZeDevice, DeviceId);
 
   // Put the empty pool to the cache of the pools.
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)

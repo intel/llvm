@@ -171,12 +171,6 @@ struct ur_context_handle_t_ : _ur_object {
   // Cache of event pools to which host-visible events are added to.
   using ZeEventPoolCache = std::list<ze_event_pool_handle_t>;
   std::vector<ZeEventPoolCache> ZeEventPoolCaches;
-  using ZeEventPoolCacheDeviceMap =
-      std::unordered_map<ze_device_handle_t, size_t>;
-  std::vector<ZeEventPoolCacheDeviceMap> ZeEventPoolCachesDeviceMap;
-  //  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{30};
-  //  std::vector<std::unordered_map<ze_device_handle_t, size_t>>
-  //      ZeEventPoolCacheDeviceMap{30};
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -230,26 +224,43 @@ struct ur_context_handle_t_ : _ur_object {
   void addEventToContextCache(ur_event_handle_t);
 
   std::list<ze_event_pool_handle_t> *
-  getZeEventPoolCache(v2::event_flags_t Flags, ze_device_handle_t ZeDevice) {
+  getZeEventPoolCache(v2::event_flags_t Flags, ze_device_handle_t ZeDevice,
+                      size_t DeviceId) {
     size_t index = 0;
-    index |= Flags;
-    bool WithProfiling = Flags & v2::EVENT_FLAGS_PROFILING_ENABLED;
-
+    index |= uint64_t(Flags);
     if (ZeDevice) {
-      auto ZeEventPoolCacheMap =
-          WithProfiling ? &ZeEventPoolCachesDeviceMap[index * 2]
-                        : &ZeEventPoolCachesDeviceMap[index * 2 + 1];
-      if (ZeEventPoolCacheMap->find(ZeDevice) == ZeEventPoolCacheMap->end()) {
-        ZeEventPoolCaches.emplace_back();
-        ZeEventPoolCacheMap->insert(
-            std::make_pair(ZeDevice, ZeEventPoolCaches.size() - 1));
-      }
-      return &ZeEventPoolCaches[(*ZeEventPoolCacheMap)[ZeDevice]];
-    } else {
-      return WithProfiling ? &ZeEventPoolCaches[index * 2]
-                           : &ZeEventPoolCaches[index * 2 + 1];
+      index |= v2::EVENT_FLAGS_DEVICE | (DeviceId << v2::MAX_EVENT_FLAG_BITS);
     }
+
+    if (index >= ZeEventPoolCaches.size()) {
+      ZeEventPoolCaches.resize(index + 1);
+    }
+    return &ZeEventPoolCaches[index];
   }
+
+  /*
+    std::list<ze_event_pool_handle_t> *
+    getZeEventPoolCache(v2::event_flags_t Flags, ze_device_handle_t ZeDevice) {
+      size_t index = 0;
+      index |= Flags;
+      bool WithProfiling = Flags & v2::EVENT_FLAGS_PROFILING_ENABLED;
+
+      if (ZeDevice) {
+        auto ZeEventPoolCacheMap =
+            WithProfiling ? &ZeEventPoolCachesDeviceMap[index * 2]
+                          : &ZeEventPoolCachesDeviceMap[index * 2 + 1];
+        if (ZeEventPoolCacheMap->find(ZeDevice) == ZeEventPoolCacheMap->end()) {
+          ZeEventPoolCaches.emplace_back();
+          ZeEventPoolCacheMap->insert(
+              std::make_pair(ZeDevice, ZeEventPoolCaches.size() - 1));
+        }
+        return &ZeEventPoolCaches[(*ZeEventPoolCacheMap)[ZeDevice]];
+      } else {
+        return WithProfiling ? &ZeEventPoolCaches[index * 2]
+                             : &ZeEventPoolCaches[index * 2 + 1];
+      }
+    }
+  */
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
