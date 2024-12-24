@@ -180,8 +180,6 @@ public:
 private:
 #endif // __SYCL_DEVICE_ONLY__
 
-  static constexpr int getNumElements() { return NumElements; }
-
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <int Counter, int MaxValue, class...>
   struct SizeChecker : std::conditional_t<Counter == MaxValue, std::true_type,
@@ -548,6 +546,27 @@ class SwizzleOp : public detail::NamedSwizzlesMixinBoth<
                                 OperationCurrentT, Indexes...>,
                       sizeof...(Indexes)> {
   using DataT = typename VecT::element_type;
+
+public:
+  using element_type = DataT;
+  using value_type = DataT;
+
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  static constexpr size_t size() noexcept { return sizeof...(Indexes); }
+
+  template <int Num = size()>
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  size_t get_size() const {
+    return byte_size<Num>();
+  }
+
+  template <int Num = size()> size_t byte_size() const noexcept {
+    return sizeof(DataT) * (Num == 3 ? 4 : Num);
+  }
+
+private:
   // Certain operators return a vector with a different element type. Also, the
   // left and right operand types may differ. CommonDataT selects a result type
   // based on these types to ensure that the result value can be represented.
@@ -579,7 +598,6 @@ class SwizzleOp : public detail::NamedSwizzlesMixinBoth<
   using CommonDataT = std::conditional_t<
       sizeof(DataT) >= sizeof(std::common_type_t<OpLeftDataT, OpRightDataT>),
       DataT, std::common_type_t<OpLeftDataT, OpRightDataT>>;
-  static constexpr int getNumElements() { return sizeof...(Indexes); }
 
   using rel_t = detail::rel_t<DataT>;
   using vec_t = vec<DataT, sizeof...(Indexes)>;
@@ -594,7 +612,7 @@ class SwizzleOp : public detail::NamedSwizzlesMixinBoth<
 
   template <typename OperationRightT_,
             template <typename> class OperationCurrentT_, int... Idx_>
-  using NewRelOp = SwizzleOp<vec<rel_t, VecT::getNumElements()>,
+  using NewRelOp = SwizzleOp<vec<rel_t, VecT::size()>,
                              SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                        OperationCurrentT, Indexes...>,
                              OperationRightT_, OperationCurrentT_, Idx_...>;
@@ -608,11 +626,11 @@ class SwizzleOp : public detail::NamedSwizzlesMixinBoth<
 
   template <int IdxNum, typename T = void>
   using EnableIfOneIndex = typename std::enable_if_t<
-      1 == IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
+      1 == IdxNum && SwizzleOp::size() == IdxNum, T>;
 
   template <int IdxNum, typename T = void>
   using EnableIfMultipleIndexes = typename std::enable_if_t<
-      1 != IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
+      1 != IdxNum && SwizzleOp::size() == IdxNum, T>;
 
   template <typename T>
   using EnableIfScalarType =
@@ -633,40 +651,22 @@ class SwizzleOp : public detail::NamedSwizzlesMixinBoth<
       SwizzleOp<const VecT, GetOp<DataT>, GetOp<DataT>, GetOp, Indices...>;
 
 public:
-  using element_type = DataT;
-  using value_type = DataT;
-
 #ifdef __SYCL_DEVICE_ONLY__
   using vector_t = typename vec_t::vector_t;
 #endif // __SYCL_DEVICE_ONLY__
 
   const DataT &operator[](int i) const {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     return (*m_Vector)[Idxs[i]];
   }
 
   template <typename _T = VecT>
   std::enable_if_t<!std::is_const_v<_T>, DataT> &operator[](int i) {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     return (*m_Vector)[Idxs[i]];
   }
 
-  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return size(); }
-  static constexpr size_t size() noexcept { return getNumElements(); }
-
-  template <int Num = getNumElements()>
-  __SYCL2020_DEPRECATED(
-      "get_size() is deprecated, please use byte_size() instead")
-  size_t get_size() const {
-    return byte_size<Num>();
-  }
-
-  template <int Num = getNumElements()> size_t byte_size() const noexcept {
-    return sizeof(DataT) * (Num == 3 ? 4 : Num);
-  }
-
-  template <typename T, int IdxNum = getNumElements(),
+  template <typename T, int IdxNum = size(),
             typename = EnableIfOneIndex<IdxNum>,
             typename = EnableIfScalarType<T>>
   operator T() const {
@@ -870,7 +870,7 @@ public:
   __SYCL_RELLOGOP(||, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
 #undef __SYCL_RELLOGOP
 
-  template <int IdxNum = getNumElements(),
+  template <int IdxNum = size(),
             typename = EnableIfMultipleIndexes<IdxNum>>
   SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
@@ -880,14 +880,14 @@ public:
     return *this;
   }
 
-  template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
+  template <int IdxNum = size(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     (*m_Vector)[Idxs[0]] = Rhs;
     return *this;
   }
 
-  template <int IdxNum = getNumElements(),
+  template <int IdxNum = size(),
             EnableIfMultipleIndexes<IdxNum, bool> = true>
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
@@ -897,7 +897,7 @@ public:
     return *this;
   }
 
-  template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
+  template <int IdxNum = size(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(DataT &&Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     (*m_Vector)[Idxs[0]] = Rhs;
@@ -1049,9 +1049,9 @@ public:
   template <
       typename T1, typename T2, typename T3, template <typename> class T4,
       int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+      typename = typename std::enable_if_t<sizeof...(T5) == size()>>
   SwizzleOp &operator=(const SwizzleOp<T1, T2, T3, T4, T5...> &Rhs) {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       (*m_Vector)[Idxs[I]] = Rhs.getValue(I);
     }
@@ -1061,9 +1061,9 @@ public:
   template <
       typename T1, typename T2, typename T3, template <typename> class T4,
       int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+      typename = typename std::enable_if_t<sizeof...(T5) == size()>>
   SwizzleOp &operator=(SwizzleOp<T1, T2, T3, T4, T5...> &&Rhs) {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       (*m_Vector)[Idxs[I]] = Rhs.getValue(I);
     }
@@ -1212,7 +1212,7 @@ public:
   vec<convertT, sizeof...(Indexes)> convert() const {
     // First materialize the swizzle to vec_t and then apply convert() to it.
     vec_t Tmp;
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       Tmp[I] = (*m_Vector)[Idxs[I]];
     }
@@ -1251,10 +1251,10 @@ private:
   // or reading values from actual vector. Perform implicit type conversion when
   // the number of elements == 1
 
-  template <int IdxNum = getNumElements()>
+  template <int IdxNum = size()>
   CommonDataT getValue(EnableIfOneIndex<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
-      std::array<int, getNumElements()> Idxs{Indexes...};
+      std::array<int, size()> Idxs{Indexes...};
       return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<CommonDataT>();
@@ -1262,10 +1262,10 @@ private:
               m_RightOperation.getValue(Index));
   }
 
-  template <int IdxNum = getNumElements()>
+  template <int IdxNum = size()>
   DataT getValue(EnableIfMultipleIndexes<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
-      std::array<int, getNumElements()> Idxs{Indexes...};
+      std::array<int, size()> Idxs{Indexes...};
       return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<DataT>();
@@ -1276,7 +1276,7 @@ private:
   template <template <typename> class Operation, typename RhsOperation>
   void operatorHelper(const RhsOperation &Rhs) const {
     Operation<DataT> Op;
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       DataT Res = Op((*m_Vector)[Idxs[I]], Rhs.getValue(I));
       (*m_Vector)[Idxs[I]] = Res;
