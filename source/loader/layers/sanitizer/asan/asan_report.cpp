@@ -47,11 +47,10 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
     if (!AI) {
         getContext()->logger.always("{} may be allocated on Host Memory",
                                     (void *)Addr);
+    } else {
+        assert(!AI->IsReleased && "Chunk must be not released");
+        PrintAllocateInfo(Addr, AI.get());
     }
-
-    assert(AI && !AI->IsReleased && "Chunk must be not released");
-
-    PrintAllocateInfo(Addr, AI.get());
 }
 
 void ReportBadContext(uptr Addr, const StackTrace &stack,

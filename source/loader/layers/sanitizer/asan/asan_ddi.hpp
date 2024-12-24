@@ -17,4 +17,6 @@ namespace ur_sanitizer_layer {
 void initAsanInterceptor();
 void destroyAsanInterceptor();
 
+ur_result_t initAsanDDITable(ur_dditable_t *dditable);
+
 } // namespace ur_sanitizer_layer

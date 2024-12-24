@@ -94,6 +94,19 @@ namespace ur_validation_layer
             %endif
             %endfor
 
+        %for tp in tracked_params:
+        <%
+            tp_handle_funcs = next((hf for hf in handle_create_get_retain_release_funcs if th.subt(n, tags, tp['type']) in [hf['handle'], hf['handle'] + "*"]), None)
+            is_handle_to_adapter = ("_adapter_handle_t" in tp['type'])
+        %>
+        %if func_name in tp_handle_funcs['release']:
+        if( getContext()->enableLeakChecking )
+        {
+            getContext()->refCountContext->decrementRefCount(${tp['name']}, ${str(is_handle_to_adapter).lower()});
+        }
+        %endif
+        %endfor
+
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
         %for tp in tracked_params:
@@ -114,14 +127,9 @@ namespace ur_validation_layer
             }
         }
         %elif func_name in tp_handle_funcs['retain']:
-        if( getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS )
+        if( getContext()->enableLeakChecking )
         {
             getContext()->refCountContext->incrementRefCount(${tp['name']}, ${str(is_handle_to_adapter).lower()});
-        }
-        %elif func_name in tp_handle_funcs['release']:
-        if( getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS )
-        {
-            getContext()->refCountContext->decrementRefCount(${tp['name']}, ${str(is_handle_to_adapter).lower()});
         }
         %endif
         %endfor

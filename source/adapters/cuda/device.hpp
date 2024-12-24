@@ -114,6 +114,9 @@ public:
   bool maxLocalMemSizeChosen() { return MaxLocalMemSizeChosen; };
 
   uint32_t getNumComputeUnits() const noexcept { return NumComputeUnits; };
+
+  // bookkeeping for mipmappedArray leaks in Mapping external Memory
+  std::map<CUarray, CUmipmappedArray> ChildCuarrayFromMipmapMap;
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);

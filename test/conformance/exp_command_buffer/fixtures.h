@@ -6,6 +6,7 @@
 #ifndef UR_CONFORMANCE_COMMAND_BUFFER_FIXTURES_H_INCLUDED
 #define UR_CONFORMANCE_COMMAND_BUFFER_FIXTURES_H_INCLUDED
 
+#include <array>
 #include <uur/fixtures.h>
 
 namespace uur {

@@ -387,9 +387,9 @@ etors:
     - name: BINARIES
       desc: "[unsigned char[]] Return program binaries for all devices for this Program."
     - name: NUM_KERNELS
-      desc: "[size_t] Number of kernels in Program, return type size_t."
+      desc: "[size_t][optional-query] Number of kernels in Program, return type size_t."
     - name: KERNEL_NAMES
-      desc: "[char[]] Return a null-terminated, semi-colon separated list of kernel names in Program."
+      desc: "[char[]][optional-query] Return a null-terminated, semi-colon separated list of kernel names in Program."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a Program object"

@@ -11,7 +11,8 @@ TEST_P(urEventGetInfoTest, Success) {
 
     ur_event_info_t info_type = getParam();
     size_t size;
-    ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urEventGetInfo(event, info_type, 0, nullptr, &size), info_type);
     ASSERT_NE(size, 0);
     std::vector<uint8_t> data(size);
     ASSERT_SUCCESS(

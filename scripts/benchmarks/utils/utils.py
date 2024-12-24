@@ -3,6 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gzip
 import os
 import shutil
 import subprocess
@@ -58,7 +59,7 @@ def git_clone(dir, name, repo, commit):
     return repo_path
 
 def prepare_bench_cwd(dir):
-    # we need 2 deep to workaround a problem with a fixed relative path in cudaSift
+    # we need 2 deep to workaround a problem with a fixed relative paths in some velocity benchmarks
     options.benchmark_cwd = os.path.join(dir, 'bcwd', 'bcwd')
     if os.path.exists(options.benchmark_cwd):
         shutil.rmtree(options.benchmark_cwd)
@@ -97,7 +98,7 @@ def create_build_path(directory, name):
 
     return build_path
 
-def download(dir, url, file, untar = False):
+def download(dir, url, file, untar = False, unzip = False):
     data_file = os.path.join(dir, file)
     if not Path(data_file).exists():
         print(f"{data_file} does not exist, downloading")
@@ -106,6 +107,10 @@ def download(dir, url, file, untar = False):
             file = tarfile.open(data_file)
             file.extractall(dir)
             file.close()
+        if unzip:
+            [stripped_gz, _] = os.path.splitext(data_file)
+            with gzip.open(data_file, 'rb') as f_in, open(stripped_gz, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
     else:
         print(f"{data_file} exists, skipping...")
     return data_file

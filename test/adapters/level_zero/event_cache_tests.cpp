@@ -10,11 +10,31 @@
 #include <map>
 #include <string>
 
+#include "ze_tracer_common.hpp"
+
+std::size_t eventCreateCount = 0;
+std::size_t eventDestroyCount = 0;
+
+void OnEnterEventCreate(ze_event_create_params_t *, ze_result_t, void *,
+                        void **) {
+    eventCreateCount++;
+}
+
+void OnEnterEventDestroy(ze_event_destroy_params_t *, ze_result_t, void *,
+                         void **) {
+    eventDestroyCount++;
+}
+
+static std::shared_ptr<_zel_tracer_handle_t> tracer = [] {
+    zel_core_callbacks_t prologue_callbacks{};
+    prologue_callbacks.Event.pfnCreateCb = OnEnterEventCreate;
+    prologue_callbacks.Event.pfnDestroyCb = OnEnterEventDestroy;
+    return enableTracing(prologue_callbacks, {});
+}();
+
 template <typename... Args> auto combineFlags(std::tuple<Args...> tuple) {
     return std::apply([](auto... args) { return (... |= args); }, tuple);
 }
-
-extern std::map<std::string, int> *ZeCallCount;
 
 using FlagsTupleType = std::tuple<ur_queue_flags_t, ur_queue_flags_t,
                                   ur_queue_flags_t, ur_queue_flags_t>;
@@ -43,8 +63,8 @@ struct urEventCacheTest : uur::urContextTestWithParam<FlagsTupleType> {
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
                                          nullptr, &buffer));
 
-        (*ZeCallCount)["zeEventCreate"] = 0;
-        (*ZeCallCount)["zeEventDestroy"] = 0;
+        eventCreateCount = 0;
+        eventDestroyCount = 0;
     }
 
     void TearDown() override {
@@ -96,9 +116,9 @@ TEST_P(urEventCacheTest, eventsReuseNoVisibleEvent) {
     // TODO: why events are not reused for UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE?
     if ((flags & UR_QUEUE_FLAG_DISCARD_EVENTS) &&
         !(flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)) {
-        ASSERT_EQ((*ZeCallCount)["zeEventCreate"], 2);
+        ASSERT_EQ(eventCreateCount, 2);
     } else {
-        ASSERT_GE((*ZeCallCount)["zeEventCreate"], numIters * numEnqueues);
+        ASSERT_GE(eventCreateCount, numIters * numEnqueues);
     }
 }
 
@@ -115,7 +135,7 @@ TEST_P(urEventCacheTest, eventsReuseWithVisibleEvent) {
         verifyData();
     }
 
-    ASSERT_LT((*ZeCallCount)["zeEventCreate"], numIters * numEnqueues);
+    ASSERT_LT(eventCreateCount, numIters * numEnqueues);
 }
 
 TEST_P(urEventCacheTest, eventsReuseWithVisibleEventAndWait) {
@@ -139,9 +159,9 @@ TEST_P(urEventCacheTest, eventsReuseWithVisibleEventAndWait) {
         UUR_ASSERT_SUCCESS_OR_EXIT_IF_UNSUPPORTED(urQueueFinish(queue));
     }
 
-    ASSERT_GE((*ZeCallCount)["zeEventCreate"], waitEveryN);
+    ASSERT_GE(eventCreateCount, waitEveryN);
     // TODO: why there are more events than this?
-    // ASSERT_LE((*ZeCallCount)["zeEventCreate"],  waitEveryN * 2 + 2);
+    // ASSERT_LE(eventCreateCount,  waitEveryN * 2 + 2);
 }
 
 template <typename T>

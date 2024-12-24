@@ -79,6 +79,13 @@ else()
     set(CXX_HAS_CFI_SANITIZE OFF)
 endif()
 
+set(CFI_FLAGS "")
+if (CFI_HAS_CFI_SANITIZE)
+    # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
+    # guarantee. -fsanitize=cfi depends on -flto
+    set(CFI_FLAGS "-flto -fsanitize=cfi -fno-sanitize=cfi-icall -fsanitize-ignorelist=${CMAKE_SOURCE_DIR}/sanitizer-ignorelist.txt")
+endif()
+
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
         target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
@@ -95,9 +102,8 @@ function(add_ur_target_compile_options name)
             -fPIC
             -fstack-protector-strong
             -fvisibility=hidden
-            # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
-            # guarantee. -fsanitize=cfi depends on -flto
-            $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
+
+            ${CFI_FLAGS}
             $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
             $<$<BOOL:${CXX_HAS_FSTACK_CLASH_PROTECTION}>:-fstack-clash-protection>
 
@@ -114,18 +120,28 @@ function(add_ur_target_compile_options name)
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
-            /W3
             /MD$<$<CONFIG:Debug>:d>
-            /GS
-            /DWIN32_LEAN_AND_MEAN
-            /DNOMINMAX
+
+            /W3
+            /GS     # Enable: Buffer security check
+            /Gy     # Enable: Function-level linking
+
+            $<$<CONFIG:Release>:/sdl>             # Enable: Additional SDL checks
+            $<$<CXX_COMPILER_ID:MSVC>:/Qspectre>  # Enable: Mitigate Spectre variant 1 vulnerabilities
+
+            /wd4267  # Disable: 'var' : conversion from 'size_t' to 'type', possible loss of data
+            /wd6244  # Disable: local declaration of 'variable' hides previous declaration
+            /wd6246  # Disable: local declaration of 'variable' hides declaration of same name in outer scope
+        )
+
+        target_compile_definitions(${name} PRIVATE
+            WIN32_LEAN_AND_MEAN NOMINMAX  # Cajole Windows.h to define fewer symbols
+            _CRT_SECURE_NO_WARNINGS       # Slience warnings about getenv
         )
 
         if(UR_DEVELOPER_MODE)
-            # _CRT_SECURE_NO_WARNINGS used mainly because of getenv
-            # C4267: The compiler detected a conversion from size_t to a smaller type.
             target_compile_options(${name} PRIVATE
-                /WX /GS /D_CRT_SECURE_NO_WARNINGS /wd4267
+                /WX  # Enable: Treat all warnings as errors
             )
         endif()
     endif()
@@ -135,7 +151,7 @@ function(add_ur_target_link_options name)
     if(NOT MSVC)
         if (NOT APPLE)
             target_link_options(${name} PRIVATE
-                $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
+                ${CFI_FLAGS}
                 "LINKER:-z,relro,-z,now,-z,noexecstack"
             )
             if (UR_DEVELOPER_MODE)
@@ -149,9 +165,12 @@ function(add_ur_target_link_options name)
         endif()
     elseif(MSVC)
         target_link_options(${name} PRIVATE
-            LINKER:/DYNAMICBASE
-            LINKER:/HIGHENTROPYVA
-            LINKER:/NXCOMPAT
+            LINKER:/DYNAMICBASE     # Enable: Modify header to indicate ASLR should be use
+            LINKER:/HIGHENTROPYVA   # Enable: High-entropy address space layout randomization (ASLR)
+            $<$<CONFIG:Release>:
+                LINKER:/NXCOMPAT    # Enable: Data Execution Prevention
+                LINKER:/LTCG        # Enable: Link-time code generation
+            >
         )
     endif()
 endfunction()

@@ -110,6 +110,10 @@ TEST_P(urMemImageCreateTestWithImageFormatParam, Success) {
         }
     }
 
+    if (res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        GTEST_SKIP() << "urMemImageCreate not supported";
+    }
+
     if (!is_primary_image_format &&
         res == UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT) {
         GTEST_SKIP();

@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "platform.hpp"
+#include "adapter.hpp"
 #include "common.hpp"
 
 #include "ur/ur.hpp"
@@ -75,9 +76,9 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
     return ReturnValue("");
 
   case UR_PLATFORM_INFO_BACKEND:
-    // TODO(alcpz): PR with this enum value at
-    // https://github.com/oneapi-src/unified-runtime
     return ReturnValue(UR_PLATFORM_BACKEND_NATIVE_CPU);
+  case UR_PLATFORM_INFO_ADAPTER:
+    return ReturnValue(&Adapter);
   default:
     DIE_NO_IMPLEMENTATION;
   }

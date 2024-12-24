@@ -169,10 +169,13 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, size_t localWorkSize,
-    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
+    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
+    uint32_t *pGroupCountRet) {
   std::ignore = hKernel;
-  std::ignore = localWorkSize;
+  std::ignore = hDevice;
+  std::ignore = workDim;
+  std::ignore = pLocalWorkSize;
   std::ignore = dynamicSharedMemorySize;
   std::ignore = pGroupCountRet;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -225,6 +228,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(hKernel->getProgram());
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
+  case UR_KERNEL_INFO_NUM_REGS: {
+    int NumRegs = 0;
+    UR_CHECK_ERROR(hipFuncGetAttribute(&NumRegs, HIP_FUNC_ATTRIBUTE_NUM_REGS,
+                                       hKernel->get()));
+    return ReturnValue(static_cast<uint32_t>(NumRegs));
+  }
   default:
     break;
   }

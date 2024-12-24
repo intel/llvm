@@ -1,3 +1,5 @@
 urProgramSetSpecializationConstantsTest.InvalidValueSize/*
 urProgramSetSpecializationConstantsTest.InvalidValueId/*
 urProgramSetSpecializationConstantsTest.InvalidValuePtr/*
+urProgramGetBuildInfoTest.Success/*UR_PROGRAM_BUILD_INFO_STATUS
+{{OPT}}urMultiDeviceCommandBufferExpTest.*

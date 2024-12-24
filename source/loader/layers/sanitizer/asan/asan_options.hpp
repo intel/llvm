@@ -26,6 +26,7 @@ struct AsanOptions {
     bool DetectPrivates = true;
     bool PrintStats = false;
     bool DetectKernelArguments = true;
+    bool DetectLeaks = true;
 
     explicit AsanOptions();
 };

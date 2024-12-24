@@ -23,7 +23,8 @@ UUR_TEST_SUITE_P(urMemGetInfoTestWithParam,
 TEST_P(urMemGetInfoTestWithParam, Success) {
     ur_mem_info_t info = getParam();
     size_t size;
-    ASSERT_SUCCESS(urMemGetInfo(buffer, info, 0, nullptr, &size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urMemGetInfo(buffer, info, 0, nullptr, &size), info);
     ASSERT_NE(size, 0);
 
     if (const auto expected_size = mem_info_size_map.find(info);

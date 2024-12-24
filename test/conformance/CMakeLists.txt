@@ -112,7 +112,6 @@ add_subdirectory(platform)
 add_subdirectory(device)
 add_subdirectory(context)
 add_subdirectory(memory)
-add_subdirectory(usm)
 add_subdirectory(event)
 add_subdirectory(queue)
 add_subdirectory(sampler)
@@ -129,6 +128,7 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "exp_usm_p2p"
     "exp_launch_properties"
     "memory-migrate"
+    "usm"
 )
 
 if(UR_DPCXX)

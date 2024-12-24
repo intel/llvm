@@ -34,17 +34,13 @@ typedef ze_result_t (*zexCounterBasedEventCreate)(
 
 class provider_counter : public event_provider {
 public:
-  // TODO: does this provider support profiling?
   provider_counter(ur_platform_handle_t platform, ur_context_handle_t,
                    ur_device_handle_t);
 
   raii::cache_borrowed_event allocate() override;
-  ur_device_handle_t device() override;
   event_flags_t eventFlags() const override;
 
 private:
-  ur_device_handle_t urDevice;
-
   ze_context_handle_t translatedContext;
   ze_device_handle_t translatedDevice;
 

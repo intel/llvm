@@ -3,33 +3,35 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "fixtures.h"
+#include <uur/fixtures.h>
 
-struct urAdapterGetLastErrorTest : uur::runtime::urAdapterTest {
+struct urAdapterGetLastErrorTest : uur::urAdapterTest {
     int32_t error;
     const char *message = nullptr;
 };
 
-TEST_F(urAdapterGetLastErrorTest, Success) {
+UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(urAdapterGetLastErrorTest);
+
+TEST_P(urAdapterGetLastErrorTest, Success) {
     // We can't reliably generate a UR_RESULT_ERROR_ADAPTER_SPECIFIC error to
     // test the full functionality of this entry point, so instead do a minimal
     // smoke test and check that the call returns successfully, even if no
     // actual error was set.
     ASSERT_EQ_RESULT(UR_RESULT_SUCCESS,
-                     urAdapterGetLastError(adapters[0], &message, &error));
+                     urAdapterGetLastError(adapter, &message, &error));
 }
 
-TEST_F(urAdapterGetLastErrorTest, InvalidHandle) {
+TEST_P(urAdapterGetLastErrorTest, InvalidHandle) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urAdapterGetLastError(nullptr, &message, &error));
 }
 
-TEST_F(urAdapterGetLastErrorTest, InvalidMessagePtr) {
+TEST_P(urAdapterGetLastErrorTest, InvalidMessagePtr) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urAdapterGetLastError(adapters[0], nullptr, &error));
+                     urAdapterGetLastError(adapter, nullptr, &error));
 }
 
-TEST_F(urAdapterGetLastErrorTest, InvalidErrorPtr) {
+TEST_P(urAdapterGetLastErrorTest, InvalidErrorPtr) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urAdapterGetLastError(adapters[0], &message, nullptr));
+                     urAdapterGetLastError(adapter, &message, nullptr));
 }

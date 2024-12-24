@@ -104,14 +104,14 @@ if (UR_COMPUTE_RUNTIME_TAG STREQUAL "")
 set(UR_COMPUTE_RUNTIME_TAG 24.39.31294.12)
 endif()
 include(FetchContent)
-# Sparse fetch only the dir with level zero headers to avoid pulling in the entire compute-runtime.
-FetchContentSparse_Declare(compute-runtime-level-zero-headers ${UR_COMPUTE_RUNTIME_REPO} "${UR_COMPUTE_RUNTIME_TAG}" "level_zero/include")
-FetchContent_GetProperties(compute-runtime-level-zero-headers)
-if(NOT compute-runtime-level-zero-headers_POPULATED)
-  FetchContent_Populate(compute-runtime-level-zero-headers)
+# Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.
+FetchContentSparse_Declare(exp-headers ${UR_COMPUTE_RUNTIME_REPO} "${UR_COMPUTE_RUNTIME_TAG}" "level_zero/include")
+FetchContent_GetProperties(exp-headers)
+if(NOT exp-headers_POPULATED)
+  FetchContent_Populate(exp-headers)
 endif()
 add_library(ComputeRuntimeLevelZero-Headers INTERFACE)
-set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${compute-runtime-level-zero-headers_SOURCE_DIR}/../..")
+set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${exp-headers_SOURCE_DIR}/../..")
 message(STATUS "Level Zero Adapter: Using Level Zero headers from ${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}")
 target_include_directories(ComputeRuntimeLevelZero-Headers
     INTERFACE "$<BUILD_INTERFACE:${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}>"

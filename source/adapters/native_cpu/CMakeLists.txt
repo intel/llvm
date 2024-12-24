@@ -9,6 +9,7 @@ set(TARGET_NAME ur_adapter_native_cpu)
 
 add_ur_adapter(${TARGET_NAME}
         SHARED
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
@@ -34,6 +35,7 @@ add_ur_adapter(${TARGET_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tensor_map.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp

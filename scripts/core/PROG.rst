@@ -183,6 +183,24 @@ explicitly created against a context.
     // Release the context handle
     ${x}ContextRelease(hContext);    
 
+Object Queries
+==============
+
+Queries to get information from API objects follow a common pattern. The entry
+points for this are generally of the form:
+
+.. code-block::
+
+   ObjectGetInfo(ur_object_handle_t hObject, ur_object_info_t propName,
+                 size_t propSize, void *pPropValue, size_t *pPropSizeRet)
+
+where ``propName`` selects the information to query out. The object info enum
+representing possible queries will generally be found in the enums section of
+the relevant object. Some info queries would be difficult or impossible to
+support for certain backends, these are denoted with [optional-query] in the
+enum description. Using any enum marked optional in this way may result in
+${X}_RESULT_ERROR_UNSUPPORTED_ENUMERATION if the adapter doesn't support it.
+
 Programs and Kernels
 ====================
 
