@@ -648,8 +648,8 @@ KernelInfo &AsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
     }
 
     // Create new KernelInfo
-    auto hProgram = GetProgram(Kernel);
-    auto PI = getAsanInterceptor()->getProgramInfo(hProgram);
+    auto Program = GetProgram(Kernel);
+    auto PI = getProgramInfo(Program);
     bool IsInstrumented = PI->isKernelInstrumented(Kernel);
 
     std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
