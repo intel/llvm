@@ -36,7 +36,7 @@ Type *replaceInnermostType(Type *Ty, Type *NewInnermostTy) {
   return NewInnermostTy;
 }
 
-// This function is a copy of llvm::stripPointerCastsAndOffsets,
+// This function is a copy of stripPointerCastsAndOffsets from Value.cpp,
 // simplified and modified to strip non-zero GEP indices as well and also
 // find nearest GEP instruction.
 Value *stripPointerCastsAndOffsets(Value *V, bool StopOnGEP = false) {
@@ -53,17 +53,19 @@ Value *stripPointerCastsAndOffsets(Value *V, bool StopOnGEP = false) {
       if (StopOnGEP && isa<GetElementPtrInst>(GEP))
         return V;
       V = GEP->getPointerOperand();
-    } else if (Operator::getOpcode(V) == Instruction::BitCast) {
-      Value *NewV = cast<Operator>(V)->getOperand(0);
+    } else if (auto *BC = dyn_cast<BitCastOperator>(V)) {
+      Value *NewV = BC->getOperand(0);
       if (!NewV->getType()->isPointerTy())
         return V;
       V = NewV;
-    } else if (Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
-      V = cast<Operator>(V)->getOperand(0);
+    } else if (auto *ASC = dyn_cast<AddrSpaceCastOperator>(V)) {
+      V = ASC->getOperand(0);
     } else {
       if (auto *Call = dyn_cast<CallBase>(V)) {
         if (Value *RV = Call->getReturnedArgOperand()) {
           V = RV;
+          // Strip the call instruction, since callee returns its RV
+          // argument as return value. So, we need to continue stripping.
           continue;
         }
       }
@@ -83,8 +85,7 @@ TargetExtType *extractMatrixType(StructType *WrapperMatrixTy) {
 
   if (!MatrixTy)
     return nullptr;
-  StringRef Name = MatrixTy->getName();
-  if (Name != MATRIX_TYPE)
+  if (MatrixTy->getName() != MATRIX_TYPE)
     return nullptr;
   return MatrixTy;
 }
@@ -161,7 +162,7 @@ bool transformAccessChain(Function *F) {
     // __spirv_AccessChain
     // First we check if the argument came from a GEP instruction
     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(
-        stripPointerCastsAndOffsets(CI->getArgOperand(0), true));
+        stripPointerCastsAndOffsets(CI->getArgOperand(0), /*StopOnGEP=*/true));
     if (!GEP)
       continue;
 
@@ -181,7 +182,6 @@ bool transformAccessChain(Function *F) {
       ModuleChanged = true;
     }
   }
-
   return ModuleChanged;
 }
 } // namespace
