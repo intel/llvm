@@ -192,6 +192,14 @@ ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &desc) {
   return pool;
 }
 
+static ur_usm_device_mem_flags_t getDeviceFlags(const ur_usm_desc_t *pUSMDesc) {
+  if (auto devDesc = find_stype_node<ur_usm_device_desc_t>(pUSMDesc)) {
+    return devDesc->flags;
+  }
+
+  return 0;
+}
+
 ur_result_t ur_usm_pool_handle_t_::allocate(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
@@ -204,8 +212,11 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  auto umfPool =
-      getPool(usm::pool_descriptor{this, hContext, hDevice, type, false});
+  auto deviceFlags = getDeviceFlags(pUSMDesc);
+
+  auto umfPool = getPool(usm::pool_descriptor{
+      this, hContext, hDevice, type,
+      bool(deviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY)});
   if (!umfPool) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
