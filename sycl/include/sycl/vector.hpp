@@ -625,12 +625,12 @@ private:
                             OperationCurrentT_, Idx_...>;
 
   template <int IdxNum, typename T = void>
-  using EnableIfOneIndex = typename std::enable_if_t<
-      1 == IdxNum && SwizzleOp::size() == IdxNum, T>;
+  using EnableIfOneIndex =
+      typename std::enable_if_t<1 == IdxNum && SwizzleOp::size() == IdxNum, T>;
 
   template <int IdxNum, typename T = void>
-  using EnableIfMultipleIndexes = typename std::enable_if_t<
-      1 != IdxNum && SwizzleOp::size() == IdxNum, T>;
+  using EnableIfMultipleIndexes =
+      typename std::enable_if_t<1 != IdxNum && SwizzleOp::size() == IdxNum, T>;
 
   template <typename T>
   using EnableIfScalarType =
@@ -870,8 +870,7 @@ public:
   __SYCL_RELLOGOP(||, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
 #undef __SYCL_RELLOGOP
 
-  template <int IdxNum = size(),
-            typename = EnableIfMultipleIndexes<IdxNum>>
+  template <int IdxNum = size(), typename = EnableIfMultipleIndexes<IdxNum>>
   SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
@@ -887,8 +886,7 @@ public:
     return *this;
   }
 
-  template <int IdxNum = size(),
-            EnableIfMultipleIndexes<IdxNum, bool> = true>
+  template <int IdxNum = size(), EnableIfMultipleIndexes<IdxNum, bool> = true>
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (auto Idx : Idxs) {
@@ -1046,10 +1044,9 @@ public:
     return NewLHOp<RhsOperation, LShift, Indexes...>(m_Vector, *this, Rhs);
   }
 
-  template <
-      typename T1, typename T2, typename T3, template <typename> class T4,
-      int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == size()>>
+  template <typename T1, typename T2, typename T3, template <typename> class T4,
+            int... T5,
+            typename = typename std::enable_if_t<sizeof...(T5) == size()>>
   SwizzleOp &operator=(const SwizzleOp<T1, T2, T3, T4, T5...> &Rhs) {
     std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
@@ -1058,10 +1055,9 @@ public:
     return *this;
   }
 
-  template <
-      typename T1, typename T2, typename T3, template <typename> class T4,
-      int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == size()>>
+  template <typename T1, typename T2, typename T3, template <typename> class T4,
+            int... T5,
+            typename = typename std::enable_if_t<sizeof...(T5) == size()>>
   SwizzleOp &operator=(SwizzleOp<T1, T2, T3, T4, T5...> &&Rhs) {
     std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
