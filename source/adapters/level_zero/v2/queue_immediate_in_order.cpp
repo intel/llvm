@@ -872,17 +872,20 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy2D(
     bool blocking, void *pDst, size_t dstPitch, const void *pSrc,
     size_t srcPitch, size_t width, size_t height, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = dstPitch;
-  std::ignore = pSrc;
-  std::ignore = srcPitch;
-  std::ignore = width;
-  std::ignore = height;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMMemcpy2D");
+
+  ur_rect_offset_t zeroOffset{0, 0, 0};
+  ur_rect_region_t region{width, height, 0};
+
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
+
+  ur_usm_handle_t_ srcHandle(hContext, 0, pSrc);
+  ur_usm_handle_t_ dstHandle(hContext, 0, pDst);
+
+  return enqueueRegionCopyUnlocked(&srcHandle, &dstHandle, blocking, zeroOffset,
+                                   zeroOffset, region, srcPitch, 0, dstPitch, 0,
+                                   numEventsInWaitList, phEventWaitList,
+                                   phEvent, UR_COMMAND_MEM_BUFFER_COPY_RECT);
 }
 
 static void *getGlobalPointerFromModule(ze_module_handle_t hModule,
