@@ -696,6 +696,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
     ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
     auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
     auto ArgNums = GetKernelNumArgs(Kernel);
     auto LocalMemoryUsage =

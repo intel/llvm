@@ -371,6 +371,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
     // Set membuffer arguments
     auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
     for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
         char *ArgPointer = nullptr;
