@@ -182,17 +182,6 @@ private:
 
   static constexpr int getNumElements() { return NumElements; }
 
-  // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
-  template <int Counter, int MaxValue, class...>
-  struct SizeChecker : std::conditional_t<Counter == MaxValue, std::true_type,
-                                          std::false_type> {};
-
-  template <int Counter, int MaxValue, typename DataT_, class... tail>
-  struct SizeChecker<Counter, MaxValue, DataT_, tail...>
-      : std::conditional_t<Counter + 1 <= MaxValue,
-                           SizeChecker<Counter + 1, MaxValue, tail...>,
-                           std::false_type> {};
-
   // Utility trait for creating an std::array from an vector argument.
   template <typename DataT_, typename T> class FlattenVecArg {
     template <std::size_t... Is>
