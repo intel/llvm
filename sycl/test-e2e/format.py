@@ -248,7 +248,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 (is_run_line and test.config.test_mode == "build-only")
                 or (not is_run_line and test.config.test_mode == "run-only")
             ):
-                directive.command = ""
+                continue
 
             if "%{run}" not in directive.command:
                 new_script.append(directive)
@@ -300,7 +300,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             conditions,
             recursion_limit=test.config.recursiveExpansionLimit,
         )
-        useExternalSh = False
+
+        # TODO: workaround for lit hanging when executing non-existent binary
+        # inside our containers
+        if len(script) == 0:
+            return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
+        useExternalSh = test.config.test_mode == "run-only"
+
         result = lit.TestRunner._runShTest(
             test, litConfig, useExternalSh, script, tmpBase
         )

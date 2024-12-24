@@ -21,9 +21,6 @@ inputs:
   file:
     description: "Dockerfile"
     required: true
-  sycl_ci_passwd:
-    description: "Password to assign to sycl_ci user within a container"
-    required: true
 
 runs:
   using: "composite"
@@ -44,4 +41,3 @@ runs:
       file: ${{ github.workspace }}/devops/containers/${{ inputs.file }}.Dockerfile
       secrets: |
         github_token=${{ github.token }}
-        sycl_ci_passwd=${{ inputs.sycl_ci_passwd }}
