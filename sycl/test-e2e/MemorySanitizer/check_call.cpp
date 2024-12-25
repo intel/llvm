@@ -20,6 +20,7 @@ int main() {
         [=]() { array[0] = foo(array[0], array[1]); });
   });
   Q.wait();
+  // CHECK-NOT: [kernel]
   // CHECK: use-of-uninitialized-value
   // CHECK: kernel <{{.*MyKernel}}>
   // CHECK: #0 {{.*}} {{.*check_call.cpp}}:[[@LINE-5]]
