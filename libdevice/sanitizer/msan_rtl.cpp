@@ -137,9 +137,9 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
                         ->GlobalShadowOffsetEnd;
   if (addr < shadow_begin) {
-    return Ptr + (shadow_begin - 0xff00'0000'0000'0000ULL);
+    return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
   } else {
-    return Ptr - (0xff00'ffff'ffff'ffffULL - shadow_end);
+    return addr - (0xff00'ffff'ffff'ffffULL - shadow_end);
   }
 }
 
