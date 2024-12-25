@@ -138,7 +138,7 @@ ur_result_t MsanShadowMemoryGPU::Setup() {
         // To reserve very large amount of GPU virtual memroy, the pStart param should be beyond
         // the SVM range, so that GFX driver will automatically switch to reservation on the GPU
         // heap.
-        const void *StartAddress = (void *)(0x100000000000000ULL);
+        const void *StartAddress = (void *)(0x100'0000'0000'0000ULL);
         // TODO: Protect Bad Zone
         auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
             Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
