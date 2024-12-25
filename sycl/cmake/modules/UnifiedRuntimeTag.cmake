@@ -3,5 +3,5 @@
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
 # Date:   Thu Dec 19 11:26:01 2024 +0000
 #     Merge pull request #2277 from igchor/cooperative_fix
-#     [Spec] fix urKernelSuggestMaxCooperativeGroupCountExp
+#     [Spec] fix urKernelSuggestMaxCooperativeGroupCount
 set(UNIFIED_RUNTIME_TAG review/yang/fix_msan_shadow)
