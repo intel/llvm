@@ -143,6 +143,9 @@ ur_result_t MsanShadowMemoryGPU::Setup() {
         auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
             Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
         if (Result != UR_RESULT_SUCCESS) {
+            getContext()->logger.error(
+                "Shadow memory reserved failed with size {}: {}",
+                (void *)ShadowSize, Result);
             return Result;
         }
         ShadowEnd = ShadowBegin + ShadowSize;
