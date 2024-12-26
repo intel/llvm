@@ -10,12 +10,15 @@
 int main() {
   sycl::buffer<sycl::int3, 1> b(sycl::range<1>(2));
   sycl::queue myQueue;
-  myQueue.submit([&](sycl::handler &cgh) {
-    auto B = b.get_access<sycl::access::mode::read_write>(cgh);
-    cgh.parallel_for<class MyKernel>(sycl::range<1>{2}, [=](sycl::id<1> ID) {
-      B[ID] = sycl::int3{(sycl::int3)ID[0]} / B[ID];
-    });
-  }).wait();
+  myQueue
+      .submit([&](sycl::handler &cgh) {
+        auto B = b.get_access<sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<class MyKernel>(
+            sycl::range<1>{2}, [=](sycl::id<1> ID) {
+              B[ID] = sycl::int3{(sycl::int3)ID[0]} / B[ID];
+            });
+      })
+      .wait();
   // CHECK: use-of-uninitialized-value
   // CHECK: kernel <{{.*MyKernel}}>
 
