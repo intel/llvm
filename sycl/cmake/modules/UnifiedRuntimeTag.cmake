@@ -1,7 +1,7 @@
-# commit 232e62f5221d565ec40d051d3c640b836ca91244
-# Merge: 76a96238 59b37e3f
+# commit 93fc1331edfd5519ea1fab42a8b96abe9e53672f
+# Merge: 259b67db d2c04518
 # Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Mon Dec 23 18:26:58 2024 +0000
-#     Merge pull request #2498 from Bensuo/fabio/fix_l0_old_loader_no_translate
-#     Update usage of zeCommandListImmediateAppendCommandListsExp to use dlsym
-set(UNIFIED_RUNTIME_TAG 232e62f5221d565ec40d051d3c640b836ca91244)
+# Date:   Thu Dec 26 16:52:33 2024 +0000
+#     Merge pull request #2402 from yingcong-wu/yc/1202-mmap-failure
+#     [DevASAN][CPU] bugfix for mmap return value check.
+set(UNIFIED_RUNTIME_TAG 93fc1331edfd5519ea1fab42a8b96abe9e53672f)
