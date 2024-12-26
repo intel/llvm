@@ -12,7 +12,7 @@ echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt
 | tee /etc/apt/sources.list.d/oneAPI.list
 
 # Install the ROCM kernel driver and oneAPI
-RUN apt update && apt install -yqq intel-oneapi-compiler-dpcpp-cpp && \
+RUN apt update && apt install -yqq intel-oneapi-compiler-dpcpp-cpp-2025.0 && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
