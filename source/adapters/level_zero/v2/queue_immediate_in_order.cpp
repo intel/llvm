@@ -660,10 +660,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
     // If memory was not migrated, we need to wait on the events here.
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (handler.commandList.get(), waitList.second, waitList.first));
-    if (signalEvent) {
-      ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                 (handler.commandList.get(), signalEvent->getZeEvent()));
-    }
+  }
+
+  if (signalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (handler.commandList.get(), signalEvent->getZeEvent()));
   }
 
   if (blockingMap) {
