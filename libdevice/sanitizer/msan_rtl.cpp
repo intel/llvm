@@ -205,9 +205,9 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
     }                                                                          \
   }
 
-MSAN_MEMSET(0);
-MSAN_MEMSET(1);
-MSAN_MEMSET(3);
+MSAN_MEMSET(0)
+MSAN_MEMSET(1)
+MSAN_MEMSET(3)
 MSAN_MEMSET(4)
 
 #endif // __SPIR__ || __SPIRV__

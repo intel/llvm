@@ -1081,7 +1081,7 @@ void MemorySanitizer::initializeCallbacks(Module &M,
       const std::string Suffix = "_p" + itostr(FirstArgAS);
       PointerType *FirstArgPtrTy = IRB.getPtrTy(FirstArgAS);
       MemsetOffloadFn[FirstArgAS] = M.getOrInsertFunction(
-          "__msan_memset" + Suffix, TLI.getAttrList(C, {1}, true),
+          "__msan_memset" + Suffix, TLI.getAttrList(C, {1}, /*Signed=*/true),
           FirstArgPtrTy, FirstArgPtrTy, IRB.getInt32Ty(), IntptrTy);
     }
   }
