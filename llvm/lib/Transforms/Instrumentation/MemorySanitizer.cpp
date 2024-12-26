@@ -1647,9 +1647,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       else
         IRB.CreateCall(MS.WarningFn)->setCannotMerge();
     } else { // SPIR or SPIR-V
-        SmallVector<Value *, 3> Args;
-        appendDebugInfoToArgs(IRB, Args);
-        IRB.CreateCall(MS.WarningFn, Args)->setCannotMerge();
+      SmallVector<Value *, 3> Args;
+      appendDebugInfoToArgs(IRB, Args);
+      IRB.CreateCall(MS.WarningFn, Args)->setCannotMerge();
     }
     // FIXME: Insert UnreachableInst if !MS.Recover?
     // This may invalidate some of the following checks and needs to be done
