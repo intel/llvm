@@ -1427,6 +1427,18 @@ void CodeGenModule::Release() {
         AspectEnumValsMD->addOperand(
             getAspectEnumValueMD(Context, TheModule.getContext(), ECD));
     }
+
+    if (!SYCLRegKernelNames.empty()) {
+      std::vector<llvm::Metadata *> Nodes;
+      for (auto MDKernelNames: SYCLRegKernelNames) {
+        llvm::Metadata *Vals[] = {MDKernelNames.first, MDKernelNames.second};
+        Nodes.push_back(llvm::MDTuple::get(TheModule.getContext(), Vals));
+      }
+
+      getModule().addModuleFlag(
+          llvm::Module::Append, "sycl_registered_kernels",
+          llvm::MDTuple::get(TheModule.getContext(), Nodes));
+    }
   }
 
   // HLSL related end of code gen work items.

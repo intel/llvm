@@ -5537,117 +5537,84 @@ static void handlePatchableFunctionEntryAttr(Sema &S, Decl *D,
                  PatchableFunctionEntryAttr(S.Context, AL, Count, Offset));
 }
 
-extern void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD);
+static bool isFreeFunctionKernel(Sema &S, FunctionDecl *FD) {
+  /* If it does not have the attribute, return false. */
+  if (!FD->hasAttr<SYCLAddIRAttributesFunctionAttr>())
+    return false;
+  /* If it does, traverse through the pairs and return true, if
+     it is one of the two free function types. */
+  auto *SAIRAttr = FD->getAttr<SYCLAddIRAttributesFunctionAttr>();
+  SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+      SAIRAttr->getFilteredAttributeNameValuePairs(S.Context);
+  for (const auto &NVPair : NameValuePairs) {
+    if (!NVPair.first.compare("sycl-single-task-kernel") ||
+        !NVPair.first.compare("sycl-nd-range-kernel"))
+      return true;
+  }
+  /* If it does not have free function attributes, return false. */
+  return false;
+}
 
 static void handleSYCLRegisteredKernels(Sema &S, Decl *D, const ParsedAttr &A) {
   unsigned NumArgs = A.getNumArgs();
+  /* When declared, we expect at least one item in the list. */
   if (NumArgs == 0) {
     S.Diag(A.getLoc(), diag::err_registered_kernels_num_of_args);
     return;
   }
 
+  /* Traverse through the items in the list. */
   for (unsigned I = 0; I < NumArgs; I++) {
     assert(A.isArgExpr(I) && "Expected expression argument");
+    /* Each item in the list must be an initializer list expression. */
     Expr *ArgExpr = A.getArgAsExpr(I);
     if (!isa<InitListExpr>(ArgExpr)) {
       S.Diag(ArgExpr->getExprLoc(), diag::err_registered_kernels_init_list);
       return;
     }
-   
+
     const auto *ArgListE = cast<InitListExpr>(ArgExpr);
     unsigned NumInits = ArgListE->getNumInits();
+    /* Each init-list expression must have a pair of values. */
     if (NumInits != 2) {
       S.Diag(ArgExpr->getExprLoc(),
              diag::err_registered_kernels_init_list_pair_values);
       return;
     }
 
-    const Expr *FirstE = ArgListE->getInit(0);
-    QualType Ty = FirstE->getType();
+    /* The first value of the pair muse be a string. */
+    const Expr *FirstExpr = ArgListE->getInit(0);
     StringRef CurStr;
-    SourceLocation Loc = FirstE->getExprLoc();
-    if (!S.checkStringLiteralArgumentAttr(A, FirstE, CurStr, &Loc))
+    SourceLocation Loc = FirstExpr->getExprLoc();
+    if (!S.checkStringLiteralArgumentAttr(A, FirstExpr, CurStr, &Loc))
       return;
-    else
-      printf("Found %s\n", CurStr.str().c_str());
 
+    /* Resolve the FunctionDecl from the second value of the pair. */
     auto *SecondE = const_cast<Expr *>(ArgListE->getInit(1));
-printf("Dumping\n");
-SecondE->dump();
+    FunctionDecl *FD = nullptr;
     if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(SecondE)) {
-      FunctionDecl *FD = S.ResolveSingleFunctionTemplateSpecialization(
-                             ULE, true);
-      if (FD) {
-      if (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate) 
-printf("Case 1 TKNT\n");
-      if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplateSpecialization)
-printf("Case 2 FTS\n");
-     } else {
-        printf("Null FD\n");
-        ULE->dump();
-     }
-     S.InstantiateFunctionDefinition(A.getLoc(), FD);
-   } else {
-     FunctionDecl *FD = nullptr;
-     DeclRefExpr *DRE = nullptr;
-   if (isa<CastExpr>(SecondE)) {
-//      SecondE->dump();
-     Expr *E = cast<CastExpr>(SecondE)->getSubExprAsWritten();
-     if (E->getType()->isFunctionType()) {
-       printf("FT\n");
-       DRE = dyn_cast<DeclRefExpr>(E);
-     }
-   } else {
-      DRE = dyn_cast<DeclRefExpr>(SecondE);
-   }
-   if (DRE && isa<FunctionDecl>(DRE->getDecl())) {
-     printf("FD\n");
-     FD = cast<FunctionDecl>(DRE->getDecl());
-   }
-   if (FD) {
-     FD->dump();
-     //ConstructFreeFunctionKernel(S.SYCL(), FD);
-     
-     if (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate) 
-       printf("Case TKNT\n");
-   } else {
-     SecondE->dump();
-     printf("failed\n");
-   }
-   }
-      
-#if 0
-    for (Expr *FilterElemE : cast<InitListExpr>(ArgExpr)->inits()) {
-      printf("Processing elem %u\n", I);
-      auto *ULE = dyn_cast<UnresolvedLookupExpr>(FilterElemE);
-      if (ULE) {
-        FunctionDecl *FD = S.ResolveSingleFunctionTemplateSpecialization(ULE, true);
-        S.InstantiateFunctionDefinition(A.getLoc(), FD);
-//        FD->dump();
-      } else if (isa<CastExpr>(FilterElemE)) {
-        Expr *E = dyn_cast<CastExpr>(FilterElemE)->getSubExprAsWritten();
-        //FilterElemE->dump();
-        FunctionDecl *FD = nullptr;
-        DeclRefExpr *DRE = nullptr;
-        if (E->getType()->isFunctionType()) {
-          printf("FT\n");
-          DRE = dyn_cast<DeclRefExpr>(E);
-        }
-        if (DRE && isa<FunctionDecl>(DRE->getDecl())) {
-          printf("FD\n");
-          FD = dyn_cast<FunctionDecl>(DRE->getDecl());
-        }
-        if (FD)
-          FD->dump();
-        else {
-          FilterElemE->dump();
-          printf("failed\n");
-        }
-      }
- 
-//      FilterElemE->dump();
+      FD = S.ResolveSingleFunctionTemplateSpecialization(ULE, true);
+      Loc = ULE->getExprLoc();
+    } else {
+      while (isa<CastExpr>(SecondE))
+        SecondE = cast<CastExpr>(SecondE)->getSubExpr();
+      auto *DRE = dyn_cast<DeclRefExpr>(SecondE);
+      if (DRE)
+        FD = dyn_cast<FunctionDecl>(DRE->getDecl());
+      Loc = SecondE->getExprLoc();
     }
-#endif
+    /* Issue a diagnostic if we are unable to resolve the FunctionDecl. */
+    if (!FD) {
+      S.Diag(Loc, diag::err_registered_kernels_resolve_function) << CurStr;
+      return;
+    }
+    /* Issue a diagnostic is the FunctionDecl is not a SYCL free function. */
+    if (!isFreeFunctionKernel(S, FD)) {
+      S.Diag(FD->getLocation(), diag::err_not_sycl_free_function) << CurStr;
+      return;
+    }
+    /* Construct a free function kernel. */
+    S.SYCL().constructFreeFunctionKernel(FD, CurStr);
   }
 }
 

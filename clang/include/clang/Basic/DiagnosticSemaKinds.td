@@ -12522,6 +12522,12 @@ def err_registered_kernels_init_list : Error<
 def err_registered_kernels_init_list_pair_values : Error<
   "each initializer list argument to the '__registered_kernels__' atribute "
   "must contain a pair of values">;
+def err_registered_kernels_resolve_function : Error<
+  "unable to resolve free function kernel '%0'">;
+def err_registered_kernels_name_already_registered : Error<
+  "free function kernel has already been registered with '%0'; cannot register with '%1'">;
+def err_not_sycl_free_function : Error<
+  "attempting to register a function that is not a SYCL free function as '%0'">;
 
 def warn_cuda_maxclusterrank_sm_90 : Warning<
   "'maxclusterrank' requires sm_90 or higher, CUDA arch provided: %0, ignoring "

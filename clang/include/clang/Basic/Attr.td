@@ -2150,6 +2150,13 @@ def SYCLRegisteredKernels : InheritableAttr {
   let Documentation = [SYCLAddIRAnnotationsMemberDocs];
 }
 
+def SYCLRegisteredKernelName : InheritableAttr {
+  let Spellings = [];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [StringArgument<"RegName">];
+  let Documentation = [InternalOnly];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [CustomKeyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
