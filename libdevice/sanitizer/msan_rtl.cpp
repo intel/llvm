@@ -157,11 +157,11 @@ MSAN_MAYBE_WARNING(u32, 4)
 MSAN_MAYBE_WARNING(u64, 8)
 
 DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
-  if (!__MsanLaunchInfo.get())
-    return;
-
   // Return clean shadow (0s) by default
   uptr shadow_ptr = (uptr)CleanShadow;
+
+  if (!__MsanLaunchInfo.get())
+    return shadow_ptr;
 
   if (UNLIKELY(!__MsanLaunchInfo)) {
     __spirv_ocl_printf(__msan_print_warning_nolaunchinfo);
