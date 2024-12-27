@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -triple spir64 -o - %s | FileCheck %s
 
 // This test checks if the sycl_registered_kernels module flag and
 // associated entries are generated for registered kernel names.

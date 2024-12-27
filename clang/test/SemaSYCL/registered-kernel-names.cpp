@@ -44,7 +44,7 @@ constexpr const char *str = "foo";
 template <typename T>
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
-void func();
+void func1();
 
 namespace N {
 [[__sycl_detail__::__registered_kernels__(
@@ -55,17 +55,17 @@ namespace N {
 // expected-error@+3 {{unable to resolve free function kernel 'func'}}
 namespace {
 [[__sycl_detail__::__registered_kernels__(
-  {"func", func<int, int>}
+  {"func", func1<int, int>}
 )]];
 }
 
 // expected-error@+3 {{free function kernel has already been registered with 'reg1'; cannot register with 'reg2'}}
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
-void good() {
+void good1() {
 }
 
 [[__sycl_detail__::__registered_kernels__(
-  {"reg1", good},
-  {"reg2", good}
+  {"reg1", good1},
+  {"reg2", good1}
 )]];
