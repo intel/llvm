@@ -484,8 +484,9 @@ int main(
       test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16,
            MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
 #ifndef PREFETCH // Workaround for GSD-10535
-      // Commented out due flaky results. GSD-10537
-      // test<bfloat16, float, VnniFactor, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32, MCache1,
+                 // Commented out due flaky results. GSD-10537
+      // test<bfloat16, float, VnniFactor, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32,
+      // MCache1,
       //      NCache1, /*KCache1*/ 32, MCache2, NCache2, KCache2>(matrix_size);
 #endif // PREFETCH
       test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32,
