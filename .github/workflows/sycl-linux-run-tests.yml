@@ -222,7 +222,7 @@ jobs:
     - name: SYCL CTS GIT submodules init
       if: inputs.tests_selector == 'cts'
       run: |
-        git -C khronos_sycl_cts submodule update --init 
+        git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
       if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
@@ -339,6 +339,8 @@ jobs:
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
       run: |
+        # When building with oneAPI, the oneAPI libsycl is found before the newly compiled one and the search order
+        # can't be changed by environment variables, so just rename it temporarily.
         if [ ${{ inputs.is_icx }} == 'true' ];
           sudo mv /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.bak
         fi
