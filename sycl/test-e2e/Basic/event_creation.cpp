@@ -2,6 +2,7 @@
 
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out
+// RUN: sleep infinity
 
 //==--------------- event.cpp - SYCL event test ----------------------------==//
 //
