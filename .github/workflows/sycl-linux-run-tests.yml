@@ -341,7 +341,7 @@ jobs:
       run: |
         # When building with oneAPI, the oneAPI libsycl is found before the newly compiled one and the search order
         # can't be changed by environment variables, so just rename it temporarily.
-        if [ ${{ inputs.is_icx }} == 'true' ];
+        if [ ${{ inputs.is_icx }} == 'true' ]; then
           sudo mv /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.bak
         fi
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
@@ -350,7 +350,7 @@ jobs:
         if [ $exit_code -ne 0 ]; then
           awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
         fi
-        if [ ${{ inputs.is_icx }} == 'true' ];
+        if [ ${{ inputs.is_icx }} == 'true' ]; then
           sudo mv /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.bak /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so
         fi
         exit $exit_code
