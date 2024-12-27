@@ -60,6 +60,21 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             reset_intel_gpu: false
+          - name: E2E tests on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            env: '{"LIT_FILTER_OUT":"ESIMD/unified_memory_api/"}'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            extra_lit_opts: -j 50
+          - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            env: '{"LIT_FILTER_OUT":"ESIMD/unified_memory_api/"}'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            use_igc_dev: true
+            extra_lit_opts: -j 50
           # Performance tests below. Specifics:
           #  - only run performance tests (use LIT_FILTER env)
           #  - ask llvm-lit to show all the output, even for PASS (-a)
@@ -82,7 +97,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
-      image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest' }}
+      image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest' }}
       image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}

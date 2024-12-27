@@ -120,10 +120,7 @@ InstallIGFX () {
   #
   # Of course, this also installed the libopencl-clang so that we can copy and use later as a temporariy workaround.
   IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
-  UBUNTU_VER="u22\.04"
-  if [ "$IS_IGC_DEV" == "Yes" ] || [ "$L0_TAG" == "latest" ]; then
-     UBUNTU_VER="u24\.04"
-  fi
+  UBUNTU_VER="u24\.04"
   get_release intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
@@ -143,7 +140,7 @@ InstallIGFX () {
   get_release oneapi-src/level-zero $L0_TAG \
     | grep ".*$UBUNTU_VER.*deb" \
     | wget -qi -
-  dpkg -i *.deb && rm *.deb *.sum
+  dpkg -i --force-overwrite *.deb && rm *.deb *.sum
   mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then

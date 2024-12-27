@@ -1,7 +1,7 @@
-# commit 39df0317814c164f5242eda8d6f08550f6268492
-# Merge: 68d93efd be27d8f0
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Dec 16 13:53:13 2024 +0000
-#     Merge pull request #2467 from nrspruit/fix_external_import_function_call
-#     [L0] Fix external semaphore import function calls to match the header
-set(UNIFIED_RUNTIME_TAG 39df0317814c164f5242eda8d6f08550f6268492)
+# commit 93fc1331edfd5519ea1fab42a8b96abe9e53672f
+# Merge: 259b67db d2c04518
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Thu Dec 26 16:52:33 2024 +0000
+#     Merge pull request #2402 from yingcong-wu/yc/1202-mmap-failure
+#     [DevASAN][CPU] bugfix for mmap return value check.
+set(UNIFIED_RUNTIME_TAG 93fc1331edfd5519ea1fab42a8b96abe9e53672f)

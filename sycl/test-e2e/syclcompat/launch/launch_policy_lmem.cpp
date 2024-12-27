@@ -26,6 +26,9 @@
 // UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15275
 
+// XFAIL: arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
