@@ -194,6 +194,7 @@ public:
   bool hasAndNot(SDValue Y) const override;
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
+  void emitExpandAtomicRMW(AtomicRMWInst *AI) const override;
 
   Value *emitMaskedAtomicRMWIntrinsic(IRBuilderBase &Builder, AtomicRMWInst *AI,
                                       Value *AlignedAddr, Value *Incr,
@@ -272,7 +273,7 @@ public:
     return false;
   }
   bool shouldConsiderGEPOffsetSplit() const override { return true; }
-  bool shouldSignExtendTypeInLibCall(EVT Type, bool IsSigned) const override;
+  bool shouldSignExtendTypeInLibCall(Type *Ty, bool IsSigned) const override;
   bool shouldExtendTypeInLibCall(EVT Type) const override;
 
   bool shouldAlignPointerArgs(CallInst *CI, unsigned &MinSize,
