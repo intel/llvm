@@ -236,6 +236,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     device.h atomic.hpp spirv_vars.h
     ${UR_SANITIZER_INCLUDE_DIR}/asan/asan_libdevice.hpp
     include/asan_rtl.hpp
+    include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     sycl-compiler)
 
@@ -293,6 +294,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     device.h atomic.hpp spirv_vars.h
     ${UR_SANITIZER_INCLUDE_DIR}/msan/msan_libdevice.hpp
     include/msan_rtl.hpp
+    include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     sycl-compiler)
 endif()

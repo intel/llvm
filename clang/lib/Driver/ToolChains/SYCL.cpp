@@ -660,14 +660,12 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
 #if !defined(_WIN32)
   std::string SanitizeVal;
-  std::string SanitizeArg;
   size_t sanitizer_lib_idx = getSingleBuildTarget();
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
                                options::OPT_fno_sanitize_EQ)) {
     if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
         A->getValues().size() == 1) {
       SanitizeVal = A->getValue();
-      SanitizeArg = A->getAsString(Args);
     }
   } else {
     // User can pass -fsanitize=address to device compiler via
@@ -692,12 +690,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     for (const std::string &Arg : ArgVals) {
       if (Arg.find("-fsanitize=address") != std::string::npos) {
         SanitizeVal = "address";
-        SanitizeArg = Arg;
         break;
       }
       if (Arg.find("-fsanitize=memory") != std::string::npos) {
         SanitizeVal = "memory";
-        SanitizeArg = Arg;
         break;
       }
     }
