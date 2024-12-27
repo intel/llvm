@@ -255,7 +255,7 @@ jobs:
          while IFS= read -r line; do
            echo "$line" >> $GITHUB_ENV
          done <<< "$changed_envvars"
-    
+         sudo rm /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so
     - name: Source OneAPI TBB vars.sh
       if: ${{ inputs.is_icx == 'false' }}
       shell: bash
