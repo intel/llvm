@@ -1,7 +1,7 @@
-# commit 93fc1331edfd5519ea1fab42a8b96abe9e53672f
-# Merge: 259b67db d2c04518
+# commit fe6c83a3a40e69eaa0c4829c8ba99b03e05bb4e2
+# Merge: 93fc1331 cf0c9482
 # Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Dec 26 16:52:33 2024 +0000
-#     Merge pull request #2402 from yingcong-wu/yc/1202-mmap-failure
-#     [DevASAN][CPU] bugfix for mmap return value check.
-set(UNIFIED_RUNTIME_TAG 93fc1331edfd5519ea1fab42a8b96abe9e53672f)
+# Date:   Fri Dec 27 17:39:52 2024 +0000
+#     Merge pull request #2507 from AllanZyne/review/yang/fix_msan_shadow
+#     [DeviceMSAN] Fix MemToShadow algorithm and VA reservation
+set(UNIFIED_RUNTIME_TAG fe6c83a3a40e69eaa0c4829c8ba99b03e05bb4e2)
