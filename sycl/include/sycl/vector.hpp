@@ -1181,7 +1181,7 @@ public:
   }
 
 private:
-  static constexpr auto get_vec_idx(int idx) {
+  static constexpr int get_vec_idx(int idx) {
     int counter = 0;
     int result = -1;
     ((result = counter++ == idx ? Indexes : result), ...);
