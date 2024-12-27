@@ -10,7 +10,6 @@
 
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
