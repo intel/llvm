@@ -252,8 +252,8 @@ private:
   // We need to store the list of the sycl_kernel functions and their associated
   // generated OpenCL Kernels so we can go back and re-name these after the
   // fact.
-  using KernelFDPairs = llvm::SmallVector<
-                            std::pair<const FunctionDecl *, FunctionDecl *>>;
+  using KernelFDPairs =
+      llvm::SmallVector<std::pair<const FunctionDecl *, FunctionDecl *>>;
   KernelFDPairs SyclKernelsToOpenCLKernels;
 
   // Used to suppress diagnostics during kernel construction, since these were
@@ -297,9 +297,7 @@ public:
                               llvm::DenseSet<QualType> Visited,
                               ValueDecl *DeclToCheck);
 
-  const KernelFDPairs &getKernelFDPairs() {
-    return SyclKernelsToOpenCLKernels;
-  }
+  const KernelFDPairs &getKernelFDPairs() { return SyclKernelsToOpenCLKernels; }
 
   void addSyclOpenCLKernel(const FunctionDecl *SyclKernel,
                            FunctionDecl *OpenCLKernel) {

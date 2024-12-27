@@ -1487,9 +1487,9 @@ public:
       SmallVectorImpl<std::pair<std::string, std::string>> &Pairs);
 
   void SYCLAddRegKernelNamePairs(StringRef First, StringRef Second) {
-    SYCLRegKernelNames.push_back(std::make_pair(
-        llvm::MDString::get(getLLVMContext(), First),
-        llvm::MDString::get(getLLVMContext(), Second)));
+    SYCLRegKernelNames.push_back(
+        std::make_pair(llvm::MDString::get(getLLVMContext(), First),
+                       llvm::MDString::get(getLLVMContext(), Second)));
   }
 
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.

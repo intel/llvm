@@ -1430,7 +1430,7 @@ void CodeGenModule::Release() {
 
     if (!SYCLRegKernelNames.empty()) {
       std::vector<llvm::Metadata *> Nodes;
-      for (auto MDKernelNames: SYCLRegKernelNames) {
+      for (auto MDKernelNames : SYCLRegKernelNames) {
         llvm::Metadata *Vals[] = {MDKernelNames.first, MDKernelNames.second};
         Nodes.push_back(llvm::MDTuple::get(TheModule.getContext(), Vals));
       }

@@ -3208,7 +3208,7 @@ void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
     /* Each init-list expression must have a pair of values. */
     if (NumInits != 2) {
       Diag(ArgExpr->getExprLoc(),
-             diag::err_registered_kernels_init_list_pair_values);
+           diag::err_registered_kernels_init_list_pair_values);
       return;
     }
 

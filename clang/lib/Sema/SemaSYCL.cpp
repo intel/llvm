@@ -5417,8 +5417,8 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 static void addRegisteredKernelName(SemaSYCL &S, StringRef Str,
                                     FunctionDecl *FD, SourceLocation Loc) {
   if (!Str.empty()) {
-    FD->addAttr(SYCLRegisteredKernelNameAttr::CreateImplicit(
-                    S.getASTContext(), Str, Loc));
+    FD->addAttr(SYCLRegisteredKernelNameAttr::CreateImplicit(S.getASTContext(),
+                                                             Str, Loc));
   }
 }
 
@@ -5435,9 +5435,9 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
           addRegisteredKernelName(S, Str, Pair.second, FD->getLocation());
         else
           S.Diag(FD->getLocation(),
-                     diag::err_registered_kernels_name_already_registered)
-              << Pair.second->getAttr<SYCLRegisteredKernelNameAttr>()->
-                     getRegName()
+                 diag::err_registered_kernels_name_already_registered)
+              << Pair.second->getAttr<SYCLRegisteredKernelNameAttr>()
+                     ->getRegName()
               << Str;
       }
       // An empty name string implies a regular free kernel construction
@@ -5450,21 +5450,19 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
 void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
                                            StringRef NameStr) {
   if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
-     return;
+    return;
 
   SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(),
-                                    FD->isInlined(), false /*IsSIMDKernel */,
-                                    FD);
+  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
+                                    false /*IsSIMDKernel */, FD);
 
   FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
 
-  SyclKernelIntHeaderCreator int_header(
-      *this, getSyclIntegrationHeader(), FD->getType(), FD);
+  SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                        FD->getType(), FD);
 
-  SyclKernelIntFooterCreator int_footer(*this,
-                                        getSyclIntegrationFooter());
+  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   KernelObjVisitor Visitor{*this};
 
   Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body,
