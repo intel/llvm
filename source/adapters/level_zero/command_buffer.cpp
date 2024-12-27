@@ -26,14 +26,9 @@ namespace {
 // given Context and Device.
 bool checkImmediateAppendSupport(ur_context_handle_t Context,
                                  ur_device_handle_t Device) {
-  // TODO The L0 driver is not reporting this extension yet. Once it does,
-  // switch to using the variable zeDriverImmediateCommandListAppendFound.
 
-  // Minimum version that supports zeCommandListImmediateAppendCommandListsExp.
-  constexpr uint32_t MinDriverVersion = 30898;
   bool DriverSupportsImmediateAppend =
-      Context->getPlatform()->isDriverVersionNewerOrSimilar(1, 3,
-                                                            MinDriverVersion);
+      Context->getPlatform()->ZeCommandListImmediateAppendExt.Supported;
 
   // If this environment variable is:
   //   - Set to 1: the immediate append path will always be enabled as long the
@@ -58,10 +53,8 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
     if (EnableAppendPath && !DriverSupportsImmediateAppend) {
       logger::error("{} is set but "
                     "the current driver does not support the "
-                    "zeCommandListImmediateAppendCommandListsExp entrypoint. A "
-                    "driver version of at least {} is required to use the "
-                    "immediate append path.",
-                    AppendEnvVarName, MinDriverVersion);
+                    "zeCommandListImmediateAppendCommandListsExp entrypoint.",
+                    AppendEnvVarName);
       std::abort();
     }
 
@@ -1569,7 +1562,10 @@ ur_result_t enqueueImmediateAppendPath(
     ur_event_handle_t *Event, ur_command_list_ptr_t CommandListHelper,
     bool DoProfiling) {
 
+  ur_platform_handle_t Platform = CommandBuffer->Context->getPlatform();
+
   assert(CommandListHelper->second.IsImmediate);
+  assert(Platform->ZeCommandListImmediateAppendExt.Supported);
 
   _ur_ze_event_list_t UrZeEventList;
   if (NumEventsInWaitList) {
@@ -1587,7 +1583,8 @@ ur_result_t enqueueImmediateAppendPath(
         nullptr /*ForcedCmdQueue*/));
     assert(ZeCopyEngineImmediateListHelper->second.IsImmediate);
 
-    ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
+    ZE2UR_CALL(Platform->ZeCommandListImmediateAppendExt
+                   .zeCommandListImmediateAppendCommandListsExp,
                (ZeCopyEngineImmediateListHelper->first, 1,
                 &CommandBuffer->ZeCopyCommandList, nullptr,
                 UrZeEventList.Length, UrZeEventList.ZeEventList));
@@ -1599,7 +1596,8 @@ ur_result_t enqueueImmediateAppendPath(
   ze_event_handle_t &EventToSignal =
       DoProfiling ? CommandBuffer->ComputeFinishedEvent->ZeEvent
                   : (*Event)->ZeEvent;
-  ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
+  ZE2UR_CALL(Platform->ZeCommandListImmediateAppendExt
+                 .zeCommandListImmediateAppendCommandListsExp,
              (CommandListHelper->first, 1, &CommandBuffer->ZeComputeCommandList,
               EventToSignal, WaitList.Length, WaitList.ZeEventList));
 
@@ -1616,7 +1614,8 @@ ur_result_t enqueueImmediateAppendPath(
                (CommandListHelper->first,
                 CommandBuffer->ExecutionFinishedEvent->ZeEvent, 0, nullptr));
 
-    ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
+    ZE2UR_CALL(Platform->ZeCommandListImmediateAppendExt
+                   .zeCommandListImmediateAppendCommandListsExp,
                (CommandListHelper->first, 1,
                 &CommandBuffer->ZeCommandListResetEvents, nullptr, 0, nullptr));
   }
