@@ -134,18 +134,23 @@ ur_result_t MsanShadowMemoryGPU::Setup() {
     // shadow memory for each contexts, this will cause out-of-resource error when user uses
     // multiple contexts. Therefore, we just create one shadow memory here.
     static ur_result_t Result = [this]() {
-        size_t ShadowSize = GetShadowSize();
+        const size_t ShadowSize = GetShadowSize();
+        // To reserve very large amount of GPU virtual memroy, the pStart param should be beyond
+        // the SVM range, so that GFX driver will automatically switch to reservation on the GPU
+        // heap.
+        const void *StartAddress = (void *)(0x100'0000'0000'0000ULL);
         // TODO: Protect Bad Zone
         auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
-            Context, nullptr, ShadowSize, (void **)&ShadowBegin);
-        if (Result == UR_RESULT_SUCCESS) {
-            ShadowEnd = ShadowBegin + ShadowSize;
-            // Retain the context which reserves shadow memory
-            getContext()->urDdiTable.Context.pfnRetain(Context);
+            Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
+        if (Result != UR_RESULT_SUCCESS) {
+            getContext()->logger.error(
+                "Shadow memory reserved failed with size {}: {}",
+                (void *)ShadowSize, Result);
+            return Result;
         }
-
-        // Set shadow memory for null pointer
-        ManagedQueue Queue(Context, Device);
+        ShadowEnd = ShadowBegin + ShadowSize;
+        // Retain the context which reserves shadow memory
+        getContext()->urDdiTable.Context.pfnRetain(Context);
         return UR_RESULT_SUCCESS;
     }();
     return Result;
@@ -278,13 +283,21 @@ MsanShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
 }
 
 uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
-    assert(Ptr & 0xFF00000000000000ULL && "Ptr must be device USM");
-    return ShadowBegin + (Ptr & 0x3FFF'FFFF'FFFFULL);
+    assert(Ptr & 0xff00'0000'0000'0000ULL && "Ptr must be device USM");
+    if (Ptr < ShadowBegin) {
+        return Ptr + (ShadowBegin - 0xff00'0000'0000'0000ULL);
+    } else {
+        return Ptr - (0xff00'ffff'ffff'ffffULL - ShadowEnd);
+    }
 }
 
 uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
-    assert(Ptr & 0xFFFF000000000000ULL && "Ptr must be device USM");
-    return ShadowBegin + (Ptr & 0x3FFF'FFFF'FFFFULL);
+    assert(Ptr & 0xffff'0000'0000'0000ULL && "Ptr must be device USM");
+    if (Ptr < ShadowBegin) {
+        return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
+    } else {
+        return Ptr - (0xffff'ffff'ffff'ffffULL - ShadowEnd);
+    }
 }
 
 } // namespace msan
