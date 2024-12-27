@@ -222,8 +222,7 @@ jobs:
     - name: SYCL CTS GIT submodules init
       if: inputs.tests_selector == 'cts'
       run: |
-        git -C khronos_sycl_cts submodule update --init
- 
+        git -C khronos_sycl_cts submodule update --init 
     - name: Install drivers
       if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
@@ -236,26 +235,7 @@ jobs:
         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Setup oneAPI env
       if: ${{ inputs.is_icx == 'true' }}
-      shell: bash
-      run: |
-         sudo apt-get --fix-broken -y install
-         wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor \
-         | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
-         sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
-         | sudo tee /etc/apt/sources.list.d/oneAPI.list && \
-         sudo apt update && sudo apt-get -y install intel-oneapi-compiler-dpcpp-cpp 
-         env_before=$(env | sort)
-         
-         source /opt/intel/oneapi/setvars.sh
-
-         env_after=$(env | sort)
-
-         changed_envvars=$(comm -13 <(echo "$env_before") <(echo "$env_after"))
-
-         while IFS= read -r line; do
-           echo "$line" >> $GITHUB_ENV
-         done <<< "$changed_envvars"
-         sudo rm /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so
+      uses: ./devops/actions/setup_linux_oneapi_env
     - name: Source OneAPI TBB vars.sh
       if: ${{ inputs.is_icx == 'false' }}
       shell: bash
@@ -359,11 +339,17 @@ jobs:
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
       run: |
+        if [ ${{ inputs.is_icx }} == 'true' ];
+          sudo mv /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.bak
+        fi
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
         exit_code=$?
         cat e2e.log
         if [ $exit_code -ne 0 ]; then
           awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        if [ ${{ inputs.is_icx }} == 'true' ];
+          sudo mv /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.bak /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so
         fi
         exit $exit_code
     - name: Build SYCL CTS tests
