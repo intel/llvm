@@ -142,7 +142,7 @@ jobs:
       shell: bash
       run: |
          if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_XFAIL="regression/host_tanpi_double_accuracy.cpp"
+           export LIT_XFAIL="regression\host_tanpi_double_accuracy.cpp"
          fi
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
