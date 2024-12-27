@@ -45,7 +45,7 @@ jobs:
         include:
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             tests_selector: e2e
@@ -156,7 +156,7 @@ jobs:
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
-      image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
+      image: ghcr.io/intel/llvm/ubuntu2404_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: ext_oneapi_cuda:gpu
       ref: ${{ github.sha }}

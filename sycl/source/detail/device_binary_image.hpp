@@ -306,7 +306,7 @@ public:
   }
 
 private:
-  std::unique_ptr<char> m_DecompressedData;
+  std::unique_ptr<char[]> m_DecompressedData;
   size_t m_ImageSize;
 };
 #endif // SYCL_RT_ZSTD_NOT_AVAIABLE
