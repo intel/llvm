@@ -134,4 +134,11 @@ struct ur_platform_handle_t_ : public _ur_platform {
     ze_result_t (*zexDeviceReleaseExternalSemaphoreExp)(
         ze_intel_external_semaphore_exp_handle_t);
   } ZeExternalSemaphoreExt;
+
+  struct ZeCommandListImmediateAppendExtension {
+    bool Supported = false;
+    ze_result_t (*zeCommandListImmediateAppendCommandListsExp)(
+        ze_command_list_handle_t, uint32_t, ze_command_list_handle_t *,
+        ze_event_handle_t, uint32_t, ze_event_handle_t *);
+  } ZeCommandListImmediateAppendExt;
 };

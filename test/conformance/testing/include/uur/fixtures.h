@@ -42,7 +42,10 @@ struct urAdapterTest : ::testing::Test,
     ur_adapter_handle_t adapter;
 };
 
-struct urPlatformTest : ::testing::Test {
+// Inherit this to get the platform/adapter that was selected via the --backend
+// and --platform arguments (or defaulted to if only one platform was
+// discovered)
+struct urSelectedPlatformTest : ::testing::Test {
     void SetUp() override {
         platform = uur::PlatformEnvironment::instance->platform;
         adapter = uur::PlatformEnvironment::instance->adapter;
@@ -50,6 +53,17 @@ struct urPlatformTest : ::testing::Test {
 
     ur_platform_handle_t platform = nullptr;
     ur_adapter_handle_t adapter = nullptr;
+};
+
+// In the vein of urAdapterTest and urDeviceTest this is a parameterized
+// platform fixture which can be instantiated via
+// UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P to run tests on each discovered
+// platform.
+struct urPlatformTest : ::testing::Test,
+                        ::testing::WithParamInterface<ur_platform_handle_t> {
+    void SetUp() override { platform = GetParam(); }
+
+    ur_platform_handle_t platform = nullptr;
 };
 
 inline std::pair<bool, std::vector<ur_device_handle_t>>
@@ -77,9 +91,9 @@ inline bool hasDevicePartitionSupport(ur_device_handle_t device,
            properties.end();
 }
 
-struct urAllDevicesTest : urPlatformTest {
+struct urAllDevicesTest : urSelectedPlatformTest {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         auto devicesPair = GetDevices(platform);
         if (!devicesPair.first) {
             FAIL() << "Failed to get devices";
@@ -91,23 +105,23 @@ struct urAllDevicesTest : urPlatformTest {
         for (auto &device : devices) {
             EXPECT_SUCCESS(urDeviceRelease(device));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::TearDown());
     }
 
     std::vector<ur_device_handle_t> devices;
 };
 
-struct urDeviceTest : urPlatformTest,
+struct urDeviceTest : urSelectedPlatformTest,
                       ::testing::WithParamInterface<ur_device_handle_t> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         device = GetParam();
         EXPECT_SUCCESS(urDeviceRetain(device));
     }
 
     void TearDown() override {
         EXPECT_SUCCESS(urDeviceRelease(device));
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
     }
 
     ur_device_handle_t device;
@@ -120,6 +134,15 @@ struct urDeviceTest : urPlatformTest,
         ::testing::ValuesIn(uur::AdapterEnvironment::instance->adapters),      \
         [](const ::testing::TestParamInfo<ur_adapter_handle_t> &info) {        \
             return uur::GetAdapterBackendName(info.param);                     \
+        })
+
+#define UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(FIXTURE)                         \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(                                                   \
+            uur::PlatformEnvironment::instance->all_platforms),                \
+        [](const ::testing::TestParamInfo<ur_platform_handle_t> &info) {       \
+            return uur::GetPlatformNameWithID(info.param);                     \
         })
 
 #define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
@@ -142,10 +165,10 @@ namespace uur {
 
 template <class T>
 struct urDeviceTestWithParam
-    : urPlatformTest,
+    : urSelectedPlatformTest,
       ::testing::WithParamInterface<std::tuple<ur_device_handle_t, T>> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         device = std::get<0>(this->GetParam());
     }
     // TODO - I don't like the confusion with GetParam();
@@ -561,9 +584,9 @@ struct urMultiQueueTestWithParam : urContextTestWithParam<T> {
 };
 
 template <size_t MinDevices = 2>
-struct urMultiDeviceContextTestTemplate : urPlatformTest {
+struct urMultiDeviceContextTestTemplate : urSelectedPlatformTest {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::SetUp());
         auto &devices = DevicesEnvironment::instance->devices;
         if (devices.size() < MinDevices) {
             GTEST_SKIP();
@@ -576,7 +599,7 @@ struct urMultiDeviceContextTestTemplate : urPlatformTest {
         if (context) {
             ASSERT_SUCCESS(urContextRelease(context));
         }
-        UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
+        UUR_RETURN_ON_FATAL_FAILURE(urSelectedPlatformTest::TearDown());
     }
 
     ur_context_handle_t context = nullptr;
