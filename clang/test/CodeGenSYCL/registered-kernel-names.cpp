@@ -27,7 +27,7 @@ template <typename T>
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void tempfoo2(T pt) {
-  T t; 
+  T t;
 }
 
 template void tempfoo2<int>(int);

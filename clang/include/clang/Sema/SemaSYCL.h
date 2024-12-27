@@ -487,6 +487,7 @@ public:
   void handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Decl *D,
                                                      const ParsedAttr &AL);
   void handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &AL);
 
   void checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
 
