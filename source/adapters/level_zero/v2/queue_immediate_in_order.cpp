@@ -132,8 +132,15 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_QUEUE_INFO_EMPTY: {
-    // We can't tell if the queue is empty as we don't hold to any events
-    return ReturnValue(false);
+    auto status = ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                                  (handler.commandList.get(), 0));
+    if (status == ZE_RESULT_SUCCESS) {
+      return ReturnValue(true);
+    } else if (status == ZE_RESULT_NOT_READY) {
+      return ReturnValue(false);
+    } else {
+      return ze2urResult(status);
+    }
   }
   default:
     logger::error("Unsupported ParamName in urQueueGetInfo: "
