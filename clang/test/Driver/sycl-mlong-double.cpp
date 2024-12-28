@@ -14,18 +14,18 @@
 // CHECK-80: error: unsupported option '-mlong-double-80' for target 'spir64-unknown-unknown'
 // CHECK-80-NOT: clang{{.*}} "-triple" "-spir64-unknown-unknown" {{.*}} "-mlong-double-80"
 
-// RUN: not %clangxx -c -fsycl -mlong-double-128 -target amd_gpu_gfx1031 %s -### 2>&1 | FileCheck --check-prefix=CHECK-128-AMD %s
-// CHECK-128-AMD: error: unsupported option '-mlong-double-128' for target 'amd_gpu_gfx1031'
+// RUN: not %clangxx -c -fsycl -mlong-double-128 --target=x86_64-unknown-linux-gnu -fsycl-targets=amd_gpu_gfx1031 %s -### 2>&1 | FileCheck --check-prefix=CHECK-128-AMD %s
+// CHECK-128-AMD: error: unsupported option '-mlong-double-128' for target 'amdgcn-amd-amdhsa'
 // CHECK-128-AMD-NOT: clang{{.*}} "-triple" "-amd_gpu_gfx1031" {{.*}} "-mlong-double-128"
 
-// RUN: not %clangxx -c -fsycl -mlong-double-80 -target amd_gpu_gfx1031 %s -### 2>&1 | FileCheck --check-prefix=CHECK-80-AMD %s
-// CHECK-80-AMD: error: unsupported option '-mlong-double-80' for target 'amd_gpu_gfx1031'
+// RUN: not %clangxx -c -fsycl -mlong-double-80 --target=x86_64-unknown-linux-gnu -fsycl-targets=amd_gpu_gfx1031 %s -### 2>&1 | FileCheck --check-prefix=CHECK-80-AMD %s
+// CHECK-80-AMD: error: unsupported option '-mlong-double-80' for target 'amdgcn-amd-amdhsa'
 // CHECK-80-AMD-NOT: clang{{.*}} "-triple" "-amd_gpu_gfx1031" {{.*}} "-mlong-double-80"
 
-// RUN: not %clangxx -c -fsycl -mlong-double-128 -target nvptx64-nvidia-cuda %s -### 2>&1 | FileCheck --check-prefix=CHECK-128-NVPTX %s
+// RUN: not %clangxx -c -fsycl -mlong-double-128 --target=x86_64-unknown-linux-gnu -fsycl-targets=nvptx64-nvidia-cuda %s -### 2>&1 | FileCheck --check-prefix=CHECK-128-NVPTX %s
 // CHECK-128-NVPTX: error: unsupported option '-mlong-double-128' for target 'nvptx64-nvidia-cuda'
 // CHECK-128-NVPTX-NOT: clang{{.*}} "-triple" "-nvptx64-nvidia-cuda" {{.*}} "-mlong-double-128"
 
-// RUN: not %clangxx -c -fsycl -mlong-double-80 -target nvptx64-nvidia-cuda %s -### 2>&1 | FileCheck --check-prefix=CHECK-80-NVPTX %s
+// RUN: not %clangxx -c -fsycl -mlong-double-80 --target=x86_64-unknown-linux-gnu -fsycl-targets=nvptx64-nvidia-cuda %s -### 2>&1 | FileCheck --check-prefix=CHECK-80-NVPTX %s
 // CHECK-80-NVPTX: error: unsupported option '-mlong-double-80' for target 'nvptx64-nvidia-cuda'
 // CHECK-80-NVPTX-NOT: clang{{.*}} "-triple" "-nvptx64-nvidia-cuda" {{.*}} "-mlong-double-80"
