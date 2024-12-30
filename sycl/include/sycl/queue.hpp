@@ -2859,7 +2859,7 @@ private:
           }
         };
 #endif // __SYCL_USE_FALLBACK_ASSERT
-    return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
+    return submit_with_event_impl(std::move(CGF), SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
 
