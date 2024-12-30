@@ -1,8 +1,12 @@
+// REQUIRES aspect-subgroup
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/kernel.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -39,19 +43,23 @@ int main() {
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   auto kernel = bundle.template get_kernel<kernels::TestKernel>();
 
-  const size_t maxWorkGroupSizeActual =
-    kernel.template get_info<sycl::info::kernel_device_specific::work_group_size>(q.get_device());
-  const auto maxWorkGroupSize = kernel.template ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_work_group_size>(q);
-  sycl::buffer<value_type, 1> buf{sycl::range<1>{maxWorkGroupSizeActual}};
-  static_assert(std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupSize)>, size_t>,
-                "max_work_group_size query must return size_t");
-  assert(maxWorkGroupSizeActual == maxWorkGroupSize);
-   // Run the kernel
-  auto launch_range = sycl::nd_range<1>{sycl::range<1>{maxWorkGroupSizeActual},
-                                        sycl::range<1>{maxWorkGroupSize}};
-  q.submit([&](sycl::handler &cgh) {
-       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-       cgh.parallel_for(launch_range, kernels::TestKernel{acc});
-   }).wait();
+  // get value to compare with
+  auto *MaxLocalRange = sycl::malloc_shared<size_t>(1, q);
+  q.submit([&](sycl::handler &h) {
+    h.parallel_for( sycl::nd_range<1>(1, 1), [=](sycl::nd_item<1> item) {
+          const auto sg = item.get_sub_group();
+          *MaxLocalRange = sg.get_max_local_range()[0];
+        });
+  }).wait();
+  
+  const sycl::range<3> r{};
+  // get value to test
+  const auto MaxSubSGSize = kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_sub_group_size>(q, r);
+
+  static_assert(std::is_same_v<std::remove_cv_t<decltype(MaxSubSGSize)>, size_t>,
+                "max_sub_group_size query must return size_t");
+  assert(MaxSubSGSize == *MaxLocalRange);
+  sycl::free(MaxLocalRange, q);
+
 }
