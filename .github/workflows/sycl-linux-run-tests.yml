@@ -156,7 +156,7 @@ on:
           LIT_OPTS won't work as we redefine it as part of this workflow.
 
           For SYCL CTS - CTS_TESTS_TO_BUILD to specify which categories to
-          build.
+          build, e.g. {"CTS_TESTS_TO_BUILD":"test_category1 test_category2..."}.
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{}'
@@ -412,6 +412,25 @@ jobs:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
         ./build-cts/bin/* --list-devices
+
+    # If the suite was built on another machine then it also contains excluded
+    # categories. Check the filter file and remove them.
+    - name: Filter SYCL CTS test categories
+      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.sycl_cts_artifact != ''
+      shell: bash
+      run: |
+        cts_exclude_filter=""
+        if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
+          cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
+        elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
+          cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
+        fi
+
+        while IFS= read -r line; do
+          if [[ $line != \#* ]]; then
+            rm "./build-cts/bin/test_$line"
+          fi
+        done < "$cts_exclude_filter"
 
     - name: Run SYCL CTS tests
       # Proceed with execution even if the previous two steps did not succeed.
