@@ -132,10 +132,15 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
 
 inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   // Device USM only
-  uptr shadow_ptr = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                        ->GlobalShadowOffset +
-                    (addr & 0x3FFF'FFFF'FFFFULL);
-  return shadow_ptr;
+  auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+                          ->GlobalShadowOffset;
+  auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+                        ->GlobalShadowOffsetEnd;
+  if (addr < shadow_begin) {
+    return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
+  } else {
+    return addr - (0xff00'ffff'ffff'ffffULL - shadow_end);
+  }
 }
 
 } // namespace
@@ -153,6 +158,19 @@ MSAN_MAYBE_WARNING(u8, 1)
 MSAN_MAYBE_WARNING(u16, 2)
 MSAN_MAYBE_WARNING(u32, 4)
 MSAN_MAYBE_WARNING(u64, 8)
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_warning(const char __SYCL_CONSTANT__ *file, uint32_t line,
+               const char __SYCL_CONSTANT__ *func) {
+  __msan_report_error(1, file, line, func);
+}
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
+                        const char __SYCL_CONSTANT__ *func) {
+  __msan_internal_report_save(1, file, line, func);
+  __devicelib_exit();
+}
 
 DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   // Return clean shadow (0s) by default
@@ -181,5 +199,20 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
 
   return shadow_ptr;
 }
+
+#define MSAN_MEMSET(as)                                                        \
+  DEVICE_EXTERN_C_NOINLINE void __msan_memset_p##as(                           \
+      __attribute__((address_space(as))) char *dest, int val, size_t size) {   \
+    uptr shadow = __msan_get_shadow((uptr)dest, as);                           \
+    for (size_t i = 0; i < size; i++) {                                        \
+      dest[i] = val;                                                           \
+      ((__SYCL_GLOBAL__ char *)shadow)[i] = 0;                                 \
+    }                                                                          \
+  }
+
+MSAN_MEMSET(0)
+MSAN_MEMSET(1)
+MSAN_MEMSET(3)
+MSAN_MEMSET(4)
 
 #endif // __SPIR__ || __SPIRV__

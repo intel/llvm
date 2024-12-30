@@ -483,6 +483,12 @@ bool run_tests() {
   valid &= run_test<2, sycl::half, 2, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rg, class fp16_2d_c2>(
       {1920, 1080}, {16, 8}, 0);
+  valid &= run_test<2, sycl::half, 3, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rgb, class fp16_2d_c3>(
+      {2048, 2048}, {16, 16}, 0);
+  valid &= run_test<2, uint8_t, 3, sycl::image_channel_type::unorm_int8,
+                    sycl::image_channel_order::rgb, class unorm_int8_2d_c3>(
+      {2048, 2048}, {16, 16}, 0);
   valid &= run_test<2, sycl::half, 4, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rgba, class fp16_2d_c4>(
       {2048, 2048}, {16, 16}, 0);
