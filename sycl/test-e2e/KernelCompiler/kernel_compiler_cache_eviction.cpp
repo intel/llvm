@@ -17,9 +17,9 @@
 // RUN: %{build} -o %t.out
 
 // -- Test again, with caching.
-// DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir SYCL_CACHE_MAX_SIZE=23000
+// DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir SYCL_CACHE_MAX_SIZE=27000
 // RUN: %if run-mode %{rm -rf %t/cache_dir%}
-// RUN: %{cache_vars} %{run} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
 
 // CHECK: [Persistent Cache]: enabled
 
@@ -84,7 +84,8 @@ void test_build_and_run() {
 
   // compilation with props and devices
   std::vector<std::string> flags{"-cl-fast-relaxed-math",
-                                 "-cl-finite-math-only"};
+                                 "-cl-finite-math-only", "-cl-no-signed-zeros",
+                                 "-cl-unsafe-math-optimizations"};
 
   // Device image #1
   // CHECK: [Persistent Cache]: Cache size file not present. Creating one.
@@ -96,29 +97,21 @@ void test_build_and_run() {
   // Device image #2
   // CHECK-NEXT: [kernel_compiler Persistent Cache]: binary has been cached: [[DEVIMG2:.*]]
   // CHECK-NEXT: [Persistent Cache]: Updating the cache size file.
-  CreateAndVerifyKB(kbSrc, {flags[0]});
-
-  // Device image #3
-  // CHECK: [kernel_compiler Persistent Cache]: binary has been cached: [[DEVIMG3:.*]]
-  // CHECK: [Persistent Cache]: Updating the cache size file.
-  CreateAndVerifyKB(kbSrc, {flags[1]});
+  CreateAndVerifyKB(kbSrc, {flags[0], flags[1], flags[2], flags[3]});
 
   // Re-insert device image #1
-  // CHECK: [kernel_compiler Persistent Cache]: using cached binary: [[DEVIMG1]]
+  // CHECK-NEXT: [kernel_compiler Persistent Cache]: using cached binary: [[DEVIMG1]]
   CreateAndVerifyKB(kbSrc, {});
 
-  // Device image #4
-  // CHECK: [kernel_compiler Persistent Cache]: binary has been cached: [[DEVIMG4:.*]]
-  // CHECK: [Persistent Cache]: Updating the cache size file.
+  // Insert more unique device images to trigger cache eviction.
+  // Make sure Device image #2 is evicted before device image #1 as
+  // eviction is LRU-based.
   // CHECK: [Persistent Cache]: Cache eviction triggered.
-  // CHECK: [Persistent Cache]: File removed: [[DEVIMG2]]
-  // CHECK: [Persistent Cache]: File removed: [[DEVIMG3]]
-  // CHECK: [Persistent Cache]: File removed: [[DEVIMG1]]
-  CreateAndVerifyKB(kbSrc, {flags[0], flags[1]});
-
-  // Re-insert device image #4
-  // CHECK: [kernel_compiler Persistent Cache]: using cached binary: [[DEVIMG4]]
-  CreateAndVerifyKB(kbSrc, {flags[0], flags[1]});
+  // CHECK-NEXT: [Persistent Cache]: File removed: [[DEVIMG2]]
+  // CHECK-NEXT: [Persistent Cache]: File removed: [[DEVIMG1]]
+  for (int i = 0; i < flags.size(); i++) {
+    CreateAndVerifyKB(kbSrc, {flags[i]});
+  }
 }
 
 int main() {
