@@ -145,10 +145,15 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   }
 
   // Device USM only
-  uptr shadow_ptr = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                        ->GlobalShadowOffset +
-                    (addr & 0x3FFF'FFFF'FFFFULL);
-  return shadow_ptr;
+  auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+                          ->GlobalShadowOffset;
+  auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+                        ->GlobalShadowOffsetEnd;
+  if (addr < shadow_begin) {
+    return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
+  } else {
+    return addr - (0xff00'ffff'ffff'ffffULL - shadow_end);
+  }
 }
 
 } // namespace
