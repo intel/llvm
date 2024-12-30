@@ -6,6 +6,10 @@
 // RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
+// Flakily timesout on PVC
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16401
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/device_global/device_global.hpp>

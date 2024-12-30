@@ -74,6 +74,13 @@ jobs:
               base_image=ghcr.io/intel/llvm/ubuntu2204_build
               base_tag=latest
               use_unstable_driver=false
+          - name: Build + Intel Drivers Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
+            tag: alldeps
+            build_args: |
+              base_image=ghcr.io/intel/llvm/ubuntu2404_build
+              base_tag=latest
+              use_unstable_driver=false
     steps:
       - name: Checkout
         uses: actions/checkout@v4

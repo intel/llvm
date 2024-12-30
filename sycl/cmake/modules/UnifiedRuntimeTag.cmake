@@ -1,7 +1,7 @@
-# commit ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c
-# Merge: bb64b3e9f6d3 4a89e1c69a65
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 19 11:26:01 2024 +0000
-#     Merge pull request #2277 from igchor/cooperative_fix
-#     [Spec] fix urKernelSuggestMaxCooperativeGroupCountExp
-set(UNIFIED_RUNTIME_TAG ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c)
+# commit fe6c83a3a40e69eaa0c4829c8ba99b03e05bb4e2
+# Merge: 93fc1331 cf0c9482
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Fri Dec 27 17:39:52 2024 +0000
+#     Merge pull request #2507 from AllanZyne/review/yang/fix_msan_shadow
+#     [DeviceMSAN] Fix MemToShadow algorithm and VA reservation
+set(UNIFIED_RUNTIME_TAG fe6c83a3a40e69eaa0c4829c8ba99b03e05bb4e2)
