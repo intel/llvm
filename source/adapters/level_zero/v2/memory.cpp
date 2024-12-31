@@ -115,10 +115,7 @@ ur_integrated_mem_handle_t::ur_integrated_mem_handle_t(
     if (!ownHostPtr) {
       return;
     }
-    auto ret = hContext->getDefaultUSMPool()->free(ptr);
-    if (ret != UR_RESULT_SUCCESS) {
-      logger::error("Failed to free host memory: {}", ret);
-    }
+    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
   });
 }
 
@@ -234,10 +231,7 @@ ur_discrete_mem_handle_t::ur_discrete_mem_handle_t(
           if (!ownZePtr) {
             return;
           }
-          auto ret = hContext->getDefaultUSMPool()->free(ptr);
-          if (ret != UR_RESULT_SUCCESS) {
-            logger::error("Failed to free device memory: {}", ret);
-          }
+          ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
         });
   }
 }
@@ -310,7 +304,10 @@ void *ur_discrete_mem_handle_t::mapHostPtr(
   usm_unique_ptr_t mappedPtr =
       usm_unique_ptr_t(ptr, [ownsAlloc = bool(mapToPtr), this](void *p) {
         if (ownsAlloc) {
-          UR_CALL_THROWS(hContext->getDefaultUSMPool()->free(p));
+          auto ret = hContext->getDefaultUSMPool()->free(p);
+          if (ret != UR_RESULT_SUCCESS) {
+            logger::error("Failed to mapped memory: {}", ret);
+          }
         }
       });
 
