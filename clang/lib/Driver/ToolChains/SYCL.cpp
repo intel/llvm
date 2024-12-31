@@ -347,6 +347,11 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
              Device.starts_with("dg2") || Device.starts_with("bmg");
     };
 
+    auto checkSpirvJIT = [](StringRef Target) {
+      return Target.starts_with("spir64-") || Target.starts_with("spirv64-") ||
+             (Target == "spir64") || (Target == "spirv64");
+    };
+
     size_t DevicesPos = Params.find("-device ");
     // "-device xxx" is used to specify AOT target device.
     if (DevicesPos != std::string::npos) {
@@ -361,9 +366,11 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       // can be involved only when all GPU deivces specified support native
       // bfloat16 native conversion.
       UseNative = true;
+
       if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
         for (auto TargetsV : SYCLTarget->getValues()) {
-          if (!GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+          if (!checkSpirvJIT(StringRef(TargetsV)) &&
+              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
             UseNative = false;
             break;
           }
