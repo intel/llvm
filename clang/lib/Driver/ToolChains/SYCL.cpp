@@ -13,11 +13,12 @@
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Option/Option.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include <algorithm>
 #include <sstream>
 
@@ -299,6 +300,10 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 // Return whether to use native bfloat16 library.
 static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
                              bool &UseNative) {
+
+  static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
+      "intel_gpu_pvc", "intel_gpu_acm_g10", "intel_gpu_acm_g11",
+      "intel_gpu_acm_g12", "intel_gpu_bmg_g21"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -324,32 +329,47 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       }
     }
 
-    UseNative = false;
-
-    // Check for intel_gpu_pvc as the target
-    if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
-      if (SYCLTarget->getValues().size() == 1) {
-        StringRef SYCLTargetStr = SYCLTarget->getValue();
-        if (SYCLTargetStr == "intel_gpu_pvc")
-          UseNative = true;
-      }
-    }
-
-    auto checkBF = [](StringRef Device) {
-      return Device.starts_with("pvc") || Device.starts_with("ats");
-    };
+    // We need to select fallback/native bfloat16 devicelib in AOT compilation
+    // targetting for Intel GPU devices. Users have 2 ways to apply AOT,
+    // 1). clang++ -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc,...,"
+    // 2). clang++ -fsycl -fsycl-targets=intel_gpu_pvc,...
+    // We assume that users will only apply either 1) or 2) and won't mix the
+    // 2 ways in their compiling command.
 
     std::string Params;
     for (const auto &Arg : TargArgs) {
       Params += " ";
       Params += Arg;
     }
+
+    auto checkBF = [](StringRef Device) {
+      return Device.starts_with("pvc") || Device.starts_with("ats") ||
+             Device.starts_with("dg2") || Device.starts_with("bmg");
+    };
+
     size_t DevicesPos = Params.find("-device ");
-    if (!UseNative && DevicesPos != std::string::npos) {
+    // "-device xxx" is used to specify AOT target device.
+    if (DevicesPos != std::string::npos) {
       UseNative = true;
       std::istringstream Devices(Params.substr(DevicesPos + 8));
       for (std::string S; std::getline(Devices, S, ',');)
         UseNative &= checkBF(S);
+      return NeedLibs;
+    } else {
+      // -fsycl-targets=intel_gpu_xxx is used to specify AOT target device.
+      // Multiple Intel GPU devices can be specified, native bfloat16 devicelib
+      // can be involved only when all GPU deivces specified support native
+      // bfloat16 native conversion.
+      UseNative = true;
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+        for (auto TargetsV : SYCLTarget->getValues()) {
+          if (!GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+            UseNative = false;
+            break;
+          }
+        }
+      }
+      return NeedLibs;
     }
   }
   return NeedLibs;
@@ -505,7 +525,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    LibraryList.push_back(
+        Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
 
   if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
     LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
