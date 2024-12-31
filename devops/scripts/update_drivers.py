@@ -17,7 +17,7 @@ def get_latest_workflow_runs(repo, workflow_name):
         + repo
         + "/actions/workflows/"
         + workflow_name
-        + ".yml/runs?status=success"
+        + ".yml/runs?status=completed"
     ).read()
     return json.loads(action_runs)["workflow_runs"][0]
 
@@ -38,7 +38,7 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
         config[platform_tag]["igc_dev"]["version"] = igcdevver
         config[platform_tag]["igc_dev"]["updated_at"] = igc_dev["updated_at"]
         config[platform_tag]["igc_dev"]["url"] = get_artifacts_download_url(
-            "intel/intel-graphics-compiler", "IGC_Ubuntu22.04_llvm14_clang-" + igcdevver
+            "intel/intel-graphics-compiler", "IGC_Ubuntu24.04_llvm14_clang-" + igcdevver
         )
         return config
 
