@@ -69,6 +69,12 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       QueueDesc.index = ImmCmdDesc->Index.value();
     }
     QueueDesc.pNext = &offloadDesc;
+
+    logger::debug("create command list ordinal: {}, type: immediate, device: "
+                  "{}, inOrder: {}",
+                  ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice,
+                  ImmCmdDesc->IsInOrder);
+
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
         (ZeContext, ImmCmdDesc->ZeDevice, &QueueDesc, &ZeCommandList));
@@ -80,6 +86,11 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
         RegCmdDesc.IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER : 0;
     CmdListDesc.commandQueueGroupOrdinal = RegCmdDesc.Ordinal;
     CmdListDesc.pNext = &offloadDesc;
+
+    logger::debug("create command list ordinal: {}, type: immediate, device: "
+                  "{}, inOrder: {}",
+                  RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice,
+                  RegCmdDesc.IsInOrder);
 
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,
