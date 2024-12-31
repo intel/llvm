@@ -1,7 +1,7 @@
-# commit 232e62f5221d565ec40d051d3c640b836ca91244
-# Merge: 76a96238 59b37e3f
+# commit fe6c83a3a40e69eaa0c4829c8ba99b03e05bb4e2
+# Merge: 93fc1331 cf0c9482
 # Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Mon Dec 23 18:26:58 2024 +0000
-#     Merge pull request #2498 from Bensuo/fabio/fix_l0_old_loader_no_translate
-#     Update usage of zeCommandListImmediateAppendCommandListsExp to use dlsym
-set(UNIFIED_RUNTIME_TAG 232e62f5221d565ec40d051d3c640b836ca91244)
+# Date:   Fri Dec 27 17:39:52 2024 +0000
+#     Merge pull request #2507 from AllanZyne/review/yang/fix_msan_shadow
+#     [DeviceMSAN] Fix MemToShadow algorithm and VA reservation
+set(UNIFIED_RUNTIME_TAG fe6c83a3a40e69eaa0c4829c8ba99b03e05bb4e2)

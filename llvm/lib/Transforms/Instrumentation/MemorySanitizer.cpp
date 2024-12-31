@@ -233,6 +233,8 @@ static const unsigned kRetvalTLSSize = 800;
 // Accesses sizes are powers of two: 1, 2, 4, 8.
 static const size_t kNumberOfAccessSizes = 4;
 
+static constexpr unsigned kNumberOfAddressSpace = 5;
+
 /// Track origins of uninitialized values.
 ///
 /// Adds a section to MemorySanitizer report that points to the allocation
@@ -678,6 +680,9 @@ private:
   /// MSan runtime replacements for memmove, memcpy and memset.
   FunctionCallee MemmoveFn, MemcpyFn, MemsetFn;
 
+  /// MSan runtime replacements for memset with address space.
+  FunctionCallee MemsetOffloadFn[kNumberOfAddressSpace];
+
   /// KMSAN callback for task-local function argument shadow.
   StructType *MsanContextStateTy;
   FunctionCallee MsanGetContextStateFn;
@@ -964,7 +969,19 @@ void MemorySanitizer::createUserspaceApi(Module &M,
   } else {
     StringRef WarningFnName =
         Recover ? "__msan_warning" : "__msan_warning_noreturn";
-    WarningFn = M.getOrInsertFunction(WarningFnName, IRB.getVoidTy());
+    if (!TargetTriple.isSPIROrSPIRV()) {
+      WarningFn = M.getOrInsertFunction(WarningFnName, IRB.getVoidTy());
+    } else {
+      // __msan_warning[_noreturn](
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, IRB.getVoidTy(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+    }
   }
 
   // Create the global TLS variables.
@@ -1050,13 +1067,24 @@ void MemorySanitizer::initializeCallbacks(Module &M,
   MsanSetOriginFn = M.getOrInsertFunction(
       "__msan_set_origin", TLI.getAttrList(C, {2}, /*Signed=*/false),
       IRB.getVoidTy(), PtrTy, IntptrTy, IRB.getInt32Ty());
-  MemmoveFn =
-      M.getOrInsertFunction("__msan_memmove", PtrTy, PtrTy, PtrTy, IntptrTy);
-  MemcpyFn =
-      M.getOrInsertFunction("__msan_memcpy", PtrTy, PtrTy, PtrTy, IntptrTy);
-  MemsetFn = M.getOrInsertFunction("__msan_memset",
-                                   TLI.getAttrList(C, {1}, /*Signed=*/true),
-                                   PtrTy, PtrTy, IRB.getInt32Ty(), IntptrTy);
+  if (!TargetTriple.isSPIROrSPIRV()) {
+    MemmoveFn =
+        M.getOrInsertFunction("__msan_memmove", PtrTy, PtrTy, PtrTy, IntptrTy);
+    MemcpyFn =
+        M.getOrInsertFunction("__msan_memcpy", PtrTy, PtrTy, PtrTy, IntptrTy);
+    MemsetFn = M.getOrInsertFunction("__msan_memset",
+                                     TLI.getAttrList(C, {1}, /*Signed=*/true),
+                                     PtrTy, PtrTy, IRB.getInt32Ty(), IntptrTy);
+  } else {
+    for (unsigned FirstArgAS = 0; FirstArgAS < kNumberOfAddressSpace;
+         FirstArgAS++) {
+      const std::string Suffix = "_p" + itostr(FirstArgAS);
+      PointerType *FirstArgPtrTy = IRB.getPtrTy(FirstArgAS);
+      MemsetOffloadFn[FirstArgAS] = M.getOrInsertFunction(
+          "__msan_memset" + Suffix, TLI.getAttrList(C, {1}, /*Signed=*/true),
+          FirstArgPtrTy, FirstArgPtrTy, IRB.getInt32Ty(), IntptrTy);
+    }
+  }
 
   MsanInstrumentAsmStoreFn = M.getOrInsertFunction(
       "__msan_instrument_asm_store", IRB.getVoidTy(), PtrTy, IntptrTy);
@@ -1560,6 +1588,35 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     return LazyWarningDebugLocationCount[DebugLoc] >= ClDisambiguateWarning;
   }
 
+  void appendDebugInfoToArgs(IRBuilder<> &IRB, SmallVectorImpl<Value *> &Args) {
+    auto *M = F.getParent();
+    auto &C = IRB.getContext();
+    auto DebugLoc = IRB.getCurrentDebugLocation();
+
+    // SPIR constant address space
+    auto *ConstASPtrTy =
+        PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+
+    // file name and line number
+    if (DebugLoc) {
+      llvm::SmallString<128> Source = DebugLoc->getDirectory();
+      sys::path::append(Source, DebugLoc->getFilename());
+      auto *FileNameGV = getOrCreateGlobalString(*M, "__msan_file", Source,
+                                                 kSpirOffloadConstantAS);
+      Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
+      Args.push_back(ConstantInt::get(Type::getInt32Ty(C), DebugLoc.getLine()));
+    } else {
+      Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
+      Args.push_back(ConstantInt::get(Type::getInt32Ty(C), 0));
+    }
+
+    // function name
+    auto FuncName = F.getName();
+    auto *FuncNameGV = getOrCreateGlobalString(
+        *M, "__msan_func", demangle(FuncName), kSpirOffloadConstantAS);
+    Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
+  }
+
   /// Helper function to insert a warning at IRB's current insert point.
   void insertWarningFn(IRBuilder<> &IRB, Value *Origin) {
     if (!Origin)
@@ -1584,10 +1641,16 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       }
     }
 
-    if (MS.CompileKernel || MS.TrackOrigins)
-      IRB.CreateCall(MS.WarningFn, Origin)->setCannotMerge();
-    else
-      IRB.CreateCall(MS.WarningFn)->setCannotMerge();
+    if (!SpirOrSpirv) {
+      if (MS.CompileKernel || MS.TrackOrigins)
+        IRB.CreateCall(MS.WarningFn, Origin)->setCannotMerge();
+      else
+        IRB.CreateCall(MS.WarningFn)->setCannotMerge();
+    } else { // SPIR or SPIR-V
+      SmallVector<Value *, 3> Args;
+      appendDebugInfoToArgs(IRB, Args);
+      IRB.CreateCall(MS.WarningFn, Args)->setCannotMerge();
+    }
     // FIXME: Insert UnreachableInst if !MS.Recover?
     // This may invalidate some of the following checks and needs to be done
     // at the very end.
@@ -1617,43 +1680,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
             ConvertedShadow2,
             MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
 
-        {
-          auto *M = F.getParent();
-          auto *ConstASPtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
-
-          // file name and line number
-          {
-            bool HasDebugLoc = false;
-            auto *ConvertedShadowInst = dyn_cast<Instruction>(ConvertedShadow);
-
-            if (ConvertedShadowInst) {
-              if (auto &Loc = ConvertedShadowInst->getDebugLoc()) {
-                llvm::SmallString<128> Source = Loc->getDirectory();
-                sys::path::append(Source, Loc->getFilename());
-                auto *FileNameGV = getOrCreateGlobalString(
-                    *M, "__asan_file", Source, kSpirOffloadConstantAS);
-                Args.push_back(
-                    ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
-                Args.push_back(
-                    ConstantInt::get(IRB.getInt32Ty(), Loc.getLine()));
-
-                HasDebugLoc = true;
-              }
-            }
-
-            if (!HasDebugLoc) {
-              Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
-              Args.push_back(ConstantInt::get(IRB.getInt32Ty(), 0));
-            }
-          }
-
-          // function name
-          auto FuncName = F.getName();
-          auto *FuncNameGV = getOrCreateGlobalString(
-              *M, "__asan_func", demangle(FuncName), kSpirOffloadConstantAS);
-          Args.push_back(
-              ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
-        }
+        appendDebugInfoToArgs(IRB, Args);
 
         CallBase *CB = IRB.CreateCall(Fn, Args);
         CB->addParamAttr(0, Attribute::ZExt);
@@ -3160,7 +3187,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void visitMemSetInst(MemSetInst &I) {
     IRBuilder<> IRB(&I);
     IRB.CreateCall(
-        MS.MemsetFn,
+        SpirOrSpirv ? MS.MemsetOffloadFn[cast<PointerType>(
+                                             I.getArgOperand(0)->getType())
+                                             ->getAddressSpace()]
+                    : MS.MemsetFn,
         {I.getArgOperand(0),
          IRB.CreateIntCast(I.getArgOperand(1), IRB.getInt32Ty(), false),
          IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
@@ -4085,6 +4115,20 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setOriginForNaryOp(I);
   }
 
+  // _mm_round_ps / _mm_round_ps.
+  // Similar to maybeHandleSimpleNomemIntrinsic except
+  // the second argument is guranteed to be a constant integer.
+  void handleRoundPdPsIntrinsic(IntrinsicInst &I) {
+    assert(I.getArgOperand(0)->getType() == I.getType());
+    assert(I.arg_size() == 2);
+    assert(isa<ConstantInt>(I.getArgOperand(1)));
+
+    IRBuilder<> IRB(&I);
+    ShadowAndOriginCombiner SC(this, IRB);
+    SC.Add(I.getArgOperand(0));
+    SC.Done(&I);
+  }
+
   // Instrument abs intrinsic.
   // handleUnknownIntrinsic can't handle it because of the last
   // is_int_min_poison argument which does not match the result type.
@@ -4263,6 +4307,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setShadow(&I, CombinedShadow);
 
     setOriginForNaryOp(I);
+  }
+
+  // Approximation only
+  void handleNEONVectorMultiplyIntrinsic(IntrinsicInst &I) {
+    handleShadowOr(I);
   }
 
   void visitIntrinsicInst(IntrinsicInst &I) {
@@ -4580,10 +4629,18 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       handlePclmulIntrinsic(I);
       break;
 
+    case Intrinsic::x86_avx_round_pd_256:
+    case Intrinsic::x86_avx_round_ps_256:
+    case Intrinsic::x86_sse41_round_pd:
+    case Intrinsic::x86_sse41_round_ps:
+      handleRoundPdPsIntrinsic(I);
+      break;
+
     case Intrinsic::x86_sse41_round_sd:
     case Intrinsic::x86_sse41_round_ss:
       handleUnarySdSsIntrinsic(I);
       break;
+
     case Intrinsic::x86_sse2_max_sd:
     case Intrinsic::x86_sse_max_ss:
     case Intrinsic::x86_sse2_min_sd:
@@ -4659,6 +4716,16 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::aarch64_neon_tbx4: {
       // The last trailing argument (index register) should be handled verbatim
       handleIntrinsicByApplyingToShadow(I, 1);
+      break;
+    }
+
+    case Intrinsic::aarch64_neon_fmulx:
+    case Intrinsic::aarch64_neon_pmul:
+    case Intrinsic::aarch64_neon_pmull:
+    case Intrinsic::aarch64_neon_smull:
+    case Intrinsic::aarch64_neon_pmull64:
+    case Intrinsic::aarch64_neon_umull: {
+      handleNEONVectorMultiplyIntrinsic(I);
       break;
     }
 
@@ -6412,8 +6479,10 @@ struct VarArgGenericHelper : public VarArgHelperBase {
     unsigned VAArgOffset = 0;
     const DataLayout &DL = F.getDataLayout();
     unsigned IntptrSize = DL.getTypeStoreSize(MS.IntptrTy);
-    for (Value *A :
-         llvm::drop_begin(CB.args(), CB.getFunctionType()->getNumParams())) {
+    for (const auto &[ArgNo, A] : llvm::enumerate(CB.args())) {
+      bool IsFixed = ArgNo < CB.getFunctionType()->getNumParams();
+      if (IsFixed)
+        continue;
       uint64_t ArgSize = DL.getTypeAllocSize(A->getType());
       if (DL.isBigEndian()) {
         // Adjusting the shadow for argument with size < IntptrSize to match the
