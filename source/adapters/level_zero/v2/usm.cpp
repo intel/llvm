@@ -231,7 +231,13 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
 }
 
 ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
-  return umf::umf2urResult(umfFree(ptr));
+  auto umfPool = umfPoolByPtr(ptr);
+  if (umfPool) {
+    return umf::umf2urResult(umfPoolFree(umfPool, ptr));
+  } else {
+    logger::error("Failed to find pool for pointer: {}", ptr);
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 }
 
 namespace ur::level_zero {
