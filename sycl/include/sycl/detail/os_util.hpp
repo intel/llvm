@@ -78,8 +78,16 @@ public:
   /// Make all directories on the path, throws on error.
   static int makeDir(const char *Dir);
 
-  /// Checks if specified path is present
-  static bool isPathPresent(const std::string &Path);
+  /// Checks if specified path is present.
+  static bool isPathPresent(const std::string &Path) {
+#ifdef __SYCL_RT_OS_WINDOWS
+    struct _stat Stat;
+    return !_stat(Path.c_str(), &Stat);
+#else
+    struct stat Stat;
+    return !stat(Path.c_str(), &Stat);
+#endif
+  }
 };
 
 // These functions are not a part of OSUtils class to prevent

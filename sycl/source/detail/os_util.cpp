@@ -240,8 +240,6 @@ int OSUtil::makeDir(const char *Dir) {
   return 0;
 }
 
-bool OSUtil::isPathPresent(const std::string &Path) { return fs::exists(Path); }
-
 // Get size of file in bytes.
 size_t getFileSize(const std::string &Path) {
   return static_cast<size_t>(fs::file_size(Path));
