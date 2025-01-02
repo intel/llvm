@@ -151,6 +151,61 @@ getReduKernelBundleT(std::shared_ptr<queue_impl> Queue) {
   return get_kernel_bundle<KernelName, bundle_state::executable>(Ctx, {Dev});
 }
 
+template <typename KernelName, int Dims, typename EnqueueName, typename ImplementationType, typename PropertiesT>
+void EnqueueParallelFor(handler &CGH, bool UseKernelBundle, nd_range<Dims> &Range, ImplementationType &Func, std::shared_ptr<queue_impl> &Queue, PropertiesT &Properties) {
+  if (UseKernelBundle) {
+    // Use the kernel bundle we queried. This helps ensuring we run
+    // the kernel for which we may have queried information.
+    auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+    CGH.use_kernel_bundle(ExecBundle);
+  }
+  if constexpr (std::is_same_v<KernelName, auto_name>) {
+    CGH.parallel_for(Range, Properties, Func);
+  } else {
+    constexpr int Dimensions =
+        std::remove_reference_t<decltype(Func)>::dimensions;
+    CGH.parallel_for<EnqueueName>(
+      Range, Properties,
+      [=](nd_item<Dimensions> NDit) { Func(NDit); });
+  }
+};
+
+template <typename KernelName, int Dims, typename EnqueueName, typename ImplementationType>
+void EnqueueParallelFor(handler &CGH, bool UseKernelBundle, nd_range<Dims> &Range, ImplementationType &Func, std::shared_ptr<queue_impl> &Queue) {
+  if (UseKernelBundle) {
+    // Use the kernel bundle we queried. This helps ensuring we run
+    // the kernel for which we may have queried information.
+    auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+    CGH.use_kernel_bundle(ExecBundle);
+  }
+  if constexpr (std::is_same_v<KernelName, auto_name>) {
+    CGH.parallel_for(Range, Func);
+  } else {
+    constexpr int Dimensions =
+        std::remove_reference_t<decltype(Func)>::dimensions;
+    CGH.parallel_for<EnqueueName>(
+      Range,
+      [=](nd_item<Dimensions> NDit) { Func(NDit); });
+  }
+};
+
+template<typename EnqueueName>
+size_t getKernelMaxWGSize(handler &CGH, std::shared_ptr<queue_impl> &Queue) {
+  using namespace info::kernel_device_specific;
+  auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+  kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
+  device Dev = getDeviceFromHandler(CGH);
+  size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
+  std::cout << "\n\n"
+            << "reduction::strategy::multi\n"
+            << "KernelInfo::MaxSize = " << MaxSize << '\n';
+  if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+    size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+    std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+  }
+  return MaxSize;
+};
+
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
@@ -1370,42 +1425,10 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-        if (UseKernelBundle) {
-          // Use the kernel bundle we queried. This helps ensuring we run
-          // the kernel for which we may have queried information.
-          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-          CGH.use_kernel_bundle(ExecBundle);
-        }
-        if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(Range, Properties, Func);
-        } else {
-          constexpr int Dimensions =
-              std::remove_reference_t<decltype(Func)>::dimensions;
-          CGH.parallel_for<EnqueueName>(
-              Range, Properties,
-              [=](nd_item<Dimensions> NDit) { Func(NDit); });
-        }
-      };
-
-      // Test kernel_device_specific queries.
-      [&]() {
-        using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-        device Dev = getDeviceFromHandler(CGH);
-        size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-        std::cout << "\n\n"
-                  << "reduction::strategy::local_atomic_and_atomic_cross_wg\n"
-                  << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-        }
-      }();
+      size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance{Out, GroupSum, KernelFunc};
-      EnqueueParallelFor(NDRange, KernelInstance);
+      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     });
   }
 };
@@ -1563,42 +1586,12 @@ struct NDRangeReduction<
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-        if (UseKernelBundle) {
-          // Use the kernel bundle we queried. This helps ensuring we run
-          // the kernel for which we may have queried information.
-          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-          CGH.use_kernel_bundle(ExecBundle);
-        }
-        if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(Range, Properties, Func);
-        } else {
-          constexpr int Dimensions =
-              std::remove_reference_t<decltype(Func)>::dimensions;
-          CGH.parallel_for<EnqueueName>(
-              Range, Properties, [=](nd_item<Dimensions> NDit) { Func(NDit); });
-        }
-      };
-
-      // Test kernel_device_specific queries.
-      [&]() {
-        using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-        size_t MaxSize = Kernel.template get_info<work_group_size>(Device);
-        std::cout << "\n\n"
-                  << "reduction::strategy::group_reduce_and_last_wg_detection\n"
-                  << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        if (Device.get_backend() == backend::ext_oneapi_cuda) {
-          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Device);
-          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-        }
-      }();
+      size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance(
           Out, PartialSums, DoReducePartialSumsInLastWG, NWorkGroupsFinished,
           IsUpdateOfUserVar, NWorkGroups, WGSize, KernelFunc);
-      EnqueueParallelFor(NDRange, KernelInstance);
+      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     };
 
     // Integrated/discrete GPUs have different faster path. For discrete GPUs
@@ -1883,42 +1876,13 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
     using EnqueueName =
         std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-      if (UseKernelBundle) {
-        // Use the kernel bundle we queried. This helps ensuring we run
-        // the kernel for which we may have queried information.
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      if constexpr (std::is_same_v<KernelName, auto_name>) {
-        CGH.parallel_for(Range, Properties, Func);
-      } else {
-        CGH.parallel_for<EnqueueName>(Range, Properties,
-                                      [=](nd_item<Dims> NDit) { Func(NDit); });
-      }
-    };
-
-    // Test kernel_device_specific queries.
-    [&]() {
-      using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-      device Dev = getDeviceFromHandler(CGH);
-      size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-      std::cout << "\n\n"
-                << "reduction::strategy::range_basic\n"
-                << "KernelInfo::MaxSize = " << MaxSize << '\n';
-      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-      }
-    }();
+    size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
     ImplementationType KernelInstance(
         Out, PartialSums, NWorkGroupsFinished, IdentityContainer, BOp,
         LocalReds, DoReducePartialSumsInLastWG, IsUpdateOfUserVar, NWorkGroups,
         WGSize, KernelFunc);
-    EnqueueParallelFor(NDRange, KernelInstance);
+    EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
   }
 };
 
@@ -1988,41 +1952,10 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-        if (UseKernelBundle) {
-          // Use the kernel bundle we queried. This helps ensuring we run
-          // the kernel for which we may have queried information.
-          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-          CGH.use_kernel_bundle(ExecBundle);
-        }
-        if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(Range, Properties, Func);
-        } else {
-          constexpr auto Dimensions =
-              std::remove_reference_t<decltype(Func)>::dimensions;
-          CGH.parallel_for<EnqueueName>(
-              Range, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
-        }
-      };
-
-      // Test kernel_device_specific queries.
-      [&]() {
-        using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-        device Dev = getDeviceFromHandler(CGH);
-        size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-        std::cout << "\n\n"
-                  << "reduction::strategy::group_reduce_and_atomic_cross_wg\n"
-                  << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-        }
-      }();
+      size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance(KernelFunc, Out);
-      EnqueueParallelFor(NDRange, KernelInstance);
+      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     });
   }
 };
@@ -2126,39 +2059,10 @@ struct NDRangeReduction<
       // element.
       local_accessor<element_type, 1> LocalReds{WGSize, CGH};
 
-      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-        if (UseKernelBundle) {
-          // Use the kernel bundle we queried. This helps ensuring we run
-          // the kernel for which we may have queried information.
-          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-          CGH.use_kernel_bundle(ExecBundle);
-        }
-        if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(Range, Properties, Func);
-        } else {
-          CGH.parallel_for<EnqueueName>(
-              Range, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
-        }
-      };
-
-      // Test kernel_device_specific queries.
-      [&]() {
-        using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-        device Dev = getDeviceFromHandler(CGH);
-        size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-        std::cout << "\n\n"
-                  << "reduction::strategy::local_mem_tree_and_atomic_cross_wg\n"
-                  << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-        }
-      }();
+      size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance{Out, LocalReds, KernelFunc};
-      EnqueueParallelFor(NDRange, KernelInstance);
+      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     });
   }
 };
@@ -2307,41 +2211,10 @@ struct NDRangeReduction<
     using EnqueueName =
         std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-      constexpr int Dimensions =
-          std::remove_reference_t<decltype(Func)>::dimensions;
-      if (UseKernelBundle) {
-        // Use the kernel bundle we queried. This helps ensuring we run
-        // the kernel for which we may have queried information.
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      if constexpr (std::is_same_v<KernelName, auto_name>) {
-        CGH.parallel_for(Range, Properties, Func);
-      } else {
-        CGH.parallel_for<EnqueueName>(
-            Range, Properties, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
-      }
-    };
-
-    // Test kernel_device_specific queries.
-    [&]() {
-      using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-      device Dev = getDeviceFromHandler(CGH);
-      size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-      std::cout << "\n\n"
-                << "reduction::strategy::group_reduce_and_multiple_kernels\n"
-                << "KernelInfo::MaxSize = " << MaxSize << '\n';
-      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-      }
-    }();
+    size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
     ImplementationType KernelInstance(Out, IsUpdateOfUserVar, KernelFunc);
-    EnqueueParallelFor(NDRange, KernelInstance);
+    EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
 
     reduction::finalizeHandler(CGH);
 
@@ -2389,39 +2262,7 @@ struct NDRangeReduction<
         using EnqueueName =
             std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-        auto EnqueueParallelForAux = [&](auto Range, auto &Func) {
-          constexpr int Dimensions =
-              std::remove_reference_t<decltype(Func)>::dimensions;
-          if (UseKernelBundle) {
-            // Use the kernel bundle we queried. This helps ensuring we run
-            // the kernel for which we may have queried information.
-            auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-            AuxHandler.use_kernel_bundle(ExecBundle);
-          }
-          if constexpr (std::is_same_v<KernelName, auto_name>) {
-            AuxHandler.parallel_for(Range, Func);
-          } else {
-            AuxHandler.parallel_for<EnqueueName>(
-                Range, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
-          }
-        };
-
-        // Test kernel_device_specific queries.
-        [&]() {
-          using namespace info::kernel_device_specific;
-          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-          kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-          device Dev = getDeviceFromHandler(AuxHandler);
-          size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-          std::cout
-              << "\n\n"
-              << "reduction::strategy::group_reduce_and_multiple_kernels\n"
-              << "KernelInfo::MaxSize = " << MaxSize << '\n';
-          if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-            size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-            std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-          }
-        }();
+        size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
         bool IsUpdateOfUserVar = !Reduction::is_usm &&
                                  !Redu.initializeToIdentity() &&
@@ -2431,7 +2272,7 @@ struct NDRangeReduction<
         nd_range<1> Range{GlobalRange, range<1>(WGSize)};
         ImplementationType AuxKernelInstance(In, Out, IsUpdateOfUserVar,
                                              HasUniformWG, NWorkItems);
-        EnqueueParallelForAux(Range, AuxKernelInstance);
+        EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType>(CGH, UseKernelBundle, Range, AuxKernelInstance, Queue);
         NWorkItems = NWorkGroups;
       });
     } // end while (NWorkItems > 1)
@@ -2664,42 +2505,11 @@ public:
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-        constexpr int Dimensions =
-            std::remove_reference_t<decltype(Func)>::dimensions;
-        if (UseKernelBundle) {
-          // Use the kernel bundle we queried. This helps ensuring we run
-          // the kernel for which we may have queried information.
-          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-          CGH.use_kernel_bundle(ExecBundle);
-        }
-        if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(Range, Properties, Func);
-        } else {
-          CGH.parallel_for<EnqueueName>(
-              Range, Properties, [=](nd_item<Dimensions> NDit) { Func(NDit); });
-        }
-      };
-
-      // Test kernel_device_specific queries.
-      [&]() {
-        using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-        device Dev = getDeviceFromHandler(CGH);
-        size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-        std::cout << "\n\n"
-                  << "reduction::strategy::basic\n"
-                  << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-        }
-      }();
+      size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance(Out, IdentityContainer, BOp, LocalReds,
                                         IsUpdateOfUserVar, KernelFunc);
-      EnqueueParallelFor(NDRange, KernelInstance);
+      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     };
 
     if (NWorkGroups == 1)
@@ -2772,46 +2582,14 @@ public:
           using EnqueueName = std::conditional_t<IsUndefinedKernelName,
                                                  ImplementationType, Name>;
 
-          auto EnqueueParallelForAux = [&](auto Range, auto &Func) {
-            constexpr int Dimensions =
-                std::remove_reference_t<decltype(Func)>::dimensions;
-            if (UseKernelBundle) {
-              // Use the kernel bundle we queried. This helps ensuring we run
-              // the kernel for which we may have queried information.
-              auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-              AuxHandler.use_kernel_bundle(ExecBundle);
-            }
-            if constexpr (std::is_same_v<KernelName, auto_name>) {
-              AuxHandler.parallel_for(Range, Func);
-            } else {
-              AuxHandler.parallel_for<EnqueueName>(
-                  Range, [=](nd_item<Dimensions> NDit) { Func(NDit); });
-            }
-          };
-
           range<1> GlobalRange = {UniformPow2WG ? NWorkItems
                                                 : NWorkGroups * WGSize};
           nd_range<1> Range{GlobalRange, range<1>(WGSize)};
 
-          // Test kernel_device_specific queries.
-          [&]() {
-            using namespace info::kernel_device_specific;
-            auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-            kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-            device Dev = getDeviceFromHandler(AuxHandler);
-            size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-            std::cout << "\n\n"
-                      << "reduction::strategy::basic\n"
-                      << "KernelInfo::MaxSize = " << MaxSize << '\n';
-            if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-              size_t Regs =
-                  Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-              std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-            }
-          }();
+          size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
           ImplementationType AuxKernelInstance(In, Out, BOp, LocalReds,
                                                IsUpdateOfUserVar, NWorkItems);
-          EnqueueParallelForAux(Range, AuxKernelInstance);
+          EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType>(CGH, UseKernelBundle, Range, AuxKernelInstance, Queue);
           NWorkItems = NWorkGroups;
         });
       };
@@ -3214,43 +2992,13 @@ void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
     using EnqueueName =
         std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-      if (UseKernelBundle) {
-        // Use the kernel bundle we queried. This helps ensuring we run
-        // the kernel for which we may have queried information.
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      if constexpr (std::is_same_v<KernelName, auto_name>) {
-        CGH.parallel_for(Range, Properties, Func);
-      } else {
-        constexpr int Dimensions =
-            std::remove_reference_t<decltype(Func)>::dimensions;
-        CGH.parallel_for<EnqueueName>(
-            Range, Properties, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
-      }
-    };
-
-    // Test kernel_device_specific queries.
-    [&]() {
-      using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-      device Dev = getDeviceFromHandler(CGH);
-      size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-      std::cout << "\n\n"
-                << "reduction::strategy::multi\n"
-                << "KernelInfo::MaxSize = " << MaxSize << '\n';
-      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-      }
-    }();
+    size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
     ImplementationType KernelInstance(OutAccsTuple, LocalAccsTuple,
                                       IdentitiesTuple, BOPsTuple, ScalarIs,
                                       ArrayIs, InitToIdentityProps, KernelFunc);
-    EnqueueParallelFor(Range, KernelInstance);
+    EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, Range, KernelInstance, Queue, Properties);
+    
   };
 
   size_t NWorkGroups = Range.get_group_range().size();
@@ -3487,38 +3235,7 @@ size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
     using EnqueueName =
         std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
-      if (UseKernelBundle) {
-        // Use the kernel bundle we queried. This helps ensuring we run
-        // the kernel for which we may have queried information.
-        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      if constexpr (std::is_same_v<KernelName, auto_name>) {
-        CGH.parallel_for(Range, Func);
-      } else {
-        constexpr int Dimensions =
-            std::remove_reference_t<decltype(Func)>::dimensions;
-        CGH.parallel_for<EnqueueName>(
-            Range, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
-      }
-    };
-
-    // Test kernel_device_specific queries.
-    [&]() {
-      using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
-      device Dev = getDeviceFromHandler(CGH);
-      size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-      std::cout << "\n\n"
-                << "reduction::strategy::multi\n"
-                << "KernelInfo::MaxSize = " << MaxSize << '\n';
-      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-      }
-    }();
+    size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
     // TODO: Opportunity to parallelize across number of elements
     range<1> GlobalRange = {HasUniformWG ? NWorkItems : NWorkGroups * WGSize};
@@ -3527,7 +3244,7 @@ size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
     ImplementationType KernelInstance(InAccsTuple, OutAccsTuple, LocalAccsTuple,
                                       IdentitiesTuple, BOPsTuple, ScalarIs,
                                       ArrayIs, InitToIdentityProps, NWorkItems);
-    EnqueueParallelFor(Range, KernelInstance);
+    EnqueueParallelFor<KernelName, 1, EnqueueName, ImplementationType>(CGH, UseKernelBundle, Range, KernelInstance, Queue);
   };
   if (NWorkGroups == 1)
     Rest(IsNonUsmReductionPredicate{},

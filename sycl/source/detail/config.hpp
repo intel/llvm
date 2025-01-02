@@ -14,6 +14,7 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
+#include <sycl/backend_types.hpp>
 
 #include <algorithm>
 #include <array>
