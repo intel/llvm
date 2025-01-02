@@ -12,6 +12,7 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <optional>
@@ -48,13 +49,11 @@ LockCacheItem::LockCacheItem(const std::string &Path)
 
 LockCacheItem::~LockCacheItem() {
   if (Owned && std::remove(FileName.c_str()))
-    PersistentDeviceCodeCache::trace("Failed to release lock file: " +
-                                     FileName);
+    PersistentDeviceCodeCache::trace("Failed to release lock file: ", FileName);
 }
 
 // Returns true if the specified format is either SPIRV or a native binary.
-static bool
-IsSupportedImageFormat(ur::DeviceBinaryType Format) {
+static bool IsSupportedImageFormat(ur::DeviceBinaryType Format) {
   return Format == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
          Format == SYCL_DEVICE_BINARY_TYPE_NATIVE;
 }
@@ -178,6 +177,258 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
   return Result;
 }
 
+// Save the current time in a file.
+void PersistentDeviceCodeCache::saveCurrentTimeInAFile(std::string FileName) {
+  // Lock the file to prevent concurrent writes.
+  LockCacheItem Lock{FileName};
+  if (Lock.isOwned()) {
+    try {
+      std::ofstream FileStream{FileName, std::ios::trunc};
+      FileStream << std::chrono::high_resolution_clock::now()
+                        .time_since_epoch()
+                        .count();
+      FileStream.close();
+    } catch (std::exception &e) {
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to save current time in a file: " +
+                                FileName + "\n" + std::string(e.what()));
+    }
+  }
+}
+
+// Check if cache_size.txt file is present in the cache root directory.
+// If not, create it and populate it with the size of the cache directory.
+void PersistentDeviceCodeCache::repopulateCacheSizeFile(
+    const std::string &CacheRoot) {
+
+  // No need to store cache size if eviction is disabled.
+  if (!isEvictionEnabled())
+    return;
+
+  const std::string CacheSizeFileName = "cache_size.txt";
+  const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
+
+  // Create cache root, if it does not exist.
+  try {
+    if (!OSUtil::isPathPresent(CacheRoot))
+      OSUtil::makeDir(CacheRoot.c_str());
+  } catch (...) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "Failed to create cache root directory: " +
+                              CacheRoot);
+  }
+
+  // If the cache size file is not present, calculate the size of the cache size
+  // directory and write it to the file.
+  if (!OSUtil::isPathPresent(CacheSizeFile)) {
+    PersistentDeviceCodeCache::trace(
+        "Cache size file not present. Creating one.");
+
+    // Take the lock to write the cache size to the file.
+    {
+      LockCacheItem Lock{CacheSizeFile};
+      if (!Lock.isOwned()) {
+        // If some other process is writing the cache size, do not write it.
+        PersistentDeviceCodeCache::trace("Didnot create the cache size file. "
+                                         "Some other process is creating one.");
+
+        // Stall until the other process creates the file. Stalling is important
+        // to prevent race between one process that's calculating the directory
+        // size and another process that's trying to create a new cache entry.
+        while (!OSUtil::isPathPresent(CacheSizeFile))
+          continue;
+      } else {
+        // Calculate the size of the cache directory.
+        // During directory size calculation, do not add anything
+        // in the cache. Otherwise, we'll get a std::fs_error.
+        size_t CacheSize = getDirectorySize(CacheRoot);
+
+        std::ofstream FileStream{CacheSizeFile};
+        FileStream << CacheSize;
+        FileStream.close();
+        PersistentDeviceCodeCache::trace("Cache size file created.");
+      }
+    }
+  }
+}
+
+void PersistentDeviceCodeCache::evictItemsFromCache(
+    const std::string &CacheRoot, size_t CacheSize, size_t MaxCacheSize) {
+  PersistentDeviceCodeCache::trace("Cache eviction triggered.");
+
+  // EVict half of the cache.
+  constexpr float HowMuchCacheToEvict = 0.5;
+
+  // Create a file eviction_in_progress.lock to indicate that eviction is in
+  // progress. This file is used to prevent two processes from evicting the
+  // cache at the same time.
+  LockCacheItem Lock{CacheRoot + EvictionInProgressFileSuffix};
+  if (!Lock.isOwned()) {
+    // If some other process is evicting the cache, return.
+    PersistentDeviceCodeCache::trace(
+        "Another process is evicting the cache. Returning.");
+    return;
+  }
+
+  // Get the list of all files in the cache directory along with their last
+  // modification time.
+  std::vector<std::pair<uint64_t, std::string>> FilesWithAccessTime;
+
+  auto CollectFileAccessTime = [&FilesWithAccessTime](const std::string File) {
+    if (File.find(CacheEntryAccessTimeSuffix) != std::string::npos) {
+      std::ifstream FileStream{File};
+      uint64_t AccessTime;
+      FileStream >> AccessTime;
+      FilesWithAccessTime.push_back({AccessTime, File});
+    }
+  };
+
+  // fileTreeWalk can throw if any new file is created or removed during the
+  // iteration. Retry in that case. When eviction is in progress, we don't
+  // insert any new item but processes can still read the cache. Reading from
+  // cache can create/remove .lock file which can cause the exception.
+  while (true) {
+    try {
+      fileTreeWalk(CacheRoot, CollectFileAccessTime);
+      break;
+    } catch (...) {
+      FilesWithAccessTime.clear();
+      // If the cache directory is removed during the iteration, retry.
+      continue;
+    }
+  }
+
+  // Sort the files in the cache directory based on their last access time.
+  std::sort(FilesWithAccessTime.begin(), FilesWithAccessTime.end(),
+            [](const std::pair<uint64_t, std::string> &A,
+               const std::pair<uint64_t, std::string> &B) {
+              return A.first < B.first;
+            });
+
+  // Evict files from the cache directory until the cache size is less than the
+  // threshold.
+  size_t CurrCacheSize = CacheSize;
+  for (const auto &File : FilesWithAccessTime) {
+
+    int pos = File.second.find(CacheEntryAccessTimeSuffix);
+    const std::string FileNameWOExt = File.second.substr(0, pos);
+    const std::string BinFile = FileNameWOExt + ".bin";
+    const std::string SrcFile = FileNameWOExt + ".src";
+
+    while (OSUtil::isPathPresent(BinFile) || OSUtil::isPathPresent(SrcFile)) {
+
+      // Lock to prevent race between writer and eviction thread.
+      LockCacheItem Lock{FileNameWOExt};
+      if (Lock.isOwned()) {
+        // Remove the file and subtract its size from the cache size.
+        auto RemoveFileAndSubtractSize = [&CurrCacheSize](
+                                             const std::string &FileName) {
+          // If the file is not present, return.
+          // Src file is not present inj kernel_compiler cache, we will
+          // skip removing it.
+          if (!OSUtil::isPathPresent(FileName))
+            return;
+
+          auto FileSize = getFileSize(FileName);
+          if (std::remove(FileName.c_str())) {
+            throw sycl::exception(make_error_code(errc::runtime),
+                                  "Failed to evict cache entry: " + FileName);
+          } else {
+            PersistentDeviceCodeCache::trace("File removed: ", FileName);
+            CurrCacheSize -= FileSize;
+          }
+        };
+
+        // If removal fails due to a race, retry.
+        // Races are rare, but can happen if another process is reading the
+        // file. Locking down the entire cache and blocking all readers would be
+        // inefficient.
+        try {
+          RemoveFileAndSubtractSize(SrcFile);
+          RemoveFileAndSubtractSize(BinFile);
+        } catch (...) {
+          continue;
+        }
+      }
+    }
+
+    // If the cache size is less than the threshold, break.
+    if (CurrCacheSize <= (size_t)(HowMuchCacheToEvict * MaxCacheSize))
+      break;
+  }
+
+  // Update the cache size file with the new cache size.
+  {
+    const std::string CacheSizeFileName = "cache_size.txt";
+    const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
+    while (true) {
+      LockCacheItem Lock{CacheSizeFile};
+      if (!Lock.isOwned()) {
+        // If some other process is writing the cache size, spin lock.
+        continue;
+      } else {
+        std::fstream FileStream;
+        FileStream.open(CacheSizeFile, std::ios::out | std::ios::trunc);
+        FileStream << CurrCacheSize;
+        FileStream.close();
+
+        PersistentDeviceCodeCache::trace(
+            "Updating the cache size file after eviction. New size: " +
+            std::to_string(CurrCacheSize));
+        break;
+      }
+    }
+  }
+}
+
+// Update the cache size file and trigger cache eviction if needed.
+void PersistentDeviceCodeCache::updateCacheFileSizeAndTriggerEviction(
+    const std::string &CacheRoot, size_t ItemSize) {
+
+  // No need to store cache size if eviction is disabled.
+  if (!isEvictionEnabled())
+    return;
+
+  const std::string CacheSizeFileName = "cache_size.txt";
+  const std::string CacheSizeFile = CacheRoot + "/" + CacheSizeFileName;
+  size_t CurrentCacheSize = 0;
+  // Read the cache size from the file.
+  while (true) {
+    LockCacheItem Lock{CacheSizeFile};
+    if (!Lock.isOwned()) {
+      // If some other process is writing the cache size, spin lock.
+      continue;
+    } else {
+      PersistentDeviceCodeCache::trace("Updating the cache size file.");
+      std::fstream FileStream;
+      FileStream.open(CacheSizeFile, std::ios::in);
+
+      // Read the cache size from the file;
+      std::string line;
+      if (std::getline(FileStream, line)) {
+        CurrentCacheSize = std::stoull(line);
+      }
+      FileStream.close();
+
+      CurrentCacheSize += ItemSize;
+
+      // Write the updated cache size to the file.
+      FileStream.open(CacheSizeFile, std::ios::out | std::ios::trunc);
+      FileStream << CurrentCacheSize;
+      FileStream.close();
+      break;
+    }
+  }
+
+  // Check if the cache size exceeds the threshold and trigger cache eviction if
+  // needed.
+  size_t MaxCacheSize = SYCLConfig<SYCL_CACHE_MAX_SIZE>::getProgramCacheSize();
+  if (CurrentCacheSize > MaxCacheSize) {
+    // Trigger cache eviction.
+    evictItemsFromCache(CacheRoot, CurrentCacheSize, MaxCacheSize);
+  }
+}
+
 /* Stores built program in persistent cache. We will put the binary for each
  * device in the list to a separate file.
  */
@@ -190,8 +441,21 @@ void PersistentDeviceCodeCache::putItemToDisc(
   if (!areImagesCacheable(Imgs))
     return;
 
+  repopulateCacheSizeFile(getRootDir());
+
+  // Do not insert any new item if eviction is in progress.
+  // Since evictions are rare, we can afford to spin lock here.
+  const std::string EvictionInProgressFile =
+      getRootDir() + EvictionInProgressFileSuffix;
+  // Stall until the other process finishes eviction.
+  while (OSUtil::isPathPresent(EvictionInProgressFile))
+    continue;
+
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   auto BinaryData = getProgramBinaryData(NativePrg, Devices);
+
+  // Total size of the item that we just wrote to the cache.
+  size_t TotalSize = 0;
   for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
     // If we don't have binary for the device, skip it.
     if (BinaryData[DeviceIndex].empty())
@@ -202,18 +466,25 @@ void PersistentDeviceCodeCache::putItemToDisc(
     if (DirName.empty())
       return;
 
+    std::string FileName;
     try {
       OSUtil::makeDir(DirName.c_str());
-      std::string FileName = getUniqueFilename(DirName);
+      FileName = getUniqueFilename(DirName);
       LockCacheItem Lock{FileName};
       if (Lock.isOwned()) {
         std::string FullFileName = FileName + ".bin";
         writeBinaryDataToFile(FullFileName, BinaryData[DeviceIndex]);
-        trace("device binary has been cached: " + FullFileName);
+        trace("device binary has been cached: ", FullFileName);
         writeSourceItem(FileName + ".src", Devices[DeviceIndex], SortedImgs,
                         SpecConsts, BuildOptionsString);
+
+        // Update Total cache size after adding the new items.
+        TotalSize += getFileSize(FileName + ".src");
+        TotalSize += getFileSize(FileName + ".bin");
+
+        saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
       } else {
-        PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
+        PersistentDeviceCodeCache::trace("cache lock not owned ", FileName);
       }
     } catch (std::exception &e) {
       PersistentDeviceCodeCache::trace(
@@ -225,12 +496,29 @@ void PersistentDeviceCodeCache::putItemToDisc(
           std::strerror(errno));
     }
   }
+
+  // Update the cache size file and trigger cache eviction if needed.
+  if (TotalSize)
+    updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
 }
 
 void PersistentDeviceCodeCache::putCompiledKernelToDisc(
     const std::vector<device> &Devices, const std::string &BuildOptionsString,
     const std::string &SourceStr, const ur_program_handle_t &NativePrg) {
+
+  repopulateCacheSizeFile(getRootDir());
+
+  // Do not insert any new item if eviction is in progress.
+  // Since evictions are rare, we can afford to spin lock here.
+  const std::string EvictionInProgressFile =
+      getRootDir() + EvictionInProgressFileSuffix;
+  // Stall until the other process finishes eviction.
+  while (OSUtil::isPathPresent(EvictionInProgressFile))
+    continue;
+
   auto BinaryData = getProgramBinaryData(NativePrg, Devices);
+  // Total size of the item that we are writing to the cache.
+  size_t TotalSize = 0;
 
   for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
     // If we don't have binary for the device, skip it.
@@ -247,10 +535,13 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
         std::string FullFileName = FileName + ".bin";
         writeBinaryDataToFile(FullFileName, BinaryData[DeviceIndex]);
         PersistentDeviceCodeCache::trace_KernelCompiler(
-            "binary has been cached: " + FullFileName);
+            "binary has been cached: ", FullFileName);
+
+        TotalSize += getFileSize(FullFileName);
+        saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
       } else {
-        PersistentDeviceCodeCache::trace_KernelCompiler(
-            "cache lock not owned " + FileName);
+        PersistentDeviceCodeCache::trace_KernelCompiler("cache lock not owned ",
+                                                        FileName);
       }
     } catch (std::exception &e) {
       PersistentDeviceCodeCache::trace_KernelCompiler(
@@ -260,6 +551,10 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
           std::string("error outputting cache: ") + std::strerror(errno));
     }
   }
+
+  // Update the cache size file and trigger cache eviction if needed.
+  if (TotalSize)
+    updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
 }
 
 /* Program binaries built for one or more devices are read from persistent
@@ -298,6 +593,12 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
         try {
           std::string FullFileName = FileName + ".bin";
           Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+
+          // Explicitly update the access time of the file. This is required for
+          // eviction.
+          if (isEvictionEnabled())
+            saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
+
           FileNames += FullFileName + ";";
           break;
         } catch (...) {
@@ -310,7 +611,7 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     if (Binaries[DeviceIndex].empty())
       return {};
   }
-  PersistentDeviceCodeCache::trace("using cached device binary: " + FileNames);
+  PersistentDeviceCodeCache::trace("using cached device binary: ", FileNames);
   return Binaries;
 }
 
@@ -340,6 +641,12 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
         try {
           std::string FullFileName = FileName + ".bin";
           Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+
+          // Explicitly update the access time of the file. This is required for
+          // eviction.
+          if (isEvictionEnabled())
+            saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
+
           FileNames += FullFileName + ";";
           break;
         } catch (...) {
@@ -352,7 +659,7 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
     if (Binaries[DeviceIndex].empty())
       return {};
   }
-  PersistentDeviceCodeCache::trace_KernelCompiler("using cached binary: " +
+  PersistentDeviceCodeCache::trace_KernelCompiler("using cached binary: ",
                                                   FileNames);
   return Binaries;
 }
@@ -383,7 +690,7 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
   FileStream.write((char *)&Size, sizeof(Size));
   FileStream.write(Data.data(), Size);
   if (FileStream.fail())
-    trace("Failed to write to binary file " + FileName);
+    trace("Failed to write to binary file ", FileName);
 }
 
 /* Read built binary from persistent cache. Each persistent cache file contains
@@ -400,7 +707,7 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   size_t NumBinaries = 0;
   FileStream.read((char *)&NumBinaries, sizeof(NumBinaries));
   if (FileStream.fail()) {
-    trace("Failed to read number of binaries from " + FileName);
+    trace("Failed to read number of binaries from ", FileName);
     return {};
   }
   // Even in the old implementation we could only put a single binary to the
@@ -415,7 +722,7 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   FileStream.close();
 
   if (FileStream.fail()) {
-    trace("Failed to read binary file from " + FileName);
+    trace("Failed to read binary file from ", FileName);
     return {};
   }
 
@@ -423,8 +730,8 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
 }
 
 /* Writing cache item key sources to be used for reliable identification
- * Format: Four pairs of [size, value] for device, build options, specialization
- * constant values, device code SPIR-V images.
+ * Format: Four pairs of [size, value] for device, build options,
+ * specialization constant values, device code SPIR-V images.
  */
 void PersistentDeviceCodeCache::writeSourceItem(
     const std::string &FileName, const device &Device,
@@ -455,7 +762,7 @@ void PersistentDeviceCodeCache::writeSourceItem(
   FileStream.close();
 
   if (FileStream.fail()) {
-    trace("Failed to write source file to " + FileName);
+    trace("Failed to write source file to ", FileName);
   }
 }
 
@@ -503,7 +810,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
   FileStream.close();
 
   if (FileStream.fail()) {
-    trace("Failed to read source file from " + FileName);
+    trace("Failed to read source file from ", FileName);
   }
 
   return true;

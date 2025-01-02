@@ -5,7 +5,7 @@ FROM $base_image:$base_tag
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG use_latest=true
+ARG use_unstable_driver=true
 
 USER root
 
@@ -18,7 +18,7 @@ COPY dependencies.json /
 RUN mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
-    if [ "$use_latest" = "true" ]; then \
+    if [ "$use_unstable_driver" = "true" ]; then \
       install_driver_opt=" --use-latest"; \
     else \
       install_driver_opt=" dependencies.json"; \
