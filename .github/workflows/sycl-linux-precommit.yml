@@ -281,7 +281,7 @@ jobs:
           #   env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
           #   use_igc_dev: true
 
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    uses: ./.github/workflows/sycl-linux-benchmark.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
