@@ -38,20 +38,22 @@ config.required_features = []
 config.unsupported_features = []
 
 # test-mode: Set if tests should run normally or only build/run
-match lit_config.params.get("test-mode", "full"):
-    case "run-only":
-        config.test_mode = "run-only"
-        config.available_features.add("run-mode")
-    case "build-only":
-        config.test_mode = "build-only"
-        config.sycl_devices = []
-        arch_flag = ""
-    case "full":
-        config.test_mode = "full"
-        config.available_features.add("run-mode")
+config.test_mode = lit_config.params.get("test-mode", "full")
+config.fallback_build_run_only = False
+if config.test_mode == "full":
+    config.available_features.add("run-mode")
+    config.available_features.add("build-and-run-mode")
+elif config.test_mode == "run-only":
+    lit_config.note("run-only test mode enabled, only executing tests")
+    config.available_features.add("run-mode")
+    if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
         config.available_features.add("build-and-run-mode")
-    case _:
-        lit_config.error("Invalid argument for test-mode")
+        config.fallback_build_run_only = True
+elif config.test_mode == "build-only":
+    lit_config.note("build-only test mode enabled, only compiling tests")
+    config.sycl_devices = []
+else:
+    lit_config.error("Invalid argument for test-mode")
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
@@ -151,10 +153,13 @@ if platform.system() == "Windows":
         ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
     )
     config.substitutions.append(("%obj_ext", ".obj"))
+    config.substitutions.append(
+        ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
+    )
 elif platform.system() == "Linux":
     config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
-config.substitutions.append(("%sycl_include", config.sycl_include))
+    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
@@ -163,8 +168,6 @@ if lit_config.params.get("gpu-intel-gen12", False):
     config.available_features.add("gpu-intel-gen12")
 
 # Intel GPU DEVICE availability
-if lit_config.params.get("gpu-intel-dg1", False):
-    config.available_features.add("gpu-intel-dg1")
 if lit_config.params.get("gpu-intel-dg2", False):
     config.available_features.add("gpu-intel-dg2")
 if lit_config.params.get("gpu-intel-pvc-vg", False):
@@ -380,7 +383,7 @@ if cl_options:
         )
     )
     config.substitutions.append(("%include_option", "/FI"))
-    config.substitutions.append(("%debug_option", "/DEBUG"))
+    config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
     config.substitutions.append(("%cxx_std_option", "/std:"))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
@@ -657,13 +660,17 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
+# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
+arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+    if sycl_device.startswith("hip:"):
+        env["UR_HIP_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
@@ -798,9 +805,6 @@ for sycl_device in config.sycl_devices:
         )
     elif be == "hip" and config.hip_platform == "NVIDIA":
         config.available_features.add("hip_nvidia")
-        arch_flag = ""
-    else:
-        arch_flag = ""
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:

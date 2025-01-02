@@ -14,7 +14,7 @@ on:
       build_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2404_build:latest"
       build_ref:
         type: string
         required: false
@@ -63,6 +63,8 @@ on:
           Reason for skipping the build.
         type: string
         default: "inputs.skip-reason set to true."
+      ref:
+        type: string
         required: false
 
     outputs:
@@ -159,6 +161,7 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
+        ref: ${{ inputs.ref || github.sha }}
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup

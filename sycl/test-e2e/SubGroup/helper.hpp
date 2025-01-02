@@ -10,6 +10,7 @@
 #include <complex>
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/sub_group.hpp>
 
 using namespace sycl;

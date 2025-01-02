@@ -12,7 +12,8 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdlib>    // for size_t
+#include <cstdlib> // for size_t
+#include <functional>
 #include <string>     // for string
 #include <sys/stat.h> // for stat
 
@@ -89,6 +90,20 @@ public:
 #endif
   }
 };
+
+// These functions are not a part of OSUtils class to prevent
+// exporting them as ABI. They are only used in persistent cache
+// implementation and should not be exposed to the end users.
+// Get size of directory in bytes.
+size_t getDirectorySize(const std::string &Path);
+
+// Get size of file in bytes.
+size_t getFileSize(const std::string &Path);
+
+// Function to recursively iterate over the directory and execute
+// 'Func' on each regular file.
+void fileTreeWalk(const std::string Path,
+                  std::function<void(const std::string)> Func);
 
 } // namespace detail
 } // namespace _V1

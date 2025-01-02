@@ -15,6 +15,7 @@
 // that otherwise does not get run.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 constexpr size_t Size = 16;

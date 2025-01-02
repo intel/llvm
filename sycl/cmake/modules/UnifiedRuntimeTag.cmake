@@ -1,7 +1,7 @@
-# commit e0f22b54080411537e8a12fe42f06dbac5e7a2d2
-# Merge: ab3cc0b7 6ba65403
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 26 13:32:11 2024 +0000
-#     Merge pull request #2351 from nrspruit/mcl_1_1
-#     [L0] Add support for the MCL 1.1 apis thru the spec extensions
-set(UNIFIED_RUNTIME_TAG e0f22b54080411537e8a12fe42f06dbac5e7a2d2)
+# commit 13f5e52ac047bb81f478f0dbe9416a8bc179130a
+# Merge: fe6c83a3 fa1e678a
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Mon Dec 30 15:14:19 2024 +0000
+#     Merge pull request #2484 from zhaomaosu/move-clean-shadow-to-launchinfo
+#     [DevMSAN] Move clean shadow into launch info
+set(UNIFIED_RUNTIME_TAG 13f5e52ac047bb81f478f0dbe9416a8bc179130a)

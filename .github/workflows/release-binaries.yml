@@ -436,7 +436,7 @@ jobs:
 
     - name: Attest Build Provenance
       id: provenance
-      uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
+      uses: actions/attest-build-provenance@7668571508540a607bdfd90a87a560489fe372eb # v2.1.0
       with:
         subject-path: ${{ needs.prepare.outputs.release-binary-filename }}
 

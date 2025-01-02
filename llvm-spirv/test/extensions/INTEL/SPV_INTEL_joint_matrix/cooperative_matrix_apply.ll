@@ -8,6 +8,16 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_joint_matrix,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
+; TODO: enable back once the reverse translation with untyped pointers is fixed
+; R/UN: llvm-spirv -r %t.spv -o %t.rev.bc
+; R/UN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-MATRIX
+; R/UN: llvm-spirv -r %t.spv -o %t.rev.bc
+; R/UN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-GENERAL
+
 ; CHECK-SPIRV-DAG: Capability CooperativeMatrixKHR
 ; CHECK-SPIRV-DAG: Capability CooperativeMatrixInvocationInstructionsINTEL
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_joint_matrix"

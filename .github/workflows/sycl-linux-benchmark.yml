@@ -88,9 +88,9 @@ on:
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
 
           Special variables:
-          * RESET_GPU       -- set to "1" to reset Intel GPUs
-          * INSTALL_DRIVERS -- set to "1" to install drivers
-          * USE_DEV_IGC     -- set to "1" to use dev igc
+          * RESET_GPU       -- set to "true" to reset Intel GPUs
+          * INSTALL_DRIVERS -- set to "true" to install drivers
+          * USE_DEV_IGC     -- set to "true" to use dev igc
         default: '{}'
 
       sycl_toolchain_artifact:
@@ -142,7 +142,7 @@ jobs:
       contents: write
     steps:
     - name: Reset GPU
-      if: env.RESET_GPU == '1'
+      if: env.RESET_GPU == 'true'
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
@@ -154,15 +154,15 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Install drivers
-      if: env.INSTALL_DRIVERS == '1'
+      if: env.INSTALL_DRIVERS == 'true'
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        if [ "$USE_DEV_IGC" = "1" ]; then
+        if [ "$USE_DEV_IGC" = "true" ]; then
             # If libllvm14 is already installed (dev igc docker), still return true.
             sudo apt-get install -yqq libllvm14 || true;
         fi
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ env.USE_DEV_IGC == '1' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ env.USE_DEV_IGC == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
