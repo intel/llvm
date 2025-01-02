@@ -242,6 +242,8 @@ jobs:
 
   benchmark:
     needs: [build, detect_changes]
+    permissions:
+      contents: write
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -264,7 +266,6 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
-            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: |
               {
                 "LIT_FILTER": ${{ needs.determine_arc_tests.outputs.arc_tests }},
@@ -288,11 +289,10 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
 
       # TODO integrate these
-      # # Do not install drivers on AMD and CUDA runners.
+      # # Do not install drivers on AMD and CUDA runnersu
       # install_igc_driver: >-
       #   ${{ !contains(matrix.target_devices, 'ext_oneapi_cuda') &&
       #   !contains(matrix.target_devices, 'ext_oneapi_hip') &&
