@@ -116,8 +116,8 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
     const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
 
     if (Size) {
-        uptr ShadowBegin = MemToShadow(Ptr);
-        uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
+        const uptr ShadowBegin = MemToShadow(Ptr);
+        const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
         assert(ShadowBegin <= ShadowEnd);
         getContext()->logger.debug(
             "EnqueuePoisonShadow(addr={}, count={}, value={})",
@@ -145,12 +145,12 @@ ur_result_t MsanShadowMemoryCPU::EnqueueCopyShadow(
         return UR_RESULT_SUCCESS;
     }
 
-    uptr SrcShadowBegin = MemToShadow(Src);
-    uptr SrcShadowEnd = MemToShadow(Src + Size - 1);
+    const uptr SrcShadowBegin = MemToShadow(Src);
+    const uptr SrcShadowEnd = MemToShadow(Src + Size - 1);
     assert(SrcShadowBegin <= SrcShadowEnd);
 
-    uptr DstShadowBegin = MemToShadow(Dst);
-    uptr DstShadowEnd = MemToShadow(Dst + Size - 1);
+    const uptr DstShadowBegin = MemToShadow(Dst);
+    const uptr DstShadowEnd = MemToShadow(Dst + Size - 1);
     assert(DstShadowBegin <= DstShadowEnd);
 
     assert(SrcShadowEnd - SrcShadowBegin == DstShadowEnd - DstShadowBegin);
