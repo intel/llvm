@@ -18,8 +18,6 @@ constexpr int MSAN_REPORT_NONE = 0;
 constexpr int MSAN_REPORT_START = 1;
 constexpr int MSAN_REPORT_FINISH = 2;
 
-static const uint64_t CleanShadow[16] = {};
-
 static const __SYCL_CONSTANT__ char __msan_print_warning_return[] =
     "[kernel] !!! msan warning return\n";
 
@@ -38,17 +36,10 @@ static const __SYCL_CONSTANT__ char __msan_print_report[] =
 static const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
 
+static const __SYCL_CONSTANT__ char __msan_print_generic_to[] =
+    "[kernel] %p(4) - %p(%d)\n";
+
 #if defined(__SPIR__) || defined(__SPIRV__)
-
-#if defined(__SYCL_DEVICE_ONLY__)
-#define __USE_SPIR_BUILTIN__ 1
-#endif
-
-#if __USE_SPIR_BUILTIN__
-extern SYCL_EXTERNAL int
-__spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
-extern "C" SYCL_EXTERNAL void __devicelib_exit();
-#endif
 
 #define MSAN_DEBUG(X)                                                          \
   do {                                                                         \
@@ -60,6 +51,21 @@ extern "C" SYCL_EXTERNAL void __devicelib_exit();
   } while (false)
 
 namespace {
+
+inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
+  auto old = addr;
+  if ((addr = (uptr)ToPrivate((void *)old))) {
+    as = ADDRESS_SPACE_PRIVATE;
+  } else if ((addr = (uptr)ToLocal((void *)old))) {
+    as = ADDRESS_SPACE_LOCAL;
+  } else {
+    // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
+    // but this can really simplify the generic pointer conversion logic
+    as = ADDRESS_SPACE_GLOBAL;
+    addr = old;
+  }
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_generic_to, old, addr, as));
+}
 
 void __msan_internal_report_save(const uint32_t size,
                                  const char __SYCL_CONSTANT__ *file,
@@ -131,6 +137,13 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
 }
 
 inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
+  if (as == ADDRESS_SPACE_GENERIC) {
+    ConvertGenericPointer(addr, as);
+    if (as != ADDRESS_SPACE_GLOBAL)
+      return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+          ->CleanShadow;
+  }
+
   // Device USM only
   auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
                           ->GlobalShadowOffset;
@@ -174,7 +187,9 @@ __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
 
 DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   // Return clean shadow (0s) by default
-  uptr shadow_ptr = (uptr)CleanShadow;
+  uptr shadow_ptr =
+      (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+          ->CleanShadow;
 
   if (UNLIKELY(!__MsanLaunchInfo)) {
     __spirv_ocl_printf(__msan_print_warning_nolaunchinfo);
