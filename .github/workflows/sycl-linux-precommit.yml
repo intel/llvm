@@ -128,12 +128,12 @@ jobs:
         include:
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: ext_oneapi_cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             reset_intel_gpu: false
@@ -211,11 +211,11 @@ jobs:
             reset_intel_gpu: true
           - name: AMD system
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
           - name: CUDA system
             runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_extra_opts: --gpus all
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:

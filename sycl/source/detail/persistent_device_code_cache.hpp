@@ -124,9 +124,6 @@ private:
       const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
       const SerializedObj &SpecConsts, const std::string &BuildOptionsString);
 
-  /* Returns the path to directory storing persistent device code cache.*/
-  static std::string getRootDir();
-
   /* Form string representing device version */
   static std::string getDeviceIDString(const device &Device);
 
@@ -158,6 +155,9 @@ private:
       1024 * 1024 * 1024;
 
 public:
+  /* Returns the path to directory storing persistent device code cache.*/
+  static std::string getRootDir();
+
   /* Check if on-disk cache enabled.
    */
   static bool isEnabled();
@@ -208,18 +208,52 @@ public:
                                       const ur_program_handle_t &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
-  static void trace(const std::string &msg) {
+  static void trace(const std::string &msg, std::string path = "") {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
-    if (traceEnabled)
-      std::cerr << "[Persistent Cache]: " << msg << std::endl;
+    if (traceEnabled) {
+      std::replace(path.begin(), path.end(), '\\', '/');
+      std::cerr << "[Persistent Cache]: " << msg << path << std::endl;
+    }
   }
-  static void trace_KernelCompiler(const std::string &msg) {
+  static void trace_KernelCompiler(const std::string &msg,
+                                   std::string path = "") {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler();
-    if (traceEnabled)
-      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << std::endl;
+    if (traceEnabled) {
+      std::replace(path.begin(), path.end(), '\\', '/');
+      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << path
+                << std::endl;
+    }
   }
+
+private:
+  // Check if cache_size.lock file is present in the cache root directory.
+  // If not, create it and populate it with the size of the cache directory.
+  static void repopulateCacheSizeFile(const std::string &CacheRoot);
+
+  // Update the cache size file and trigger cache eviction if needed.
+  static void
+  updateCacheFileSizeAndTriggerEviction(const std::string &CacheRoot,
+                                        size_t CacheSize);
+
+  // Evict LRU items from the cache to make space for new items.
+  static void evictItemsFromCache(const std::string &CacheRoot,
+                                  size_t CacheSize, size_t MaxCacheSize);
+
+  static void saveCurrentTimeInAFile(std::string FileName);
+
+  // Check if eviction is enabled.
+  static bool isEvictionEnabled() {
+    return SYCLConfig<SYCL_CACHE_MAX_SIZE>::isPersistentCacheEvictionEnabled();
+  }
+
+  // Suffix for access time file. Every cache entry will have one.
+  static inline std::string CacheEntryAccessTimeSuffix = "_access_time.txt";
+  // Suffix for eviction in progress file. It is created when eviction is
+  // triggered and removed when eviction is done.
+  static inline std::string EvictionInProgressFileSuffix =
+      "_eviction_in_progress";
 };
 } // namespace detail
 } // namespace _V1
