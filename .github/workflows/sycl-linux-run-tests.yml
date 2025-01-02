@@ -382,11 +382,11 @@ jobs:
         ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
     - name: Pack SYCL-CTS binaries
-      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only == 'true'
+      if: always() && !cancelled() && inputs.cts_build_only == 'true'
       run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
 
     - name: Upload SYCL-CTS binaries
-      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only == 'true'
+      if: always() && !cancelled() && inputs.cts_build_only == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: sycl_cts_bin
@@ -394,20 +394,20 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Download SYCL-CTS binaries
-      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.sycl_cts_artifact != ''
+      if: inputs.sycl_cts_artifact != ''
       uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.sycl_cts_artifact }}
 
     - name: Extract SYCL-CTS binaries
-      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.sycl_cts_artifact != ''
+      if: inputs.sycl_cts_artifact != ''
       run: |
         mkdir -p build-cts/bin
         tar -I 'zstd' -xf sycl_cts_bin.tar.zst -C build-cts/bin
 
     - name: SYCL CTS List devices
       # Proceed with execution even if the 'build' step did not succeed.
-      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only != 'true'
+      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_build_only != 'true'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
@@ -416,7 +416,7 @@ jobs:
     # If the suite was built on another machine then it also contains excluded
     # categories. Check the filter file and remove them.
     - name: Filter SYCL CTS test categories
-      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.sycl_cts_artifact != ''
+      if: inputs.sycl_cts_artifact != ''
       shell: bash
       run: |
         cts_exclude_filter=""
@@ -434,7 +434,7 @@ jobs:
 
     - name: Run SYCL CTS tests
       # Proceed with execution even if the previous two steps did not succeed.
-      if: inputs.tests_selector == 'cts' && (success() || failure()) && inputs.cts_build_only != 'true'
+      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_build_only != 'true'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       # This job takes ~100min usually. But sometimes some test isn't
