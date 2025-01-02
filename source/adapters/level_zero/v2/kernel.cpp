@@ -649,4 +649,24 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   std::copy(localWorkSize, localWorkSize + workDim, pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
+    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
+    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
+    uint32_t *pGroupCountRet) {
+  (void)dynamicSharedMemorySize;
+
+  uint32_t wg[3];
+  wg[0] = ur_cast<uint32_t>(pLocalWorkSize[0]);
+  wg[1] = workDim >= 2 ? ur_cast<uint32_t>(pLocalWorkSize[1]) : 1;
+  wg[2] = workDim == 3 ? ur_cast<uint32_t>(pLocalWorkSize[2]) : 1;
+  ZE2UR_CALL(zeKernelSetGroupSize,
+             (hKernel->getZeHandle(hDevice), wg[0], wg[1], wg[2]));
+
+  uint32_t totalGroupCount = 0;
+  ZE2UR_CALL(zeKernelSuggestMaxCooperativeGroupCount,
+             (hKernel->getZeHandle(hDevice), &totalGroupCount));
+  *pGroupCountRet = totalGroupCount;
+  return UR_RESULT_SUCCESS;
+}
 } // namespace ur::level_zero
