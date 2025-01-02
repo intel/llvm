@@ -102,10 +102,13 @@ on:
         default: 'false'
         required: False
 
-      cts_build_only:
+      cts_testing_mode:
+        description: |
+          Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
+          or `run-only`. In `build-only` mode an artifact of the CTS binaries
+          will be uploaded.
         type: string
-        default: 'false'
-        required: False
+        default: 'full'
 
       sycl_cts_artifact:
         type: string
@@ -382,11 +385,11 @@ jobs:
         ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
     - name: Pack SYCL-CTS binaries
-      if: always() && !cancelled() && inputs.cts_build_only == 'true'
+      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
       run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
 
     - name: Upload SYCL-CTS binaries
-      if: always() && !cancelled() && inputs.cts_build_only == 'true'
+      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
       uses: actions/upload-artifact@v4
       with:
         name: sycl_cts_bin
@@ -407,14 +410,18 @@ jobs:
 
     - name: SYCL CTS List devices
       # Proceed with execution even if the 'build' step did not succeed.
-      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_build_only != 'true'
+      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
         ./build-cts/bin/* --list-devices
 
-    # If the suite was built on another machine then it also contains excluded
-    # categories. Check the filter file and remove them.
+    # If the suite was built on another machine then the build contains the full
+    # set of tests. We have special files to filter out some test categories,
+    # see "devops/cts_exclude_filter_*". Each configuration has its own file, e.g.
+    # there is "cts_exclude_filter_OCL_CPU" for opencl:cpu device. Therefore,
+    # these files may differ from each other, so when there is a pre-built set of
+    # tests, we need to filter it according to the filter-file.
     - name: Filter SYCL CTS test categories
       if: inputs.sycl_cts_artifact != ''
       shell: bash
@@ -434,7 +441,7 @@ jobs:
 
     - name: Run SYCL CTS tests
       # Proceed with execution even if the previous two steps did not succeed.
-      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_build_only != 'true'
+      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       # This job takes ~100min usually. But sometimes some test isn't
