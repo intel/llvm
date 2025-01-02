@@ -1,7 +1,7 @@
-# commit ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c
-# Merge: bb64b3e9f6d3 4a89e1c69a65
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 19 11:26:01 2024 +0000
-#     Merge pull request #2277 from igchor/cooperative_fix
-#     [Spec] fix urKernelSuggestMaxCooperativeGroupCountExp
-set(UNIFIED_RUNTIME_TAG ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c)
+# commit 13f5e52ac047bb81f478f0dbe9416a8bc179130a
+# Merge: fe6c83a3 fa1e678a
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Mon Dec 30 15:14:19 2024 +0000
+#     Merge pull request #2484 from zhaomaosu/move-clean-shadow-to-launchinfo
+#     [DevMSAN] Move clean shadow into launch info
+set(UNIFIED_RUNTIME_TAG 13f5e52ac047bb81f478f0dbe9416a8bc179130a)
