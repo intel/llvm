@@ -82,6 +82,19 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     return UR_RESULT_SUCCESS;
 }
 
+ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
+                                           void *Ptr) {
+    auto Addr = reinterpret_cast<uptr>(Ptr);
+    auto AddrInfoItOp = findAllocInfoByAddress(Addr);
+
+    if (AddrInfoItOp) {
+        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+        m_AllocationMap.erase(*AddrInfoItOp);
+    }
+
+    return getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
+}
+
 ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                              ur_queue_handle_t Queue,
                                              USMLaunchInfo &LaunchInfo) {
