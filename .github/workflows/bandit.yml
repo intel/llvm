@@ -13,14 +13,20 @@ jobs:
   bandit:
     name: Bandit
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
 
     steps:
       - name: Clone the git repo
         uses: actions/checkout@v4
 
       - name: Install Bandit
-        run: pip install bandit
+        run: pip install bandit bandit-sarif-formatter
 
       - name: Run Bandit
         run: |
-          bandit -c devops/bandit.config -r . --exit-zero
+          bandit -c devops/bandit.config -r . --exit-zero -f sarif -o bandit_results.sarif
+
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit_results.sarif
