@@ -1,4 +1,5 @@
-// RUN: %{build} -o %t.out
+// REQUIRES: aspect-usm_device_allocations
+// RUN: %{build} -D_FORTIFY_SOURCE=2 -o %t.out
 // RUN: %{run} %t.out
 
 // Checks that group_load runs even when the source code is fortified. This
@@ -6,7 +7,10 @@
 // which would hold an assert in device code when fortified, which would fail
 // to JIT compile.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
+#include <sycl/sub_group.hpp>
+#include <sycl/usm.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
