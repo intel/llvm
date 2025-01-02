@@ -16,6 +16,7 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda'
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       merge_ref: ''
       retention-days: 90
 
@@ -156,7 +157,7 @@ jobs:
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
-      image: ghcr.io/intel/llvm/ubuntu2404_build:latest
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: ext_oneapi_cuda:gpu
       ref: ${{ github.sha }}
