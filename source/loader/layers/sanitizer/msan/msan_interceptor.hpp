@@ -181,6 +181,7 @@ class MsanInterceptor {
                                const ur_usm_desc_t *Properties,
                                ur_usm_pool_handle_t Pool, size_t Size,
                                void **ResultPtr);
+    ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     ur_result_t registerProgram(ur_program_handle_t Program);
     ur_result_t unregisterProgram(ur_program_handle_t Program);

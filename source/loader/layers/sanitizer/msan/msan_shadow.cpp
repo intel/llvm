@@ -111,22 +111,61 @@ uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) {
     return Ptr ^ CPU_SHADOW_MASK;
 }
 
-ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(ur_queue_handle_t,
-                                                     uptr Ptr, uptr Size,
-                                                     u8 Value) {
+ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
+
+    if (Size) {
+        uptr ShadowBegin = MemToShadow(Ptr);
+        uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
+        assert(ShadowBegin <= ShadowEnd);
+        getContext()->logger.debug(
+            "EnqueuePoisonShadow(addr={}, count={}, value={})",
+            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+            (void *)(size_t)Value);
+        memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
+    }
+
+    if (OutEvent) {
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+            Queue, NumEvents, EventWaitList, OutEvent));
+    }
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t MsanShadowMemoryCPU::EnqueueCopyShadow(
+    ur_queue_handle_t Queue, bool Blocking, uptr Dst, uptr Src, uptr Size,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
     if (Size == 0) {
+        if (OutEvent) {
+            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+                Queue, NumEvents, EventWaitList, OutEvent));
+        }
         return UR_RESULT_SUCCESS;
     }
 
-    uptr ShadowBegin = MemToShadow(Ptr);
-    uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
-    assert(ShadowBegin <= ShadowEnd);
-    getContext()->logger.debug(
-        "EnqueuePoisonShadow(addr={}, count={}, value={})", (void *)ShadowBegin,
-        ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value);
-    memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
+    uptr SrcShadowBegin = MemToShadow(Src);
+    uptr SrcShadowEnd = MemToShadow(Src + Size - 1);
+    assert(SrcShadowBegin <= SrcShadowEnd);
 
-    return UR_RESULT_SUCCESS;
+    uptr DstShadowBegin = MemToShadow(Dst);
+    uptr DstShadowEnd = MemToShadow(Dst + Size - 1);
+    assert(DstShadowBegin <= DstShadowEnd);
+
+    assert(SrcShadowEnd - SrcShadowBegin == DstShadowEnd - DstShadowBegin);
+
+    // FIXME: host asan will not support to use this function
+    auto Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, Blocking, (void *)DstShadowBegin, (void *)SrcShadowBegin,
+        SrcShadowEnd - SrcShadowBegin + 1, NumEvents, EventWaitList, OutEvent);
+
+    getContext()->logger.debug("EnqueueCopyShadow(dst={}, src={}, size={}): {}",
+                               (void *)DstShadowBegin, (void *)SrcShadowBegin,
+                               (void *)(SrcShadowEnd - SrcShadowBegin + 1),
+                               Result);
+
+    return Result;
 }
 
 ur_result_t MsanShadowMemoryGPU::Setup() {
@@ -169,88 +208,144 @@ ur_result_t MsanShadowMemoryGPU::Destory() {
     return Result;
 }
 
-ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
-                                                     uptr Ptr, uptr Size,
-                                                     u8 Value) {
-    if (Size == 0) {
-        return UR_RESULT_SUCCESS;
-    }
+ur_result_t MsanShadowMemoryGPU::EnqueueMappingShadow(
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+    std::vector<ur_event_handle_t> &EventWaitList,
+    ur_event_handle_t *OutEvent) {
 
-    uptr ShadowBegin = MemToShadow(Ptr);
-    uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
+    ur_physical_mem_properties_t Desc{UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+                                      nullptr, 0};
+
+    const size_t PageSize = GetVirtualMemGranularity(Context, Device);
+
+    const uptr ShadowBegin = MemToShadow(Ptr);
+    const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
     assert(ShadowBegin <= ShadowEnd);
-    {
-        static const size_t PageSize =
-            GetVirtualMemGranularity(Context, Device);
 
-        ur_physical_mem_properties_t Desc{
-            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, nullptr, 0};
-
-        // Make sure [Ptr, Ptr + Size] is mapped to physical memory
-        for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
-             MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
-            std::scoped_lock<ur_mutex> Guard(VirtualMemMapsMutex);
-            if (VirtualMemMaps.find(MappedPtr) == VirtualMemMaps.end()) {
-                ur_physical_mem_handle_t PhysicalMem{};
-                auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
-                    Context, Device, PageSize, &Desc, &PhysicalMem);
-                if (URes != UR_RESULT_SUCCESS) {
-                    getContext()->logger.error("urPhysicalMemCreate(): {}",
-                                               URes);
-                    return URes;
-                }
-
-                URes = getContext()->urDdiTable.VirtualMem.pfnMap(
-                    Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
-                    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
-                if (URes != UR_RESULT_SUCCESS) {
-                    getContext()->logger.error("urVirtualMemMap({}, {}): {}",
-                                               (void *)MappedPtr, PageSize,
-                                               URes);
-                    return URes;
-                }
-
-                getContext()->logger.debug("urVirtualMemMap: {} ~ {}",
-                                           (void *)MappedPtr,
-                                           (void *)(MappedPtr + PageSize - 1));
-
-                // Initialize to zero
-                URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0,
-                                             PageSize);
-                if (URes != UR_RESULT_SUCCESS) {
-                    getContext()->logger.error("EnqueueUSMBlockingSet(): {}",
-                                               URes);
-                    return URes;
-                }
-
-                VirtualMemMaps[MappedPtr].first = PhysicalMem;
+    // Make sure [Ptr, Ptr + Size] is mapped to physical memory
+    for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
+         MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
+        std::scoped_lock<ur_mutex> Guard(VirtualMemMapsMutex);
+        if (VirtualMemMaps.find(MappedPtr) == VirtualMemMaps.end()) {
+            ur_physical_mem_handle_t PhysicalMem{};
+            auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
+                Context, Device, PageSize, &Desc, &PhysicalMem);
+            if (URes != UR_RESULT_SUCCESS) {
+                getContext()->logger.error("urPhysicalMemCreate(): {}", URes);
+                return URes;
             }
 
-            // We don't need to record virtual memory map for null pointer,
-            // since it doesn't have an alloc info.
-            if (Ptr == 0) {
-                continue;
+            URes = getContext()->urDdiTable.VirtualMem.pfnMap(
+                Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
+                UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
+            if (URes != UR_RESULT_SUCCESS) {
+                getContext()->logger.error("urVirtualMemMap({}, {}): {}",
+                                           (void *)MappedPtr, PageSize, URes);
+                return URes;
             }
 
-            auto AllocInfoIt =
-                getMsanInterceptor()->findAllocInfoByAddress(Ptr);
-            assert(AllocInfoIt);
-            VirtualMemMaps[MappedPtr].second.insert((*AllocInfoIt)->second);
+            getContext()->logger.debug("urVirtualMemMap: {} ~ {}",
+                                       (void *)MappedPtr,
+                                       (void *)(MappedPtr + PageSize - 1));
+
+            // Initialize to zero
+            URes = EnqueueUSMSet(Queue, (void *)MappedPtr, 0, PageSize,
+                                 EventWaitList.size(), EventWaitList.data(),
+                                 OutEvent);
+            if (URes != UR_RESULT_SUCCESS) {
+                getContext()->logger.error("EnqueueUSMSet(): {}", URes);
+                return URes;
+            }
+
+            EventWaitList.clear();
+            EventWaitList.push_back(*OutEvent);
+
+            VirtualMemMaps[MappedPtr].first = PhysicalMem;
         }
-    }
 
-    auto URes = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
-                                      ShadowEnd - ShadowBegin + 1);
-    getContext()->logger.debug(
-        "EnqueuePoisonShadow (addr={}, count={}, value={}): {}",
-        (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value,
-        URes);
-    if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("EnqueueUSMBlockingSet(): {}", URes);
-        return URes;
+        // We don't need to record virtual memory map for null pointer,
+        // since it doesn't have an alloc info.
+        if (Ptr == 0) {
+            continue;
+        }
+
+        auto AllocInfoIt = getMsanInterceptor()->findAllocInfoByAddress(Ptr);
+        assert(AllocInfoIt);
+        VirtualMemMaps[MappedPtr].second.insert((*AllocInfoIt)->second);
     }
 
     return UR_RESULT_SUCCESS;
+}
+
+ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
+    if (Size == 0) {
+        if (OutEvent) {
+            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+                Queue, NumEvents, EventWaitList, OutEvent));
+        }
+        return UR_RESULT_SUCCESS;
+    }
+
+    std::vector<ur_event_handle_t> Events(EventWaitList,
+                                          EventWaitList + NumEvents);
+    UR_CALL(EnqueueMappingShadow(Queue, Ptr, Size, Events, OutEvent));
+
+    const uptr ShadowBegin = MemToShadow(Ptr);
+    const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
+    assert(ShadowBegin <= ShadowEnd);
+
+    auto Result = EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
+                                ShadowEnd - ShadowBegin + 1, Events.size(),
+                                Events.data(), OutEvent);
+
+    getContext()->logger.debug(
+        "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
+        (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value,
+        Result);
+
+    return Result;
+}
+
+ur_result_t MsanShadowMemoryGPU::EnqueueCopyShadow(
+    ur_queue_handle_t Queue, bool Blocking, uptr Dst, uptr Src, uptr Size,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
+    if (Size == 0) {
+        if (OutEvent) {
+            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+                Queue, NumEvents, EventWaitList, OutEvent));
+        }
+        return UR_RESULT_SUCCESS;
+    }
+
+    std::vector<ur_event_handle_t> Events(EventWaitList,
+                                          EventWaitList + NumEvents);
+    UR_CALL(EnqueueMappingShadow(Queue, Src, Size, Events, OutEvent));
+    UR_CALL(EnqueueMappingShadow(Queue, Dst, Size, Events, OutEvent));
+
+    const uptr SrcShadowBegin = MemToShadow(Src);
+    const uptr SrcShadowEnd = MemToShadow(Src + Size - 1);
+    assert(SrcShadowBegin <= SrcShadowEnd);
+
+    const uptr DstShadowBegin = MemToShadow(Dst);
+    const uptr DstShadowEnd = MemToShadow(Dst + Size - 1);
+    assert(DstShadowBegin <= DstShadowEnd);
+
+    assert(DstShadowEnd - DstShadowBegin == SrcShadowEnd - SrcShadowBegin);
+
+    auto Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, Blocking, (void *)DstShadowBegin, (void *)SrcShadowBegin,
+        SrcShadowEnd - SrcShadowBegin + 1, Events.size(), Events.data(),
+        OutEvent);
+
+    getContext()->logger.debug("EnqueueCopyShadow(dst={}, src={}, size={}): {}",
+                               (void *)DstShadowBegin, (void *)SrcShadowBegin,
+                               (void *)(SrcShadowEnd - SrcShadowBegin + 1),
+                               Result);
+
+    return Result;
 }
 
 ur_result_t
