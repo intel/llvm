@@ -14,10 +14,10 @@
 
 #if defined(__SYCL_NATIVE_CPU__)
 
-#include "CL/__spirv/spirv_ops.hpp"
 #include "device.h"
 #include <cstdint>
-#include <sycl/types.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/vector.hpp>
 
 // including state definition from Native CPU UR adapter
 #include "nativecpu_state.hpp"
@@ -52,6 +52,12 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
     __mux_work_group_barrier(0, Execution, Semantics);
 }
 
+DEVICE_EXTERN_C void __mux_mem_barrier(uint32_t scope, uint32_t semantics);
+__SYCL_CONVERGENT__ DEVICE_EXTERNAL void
+__spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
+  __mux_mem_barrier(Memory, Semantics);
+}
+
 // Turning clang format off here because it reorders macro invocations
 // making the following code very difficult to read.
 // clang-format off
@@ -59,13 +65,13 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
   __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
-    return *Ptr;                                                               \
+    return Ptr[__spirv_SubgroupLocalInvocationId()];                           \
   }                                                                            \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL void                                     \
   __spirv_SubgroupBlockWriteINTEL<Type>(PType OCL_GLOBAL * ptr,                \
                                         Type v) noexcept {                     \
-    *(Type *)ptr = v;                                                          \
+    ((Type*)ptr)[__spirv_SubgroupLocalInvocationId()]  = v;                    \
   }
 
 #define DefSubgroupBlockINTEL_vt(Type, VT_name)                                \
@@ -86,16 +92,19 @@ template <class T> struct vtypes {
 DefSubgroupBlockINTEL(uint32_t) DefSubgroupBlockINTEL(uint64_t)
 DefSubgroupBlockINTEL(uint8_t) DefSubgroupBlockINTEL(uint16_t)
 
-#define DefineGOp1(spir_sfx, mux_name)\
-DEVICE_EXTERN_C bool mux_name(bool);\
+#define DefineGOp1(spir_sfx, name)\
+DEVICE_EXTERN_C bool __mux_sub_group_##name##_i1(bool);\
+DEVICE_EXTERN_C bool __mux_work_group_##name##_i1(uint32_t id, bool val);\
 DEVICE_EXTERNAL bool __spirv_Group ## spir_sfx(unsigned g, bool val) {\
   if (__spv::Scope::Flag::Subgroup == g)\
-    return mux_name(val);\
+    return __mux_sub_group_##name##_i1(val);\
+  else if (__spv::Scope::Flag::Workgroup == g)\
+    return __mux_work_group_##name##_i1(0, val);\
   return false;\
 }
 
-DefineGOp1(Any, __mux_sub_group_any_i1)
-DefineGOp1(All, __mux_sub_group_all_i1)
+DefineGOp1(Any, any)
+DefineGOp1(All, all)
 
 
 #define DefineGOp(Type, MuxType, spir_sfx, mux_sfx)                            \
@@ -145,6 +154,7 @@ DefineGOp1(All, __mux_sub_group_all_i1)
 
 #define DefineFPGOps(Name, MuxName)                                            \
   DefineGOp(float, float, Name, MuxName##32)                                   \
+  DefineGOp(_Float16 , _Float16 , Name, MuxName##16)                           \
   DefineGOp(double, double, Name, MuxName##64)
 
 DefineIntGOps(IAdd,    add_i)
@@ -170,32 +180,56 @@ DefineBitwiseGroupOp(uint32_t, int32_t, i32)
 DefineBitwiseGroupOp(int64_t, int64_t, i64)
 DefineBitwiseGroupOp(uint64_t, int64_t, i64)
 
-#define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                        \
-  DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                    \
-      int32_t id, MuxType val, int64_t lidx, int64_t lidy, int64_t lidz);      \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,         \
-                                                          int32_t sg_lid);     \
-  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,              \
-                                              IDType l) {                      \
-    if (__spv::Scope::Flag::Subgroup == g)                                     \
-      return __mux_sub_group_broadcast_##Sfx(v, l);                            \
-    return Type(); /*todo: add support for other flags as they are tested*/    \
-  }
+#define DefineLogicalGroupOp(Type, MuxType, mux_sfx)                          \
+  DefineGOp(Type, MuxType, LogicalOrKHR, logical_or_##mux_sfx)                \
+  DefineGOp(Type, MuxType, LogicalXorKHR, logical_xor_##mux_sfx)              \
+  DefineGOp(Type, MuxType, LogicalAndKHR, logical_and_##mux_sfx)
 
-#define DefineBroadCast(Type, Sfx, MuxType)\
-  DefineBroadCastImpl(Type, Sfx, MuxType, uint32_t)
+DefineLogicalGroupOp(bool, bool, i1)
 
-DefineBroadCast(int64_t, i64, int64_t)
-DefineBroadCast(uint64_t, i64, int64_t)
-DefineBroadCast(int32_t, i32, int32_t)
+#define DefineBroadcastMuxType(Type, Sfx, MuxType, IDType)                    \
+  DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                   \
+      int32_t id, MuxType val, uint64_t lidx, uint64_t lidy, uint64_t lidz);  \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,        \
+                                                          int32_t sg_lid);
+
+#define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                       \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+                                              IDType l) {                     \
+    if (__spv::Scope::Flag::Subgroup == g)                                    \
+      return __mux_sub_group_broadcast_##Sfx(v, l);                           \
+    else                                                                      \
+      return __mux_work_group_broadcast_##Sfx(0, v, l, 0, 0);                 \
+  }                                                                           \
+                                                                              \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+                                         sycl::vec<IDType, 2>::vector_t l) {  \
+    if (__spv::Scope::Flag::Subgroup == g)                                    \
+      return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
+    else                                                                      \
+      return __mux_work_group_broadcast_##Sfx(0, v, l[0], l[1], 0);           \
+  }                                                                           \
+                                                                              \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+                                          sycl::vec<IDType, 3>::vector_t l) { \
+    if (__spv::Scope::Flag::Subgroup == g)                                    \
+      return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
+    else                                                                      \
+      return __mux_work_group_broadcast_##Sfx(0, v, l[0], l[1], l[2]);        \
+  }                                                                           \
+
+#define DefineBroadCast(Type, Sfx, MuxType) \
+   DefineBroadcastMuxType(Type, Sfx, MuxType, uint32_t) \
+   DefineBroadcastMuxType(Type, Sfx, MuxType, uint64_t) \
+   DefineBroadCastImpl(Type, Sfx, MuxType, uint32_t)    \
+   DefineBroadCastImpl(Type, Sfx, MuxType, uint64_t)    \
+
 DefineBroadCast(uint32_t, i32, int32_t)
+DefineBroadCast(int32_t, i32, int32_t)
 DefineBroadCast(float, f32, float)
 DefineBroadCast(double, f64, double)
-
-DefineBroadCastImpl(int32_t, i32, int32_t, uint64_t)
-DefineBroadCastImpl(float, f32, float, uint64_t)
-DefineBroadCastImpl(double, f64, double, uint64_t)
-DefineBroadCastImpl(uint64_t, i64, int64_t, uint64_t)
+DefineBroadCast(uint64_t, i64, int64_t)
+DefineBroadCast(int64_t, i64, int64_t)
 
 
 #define DefShuffleINTEL(Type, Sfx, MuxType)                                    \
@@ -248,23 +282,13 @@ DefShuffleINTEL_All(int32_t, i32, int32_t)
 DefShuffleINTEL_All(uint32_t, i32, int32_t)
 DefShuffleINTEL_All(int16_t, i16, int16_t)
 DefShuffleINTEL_All(uint16_t, i16, int16_t)
+DefShuffleINTEL_All(int8_t, i8, int8_t)
+DefShuffleINTEL_All(uint8_t, i8, int8_t)
 DefShuffleINTEL_All(double, f64, double)
 DefShuffleINTEL_All(float, f32, float)
+DefShuffleINTEL_All(_Float16, f16, _Float16)
 
-#define DefineShuffleVec(T, N, Sfx, MuxType)                                   \
-  using vt##T##N = sycl::vec<T, N>::vector_t;                                  \
-  using vt##MuxType##N = sycl::vec<MuxType, N>::vector_t;                      \
-  DefShuffleINTEL_All(vt##T##N, v##N##Sfx, vt##MuxType##N)
-
-#define DefineShuffleVec2to16(Type, Sfx, MuxType)                              \
-  DefineShuffleVec(Type, 2, Sfx, MuxType)                                      \
-  DefineShuffleVec(Type, 4, Sfx, MuxType)                                      \
-  DefineShuffleVec(Type, 8, Sfx, MuxType)                                      \
-  DefineShuffleVec(Type, 16, Sfx, MuxType)
-
-DefineShuffleVec2to16(int32_t, i32, int32_t)
-DefineShuffleVec2to16(uint32_t, i32, int32_t)
-DefineShuffleVec2to16(float, f32, float)
+// Vector versions of shuffle are generated by the FixABIBuiltinsSYCLNativeCPU pass
 
 #define Define2ArgForward(Type, Name, Callee)\
 DEVICE_EXTERNAL Type Name(Type a, Type b) { return Callee(a,b);}

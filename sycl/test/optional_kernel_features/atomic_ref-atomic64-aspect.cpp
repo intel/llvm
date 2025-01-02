@@ -2,10 +2,10 @@
 // RUN: FileCheck %s --input-file %t.ll
 
 // CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM1:]], ![[#MDNUM2:]], ![[#MDNUM3:]], ![[#MDNUM4:]]}
-// CHECK: ![[#MDNUM1]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.20", i32 [[#ASPECT_NUM:]]}
-// CHECK-NEXT: ![[#MDNUM2]] = !{!"class.sycl::_V1::detail::atomic_ref_impl", i32 [[#ASPECT_NUM:]]}
-// CHECK-NEXT: ![[#MDNUM3]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.2", i32 [[#ASPECT_NUM:]]}
-// CHECK-NEXT: ![[#MDNUM4]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.7", i32 [[#ASPECT_NUM:]]}
+// CHECK: ![[#MDNUM1]] = !{!"class.sycl::_V1::detail::atomic_ref_impl", i32 [[#ASPECT_NUM:]]}
+// CHECK-NEXT: ![[#MDNUM2]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.2", i32 [[#ASPECT_NUM:]]}
+// CHECK-NEXT: ![[#MDNUM3]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.7", i32 [[#ASPECT_NUM:]]}
+// CHECK-NEXT: ![[#MDNUM4]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.20", i32 [[#ASPECT_NUM:]]}
 // CHECK: !{{.*}} = !{!"atomic64", i32 [[#ASPECT_NUM]]}
 
 #include <sycl/sycl.hpp>

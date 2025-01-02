@@ -282,6 +282,29 @@ requirements for these new accessors to correctly trigger allocations before
 updating. This is similar to how individual graph commands are enqueued when
 accessors are used in a graph node.
 
+### Dynamic Command-Group
+
+To implement the `dynamic_command_group` class for updating the command-groups (CG)
+associated with nodes, the CG member of the node implementation class changes
+from a `std::unique_ptr` to a `std::shared_ptr` so that multiple nodes and the
+`dynamic_command_group_impl` object can share the same CG object. This avoids
+the overhead of having to allocate and free copies of the CG when a new active
+CG is selected.
+
+The `dynamic_command_group_impl` class contains a list of weak pointers to the
+nodes which have been created with it, so that when a new active CG is selected
+it can propagate the change to those nodes. The `dynamic_parameter_impl` class
+also contains a list of weak pointers, but to the `dynamic_command_group_impl`
+instances of any dynamic command-groups where they are used. This allows
+updating the dynamic parameter to propagate to dynamic command-group nodes.
+
+The `sycl::detail::CGExecKernel` class has been added to, so that if the
+object was created from an element in the dynamic command-group list, the class
+stores a vector of weak pointers to the other alternative command-groups created
+from the same dynamic command-group object. This allows the SYCL runtime to
+access the list of alternative kernels when calling the UR API to append a
+kernel command to a command-buffer.
+
 ## Optimizations
 ### Interactions with Profiling
 
@@ -314,6 +337,62 @@ Backends which are implemented currently are: [Level Zero](#level-zero),
 
 ### Level Zero
 
+The command-buffer implementation for the level-zero adapter has 2 different
+implementation paths which are chosen depending on the device and level-zero
+version:
+
+- Immediate Append path - Relies on
+  [zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp)
+  to submit the command-buffer. This function is an experimental extension to the level-zero API.
+- Wait event path - Relies on
+  [zeCommandQueueExecuteCommandLists](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandqueueexecutecommandlists)
+  to submit the command-buffer work. However, this level-zero function has
+  limitations and, as such, this path is used only when the immediate append
+  path is unavailable.
+
+#### Immediate Append Path Implementation Details
+
+This path is only available when the device supports immediate command-lists
+and the [zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp) 
+API. This API can wait on a list of event dependencies using the `phWaitEvents`
+parameter and can signal a return event when finished using the `hSignalEvent`
+parameter. This allows for a cleaner and more efficient implementation than
+what can be achieved when using the wait-event path
+(see [this section](#wait-event-path-implementation-details) for
+more details about the wait-event path).
+
+This path relies on 3 different command-lists in order to execute the
+command-buffer:
+
+- `ComputeCommandList` - Used to submit command-buffer work that requires
+the compute engine.
+- `CopyCommandList` - Used to submit command-buffer work that requires the
+[copy engine](#copy-engine). This command-list is not created when none of the 
+nodes require the copy engine.
+- `EventResetCommandList` - Used to reset the level-zero events that are
+needed for every submission of the command-buffer. This is executed after
+the compute and copy command-lists have finished executing. For the first
+execution, this command-list is skipped since there is no need to reset events
+at this point. When counter-based events are enabled (i.e. the command-buffer
+is in-order), this command-list is not created since counter-based events do
+not need to be reset.
+
+The following diagram illustrates which commands are executed on
+each command-list when the command-buffer is enqueued:
+![L0 command-buffer diagram](images/diagram_immediate_append.png)
+
+Additionally,
+[zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp)
+requires an extra command-list which is used to submit the other
+command-lists. This command-list has a specific engine type
+associated to it (i.e. compute or copy engine). Hence, for our implementation,
+we need 2 of these helper command-lists:
+  - The `CommandListHelper` command-list is used to submit the
+`ComputeCommandList`, `CommandListResetEvents` and profiling queries.
+  - The `ZeCopyEngineImmediateListHelper`  command-list is used to submit the
+`CopyCommandList`
+
+#### Wait event Path Implementation Details
 The UR `urCommandBufferEnqueueExp` interface for submitting a command-buffer
 takes a list of events to wait on, and returns an event representing the
 completion of that specific submission of the command-buffer.
@@ -341,7 +420,7 @@ is made only once (during the command-buffer finalization stage). This allows
 the adapter to save time when submitting the command-buffer, by executing only
 this command-list (i.e. without enqueuing any commands of the graph workload).
 
-#### Prefix
+##### Prefix
 
 The prefix's commands aim to:
 1. Handle the list of events to wait on, which is passed by the runtime
@@ -386,7 +465,7 @@ and another reset command for resetting the signal we use to signal the
 completion of the graph workload. This signal is called *SignalEvent* and is
 defined in the `ur_exp_command_buffer_handle_t` class.
 
-#### Suffix
+##### Suffix
 
 The suffix's commands aim to:
 1) Handle the completion of the graph workload and signal a UR return event.
@@ -412,7 +491,7 @@ with extra commands associated with *CB*, and the other after *CB*. These new
 command-lists are retrieved from the UR queue, which will likely reuse existing
 command-lists and only create a new one in the worst case.
 
-#### Drawbacks
+##### Drawbacks
 
 There are three drawbacks of this approach to implementing UR command-buffers for
 Level Zero:
@@ -480,6 +559,14 @@ An executable CUDA Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient graph
 resubmission.
 
+#### Prefetch & Advise
+
+The `urCommandBufferAppendUSMPrefetchExp` and
+`urCommandBufferAppendUSMAdviseExp` UR entry-points used to implement
+`handler::prefetch` and `handler::mem_advise` are implemented in the CUDA UR
+adapter as empty nodes enforcing the node dependencies. As such the
+optimization hints are a no-op.
+
 ### HIP
 
 The HIP backend offers a graph management API very similar to CUDA Graph
@@ -501,6 +588,14 @@ operations.
 An executable HIP Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient
 graph resubmission.
+
+#### Prefetch & Advise
+
+The `urCommandBufferAppendUSMPrefetchExp` and
+`urCommandBufferAppendUSMAdviseExp` UR entry-points used to implement
+`handler::prefetch` and `handler::mem_advise` are implemented in the HIP UR
+adapter as empty nodes enforcing the node dependencies. As such the
+optimization hints are a no-op.
 
 ### OpenCL
 

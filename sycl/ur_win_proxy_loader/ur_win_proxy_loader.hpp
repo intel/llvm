@@ -12,6 +12,5 @@
 #include <filesystem>
 #include <string>
 
-__declspec(dllexport) void *getPreloadedPlugin(
-    const std::filesystem::path &PluginPath);
+__declspec(dllexport) void *getPreloadedURLib();
 #endif

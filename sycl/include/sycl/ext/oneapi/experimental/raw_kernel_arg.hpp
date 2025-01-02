@@ -14,6 +14,9 @@ namespace sycl {
 inline namespace _V1 {
 
 class handler;
+namespace detail {
+class dynamic_parameter_impl;
+}
 
 namespace ext::oneapi::experimental {
 
@@ -27,6 +30,8 @@ private:
   size_t MArgSize;
 
   friend class sycl::handler;
+  // For sycl_ext_oneapi_graph integration
+  friend class detail::dynamic_parameter_impl;
 };
 
 } // namespace ext::oneapi::experimental

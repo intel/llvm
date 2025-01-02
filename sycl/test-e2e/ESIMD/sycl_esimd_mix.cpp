@@ -9,8 +9,8 @@
 // in the same program .
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 
 #include "esimd_test_utils.hpp"
 
@@ -122,22 +122,22 @@ int main(void) {
 // Some backends will call urProgramBuild and some will call 
 // urProgramBuildExp depending on urProgramBuildExp support.
 
-// CHECK-LABEL: ---> urProgramBuild{{(Exp)?}}
+// CHECK-LABEL: <--- urProgramBuild{{(Exp)?}}
 // CHECK-NOT: -vc-codegen
 // CHECK-WITH-VAR: -g
 // CHECK-NOT: -vc-codegen
 // CHECK: {{.*}}-> UR_RESULT_SUCCESS
-// CHECK-LABEL: ---> urKernelCreate
+// CHECK-LABEL: <--- urKernelCreate
 // CHECK: {{.*}}SyclKernel
 // CHECK: {{.*}}-> UR_RESULT_SUCCESS
 
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-LABEL: ---> urProgramBuild{{(Exp)?}}
+// CHECK-LABEL: <--- urProgramBuild{{(Exp)?}}
 // CHECK-NO-VAR: -vc-codegen
 // CHECK-WITH-VAR: -g -vc-codegen
 // CHECK: {{.*}}-> UR_RESULT_SUCCESS
-// CHECK-LABEL: ---> urKernelCreate
+// CHECK-LABEL: <--- urKernelCreate
 // CHECK: {{.*}}EsimdKernel
 // CHECK: {{.*}}-> UR_RESULT_SUCCESS

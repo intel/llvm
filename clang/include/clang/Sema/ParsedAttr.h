@@ -1088,7 +1088,6 @@ enum AttributeArgumentNType {
   AANT_ArgumentIdentifier,
   AANT_ArgumentConstantExpr,
   AANT_ArgumentBuiltinFunction,
-  AANT_ArgumentNullptrOrBoolIntOrEnumLiteral,
 };
 
 /// These constants match the enumerated choices of
@@ -1107,7 +1106,6 @@ enum AttributeDeclKind {
   ExpectedFunctionVariableOrClass,
   ExpectedKernelFunction,
   ExpectedFunctionWithProtoType,
-  ExpectedFunctionReturningPointerBoolIntOrEnum,
 };
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,

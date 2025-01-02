@@ -29,14 +29,13 @@ struct GlobalBinImageProps {
   bool EmitDeviceGlobalPropSet;
 };
 bool isModuleUsingAsan(const Module &M);
+bool isModuleUsingMsan(const Module &M);
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 using EntryPointSet = SetVector<Function *>;
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps,
-                                     bool SpecConstsMet,
-                                     bool IsSpecConstantDefault);
+                                     const GlobalBinImageProps &GlobProps);
 
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);

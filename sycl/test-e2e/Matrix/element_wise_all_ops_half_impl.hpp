@@ -36,7 +36,7 @@ void matrix_verify_op(big_matrix<T, Rows, Cols> &A, const R ref, OP op) {
      cgh.parallel_for<kernel_name>(
          r, [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-                [[intel::reqd_sub_group_size(SG_SZ)]]
+                [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
@@ -107,6 +107,9 @@ int main() {
                         matrix_combinations>();
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].atype != matrix_type::fp16)
+      continue;
+
     if (combinations[i].nsize == 0) { // Intel AMX
       test<half, float, /*TM*/ 16, /*TK*/ 32>();
       break;

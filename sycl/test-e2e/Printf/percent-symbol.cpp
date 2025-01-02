@@ -6,16 +6,13 @@
 //
 // UNSUPPORTED: hip_amd
 // XFAIL: cuda && windows
-//
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14733
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
 //        support is considered stable.
 // RUN: %{build} -o %t.constant.out -DTEST_CONSTANT_AS
 // RUN: %{run} %t.constant.out | FileCheck %s
-//
-// FIXME: Enable on GPU once %% conversion is supported there
-// UNSUPPORTED: gpu
 //
 // CHECK: %c %s %d %i %o %x %X %u
 // CHECK-NEXT: %f %F %e %E %a %A %g %G %n %p

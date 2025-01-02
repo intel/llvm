@@ -36,14 +36,13 @@ int zoo() __attribute__((dllimport));
 
 #else
 
-// emit error if dllimport function is called in sycl kernel
 int  __declspec(dllexport) foo(int a) {
    return a;
 }
-// expected-note@+1 {{'bar' declared here}}
+
 SYCL_EXTERNAL int __declspec(dllimport) bar();
 // expected-note@+1 {{previous declaration is here}}
-int __declspec(dllimport) foobar(); // expected-note {{'foobar' declared here}}
+int __declspec(dllimport) foobar();
 int foobar()  // expected-warning {{'foobar' redeclared without 'dllimport' attribute: 'dllexport' attribute added}}
 {
   return 10;
@@ -59,8 +58,8 @@ int main() {
   bar();  // expected-no-error
   kernel_single_task<class fake_kernel>([]() {
     foo(10);// expected-no-error
-    bar(); // expected-error {{SYCL kernel cannot call a dllimport function}}
-    foobar(); // expected-error {{SYCL kernel cannot call a dllimport function}}
+    bar();
+    foobar();
   });
   bar();  // expected-no-error
   return 0;

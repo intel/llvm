@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // Check expected runtime exception thrown for invalid input of annotated USM
 // allocations. Note this test does not work on gpu because the shared
 // allocation tests are expected to raise an error when the target device does

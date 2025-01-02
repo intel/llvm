@@ -24,6 +24,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Module.h"
 #include <map>
 #include <set>
 #include <string>
@@ -31,7 +32,7 @@
 
 namespace llvm {
 
-class Module;
+// class Module;
 class Use;
 class Value;
 

@@ -1,11 +1,8 @@
-// UNSUPPORTED: hip
-// RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t1.out
+// RUN: %{run} %t1.out
 //
-// RUN: %{build} -Wno-error=unused-command-line-argument -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -o %t.out
-// RUN: %if !gpu %{ %{run} %t.out %}
-
-// UNSUPPORTED: accelerator
+// RUN: %{build} -Wno-error=unused-command-line-argument -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
+// RUN: %if !gpu %{ %{run} %t2.out %}
 
 #include <cassert>
 #include <cstdint>

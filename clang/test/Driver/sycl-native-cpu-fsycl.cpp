@@ -48,7 +48,6 @@
 //CHECK_INVO:{{.*}}clang{{.*}}"-fsycl-is-host"{{.*}}
 //CHECK_INVO:{{.*}}clang{{.*}}"-x" "ir"
 //CHECK_INVO:{{.*}}sycl-post-link{{.*}}"-emit-program-metadata"
-//CHECK_INVO-NOT:{{.*}}sycl-post-link{{.*}}-emit-only-kernels-as-entry-points
 
 // checks that the device and host triple is correct in the generated actions when it is set explicitly
 //CHECK_ACTIONS-AARCH64:        +- 5: offload, "host-sycl (aarch64-unknown-linux-gnu)" {1}, "device-sycl (aarch64-unknown-linux-gnu)" {4}, c++-cpp-output

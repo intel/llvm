@@ -1,11 +1,13 @@
 // REQUIRES: opencl-aot, cpu
+// REQUIRES: build-and-run-mode
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/common.cpp -o %t.out \
 // RUN:          -fsycl-dead-args-optimization
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 const static sycl::specialization_id<int> SpecConst{42};
@@ -20,5 +22,5 @@ int main() {
   });
   Q.wait();
   return 0;
-  // CHECK: urMemRelease
+  // CHECK: <--- urMemRelease
 }

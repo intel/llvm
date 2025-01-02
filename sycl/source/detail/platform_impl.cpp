@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sycl/detail/ur.hpp"
-#include "sycl/info/info_desc.hpp"
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
-#include <sycl/backend.hpp>
+#include <detail/ur_info_code.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -35,7 +35,7 @@ using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 PlatformImplPtr
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                     const PluginPtr &Plugin) {
+                                     const AdapterPtr &Adapter) {
   PlatformImplPtr Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -51,7 +51,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     }
 
     // Otherwise make the impl
-    Result = std::make_shared<platform_impl>(UrPlatform, Plugin);
+    Result = std::make_shared<platform_impl>(UrPlatform, Adapter);
     PlatformCache.emplace_back(Result);
   }
 
@@ -60,13 +60,13 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
 PlatformImplPtr
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const PluginPtr &Plugin) {
+                                       const AdapterPtr &Adapter) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Plugin->call(urDeviceGetInfo, UrDevice, UR_DEVICE_INFO_PLATFORM, sizeof(Plt),
-               &Plt, nullptr);
-  return getOrMakePlatformImpl(Plt, Plugin);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
+                                            sizeof(Plt), &Plt, nullptr);
+  return getOrMakePlatformImpl(Plt, Adapter);
 }
 
 static bool IsBannedPlatform(platform Platform) {
@@ -86,7 +86,7 @@ static bool IsBannedPlatform(platform Platform) {
                                   name) != std::string::npos;
     const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
     const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
-    if (detail::ur::trace() && IsMatchingOCL) {
+    if (detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL) && IsMatchingOCL) {
       std::cout << "SYCL_UR_TRACE: " << name
                 << " OpenCL platform found but is not compatible." << std::endl;
     }
@@ -96,27 +96,33 @@ static bool IsBannedPlatform(platform Platform) {
          IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
 }
 
-// This routine has the side effect of registering each platform's last device
-// id into each plugin, which is used for device counting.
-std::vector<platform> platform_impl::get_platforms() {
+// Get the vector of platforms supported by a given UR adapter
+// replace uses of this with a helper in adapter object, the adapter
+// objects will own the ur adapter handles and they'll need to pass them to
+// urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
+std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
+                                                         bool Supported) {
+  std::vector<platform> Platforms;
 
-  // Get the vector of platforms supported by a given UR plugin
-  // replace uses of this with with a helper in plugin object, the plugin
-  // objects will own the ur adapter handles and they'll need to pass them to
-  // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
-  auto getPluginPlatforms = [](PluginPtr &Plugin) {
-    std::vector<platform> Platforms;
+  auto UrPlatforms = Adapter->getUrPlatforms();
 
-    auto UrPlatforms = Plugin->getUrPlatforms();
+  if (UrPlatforms.empty()) {
+    return Platforms;
+  }
 
-    if (UrPlatforms.empty()) {
-      return Platforms;
-    }
+  for (const auto &UrPlatform : UrPlatforms) {
+    platform Platform = detail::createSyclObjFromImpl<platform>(
+        getOrMakePlatformImpl(UrPlatform, Adapter));
+    const bool IsBanned = IsBannedPlatform(Platform);
+    const bool HasAnyDevices =
+        !Platform.get_devices(info::device_type::all).empty();
 
-    for (const auto &UrPlatform : UrPlatforms) {
-      platform Platform = detail::createSyclObjFromImpl<platform>(
-          getOrMakePlatformImpl(UrPlatform, Plugin));
-      if (IsBannedPlatform(Platform)) {
+    if (!Supported) {
+      if (IsBanned || !HasAnyDevices) {
+        Platforms.push_back(Platform);
+      }
+    } else {
+      if (IsBanned) {
         continue; // bail as early as possible, otherwise banned platforms may
                   // mess up device counting
       }
@@ -124,32 +130,37 @@ std::vector<platform> platform_impl::get_platforms() {
       // The SYCL spec says that a platform has one or more devices. ( SYCL
       // 2020 4.6.2 ) If we have an empty platform, we don't report it back
       // from platform::get_platforms().
-      if (!Platform.get_devices(info::device_type::all).empty()) {
+      if (HasAnyDevices) {
         Platforms.push_back(Platform);
       }
     }
-    return Platforms;
-  };
+  }
+  return Platforms;
+}
 
-  // See which platform we want to be served by which plugin.
-  // There should be just one plugin serving each backend.
-  std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
-  std::vector<std::pair<platform, PluginPtr>> PlatformsWithPlugin;
+// This routine has the side effect of registering each platform's last device
+// id into each adapter, which is used for device counting.
+std::vector<platform> platform_impl::get_platforms() {
 
-  // Then check backend-specific plugins
-  for (auto &Plugin : Plugins) {
-    const auto &PluginPlatforms = getPluginPlatforms(Plugin);
-    for (const auto &P : PluginPlatforms) {
-      PlatformsWithPlugin.push_back({P, Plugin});
+  // See which platform we want to be served by which adapter.
+  // There should be just one adapter serving each backend.
+  std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+  std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
+
+  // Then check backend-specific adapters
+  for (auto &Adapter : Adapters) {
+    const auto &AdapterPlatforms = getAdapterPlatforms(Adapter);
+    for (const auto &P : AdapterPlatforms) {
+      PlatformsWithAdapter.push_back({P, Adapter});
     }
   }
 
-  // For the selected platforms register them with their plugins
+  // For the selected platforms register them with their adapters
   std::vector<platform> Platforms;
-  for (auto &Platform : PlatformsWithPlugin) {
-    auto &Plugin = Platform.second;
-    std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
-    Plugin->getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
+  for (auto &Platform : PlatformsWithAdapter) {
+    auto &Adapter = Platform.second;
+    std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
+    Adapter->getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
     Platforms.push_back(Platform.first);
   }
 
@@ -198,19 +209,21 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
 
   // Find out backend of the platform
   ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
-  MPlugin->call(urPlatformGetInfo, MPlatform, UR_PLATFORM_INFO_BACKEND,
-                sizeof(ur_platform_backend_t), &UrBackend, nullptr);
+  MAdapter->call<UrApiKind::urPlatformGetInfo>(
+      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
+      &UrBackend, nullptr);
   backend Backend = convertUrBackend(UrBackend);
 
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
-  std::lock_guard<std::mutex> Guard(*MPlugin->getPluginMutex());
-  int DeviceNum = MPlugin->getStartingDeviceId(MPlatform);
+  std::lock_guard<std::mutex> Guard(*MAdapter->getAdapterMutex());
+  int DeviceNum = MAdapter->getStartingDeviceId(MPlatform);
   for (ur_device_handle_t Device : UrDevices) {
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
-    MPlugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
-                  sizeof(ur_device_type_t), &UrDevType, nullptr);
+    MAdapter->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_TYPE,
+                                               sizeof(ur_device_type_t),
+                                               &UrDevType, nullptr);
     // Assumption here is that there is 1-to-1 mapping between UrDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = info::device_type::all;
@@ -269,7 +282,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   // remember the last backend that has gone through this filter function
   // to assign a unique device id number across platforms that belong to
   // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
-  MPlugin->setLastDeviceId(MPlatform, DeviceNum);
+  MAdapter->setLastDeviceId(MPlatform, DeviceNum);
   return original_indices;
 }
 
@@ -460,9 +473,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   }
 
   uint32_t NumDevices = 0;
-  MPlugin->call(urDeviceGet, MPlatform, UrDeviceType,
-                0, // CP info::device_type::all
-                nullptr, &NumDevices);
+  MAdapter->call<UrApiKind::urDeviceGet>(MPlatform, UrDeviceType,
+                                         0, // CP info::device_type::all
+                                         nullptr, &NumDevices);
   const backend Backend = getBackend();
 
   if (NumDevices == 0) {
@@ -470,25 +483,26 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // LastDeviceIds[PlatformId] stay 0 that affects next platform devices num
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
-    // Needs non const plugin reference.
-    std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
-    auto It = std::find_if(Plugins.begin(), Plugins.end(),
-                           [&Platform = MPlatform](PluginPtr &Plugin) {
-                             return Plugin->containsUrPlatform(Platform);
+    // Needs non const adapter reference.
+    std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+    auto It = std::find_if(Adapters.begin(), Adapters.end(),
+                           [&Platform = MPlatform](AdapterPtr &Adapter) {
+                             return Adapter->containsUrPlatform(Platform);
                            });
-    if (It != Plugins.end()) {
-      PluginPtr &Plugin = *It;
-      std::lock_guard<std::mutex> Guard(*Plugin->getPluginMutex());
-      Plugin->adjustLastDeviceId(MPlatform);
+    if (It != Adapters.end()) {
+      AdapterPtr &Adapter = *It;
+      std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
+      Adapter->adjustLastDeviceId(MPlatform);
     }
     return Res;
   }
 
   std::vector<ur_device_handle_t> UrDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  MPlugin->call(urDeviceGet, MPlatform,
-                UrDeviceType, // CP info::device_type::all
-                NumDevices, UrDevices.data(), nullptr);
+  MAdapter->call<UrApiKind::urDeviceGet>(
+      MPlatform,
+      UrDeviceType, // CP info::device_type::all
+      NumDevices, UrDevices.data(), nullptr);
 
   // Some elements of UrDevices vector might be filtered out, so make a copy of
   // handles to do a cleanup later
@@ -496,7 +510,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(UrDevices, MPlatform, MPlugin);
+    applyAllowList(UrDevices, MPlatform, MAdapter);
 
   // The first step is to filter out devices that are not compatible with
   // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
@@ -509,7 +523,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
-  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, MPlugin);
+  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, MAdapter);
   std::transform(
       UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
       [PlatformImpl](const ur_device_handle_t UrDevice) -> device {
@@ -520,7 +534,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
   for (ur_device_handle_t &UrDev : UrDevicesToCleanUp)
-    MPlugin->call(urDeviceRelease, UrDev);
+    MAdapter->call<UrApiKind::urDeviceRelease>(UrDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no devices so far, there won't be any need to replace them
@@ -536,7 +550,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
   std::string AllExtensionNames = get_platform_info_string_impl(
-      MPlatform, getPlugin(),
+      MPlatform, getAdapter(),
       detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
@@ -547,15 +561,15 @@ bool platform_impl::supports_usm() const {
 }
 
 ur_native_handle_t platform_impl::getNative() const {
-  const auto &Plugin = getPlugin();
+  const auto &Adapter = getAdapter();
   ur_native_handle_t Handle = 0;
-  Plugin->call(urPlatformGetNativeHandle, getHandleRef(), &Handle);
+  Adapter->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 
 template <typename Param>
 typename Param::return_type platform_impl::get_info() const {
-  return get_platform_info<Param>(this->getHandleRef(), getPlugin());
+  return get_platform_info<Param>(this->getHandleRef(), getAdapter());
 }
 
 template <>

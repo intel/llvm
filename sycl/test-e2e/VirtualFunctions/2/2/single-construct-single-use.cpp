@@ -1,6 +1,3 @@
-// UNSUPPORTED: cuda, hip, acc
-// FIXME: replace unsupported with an aspect check once we have it
-//
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
@@ -16,7 +13,7 @@ class BaseIncrement {
 public:
   BaseIncrement(int Mod, int /* unused */ = 42) : Mod(Mod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void increment(int *Data) { *Data += 1 + Mod; }
 
 protected:
@@ -27,7 +24,7 @@ class IncrementBy2 : public BaseIncrement {
 public:
   IncrementBy2(int Mod, int /* unused */) : BaseIncrement(Mod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 2 + Mod; }
 };
 
@@ -36,7 +33,7 @@ public:
   IncrementBy4(int Mod, int ExtraMod)
       : BaseIncrement(Mod), ExtraMod(ExtraMod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 4 + Mod + ExtraMod; }
 
 private:
@@ -47,13 +44,22 @@ class IncrementBy8 : public BaseIncrement {
 public:
   IncrementBy8(int Mod, int /* unused */) : BaseIncrement(Mod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 8 + Mod; }
 };
 
+struct SetIncBy16;
+class IncrementBy16 : public BaseIncrement {
+public:
+  IncrementBy16(int Mod, int /* unused */) : BaseIncrement(Mod) {}
+
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<SetIncBy16>)
+  void increment(int *Data) override { *Data += 16 + Mod; }
+};
+
 int main() try {
-  using storage_t =
-      obj_storage_t<BaseIncrement, IncrementBy2, IncrementBy4, IncrementBy8>;
+  using storage_t = obj_storage_t<BaseIncrement, IncrementBy2, IncrementBy4,
+                                  IncrementBy8, IncrementBy16>;
 
   storage_t HostStorage;
   sycl::buffer<storage_t> DeviceStorage(sycl::range{1});
@@ -66,8 +72,9 @@ int main() try {
   sycl::queue q(asyncHandler);
 
   // TODO: cover uses case when objects are passed through USM
-  constexpr oneapi::properties props{oneapi::calls_indirectly<>};
-  for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
+  constexpr oneapi::properties props{
+      oneapi::assume_indirect_calls_to<void, SetIncBy16>};
+  for (unsigned TestCase = 0; TestCase < 5; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
     sycl::buffer<int> DataStorage(&Data, sycl::range{1});

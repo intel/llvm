@@ -229,7 +229,6 @@ environment:
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;
- * **fusion**: - Runtime supports kernel fusion;
  * **aspect-\<name\>**: - SYCL aspects supported by a device;
  * **arch-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. `arch-intel_gpu_pvc`, the name matches what you
    can pass into `-fsycl-targets` compiler flag);
@@ -241,10 +240,8 @@ section below). All these features are related to HW detection and they should
 be considered deprecated, because we have HW auto-detection functionality in
 place. No new tests should use these features:
 
- * **gpu-intel-gen9**  - Intel GPU Gen9  availability;
  * **gpu-intel-gen11** - Intel GPU Gen11 availability;
  * **gpu-intel-gen12** - Intel GPU Gen12 availability;
- * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
@@ -270,12 +267,6 @@ configure specific single test execution in the command line:
  * **gpu_aot_target_opts** - defines additional options which are passed to AOT
    compilation command line for GPU device. It can be also set by CMake variable
    GPU_AOT_TARGET_OPTS. If not specified "-device *" value is used.
- * **gpu-intel-dg1** - tells LIT infra that Intel GPU DG1 is present in the
-   system. It is developer / CI infra responsibility to make sure that the
-   device is available in the system. Tests requiring DG1 to run must use proper
-   device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
-   ONEAPI_DEVICE_SELECTOR to get proper configuration (see
-   [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
  * **gpu-intel-dg2** - tells LIT infra that Intel GPU DG2 is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
@@ -321,3 +312,172 @@ implementation header files is still in progress and the final set of these
 "fine-grained" includes that might be officially documented and suggested for
 customers to use isn't determined yet. **Until then, code outside of this project
 must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**
+
+## Marking tests as expected to fail
+
+Every test should be written in a way that it is either passed, or it is skipped
+(in case it is not compatible with an environment it was launched in).
+
+If for any reason you find yourself in need to temporary mark test as expected
+to fail under certain conditions, you need to submit an issue to the repo to
+analyze that failure and make test passed or skipped.
+
+Once the issue is created, you can update the test by adding `XFAIL` and
+`XFAIL-TRACKER` directive:
+```
+// GPU driver update caused failure
+// XFAIL: level_zero
+// XFAIL-TRACKER: PRJ-5324
+
+// Sporadically fails on CPU:
+// XFAIL: cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/DDDDD
+```
+
+If you add `XFAIL` without `XFAIL-TRACKER` directive,
+`no-xfail-without-tracker.cpp` test will fail, notifying you about that.
+
+## Marking tests as unsupported
+
+Some tests may be considered unsupported, e.g.:
+* the test checks the feature that is not supported by some
+  backend / device / OS / etc.
+* the test is flaky or hangs, so it can't be marked with `XFAIL`.
+
+In these cases the test can be marked with `UNSUPPORTED`. This mark should be
+followed by either `UNSUPPORTED-INTENDED` or `UNSUPPORTED-TRACKER` depending on
+whether the test is not intended to be run with some feature at all or it was
+temporarily disabled due to some issue.
+```
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-INTENDED: only supported by backends with SPIR-V IR
+
+// Sporadically fails on DG2.
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/DDDDD
+// *OR*
+// UNSUPPORTED-TRACKER: PRJ-1234
+```
+
+If you add `UNSUPPORTED` without `UNSUPPORTED-TRACKER` or `UNSUPPORTED-INTENDED`
+directive, the `no-unsupported-without-tracker.cpp` test will fail, notifying
+you about that.
+
+To disable the test completely, you can use:
+```
+// USNUPPORTED: true
+```
+
+Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's
+a non-standard mechanism. Use `UNSUPPORTED: true` instead, we track
+`UNSUPPORTED` tests using the mechanism described above. Otherwise the test
+risks remaining untraceable.
+
+## Compiling and executing tests on separate systems
+
+The execution of e2e tests can be separated into compilation and execution
+stages via the `test-mode` lit parameter. This allows us to reduce testing time
+by compiling tests on more powerful systems and reusing the binaries on other
+machines. By default the `test-mode` parameter is set to `full`, indicating
+that both stages will run. This parameter can be set to `build-only`, or
+`run-only`, to only run the compilation stage, or the execution stage
+respectively.
+
+**NOTE:** This feature is a work-in-progress and current limitations are expected
+to be addressed in the near future.
+
+The modes work as follow:
+### `--param test-mode=full`
+This is the default mode tests run in. Tests are marked as unsupported if no
+device on the machine can fulfill the `REQUIRES`/`UNSUPPORTED` statements. In
+this mode all `RUN:` lines are executed normally, and two extra features are
+added: the `build-and-run-mode` and `run-mode`.
+
+To make a test only run in `full` mode add a `REQUIRES: build-and-run-mode` line.
+
+### `--param test-mode=build-only`
+This mode can be used to compile all test binaries. To do this all `UNSUPPORTED`
+and `REQUIRES` statements are ignored unless they contain `UNSUPPORTED: true` or
+`REQUIRES: build-and-run-mode`. All `RUN:` lines within a test are ran in this
+mode unless they contain the following expansions: `%{run}`,
+`%{run-unfiltered-devices}`, or `%if run-mode`.
+
+Currently, the only triple supported for `build-only` mode is `spir64`.
+
+#### `build-only` future work
+Note, the fact that `build-only` ignores general `UNSUPPORTED`/`REQUIRES`
+statements is a current limitation. The logic for taking into account the
+features that affect compilation, and ignoring those that are only relevant to
+the execution of the program is currently being worked on.
+
+### `--param test-mode=run-only`
+In this mode, tests will not be compiled, they will only run. To do this only the
+`RUN:` lines that contain `%{run}`, `%{run-unfiltered-devices}` or `%if run-mode`
+are executed. Tests are marked as unsupported in the same manner as `full` mode.
+Since tests are not compiled in this mode, for any test to pass the test
+binaries should already be in the `test_exec_root` directory, either by having
+ran `full` or `build-only` modes previously on the system, or having
+transferred the test binaries into that directory. The `run-mode` feature is
+added when in this mode.
+
+### Resolving common Issues with separate compilation and execution:
+A number of extra considerations need to be taken to write tests that are able
+to be compiled and executed on separate machines.
+
+- Tests that build and execute multiple binaries need to be written such that
+the output of each compilation has a different name. This way no files are
+overwritten, and all the necessary binaries can be transferred to the running
+system.
+
+- Two scenarios need to be considered for tests that expectedly fail:
+  - Tests that are expected to fail on compilation, and thus also during
+  execution, need to be marked as `XFAIL` with a feature that is device
+  agnostic, or with `XFAIL: *`. Device agnostic features are those which are
+  added added through a method other than processing the output of sycl-ls, for
+  example the OS, or the presence of a library. This needs to be done because
+  sycl-ls is not ran in `build-only` mode.
+  - If the expected failure occurs during run-time we will need to mark the test
+  with `XFAIL` on a device specific feature (A feature that we add through
+  processing sycl-ls output), or if its expected to always fail on run-time we
+  can use `XFAIL: run-mode`. This is because otherwise the test would compile
+  and pass on `build-only` mode and be reported as an `XPASS`.
+
+- To separate compilation and execution of tests, we classify `RUN:` directives
+as being either build or run lines. If a line contains `%{run}`,
+`%{run-unfiltered-devices}` or `%if run-mode` it is classified as a run line,
+otherwise it is classified as a build line.
+  - All `RUN:` lines that execute test binaries should be marked with either
+  `%{run}` or `%{run-unfiltered-devices}`. Otherwise they will be incorrectly
+  marked as a build line, likely causing a failure at the `build-only` stage as
+  we try to execute the program without having the appropriate devices.
+  - The vast majority of `RUN:` lines that do not execute the test binaries are
+  needed to either set up files prior to compilation, or to compile the binary,
+  as such `RUN:` lines are by default considered as build lines. In the case
+  that we need to run a line on the `run-only` system, and it does not make
+  sense to mark them with `%{run}` or `%{run-unfiltered-devices}`, we can mark
+  a line with `%if run-mode` to specifically make the line a run line. This
+  situation usually appears when we need to run a command in response to the
+  execution of the test binary.
+
+- Currently the `build-only` mode does not support logic to properly assess the
+features in `REQUIRES`/`UNSUPPORTED` to know if a test can be built in the
+system environment, or for `spir64`. Only tests that are marked with
+`REQUIRES: build-and-run-mode` or `UNSUPPORTED: true` are skipped. Thus if a
+test will fail building for the build environment we have on CI or for `spir64`
+we will need to mark this as `REQUIRES: build-and-run-mode`. This is only
+temporary solution, until further work is done to properly mark tests as
+unsupported on `build-only` based on features.
+
+- CPU and FPGA AOT tests are currently expected to fail when compiling and
+executing on separate machines. These failures occur on the `run-only` side,
+because during compilation the host machine's CPU architecture is targeted,
+which may be different than that of the running machine. These tests are marked
+as `REQUIRES: build-and-run-mode` as a result, until they can be refactored to
+compile for the architectures that will be used on the run side.
+
+### Falling back to `full` testing mode on `run-only`
+To not lose coverage of tests marked as `REQUIRES: build-and-run-mode` when
+using `run-only` mode, lit can be called using
+`--param fallback-to-build-if-requires-build-and-run=True`. When this option is
+enabled in `run-only` mode, tests marked as requiring `build-and-run-mode` will
+fallback to running on `full` mode, instead of being reported as unsupported.

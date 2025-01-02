@@ -1,6 +1,6 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
-// expected-warning@sycl/CL/sycl.hpp:* {{CL/sycl.hpp is deprecated, use sycl/sycl.hpp}}
+// expected-warning@CL/sycl.hpp:* {{CL/sycl.hpp is deprecated, use sycl/sycl.hpp}}
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
 
@@ -287,8 +287,6 @@ int main() {
         [=](sycl::nd_item<1> Idx) {
           int PrivateVal = 0;
 
-          // expected-warning@+6{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
-          // expected-warning@+8{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
           // expected-warning@+8{{'get_pointer' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
           // expected-warning@+7{{'get_pointer<sycl::access::target::global_buffer, void>' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
           // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::legacy, void>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
@@ -298,8 +296,6 @@ int main() {
                   sycl::make_ptr<int, sycl::access::address_space::global_space,
                                  sycl::access::decorated::legacy>(
                       GlobalAcc.get_pointer());
-          // expected-warning@+5{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
-          // expected-warning@+7{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
           // expected-warning@+7{{'get_pointer' is deprecated: local_accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
           // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::local_space, sycl::access::decorated::legacy, void>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
           sycl::multi_ptr<int, sycl::access::address_space::local_space,
@@ -309,9 +305,7 @@ int main() {
                                  sycl::access::decorated::legacy>(
                       LocalAcc.get_pointer());
 
-          // expected-warning@+4{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
-          // expected-warning@+5{{'make_ptr<int, sycl::access::address_space::private_space, sycl::access::decorated::legacy, void>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
-          // expected-warning@+6{{'legacy' is deprecated: sycl::access::decorated::legacy is deprecated since SYCL 2020}}
+          // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::private_space, sycl::access::decorated::legacy, void>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
           sycl::multi_ptr<int, sycl::access::address_space::private_space,
                           sycl::access::decorated::legacy>
               LegacyPrivateMptr =

@@ -5,8 +5,7 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // REQUIRES: aspect-fp64
-// Temporarily disable test on Windows due to regressions in GPU driver.
-// UNSUPPORTED: hip_amd, windows
+// UNSUPPORTED: hip_amd
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s

@@ -15,7 +15,6 @@ static int testCount = 4;
 static int passCount;
 
 using namespace sycl;
-using namespace sycl::detail::gtl;
 using namespace sycl::ext::oneapi;
 
 constexpr int RangeLength = 100;

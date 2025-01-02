@@ -9,18 +9,15 @@
 #include "detail/config.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <sstream>
-#include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-#include <detail/jit_compiler.hpp>
-#endif
 #include <detail/graph_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sstream>
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/feature_test.hpp>
 
 #include <algorithm>
 #include <cstdlib>
@@ -117,12 +114,6 @@ Scheduler::GraphBuilder::GraphBuilder() {
     if (GraphPrintOpts.find("after_addHostAcc") != std::string::npos ||
         EnableAlways)
       MPrintOptionsArray[AfterAddHostAcc] = true;
-    if (GraphPrintOpts.find("after_fusionComplete") != std::string::npos ||
-        EnableAlways)
-      MPrintOptionsArray[AfterFusionComplete] = true;
-    if (GraphPrintOpts.find("after_fusionCancel") != std::string::npos ||
-        EnableAlways)
-      MPrintOptionsArray[AfterFusionCancel] = true;
   }
 }
 
@@ -143,14 +134,6 @@ static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
 static void handleVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited) {
     if (Cmd->MMarks.MToBeDeleted) {
-      if (Cmd->getType() == Command::FUSION &&
-          !static_cast<KernelFusionCommand *>(Cmd)->readyForDeletion()) {
-        // Fusion commands might still be needed because fusion might be
-        // aborted, but a later call to complete_fusion still needs to be able
-        // to return a valid event. Clean-up of fusion commands is therefore
-        // explicitly handled by start fusion.
-        return;
-      }
       Cmd->getEvent()->setCommand(nullptr);
       delete Cmd;
     } else
@@ -771,7 +754,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // Can setup link between cl and host allocations only
           if ((Context == nullptr) != (Record->MCurContext == nullptr)) {
             // Linked commands assume that the host allocation is reused by the
-            // plugin runtime and that can lead to unnecessary copy overhead on
+            // unified runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the
             // allocations in this case.
             // However, if the user explicitly requests use of pinned host
@@ -934,7 +917,7 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   }
 }
 
-Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
+Command *Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue, bool EventNeeded,
     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -950,94 +933,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     throw exception(make_error_code(errc::memory_allocation),
                     "Out of host memory");
 
-  // Only device kernel command groups can participate in fusion. Otherwise,
-  // command groups take the regular route. If they create any requirement or
-  // event dependency on any of the kernels in the fusion list, this will lead
-  // to cancellation of the fusion in the GraphProcessor.
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  if (isInFusionMode(QUniqueID)) {
-    if (NewCmd->isFusable()) {
-      auto *FusionCmd = findFusionList(QUniqueID)->second.get();
-
-      bool dependsOnFusion = false;
-      for (auto Ev = Events.begin(); Ev != Events.end();) {
-        auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
-        if (!EvDepCmd) {
-          ++Ev;
-          continue;
-        }
-        // Event dependencies on commands part of another active fusion are
-        // handled by cancelling fusion in that other queue.
-        if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
-          printFusionWarning(
-              "Aborting fusion because of event dependency from a "
-              "different fusion");
-          cancelFusion(EvDepCmd->getQueue(), ToEnqueue);
-        }
-        // Check if this command depends on the placeholder command for the
-        // fusion itself participates in.
-        if (EvDepCmd == FusionCmd) {
-          Ev = Events.erase(Ev);
-          dependsOnFusion = true;
-        } else {
-          ++Ev;
-        }
-      }
-
-      // If this command has an explicit event dependency on the placeholder
-      // command for this fusion (because it used depends_on on the event
-      // returned by submitting another kernel to this fusion earlier), add a
-      // dependency on all the commands in the fusion list so far.
-      if (dependsOnFusion) {
-        for (auto *Cmd : FusionCmd->getFusionList()) {
-          Events.push_back(Cmd->getEvent());
-        }
-      }
-
-      // Add the kernel to the graph, but delay the enqueue of any auxiliary
-      // commands (e.g., allocations) resulting from that process by adding them
-      // to the list of auxiliary commands of the fusion command.
-      createGraphForCommand(NewCmd.get(), NewCmd->getCG(),
-                            isInteropHostTask(NewCmd.get()), Reqs, Events,
-                            Queue, FusionCmd->auxiliaryCommands());
-
-      // Set the fusion command, so we recognize when another command depends on
-      // a kernel in the fusion list.
-      FusionCmd->addToFusionList(NewCmd.get());
-      NewCmd->MFusionCmd = FusionCmd;
-      std::vector<Command *> ToCleanUp;
-      // Add an event dependency from the fusion placeholder command to the new
-      // kernel.
-      auto ConnectionCmd = FusionCmd->addDep(NewCmd->getEvent(), ToCleanUp);
-      if (ConnectionCmd) {
-        FusionCmd->auxiliaryCommands().push_back(ConnectionCmd);
-      }
-      return {NewCmd.release(), FusionCmd->getEvent(), false};
-    } else {
-      std::string s;
-      std::stringstream ss(s);
-      if (NewCmd->getCG().getType() == CGType::Kernel) {
-        ss << "Not fusing kernel with 'use_root_sync' property. Can only fuse "
-              "non-cooperative device kernels.";
-      } else {
-        ss << "Not fusing '" << NewCmd->getTypeString()
-           << "' command group. Can only fuse device kernel command groups.";
-      }
-      printFusionWarning(ss.str());
-    }
-  }
-  createGraphForCommand(NewCmd.get(), NewCmd->getCG(),
-                        isInteropHostTask(NewCmd.get()), Reqs, Events, Queue,
-                        ToEnqueue);
-  auto Event = NewCmd->getEvent();
-  return {NewCmd.release(), Event, true};
-}
-
-void Scheduler::GraphBuilder::createGraphForCommand(
-    Command *NewCmd, CG &CG, bool isInteropTask,
-    std::vector<Requirement *> &Reqs,
-    const std::vector<detail::EventImplPtr> &Events, QueueImplPtr Queue,
-    std::vector<Command *> &ToEnqueue) {
+  bool isInteropTask = isInteropHostTask(NewCmd.get());
 
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
@@ -1055,7 +951,9 @@ void Scheduler::GraphBuilder::createGraphForCommand(
 
     {
       const QueueImplPtr &QueueForAlloca =
-          isInteropTask ? static_cast<detail::CGHostTask &>(CG).MQueue : Queue;
+          isInteropTask
+              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
+              : Queue;
 
       Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
       markModifiedIfWrite(Record, Req);
@@ -1087,7 +985,8 @@ void Scheduler::GraphBuilder::createGraphForCommand(
       auto MemMoveTargetQueue = Queue;
 
       if (isInteropTask) {
-        const detail::CGHostTask &HT = static_cast<detail::CGHostTask &>(CG);
+        const detail::CGHostTask &HT =
+            static_cast<detail::CGHostTask &>(NewCmd->getCG());
 
         if (!isOnSameContext(Record->MCurContext, HT.MQueue)) {
           NeedMemMoveToHost = true;
@@ -1105,12 +1004,10 @@ void Scheduler::GraphBuilder::createGraphForCommand(
         findDepsForReq(Record, Req, queue_impl::getContext(Queue));
 
     for (Command *Dep : Deps) {
-      if (Dep != NewCmd) {
-        Command *ConnCmd =
-            NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
-        if (ConnCmd)
-          ToEnqueue.push_back(ConnCmd);
-      }
+      Command *ConnCmd =
+          NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
+      if (ConnCmd)
+        ToEnqueue.push_back(ConnCmd);
     }
   }
 
@@ -1123,14 +1020,11 @@ void Scheduler::GraphBuilder::createGraphForCommand(
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode, ToCleanUp);
-    addNodeToLeaves(Record, NewCmd, Req->MAccessMode, ToEnqueue);
+    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
   }
 
   // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
-    if (e->getCommand() && e->getCommand() == NewCmd) {
-      continue;
-    }
+  for (const detail::EventImplPtr &e : Events) {
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
@@ -1141,6 +1035,8 @@ void Scheduler::GraphBuilder::createGraphForCommand(
   for (Command *Cmd : ToCleanUp) {
     cleanupCommand(Cmd);
   }
+
+  return NewCmd.release();
 }
 
 void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
@@ -1289,14 +1185,6 @@ void Scheduler::GraphBuilder::cleanupCommand(
     DepCmd->MUsers.erase(Cmd);
   }
 
-  if (Cmd->getType() == Command::FUSION &&
-      !static_cast<KernelFusionCommand *>(Cmd)->readyForDeletion()) {
-    // Fusion commands might still be needed because fusion might be aborted,
-    // but a later call to complete_fusion still needs to be able to return a
-    // valid event. Clean-up of fusion commands is therefore explicitly handled
-    // by start fusion.
-    return;
-  }
   Cmd->getEvent()->setCommand(nullptr);
   delete Cmd;
 }
@@ -1379,304 +1267,6 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   }
 
   return ConnectCmd;
-}
-
-void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
-  cleanUpCmdFusion(Queue.get());
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
-}
-
-void Scheduler::GraphBuilder::cleanUpCmdFusion(
-    sycl::detail::queue_impl *Queue) {
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue);
-  if (isInFusionMode(QUniqueID)) {
-    throw sycl::exception{sycl::make_error_code(sycl::errc::invalid),
-                          "Queue already in fusion mode"};
-  }
-  auto OldFusionCmd = findFusionList(QUniqueID);
-  if (OldFusionCmd != MFusionMap.end()) {
-    // If fusion was used on this queue previously, the old fusion command might
-    // still be around to make sure that even after
-    // cancellation of the fusion due to synchronization, complete_fusion is
-    // still able to return a valid event.
-    OldFusionCmd->second->setFusionStatus(
-        KernelFusionCommand::FusionStatus::DELETED);
-    cleanupCommand(OldFusionCmd->second.release());
-    MFusionMap.erase(OldFusionCmd);
-  }
-}
-
-void Scheduler::GraphBuilder::removeNodeFromGraph(
-    Command *Node, std::vector<Command *> &ToEnqueue) {
-  // Remove the placeholder command as leaf of all its requirements and from the
-  // user list of all its dependencies.
-  for (auto &Dep : Node->MDeps) {
-    auto AccessMode = Dep.MDepRequirement->MAccessMode;
-    auto *Record = getMemObjRecord(Dep.MDepRequirement->MSYCLMemObj);
-
-    Node->MLeafCounter -= Record->MReadLeaves.remove(Node);
-    Node->MLeafCounter -= Record->MWriteLeaves.remove(Node);
-    // If the placeholder had a write-requirement on this record, we need to
-    // restore the previous leaves.
-    if (AccessMode != access::mode::read) {
-      for (auto PrevDep : Dep.MDepCommand->MDeps) {
-        auto *DepReq = PrevDep.MDepRequirement;
-        auto *DepRecord = getMemObjRecord(DepReq->MSYCLMemObj);
-        if (DepRecord == Record) {
-          // Need to restore this as a leaf, because we pushed it from the
-          // leaves when adding the placeholder command.
-          assert(Dep.MDepCommand);
-          addNodeToLeaves(Record, Dep.MDepCommand, DepReq->MAccessMode,
-                          ToEnqueue);
-        }
-      }
-    }
-    Dep.MDepCommand->MUsers.erase(Node);
-  }
-
-  // Clear all the dependencies to avoid cleanDepEventsThroughOneLevel, called
-  // from the destructor of the command to delete the dependencies of the
-  // command this command depends on.
-  Node->clearAllDependencies();
-}
-
-void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
-                                           std::vector<Command *> &ToEnqueue) {
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-  if (!isInFusionMode(QUniqueID)) {
-    return;
-  }
-  auto FusionList = findFusionList(QUniqueID);
-
-  auto *PlaceholderCmd = (*FusionList).second.get();
-
-  // Enqueue all the kernels/commands from the fusion list
-  auto FusedCmdList = PlaceholderCmd->getFusionList();
-  ToEnqueue.insert(ToEnqueue.end(), FusedCmdList.begin(), FusedCmdList.end());
-
-  // The commands establishing an event dependency between the fusion
-  // placeholder command and the individual kernels need to be enqueued.
-  ToEnqueue.insert(ToEnqueue.end(), PlaceholderCmd->auxiliaryCommands().begin(),
-                   PlaceholderCmd->auxiliaryCommands().end());
-
-  ToEnqueue.push_back(PlaceholderCmd);
-
-  if (MPrintOptionsArray[AfterFusionCancel]) {
-    printGraphAsDot("after_fusionCancel");
-  }
-
-  // Set the status for the fusion command
-  PlaceholderCmd->setFusionStatus(KernelFusionCommand::FusionStatus::CANCELLED);
-}
-
-static bool isPartOfFusion(Command *Cmd, KernelFusionCommand *Fusion) {
-  if (Cmd->getType() == Command::RUN_CG) {
-    return static_cast<ExecCGCommand *>(Cmd)->MFusionCmd == Fusion;
-  }
-  return false;
-}
-
-static bool checkForCircularDependency(Command *, bool, KernelFusionCommand *);
-
-static bool createsCircularDependency(Command *Cmd, bool PredPartOfFusion,
-                                      KernelFusionCommand *Fusion) {
-  if (isPartOfFusion(Cmd, Fusion)) {
-    // If this is part of the fusion and the predecessor also was, we can stop
-    // the traversal here. A direct dependency between two kernels in the same
-    // fusion will never form a cyclic dependency and by iterating over all
-    // commands in a fusion, we will detect any cycles originating from the
-    // current command.
-    // If the predecessor was not part of the fusion, but the current command
-    // is, we have found a potential cycle in the dependency graph.
-    return !PredPartOfFusion;
-  }
-  return checkForCircularDependency(Cmd, false, Fusion);
-}
-
-static bool checkForCircularDependency(Command *Cmd, bool IsPartOfFusion,
-                                       KernelFusionCommand *Fusion) {
-  // Check the requirement dependencies.
-  for (auto &Dep : Cmd->MDeps) {
-    auto *DepCmd = Dep.MDepCommand;
-    if (!DepCmd) {
-      continue;
-    }
-    if (createsCircularDependency(DepCmd, IsPartOfFusion, Fusion)) {
-      return true;
-    }
-  }
-  for (auto &Ev : Cmd->getPreparedDepsEvents()) {
-    auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
-    if (!EvDepCmd) {
-      continue;
-    }
-    if (createsCircularDependency(EvDepCmd, IsPartOfFusion, Fusion)) {
-      return true;
-    }
-  }
-  for (auto &Ev : Cmd->getPreparedHostDepsEvents()) {
-    auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
-    if (!EvDepCmd) {
-      continue;
-    }
-    if (createsCircularDependency(EvDepCmd, IsPartOfFusion, Fusion)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-EventImplPtr
-Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
-                                        std::vector<Command *> &ToEnqueue,
-                                        const property_list &PropList) {
-  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-  if (!isInFusionMode(QUniqueID)) {
-    auto InactiveFusionList = findFusionList(QUniqueID);
-    if (InactiveFusionList == MFusionMap.end()) {
-      throw sycl::exception{
-          sycl::make_error_code(sycl::errc::invalid),
-          "Calling complete_fusion on a queue not in fusion mode"};
-    }
-    return InactiveFusionList->second->getEvent();
-  }
-
-  auto FusionList = findFusionList(QUniqueID);
-  auto *PlaceholderCmd = FusionList->second.get();
-  auto &CmdList = PlaceholderCmd->getFusionList();
-
-  // If there is more than one queue currently in fusion mode, we need to check
-  // if fusing the kernel would create a circular dependency. A circular
-  // dependency would arise, if a kernel in the fusion list *indirectly* depends
-  // on another kernel in the fusion list. Here, indirectly means, that the
-  // dependency is created through a third command not part of the fusion, on
-  // which this kernel depends and which in turn depends on another kernel in
-  // fusion list.
-  //
-  // Note that we only have to consider dependencies via fusion queues here:
-  // Let K1 be a kernel submitted to a queue Q1 in fusion mode. If a kernel K2
-  // is submitted to a non-fusion queue Q2 and K2 depends on K1, fusion on Q1 is
-  // cancelled automatically.
-  bool CreatesCircularDep =
-      MFusionMap.size() > 1 &&
-      std::any_of(CmdList.begin(), CmdList.end(), [&](ExecCGCommand *Cmd) {
-        return checkForCircularDependency(Cmd, true, PlaceholderCmd);
-      });
-  if (CreatesCircularDep) {
-    // If fusing would create a fused kernel, cancel the fusion.
-    printFusionWarning(
-        "Aborting fusion because it would create a circular dependency");
-    auto LastEvent = PlaceholderCmd->getEvent();
-    this->cancelFusion(Queue, ToEnqueue);
-    return LastEvent;
-  }
-
-  // Call the JIT compiler to generate a new fused kernel.
-  auto FusedCG = detail::jit_compiler::get_instance().fuseKernels(
-      Queue, CmdList, PropList);
-
-  if (!FusedCG) {
-    // If the JIT compiler returns a nullptr, JIT compilation of the fused
-    // kernel failed. In that case, simply cancel the fusion and run each kernel
-    // on its own.
-    auto LastEvent = PlaceholderCmd->getEvent();
-    this->cancelFusion(Queue, ToEnqueue);
-    return LastEvent;
-  }
-
-  // Inherit all event dependencies from the input commands in the fusion list.
-  std::vector<EventImplPtr> FusedEventDeps;
-  for (auto *Cmd : CmdList) {
-    FusedEventDeps.insert(FusedEventDeps.end(),
-                          Cmd->getPreparedDepsEvents().begin(),
-                          Cmd->getPreparedDepsEvents().end());
-    FusedEventDeps.insert(FusedEventDeps.end(),
-                          Cmd->getPreparedHostDepsEvents().begin(),
-                          Cmd->getPreparedHostDepsEvents().end());
-  }
-
-  // Remove internal explicit dependencies, i.e., explicit dependencies from one
-  // kernel in the fusion list to another kernel also in the fusion list.
-  FusedEventDeps.erase(
-      std::remove_if(FusedEventDeps.begin(), FusedEventDeps.end(),
-                     [&](EventImplPtr &E) {
-                       if (E->getCommand() == PlaceholderCmd) {
-                         return true;
-                       }
-                       if (E->getCommand() &&
-                           static_cast<Command *>(E->getCommand())->getType() ==
-                               Command::RUN_CG) {
-                         auto *RunCGCmd =
-                             static_cast<ExecCGCommand *>(E->getCommand());
-                         if (RunCGCmd->MFusionCmd == PlaceholderCmd) {
-                           return true;
-                         }
-                       }
-                       return false;
-                     }),
-      FusedEventDeps.end());
-
-  auto FusedKernelCmd = std::make_unique<ExecCGCommand>(
-      std::move(FusedCG), Queue, /*EventNeeded=*/true);
-
-  // Inherit auxiliary resources from fused command groups
-  Scheduler::getInstance().takeAuxiliaryResources(FusedKernelCmd->getEvent(),
-                                                  PlaceholderCmd->getEvent());
-  assert(PlaceholderCmd->MDeps.empty());
-  // Next, backwards iterate over all the commands in the fusion list and remove
-  // them from the graph to restore the state before starting fusion, so we can
-  // add the fused kernel to the graph in the next step.
-  // Clean up the old commands after successfully fusing them.
-  for (auto OldCmd = CmdList.rbegin(); OldCmd != CmdList.rend(); ++OldCmd) {
-    removeNodeFromGraph(*OldCmd, ToEnqueue);
-    cleanupCommand(*OldCmd, /* AllowUnsubmitted */ true);
-  }
-
-  createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
-                        FusedKernelCmd->getCG().getRequirements(),
-                        FusedEventDeps, Queue, ToEnqueue);
-
-  ToEnqueue.push_back(FusedKernelCmd.get());
-
-  std::vector<Command *> ToCleanUp;
-  // Make the placeholder command depend on the execution of the fused kernel
-  auto *ConnectToPlaceholder =
-      PlaceholderCmd->addDep(FusedKernelCmd->getEvent(), ToCleanUp);
-  if (ConnectToPlaceholder) {
-    ToEnqueue.push_back(ConnectToPlaceholder);
-  }
-  for (Command *Cmd : ToCleanUp) {
-    cleanupCommand(Cmd);
-  }
-  ToEnqueue.push_back(PlaceholderCmd);
-
-  if (MPrintOptionsArray[AfterFusionComplete]) {
-    printGraphAsDot("after_fusionComplete");
-  }
-
-  // Set the status for the fusion command.
-  PlaceholderCmd->setFusionStatus(KernelFusionCommand::FusionStatus::COMPLETE);
-
-  return FusedKernelCmd.release()->getEvent();
-#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
-  printFusionWarning("Kernel fusion not supported by this build");
-  (void)PropList;
-  auto FusionList = findFusionList(QUniqueID);
-  auto *PlaceholderCmd = FusionList->second.get();
-  auto LastEvent = PlaceholderCmd->getEvent();
-  this->cancelFusion(Queue, ToEnqueue);
-  return LastEvent;
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
-}
-
-bool Scheduler::GraphBuilder::isInFusionMode(QueueIdT Id) {
-  auto FusionList = findFusionList(Id);
-  if (FusionList == MFusionMap.end()) {
-    return false;
-  }
-  return FusionList->second->isActive();
 }
 
 Command *Scheduler::GraphBuilder::addCommandGraphUpdate(

@@ -12,7 +12,7 @@
 
 #include "error_handling.hpp"
 
-#include <detail/plugin.hpp>
+#include <detail/adapter.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -36,10 +36,11 @@ void handleOutOfResources(const device_impl &DeviceImpl,
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
 
-    const PluginPtr &Plugin = DeviceImpl.getPlugin();
+    const AdapterPtr &Adapter = DeviceImpl.getAdapter();
     uint32_t NumRegisters = 0;
-    Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
-                 sizeof(NumRegisters), &NumRegisters, nullptr);
+    Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_NUM_REGS,
+                                              sizeof(NumRegisters),
+                                              &NumRegisters, nullptr);
 
     uint32_t MaxRegistersPerBlock =
         DeviceImpl.get_info<ext::codeplay::experimental::info::device::
@@ -95,17 +96,34 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     IsLevelZero = true;
   }
 
-  const PluginPtr &Plugin = DeviceImpl.getPlugin();
+  const AdapterPtr &Adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t CompileWGSize[3] = {0};
-  Plugin->call(urKernelGetGroupInfo, Kernel, Device,
-               UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(size_t) * 3,
-               CompileWGSize, nullptr);
+  Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+      Kernel, Device, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+      sizeof(size_t) * 3, CompileWGSize, nullptr);
+
+  size_t CompileMaxWGSize[3] = {0};
+  ur_result_t URRes = Adapter->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+      Kernel, Device, UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
+      sizeof(size_t) * 3, CompileMaxWGSize, nullptr);
+  if (URRes != UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+    Adapter->checkUrResult(URRes);
+  }
+
+  size_t CompileMaxLinearWGSize = 0;
+  URRes = Adapter->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+      Kernel, Device, UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE,
+      sizeof(size_t), &CompileMaxLinearWGSize, nullptr);
+  if (URRes != UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+    Adapter->checkUrResult(URRes);
+  }
 
   size_t MaxWGSize = 0;
-  Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-               sizeof(size_t), &MaxWGSize, nullptr);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(
+      Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t), &MaxWGSize,
+      nullptr);
 
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
@@ -145,10 +163,32 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
               std::to_string(CompileWGSize[0]) + "}");
   }
 
+  const size_t TotalNumberOfWIs =
+      NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
+
   if (HasLocalSize) {
+    if (CompileMaxWGSize[0] != 0) {
+      if (NDRDesc.LocalSize[0] > CompileMaxWGSize[0] ||
+          NDRDesc.LocalSize[1] > CompileMaxWGSize[1] ||
+          NDRDesc.LocalSize[2] > CompileMaxWGSize[2]) {
+        throw sycl::exception(
+            make_error_code(errc::nd_range),
+            "The specified local size {" +
+                std::to_string(NDRDesc.LocalSize[2]) + ", " +
+                std::to_string(NDRDesc.LocalSize[1]) + ", " +
+                std::to_string(NDRDesc.LocalSize[0]) +
+                "} exceeds the maximum work-group size specified "
+                "in the program source {" +
+                std::to_string(CompileMaxWGSize[2]) + ", " +
+                std::to_string(CompileMaxWGSize[1]) + ", " +
+                std::to_string(CompileMaxWGSize[0]) + "}");
+      }
+    }
+
     size_t MaxThreadsPerBlock[3] = {};
-    Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-                 sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
+    Adapter->call<UrApiKind::urDeviceGetInfo>(
+        Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxThreadsPerBlock),
+        MaxThreadsPerBlock, nullptr);
 
     for (size_t I = 0; I < 3; ++I) {
       if (MaxThreadsPerBlock[I] < NDRDesc.LocalSize[I]) {
@@ -161,6 +201,15 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                                   "} for this device");
       }
     }
+
+    if (CompileMaxLinearWGSize && TotalNumberOfWIs > CompileMaxLinearWGSize) {
+      throw sycl::exception(
+          make_error_code(errc::nd_range),
+          "The total number of work-items in the work-group (" +
+              std::to_string(TotalNumberOfWIs) +
+              ") exceeds the maximum specified in the program source (" +
+              std::to_string(CompileMaxLinearWGSize) + ")");
+    }
   }
 
   if (IsOpenCLV1x) {
@@ -170,8 +219,6 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
     // than the value specified by UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE in
     // table 4.3
-    const size_t TotalNumberOfWIs =
-        NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
     if (TotalNumberOfWIs > MaxWGSize)
       throw sycl::exception(
           make_error_code(errc::nd_range),
@@ -185,11 +232,9 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     // than the value specified by UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
     // table 5.21.
     size_t KernelWGSize = 0;
-    Plugin->call(urKernelGetGroupInfo, Kernel, Device,
-                 UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
-                 &KernelWGSize, nullptr);
-    const size_t TotalNumberOfWIs =
-        NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
+    Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+        Kernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
+        &KernelWGSize, nullptr);
     if (TotalNumberOfWIs > KernelWGSize)
       throw sycl::exception(
           make_error_code(errc::nd_range),
@@ -239,15 +284,17 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
           // work-group given by local_work_size
 
           ur_program_handle_t Program = nullptr;
-          Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_PROGRAM,
-                       sizeof(ur_program_handle_t), &Program, nullptr);
+          Adapter->call<UrApiKind::urKernelGetInfo>(
+              Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t),
+              &Program, nullptr);
           size_t OptsSize = 0;
-          Plugin->call(urProgramGetBuildInfo, Program, Device,
-                       UR_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr, &OptsSize);
+          Adapter->call<UrApiKind::urProgramGetBuildInfo>(
+              Program, Device, UR_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr,
+              &OptsSize);
           std::string Opts(OptsSize, '\0');
-          Plugin->call(urProgramGetBuildInfo, Program, Device,
-                       UR_PROGRAM_BUILD_INFO_OPTIONS, OptsSize, &Opts.front(),
-                       nullptr);
+          Adapter->call<UrApiKind::urProgramGetBuildInfo>(
+              Program, Device, UR_PROGRAM_BUILD_INFO_OPTIONS, OptsSize,
+              &Opts.front(), nullptr);
           const bool HasStd20 = Opts.find("-cl-std=CL2.0") != std::string::npos;
           const bool RequiresUniformWGSize =
               Opts.find("-cl-uniform-work-group-size") != std::string::npos;
@@ -304,13 +351,14 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
                                const NDRDescT &NDRDesc) {
 
-  const PluginPtr &Plugin = DeviceImpl.getPlugin();
+  const AdapterPtr &Adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t MaxWISize[] = {0, 0, 0};
 
-  Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-               sizeof(MaxWISize), &MaxWISize, nullptr);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(
+      Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxWISize), &MaxWISize,
+      nullptr);
   for (unsigned I = 0; I < NDRDesc.Dims; I++) {
     if (NDRDesc.LocalSize[I] > MaxWISize[I])
       throw sycl::exception(
@@ -323,12 +371,13 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 
 void handleInvalidValue(const device_impl &DeviceImpl,
                         const NDRDescT &NDRDesc) {
-  const PluginPtr &Plugin = DeviceImpl.getPlugin();
+  const AdapterPtr &Adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
-  Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
-               sizeof(MaxNWGs), &MaxNWGs, nullptr);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(Device,
+                                            UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+                                            sizeof(MaxNWGs), &MaxNWGs, nullptr);
   for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
     size_t NWgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     if (NWgs > MaxNWGs[I])
@@ -411,7 +460,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
     // an error or a warning. It also ensures that the contents of the error
     // message buffer (used only by UR_RESULT_ERROR_ADAPTER_SPECIFIC_ERROR) get
     // handled correctly.
-    return DeviceImpl.getPlugin()->checkUrResult(Error);
+    return DeviceImpl.getAdapter()->checkUrResult(Error);
 
     // TODO: Handle other error codes
 
@@ -425,7 +474,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
 
 namespace detail::kernel_get_group_info {
 void handleErrorOrWarning(ur_result_t Error, ur_kernel_group_info_t Descriptor,
-                          const PluginPtr &Plugin) {
+                          const AdapterPtr &Adapter) {
   assert(Error != UR_RESULT_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {
@@ -439,7 +488,7 @@ void handleErrorOrWarning(ur_result_t Error, ur_kernel_group_info_t Descriptor,
     break;
   // TODO: Handle other error codes
   default:
-    Plugin->checkUrResult(Error);
+    Adapter->checkUrResult(Error);
     break;
   }
 }

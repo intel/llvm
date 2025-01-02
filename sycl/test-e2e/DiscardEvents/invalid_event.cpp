@@ -1,6 +1,3 @@
-// Same hang as on Basic/barrier_order.cpp tracked in
-// https://github.com/intel/llvm/issues/7330.
-// UNSUPPORTED: opencl && gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

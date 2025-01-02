@@ -1,9 +1,7 @@
-// https://github.com/intel/llvm/issues/12797
-// UNSUPPORTED: windows
 // REQUIRES: windows
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // Shouldn't fail on ACC as fallback assert isn't enqueued there
-// RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if acc %{ --check-prefix=CHECK-ACC %}
+// RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if fpga %{ --check-prefix=CHECK-ACC %}
 //
 // CHECK-NOT:  One shouldn't see this message
 // FIXME Windows version prints '(null)' instead of '<unknown func>' once in a

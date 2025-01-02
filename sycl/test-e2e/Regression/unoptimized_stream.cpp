@@ -1,7 +1,5 @@
-// RUN: %{build} -O0 -o %t.out
+// RUN: %{build} %O0 -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: accelerator
 
 #include <sycl/detail/core.hpp>
 

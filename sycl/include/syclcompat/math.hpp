@@ -31,12 +31,19 @@
 
 #pragma once
 
+#include <sycl/feature_test.hpp>
+#include <type_traits>
+
+// TODO(syclcompat-lib-reviewers): this should not be required
 #ifndef SYCL_EXT_ONEAPI_COMPLEX
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
 
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
+#endif
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
+#include <syclcompat/traits.hpp>
 
 namespace syclcompat {
 namespace detail {
@@ -46,18 +53,25 @@ namespace complex_namespace = sycl::ext::oneapi::experimental;
 template <typename ValueT>
 using complex_type = detail::complex_namespace::complex<ValueT>;
 
+template <typename T>
+constexpr bool is_int32_type = std::is_same_v<std::decay_t<T>, int32_t> ||
+  std::is_same_v<std::decay_t<T>, uint32_t>;
+
+// Helper constexpr bool to avoid ugly macros where possible
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+constexpr bool support_bfloat16_math = true;
+#else
+constexpr bool support_bfloat16_math = false;
+#endif
+
 template <typename ValueT>
 inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
   return sycl::clamp(val, min_val, max_val);
 }
-
-template <typename T>
-constexpr bool is_int32_type = std::is_same_v<std::decay_t<T>, int32_t> ||
-                               std::is_same_v<std::decay_t<T>, uint32_t>;
-
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-// TODO: Follow the process to add this to the extension. If added,
-// remove this functionality from the header.
+// TODO(syclcompat-lib-reviewers): Follow the process to add this (& other math
+// fns) to the bfloat16 math function extension. If added, remove this
+// functionality from the header.
 template <>
 inline sycl::ext::oneapi::bfloat16 clamp(sycl::ext::oneapi::bfloat16 val,
                                          sycl::ext::oneapi::bfloat16 min_val,
@@ -67,6 +81,28 @@ inline sycl::ext::oneapi::bfloat16 clamp(sycl::ext::oneapi::bfloat16 val,
   if (val > max_val)
     return max_val;
   return val;
+}
+
+template <typename T, int Size>
+inline std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                        sycl::vec<T, Size>>
+clamp(sycl::vec<T, Size> val, sycl::vec<T, Size> min_val,
+      sycl::vec<T, Size> max_val) {
+  return [&val, &min_val, &max_val]<int... I>(std::integer_sequence<int, I...>) {
+    return sycl::vec<T, Size>{
+        clamp<sycl::ext::oneapi::bfloat16>(val[I], min_val[I], max_val[I])...};
+  }(std::make_integer_sequence<int, Size>{});
+}
+
+template <typename T, std::size_t Size>
+inline std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                        sycl::marray<T, Size>>
+clamp(sycl::marray<T, Size> val, sycl::marray<T, Size> min_val,
+      sycl::marray<T, Size> max_val) {
+  return [&val, &min_val, &max_val]<std::size_t... I>(std::index_sequence<I...>) {
+    return sycl::marray<T, Size>{
+        clamp<sycl::ext::oneapi::bfloat16>(val[I], min_val[I], max_val[I])...};
+  }(std::make_index_sequence<Size>{});
 }
 #endif
 
@@ -78,6 +114,37 @@ public:
     for (size_t i = 0; i < v4.size(); ++i) {
       v4[i] = binary_op(a[i], b[i]);
     }
+    return v4;
+  }
+};
+
+// Vectorized_binary for logical operations
+template <typename VecT, class BinaryOperation>
+class vectorized_binary<
+    VecT, BinaryOperation,
+    std::enable_if_t<std::is_same_v<
+        bool, decltype(std::declval<BinaryOperation>()(
+                  std::declval<typename VecT::element_type>(),
+                  std::declval<typename VecT::element_type>()))>>> {
+public:
+  inline VecT operator()(VecT a, VecT b, const BinaryOperation binary_op) {
+    unsigned result = 0;
+    constexpr size_t elem_size = 8 * sizeof(typename VecT::element_type);
+    static_assert(elem_size < 32,
+                  "Vector element size must be less than 4 bytes");
+    constexpr unsigned bool_mask = (1U << elem_size) - 1;
+
+    for (size_t i = 0; i < a.size(); ++i) {
+      bool comp_result = binary_op(a[i], b[i]);
+      result |= (comp_result ? bool_mask : 0U) << (i * elem_size);
+    }
+
+    VecT v4;
+    for (size_t i = 0; i < v4.size(); ++i) {
+      v4[i] = static_cast<typename VecT::element_type>(
+          (result >> (i * elem_size)) & bool_mask);
+    }
+
     return v4;
   }
 };
@@ -218,13 +285,13 @@ inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
 }
 
 template <typename ValueT> inline bool isnan(const ValueT a) {
-  return sycl::isnan(a);
+  if constexpr (std::is_same_v<ValueT, sycl::ext::oneapi::bfloat16>) {
+    static_assert(detail::support_bfloat16_math);
+    return sycl::ext::oneapi::experimental::isnan(a);
+  } else {
+    return sycl::isnan(a);
+  }
 }
-#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
-  return sycl::ext::oneapi::experimental::isnan(a);
-}
-#endif
 
 // FIXME(syclcompat-lib-reviewers): move bfe outside detail once perf is
 // improved & semantics understood
@@ -543,9 +610,8 @@ unordered_compare_both(const ValueT a, const ValueT b,
 /// \param [in] binary_op functor that implements the binary operation
 /// \returns the comparison result
 template <typename ValueT, class BinaryOperation>
-inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
-                             const sycl::vec<ValueT, 2> b,
-                             const BinaryOperation binary_op) {
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+compare_mask(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
   // Since compare returns 0 or 1, -compare will be 0x00000000 or 0xFFFFFFFF
   return ((-compare(a[0], b[0], binary_op)) << 16) |
          ((-compare(a[1], b[1], binary_op)) & 0xFFFF);
@@ -559,9 +625,9 @@ inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
 /// \param [in] binary_op functor that implements the binary operation
 /// \returns the comparison result
 template <typename ValueT, class BinaryOperation>
-inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
-                                       const sycl::vec<ValueT, 2> b,
-                                       const BinaryOperation binary_op) {
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+unordered_compare_mask(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op) {
   return ((-unordered_compare(a[0], b[0], binary_op)) << 16) |
          ((-unordered_compare(a[1], b[1], binary_op)) & 0xFFFF);
 }
@@ -687,7 +753,7 @@ inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a) {
 /// cbrt function wrapper.
 template <typename ValueT>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
+                            std::is_same_v<ValueT, sycl::half>,
                         ValueT>
 cbrt(ValueT val) {
   return sycl::cbrt(static_cast<ValueT>(val));
@@ -697,7 +763,7 @@ cbrt(ValueT val) {
 // For floating-point types, `float` or `double` arguments are acceptable.
 // For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
 // `std::int64_t` type arguments are acceptable.
-// sycl::half supported as well.
+// sycl::half supported as well, and sycl::ext::oneapi::bfloat16 if available.
 template <typename ValueT, typename ValueU>
 inline std::enable_if_t<std::is_integral_v<ValueT> &&
                             std::is_integral_v<ValueU>,
@@ -706,15 +772,23 @@ min(ValueT a, ValueU b) {
   return sycl::min(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
+
 template <typename ValueT, typename ValueU>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                            std::is_floating_point_v<ValueU>,
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT> &&
+                            syclcompat::is_floating_point_v<ValueU>,
                         std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
-  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
+                               sycl::ext::oneapi::bfloat16>) {
+    static_assert(detail::support_bfloat16_math);
+    return sycl::ext::oneapi::experimental::fmin(
+        static_cast<std::common_type_t<ValueT, ValueU>>(a),
+        static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  } else {
+    return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  }
 }
-inline sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
 
 template <typename ValueT, typename ValueU>
 inline std::enable_if_t<std::is_integral_v<ValueT> &&
@@ -725,14 +799,21 @@ max(ValueT a, ValueU b) {
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                            std::is_floating_point_v<ValueU>,
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT> &&
+                            syclcompat::is_floating_point_v<ValueU>,
                         std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
-  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
+                               sycl::ext::oneapi::bfloat16>) {
+    static_assert(detail::support_bfloat16_math);
+    return sycl::ext::oneapi::experimental::fmax(
+        static_cast<std::common_type_t<ValueT, ValueU>>(a),
+        static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  } else {
+    return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  }
 }
-inline sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
 
 /// Performs 2 elements comparison and returns the bigger one. If either of
 /// inputs is NaN, then return NaN.
@@ -744,12 +825,18 @@ inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  return syclcompat::max(a, b);
 }
+
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmax_nan(a[0], b[0]), fmax_nan(a[1], b[1])};
+}
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b) {
   return {fmax_nan(a[0], b[0]), fmax_nan(a[1], b[1])};
 }
 
@@ -763,12 +850,18 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  return syclcompat::min(a,b);
 }
+
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmin_nan(a[0], b[0]), fmin_nan(a[1], b[1])};
+}
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b) {
   return {fmin_nan(a[0], b[0]), fmin_nan(a[1], b[1])};
 }
 
@@ -781,10 +874,10 @@ inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
 pow(const ValueT a, const ValueU b) {
   return sycl::pow(a, static_cast<ValueT>(b));
 }
-
-// TODO: calling pow with non-floating point values is currently defaulting to
-// double, which fails on devices without aspect::fp64. This has to be properly
-// documented, and maybe changed to support all devices.
+// TODO(syclcompat-lib-reviewers)  calling pow with non-floating point values
+// is currently defaulting to double, which fails on devices without
+// aspect::fp64. This has to be properly documented, and maybe changed to
+// support all devices.
 template <typename ValueT, typename ValueU>
 inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
 pow(const ValueT a, const ValueU b) {
@@ -794,27 +887,24 @@ pow(const ValueT a, const ValueU b) {
 /// Performs relu saturation.
 /// \param [in] a The input value
 /// \returns the relu saturation result
-template <typename ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        ValueT>
-relu(const ValueT a) {
-  if (!detail::isnan(a) && a < ValueT(0))
+template <typename ValueT> inline ValueT relu(const ValueT a) {
+  if constexpr (syclcompat::is_floating_point_v<ValueT>)
+    if (detail::isnan(a))
+      return a;
+  if (a < ValueT(0))
     return ValueT(0);
   return a;
 }
-template <class ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        sycl::vec<ValueT, 2>>
-relu(const sycl::vec<ValueT, 2> a) {
-  return {relu(a[0]), relu(a[1])};
+template <class ValueT, int NumElements>
+inline sycl::vec<ValueT, NumElements>
+relu(const sycl::vec<ValueT, NumElements> a) {
+  sycl::vec<ValueT, NumElements> ret;
+  for (int i = 0; i < NumElements; ++i)
+    ret[i] = relu(a[i]);
+  return ret;
 }
 template <class ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        sycl::marray<ValueT, 2>>
-relu(const sycl::marray<ValueT, 2> a) {
+inline sycl::marray<ValueT, 2> relu(const sycl::marray<ValueT, 2> a) {
   return {relu(a[0]), relu(a[1])};
 }
 
@@ -932,6 +1022,10 @@ struct maximum {
   auto operator()(const ValueT x, const ValueT y) const {
     return sycl::max(x, y);
   }
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const {
+    return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
+  }
 };
 
 /// A sycl::min wrapper functors.
@@ -939,6 +1033,10 @@ struct minimum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const {
     return sycl::min(x, y);
+  }
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const {
+    return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
   }
 };
 
@@ -973,23 +1071,85 @@ struct average {
 
 } // namespace detail
 
-/// Compute vectorized binary operation value for two values, with each value
+/// Compute vectorized binary operation value for two/four values, with each
 /// treated as a vector type \p VecT.
 /// \tparam [in] VecT The type of the vector
 /// \tparam [in] BinaryOperation The binary operation class
 /// \param [in] a The first value
 /// \param [in] b The second value
+/// \param [in] binary_op The operation to do with the two values
+/// \param [in] need_relu Whether the result need relu saturation
 /// \returns The vectorized binary operation value of the two values
 template <typename VecT, class BinaryOperation>
 inline unsigned vectorized_binary(unsigned a, unsigned b,
-                                  const BinaryOperation binary_op) {
+                                  const BinaryOperation binary_op,
+                                  [[maybe_unused]] bool need_relu = false) {
   sycl::vec<unsigned, 1> v0{a}, v1{b};
   auto v2 = v0.as<VecT>();
   auto v3 = v1.as<VecT>();
   auto v4 =
       detail::vectorized_binary<VecT, BinaryOperation>()(v2, v3, binary_op);
+  if constexpr (!std::is_same_v<
+                    bool, decltype(std::declval<BinaryOperation>()(
+                              std::declval<typename VecT::element_type>(),
+                              std::declval<typename VecT::element_type>()))>) {
+    if (need_relu)
+      v4 = relu(v4);
+  }
   v0 = v4.template as<sycl::vec<unsigned, 1>>();
   return v0;
+}
+
+/// Compute two vectorized binary operation value with pred for three values,
+/// with each value treated as a 2 \p T type elements vector type.
+///
+/// \tparam [in] VecT The type of the vector
+/// \tparam [in] BinaryOperation1 The first binary operation class
+/// \tparam [in] BinaryOperation2 The second binary operation class
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] binary_op1 The first operation to do with the first two values
+/// \param [in] binary_op2 The second operation to do with the third values
+/// \param [in] need_relu Whether the result need relu saturation
+/// \returns The two vectorized binary operation value of the three values
+template <typename VecT, typename BinaryOperation1, typename BinaryOperation2>
+inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
+                                   const BinaryOperation1 binary_op1,
+                                   const BinaryOperation2 binary_op2,
+                                   bool need_relu = false) {
+  const auto v1 = sycl::vec<unsigned, 1>(a).as<VecT>();
+  const auto v2 = sycl::vec<unsigned, 1>(b).as<VecT>();
+  const auto v3 = sycl::vec<unsigned, 1>(c).as<VecT>();
+  auto v4 =
+      detail::vectorized_binary<VecT, BinaryOperation1>()(v1, v2, binary_op1);
+  v4 = detail::vectorized_binary<VecT, BinaryOperation2>()(v4, v3, binary_op2);
+  if (need_relu)
+    v4 = relu(v4);
+  return v4.template as<sycl::vec<unsigned, 1>>();
+}
+
+/// Compute vectorized binary operation value with pred for two values, with
+/// each value treated as a 2 \p T type elements vector type.
+///
+/// \tparam [in] VecT The type of the vector
+/// \tparam [in] BinaryOperation The binary operation class
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op The operation with pred to do with the two values
+/// \param [out] pred_hi The pred pointer that pass into high halfword operation
+/// \param [out] pred_lo The pred pointer that pass into low halfword operation
+/// \returns The vectorized binary operation value of the two values
+template <typename VecT, typename BinaryOperation>
+inline unsigned vectorized_binary_with_pred(unsigned a, unsigned b,
+                                            const BinaryOperation binary_op,
+                                            bool *pred_hi, bool *pred_lo) {
+  auto v1 = sycl::vec<unsigned, 1>(a).as<VecT>();
+  auto v2 = sycl::vec<unsigned, 1>(b).as<VecT>();
+  VecT ret;
+  ret[0] = binary_op(v1[0], v2[0], pred_lo);
+  ret[1] = binary_op(v1[1], v2[1], pred_hi);
+  return ret.template as<sycl::vec<unsigned, 1>>();
 }
 
 template <typename T1, typename T2>

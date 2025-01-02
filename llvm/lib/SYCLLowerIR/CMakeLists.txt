@@ -4,9 +4,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: 08 May 2024
-    # Fix warning from switch
-    set(LLVMGenXIntrinsics_GIT_TAG b2565a03eb3cac07f5e8000fde971f95dc782c75)
+    # Date: Jul 25, 2024
+    # Support MMX removal in LLVM upstream
+    set(LLVMGenXIntrinsics_GIT_TAG 4e51b2467104a257c22788e343dafbdde72e28bb)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -64,15 +64,17 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLDeviceLibReqMask.cpp
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
+  SYCLJointMatrixTransform.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
-  SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
+
+  SanitizerKernelMetadata.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

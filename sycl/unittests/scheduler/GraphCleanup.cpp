@@ -154,8 +154,8 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
 
   // Check addCopyBack
   MockCmd = addNewMockCmds();
-  LeafMockCmd->getEvent()->getHandleRef() =
-      reinterpret_cast<ur_event_handle_t>(new int{});
+  LeafMockCmd->getEvent()->setHandle(
+      reinterpret_cast<ur_event_handle_t>(new int{}));
   MS.addCopyBack(&MockReq);
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 

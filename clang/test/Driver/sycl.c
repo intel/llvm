@@ -13,7 +13,7 @@
 
 // ENABLED: "-cc1"{{.*}} "-fsycl-is-device"
 // ENABLED-SAME: "-sycl-std={{[-.sycl0-9]+}}"
-// ENABLED-SAME: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// ENABLED-SAME: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 
 // NOT_ENABLED-NOT: "-fsycl-is-device"
 // NOT_ENABLED-NOT: "-fsycl-std-layout-kernel-params"
@@ -44,7 +44,7 @@
 // RUN: %clang_cl -### --target=i386-pc-windows-msvc -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
 
 // DEFAULT: "-triple" "[[SPIRARCH]]-unknown-{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
-// DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
 // DEFAULT: "-std=c++17"
 // DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}}
@@ -104,7 +104,7 @@
 // Test with a bad argument is expected to fail
 // RUN: not %clang -fsycl-help=foo %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-BADARG
 // RUN: %clang -### -fsycl-help=gen %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-GEN
-// RUN: env PATH=%t-sycl-dir %clang -### -fsycl-help=fpga %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-FPGA,SYCL-HELP-FPGA-OUT -DDIR=%t-sycl-dir
+// RUN: env "PATH=%t-sycl-dir%{pathsep}%PATH%" %clang -### -fsycl-help=fpga %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-FPGA,SYCL-HELP-FPGA-OUT -DDIR=%t-sycl-dir
 // RUN: %clang -### -fsycl-help=x86_64 %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-CPU
 // RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-FPGA,SYCL-HELP-CPU
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option '-fsycl-help='

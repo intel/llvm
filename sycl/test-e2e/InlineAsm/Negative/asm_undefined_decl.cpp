@@ -1,5 +1,4 @@
 // UNSUPPORTED: cuda || hip
-// UNSUPPORTED: ze_debug
 // REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

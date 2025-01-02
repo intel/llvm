@@ -25,9 +25,10 @@ public:
   loadKernels(llvm::LLVMContext &LLVMCtx, std::vector<SYCLKernelInfo> &Kernels);
 
   static llvm::Error translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
-                                     JITContext &JITCtx, BinaryFormat Format,
-                                     const std::string &TargetCPU = {},
-                                     const std::string &TargetFeatures = {});
+                                     JITContext &JITCtx, BinaryFormat Format);
+
+  static llvm::Expected<RTCBundleBinaryInfo>
+  translateBundleToSPIRV(llvm::Module &Mod, JITContext &JITCtx);
 
 private:
   ///
@@ -44,14 +45,11 @@ private:
                                                          JITContext &JITCtx);
 
   static llvm::Expected<KernelBinary *>
-  translateToPTX(SYCLKernelInfo &Kernel, llvm::Module &Mod, JITContext &JITCtx,
-                 const std::string &TargetCPU = {},
-                 const std::string &TargetFeatures = {});
+  translateToPTX(SYCLKernelInfo &Kernel, llvm::Module &Mod, JITContext &JITCtx);
 
   static llvm::Expected<KernelBinary *>
   translateToAMDGCN(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
-                    JITContext &JITCtx, const std::string &TargetCPU = {},
-                    const std::string &TargetFeatures = {});
+                    JITContext &JITCtx);
 };
 } // namespace translation
 } // namespace jit_compiler

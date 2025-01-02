@@ -10,7 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_info.hpp>
-#include <sycl/backend.hpp>
+#include <sycl/backend_types.hpp>
 
 #include <algorithm>
 #include <regex>
@@ -345,7 +345,8 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
 }
 
 void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
-                    ur_platform_handle_t UrPlatform, const PluginPtr &Plugin) {
+                    ur_platform_handle_t UrPlatform,
+                    const AdapterPtr &Adapter) {
 
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
@@ -354,7 +355,7 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
 
   // Get platform's backend and put it to DeviceDesc
   DeviceDescT DeviceDesc;
-  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(UrPlatform, Plugin);
+  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
   backend Backend = PlatformImpl->getBackend();
 
   for (const auto &SyclBe : getSyclBeMap()) {
@@ -366,19 +367,19 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
   // get PlatformVersion value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformVersionKeyName,
                      sycl::detail::get_platform_info<info::platform::version>(
-                         UrPlatform, Plugin));
+                         UrPlatform, Adapter));
   // get PlatformName value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformNameKeyName,
                      sycl::detail::get_platform_info<info::platform::name>(
-                         UrPlatform, Plugin));
+                         UrPlatform, Adapter));
 
   int InsertIDx = 0;
   for (ur_device_handle_t Device : UrDevices) {
     auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
-    Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
-                 sizeof(UrDevType), &UrDevType, nullptr);
+    Adapter->call<UrApiKind::urDeviceGetInfo>(
+        Device, UR_DEVICE_INFO_TYPE, sizeof(UrDevType), &UrDevType, nullptr);
     // TODO need mechanism to do these casts, there's a bunch of this sort of
     // thing
     sycl::info::device_type DeviceType = info::device_type::all;

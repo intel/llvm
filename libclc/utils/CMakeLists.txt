@@ -13,8 +13,11 @@ set(LLVM_LINK_COMPONENTS
 
 if( LIBCLC_STANDALONE_BUILD )
   add_llvm_executable( prepare_builtins prepare-builtins.cpp )
+  set( prepare_builtins_exe prepare_builtins )
+  set( prepare_builtins_target prepare_builtins )
 else()
   add_llvm_utility( prepare_builtins prepare-builtins.cpp )
+  setup_host_tool( prepare_builtins PREPARE_BUILTINS prepare_builtins_exe prepare_builtins_target )
 endif()
 
 target_compile_definitions( prepare_builtins PRIVATE ${LLVM_VERSION_DEFINE} )

@@ -48,7 +48,13 @@ static int getDevicePreference(const device &Device) {
 }
 
 static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
-  bool shouldTrace = detail::ur::trace();
+  bool shouldTrace = false;
+  if (Chosen) {
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
+  } else {
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL);
+  }
+
   if (shouldTrace) {
     std::string PlatformName = Device.get_info<info::device::platform>()
                                    .get_info<info::platform::name>();
@@ -162,7 +168,7 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 /// 4. Accelerator
 
 static void traceDeviceSelector(const std::string &DeviceType) {
-  bool ShouldTrace = detail::ur::trace();
+  bool ShouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
   if (ShouldTrace) {
     std::cout << "SYCL_UR_TRACE: Requested device_type: " << DeviceType
               << std::endl;

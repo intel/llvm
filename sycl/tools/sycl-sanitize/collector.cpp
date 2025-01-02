@@ -32,7 +32,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
                                      const char *StreamName) {
-  if (std::string_view(StreamName) == "ur") {
+  if (std::string_view(StreamName) == "ur.call") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
                          tpCallback);
@@ -45,7 +45,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
-  if (std::string_view(StreamName) == "ur") {
+  if (std::string_view(StreamName) == "ur.call") {
     bool hadLeak = false;
     auto &GS = USMAnalyzer::getInstance();
     if (GS.ActivePointers.size() > 0) {

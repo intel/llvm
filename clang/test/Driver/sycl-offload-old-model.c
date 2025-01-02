@@ -180,7 +180,7 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
-// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+\.o]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+\.o]]"
 // CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown,host-x86_64-unknown-linux-gnu" {{.*}} "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// ###########################################################################
@@ -622,6 +622,44 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 28: offload, "device-sycl (spir64-unknown-unknown)" {27}, object
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 29: linker, {8, 21, 28}, image, (host-sycl)
 
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl \
+// RUN:     -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:     -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
+// RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
+// RUN:     -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH2 %s
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 2: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 4: compiler, {3}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown)" {4}, c++-cpp-output
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 6: compiler, {5}, ir, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 7: backend, {6}, assembler, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 8: assembler, {7}, object, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 9: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: compiler, {10}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: linker, {11}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: sycl-post-link, {12}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: file-table-tform, {13}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: backend, {14}, assembler, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: assembler, {15}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 17: linker, {15, 16}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 18: foreach, {14, 17}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 19: file-table-tform, {13, 18}, tempfiletable, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 20: clang-offload-wrapper, {19}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 21: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {20}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 22: linker, {4}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 23: sycl-post-link, {22}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 24: file-table-tform, {23}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 25: llvm-spirv, {24}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 26: backend-compiler, {25}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 27: file-table-tform, {23, 26}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 28: clang-offload-wrapper, {27}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 29: offload, "device-sycl (spir64_gen-unknown-unknown)" {28}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 30: linker, {8, 21, 29}, image, (host-sycl)
+
 /// Check the behaviour however with swapped -fsycl-targets
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64,nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED %s
@@ -710,7 +748,7 @@
 // RUN: %clang_cl -fsycl --no-offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
-// FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
+// FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
 // FO-CHECK: clang-offload-bundler{{.*}} "-output=somefile.obj" "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// passing of a library should not trigger the unbundler
@@ -782,14 +820,10 @@
 // RUN: %clang -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // RUN: %clang_cl -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// CHECK-HEADER-DIR-NOT: -internal-isystem
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
@@ -799,7 +833,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
 // RUN:   not %clang -### -fsycl --no-offload-new-driver -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
-// CHK-INCOMPATIBILITY: error: '[[INCOMPATOPT]]' is not supported with '-fsycl'
+// CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'
 
 /// Using -fsyntax-only with -fsycl --no-offload-new-driver should not emit IR
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsyntax-only %s 2>&1 \

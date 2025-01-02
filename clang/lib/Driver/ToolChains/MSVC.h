@@ -106,6 +106,9 @@ public:
   void AddHIPRuntimeLibArgs(const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs) const override;
 
+  void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
+
   bool getWindowsSDKLibraryPath(
       const llvm::opt::ArgList &Args, std::string &path) const;
   bool getUniversalCRTLibraryPath(const llvm::opt::ArgList &Args,
@@ -144,6 +147,7 @@ private:
   llvm::ToolsetLayout VSLayout = llvm::ToolsetLayout::OlderVS;
   LazyDetector<CudaInstallationDetector> CudaInstallation;
   LazyDetector<RocmInstallationDetector> RocmInstallation;
+  SYCLInstallationDetector SYCLInstallation;
 };
 
 } // end namespace toolchains

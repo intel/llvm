@@ -1,5 +1,3 @@
-// FIXME unsupported on windows (opencl and level-zero) until fix of libdevice
-// UNSUPPORTED: windows && (opencl || level_zero)
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} -o %t.out %{mathflags}
 // RUN: %{run} %t.out

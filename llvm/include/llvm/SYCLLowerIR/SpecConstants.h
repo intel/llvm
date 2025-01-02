@@ -72,6 +72,11 @@ public:
   collectSpecConstantDefaultValuesMetadata(const Module &M,
                                            std::vector<char> &DefaultValues);
 
+  // Name of the metadata which indicates this module was proccessed with the
+  // default values handing mode.
+  static constexpr char SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING[] =
+      "sycl.specialization-constants-default-values-module";
+
 private:
   HandlingMode Mode;
 };

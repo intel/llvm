@@ -67,7 +67,8 @@ template <memory_order order> void test_acquire_global() {
            error_buf.template get_access<access::mode::read_write>(cgh);
        auto val = val_buf.template get_access<access::mode::read_write>(cgh);
        cgh.parallel_for(range<1>(N_items), [=](item<1> it) {
-         volatile int *val_p = val.get_pointer();
+         volatile int *val_p =
+             val.get_multi_ptr<sycl::access::decorated::no>().get();
          auto atm0 =
              atomic_ref<int, memory_order::relaxed, memory_scope::device,
                         address_space::global_space>(val[0]);
@@ -122,7 +123,8 @@ template <memory_order order> void test_acquire_local() {
          val[0] = 0;
          val[1] = 0;
          it.barrier(access::fence_space::local_space);
-         volatile int *val_p = val.get_pointer();
+         volatile int *val_p =
+             val.get_multi_ptr<sycl::access::decorated::no>().get();
          auto atm0 =
              atomic_ref<int, memory_order::relaxed, memory_scope::device,
                         address_space::local_space>(val[0]);
@@ -169,7 +171,8 @@ template <memory_order order> void test_release_global() {
            error_buf.template get_access<access::mode::read_write>(cgh);
        auto val = val_buf.template get_access<access::mode::read_write>(cgh);
        cgh.parallel_for(range<1>(N_items), [=](item<1> it) {
-         volatile int *val_p = val.get_pointer();
+         volatile int *val_p =
+             val.get_multi_ptr<sycl::access::decorated::no>().get();
          auto atm0 =
              atomic_ref<int, memory_order::relaxed, memory_scope::device,
                         address_space::global_space>(val[0]);
@@ -223,7 +226,8 @@ template <memory_order order> void test_release_local() {
          val[0] = 0;
          val[1] = 0;
          it.barrier(access::fence_space::local_space);
-         volatile int *val_p = val.get_pointer();
+         volatile int *val_p =
+             val.get_multi_ptr<sycl::access::decorated::no>().get();
          auto atm0 =
              atomic_ref<int, memory_order::relaxed, memory_scope::device,
                         address_space::local_space>(val[0]);

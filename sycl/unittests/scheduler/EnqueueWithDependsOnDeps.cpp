@@ -113,7 +113,7 @@ protected:
     ASSERT_EQ(PassedNumEvents.size(), 1u);
     auto [EventCount, EventArr] = PassedNumEvents[0];
     ASSERT_EQ(EventCount, 1u);
-    EXPECT_EQ(*EventArr, Cmd3Event->getHandleRef());
+    EXPECT_EQ(*EventArr, Cmd3Event->getHandle());
   }
 
   void VerifyBlockedCommandsEnqueue(
@@ -303,9 +303,9 @@ ur_result_t redefinedextUSMEnqueueMemcpy(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
+ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
-      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
   **params.pphEvent = mock::createDummyHandle<ur_event_handle_t>();
   for (auto i = 0u; i < *params.pnumEventsInWaitList; i++) {
     EventsInWaitList.push_back((*params.pphEventWaitList)[i]);
@@ -313,7 +313,12 @@ ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+// https://github.com/intel/llvm/issues/15049
+#ifdef _WIN32
+TEST_F(DependsOnTests, DISABLED_ShortcutFunctionWithWaitList) {
+#else
 TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
+#endif
   mock::getCallbacks().set_before_callback("urEnqueueUSMMemcpy",
                                            &redefinedextUSMEnqueueMemcpy);
   sycl::queue Queue = detail::createSyclObjFromImpl<queue>(QueueDevImpl);
@@ -334,7 +339,7 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
   });
   std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
       detail::getSyclObjImpl(SingleTaskEvent);
-  EXPECT_EQ(SingleTaskEventImpl->getHandleRef(), nullptr);
+  EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
 
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
@@ -347,9 +352,9 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
                                             QueueDevImpl->get_context());
   auto ShortcutFuncEvent = Queue.memcpy(
       SecondBuf, FirstBuf, sizeof(int) * ArraySize, {SingleTaskEvent});
-  EXPECT_NE(SingleTaskEventImpl->getHandleRef(), nullptr);
+  EXPECT_NE(SingleTaskEventImpl->getHandle(), nullptr);
   ASSERT_EQ(EventsInWaitList.size(), 1u);
-  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandleRef());
+  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandle());
   Queue.wait();
   sycl::free(FirstBuf, Queue);
   sycl::free(SecondBuf, Queue);
@@ -357,7 +362,8 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
 
 TEST_F(DependsOnTests, BarrierWithWaitList) {
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
   sycl::queue Queue = detail::createSyclObjFromImpl<queue>(QueueDevImpl);
 
   auto HostTaskEvent =
@@ -376,15 +382,15 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
   });
   std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
       detail::getSyclObjImpl(SingleTaskEvent);
-  EXPECT_EQ(SingleTaskEventImpl->getHandleRef(), nullptr);
+  EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
 
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
 
   Queue.ext_oneapi_submit_barrier(std::vector<sycl::event>{SingleTaskEvent});
-  EXPECT_NE(SingleTaskEventImpl->getHandleRef(), nullptr);
+  EXPECT_NE(SingleTaskEventImpl->getHandle(), nullptr);
   ASSERT_EQ(EventsInWaitList.size(), 1u);
-  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandleRef());
+  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandle());
   Queue.wait();
 }
 } // anonymous namespace

@@ -724,7 +724,7 @@ class SourceManager : public RefCountedBase<SourceManager> {
   ///
   /// Negative FileIDs are indexes into this table. To get from ID to an index,
   /// use (-ID - 2).
-  llvm::PagedVector<SrcMgr::SLocEntry> LoadedSLocEntryTable;
+  llvm::PagedVector<SrcMgr::SLocEntry, 32> LoadedSLocEntryTable;
 
   /// For each allocation in LoadedSLocEntryTable, we keep the first FileID.
   /// We assume exactly one allocation per AST file, and use that to determine
@@ -905,6 +905,19 @@ public:
 
   /// Get the file ID for the precompiled preamble if there is one.
   FileID getPreambleFileID() const { return PreambleFileID; }
+
+  ///  Get the file ID for the integration footer.
+  FileID ComputeValidFooterFileID(StringRef Footer) {
+    FileID FooterFileID;
+    llvm::Expected<FileEntryRef> ExpectedFileRef =
+        getFileManager().getFileRef(Footer);
+    if (ExpectedFileRef) {
+      FooterFileID = getOrCreateFileID(ExpectedFileRef.get(),
+                                       SrcMgr::CharacteristicKind::C_User);
+    }
+    assert(FooterFileID.isValid() && "expecting a valid footer FileID");
+    return FooterFileID;
+  }
 
   //===--------------------------------------------------------------------===//
   // Methods to create new FileID's and macro expansions.

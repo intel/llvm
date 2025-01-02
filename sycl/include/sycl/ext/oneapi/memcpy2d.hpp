@@ -18,6 +18,7 @@ template <typename T, typename>
 void handler::ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
                                   size_t SrcPitch, size_t Width,
                                   size_t Height) {
+#ifndef __SYCL_DEVICE_ONLY__
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_memcpy2d>();
@@ -30,6 +31,7 @@ void handler::ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Source pitch must be greater than or equal "
                           "to the width specified in 'ext_oneapi_memcpy2d'");
+#endif
 
   // Get the type of the pointers.
   context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());

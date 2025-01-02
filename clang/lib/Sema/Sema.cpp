@@ -22,17 +22,16 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/CXXFieldCollector.h"
-#include "clang/Sema/DelayedDiagnostic.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/ExternalSemaSource.h"
 #include "clang/Sema/Initialization.h"
@@ -50,7 +49,6 @@
 #include "clang/Sema/SemaConsumer.h"
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaHexagon.h"
-#include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaLoongArch.h"
 #include "clang/Sema/SemaM68k.h"
 #include "clang/Sema/SemaMIPS.h"
@@ -124,7 +122,6 @@ IdentifierInfo *Sema::InventAbbreviatedTemplateParameterTypeName(
   else
     OS << ParamName->getName() << ":auto";
 
-  OS.flush();
   return &Context.Idents.get(OS.str());
 }
 
@@ -220,7 +217,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       AnalysisWarnings(*this), ThreadSafetyDeclCache(nullptr),
       LateTemplateParser(nullptr), LateTemplateParserCleanup(nullptr),
       OpaqueParser(nullptr), CurContext(nullptr), ExternalSource(nullptr),
-      CurScope(nullptr), Ident_super(nullptr),
+      StackHandler(Diags), CurScope(nullptr), Ident_super(nullptr),
       AMDGPUPtr(std::make_unique<SemaAMDGPU>(*this)),
       ARMPtr(std::make_unique<SemaARM>(*this)),
       AVRPtr(std::make_unique<SemaAVR>(*this)),
@@ -310,6 +307,13 @@ void Sema::addImplicitTypedef(StringRef Name, QualType T) {
 }
 
 void Sema::Initialize() {
+  // Create BuiltinVaListDecl *before* ExternalSemaSource::InitializeSema(this)
+  // because during initialization ASTReader can emit globals that require
+  // name mangling. And the name mangling uses BuiltinVaListDecl.
+  if (Context.getTargetInfo().hasBuiltinMSVaList())
+    (void)Context.getBuiltinMSVaListDecl();
+  (void)Context.getBuiltinVaListDecl();
+
   if (SemaConsumer *SC = dyn_cast<SemaConsumer>(&Consumer))
     SC->InitializeSema(*this);
 
@@ -496,7 +500,9 @@ void Sema::Initialize() {
 #include "clang/Basic/OpenCLExtensionTypes.def"
   }
 
-  if (Context.getTargetInfo().hasAArch64SVETypes()) {
+  if (Context.getTargetInfo().hasAArch64SVETypes() ||
+      (Context.getAuxTargetInfo() &&
+       Context.getAuxTargetInfo()->hasAArch64SVETypes())) {
 #define SVE_TYPE(Name, Id, SingletonId) \
     addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AArch64SVEACLETypes.def"
@@ -527,7 +533,7 @@ void Sema::Initialize() {
   if (Context.getTargetInfo().getTriple().isAMDGPU() ||
       (Context.getAuxTargetInfo() &&
        Context.getAuxTargetInfo()->getTriple().isAMDGPU())) {
-#define AMDGPU_TYPE(Name, Id, SingletonId)                                     \
+#define AMDGPU_TYPE(Name, Id, SingletonId, Width, Align)                       \
   addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AMDGPUTypes.def"
   }
@@ -580,23 +586,11 @@ Sema::~Sema() {
   SemaPPCallbackHandler->reset();
 }
 
-void Sema::warnStackExhausted(SourceLocation Loc) {
-  // Only warn about this once.
-  if (!WarnedStackExhausted) {
-    Diag(Loc, diag::warn_stack_exhausted);
-    WarnedStackExhausted = true;
-  }
-}
-
 void Sema::runWithSufficientStackSpace(SourceLocation Loc,
                                        llvm::function_ref<void()> Fn) {
-  clang::runWithSufficientStackSpace([&] { warnStackExhausted(Loc); }, Fn);
+  StackHandler.runWithSufficientStackSpace(Loc, Fn);
 }
 
-/// makeUnavailableInSystemHeader - There is an error in the current
-/// context.  If we're still in a system header, and we can plausibly
-/// make the relevant declaration unavailable instead of erroring, do
-/// so and return true.
 bool Sema::makeUnavailableInSystemHeader(SourceLocation loc,
                                       UnavailableAttr::ImplicitReason reason) {
   // If we're not in a function, it's an error.
@@ -622,11 +616,6 @@ ASTMutationListener *Sema::getASTMutationListener() const {
   return getASTConsumer().GetASTMutationListener();
 }
 
-///Registers an external source. If an external source already exists,
-/// creates a multiplex external source and appends to it.
-///
-///\param[in] E - A non-null external sema source.
-///
 void Sema::addExternalSource(ExternalSemaSource *E) {
   assert(E && "Cannot use with NULL ptr");
 
@@ -641,7 +630,6 @@ void Sema::addExternalSource(ExternalSemaSource *E) {
     ExternalSource = new MultiplexExternalSemaSource(ExternalSource.get(), E);
 }
 
-/// Print out statistics about the semantic analysis.
 void Sema::PrintStats() const {
   llvm::errs() << "\n*** Semantic Analysis Stats:\n";
   llvm::errs() << NumSFINAEErrors << " SFINAE diagnostics trapped.\n";
@@ -671,7 +659,7 @@ void Sema::diagnoseFunctionEffectConversion(QualType DstType, QualType SrcType,
   const auto SrcFX = FunctionEffectsRef::get(SrcType);
   const auto DstFX = FunctionEffectsRef::get(DstType);
   if (SrcFX != DstFX) {
-    for (const auto &Diff : FunctionEffectDifferences(SrcFX, DstFX)) {
+    for (const auto &Diff : FunctionEffectDiffVector(SrcFX, DstFX)) {
       if (Diff.shouldDiagnoseConversion(SrcType, SrcFX, DstType, DstFX))
         Diag(Loc, diag::warn_invalid_add_func_effects) << Diff.effectName();
     }
@@ -755,12 +743,21 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
 
   diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getBeginLoc());
   diagnoseZeroToNullptrConversion(Kind, E);
-  if (!isCast(CCK) && Kind != CK_NullToPointer &&
-      Kind != CK_NullToMemberPointer)
+  if (Context.hasAnyFunctionEffects() && !isCast(CCK) &&
+      Kind != CK_NullToPointer && Kind != CK_NullToMemberPointer)
     diagnoseFunctionEffectConversion(Ty, E->getType(), E->getBeginLoc());
 
   QualType ExprTy = Context.getCanonicalType(E->getType());
   QualType TypeTy = Context.getCanonicalType(Ty);
+
+  // This cast is used in place of a regular LValue to RValue cast for
+  // HLSL Array Parameter Types. It needs to be emitted even if
+  // ExprTy == TypeTy, except if E is an HLSLOutArgExpr
+  // Emitting a cast in that case will prevent HLSLOutArgExpr from
+  // being handled properly in EmitCallArg
+  if (Kind == CK_HLSLArrayRValue && !isa<HLSLOutArgExpr>(E))
+    return ImplicitCastExpr::Create(Context, Ty, Kind, E, BasePath, VK,
+                                    CurFPFeatureOverrides());
 
   if (ExprTy == TypeTy)
     return E;
@@ -809,8 +806,6 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
                                   CurFPFeatureOverrides());
 }
 
-/// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding
-/// to the conversion from scalar type ScalarTy to the Boolean type.
 CastKind Sema::ScalarTypeToBooleanCastKind(QualType ScalarTy) {
   switch (ScalarTy->getScalarTypeKind()) {
   case Type::STK_Bool: return CK_NoOp;
@@ -1127,9 +1122,6 @@ void Sema::emitAndClearUnusedLocalTypedefWarnings() {
   UnusedLocalTypedefNameCandidates.clear();
 }
 
-/// This is called before the very first declaration in the translation unit
-/// is parsed. Note that the ASTContext may have already injected some
-/// declarations.
 void Sema::ActOnStartOfTranslationUnit() {
   if (getLangOpts().CPlusPlusModules &&
       getLangOpts().getCompilingModule() == LangOptions::CMK_HeaderUnit)
@@ -1216,9 +1208,6 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   DelayedTypos.clear();
 }
 
-/// ActOnEndOfTranslationUnit - This is called at the very end of the
-/// translation unit when EOF is reached and all but the top-level scope is
-/// popped.
 void Sema::ActOnEndOfTranslationUnit() {
   assert(DelayedDiagnostics.getCurrentPool() == nullptr
          && "reached end of translation unit with a pool attached?");
@@ -1263,6 +1252,7 @@ void Sema::ActOnEndOfTranslationUnit() {
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
   OpenMP().DiagnoseUnterminatedOpenMPDeclareTarget();
+  DiagnosePrecisionLossInComplexDivision();
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
@@ -1323,6 +1313,18 @@ void Sema::ActOnEndOfTranslationUnit() {
                                    Module::ExplicitGlobalModuleFragment) {
     Diag(ModuleScopes.back().BeginLoc,
          diag::err_module_declaration_missing_after_global_module_introducer);
+  } else if (getLangOpts().getCompilingModule() ==
+                 LangOptions::CMK_ModuleInterface &&
+             // We can't use ModuleScopes here since ModuleScopes is always
+             // empty if we're compiling the BMI.
+             !getASTContext().getCurrentNamedModule()) {
+    // If we are building a module interface unit, we should have seen the
+    // module declaration.
+    //
+    // FIXME: Make a better guess as to where to put the module declaration.
+    Diag(getSourceManager().getLocForStartOfFile(
+             getSourceManager().getMainFileID()),
+         diag::err_module_declaration_missing);
   }
 
   // Now we can decide whether the modules we're building need an initializer.
@@ -1567,6 +1569,9 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   AnalysisWarnings.IssueWarnings(Context.getTranslationUnitDecl());
 
+  if (Context.hasAnyFunctionEffects())
+    performFunctionEffectAnalysis(Context.getTranslationUnitDecl());
+
   // Check we've noticed that we're no longer parsing the initializer for every
   // variable. If we miss cases, then at best we have a performance issue and
   // at worst a rejects-valid bug.
@@ -1627,7 +1632,7 @@ LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   return LangAS::Default;
 }
 
-void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
+void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
   // FIXME: It doesn't make sense to me that DiagID is an incoming argument here
   // and yet we also use the current diag ID on the DiagnosticsEngine. This has
   // been made more painfully obvious by the refactor that introduced this
@@ -1635,9 +1640,9 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
   // eliminated. If it truly cannot be (for example, there is some reentrancy
   // issue I am not seeing yet), then there should at least be a clarifying
   // comment somewhere.
+  Diagnostic DiagInfo(&Diags, DB);
   if (std::optional<TemplateDeductionInfo *> Info = isSFINAEContext()) {
-    switch (DiagnosticIDs::getDiagnosticSFINAEResponse(
-              Diags.getCurrentDiagID())) {
+    switch (DiagnosticIDs::getDiagnosticSFINAEResponse(DiagInfo.getID())) {
     case DiagnosticIDs::SFINAE_Report:
       // We'll report the diagnostic below.
       break;
@@ -1650,13 +1655,11 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information.
       if (*Info && !(*Info)->hasSFINAEDiagnostic()) {
-        Diagnostic DiagInfo(&Diags);
         (*Info)->addSFINAEDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       Diags.setLastDiagnosticIgnored(true);
-      Diags.Clear();
       return;
 
     case DiagnosticIDs::SFINAE_AccessControl: {
@@ -1667,7 +1670,7 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       if (!AccessCheckingSFINAE && !getLangOpts().CPlusPlus11)
         break;
 
-      SourceLocation Loc = Diags.getCurrentDiagLoc();
+      SourceLocation Loc = DiagInfo.getLocation();
 
       // Suppress this diagnostic.
       ++NumSFINAEErrors;
@@ -1675,16 +1678,13 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information.
       if (*Info && !(*Info)->hasSFINAEDiagnostic()) {
-        Diagnostic DiagInfo(&Diags);
         (*Info)->addSFINAEDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       Diags.setLastDiagnosticIgnored(true);
-      Diags.Clear();
 
-      // Now the diagnostic state is clear, produce a C++98 compatibility
-      // warning.
+      // Now produce a C++98 compatibility warning.
       Diag(Loc, diag::warn_cxx98_compat_sfinae_access_control);
 
       // The last diagnostic which Sema produced was ignored. Suppress any
@@ -1697,14 +1697,12 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information;
       if (*Info) {
-        Diagnostic DiagInfo(&Diags);
         (*Info)->addSuppressedDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       // Suppress this diagnostic.
       Diags.setLastDiagnosticIgnored(true);
-      Diags.Clear();
       return;
     }
   }
@@ -1714,7 +1712,7 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
   Context.setPrintingPolicy(getPrintingPolicy());
 
   // Emit the diagnostic.
-  if (!Diags.EmitCurrentDiagnostic())
+  if (!Diags.EmitDiagnostic(DB))
     return;
 
   // If this is not a note, and we're in a template instantiation
@@ -1735,7 +1733,7 @@ bool Sema::hasUncompilableErrorOccurred() const {
   if (Loc == DeviceDeferredDiags.end())
     return false;
   for (auto PDAt : Loc->second) {
-    if (DiagnosticIDs::isDefaultMappingAsError(
+    if (Diags.getDiagnosticIDs()->isDefaultMappingAsError(
             PDAt.getDiag().second.getDiagID()))
       return true;
   }
@@ -1824,13 +1822,42 @@ public:
     --InOMPDeviceContext;
   }
 
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (S.getLangOpts().SYCLIsDevice) {
+      if (DS->isSingleDecl()) {
+        Decl *D = DS->getSingleDecl();
+        if (auto *VD = dyn_cast<VarDecl>(D))
+          if (VD->isUsableInConstantExpressions(S.Context))
+            return;
+      } else {
+        for (auto *D : DS->getDeclGroup()) {
+          if (auto *VD = dyn_cast<VarDecl>(D)) {
+            if (VD->isUsableInConstantExpressions(S.Context))
+              return;
+          } else {
+            this->visitUsedDecl(DS->getBeginLoc(), D);
+          }
+        }
+      }
+    }
+    this->VisitStmt(DS);
+  }
+
+  void VisitConstantExpr(ConstantExpr *E) {
+    if (S.getLangOpts().SYCLIsDevice)
+      return;
+    this->VisitStmt(E);
+  }
+
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
         if (!S.SYCL().checkAllowedSYCLInitializer(VD) &&
             !S.SYCL()
                  .isTypeDecoratedWithDeclAttribute<
-                     SYCLGlobalVariableAllowedAttr>(VD->getType())) {
+                     SYCLGlobalVariableAllowedAttr>(VD->getType()) &&
+            !S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
+                VD->getType())) {
           S.Diag(Loc, diag::err_sycl_restrict)
               << SemaSYCL::KernelConstStaticVariable;
           return;
@@ -1878,6 +1905,10 @@ public:
   void checkFunc(SourceLocation Loc, FunctionDecl *FD) {
     auto &Done = DoneMap[InOMPDeviceContext > 0 ? 1 : 0];
     FunctionDecl *Caller = UsePath.empty() ? nullptr : UsePath.back();
+
+    if (!Caller && S.LangOpts.SYCLIsDevice)
+      S.SYCL().performSYCLDelayedAttributesAnalaysis(FD);
+
     if ((!ShouldEmitRootNode && !S.getLangOpts().OpenMP && !Caller) ||
         S.shouldIgnoreInHostDeviceCheck(FD) || InUsePath.count(FD))
       return;
@@ -2021,7 +2052,7 @@ Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
     break;
   case K_Deferred:
     assert(Fn && "Must have a function to attach the deferred diag to.");
-    auto &Diags = S.DeviceDeferredDiags[Fn];
+    auto &Diags = getDeviceDeferredDiags()[Fn];
     PartialDiagId.emplace(Diags.size());
     Diags.emplace_back(Loc, S.PDiag(DiagID), R);
     break;
@@ -2228,19 +2259,19 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   CheckType(Ty);
-  if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-    for (const auto &ParamTy : FPTy->param_types())
-      CheckType(ParamTy);
-    CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+  if (const auto *FD = dyn_cast_if_present<FunctionDecl>(D)) {
+    if (LangOpts.SYCLIsDevice && FD->isConsteval())
+      return;
+    if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+      for (const auto &ParamTy : FPTy->param_types())
+        CheckType(ParamTy);
+      CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+    }
+    if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
+      CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
   }
-  if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
-    CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
 }
 
-/// Looks through the macro-expansion chain for the given
-/// location, looking for a macro expansion with the given name.
-/// If one is found, returns true and sets the location to that
-/// expansion loc.
 bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {
   SourceLocation loc = locref;
   if (!loc.isMacroID()) return false;
@@ -2258,17 +2289,6 @@ bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {
   return false;
 }
 
-/// Determines the active Scope associated with the given declaration
-/// context.
-///
-/// This routine maps a declaration context to the active Scope object that
-/// represents that declaration context in the parser. It is typically used
-/// from "scope-less" code (e.g., template instantiation, lazy creation of
-/// declarations) that injects a name for name-lookup purposes and, therefore,
-/// must update the Scope.
-///
-/// \returns The scope corresponding to the given declaraion context, or NULL
-/// if no such scope is open.
 Scope *Sema::getScopeForContext(DeclContext *Ctx) {
 
   if (!Ctx)
@@ -2399,13 +2419,6 @@ static void markEscapingByrefs(const FunctionScopeInfo &FSI, Sema &S) {
   }
 }
 
-/// Pop a function (or block or lambda or captured region) scope from the stack.
-///
-/// \param WP The warning policy to use for CFG-based warnings, or null if such
-///        warnings should not be produced.
-/// \param D The declaration corresponding to this function scope, if producing
-///        CFG-based warnings.
-/// \param BlockType The type of the block expression, if D is a BlockDecl.
 Sema::PoppedFunctionScopePtr
 Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
                            const Decl *D, QualType BlockType) {
@@ -2452,8 +2465,6 @@ void Sema::PopCompoundScope() {
   CurFunction->CompoundScopes.pop_back();
 }
 
-/// Determine whether any errors occurred within this function/method/
-/// block.
 bool Sema::hasAnyUnrecoverableErrorsInThisFunction() const {
   return getCurFunction()->hasUnrecoverableErrorOccurred();
 }
@@ -2505,10 +2516,11 @@ FunctionScopeInfo *Sema::getEnclosingFunction() const {
   return nullptr;
 }
 
-LambdaScopeInfo *Sema::getEnclosingLambda() const {
+CapturingScopeInfo *Sema::getEnclosingLambdaOrBlock() const {
   for (auto *Scope : llvm::reverse(FunctionScopes)) {
-    if (auto *LSI = dyn_cast<sema::LambdaScopeInfo>(Scope)) {
-      if (LSI->Lambda && !LSI->Lambda->Encloses(CurContext) &&
+    if (auto *CSI = dyn_cast<CapturingScopeInfo>(Scope)) {
+      auto *LSI = dyn_cast<LambdaScopeInfo>(CSI);
+      if (LSI && LSI->Lambda && !LSI->Lambda->Encloses(CurContext) &&
           LSI->AfterParameterList) {
         // We have switched contexts due to template instantiation.
         // FIXME: We should swap out the FunctionScopes during code synthesis
@@ -2516,7 +2528,7 @@ LambdaScopeInfo *Sema::getEnclosingLambda() const {
         assert(!CodeSynthesisContexts.empty());
         return nullptr;
       }
-      return LSI;
+      return CSI;
     }
   }
   return nullptr;
@@ -2604,17 +2616,6 @@ void ExternalSemaSource::ReadUndefinedButUsed(
 void ExternalSemaSource::ReadMismatchingDeleteExpressions(llvm::MapVector<
     FieldDecl *, llvm::SmallVector<std::pair<SourceLocation, bool>, 4>> &) {}
 
-/// Figure out if an expression could be turned into a call.
-///
-/// Use this when trying to recover from an error where the programmer may have
-/// written just the name of a function instead of actually calling it.
-///
-/// \param E - The expression to examine.
-/// \param ZeroArgCallReturnTy - If the expression can be turned into a call
-///  with no arguments, this parameter is set to the type returned by such a
-///  call; otherwise, it is set to an empty QualType.
-/// \param OverloadSet - If the expression is an overloaded function
-///  name, this parameter is populated with the decls of the various overloads.
 bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
                          UnresolvedSetImpl &OverloadSet) {
   ZeroArgCallReturnTy = QualType();
@@ -2674,8 +2675,8 @@ bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
   // with default arguments, etc.
   if (IsMemExpr && !E.isTypeDependent()) {
     Sema::TentativeAnalysisScope Trap(*this);
-    ExprResult R = BuildCallToMemberFunction(nullptr, &E, SourceLocation(),
-                                             std::nullopt, SourceLocation());
+    ExprResult R = BuildCallToMemberFunction(nullptr, &E, SourceLocation(), {},
+                                             SourceLocation());
     if (R.isUsable()) {
       ZeroArgCallReturnTy = R.get()->getType();
       return true;
@@ -2827,7 +2828,7 @@ bool Sema::tryToRecoverWithCall(ExprResult &E, const PartialDiagnostic &PD,
 
       // FIXME: Try this before emitting the fixit, and suppress diagnostics
       // while doing so.
-      E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), std::nullopt,
+      E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), {},
                         Range.getEnd().getLocWithOffset(1));
       return true;
     }
@@ -2909,152 +2910,30 @@ bool Sema::isDeclaratorFunctionLike(Declarator &D) {
   return Result;
 }
 
-FunctionEffectDifferences::FunctionEffectDifferences(
-    const FunctionEffectsRef &Old, const FunctionEffectsRef &New) {
+Attr *Sema::CreateAnnotationAttr(const AttributeCommonInfo &CI, StringRef Annot,
+                                 MutableArrayRef<Expr *> Args) {
 
-  FunctionEffectsRef::iterator POld = Old.begin();
-  FunctionEffectsRef::iterator OldEnd = Old.end();
-  FunctionEffectsRef::iterator PNew = New.begin();
-  FunctionEffectsRef::iterator NewEnd = New.end();
-
-  while (true) {
-    int cmp = 0;
-    if (POld == OldEnd) {
-      if (PNew == NewEnd)
-        break;
-      cmp = 1;
-    } else if (PNew == NewEnd)
-      cmp = -1;
-    else {
-      FunctionEffectWithCondition Old = *POld;
-      FunctionEffectWithCondition New = *PNew;
-      if (Old.Effect.kind() < New.Effect.kind())
-        cmp = -1;
-      else if (New.Effect.kind() < Old.Effect.kind())
-        cmp = 1;
-      else {
-        cmp = 0;
-        if (Old.Cond.getCondition() != New.Cond.getCondition()) {
-          // FIXME: Cases where the expressions are equivalent but
-          // don't have the same identity.
-          push_back(FunctionEffectDiff{
-              Old.Effect.kind(), FunctionEffectDiff::Kind::ConditionMismatch,
-              Old, New});
-        }
-      }
-    }
-
-    if (cmp < 0) {
-      // removal
-      FunctionEffectWithCondition Old = *POld;
-      push_back(FunctionEffectDiff{
-          Old.Effect.kind(), FunctionEffectDiff::Kind::Removed, Old, {}});
-      ++POld;
-    } else if (cmp > 0) {
-      // addition
-      FunctionEffectWithCondition New = *PNew;
-      push_back(FunctionEffectDiff{
-          New.Effect.kind(), FunctionEffectDiff::Kind::Added, {}, New});
-      ++PNew;
-    } else {
-      ++POld;
-      ++PNew;
-    }
+  auto *A = AnnotateAttr::Create(Context, Annot, Args.data(), Args.size(), CI);
+  if (!ConstantFoldAttrArgs(
+          CI, MutableArrayRef<Expr *>(A->args_begin(), A->args_end()))) {
+    return nullptr;
   }
+  return A;
 }
 
-bool FunctionEffectDiff::shouldDiagnoseConversion(
-    QualType SrcType, const FunctionEffectsRef &SrcFX, QualType DstType,
-    const FunctionEffectsRef &DstFX) const {
+Attr *Sema::CreateAnnotationAttr(const ParsedAttr &AL) {
+  // Make sure that there is a string literal as the annotation's first
+  // argument.
+  StringRef Str;
+  if (!checkStringLiteralArgumentAttr(AL, 0, Str))
+    return nullptr;
 
-  switch (EffectKind) {
-  case FunctionEffect::Kind::NonAllocating:
-    // nonallocating can't be added (spoofed) during a conversion, unless we
-    // have nonblocking.
-    if (DiffKind == Kind::Added) {
-      for (const auto &CFE : SrcFX) {
-        if (CFE.Effect.kind() == FunctionEffect::Kind::NonBlocking)
-          return false;
-      }
-    }
-    [[fallthrough]];
-  case FunctionEffect::Kind::NonBlocking:
-    // nonblocking can't be added (spoofed) during a conversion.
-    switch (DiffKind) {
-    case Kind::Added:
-      return true;
-    case Kind::Removed:
-      return false;
-    case Kind::ConditionMismatch:
-      // FIXME: Condition mismatches are too coarse right now -- expressions
-      // which are equivalent but don't have the same identity are detected as
-      // mismatches. We're going to diagnose those anyhow until expression
-      // matching is better.
-      return true;
-    }
-  case FunctionEffect::Kind::Blocking:
-  case FunctionEffect::Kind::Allocating:
-    return false;
-  case FunctionEffect::Kind::None:
-    break;
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(AL.getNumArgs() - 1);
+  for (unsigned Idx = 1; Idx < AL.getNumArgs(); Idx++) {
+    assert(!AL.isArgIdent(Idx));
+    Args.push_back(AL.getArgAsExpr(Idx));
   }
-  llvm_unreachable("unknown effect kind");
-}
 
-bool FunctionEffectDiff::shouldDiagnoseRedeclaration(
-    const FunctionDecl &OldFunction, const FunctionEffectsRef &OldFX,
-    const FunctionDecl &NewFunction, const FunctionEffectsRef &NewFX) const {
-  switch (EffectKind) {
-  case FunctionEffect::Kind::NonAllocating:
-  case FunctionEffect::Kind::NonBlocking:
-    // nonblocking/nonallocating can't be removed in a redeclaration.
-    switch (DiffKind) {
-    case Kind::Added:
-      return false; // No diagnostic.
-    case Kind::Removed:
-      return true; // Issue diagnostic.
-    case Kind::ConditionMismatch:
-      // All these forms of mismatches are diagnosed.
-      return true;
-    }
-  case FunctionEffect::Kind::Blocking:
-  case FunctionEffect::Kind::Allocating:
-    return false;
-  case FunctionEffect::Kind::None:
-    break;
-  }
-  llvm_unreachable("unknown effect kind");
-}
-
-FunctionEffectDiff::OverrideResult
-FunctionEffectDiff::shouldDiagnoseMethodOverride(
-    const CXXMethodDecl &OldMethod, const FunctionEffectsRef &OldFX,
-    const CXXMethodDecl &NewMethod, const FunctionEffectsRef &NewFX) const {
-  switch (EffectKind) {
-  case FunctionEffect::Kind::NonAllocating:
-  case FunctionEffect::Kind::NonBlocking:
-    switch (DiffKind) {
-
-    // If added on an override, that's fine and not diagnosed.
-    case Kind::Added:
-      return OverrideResult::NoAction;
-
-    // If missing from an override (removed), propagate from base to derived.
-    case Kind::Removed:
-      return OverrideResult::Merge;
-
-    // If there's a mismatch involving the effect's polarity or condition,
-    // issue a warning.
-    case Kind::ConditionMismatch:
-      return OverrideResult::Warn;
-    }
-
-  case FunctionEffect::Kind::Blocking:
-  case FunctionEffect::Kind::Allocating:
-    return OverrideResult::NoAction;
-
-  case FunctionEffect::Kind::None:
-    break;
-  }
-  llvm_unreachable("unknown effect kind");
+  return CreateAnnotationAttr(AL, Str, Args);
 }

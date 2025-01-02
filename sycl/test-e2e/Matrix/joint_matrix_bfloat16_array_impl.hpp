@@ -31,7 +31,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            // Matrix API has to be accessed by all the workitems in a
@@ -140,8 +140,8 @@ int main() {
       test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      break;
 #endif
+      break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*

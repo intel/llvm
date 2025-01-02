@@ -197,14 +197,8 @@ public:
                                sycl::detail::QueueImplPtr Queue,
                                std::vector<sycl::detail::Command *> &ToEnqueue,
                                bool EventNeeded) {
-    return MGraphBuilder
-        .addCG(std::move(CommandGroup), Queue, ToEnqueue, EventNeeded)
-        .NewCmd;
-  }
-
-  void cancelFusion(sycl::detail::QueueImplPtr Queue,
-                    std::vector<sycl::detail::Command *> &ToEnqueue) {
-    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue,
+                               EventNeeded);
   }
 };
 
@@ -308,7 +302,8 @@ public:
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), impl->MAuxiliaryResources,
           getType(), {}, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, getCodeLoc()));
+          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+          getCodeLoc()));
       break;
     }
     case sycl::detail::CGType::CodeplayHostTask: {

@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <ur_api.h>                           // for ur_code_location_t
 
 #include <array>       // for array
 #include <cassert>     // for assert
@@ -96,8 +95,6 @@ private:
   unsigned long MColumnNo;
 };
 
-ur_code_location_t codeLocationCallback(void *);
-
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of
 /// the code location information where the SYCL API was called by the
@@ -137,12 +134,22 @@ public:
   /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
   /// @param CodeLoc The code location information to set up the TLS slot with.
   tls_code_loc_t(const detail::code_location &CodeLoc);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Used to maintain global state (GCodeLocTLS), so we do not want to copy
+  tls_code_loc_t(const tls_code_loc_t &) = delete;
+  tls_code_loc_t &operator=(const tls_code_loc_t &) = delete;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   /// If the code location is set up by this instance, reset it.
   ~tls_code_loc_t();
   /// @brief  Query the information in the TLS slot
   /// @return The code location information saved in the TLS slot. If not TLS
   /// entry has been set up, a default coe location is returned.
   const detail::code_location &query();
+  /// @brief Returns true if the TLS slot was cleared when this object was
+  /// constructed.
+  bool isToplevel() const { return !MLocalScope; }
 
 private:
   // The flag that is used to determine if the object is in a local scope or in
@@ -289,12 +296,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
     LinearIndex = LinearIndex * Range[I] + Index[I];
   return LinearIndex;
 }
-
-template <typename T> struct InlineVariableHelper {
-  static constexpr T value{};
-};
-
-template <typename T> constexpr T InlineVariableHelper<T>::value;
 
 // The function extends or truncates number of dimensions of objects of id
 // or ranges classes. When extending the new values are filled with

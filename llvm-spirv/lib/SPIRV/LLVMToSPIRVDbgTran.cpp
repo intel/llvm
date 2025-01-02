@@ -257,8 +257,8 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
       } // Instructions
       // Reset current debug line at end of basic block.
       BM->setCurrentDebugLine(nullptr);
-    }   // Basic Blocks
-  }     // Functions
+    } // Basic Blocks
+  } // Functions
 }
 
 // Translation of single debug entry
@@ -500,6 +500,8 @@ SPIRVWord LLVMToSPIRVDbgTran::mapDebugFlags(DINode::DIFlags DFlags) {
   if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
     if (DFlags & DINode::FlagBitField)
       Flags |= SPIRVDebug::FlagBitField;
+  if (DFlags & DINode::FlagEnumClass)
+    Flags |= SPIRVDebug::FlagIsEnumClass;
   return Flags;
 }
 

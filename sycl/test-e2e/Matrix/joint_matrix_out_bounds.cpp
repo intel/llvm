@@ -7,12 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
-// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED: gpu-intel-dg2, cpu
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL:*
 
 #include "common.hpp"
 

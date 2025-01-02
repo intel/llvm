@@ -25,8 +25,6 @@
 #include "clang/CodeGen/ModuleBuilder.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendActions.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Serialization/ASTWriter.h"
@@ -52,7 +50,6 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
@@ -228,15 +225,10 @@ void BackendConsumer::HandleInterestingDecl(DeclGroupRef D) {
     HandleTopLevelDecl(D);
 }
 
-// Links each entry in LinkModules into our module.  Returns true on error.
-bool BackendConsumer::LinkInModules(llvm::Module *M, bool ShouldLinkFiles) {
+// Links each entry in LinkModules into our module. Returns true on error.
+bool BackendConsumer::LinkInModules(llvm::Module *M) {
   for (auto &LM : LinkModules) {
     assert(LM.Module && "LinkModule does not actually have a module");
-
-    // If ShouldLinkFiles is not set, skip files added via the
-    // -mlink-bitcode-files, only linking -mlink-builtin-bitcode
-    if (!LM.Internalize && !ShouldLinkFiles)
-      continue;
 
     if (LM.PropagateAttrs)
       for (Function &F : *LM.Module) {
@@ -384,7 +376,7 @@ void BackendConsumer::CompleteTentativeDefinition(VarDecl *D) {
   Gen->CompleteTentativeDefinition(D);
 }
 
-void BackendConsumer::CompleteExternalDeclaration(VarDecl *D) {
+void BackendConsumer::CompleteExternalDeclaration(DeclaratorDecl *D) {
   Gen->CompleteExternalDeclaration(D);
 }
 
@@ -594,9 +586,9 @@ const FullSourceLoc BackendConsumer::getBestLocationFromDebugLoc(
   if (D.isLocationAvailable()) {
     D.getLocation(Filename, Line, Column);
     if (Line > 0) {
-      auto FE = FileMgr.getFile(Filename);
+      auto FE = FileMgr.getOptionalFileRef(Filename);
       if (!FE)
-        FE = FileMgr.getFile(D.getAbsolutePath());
+        FE = FileMgr.getOptionalFileRef(D.getAbsolutePath());
       if (FE) {
         // If -gcolumn-info was not used, Column will be 0. This upsets the
         // source manager, so pass 1 if Column is not set.
@@ -662,7 +654,7 @@ void BackendConsumer::UnsupportedDiagHandler(
   auto DiagType = D.getSeverity() == llvm::DS_Error
                       ? diag::err_fe_backend_unsupported
                       : diag::warn_fe_backend_unsupported;
-  Diags.Report(Loc, DiagType) << MsgStream.str();
+  Diags.Report(Loc, DiagType) << Msg;
 
   if (BadDebugInfo)
     // If we were not able to translate the file:line:col information
@@ -699,9 +691,7 @@ void BackendConsumer::EmitOptimizationMessage(
   if (D.getHotness())
     MsgStream << " (hotness: " << *D.getHotness() << ")";
 
-  Diags.Report(Loc, DiagID)
-      << AddFlagValue(D.getPassName())
-      << MsgStream.str();
+  Diags.Report(Loc, DiagID) << AddFlagValue(D.getPassName()) << Msg;
 
   if (BadDebugInfo)
     // If we were not able to translate the file:line:col information

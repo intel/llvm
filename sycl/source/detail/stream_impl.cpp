@@ -23,6 +23,7 @@ stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
     : BufferSize_(BufferSize), MaxStatementSize_(MaxStatementSize),
       PropList_(PropList), Buf_(range<1>(BufferSize + OffsetSize + 1)),
       FlushBuf_(range<1>(MaxStatementSize + FLUSH_BUF_OFFSET_SIZE)) {
+  verifyProps(PropList_);
   // Additional place is allocated in the stream buffer for the offset variable
   // and the end of line symbol. Buffers are created without host pointers so
   // that they are released in a deferred manner. Disable copy back on buffer
@@ -95,6 +96,12 @@ void stream_impl::generateFlushCommand(handler &cgh) {
     }
     fflush(stdout);
   });
+}
+
+void stream_impl::verifyProps(const property_list &Props) const {
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
+                                                NoAllowedPropertiesCheck);
 }
 
 } // namespace detail

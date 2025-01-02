@@ -1,4 +1,4 @@
-// RUN: %{build} %debug_option -O0 -o %t.out
+// RUN: %{build} %debug_option %O0 -o %t.out
 // RUN: %{build} %debug_option -O1 -o %t.out
 // RUN: %{build} %debug_option -O2 -o %t.out
 // RUN: %{build} %debug_option -O3 -o %t.out

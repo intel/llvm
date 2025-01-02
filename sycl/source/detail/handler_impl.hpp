@@ -90,13 +90,13 @@ public:
 
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
 
-  ur_usm_advice_flags_t MAdvice;
+  ur_usm_advice_flags_t MAdvice = 0;
 
   // 2D memory operation information.
-  size_t MSrcPitch;
-  size_t MDstPitch;
-  size_t MWidth;
-  size_t MHeight;
+  size_t MSrcPitch = 0;
+  size_t MDstPitch = 0;
+  size_t MWidth = 0;
+  size_t MHeight = 0;
 
   /// Offset into a device_global for copy operations.
   size_t MOffset = 0;
@@ -121,20 +121,21 @@ public:
 
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
+  uint32_t MKernelWorkGroupMemorySize = 0;
 
   // Extra information for bindless image copy
-  ur_image_desc_t MSrcImageDesc;
-  ur_image_desc_t MDstImageDesc;
-  ur_image_format_t MSrcImageFormat;
-  ur_image_format_t MDstImageFormat;
-  ur_exp_image_copy_flags_t MImageCopyFlags;
+  ur_image_desc_t MSrcImageDesc = {};
+  ur_image_desc_t MDstImageDesc = {};
+  ur_image_format_t MSrcImageFormat = {};
+  ur_image_format_t MDstImageFormat = {};
+  ur_exp_image_copy_flags_t MImageCopyFlags = {};
 
-  ur_rect_offset_t MSrcOffset;
-  ur_rect_offset_t MDestOffset;
-  ur_rect_region_t MCopyExtent;
+  ur_rect_offset_t MSrcOffset = {};
+  ur_rect_offset_t MDestOffset = {};
+  ur_rect_region_t MCopyExtent = {};
 
   // Extra information for semaphore interoperability
-  ur_exp_external_semaphore_handle_t MExternalSemaphore;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore = nullptr;
   std::optional<uint64_t> MWaitValue;
   std::optional<uint64_t> MSignalValue;
 
@@ -151,10 +152,6 @@ public:
   std::vector<std::pair<
       ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
       MDynamicParameters;
-
-  // Track whether an NDRange was used when submitting a kernel (as opposed to a
-  // range), needed for graph update
-  bool MNDRangeUsed = false;
 
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
@@ -194,6 +191,17 @@ public:
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+
+  /// True if MCodeLoc is sycl entry point code location
+  bool MIsTopCodeLoc = true;
+
+  /// List of work group memory objects associated with this handler
+  std::vector<std::shared_ptr<detail::work_group_memory_impl>>
+      MWorkGroupMemoryObjects;
+
+  /// Potential event mode for the result event of the command.
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
 };
 
 } // namespace detail

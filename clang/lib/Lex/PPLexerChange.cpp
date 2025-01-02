@@ -19,7 +19,6 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/Path.h"
 #include <optional>
@@ -229,7 +228,7 @@ static void computeRelativePath(FileManager &FM, const DirectoryEntry *Dir,
   StringRef FilePath = File.getDir().getName();
   StringRef Path = FilePath;
   while (!Path.empty()) {
-    if (auto CurDir = FM.getDirectory(Path)) {
+    if (auto CurDir = FM.getOptionalDirectoryRef(Path)) {
       if (*CurDir == Dir) {
         Result = FilePath.substr(Path.size());
         llvm::sys::path::append(Result,
@@ -324,18 +323,6 @@ void Preprocessor::diagnoseMissingHeaderInUmbrellaDir(const Module &Mod) {
         }
       }
   }
-}
-
-static FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
-  FileID FooterFileID;
-  llvm::Expected<FileEntryRef> ExpectedFileRef =
-      SM.getFileManager().getFileRef(Footer);
-  if (ExpectedFileRef) {
-    FooterFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
-                                        SrcMgr::CharacteristicKind::C_User);
-  }
-  assert(FooterFileID.isValid() && "expecting a valid footer FileID");
-  return FooterFileID;
 }
 
 /// HandleEndOfFile - This callback is invoked when the lexer hits the end of
@@ -552,8 +539,8 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
     SourceManager &SourceMgr = getSourceManager();
     SourceLocation Loc = CurLexer->getFileLoc();
 
-    FileID FooterFileID = ComputeValidFooterFileID(
-        SourceMgr, getPreprocessorOpts().IncludeFooter);
+    FileID FooterFileID =
+        SourceMgr.ComputeValidFooterFileID(getPreprocessorOpts().IncludeFooter);
     if (!FooterFileID.isInvalid() && !IncludeFooterProcessed) {
       IncludeFooterProcessed = true;
       // Mark the footer file as included

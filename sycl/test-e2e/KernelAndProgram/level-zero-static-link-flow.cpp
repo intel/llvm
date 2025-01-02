@@ -1,12 +1,12 @@
 // REQUIRES: level_zero
 // UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 //==--- level-zero-static-link-flow.cpp.cpp - Check L0 static link flow --==//
 //
 // Run a simple program that uses online linking and verify that the sequence
-// of calls to the plugin and to the Level Zero driver are consistent with the
+// of calls to the adapter and to the Level Zero driver are consistent with the
 // "static linking" implementation.
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -26,6 +26,7 @@
 // CHECK: ZE ---> zeModuleCreate
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class MyKernel;
 

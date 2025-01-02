@@ -41,6 +41,9 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
     // there's currently no obvious way to iterate the
     // array of extensions in KernelInfo.
     TransOpt.enableAllExtensions();
+    // TODO: Remove this workaround.
+    TransOpt.setAllowedToUseExtension(
+        SPIRV::ExtensionID::SPV_KHR_untyped_pointers, false);
     TransOpt.setDesiredBIsRepresentation(
         SPIRV::BIsRepresentation::SPIRVFriendlyIR);
     // TODO: We need to take care of specialization constants, either by

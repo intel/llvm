@@ -36,7 +36,6 @@
 // friendly IR form for further translation into SPIR-V
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "ocl-to-spv"
 
 #include "OCLToSPIRV.h"
 #include "OCLTypeToSPIRV.h"
@@ -54,6 +53,8 @@
 #include <algorithm>
 #include <regex>
 #include <set>
+
+#define DEBUG_TYPE "ocl-to-spv"
 
 using namespace llvm;
 using namespace PatternMatch;
@@ -443,12 +444,14 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   //   local work size
   // The arguments need to add missing members.
   for (size_t I = 1, E = CI->arg_size(); I != E; ++I)
-    Mutator.mapArg(I, [=](Value *V) { return getScalarOrArray(V, Len, CI); });
+    Mutator.mapArg(I, [=](Value *V) {
+      return getScalarOrArray(V, Len, CI->getIterator());
+    });
   switch (CI->arg_size()) {
   case 2: {
     // Has global work size.
     auto *T = Mutator.getArg(1)->getType();
-    auto *C = getScalarOrArrayConstantInt(CI, T, Len, 0);
+    auto *C = getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0);
     Mutator.appendArg(C);
     Mutator.appendArg(C);
     break;
@@ -456,7 +459,8 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   case 3: {
     // Has global and local work size.
     auto *T = Mutator.getArg(1)->getType();
-    Mutator.appendArg(getScalarOrArrayConstantInt(CI, T, Len, 0));
+    Mutator.appendArg(
+        getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0));
     break;
   }
   case 4: {
@@ -484,6 +488,18 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
     auto Mutator = mutateCallInst(CI, kOCLBuiltinName::AtomicCmpXchgStrong);
     Value *Expected = Mutator.getArg(1);
     Type *MemTy = Mutator.getArg(2)->getType();
+    if (MemTy->isFloatTy() || MemTy->isDoubleTy()) {
+      MemTy =
+          MemTy->isFloatTy() ? Type::getInt32Ty(*Ctx) : Type::getInt64Ty(*Ctx);
+      Mutator.replaceArg(
+          0,
+          {Mutator.getArg(0),
+           TypedPointerType::get(
+               MemTy, Mutator.getArg(0)->getType()->getPointerAddressSpace())});
+      Mutator.mapArg(2, [=](IRBuilder<> &Builder, Value *V) {
+        return Builder.CreateBitCast(V, MemTy);
+      });
+    }
     assert(MemTy->isIntegerTy() &&
            "In SPIR-V 1.0 arguments of OpAtomicCompareExchange must be "
            "an integer type scalars");
@@ -1145,7 +1161,7 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
         .mapArg(Mutator.arg_size() - 1,
                 [&](Value *V) {
                   return std::make_pair(
-                      castToInt8Ptr(V, CI),
+                      castToInt8Ptr(V, CI->getIterator()),
                       TypedPointerType::get(Type::getInt8Ty(V->getContext()),
                                             SPIRAS_Generic));
                 })

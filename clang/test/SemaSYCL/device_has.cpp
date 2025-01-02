@@ -17,7 +17,6 @@ enum class aspect {
 
 [[sycl::device_has("123")]] void func1() {}                          // expected-error{{'device_has' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
 [[sycl::device_has(fake_cl::sycl::aspect::aspect1)]] void func2() {} // expected-error{{'device_has' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
-
 [[sycl::device_has(sycl::aspect::cpu)]] void func3();   // expected-note{{previous attribute is here}}
 [[sycl::device_has(sycl::aspect::gpu)]] void func3() {} // expected-warning{{attribute 'device_has' is already applied}}
 
