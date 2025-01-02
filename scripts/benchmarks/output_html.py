@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import re
+import os
+from pathlib import Path
 import matplotlib.pyplot as plt
 import mpld3
 from collections import defaultdict
@@ -256,7 +258,9 @@ def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_
     suite_names = {t.suite for t in timeseries}
     suite_checkboxes_html = ' '.join(f'<label><input type="checkbox" class="suite-checkbox" data-suite="{suite}" checked> {suite}</label>' for suite in suite_names)
 
-    with open('benchmark_results.html.template', 'r') as file:
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    results_template_path = Path(script_path, 'benchmark_results.html.template')
+    with open(results_template_path, 'r') as file:
         html_template = file.read()
 
     template = Template(html_template)
