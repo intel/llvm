@@ -59,7 +59,7 @@ size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device);
 
 ur_result_t
-EnqueueUSMSet(ur_queue_handle_t Queue, void *Ptr, char Value,
+EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr, char Value,
                       size_t Size, uint32_t NumEvents = 0,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr);
