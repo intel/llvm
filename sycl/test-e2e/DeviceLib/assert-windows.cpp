@@ -20,7 +20,7 @@
 
 #include "../helpers.hpp"
 #include <array>
-#include <assert.h>
+#include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
