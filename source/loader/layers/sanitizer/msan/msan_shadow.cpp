@@ -212,16 +212,17 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
 
             // Initialize to zero
             URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize,
-                                 EventWaitList.size(), EventWaitList.data(),
-                                 OutEvent);
+                                         EventWaitList.size(),
+                                         EventWaitList.data(), OutEvent);
             if (URes != UR_RESULT_SUCCESS) {
                 getContext()->logger.error("EnqueueUSMSet(): {}", URes);
                 return URes;
             }
 
             EventWaitList.clear();
-            if (OutEvent)
+            if (OutEvent) {
                 EventWaitList.push_back(*OutEvent);
+            }
 
             VirtualMemMaps[MappedPtr].first = PhysicalMem;
         }
@@ -260,8 +261,8 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
     assert(ShadowBegin <= ShadowEnd);
 
     auto Result = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
-                                ShadowEnd - ShadowBegin + 1, Events.size(),
-                                Events.data(), OutEvent);
+                                        ShadowEnd - ShadowBegin + 1,
+                                        Events.size(), Events.data(), OutEvent);
 
     getContext()->logger.debug(
         "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",

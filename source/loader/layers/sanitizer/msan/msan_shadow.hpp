@@ -103,10 +103,9 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
     virtual size_t GetShadowSize() = 0;
 
   private:
-    ur_result_t
-    EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
-                         std::vector<ur_event_handle_t> &EventWaitList,
-                         ur_event_handle_t *OutEvent);
+    ur_result_t EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+                                 std::vector<ur_event_handle_t> &EventWaitList,
+                                 ur_event_handle_t *OutEvent);
 
     std::unordered_map<
         uptr, std::pair<ur_physical_mem_handle_t,
