@@ -59,7 +59,7 @@ inline namespace _V1 {
 namespace detail {
 
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-static std::string getDirName(const char *Path)
+[[maybe_unused]] static std::string getDirName(const char *Path)
 #else
 std::string OSUtil::getDirName(const char *Path)
 #endif
