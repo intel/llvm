@@ -74,7 +74,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
-// Test test AOT-PVC + AOT-DG2 compilation uses native libs + native libs.
+// Test AOT-PVC + AOT-DG2 compilation uses native libs + native libs.
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_acm_g10 \
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
