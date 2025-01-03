@@ -31,7 +31,8 @@
 // CHK-ACTIONS-WIN: llvm-foreach" {{.*}} "--" "{{.*}}fatbinary"
 // CHK-ACTIONS-WIN: file-table-tform" "-replace=Code,Code"
 // CHK-ACTIONS-WIN-NOT: "-mllvm -sycl-opt"
-// CHK-ACTIONS-WIN: clang-offload-wrapper"{{.*}} "-host=x86_64-pc-windows-msvc" "-target=nvptx64" "-kind=sycl"{{.*}}
+// CHK-ACTIONS-WIN: clang-offload-wrapper"{{.*}} "-host=[[HOST_TARGET:x86_64-pc-windows-msvc.*]]" "-target=nvptx64" "-kind=sycl"{{.*}}
+// CHK-ACTIONS-WIN: clang{{.*}} "--target=[[HOST_TARGET]]" "-c"
 
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
