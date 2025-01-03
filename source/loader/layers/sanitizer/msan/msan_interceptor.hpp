@@ -120,7 +120,6 @@ struct ContextInfo {
     std::atomic<int32_t> RefCount = 1;
 
     std::vector<ur_device_handle_t> DeviceList;
-    std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
 
     explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
         [[maybe_unused]] auto Result =
@@ -129,15 +128,6 @@ struct ContextInfo {
     }
 
     ~ContextInfo();
-
-    void insertAllocInfo(const std::vector<ur_device_handle_t> &Devices,
-                         std::shared_ptr<MsanAllocInfo> &AI) {
-        for (auto Device : Devices) {
-            auto &AllocInfos = AllocInfosMap[Device];
-            std::scoped_lock<ur_shared_mutex> Guard(AllocInfos.Mutex);
-            AllocInfos.List.emplace_back(AI);
-        }
-    }
 };
 
 struct USMLaunchInfo {
@@ -264,15 +254,6 @@ class MsanInterceptor {
     bool isNormalExit() { return m_NormalExit; }
 
   private:
-    ur_result_t
-    updateShadowMemory(std::shared_ptr<msan::ContextInfo> &ContextInfo,
-                       std::shared_ptr<msan::DeviceInfo> &DeviceInfo,
-                       ur_queue_handle_t Queue);
-
-    ur_result_t enqueueAllocInfo(std::shared_ptr<msan::DeviceInfo> &DeviceInfo,
-                                 ur_queue_handle_t Queue,
-                                 std::shared_ptr<MsanAllocInfo> &AI);
-
     /// Initialize Global Variables & Kernel Name at first Launch
     ur_result_t prepareLaunch(std::shared_ptr<msan::DeviceInfo> &DeviceInfo,
                               ur_queue_handle_t Queue,

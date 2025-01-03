@@ -38,12 +38,6 @@ struct MsanShadowMemory {
                         const ur_event_handle_t *EventWaitList = nullptr,
                         ur_event_handle_t *OutEvent = nullptr) = 0;
 
-    virtual ur_result_t
-    EnqueueCopyShadow(ur_queue_handle_t Queue, bool Blocking, uptr Dst,
-                      uptr Src, uptr Size, uint32_t NumEvents = 0,
-                      const ur_event_handle_t *EventWaitList = nullptr,
-                      ur_event_handle_t *OutEvent = nullptr) = 0;
-
     virtual ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo>) {
         return UR_RESULT_SUCCESS;
     }
@@ -88,12 +82,6 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
                         uint32_t NumEvents = 0,
                         const ur_event_handle_t *EventWaitList = nullptr,
                         ur_event_handle_t *OutEvent = nullptr) override;
-
-    ur_result_t
-    EnqueueCopyShadow(ur_queue_handle_t Queue, bool Blocking, uptr Dst,
-                      uptr Src, uptr Size, uint32_t NumEvents = 0,
-                      const ur_event_handle_t *EventWaitList = nullptr,
-                      ur_event_handle_t *OutEvent = nullptr) override;
 };
 
 struct MsanShadowMemoryGPU : public MsanShadowMemory {
@@ -110,19 +98,13 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
                         const ur_event_handle_t *EventWaitList = nullptr,
                         ur_event_handle_t *OutEvent = nullptr) override final;
 
-    ur_result_t
-    EnqueueCopyShadow(ur_queue_handle_t Queue, bool Blocking, uptr Dst,
-                      uptr Src, uptr Size, uint32_t NumEvents = 0,
-                      const ur_event_handle_t *EventWaitList = nullptr,
-                      ur_event_handle_t *OutEvent = nullptr) override final;
-
     ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;
 
     virtual size_t GetShadowSize() = 0;
 
   private:
     ur_result_t
-    EnqueueMappingShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+    EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
                          std::vector<ur_event_handle_t> &EventWaitList,
                          ur_event_handle_t *OutEvent);
 

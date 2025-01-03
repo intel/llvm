@@ -133,41 +133,6 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t MsanShadowMemoryCPU::EnqueueCopyShadow(
-    ur_queue_handle_t Queue, bool Blocking, uptr Dst, uptr Src, uptr Size,
-    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent) {
-    if (Size == 0) {
-        if (OutEvent) {
-            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-                Queue, NumEvents, EventWaitList, OutEvent));
-        }
-        return UR_RESULT_SUCCESS;
-    }
-
-    const uptr SrcShadowBegin = MemToShadow(Src);
-    const uptr SrcShadowEnd = MemToShadow(Src + Size - 1);
-    assert(SrcShadowBegin <= SrcShadowEnd);
-
-    const uptr DstShadowBegin = MemToShadow(Dst);
-    const uptr DstShadowEnd = MemToShadow(Dst + Size - 1);
-    assert(DstShadowBegin <= DstShadowEnd);
-
-    assert(SrcShadowEnd - SrcShadowBegin == DstShadowEnd - DstShadowBegin);
-
-    // FIXME: host asan will not support to use this function
-    auto Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-        Queue, Blocking, (void *)DstShadowBegin, (void *)SrcShadowBegin,
-        SrcShadowEnd - SrcShadowBegin + 1, NumEvents, EventWaitList, OutEvent);
-
-    getContext()->logger.debug("EnqueueCopyShadow(dst={}, src={}, size={}): {}",
-                               (void *)DstShadowBegin, (void *)SrcShadowBegin,
-                               (void *)(SrcShadowEnd - SrcShadowBegin + 1),
-                               Result);
-
-    return Result;
-}
-
 ur_result_t MsanShadowMemoryGPU::Setup() {
     // Currently, Level-Zero doesn't create independent VAs for each contexts, if we reserve
     // shadow memory for each contexts, this will cause out-of-resource error when user uses
@@ -208,7 +173,7 @@ ur_result_t MsanShadowMemoryGPU::Destory() {
     return Result;
 }
 
-ur_result_t MsanShadowMemoryGPU::EnqueueMappingShadow(
+ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size,
     std::vector<ur_event_handle_t> &EventWaitList,
     ur_event_handle_t *OutEvent) {
@@ -290,7 +255,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
 
     std::vector<ur_event_handle_t> Events(EventWaitList,
                                           EventWaitList + NumEvents);
-    UR_CALL(EnqueueMappingShadow(Queue, Ptr, Size, Events, OutEvent));
+    UR_CALL(EnqueueMapShadow(Queue, Ptr, Size, Events, OutEvent));
 
     const uptr ShadowBegin = MemToShadow(Ptr);
     const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
@@ -304,46 +269,6 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
         "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
         (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value,
         Result);
-
-    return Result;
-}
-
-ur_result_t MsanShadowMemoryGPU::EnqueueCopyShadow(
-    ur_queue_handle_t Queue, bool Blocking, uptr Dst, uptr Src, uptr Size,
-    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent) {
-    if (Size == 0) {
-        if (OutEvent) {
-            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-                Queue, NumEvents, EventWaitList, OutEvent));
-        }
-        return UR_RESULT_SUCCESS;
-    }
-
-    std::vector<ur_event_handle_t> Events(EventWaitList,
-                                          EventWaitList + NumEvents);
-    UR_CALL(EnqueueMappingShadow(Queue, Src, Size, Events, OutEvent));
-    UR_CALL(EnqueueMappingShadow(Queue, Dst, Size, Events, OutEvent));
-
-    const uptr SrcShadowBegin = MemToShadow(Src);
-    const uptr SrcShadowEnd = MemToShadow(Src + Size - 1);
-    assert(SrcShadowBegin <= SrcShadowEnd);
-
-    const uptr DstShadowBegin = MemToShadow(Dst);
-    const uptr DstShadowEnd = MemToShadow(Dst + Size - 1);
-    assert(DstShadowBegin <= DstShadowEnd);
-
-    assert(DstShadowEnd - DstShadowBegin == SrcShadowEnd - SrcShadowBegin);
-
-    auto Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-        Queue, Blocking, (void *)DstShadowBegin, (void *)SrcShadowBegin,
-        SrcShadowEnd - SrcShadowBegin + 1, Events.size(), Events.data(),
-        OutEvent);
-
-    getContext()->logger.debug("EnqueueCopyShadow(dst={}, src={}, size={}): {}",
-                               (void *)DstShadowBegin, (void *)SrcShadowBegin,
-                               (void *)(SrcShadowEnd - SrcShadowBegin + 1),
-                               Result);
 
     return Result;
 }
