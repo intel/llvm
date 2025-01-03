@@ -58,8 +58,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) && defined(__SYCL_RT_OS_LINUX)
-static std::string getDirName(const char *Path)
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+[[maybe_unused]] static std::string getDirName(const char *Path)
 #else
 std::string OSUtil::getDirName(const char *Path)
 #endif
