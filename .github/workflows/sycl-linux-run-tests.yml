@@ -79,7 +79,7 @@ on:
         type: string
         default: 'default'
       retention-days:
-        description: 'E2E binaries artifact retention period.'
+        description: 'E2E/SYCL-CTS binaries artifact retention period.'
         type: string
         default: 1
 
@@ -100,6 +100,19 @@ on:
       skip_run:
         type: string
         default: 'false'
+        required: False
+
+      cts_testing_mode:
+        description: |
+          Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
+          or `run-only`. In `build-only` mode an artifact of the CTS binaries
+          will be uploaded.
+        type: string
+        default: 'full'
+
+      sycl_cts_artifact:
+        type: string
+        default: ''
         required: False
 
   workflow_dispatch:
@@ -147,7 +160,7 @@ on:
           LIT_OPTS won't work as we redefine it as part of this workflow.
 
           For SYCL CTS - CTS_TESTS_TO_BUILD to specify which categories to
-          build.
+          build, e.g. {"CTS_TESTS_TO_BUILD":"test_category1 test_category2..."}.
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{}'
@@ -340,7 +353,7 @@ jobs:
         fi
         exit $exit_code
     - name: Build SYCL CTS tests
-      if: inputs.tests_selector == 'cts'
+      if: inputs.tests_selector == 'cts' && inputs.sycl_cts_artifact == ''
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
@@ -372,17 +385,64 @@ jobs:
         # "test_conformance" target skips building "test_all" executable.
         ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
+    - name: Pack SYCL-CTS binaries
+      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
+      run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
+
+    - name: Upload SYCL-CTS binaries
+      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_cts_bin
+        path: sycl_cts_bin.tar.zst
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Download SYCL-CTS binaries
+      if: inputs.sycl_cts_artifact != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.sycl_cts_artifact }}
+
+    - name: Extract SYCL-CTS binaries
+      if: inputs.sycl_cts_artifact != ''
+      run: |
+        mkdir -p build-cts/bin
+        tar -I 'zstd' -xf sycl_cts_bin.tar.zst -C build-cts/bin
+
     - name: SYCL CTS List devices
       # Proceed with execution even if the 'build' step did not succeed.
-      if: inputs.tests_selector == 'cts' && (success() || failure())
+      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       run: |
         ./build-cts/bin/* --list-devices
 
+    # If the suite was built on another machine then the build contains the full
+    # set of tests. We have special files to filter out some test categories,
+    # see "devops/cts_exclude_filter_*". Each configuration has its own file, e.g.
+    # there is "cts_exclude_filter_OCL_CPU" for opencl:cpu device. Therefore,
+    # these files may differ from each other, so when there is a pre-built set of
+    # tests, we need to filter it according to the filter-file.
+    - name: Filter SYCL CTS test categories
+      if: inputs.sycl_cts_artifact != ''
+      shell: bash
+      run: |
+        cts_exclude_filter=""
+        if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
+          cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
+        elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
+          cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
+        fi
+
+        while IFS= read -r line; do
+          if [[ $line != \#* ]]; then
+            rm "./build-cts/bin/test_$line"
+          fi
+        done < "$cts_exclude_filter"
+
     - name: Run SYCL CTS tests
       # Proceed with execution even if the previous two steps did not succeed.
-      if: inputs.tests_selector == 'cts' && (success() || failure())
+      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
       # This job takes ~100min usually. But sometimes some test isn't
