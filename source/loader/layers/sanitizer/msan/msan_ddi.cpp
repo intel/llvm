@@ -1390,10 +1390,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
     if (phEvent) {
         *phEvent = hEvent;
-    } else {
-        getContext()->urDdiTable.Event.pfnWait(1, &hEvent);
     }
-    // getContext()->urDdiTable.Queue.pfnFinish(hQueue);
 
     return UR_RESULT_SUCCESS;
 }
