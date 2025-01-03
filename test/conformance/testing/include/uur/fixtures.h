@@ -942,8 +942,6 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
 
 struct urVirtualMemGranularityTest : urContextTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
 
     ur_bool_t virtual_memory_support = false;
@@ -964,8 +962,6 @@ struct urVirtualMemGranularityTest : urContextTest {
 template <class T>
 struct urVirtualMemGranularityTestWithParam : urContextTestWithParam<T> {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
 
     ur_bool_t virtual_memory_support = false;

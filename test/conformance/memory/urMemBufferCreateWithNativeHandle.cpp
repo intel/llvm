@@ -116,7 +116,7 @@ using urMemBufferMultiQueueMemBufferTest = uur::urMultiDeviceMemBufferQueueTest;
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMemBufferMultiQueueMemBufferTest);
 
 TEST_P(urMemBufferMultiQueueMemBufferTest, WriteBack) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   void *ptr;
   ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &ptr));

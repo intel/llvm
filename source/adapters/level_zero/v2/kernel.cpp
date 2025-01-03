@@ -291,9 +291,14 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
   for (auto &pending : pending_allocations) {
     void *zePtr = nullptr;
     if (pending.hMem) {
-      // NULL is a valid value
-      zePtr = pending.hMem->getDevicePtr(hDevice, pending.mode, 0,
-                                         pending.hMem->getSize(), migrate);
+      if (!pending.hMem->isImage()) {
+        auto hBuffer = pending.hMem->getBuffer();
+        zePtr = hBuffer->getDevicePtr(hDevice, pending.mode, 0,
+                                      hBuffer->getSize(), migrate);
+      } else {
+        auto hImage = static_cast<ur_mem_image_t *>(pending.hMem->getImage());
+        zePtr = reinterpret_cast<void *>(hImage->getZeImage());
+      }
     }
     UR_CALL(setArgPointer(pending.argIndex, nullptr, zePtr));
   }
@@ -411,21 +416,21 @@ ur_result_t urKernelSetArgPointer(
   return exceptionToResult(std::current_exception());
 }
 
-static ur_mem_handle_t_::device_access_mode_t memAccessFromKernelProperties(
+static ur_mem_buffer_t::device_access_mode_t memAccessFromKernelProperties(
     const ur_kernel_arg_mem_obj_properties_t *pProperties) {
   if (pProperties) {
     switch (pProperties->memoryAccess) {
     case UR_MEM_FLAG_READ_WRITE:
-      return ur_mem_handle_t_::device_access_mode_t::read_write;
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
     case UR_MEM_FLAG_WRITE_ONLY:
-      return ur_mem_handle_t_::device_access_mode_t::write_only;
+      return ur_mem_buffer_t::device_access_mode_t::write_only;
     case UR_MEM_FLAG_READ_ONLY:
-      return ur_mem_handle_t_::device_access_mode_t::read_only;
+      return ur_mem_buffer_t::device_access_mode_t::read_only;
     default:
-      return ur_mem_handle_t_::device_access_mode_t::read_write;
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
     }
   }
-  return ur_mem_handle_t_::device_access_mode_t::read_write;
+  return ur_mem_buffer_t::device_access_mode_t::read_write;
 }
 
 ur_result_t
