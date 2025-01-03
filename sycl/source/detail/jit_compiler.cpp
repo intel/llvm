@@ -51,7 +51,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(MLibraryHandle,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
                                                   "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
