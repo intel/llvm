@@ -45,7 +45,6 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
             UR_CALL(DI->allocShadowMemory(Context));
         }
         CI->DeviceList.emplace_back(hDevice);
-        CI->AllocInfosMap[hDevice];
     }
     return UR_RESULT_SUCCESS;
 }
@@ -1306,23 +1305,25 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
     ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnUSMFill = getContext()->urDdiTable.Enqueue.pfnUSMFill;
-
     getContext()->logger.debug("==== urEnqueueUSMFill");
 
-    auto Mem = (uptr)pMem;
+    UR_CALL(pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
+                       numEventsInWaitList, phEventWaitList, phEvent));
+
+    const auto Mem = (uptr)pMem;
     auto MemInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Mem);
     if (MemInfoItOp) {
         auto MemInfo = (*MemInfoItOp)->second;
 
         const auto &DeviceInfo =
             getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
-        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
-            hQueue, Mem, size, 0, numEventsInWaitList, phEventWaitList,
-            phEvent));
+        const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
+
+        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 1,
+                                      phEvent, phEvent));
     }
 
-    return pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
-                      numEventsInWaitList, phEventWaitList, phEvent);
+    return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1349,7 +1350,10 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
     getContext()->logger.debug("==== pfnUSMMemcpy");
 
-    auto Src = (uptr)pSrc, Dst = (uptr)pDst;
+    UR_CALL(pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size,
+                         numEventsInWaitList, phEventWaitList, phEvent));
+
+    const auto Src = (uptr)pSrc, Dst = (uptr)pDst;
     auto SrcInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Src);
     auto DstInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Dst);
 
@@ -1359,21 +1363,23 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
         const auto &DeviceInfo =
             getMsanInterceptor()->getDeviceInfo(SrcInfo->Device);
-        UR_CALL(DeviceInfo->Shadow->EnqueueCopyShadow(
-            hQueue, blocking, Dst, Src, size, numEventsInWaitList,
-            phEventWaitList, phEvent));
+        const auto SrcShadow = DeviceInfo->Shadow->MemToShadow(Src);
+        const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+
+        UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow,
+                             (void *)SrcShadow, size, 1, phEvent, phEvent));
     } else if (DstInfoItOp) {
         auto DstInfo = (*DstInfoItOp)->second;
 
         const auto &DeviceInfo =
             getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
-        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
-            hQueue, Dst, size, 0, numEventsInWaitList, phEventWaitList,
-            phEvent));
+        auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+
+        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, 0, size, 1,
+                                      phEvent, phEvent));
     }
 
-    return pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
-                        phEventWaitList, phEvent);
+    return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1406,20 +1412,25 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     auto pfnUSMFill2D = getContext()->urDdiTable.Enqueue.pfnUSMFill2D;
     getContext()->logger.debug("==== urEnqueueUSMFill2D");
 
-    auto Mem = (uptr)pMem;
+    UR_CALL(pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width,
+                         height, numEventsInWaitList, phEventWaitList,
+                         phEvent));
+
+    const auto Mem = (uptr)pMem;
     auto MemInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Mem);
     if (MemInfoItOp) {
         auto MemInfo = (*MemInfoItOp)->second;
 
         const auto &DeviceInfo =
             getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
-        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
-            hQueue, Mem, width * height, 0, numEventsInWaitList,
-            phEventWaitList, phEvent));
+        const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
+
+        const char Pattern = 0;
+        UR_CALL(pfnUSMFill2D(hQueue, (void *)MemShadow, pitch, 1, &Pattern,
+                             width, height, 1, phEvent, phEvent));
     }
 
-    return pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width,
-                        height, numEventsInWaitList, phEventWaitList, phEvent);
+    return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1448,8 +1459,43 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ///< kernel execution instance. If phEventWaitList and phEvent are not
     ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
+    auto pfnUSMMemcpy2D = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
+    getContext()->logger.debug("==== pfnUSMMemcpy2D");
+
+    UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch,
+                           width, height, numEventsInWaitList, phEventWaitList,
+                           phEvent));
+
+    auto Src = (uptr)pSrc, Dst = (uptr)pDst;
+    auto SrcInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Src);
+    auto DstInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Dst);
+
+    if (SrcInfoItOp && DstInfoItOp) {
+        auto SrcInfo = (*SrcInfoItOp)->second;
+        auto DstInfo = (*DstInfoItOp)->second;
+
+        const auto &DeviceInfo =
+            getMsanInterceptor()->getDeviceInfo(SrcInfo->Device);
+        auto SrcShadow = DeviceInfo->Shadow->MemToShadow(Src);
+        auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+
+        UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
+                               (void *)SrcShadow, srcPitch, width, height,
+                               numEventsInWaitList, phEventWaitList, phEvent));
+    } else if (DstInfoItOp) {
+        auto DstInfo = (*DstInfoItOp)->second;
+
+        const auto &DeviceInfo =
+            getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
+        auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+
+        const char Pattern = 0;
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
+            hQueue, (void *)DstShadow, dstPitch, 1, &Pattern, width, height, 1,
+            phEvent, phEvent));
+    }
+
+    return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
