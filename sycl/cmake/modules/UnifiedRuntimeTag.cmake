@@ -1,7 +1,7 @@
-# commit 9a209aa5fe6f438b682b3a999b9ee505e202f9b7
-# Merge: 2eae687a 9339e374
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 12 11:47:03 2024 +0000
-#     Merge pull request #2179 from Maetveis/wrap_icx_linker_flags
-#     Wrap linker flags on Windows for IntelLLLVM
-set(UNIFIED_RUNTIME_TAG 9a209aa5fe6f438b682b3a999b9ee505e202f9b7)
+# commit 13f5e52ac047bb81f478f0dbe9416a8bc179130a
+# Merge: fe6c83a3 fa1e678a
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Mon Dec 30 15:14:19 2024 +0000
+#     Merge pull request #2484 from zhaomaosu/move-clean-shadow-to-launchinfo
+#     [DevMSAN] Move clean shadow into launch info
+set(UNIFIED_RUNTIME_TAG 13f5e52ac047bb81f478f0dbe9416a8bc179130a)

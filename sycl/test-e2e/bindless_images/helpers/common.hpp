@@ -82,6 +82,8 @@ constexpr sycl::vec<DType, NChannel> init_vector(DType val) {
     return sycl::vec<DType, NChannel>{val};
   } else if constexpr (NChannel == 2) {
     return sycl::vec<DType, NChannel>{val, val};
+  } else if constexpr (NChannel == 3) {
+    return sycl::vec<DType, NChannel>{val, val, val};
   } else if constexpr (NChannel == 4) {
     return sycl::vec<DType, NChannel>{val, val, val, val};
   } else {

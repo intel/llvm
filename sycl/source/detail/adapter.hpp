@@ -10,7 +10,6 @@
 
 #include <detail/config.hpp>
 #include <detail/ur.hpp>
-#include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
@@ -35,6 +34,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 
 /// The adapter class provides a unified interface to the underlying low-level

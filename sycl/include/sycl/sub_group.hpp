@@ -16,7 +16,8 @@
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
-#include <sycl/range.hpp>                      // for range
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp> // for range
 
 #include <stdint.h>    // for uint32_t
 #include <tuple>       // for _Swallow_assign, ignore
@@ -663,5 +664,10 @@ protected:
   friend sub_group ext::oneapi::this_work_item::get_sub_group();
   sub_group() = default;
 };
+
+template <int Dimensions> sub_group nd_item<Dimensions>::get_sub_group() const {
+  return sub_group();
+}
+
 } // namespace _V1
 } // namespace sycl

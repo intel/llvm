@@ -19,11 +19,8 @@ on:
 
       target_devices:
         type: string
-        required: True
+        required: False
       extra_cmake_args:
-        description: |
-          If empty, then HIP_PLATFORM and AMD_ARCH would be automatically added
-          if inputs.target_devices contains 'ext_oneapi_hip'
         type: string
         required: False
       tests_selector:
@@ -62,6 +59,30 @@ on:
         default: ''
         required: False
 
+      e2e_binaries_artifact:
+        description: |
+          By setting this the E2E binaries folder will not be created, rather it
+          will be downloaded and extracted from the specified artifact. When
+          running tests in `run-only` mode this must be provided.
+        type: string
+        default: ''
+        required: False
+      e2e_testing_mode:
+        description: |
+          Testing mode to run E2E tests in, can be either `full`, `build-only`
+          or `run-only`. In `build-only` mode an artifact of the E2E binaries
+          will be uploaded.
+        type: string
+        default: 'full'
+      artifact_suffix:
+        description: 'Suffix for E2E binaries artifact that is output when in `build-only`.'
+        type: string
+        default: 'default'
+      retention-days:
+        description: 'E2E binaries artifact retention period.'
+        type: string
+        default: 1
+
       reset_intel_gpu:
         type: string
         required: False
@@ -89,7 +110,9 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
+          - '["Linux", "pvc"]'
           - '["cts-cpu"]'
+          - '["Linux", "build"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
@@ -145,6 +168,11 @@ on:
         options:
           - false
           - true
+      e2e_testing_mode:
+        type: choice
+        options:
+          - "full"
+          - "build-only"
 
 permissions:
   contents: read
@@ -273,8 +301,19 @@ jobs:
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
 
+    - name: Download E2E Binaries
+      if: inputs.e2e_binaries_artifact != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.e2e_binaries_artifact }}
+    - name: Extract E2E Binaries
+      if: inputs.e2e_binaries_artifact != ''
+      run: |
+        mkdir build-e2e
+        tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
+
     - name: Deduce E2E CMake options
-      if: inputs.tests_selector == 'e2e'
+      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact == ''
       id: cmake_opts
       shell: bash
       env:
@@ -282,22 +321,16 @@ jobs:
       run: |
         if [ -n "$CMAKE_EXTRA_ARGS" ]; then
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
-        else
-          if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
-            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
-          else
-            echo 'opts=' >> $GITHUB_OUTPUT
-          fi
         fi
     - name: Configure E2E tests
-      if: inputs.tests_selector == 'e2e'
+      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact == ''
       run: |
-        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
     - name: SYCL End-to-end tests
       shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
       run: |
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
         exit_code=$?
@@ -384,3 +417,13 @@ jobs:
         grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
         exit $ret
+    - name: Pack E2E binaries
+      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
+      run: tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
+    - name: Upload E2E binaries
+      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_e2e_bin_${{ inputs.artifact_suffix }}
+        path: e2e_binaries.tar.zst
+        retention-days: ${{ inputs.retention-days }}

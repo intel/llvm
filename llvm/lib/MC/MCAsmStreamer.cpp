@@ -55,6 +55,8 @@ class MCAsmStreamer final : public MCStreamer {
   raw_svector_ostream CommentStream;
   raw_null_ostream NullStream;
 
+  bool EmittedSectionDirective = false;
+
   bool IsVerboseAsm = false;
   bool ShowInst = false;
   bool UseDwarfDirectory = false;
@@ -160,7 +162,8 @@ public:
   /// @name MCStreamer Interface
   /// @{
 
-  void changeSection(MCSection *Section, uint32_t Subsection) override;
+  void switchSection(MCSection *Section, uint32_t Subsection) override;
+  bool popSection() override;
 
   void emitELFSymverDirective(const MCSymbol *OriginalSym, StringRef Name,
                               bool KeepOriginalSym) override;
@@ -169,8 +172,8 @@ public:
 
   void emitGNUAttribute(unsigned Tag, unsigned Value) override;
 
-  StringRef getMnemonic(MCInst &MI) override {
-    auto [Ptr, Bits] = InstPrinter->getMnemonic(&MI);
+  StringRef getMnemonic(const MCInst &MI) const override {
+    auto [Ptr, Bits] = InstPrinter->getMnemonic(MI);
     assert((Bits != 0 || Ptr == nullptr) &&
            "Invalid char pointer for instruction with no mnemonic");
     return Ptr;
@@ -301,6 +304,8 @@ public:
                              unsigned Flags, unsigned Isa,
                              unsigned Discriminator,
                              StringRef FileName) override;
+  virtual void emitDwarfLocLabelDirective(SMLoc Loc, StringRef Name) override;
+
   MCSymbol *getDwarfLineTableSymbol(unsigned CUID) override;
 
   bool emitCVFileDirective(unsigned FileNo, StringRef Filename,
@@ -371,8 +376,10 @@ public:
                        SMLoc Loc) override;
   void emitCFIWindowSave(SMLoc Loc) override;
   void emitCFINegateRAState(SMLoc Loc) override;
+  void emitCFINegateRAStateWithPC(SMLoc Loc) override;
   void emitCFIReturnColumn(int64_t Register) override;
   void emitCFILabelDirective(SMLoc Loc, StringRef Name) override;
+  void emitCFIValOffset(int64_t Register, int64_t Offset, SMLoc Loc) override;
 
   void emitWinCFIStartProc(const MCSymbol *Symbol, SMLoc Loc) override;
   void emitWinCFIEndProc(SMLoc Loc) override;
@@ -429,7 +436,8 @@ public:
 
   void emitDwarfLineStartLabel(MCSymbol *StartSym) override;
 
-  void emitDwarfLineEndEntry(MCSection *Section, MCSymbol *LastLabel) override;
+  void emitDwarfLineEndEntry(MCSection *Section, MCSymbol *LastLabel,
+                             MCSymbol *EndLabel = nullptr) override;
 
   void emitDwarfAdvanceLineAddr(int64_t LineDelta, const MCSymbol *LastLabel,
                                 const MCSymbol *Label,
@@ -527,14 +535,27 @@ void MCAsmStreamer::emitExplicitComments() {
   ExplicitCommentToEmit.clear();
 }
 
-void MCAsmStreamer::changeSection(MCSection *Section, uint32_t Subsection) {
-  if (MCTargetStreamer *TS = getTargetStreamer()) {
-    TS->changeSection(getCurrentSection().first, Section, Subsection, OS);
-  } else {
-    Section->printSwitchToSection(*MAI, getContext().getTargetTriple(), OS,
-                                  Subsection);
+void MCAsmStreamer::switchSection(MCSection *Section, uint32_t Subsection) {
+  MCSectionSubPair Cur = getCurrentSection();
+  if (!EmittedSectionDirective ||
+      MCSectionSubPair(Section, Subsection) != Cur) {
+    EmittedSectionDirective = true;
+    if (MCTargetStreamer *TS = getTargetStreamer()) {
+      TS->changeSection(Cur.first, Section, Subsection, OS);
+    } else {
+      Section->printSwitchToSection(*MAI, getContext().getTargetTriple(), OS,
+                                    Subsection);
+    }
   }
-  MCStreamer::changeSection(Section, Subsection);
+  MCStreamer::switchSection(Section, Subsection);
+}
+
+bool MCAsmStreamer::popSection() {
+  if (!MCStreamer::popSection())
+    return false;
+  auto [Sec, Subsec] = getCurrentSection();
+  Sec->printSwitchToSection(*MAI, getContext().getTargetTriple(), OS, Subsec);
+  return true;
 }
 
 void MCAsmStreamer::emitELFSymverDirective(const MCSymbol *OriginalSym,
@@ -1767,6 +1788,12 @@ void MCAsmStreamer::emitDwarfLocDirective(unsigned FileNo, unsigned Line,
                                           Discriminator, FileName);
 }
 
+void MCAsmStreamer::emitDwarfLocLabelDirective(SMLoc Loc, StringRef Name) {
+  MCStreamer::emitDwarfLocLabelDirective(Loc, Name);
+  OS << ".loc_label\t" << Name;
+  EmitEOL();
+}
+
 MCSymbol *MCAsmStreamer::getDwarfLineTableSymbol(unsigned CUID) {
   // Always use the zeroth line table, since asm syntax only supports one line
   // table for now.
@@ -2136,6 +2163,12 @@ void MCAsmStreamer::emitCFINegateRAState(SMLoc Loc) {
   EmitEOL();
 }
 
+void MCAsmStreamer::emitCFINegateRAStateWithPC(SMLoc Loc) {
+  MCStreamer::emitCFINegateRAStateWithPC(Loc);
+  OS << "\t.cfi_negate_ra_state_with_pc";
+  EmitEOL();
+}
+
 void MCAsmStreamer::emitCFIReturnColumn(int64_t Register) {
   MCStreamer::emitCFIReturnColumn(Register);
   OS << "\t.cfi_return_column ";
@@ -2158,6 +2191,15 @@ void MCAsmStreamer::emitCFIBKeyFrame() {
 void MCAsmStreamer::emitCFIMTETaggedFrame() {
   MCStreamer::emitCFIMTETaggedFrame();
   OS << "\t.cfi_mte_tagged_frame";
+  EmitEOL();
+}
+
+void MCAsmStreamer::emitCFIValOffset(int64_t Register, int64_t Offset,
+                                     SMLoc Loc) {
+  MCStreamer::emitCFIValOffset(Register, Offset, Loc);
+  OS << "\t.cfi_val_offset ";
+  EmitRegisterName(Register);
+  OS << ", " << Offset;
   EmitEOL();
 }
 
@@ -2402,10 +2444,7 @@ void MCAsmStreamer::AddEncodingComment(const MCInst &Inst,
 
 void MCAsmStreamer::emitInstruction(const MCInst &Inst,
                                     const MCSubtargetInfo &STI) {
-  assert(getCurrentSectionOnly() &&
-         "Cannot emit contents before setting section!");
-
-  if (!MAI->usesDwarfFileAndLocDirectives())
+  if (!MAI->usesDwarfFileAndLocDirectives() && CurFrag)
     // Now that a machine instruction has been assembled into this section, make
     // a line entry for any .loc directive that has been seen.
     MCDwarfLineEntry::make(this, getCurrentSectionOnly());
@@ -2520,7 +2559,7 @@ void MCAsmStreamer::finishImpl() {
   if (!Tables.empty()) {
     assert(Tables.size() == 1 && "asm output only supports one line table");
     if (auto *Label = Tables.begin()->second.getLabel()) {
-      switchSection(getContext().getObjectFileInfo()->getDwarfLineSection());
+      switchSection(getContext().getObjectFileInfo()->getDwarfLineSection(), 0);
       emitLabel(Label);
     }
   }
@@ -2579,7 +2618,8 @@ void MCAsmStreamer::emitDwarfLineStartLabel(MCSymbol *StartSym) {
 }
 
 void MCAsmStreamer::emitDwarfLineEndEntry(MCSection *Section,
-                                          MCSymbol *LastLabel) {
+                                          MCSymbol *LastLabel,
+                                          MCSymbol *EndLabel) {
   // If the targets write the raw debug line data for assembly output (We can
   // not switch to Section and add the end symbol there for assembly output)
   // we currently use the .text end label as any section end. This will not
@@ -2596,9 +2636,10 @@ void MCAsmStreamer::emitDwarfLineEndEntry(MCSection *Section,
   MCSection *TextSection = Ctx.getObjectFileInfo()->getTextSection();
   assert(TextSection->hasEnded() && ".text section is not end!");
 
-  MCSymbol *SectionEnd = TextSection->getEndSymbol(Ctx);
+  if (!EndLabel)
+    EndLabel = TextSection->getEndSymbol(Ctx);
   const MCAsmInfo *AsmInfo = Ctx.getAsmInfo();
-  emitDwarfAdvanceLineAddr(INT64_MAX, LastLabel, SectionEnd,
+  emitDwarfAdvanceLineAddr(INT64_MAX, LastLabel, EndLabel,
                            AsmInfo->getCodePointerSize());
 }
 

@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/15791
 // UNSUPPORTED: hip_amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15791
 
 #include "exchange.h"
 

@@ -1,4 +1,5 @@
-// REQUIRES: gpu && linux && (opencl || level_zero)
+// REQUIRES: ocloc && gpu && linux && (opencl || level_zero)
+// REQUIRES: build-and-run-mode
 
 // Test to check several use cases for multi-device kernel bundles.
 // Test covers AOT and JIT cases. Kernel is using some math functions to enforce
@@ -28,10 +29,14 @@
 // Check the case when in-memory caching of the programs is disabled.
 // RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
 
+// XFAIL: arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
+
 #include <cmath>
 #include <complex>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 class Kernel;
