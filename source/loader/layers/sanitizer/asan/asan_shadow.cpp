@@ -223,7 +223,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
                                            (void *)(MappedPtr + PageSize - 1));
 
                 // Initialize to zero
-                URes = EnqueueUSMMemset(Queue, (void *)MappedPtr, 0,
+                URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0,
                                              PageSize);
                 if (URes != UR_RESULT_SUCCESS) {
                     getContext()->logger.error("EnqueueUSMBlockingSet(): {}",
@@ -236,7 +236,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
         }
     }
 
-    auto URes = EnqueueUSMMemset(Queue, (void *)ShadowBegin, Value,
+    auto URes = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
                                       ShadowEnd - ShadowBegin + 1);
     getContext()->logger.debug(
         "EnqueuePoisonShadow (addr={}, count={}, value={}): {}",
@@ -272,7 +272,7 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
             (void **)&LocalShadowOffset));
 
         // Initialize shadow memory
-        ur_result_t URes = EnqueueUSMMemset(
+        ur_result_t URes = EnqueueUSMBlockingSet(
             Queue, (void *)LocalShadowOffset, 0, RequiredShadowSize);
         if (URes != UR_RESULT_SUCCESS) {
             UR_CALL(getContext()->urDdiTable.USM.pfnFree(
@@ -312,7 +312,7 @@ ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
             (void **)&PrivateShadowOffset));
 
         // Initialize shadow memory
-        ur_result_t URes = EnqueueUSMMemset(
+        ur_result_t URes = EnqueueUSMBlockingSet(
             Queue, (void *)PrivateShadowOffset, 0, RequiredShadowSize);
         if (URes != UR_RESULT_SUCCESS) {
             UR_CALL(getContext()->urDdiTable.USM.pfnFree(
