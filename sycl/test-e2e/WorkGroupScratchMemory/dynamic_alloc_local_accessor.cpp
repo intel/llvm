@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 //
 
-// UNSUPPORTED: gpu-intel-gen12, cpu
+// UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072
 
 // Test work_group_dynamic extension with allocation size specified at runtime
@@ -35,8 +35,8 @@ int main() {
     sycl_ext::properties properties{static_size};
     auto LocalAccessor =
         sycl::local_accessor<int>(WgSize * RepeatWG * sizeof(int), Cgh);
-    Cgh.parallel_for(nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
-                     [=](nd_item<1> Item) {
+    Cgh.parallel_for(nd_range<1>(range<1>(WgSize * WgCount), range<1>(WgSize)),
+                     properties, [=](nd_item<1> Item) {
                        int *Ptr = reinterpret_cast<int *>(
                            sycl_ext::get_work_group_scratch_memory());
                        size_t GroupOffset =

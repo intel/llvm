@@ -28,4 +28,7 @@ int main() {
   int *hostMem = (int *)malloc_host(sizeof(int), Q2);
   int *devMem = malloc_device<int>(1, Q2);
   Q2.memcpy(hostMem, devMem, sizeof(int));
+
+  free(hostMem, Q2);
+  free(devMem, Q2);
 }

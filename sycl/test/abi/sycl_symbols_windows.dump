@@ -648,6 +648,8 @@
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
+?EventMode@SubmissionInfo@detail@_V1@sycl@@QEAAAEAW4event_mode_enum@experimental@oneapi@ext@34@XZ
+?EventMode@SubmissionInfo@detail@_V1@sycl@@QEBAAEBW4event_mode_enum@experimental@oneapi@ext@34@XZ
 ?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z

@@ -51,7 +51,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 31
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 18
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been properly XFAIL-ed.
@@ -62,19 +62,6 @@
 // CHECK-NEXT: DeviceLib/assert-windows.cpp
 // CHECK-NEXT: ESIMD/hardware_dispatch.cpp
 // CHECK-NEXT: InlineAsm/asm_multiple_instructions.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_packedB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_colA_rowB_colC.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_int8_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_out_bounds.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_unaligned_k.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/joint_matrix_colA_rowB_colC.cpp
-// CHECK-NEXT: Matrix/joint_matrix_int8_colmajorA_colmajorB.cpp
 // CHECK-NEXT: NewOffloadDriver/multisource.cpp
 // CHECK-NEXT: NewOffloadDriver/split-per-source-main.cpp
 // CHECK-NEXT: NewOffloadDriver/sycl-external-with-optional-features.cpp

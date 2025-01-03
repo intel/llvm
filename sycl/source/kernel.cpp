@@ -108,14 +108,14 @@ kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue) const {
-  return impl->ext_oneapi_get_info<Param>(Queue);
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue));
 }
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
                             size_t DynamicLocalMemorySize) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WorkGroupSize,
                                           DynamicLocalMemorySize);
 }
 
@@ -123,7 +123,7 @@ template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
                             size_t DynamicLocalMemorySize) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WorkGroupSize,
                                           DynamicLocalMemorySize);
 }
 
@@ -131,7 +131,7 @@ template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                             size_t DynamicLocalMemorySize) const {
-  return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
+  return impl->ext_oneapi_get_info<Param>(std::move(Queue), WorkGroupSize,
                                           DynamicLocalMemorySize);
 }
 
@@ -185,7 +185,7 @@ __SYCL_EXPORT typename ext::oneapi::experimental::info::kernel_queue_specific::
                                      size_t DynamicLocalMemorySize) const {
   return ext_oneapi_get_info<ext::oneapi::experimental::info::
                                  kernel_queue_specific::max_num_work_groups>(
-      Queue, WorkGroupSize, DynamicLocalMemorySize);
+      std::move(Queue), WorkGroupSize, DynamicLocalMemorySize);
 }
 template <>
 __SYCL2020_DEPRECATED(
@@ -201,7 +201,7 @@ __SYCL_EXPORT typename ext::oneapi::experimental::info::kernel_queue_specific::
   const sycl::range<3> WorkGroupSize{MaxWorkGroupSize, 1, 1};
   return ext_oneapi_get_info<ext::oneapi::experimental::info::
                                  kernel_queue_specific::max_num_work_groups>(
-      Queue, WorkGroupSize,
+      std::move(Queue), WorkGroupSize,
       /* DynamicLocalMemorySize */ 0);
 }
 #endif

@@ -1,4 +1,5 @@
 // REQUIRES: gpu, level_zero
+// REQUIRES: build-and-run-mode
 
 // RUN: sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
