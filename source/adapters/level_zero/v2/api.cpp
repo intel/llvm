@@ -50,52 +50,6 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urSamplerCreate(ur_context_handle_t hContext,
-                            const ur_sampler_desc_t *pDesc,
-                            ur_sampler_handle_t *phSampler) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urSamplerRelease(ur_sampler_handle_t hSampler) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
-                             ur_sampler_info_t propName, size_t propSize,
-                             void *pPropValue, size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urSamplerGetNativeHandle(ur_sampler_handle_t hSampler,
-                                     ur_native_handle_t *phNativeSampler) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urSamplerCreateWithNativeHandle(
-    ur_native_handle_t hNativeSampler, ur_context_handle_t hContext,
-    const ur_sampler_native_properties_t *pProperties,
-    ur_sampler_handle_t *phSampler) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urKernelSetSpecializationConstants(
     ur_kernel_handle_t hKernel, uint32_t count,
     const ur_specialization_constant_info_t *pSpecConstants) {
