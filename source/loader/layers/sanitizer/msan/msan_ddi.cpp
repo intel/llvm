@@ -1319,8 +1319,8 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
             getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
         const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
 
-        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 1,
-                                      phEvent, phEvent));
+        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size,
+                                      phEvent ? 1 : 0, phEvent, phEvent));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1367,7 +1367,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
 
         UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow,
-                             (void *)SrcShadow, size, 1, phEvent, phEvent));
+                             (void *)SrcShadow, size, phEvent ? 1 : 0, phEvent,
+                             phEvent));
     } else if (DstInfoItOp) {
         auto DstInfo = (*DstInfoItOp)->second;
 
@@ -1375,8 +1376,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
         auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
 
-        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, 0, size, 1,
-                                      phEvent, phEvent));
+        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, 0, size,
+                                      phEvent ? 1 : 0, phEvent, phEvent));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1427,7 +1428,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
 
         const char Pattern = 0;
         UR_CALL(pfnUSMFill2D(hQueue, (void *)MemShadow, pitch, 1, &Pattern,
-                             width, height, 1, phEvent, phEvent));
+                             width, height, phEvent ? 1 : 0, phEvent, phEvent));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1481,7 +1482,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 
         UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
                                (void *)SrcShadow, srcPitch, width, height,
-                               numEventsInWaitList, phEventWaitList, phEvent));
+                               phEvent ? 1 : 0, phEvent, phEvent));
     } else if (DstInfoItOp) {
         auto DstInfo = (*DstInfoItOp)->second;
 
@@ -1491,8 +1492,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 
         const char Pattern = 0;
         UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
-            hQueue, (void *)DstShadow, dstPitch, 1, &Pattern, width, height, 1,
-            phEvent, phEvent));
+            hQueue, (void *)DstShadow, dstPitch, 1, &Pattern, width, height,
+            phEvent ? 1 : 0, phEvent, phEvent));
     }
 
     return UR_RESULT_SUCCESS;

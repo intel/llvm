@@ -72,7 +72,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     // For memory release
     {
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-        m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
+        m_AllocationMap.emplace(AI->AllocBegin, AI);
     }
 
     ManagedQueue Queue(Context, Device);
