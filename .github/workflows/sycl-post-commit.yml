@@ -58,7 +58,7 @@ jobs:
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: ext_oneapi_hip:gpu
+            target_devices: hip:gpu
             reset_intel_gpu: false
           # Performance tests below. Specifics:
           #  - only run performance tests (use LIT_FILTER env)
