@@ -1319,7 +1319,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
             getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
         const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
 
-        UR_CALL(EnqueueUSMMemset(hQueue, (void *)MemShadow, 0, size, 1,
+        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 1,
                                       phEvent, phEvent));
     }
 
@@ -1375,7 +1375,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
         auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
 
-        UR_CALL(EnqueueUSMMemset(hQueue, (void *)DstShadow, 0, size, 1,
+        UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, 0, size, 1,
                                       phEvent, phEvent));
     }
 

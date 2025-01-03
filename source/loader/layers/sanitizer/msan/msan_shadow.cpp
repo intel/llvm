@@ -214,7 +214,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
                                        (void *)(MappedPtr + PageSize - 1));
 
             // Initialize to zero
-            URes = EnqueueUSMMemset(Queue, (void *)MappedPtr, 0, PageSize,
+            URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize,
                                  EventWaitList.size(), EventWaitList.data(),
                                  OutEvent);
             if (URes != UR_RESULT_SUCCESS) {
@@ -261,7 +261,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
     const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
     assert(ShadowBegin <= ShadowEnd);
 
-    auto Result = EnqueueUSMMemset(Queue, (void *)ShadowBegin, Value,
+    auto Result = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
                                 ShadowEnd - ShadowBegin + 1, Events.size(),
                                 Events.data(), OutEvent);
 
