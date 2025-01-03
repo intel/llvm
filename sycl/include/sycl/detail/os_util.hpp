@@ -14,6 +14,7 @@
 
 #include <cstdlib> // for size_t
 #include <functional>
+#include <sys/stat.h> // for stat
 #include <string> // for string
 
 #ifdef _WIN32
