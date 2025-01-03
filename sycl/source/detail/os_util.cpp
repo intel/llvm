@@ -36,7 +36,6 @@ namespace fs = std::experimental::filesystem;
 #include <libgen.h> // for dirname
 #include <link.h>
 #include <linux/limits.h> // for PATH_MAX
-#include <sys/stat.h>
 #include <sys/sysinfo.h>
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
@@ -59,6 +58,15 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+static std::string getDirName(const char *Path)
+#else
+std::string OSUtil::getDirName(const char *Path)
+#endif
+{
+  return fs::path(Path).parent_path().string();
+}
+
 #if defined(__SYCL_RT_OS_LINUX)
 bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
@@ -73,20 +81,6 @@ bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
   Stream.ignore(1);
 
   return Addr >= Start && Addr < End;
-}
-
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-static std::string getDirName(const char *Path)
-#else
-std::string OSUtil::getDirName(const char *Path)
-#endif
-{
-  std::string Tmp(Path);
-  // dirname(3) needs a writable C string: a null-terminator is written where a
-  // path should split.
-  size_t TruncatedSize = strlen(dirname(const_cast<char *>(Tmp.c_str())));
-  Tmp.resize(TruncatedSize);
-  return Tmp;
 }
 
 /// Returns an absolute path to a directory where the object was found.
@@ -157,7 +151,6 @@ std::string OSUtil::getCurrentDSODir() {
 }
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
-
 /// Returns an absolute path where the object was found.
 //  ur_win_proxy_loader.dll and sycl-jit.dll use this same logic. If it is
 //  changed significantly, it might be wise to change it there too.
@@ -180,21 +173,6 @@ std::string OSUtil::getCurrentDSODir() {
   return Path;
 }
 
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-std::string OSUtil::getDirName(const char *Path) {
-  std::string Tmp(Path);
-  // Remove trailing directory separators
-  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
-
-  size_t pos = Tmp.find_last_of("/\\");
-  if (pos != std::string::npos)
-    return Tmp.substr(0, pos);
-
-  // If no directory separator is present return initial path like dirname does
-  return Tmp;
-}
-#endif
-
 #elif defined(__SYCL_RT_OS_DARWIN)
 std::string OSUtil::getCurrentDSODir() {
   auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
@@ -210,7 +188,6 @@ std::string OSUtil::getCurrentDSODir() {
 
   return Path.substr(0, LastSlashPos);
 }
-
 #endif // __SYCL_RT_OS
 
 size_t OSUtil::getOSMemSize() {
@@ -254,32 +231,12 @@ void OSUtil::alignedFree(void *Ptr) {
 // Make all directories on the path, throws on error.
 int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
-  if (isPathPresent(Dir))
-    return 0;
 
-// older GCC doesn't have full C++ 17 support.
-#if __GNUC__ && __GNUC__ < 8
-  std::string Path{Dir}, CurPath;
-  size_t pos = 0;
+  if (!isPathPresent(Dir)) {
+    fs::path path(Dir);
+    fs::create_directories(path.make_preferred());
+  }
 
-  do {
-    pos = Path.find_first_of("/\\", ++pos);
-    CurPath = Path.substr(0, pos);
-#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
-    auto Res = mkdir(CurPath.c_str(), 0777);
-#else
-    auto Res = _mkdir(CurPath.c_str());
-#endif
-    if (Res && errno != EEXIST)
-      throw std::runtime_error("Failed to mkdir: " + CurPath + " (" +
-                               std::strerror(errno) + ")");
-
-  } while (pos != std::string::npos);
-#else
-  // using filesystem is simpler, more reliable, works better on Win
-  std::filesystem::path path(Dir);
-  std::filesystem::create_directories(path.make_preferred());
-#endif
   return 0;
 }
 
