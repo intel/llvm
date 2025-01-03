@@ -4,4 +4,4 @@
 # Date:   Mon Dec 30 15:14:19 2024 +0000
 #     Merge pull request #2484 from zhaomaosu/move-clean-shadow-to-launchinfo
 #     [DevMSAN] Move clean shadow into launch info
-set(UNIFIED_RUNTIME_TAG 13f5e52ac047bb81f478f0dbe9416a8bc179130a)
+set(UNIFIED_RUNTIME_TAG aaron/fixValgrindWarnInLogger)
