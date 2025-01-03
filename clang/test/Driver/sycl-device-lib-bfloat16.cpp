@@ -85,7 +85,7 @@
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
 
 
-// Test test AOT-PVC + JIT compilation uses native libs + no libs
+// Test AOT-PVC + JIT compilation uses native libs + no libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,spir64 \
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NONE
