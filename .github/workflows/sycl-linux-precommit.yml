@@ -130,12 +130,12 @@ jobs:
             runner: '["Linux", "cuda"]'
             image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_cuda:gpu
+            target_devices: cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: ext_oneapi_hip:gpu
+            target_devices: hip:gpu
             reset_intel_gpu: false
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
@@ -168,12 +168,12 @@ jobs:
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
-        ${{ !contains(matrix.target_devices, 'ext_oneapi_cuda') &&
-        !contains(matrix.target_devices, 'ext_oneapi_hip') &&
+        ${{ !contains(matrix.target_devices, 'cuda') &&
+        !contains(matrix.target_devices, 'hip') &&
         contains(needs.detect_changes.outputs.filters, 'drivers') }}
       install_dev_igc_driver: >-
-        ${{ !contains(matrix.target_devices, 'ext_oneapi_cuda') &&
-        !contains(matrix.target_devices, 'ext_oneapi_hip') &&
+        ${{ !contains(matrix.target_devices, 'cuda') &&
+        !contains(matrix.target_devices, 'hip') &&
         matrix.use_igc_dev &&
         (contains(needs.detect_changes.outputs.filters, 'devigccfg') || contains(needs.detect_changes.outputs.filters, 'drivers')) ||
         'false' }}

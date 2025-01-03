@@ -147,7 +147,7 @@ on:
           - 'opencl:gpu'
           - 'opencl:fpga'
           - 'level_zero:gpu'
-          - 'ext_oneapi_hip:gpu'
+          - 'hip:gpu'
       tests_selector:
         type: choice
         options:
