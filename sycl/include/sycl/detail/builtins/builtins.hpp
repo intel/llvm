@@ -130,7 +130,8 @@ auto builtin_marray_impl(FuncTy F, const Ts &...x) {
       else
         return F(to_vec2(x, I * 2)...);
     }();
-    std::memcpy(&Res[I * 2], &PartialRes, sizeof(decltype(PartialRes)));
+    sycl::detail::memcpy_no_adl(&Res[I * 2], &PartialRes,
+                                sizeof(decltype(PartialRes)));
   }
   if (N % 2)
     Res[N - 1] = F(x[N - 1]...);
