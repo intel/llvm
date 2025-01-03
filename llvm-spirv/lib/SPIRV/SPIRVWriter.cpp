@@ -4314,7 +4314,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
           static_cast<std::vector<SPIRVValue *>::size_type>(VecSize);
       auto *ElemOne = BM->addConstant(ElemTy, 1);
       auto *ElemZero = BM->addConstant(ElemTy, 0);
-      auto *ElemMinusOne = BM->addConstant(ElemTy, MinusOneValue);
+      auto *ElemMinusOne = BM->addConstant(ElemTy, std::move(MinusOneValue));
       std::vector<SPIRVValue *> ElemsOne(ElemCount, ElemOne);
       std::vector<SPIRVValue *> ElemsZero(ElemCount, ElemZero);
       std::vector<SPIRVValue *> ElemsMinusOne(ElemCount, ElemMinusOne);

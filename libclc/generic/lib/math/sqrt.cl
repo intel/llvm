@@ -25,4 +25,4 @@
 
 #define __CLC_BUILTIN __spirv_ocl_sqrt
 #define __CLC_FUNCTION sqrt
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin.inc>
