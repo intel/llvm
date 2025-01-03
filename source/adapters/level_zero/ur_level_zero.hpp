@@ -28,7 +28,6 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "event.hpp"
-#include "image.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "physical_mem.hpp"

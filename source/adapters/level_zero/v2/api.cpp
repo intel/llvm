@@ -27,29 +27,6 @@ urContextSetExtendedDeleter(ur_context_handle_t hContext,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urMemImageCreate(ur_context_handle_t hContext, ur_mem_flags_t flags,
-                             const ur_image_format_t *pImageFormat,
-                             const ur_image_desc_t *pImageDesc, void *pHost,
-                             ur_mem_handle_t *phMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
-                              size_t propSize, void *pPropValue,
-                              size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urKernelSetSpecializationConstants(
     ur_kernel_handle_t hKernel, uint32_t count,
     const ur_specialization_constant_info_t *pSpecConstants) {

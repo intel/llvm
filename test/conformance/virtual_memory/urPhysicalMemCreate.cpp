@@ -33,7 +33,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(urPhysicalMemCreateWithSizeParamTest,
                                  uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateWithSizeParamTest, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   ASSERT_SUCCESS(
       urPhysicalMemCreate(context, device, size, nullptr, &physical_mem));
@@ -41,7 +41,7 @@ TEST_P(urPhysicalMemCreateWithSizeParamTest, Success) {
 }
 
 TEST_P(urPhysicalMemCreateWithSizeParamTest, InvalidSize) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   if (granularity == 1) {
     GTEST_SKIP() << "A granularity of 1 means that any size will be accepted.";

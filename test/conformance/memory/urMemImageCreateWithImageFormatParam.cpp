@@ -97,7 +97,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::deviceTestWithParamPrinter<ur_image_format_t>);
 
 TEST_P(urMemImageCreateTestWithImageFormatParam, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{});
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
   // See https://github.com/oneapi-src/unified-runtime/issues/2638
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
 
@@ -105,7 +105,7 @@ TEST_P(urMemImageCreateTestWithImageFormatParam, Success) {
   ur_image_channel_type_t channel_type = std::get<1>(GetParam()).channelType;
 
   if (channel_order == UR_IMAGE_CHANNEL_ORDER_RGBA) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
   }
 
   ur_image_format_t image_format{channel_order, channel_type};
