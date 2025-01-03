@@ -123,6 +123,7 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
+          - '["Linux", "pvc"]'
           - '["cts-cpu"]'
           - '["Linux", "build"]'
       image:
