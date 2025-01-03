@@ -60,7 +60,7 @@ public:
 
 private:
   jit_compiler();
-  ~jit_compiler() = default;
+  ~jit_compiler();
   jit_compiler(const jit_compiler &) = delete;
   jit_compiler(jit_compiler &&) = delete;
   jit_compiler &operator=(const jit_compiler &) = delete;
@@ -98,6 +98,7 @@ private:
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
+  void *MLibraryHandle = nullptr;
 #endif // SYCL_EXT_JIT_ENABLE
 };
 
