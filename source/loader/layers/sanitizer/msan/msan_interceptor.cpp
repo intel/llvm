@@ -386,13 +386,13 @@ MsanInterceptor::findAllocInfoByAddress(uptr Address) {
     std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     auto It = m_AllocationMap.upper_bound(Address);
     if (It == m_AllocationMap.begin()) {
-        return std::optional<MsanAllocationIterator>{};
+        return std::nullopt;
     }
     --It;
-    // Make sure we got the right MsanAllocInfo
-    assert(Address >= It->second->AllocBegin &&
-           Address < It->second->AllocBegin + It->second->AllocSize &&
-           "Wrong MsanAllocInfo for the address");
+
+    if (Address < It->second->AllocBegin || Address >= It->second->AllocBegin + It->second->AllocSize) {
+        return std::nullopt;
+    }
     return It;
 }
 
