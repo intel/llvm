@@ -16,6 +16,7 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda'
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       merge_ref: ''
       retention-days: 90
 
@@ -156,7 +157,7 @@ jobs:
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
-      image: ghcr.io/intel/llvm/ubuntu2404_build:latest
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: ext_oneapi_cuda:gpu
       ref: ${{ github.sha }}
@@ -198,7 +199,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974
+      uses: softprops/action-gh-release@7b4da11513bf3f43f9999e90eabced41ab8bb048
       with:
         files: |
           sycl_linux.tar.gz

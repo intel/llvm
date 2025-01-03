@@ -233,6 +233,8 @@ static const unsigned kRetvalTLSSize = 800;
 // Accesses sizes are powers of two: 1, 2, 4, 8.
 static const size_t kNumberOfAccessSizes = 4;
 
+static constexpr unsigned kNumberOfAddressSpace = 5;
+
 /// Track origins of uninitialized values.
 ///
 /// Adds a section to MemorySanitizer report that points to the allocation
@@ -678,6 +680,9 @@ private:
   /// MSan runtime replacements for memmove, memcpy and memset.
   FunctionCallee MemmoveFn, MemcpyFn, MemsetFn;
 
+  /// MSan runtime replacements for memset with address space.
+  FunctionCallee MemsetOffloadFn[kNumberOfAddressSpace];
+
   /// KMSAN callback for task-local function argument shadow.
   StructType *MsanContextStateTy;
   FunctionCallee MsanGetContextStateFn;
@@ -940,11 +945,21 @@ void MemorySanitizer::createKernelApi(Module &M, const TargetLibraryInfo &TLI) {
 }
 
 static Constant *getOrInsertGlobal(Module &M, StringRef Name, Type *Ty) {
-  return M.getOrInsertGlobal(Name, Ty, [&] {
-    return new GlobalVariable(M, Ty, false, GlobalVariable::ExternalLinkage,
-                              nullptr, Name, nullptr,
-                              GlobalVariable::InitialExecTLSModel);
-  });
+  // FIXME: spirv target doesn't support TLS, need to handle it later.
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    return M.getOrInsertGlobal(Name, Ty, [&] {
+      return new GlobalVariable(M, Ty, false, GlobalVariable::ExternalLinkage,
+                                Constant::getNullValue(Ty), Name, nullptr,
+                                GlobalVariable::NotThreadLocal,
+                                kSpirOffloadGlobalAS);
+    });
+  } else {
+    return M.getOrInsertGlobal(Name, Ty, [&] {
+      return new GlobalVariable(M, Ty, false, GlobalVariable::ExternalLinkage,
+                                nullptr, Name, nullptr,
+                                GlobalVariable::InitialExecTLSModel);
+    });
+  }
 }
 
 /// Insert declarations for userspace-specific functions and globals.
@@ -964,7 +979,19 @@ void MemorySanitizer::createUserspaceApi(Module &M,
   } else {
     StringRef WarningFnName =
         Recover ? "__msan_warning" : "__msan_warning_noreturn";
-    WarningFn = M.getOrInsertFunction(WarningFnName, IRB.getVoidTy());
+    if (!TargetTriple.isSPIROrSPIRV()) {
+      WarningFn = M.getOrInsertFunction(WarningFnName, IRB.getVoidTy());
+    } else {
+      // __msan_warning[_noreturn](
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, IRB.getVoidTy(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+    }
   }
 
   // Create the global TLS variables.
@@ -1050,13 +1077,24 @@ void MemorySanitizer::initializeCallbacks(Module &M,
   MsanSetOriginFn = M.getOrInsertFunction(
       "__msan_set_origin", TLI.getAttrList(C, {2}, /*Signed=*/false),
       IRB.getVoidTy(), PtrTy, IntptrTy, IRB.getInt32Ty());
-  MemmoveFn =
-      M.getOrInsertFunction("__msan_memmove", PtrTy, PtrTy, PtrTy, IntptrTy);
-  MemcpyFn =
-      M.getOrInsertFunction("__msan_memcpy", PtrTy, PtrTy, PtrTy, IntptrTy);
-  MemsetFn = M.getOrInsertFunction("__msan_memset",
-                                   TLI.getAttrList(C, {1}, /*Signed=*/true),
-                                   PtrTy, PtrTy, IRB.getInt32Ty(), IntptrTy);
+  if (!TargetTriple.isSPIROrSPIRV()) {
+    MemmoveFn =
+        M.getOrInsertFunction("__msan_memmove", PtrTy, PtrTy, PtrTy, IntptrTy);
+    MemcpyFn =
+        M.getOrInsertFunction("__msan_memcpy", PtrTy, PtrTy, PtrTy, IntptrTy);
+    MemsetFn = M.getOrInsertFunction("__msan_memset",
+                                     TLI.getAttrList(C, {1}, /*Signed=*/true),
+                                     PtrTy, PtrTy, IRB.getInt32Ty(), IntptrTy);
+  } else {
+    for (unsigned FirstArgAS = 0; FirstArgAS < kNumberOfAddressSpace;
+         FirstArgAS++) {
+      const std::string Suffix = "_p" + itostr(FirstArgAS);
+      PointerType *FirstArgPtrTy = IRB.getPtrTy(FirstArgAS);
+      MemsetOffloadFn[FirstArgAS] = M.getOrInsertFunction(
+          "__msan_memset" + Suffix, TLI.getAttrList(C, {1}, /*Signed=*/true),
+          FirstArgPtrTy, FirstArgPtrTy, IRB.getInt32Ty(), IntptrTy);
+    }
+  }
 
   MsanInstrumentAsmStoreFn = M.getOrInsertFunction(
       "__msan_instrument_asm_store", IRB.getVoidTy(), PtrTy, IntptrTy);
@@ -1247,6 +1285,11 @@ static unsigned TypeSizeToSizeIndex(TypeSize TS) {
 }
 
 static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
+  if (isa<Instruction>(Addr) &&
+      cast<Instruction>(Addr)->getMetadata(LLVMContext::MD_nosanitize)) {
+    return true;
+  }
+
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   assert(OrigValue != nullptr);
@@ -1257,8 +1300,9 @@ static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   switch (PtrTy->getPointerAddressSpace()) {
   case kSpirOffloadPrivateAS:
   case kSpirOffloadLocalAS:
-  case kSpirOffloadGenericAS:
     return true;
+  case kSpirOffloadGenericAS:
+    return false;
   }
 
   return false;
@@ -1274,7 +1318,11 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
     Addr = RMW->getPointerOperand();
   else if (const auto *XCHG = dyn_cast<AtomicCmpXchgInst>(&I))
     Addr = XCHG->getPointerOperand();
+  else if (const auto *ASC = dyn_cast<AddrSpaceCastInst>(&I))
+    Addr = ASC->getPointerOperand();
   else if (isa<MemCpyInst>(&I))
+    I.setNoSanitizeMetadata();
+  else if (isa<AllocaInst>(&I))
     I.setNoSanitizeMetadata();
   else if (const auto *CI = dyn_cast<CallInst>(&I)) {
     auto *Func = CI->getCalledFunction();
@@ -1297,6 +1345,11 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
               CI->getIntrinsicID() == Intrinsic::masked_compressstore;
           unsigned OpOffset = IsWrite ? 1 : 0;
           Addr = CI->getOperand(OpOffset);
+          break;
+        }
+        case Intrinsic::lifetime_start:
+        case Intrinsic::lifetime_end: {
+          I.setNoSanitizeMetadata();
           break;
         }
         }
@@ -1560,6 +1613,35 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     return LazyWarningDebugLocationCount[DebugLoc] >= ClDisambiguateWarning;
   }
 
+  void appendDebugInfoToArgs(IRBuilder<> &IRB, SmallVectorImpl<Value *> &Args) {
+    auto *M = F.getParent();
+    auto &C = IRB.getContext();
+    auto DebugLoc = IRB.getCurrentDebugLocation();
+
+    // SPIR constant address space
+    auto *ConstASPtrTy =
+        PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+
+    // file name and line number
+    if (DebugLoc) {
+      llvm::SmallString<128> Source = DebugLoc->getDirectory();
+      sys::path::append(Source, DebugLoc->getFilename());
+      auto *FileNameGV = getOrCreateGlobalString(*M, "__msan_file", Source,
+                                                 kSpirOffloadConstantAS);
+      Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
+      Args.push_back(ConstantInt::get(Type::getInt32Ty(C), DebugLoc.getLine()));
+    } else {
+      Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
+      Args.push_back(ConstantInt::get(Type::getInt32Ty(C), 0));
+    }
+
+    // function name
+    auto FuncName = F.getName();
+    auto *FuncNameGV = getOrCreateGlobalString(
+        *M, "__msan_func", demangle(FuncName), kSpirOffloadConstantAS);
+    Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
+  }
+
   /// Helper function to insert a warning at IRB's current insert point.
   void insertWarningFn(IRBuilder<> &IRB, Value *Origin) {
     if (!Origin)
@@ -1584,10 +1666,16 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       }
     }
 
-    if (MS.CompileKernel || MS.TrackOrigins)
-      IRB.CreateCall(MS.WarningFn, Origin)->setCannotMerge();
-    else
-      IRB.CreateCall(MS.WarningFn)->setCannotMerge();
+    if (!SpirOrSpirv) {
+      if (MS.CompileKernel || MS.TrackOrigins)
+        IRB.CreateCall(MS.WarningFn, Origin)->setCannotMerge();
+      else
+        IRB.CreateCall(MS.WarningFn)->setCannotMerge();
+    } else { // SPIR or SPIR-V
+      SmallVector<Value *, 3> Args;
+      appendDebugInfoToArgs(IRB, Args);
+      IRB.CreateCall(MS.WarningFn, Args)->setCannotMerge();
+    }
     // FIXME: Insert UnreachableInst if !MS.Recover?
     // This may invalidate some of the following checks and needs to be done
     // at the very end.
@@ -1617,43 +1705,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
             ConvertedShadow2,
             MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
 
-        {
-          auto *M = F.getParent();
-          auto *ConstASPtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
-
-          // file name and line number
-          {
-            bool HasDebugLoc = false;
-            auto *ConvertedShadowInst = dyn_cast<Instruction>(ConvertedShadow);
-
-            if (ConvertedShadowInst) {
-              if (auto &Loc = ConvertedShadowInst->getDebugLoc()) {
-                llvm::SmallString<128> Source = Loc->getDirectory();
-                sys::path::append(Source, Loc->getFilename());
-                auto *FileNameGV = getOrCreateGlobalString(
-                    *M, "__asan_file", Source, kSpirOffloadConstantAS);
-                Args.push_back(
-                    ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
-                Args.push_back(
-                    ConstantInt::get(IRB.getInt32Ty(), Loc.getLine()));
-
-                HasDebugLoc = true;
-              }
-            }
-
-            if (!HasDebugLoc) {
-              Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
-              Args.push_back(ConstantInt::get(IRB.getInt32Ty(), 0));
-            }
-          }
-
-          // function name
-          auto FuncName = F.getName();
-          auto *FuncNameGV = getOrCreateGlobalString(
-              *M, "__asan_func", demangle(FuncName), kSpirOffloadConstantAS);
-          Args.push_back(
-              ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
-        }
+        appendDebugInfoToArgs(IRB, Args);
 
         CallBase *CB = IRB.CreateCall(Fn, Args);
         CB->addParamAttr(0, Attribute::ZExt);
@@ -2236,7 +2288,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       unsigned ArgOffset = 0;
       const DataLayout &DL = F->getDataLayout();
       for (auto &FArg : F->args()) {
-        if (!FArg.getType()->isSized() || FArg.getType()->isScalableTy()) {
+        // FIXME: Need to find a reasonable way to handle byval arguments for
+        // spirv target.
+        if (!FArg.getType()->isSized() || FArg.getType()->isScalableTy() ||
+            (SpirOrSpirv && FArg.hasByValAttr())) {
           LLVM_DEBUG(dbgs() << (FArg.getType()->isScalableTy()
                                     ? "vscale not fully supported\n"
                                     : "Arg is not sized\n"));
@@ -3158,9 +3213,17 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   // Same as memcpy.
   void visitMemSetInst(MemSetInst &I) {
+    if (SpirOrSpirv && isa<Instruction>(I.getArgOperand(0)) &&
+        cast<Instruction>(I.getArgOperand(0))
+            ->getMetadata(LLVMContext::MD_nosanitize))
+      return;
+
     IRBuilder<> IRB(&I);
     IRB.CreateCall(
-        MS.MemsetFn,
+        SpirOrSpirv ? MS.MemsetOffloadFn[cast<PointerType>(
+                                             I.getArgOperand(0)->getType())
+                                             ->getAddressSpace()]
+                    : MS.MemsetFn,
         {I.getArgOperand(0),
          IRB.CreateIntCast(I.getArgOperand(1), IRB.getInt32Ty(), false),
          IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
@@ -4844,7 +4907,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       bool NoUndef = CB.paramHasAttr(i, Attribute::NoUndef);
       bool EagerCheck = MayCheckCall && !ByVal && NoUndef;
 
-      if (EagerCheck) {
+      // Always do eager check for spirv target
+      if (EagerCheck || SpirOrSpirv) {
         insertShadowCheck(A, &CB);
         Size = DL.getTypeAllocSize(A->getType());
       } else {
