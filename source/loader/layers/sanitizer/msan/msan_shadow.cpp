@@ -178,9 +178,6 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
     std::vector<ur_event_handle_t> &EventWaitList,
     ur_event_handle_t *OutEvent) {
 
-    ur_physical_mem_properties_t Desc{UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
-                                      nullptr, 0};
-
     const size_t PageSize = GetVirtualMemGranularity(Context, Device);
 
     const uptr ShadowBegin = MemToShadow(Ptr);
@@ -194,7 +191,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
         if (VirtualMemMaps.find(MappedPtr) == VirtualMemMaps.end()) {
             ur_physical_mem_handle_t PhysicalMem{};
             auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
-                Context, Device, PageSize, &Desc, &PhysicalMem);
+                Context, Device, PageSize, nullptr, &PhysicalMem);
             if (URes != UR_RESULT_SUCCESS) {
                 getContext()->logger.error("urPhysicalMemCreate(): {}", URes);
                 return URes;
@@ -223,7 +220,8 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
             }
 
             EventWaitList.clear();
-            EventWaitList.push_back(*OutEvent);
+            if (OutEvent)
+                EventWaitList.push_back(*OutEvent);
 
             VirtualMemMaps[MappedPtr].first = PhysicalMem;
         }
