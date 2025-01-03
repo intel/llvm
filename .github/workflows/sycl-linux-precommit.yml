@@ -99,7 +99,7 @@ jobs:
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
     uses: ./.github/workflows/sycl-linux-run-tests.yml
@@ -158,7 +158,7 @@ jobs:
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: -j 50
           - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
