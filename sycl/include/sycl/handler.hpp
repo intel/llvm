@@ -3258,7 +3258,7 @@ private:
                                              PropertiesT Properties,
                                              RestT... Rest);
 
-  template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
+  template <typename KernelName, detail::reduction::strategy Strategy, bool IsDeducedNDRange, int Dims,
             typename PropertiesT, typename... RestT>
   friend void
   detail::reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,

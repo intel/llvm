@@ -126,17 +126,6 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
     WGSize /= 2;
   }
 
-  // Terrible consrevative workaround without access to kernel properties.
-  if (Dev.get_backend() == backend::ext_oneapi_cuda) {
-    namespace codeplay = sycl::ext::codeplay;
-    const uint32_t MaxRegsPerWG = Dev.get_info<
-        codeplay::experimental::info::device::max_registers_per_work_group>();
-    // Assumes using max number of 32-bit registers per thread in CUDA (255).
-    // see: link-to-cuda-cap-table
-    constexpr uint8_t MaxRegsPerWI{255};
-    while (WGSize * MaxRegsPerWI > MaxRegsPerWG || !IsPowerOfTwo(WGSize))
-      WGSize--;
-  }
   return WGSize;
 }
 

@@ -151,44 +151,6 @@ getReduKernelBundleT(std::shared_ptr<queue_impl> Queue) {
   return get_kernel_bundle<KernelName, bundle_state::executable>(Ctx, {Dev});
 }
 
-template <typename KernelName, int Dims, typename EnqueueName, typename ImplementationType, typename PropertiesT>
-void EnqueueParallelFor(handler &CGH, bool UseKernelBundle, nd_range<Dims> &Range, ImplementationType &Func, std::shared_ptr<queue_impl> &Queue, PropertiesT &Properties) {
-  if (UseKernelBundle) {
-    // Use the kernel bundle we queried. This helps ensuring we run
-    // the kernel for which we may have queried information.
-    auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-    CGH.use_kernel_bundle(ExecBundle);
-  }
-  if constexpr (std::is_same_v<KernelName, auto_name>) {
-    CGH.parallel_for(Range, Properties, Func);
-  } else {
-    constexpr int Dimensions =
-        std::remove_reference_t<decltype(Func)>::dimensions;
-    CGH.parallel_for<EnqueueName>(
-      Range, Properties,
-      [=](nd_item<Dimensions> NDit) { Func(NDit); });
-  }
-};
-
-template <typename KernelName, int Dims, typename EnqueueName, typename ImplementationType>
-void EnqueueParallelFor(handler &CGH, bool UseKernelBundle, nd_range<Dims> &Range, ImplementationType &Func, std::shared_ptr<queue_impl> &Queue) {
-  if (UseKernelBundle) {
-    // Use the kernel bundle we queried. This helps ensuring we run
-    // the kernel for which we may have queried information.
-    auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-    CGH.use_kernel_bundle(ExecBundle);
-  }
-  if constexpr (std::is_same_v<KernelName, auto_name>) {
-    CGH.parallel_for(Range, Func);
-  } else {
-    constexpr int Dimensions =
-        std::remove_reference_t<decltype(Func)>::dimensions;
-    CGH.parallel_for<EnqueueName>(
-      Range,
-      [=](nd_item<Dimensions> NDit) { Func(NDit); });
-  }
-};
-
 template<typename EnqueueName>
 size_t getKernelMaxWGSize(handler &CGH, std::shared_ptr<queue_impl> &Queue) {
   using namespace info::kernel_device_specific;
@@ -204,7 +166,96 @@ size_t getKernelMaxWGSize(handler &CGH, std::shared_ptr<queue_impl> &Queue) {
     std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
   }
   return MaxSize;
-};
+}
+
+template <typename KernelName, bool IsDeducedNDRange, int Dims, typename EnqueueName, typename ImplementationType, typename PropertiesT>
+void EnqueueParallelFor(handler &CGH, bool UseKernelBundle, const nd_range<Dims> &Range, ImplementationType &Func, std::shared_ptr<queue_impl> &Queue, PropertiesT &Properties) {
+  if (UseKernelBundle) {
+    // Use the kernel bundle we queried. This helps ensuring we run
+    // the kernel for which we may have queried information.
+    auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+    CGH.use_kernel_bundle(ExecBundle);
+  }
+  size_t NWorkGroups = Range.get_global_range().size();
+  size_t WGSize = Range.get_local_range().size();
+  size_t PreferredKernelWGSize = std::min(WGSize, getKernelMaxWGSize<EnqueueName>(CGH, Queue));
+
+
+  if constexpr (IsDeducedNDRange) {
+    size_t PreferredKernelNWorkGroups = (NWorkGroups / WGSize) * PreferredKernelWGSize;
+    nd_range<1> PreferredNDRange(range<1>{PreferredKernelNWorkGroups}, range<1>{PreferredKernelWGSize});
+    if constexpr (std::is_same_v<KernelName, auto_name>) {
+      CGH.parallel_for(PreferredNDRange, Properties, Func);
+    } else {
+      constexpr int Dimensions =
+          std::remove_reference_t<decltype(Func)>::dimensions;
+      CGH.parallel_for<EnqueueName>(
+        PreferredNDRange, Properties,
+        [=](nd_item<Dimensions> NDit) { Func(NDit); });
+    }
+  } else {
+    if (WGSize > PreferredKernelWGSize) {
+      throw sycl::exception(make_error_code(errc::nd_range),
+                                "The implementation handling parallel_for with"
+                                " reduction requires work group size not bigger"
+                                " than " +
+                                    std::to_string(PreferredKernelWGSize));
+    }
+    if constexpr (std::is_same_v<KernelName, auto_name>) {
+      CGH.parallel_for(Range, Properties, Func);
+    } else {
+      constexpr int Dimensions =
+          std::remove_reference_t<decltype(Func)>::dimensions;
+      CGH.parallel_for<EnqueueName>(
+        Range, Properties,
+        [=](nd_item<Dimensions> NDit) { Func(NDit); });
+    }
+  }
+}
+
+template <typename KernelName, bool IsDeducedNDRange, int Dims, typename EnqueueName, typename ImplementationType>
+void EnqueueParallelFor(handler &CGH, bool UseKernelBundle, const nd_range<Dims> &Range, ImplementationType &Func, std::shared_ptr<queue_impl> &Queue) {
+  if (UseKernelBundle) {
+    // Use the kernel bundle we queried. This helps ensuring we run
+    // the kernel for which we may have queried information.
+    auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+    CGH.use_kernel_bundle(ExecBundle);
+  }
+  size_t NWorkGroups = Range.get_global_range().size();
+  size_t WGSize = Range.get_local_range().size();
+  size_t PreferredKernelWGSize = std::min(WGSize, getKernelMaxWGSize<EnqueueName>(CGH, Queue));
+  
+  if constexpr (IsDeducedNDRange) {
+    size_t PreferredKernelNWorkGroups = (NWorkGroups / WGSize) * PreferredKernelWGSize;
+    nd_range<1> PreferredNDRange(range<1>{PreferredKernelNWorkGroups}, range<1>{PreferredKernelWGSize});
+    if constexpr (std::is_same_v<KernelName, auto_name>) {
+      CGH.parallel_for(PreferredNDRange, Func);
+    } else {
+      constexpr int Dimensions =
+          std::remove_reference_t<decltype(Func)>::dimensions;
+      CGH.parallel_for<EnqueueName>(
+        PreferredNDRange,
+        [=](nd_item<Dimensions> NDit) { Func(NDit); });
+    }
+  } else {
+    if (WGSize > PreferredKernelWGSize) {
+      throw sycl::exception(make_error_code(errc::nd_range),
+                                "The implementation handling parallel_for with"
+                                " reduction requires work group size not bigger"
+                                " than " +
+                                    std::to_string(PreferredKernelWGSize));
+    }
+    if constexpr (std::is_same_v<KernelName, auto_name>) {
+      CGH.parallel_for(Range, Func);
+    } else {
+      constexpr int Dimensions =
+          std::remove_reference_t<decltype(Func)>::dimensions;
+      CGH.parallel_for<EnqueueName>(
+        Range,
+        [=](nd_item<Dimensions> NDit) { Func(NDit); });
+    }
+  }
+}
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
@@ -1265,6 +1316,15 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   });
 }
 
+/// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
+/// must do that to avoid name collisions.
+template <template <typename, reduction::strategy, int, typename...>
+          class MainOrAux,
+          class KernelName, reduction::strategy Strategy, int Dims, class... Ts>
+using __sycl_reduction_kernel =
+    std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
+                       MainOrAux<KernelName, Strategy, Dims, Ts...>>;
+
 namespace reduction {
 template <typename KernelName, strategy S, int Dims, class... Ts>
 class MainKrn {
@@ -1279,15 +1339,6 @@ template <typename KernelName, strategy S, int Dims, class... Ts> class AuxKrn {
 // Tag structs to help creating unique kernels for multi-reduction cases.
 struct KernelOneWGTag {};
 struct KernelMultipleWGTag {};
-
-/// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
-/// must do that to avoid name collisions.
-template <template <typename, reduction::strategy, int, typename...>
-          class MainOrAux,
-          class KernelName, reduction::strategy Strategy, int Dims, class... Ts>
-using __sycl_reduction_kernel =
-    std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
-                       MainOrAux<KernelName, Strategy, Dims, Ts...>>;
 
 // Implementations.
 
@@ -1395,7 +1446,7 @@ private:
 
 template <>
 struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -1428,7 +1479,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
       size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance{Out, GroupSum, KernelFunc};
-      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
+      EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     });
   }
 };
@@ -1544,7 +1595,7 @@ struct NDRangeReduction<
   static constexpr auto Strategy{
       reduction::strategy::group_reduce_and_last_wg_detection};
 
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -1591,7 +1642,7 @@ struct NDRangeReduction<
       ImplementationType KernelInstance(
           Out, PartialSums, DoReducePartialSumsInLastWG, NWorkGroupsFinished,
           IsUpdateOfUserVar, NWorkGroups, WGSize, KernelFunc);
-      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
+      EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     };
 
     // Integrated/discrete GPUs have different faster path. For discrete GPUs
@@ -1820,7 +1871,7 @@ private:
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
   static constexpr auto Strategy = reduction::strategy::range_basic;
 
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -1882,7 +1933,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         Out, PartialSums, NWorkGroupsFinished, IdentityContainer, BOp,
         LocalReds, DoReducePartialSumsInLastWG, IsUpdateOfUserVar, NWorkGroups,
         WGSize, KernelFunc);
-    EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
+    EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
   }
 };
 
@@ -1926,7 +1977,7 @@ private:
 
 template <>
 struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -1955,7 +2006,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
       size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance(KernelFunc, Out);
-      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
+      EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     });
   }
 };
@@ -2027,7 +2078,7 @@ private:
 template <>
 struct NDRangeReduction<
     reduction::strategy::local_mem_tree_and_atomic_cross_wg> {
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -2062,7 +2113,7 @@ struct NDRangeReduction<
       size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
 
       ImplementationType KernelInstance{Out, LocalReds, KernelFunc};
-      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
+      EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     });
   }
 };
@@ -2160,7 +2211,7 @@ private:
 template <>
 struct NDRangeReduction<
     reduction::strategy::group_reduce_and_multiple_kernels> {
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -2212,9 +2263,16 @@ struct NDRangeReduction<
         std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
     size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
+    
+    if (NDRange.get_local_range().size() > KernelMaxWGSize)
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with"
+                            " reduction requires work group size not bigger"
+                            " than " +
+                                std::to_string(MaxWGSize));
 
     ImplementationType KernelInstance(Out, IsUpdateOfUserVar, KernelFunc);
-    EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
+    EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
 
     reduction::finalizeHandler(CGH);
 
@@ -2272,7 +2330,7 @@ struct NDRangeReduction<
         nd_range<1> Range{GlobalRange, range<1>(WGSize)};
         ImplementationType AuxKernelInstance(In, Out, IsUpdateOfUserVar,
                                              HasUniformWG, NWorkItems);
-        EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType>(CGH, UseKernelBundle, Range, AuxKernelInstance, Queue);
+        EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType>(AuxHandler, UseKernelBundle, Range, AuxKernelInstance, Queue);
         NWorkItems = NWorkGroups;
       });
     } // end while (NWorkItems > 1)
@@ -2439,7 +2497,7 @@ private:
 
 template <> struct NDRangeReduction<reduction::strategy::basic> {
 public:
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -2506,10 +2564,16 @@ public:
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
       size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
+      if (NDRange.get_local_range().size() > KernelMaxWGSize)
+        throw sycl::exception(make_error_code(errc::nd_range),
+                              "The implementation handling parallel_for with"
+                              " reduction requires work group size not bigger"
+                              " than " +
+                                  std::to_string(MaxWGSize));
 
       ImplementationType KernelInstance(Out, IdentityContainer, BOp, LocalReds,
                                         IsUpdateOfUserVar, KernelFunc);
-      EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
+      EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, NDRange, KernelInstance, Queue, Properties);
     };
 
     if (NWorkGroups == 1)
@@ -2589,7 +2653,7 @@ public:
           size_t KernelMaxWGSize = getKernelMaxWGSize<EnqueueName>(CGH, Queue);
           ImplementationType AuxKernelInstance(In, Out, BOp, LocalReds,
                                                IsUpdateOfUserVar, NWorkItems);
-          EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType>(CGH, UseKernelBundle, Range, AuxKernelInstance, Queue);
+          EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType>(AuxHandler, UseKernelBundle, Range, AuxKernelInstance, Queue);
           NWorkItems = NWorkGroups;
         });
       };
@@ -2933,7 +2997,7 @@ private:
 
 } // namespace reduction
 
-template <typename KernelName, typename KernelType, int Dims,
+template <typename KernelName, bool IsDeducedNDRange, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
                      bool UseKernelBundle, KernelType KernelFunc,
@@ -2997,7 +3061,7 @@ void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
     ImplementationType KernelInstance(OutAccsTuple, LocalAccsTuple,
                                       IdentitiesTuple, BOPsTuple, ScalarIs,
                                       ArrayIs, InitToIdentityProps, KernelFunc);
-    EnqueueParallelFor<KernelName, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, Range, KernelInstance, Queue, Properties);
+    EnqueueParallelFor<KernelName, IsDeducedNDRange, Dims, EnqueueName, ImplementationType, PropertiesT>(CGH, UseKernelBundle, Range, KernelInstance, Queue, Properties);
     
   };
 
@@ -3182,7 +3246,7 @@ private:
 
 } // namespace reduction
 
-template <typename KernelName, typename KernelType, typename... Reductions,
+template <typename KernelName, bool IsDeducedNDRange, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
                      bool UseKernelBundle, size_t NWorkItems, size_t MaxWGSize,
@@ -3244,7 +3308,7 @@ size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
     ImplementationType KernelInstance(InAccsTuple, OutAccsTuple, LocalAccsTuple,
                                       IdentitiesTuple, BOPsTuple, ScalarIs,
                                       ArrayIs, InitToIdentityProps, NWorkItems);
-    EnqueueParallelFor<KernelName, 1, EnqueueName, ImplementationType>(CGH, UseKernelBundle, Range, KernelInstance, Queue);
+    EnqueueParallelFor<KernelName, IsDeducedNDRange, 1, EnqueueName, ImplementationType>(CGH, UseKernelBundle, Range, KernelInstance, Queue);
   };
   if (NWorkGroups == 1)
     Rest(IsNonUsmReductionPredicate{},
@@ -3297,7 +3361,7 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 }
 
 template <> struct NDRangeReduction<reduction::strategy::multi> {
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename... RestT>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -3321,14 +3385,14 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
                             " than " +
                                 std::to_string(MaxWGSize));
 
-    reduCGFuncMulti<KernelName>(CGH, Queue, UseKernelBundle, KernelFunc,
+    reduCGFuncMulti<KernelName, IsDeducedNDRange>(CGH, Queue, UseKernelBundle, KernelFunc,
                                 NDRange, Properties, ReduTuple, ReduIndices);
     reduction::finalizeHandler(CGH);
 
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
       reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
-        NWorkItems = reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
+        NWorkItems = reduAuxCGFunc<KernelName, IsDeducedNDRange, decltype(KernelFunc)>(
             AuxHandler, Queue, UseKernelBundle, NWorkItems, MaxWGSize,
             ReduTuple, ReduIndices);
       });
@@ -3343,7 +3407,7 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   using Impl = NDRangeReduction<Strategy>;
   using Strat = reduction::strategy;
 
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
@@ -3351,7 +3415,7 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
                   KernelType &KernelFunc) {
     std::cout << "reduction::strategy::auto_select\n";
     auto Delegate = [&](auto Impl) {
-      Impl.template run<KernelName>(CGH, Queue, NDRange, Properties,
+      Impl.template run<KernelName, IsDeducedNDRange>(CGH, Queue, NDRange, Properties,
                                     UseKernelBundle, Redu, KernelFunc);
     };
 
@@ -3392,13 +3456,13 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
 
     assert(false && "Must be unreachable!");
   }
-  template <typename KernelName, int Dims, typename PropertiesT,
+  template <typename KernelName, bool IsDeducedNDRange, int Dims, typename PropertiesT,
             typename... RestT>
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, RestT... Rest) {
     std::cout << "reduction::strategy::auto_select -> multi\n";
-    return Impl<Strat::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
+    return Impl<Strat::multi>::run<KernelName, IsDeducedNDRange>(CGH, Queue, NDRange, Properties,
                                                UseKernelBundle, Rest...);
   }
 };
@@ -3406,12 +3470,12 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
 __SYCL_EXPORT bool
 reduShouldUseKernelBundle(std::shared_ptr<detail::queue_impl> Queue);
 
-template <typename KernelName, reduction::strategy Strategy, int Dims,
+template <typename KernelName, reduction::strategy Strategy, bool IsDeducedNDRange, int Dims,
           typename PropertiesT, typename... RestT>
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest) {
   bool UseKernelBundle = reduShouldUseKernelBundle(CGH.MQueue);
-  NDRangeReduction<Strategy>::template run<KernelName>(
+  NDRangeReduction<Strategy>::template run<KernelName, IsDeducedNDRange>(
       CGH, CGH.MQueue, NDRange, Properties, UseKernelBundle, Rest...);
 }
 
@@ -3527,12 +3591,12 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
         return reduction::strategy::range_basic;
     }();
 
-    reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
+    reduction_parallel_for<KernelName, StrategyToUse, true>(CGH, NDRange, Properties,
                                                       Redu, UpdatedKernelFunc);
   } else {
     return std::apply(
         [&](auto &...Reds) {
-          return reduction_parallel_for<KernelName, Strategy>(
+          return reduction_parallel_for<KernelName, Strategy, true>(
               CGH, NDRange, Properties, Reds..., UpdatedKernelFunc);
         },
         ReduTuple);
