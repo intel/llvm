@@ -11,7 +11,7 @@ __attribute__((noinline)) long long foo(int data1, long long data2) {
   return data1 + data2;
 }
 
-void check_memset(sycl::queue& Q) {
+void check_memset(sycl::queue &Q) {
   std::cout << "check_memset" << std::endl;
   auto *array = sycl::malloc_device<int>(2, Q);
   auto ev1 = Q.memset(array, 0, 2 * sizeof(int));
@@ -24,7 +24,7 @@ void check_memset(sycl::queue& Q) {
 // CHECK-NOT: use-of-uninitialized-value
 // CHECK: PASS
 
-void check_memcpy1(sycl::queue& Q) {
+void check_memcpy1(sycl::queue &Q) {
   std::cout << "check_memcpy1" << std::endl;
   auto *source = sycl::malloc_host<int>(2, Q);
   auto *array = sycl::malloc_device<int>(2, Q);
@@ -40,7 +40,7 @@ void check_memcpy1(sycl::queue& Q) {
 // CHECK-NOT: use-of-uninitialized-value
 // CHECK: PASS
 
-void check_memcpy2(sycl::queue& Q) {
+void check_memcpy2(sycl::queue &Q) {
   std::cout << "check_memcpy2" << std::endl;
   auto *source = sycl::malloc_device<int>(2, Q);
   auto *array = sycl::malloc_device<int>(2, Q);
@@ -60,6 +60,6 @@ int main() {
   sycl::queue Q;
   check_memset(Q);
   check_memcpy1(Q);
-  // check_memcpy2(Q);
+  check_memcpy2(Q);
   return 0;
 }
