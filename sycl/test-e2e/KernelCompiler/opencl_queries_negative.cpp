@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // Test when we don't have ocloc (eg CUDA, HIP, etc)
-// REQUIRES: !opencl && !level_zero
+// UNSUPPORTED: opencl, level_zero
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
