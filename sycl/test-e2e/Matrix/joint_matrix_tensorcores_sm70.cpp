@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: cuda
-// REQUIRES: build-and-run-mode
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_70 -o %t.out
 // RUN: %{run} %t.out
 //
