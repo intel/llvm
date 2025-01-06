@@ -26,14 +26,11 @@ bulleted list like this:*
 
 This extension also depends on the following other SYCL extensions:
 
-* :doc:`supported/sycl_ext_oneapi_free_function_queries`
-
-*However, if the dependent extension is not yet written in reStructuredText,
-use a link like this instead:*
-
+* `SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES`_
 * `SYCL_EXT_ONEAPI_PROPERTIES`_
 
-.. _`SYCL_EXT_ONEAPI_PROPERTIES`: https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc
+.. _`SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES`: supported/sycl_ext_oneapi_free_function_queries.rst
+.. _`SYCL_EXT_ONEAPI_PROPERTIES`: experimental/sycl_ext_oneapi_properties.asciidoc
 
 
 Status

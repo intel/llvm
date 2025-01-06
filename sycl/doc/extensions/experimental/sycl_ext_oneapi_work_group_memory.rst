@@ -25,7 +25,7 @@ This extension also depends on the following other SYCL extensions:
 
 * `SYCL_EXT_ONEAPI_PROPERTIES`_
 
-.. _`SYCL_EXT_ONEAPI_PROPERTIES`: https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc
+.. _`SYCL_EXT_ONEAPI_PROPERTIES`: sycl_ext_oneapi_properties.asciidoc
 
 
 Status
