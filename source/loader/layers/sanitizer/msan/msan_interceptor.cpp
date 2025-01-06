@@ -401,8 +401,13 @@ ur_result_t MsanInterceptor::prepareLaunch(
         (void *)LaunchInfo.Data, LaunchInfo.Data->GlobalShadowOffset,
         ToString(LaunchInfo.Data->DeviceTy), LaunchInfo.Data->Debug);
 
-    UR_CALL(
-        EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr)));
+    ur_result_t URes =
+        EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr));
+    if (URes != UR_RESULT_SUCCESS) {
+        getContext()->logger.info("EnqueueWriteGlobal(__MsanLaunchInfo) "
+                                  "failed, maybe empty kernel: {}",
+                                  URes);
+    }
 
     return UR_RESULT_SUCCESS;
 }
