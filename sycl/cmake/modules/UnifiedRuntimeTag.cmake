@@ -1,7 +1,7 @@
-# commit 13f5e52ac047bb81f478f0dbe9416a8bc179130a
-# Merge: fe6c83a3 fa1e678a
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Mon Dec 30 15:14:19 2024 +0000
-#     Merge pull request #2484 from zhaomaosu/move-clean-shadow-to-launchinfo
-#     [DevMSAN] Move clean shadow into launch info
-set(UNIFIED_RUNTIME_TAG 13f5e52ac047bb81f478f0dbe9416a8bc179130a)
+# commit 75745a910cb7197de6e214c1f23c544895afbbb7
+# Merge: 0eb08b67 5a7d8fa0
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Jan 6 11:21:29 2025 +0000
+#     Merge pull request #2508 from AllanZyne/review/yang/fix_msan_empty_kernel
+#     [DeviceMSAN] Fix empty kernel
+set(UNIFIED_RUNTIME_TAG 75745a910cb7197de6e214c1f23c544895afbbb7)
