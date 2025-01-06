@@ -1336,28 +1336,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelCreate
-__urdlllocal ur_result_t UR_APICALL urKernelCreate(
-    ur_program_handle_t hProgram, ///< [in] handle of the program instance
-    const char *pKernelName,      ///< [in] pointer to null-terminated string.
-    ur_kernel_handle_t
-        *phKernel ///< [out] pointer to handle of kernel object created.
-) {
-    auto pfnCreate = getContext()->urDdiTable.Kernel.pfnCreate;
-
-    if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    getContext()->logger.debug("==== urKernelCreate");
-
-    UR_CALL(pfnCreate(hProgram, pKernelName, phKernel));
-    UR_CALL(getAsanInterceptor()->insertKernel(*phKernel));
-
-    return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
@@ -1372,8 +1350,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 
     UR_CALL(pfnRetain(hKernel));
 
-    auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
-    KernelInfo->RefCount++;
+    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    KernelInfo.RefCount++;
 
     return UR_RESULT_SUCCESS;
 }
@@ -1392,9 +1370,9 @@ __urdlllocal ur_result_t urKernelRelease(
     getContext()->logger.debug("==== urKernelRelease");
     UR_CALL(pfnRelease(hKernel));
 
-    auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
-    if (--KernelInfo->RefCount == 0) {
-        UR_CALL(getAsanInterceptor()->eraseKernel(hKernel));
+    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    if (--KernelInfo.RefCount == 0) {
+        UR_CALL(getAsanInterceptor()->eraseKernelInfo(hKernel));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1423,9 +1401,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     if (argSize == sizeof(ur_mem_handle_t) &&
         (MemBuffer = getAsanInterceptor()->getMemBuffer(
              *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
-        auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
-        KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
+        auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
         UR_CALL(
             pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue));
@@ -1453,9 +1431,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 
     std::shared_ptr<MemBuffer> MemBuffer;
     if ((MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue))) {
-        auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
-        KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
+        auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
         UR_CALL(pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue));
     }
@@ -1484,12 +1462,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
         argSize);
 
     {
-        auto KI = getAsanInterceptor()->getKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
+        auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
         // TODO: get local variable alignment
         auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
             argSize, ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY);
-        KI->LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
+        KI.LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
         argSize = argSizeWithRZ;
     }
 
@@ -1522,9 +1500,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
 
     std::shared_ptr<KernelInfo> KI;
     if (getAsanInterceptor()->getOptions().DetectKernelArguments) {
-        auto KI = getAsanInterceptor()->getKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
-        KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
+        auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+        KI.PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
     }
 
     ur_result_t result =
@@ -1708,7 +1686,6 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_sanitizer_layer::asan::urKernelCreate;
     pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urKernelRetain;
     pDdiTable->pfnRelease = ur_sanitizer_layer::asan::urKernelRelease;
     pDdiTable->pfnSetArgValue = ur_sanitizer_layer::asan::urKernelSetArgValue;
