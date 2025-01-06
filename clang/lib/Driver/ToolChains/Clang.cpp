@@ -3898,7 +3898,8 @@ static void RenderSCPOptions(const ToolChain &TC, const ArgList &Args,
                              ArgStringList &CmdArgs) {
   const llvm::Triple &EffectiveTriple = TC.getEffectiveTriple();
 
-  if (!EffectiveTriple.isOSFreeBSD() && !EffectiveTriple.isOSLinux())
+  if (!EffectiveTriple.isOSFreeBSD() && !EffectiveTriple.isOSLinux() &&
+      !EffectiveTriple.isOSFuchsia())
     return;
 
   if (!EffectiveTriple.isX86() && !EffectiveTriple.isSystemZ() &&
@@ -10245,7 +10246,11 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
 
     SmallString<128> HostTripleOpt("-host=");
-    HostTripleOpt += getToolChain().getAuxTriple()->str();
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    // Use the Effective Triple to match the expected triple when using the
+    // clang compiler to compile the wrapped binary.
+    std::string HostTripleStr = HostTC->ComputeEffectiveClangTriple(TCArgs);
+    HostTripleOpt += HostTripleStr;
     WrapperArgs.push_back(C.getArgs().MakeArgString(HostTripleOpt));
 
     llvm::Triple TT = getToolChain().getTriple();
@@ -10374,9 +10379,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (WrapperCompileEnabled) {
       // TODO Use TC.SelectTool().
-      ArgStringList ClangArgs{
-          TCArgs.MakeArgString("--target=" + TC.getAuxTriple()->str()), "-c",
-          "-o", Output.getFilename(), WrapperFileName};
+      ArgStringList ClangArgs{TCArgs.MakeArgString("--target=" + HostTripleStr),
+                              "-c", "-o", Output.getFilename(),
+                              WrapperFileName};
       llvm::Reloc::Model RelocationModel;
       unsigned PICLevel;
       bool IsPIE;
