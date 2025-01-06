@@ -4,7 +4,6 @@
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
-// FIXME: cpu is flacky, enable it in the future
 // UNSUPPORTED: cpu
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64618
 
