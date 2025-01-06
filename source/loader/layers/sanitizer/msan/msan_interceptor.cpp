@@ -390,10 +390,12 @@ MsanInterceptor::findAllocInfoByAddress(uptr Address) {
     }
     --It;
 
+    // Since we haven't intercepted all USM APIs, we can't make sure the found AllocInfo is correct.
     if (Address < It->second->AllocBegin ||
         Address >= It->second->AllocBegin + It->second->AllocSize) {
         return std::nullopt;
     }
+
     return It;
 }
 
