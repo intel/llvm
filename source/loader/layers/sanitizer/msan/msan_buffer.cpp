@@ -77,11 +77,6 @@ ur_result_t EnqueueMemCopyRectHelper(
                 (uptr)DstOrigin + (i * DstSlicePitch));
             uptr SrcShadowAddr = DeviceInfo->Shadow->MemToShadow(
                 (uptr)SrcOrigin + (i * SrcSlicePitch));
-            getContext()->logger.always(
-                "memcpy shadow, dst shadow {}, dst row pitch {}, src shadow "
-                "{}, src row pitch {}, width {}, height {}",
-                (void *)DstShadowAddr, DstRowPitch, (void *)SrcShadowAddr,
-                SrcRowPitch, Region.width, Region.height);
             UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D(
                 Queue, false, (void *)DstShadowAddr, DstRowPitch,
                 (void *)SrcShadowAddr, SrcRowPitch, Region.width, Region.height,
