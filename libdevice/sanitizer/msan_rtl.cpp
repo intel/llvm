@@ -162,6 +162,8 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   DEVICE_EXTERN_C_NOINLINE void __msan_maybe_warning_##size(                   \
       type s, u32 o, const char __SYCL_CONSTANT__ *file, uint32_t line,        \
       const char __SYCL_CONSTANT__ *func) {                                    \
+    if (!__MsanLaunchInfo.get())                                               \
+      return;                                                                  \
     if (UNLIKELY(s)) {                                                         \
       __msan_report_error(size, file, line, func);                             \
     }                                                                          \
@@ -190,6 +192,9 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   uptr shadow_ptr =
       (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
           ->CleanShadow;
+
+  if (!__MsanLaunchInfo.get())
+    return shadow_ptr;
 
   if (UNLIKELY(!__MsanLaunchInfo)) {
     __spirv_ocl_printf(__msan_print_warning_nolaunchinfo);
