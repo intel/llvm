@@ -7,14 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/os_util.hpp>
+#include <sycl/exception.hpp>
 
 #include <cassert>
 #include <limits>
 
-#if __GNUC__ && __GNUC__ < 8
-// Don't include <filesystem> for GCC versions less than 8
+// For GCC versions less than 8, use experimental/filesystem.
+#if defined(__has_include) && __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif defined(__has_include) && __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #else
-#include <filesystem> // C++ 17 std::create_directories
+#error "OSUtils requires C++ filesystem support"
 #endif
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -30,7 +36,6 @@
 #include <libgen.h> // for dirname
 #include <link.h>
 #include <linux/limits.h> // for PATH_MAX
-#include <sys/stat.h>
 #include <sys/sysinfo.h>
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
@@ -53,6 +58,15 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+[[maybe_unused]] static std::string getDirName(const char *Path)
+#else
+std::string OSUtil::getDirName(const char *Path)
+#endif
+{
+  return fs::path(Path).parent_path().string();
+}
+
 #if defined(__SYCL_RT_OS_LINUX)
 bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
@@ -67,20 +81,6 @@ bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
   Stream.ignore(1);
 
   return Addr >= Start && Addr < End;
-}
-
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-static std::string getDirName(const char *Path)
-#else
-std::string OSUtil::getDirName(const char *Path)
-#endif
-{
-  std::string Tmp(Path);
-  // dirname(3) needs a writable C string: a null-terminator is written where a
-  // path should split.
-  size_t TruncatedSize = strlen(dirname(const_cast<char *>(Tmp.c_str())));
-  Tmp.resize(TruncatedSize);
-  return Tmp;
 }
 
 /// Returns an absolute path to a directory where the object was found.
@@ -151,7 +151,6 @@ std::string OSUtil::getCurrentDSODir() {
 }
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
-
 /// Returns an absolute path where the object was found.
 //  ur_win_proxy_loader.dll and sycl-jit.dll use this same logic. If it is
 //  changed significantly, it might be wise to change it there too.
@@ -174,21 +173,6 @@ std::string OSUtil::getCurrentDSODir() {
   return Path;
 }
 
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-std::string OSUtil::getDirName(const char *Path) {
-  std::string Tmp(Path);
-  // Remove trailing directory separators
-  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
-
-  size_t pos = Tmp.find_last_of("/\\");
-  if (pos != std::string::npos)
-    return Tmp.substr(0, pos);
-
-  // If no directory separator is present return initial path like dirname does
-  return Tmp;
-}
-#endif
-
 #elif defined(__SYCL_RT_OS_DARWIN)
 std::string OSUtil::getCurrentDSODir() {
   auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
@@ -204,7 +188,6 @@ std::string OSUtil::getCurrentDSODir() {
 
   return Path.substr(0, LastSlashPos);
 }
-
 #endif // __SYCL_RT_OS
 
 size_t OSUtil::getOSMemSize() {
@@ -248,33 +231,52 @@ void OSUtil::alignedFree(void *Ptr) {
 // Make all directories on the path, throws on error.
 int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
-  if (isPathPresent(Dir))
-    return 0;
 
-// older GCC doesn't have full C++ 17 support.
-#if __GNUC__ && __GNUC__ < 8
-  std::string Path{Dir}, CurPath;
-  size_t pos = 0;
+  if (!isPathPresent(Dir)) {
+    fs::path path(Dir);
+    fs::create_directories(path.make_preferred());
+  }
 
-  do {
-    pos = Path.find_first_of("/\\", ++pos);
-    CurPath = Path.substr(0, pos);
-#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
-    auto Res = mkdir(CurPath.c_str(), 0777);
-#else
-    auto Res = _mkdir(CurPath.c_str());
-#endif
-    if (Res && errno != EEXIST)
-      throw std::runtime_error("Failed to mkdir: " + CurPath + " (" +
-                               std::strerror(errno) + ")");
-
-  } while (pos != std::string::npos);
-#else
-  // using filesystem is simpler, more reliable, works better on Win
-  std::filesystem::path path(Dir);
-  std::filesystem::create_directories(path.make_preferred());
-#endif
   return 0;
+}
+
+// Get size of file in bytes.
+size_t getFileSize(const std::string &Path) {
+  return static_cast<size_t>(fs::file_size(Path));
+}
+
+// Function to recursively iterate over the directory and execute
+// 'Func' on each regular file.
+void fileTreeWalk(const std::string Path,
+                  std::function<void(const std::string)> Func) {
+
+  std::error_code EC;
+  for (auto It = fs::recursive_directory_iterator(Path, EC);
+       It != fs::recursive_directory_iterator(); It.increment(EC)) {
+
+    // Errors can happen if a file was removed/added during the iteration.
+    if (EC)
+      throw sycl::exception(
+          make_error_code(errc::runtime),
+          "Failed to do File Tree Walk. Ensure that the directory is not "
+          "getting updated while FileTreeWalk is in progress.: " +
+              Path + "\n" + EC.message());
+
+    if (fs::is_regular_file(It->path()))
+      Func(It->path().string());
+  }
+}
+
+// Get size of a directory in bytes.
+size_t getDirectorySize(const std::string &Path) {
+  size_t DirSizeVar = 0;
+
+  auto CollectFIleSize = [&DirSizeVar](const std::string Path) {
+    DirSizeVar += getFileSize(Path);
+  };
+  fileTreeWalk(Path, CollectFIleSize);
+
+  return DirSizeVar;
 }
 
 } // namespace detail

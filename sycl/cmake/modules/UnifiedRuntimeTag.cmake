@@ -1,7 +1,7 @@
-# commit aa72577da55571b15028dd1710e02a7ea4f62338
-# Merge: 89def64486dd 3d2b7210e352
+# commit ad288bb36c45e24a35a75c665d382ce18935fcf7
+# Merge: db491abc6aba f8b04f4216e8
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 6 15:24:04 2024 +0000
-#     Merge pull request #2352 from aarongreig/aaron/fixCoverity15-11
-#     Fix a number of issues from the latest coverity scan.
-set(UNIFIED_RUNTIME_TAG aa72577da55571b15028dd1710e02a7ea4f62338)
+# Date:   Fri Jan 3 10:08:59 2025 +0000
+#     Merge pull request #2502 from ldrumm/luke/tensormap-version
+#     CUTensorMap is only in CUDA v12
+set(UNIFIED_RUNTIME_TAG ad288bb36c45e24a35a75c665d382ce18935fcf7)

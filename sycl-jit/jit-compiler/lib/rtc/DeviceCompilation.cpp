@@ -148,7 +148,8 @@ struct GetLLVMModuleAction : public ToolAction {
     Compiler.setVerboseOutputStream(std::make_unique<llvm::raw_null_ostream>());
 
     // Create the compiler's actual diagnostics engine.
-    Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
+    Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
+                               /*ShouldOwnClient=*/false);
     if (!Compiler.hasDiagnostics()) {
       return false;
     }

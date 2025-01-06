@@ -4,14 +4,21 @@
 
 #include <sycl/sycl.hpp>
 
+constexpr auto Props = sycl::ext::oneapi::experimental::properties{
+    sycl::ext::oneapi::experimental::max_linear_work_group_size<4>,
+};
+struct TestKernelLaunchBounds {
+  void operator()() const {}
+  auto get(sycl::ext::oneapi::experimental::properties_tag) { return Props; }
+};
+
 int main() {
   sycl::queue Q;
 
-  constexpr auto Props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::max_linear_work_group_size<4>,
-  };
   // CHECK-IR: spir_kernel void @{{.*}}LaunchBoundsKernel(){{.*}} #[[LaunchBoundsAttrs:[0-9]+]]
-  Q.single_task<class LaunchBoundsKernel>(Props, []() {});
+  Q.submit([&](sycl::handler &h) {
+    h.single_task<class LaunchBoundsKernel>(TestKernelLaunchBounds{});
+  });
 
   return 0;
 }

@@ -30,15 +30,16 @@
 #include <sycl/exception_list.hpp>         // for defaultAsyncHa...
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
-#include <sycl/ext/oneapi/experimental/graph.hpp>       // for command_graph...
-#include <sycl/ext/oneapi/properties/properties.hpp>    // for empty_properti...
-#include <sycl/handler.hpp>                             // for handler, isDev...
-#include <sycl/id.hpp>                                  // for id
-#include <sycl/kernel.hpp>                              // for auto_name
-#include <sycl/kernel_handler.hpp>                      // for kernel_handler
-#include <sycl/nd_range.hpp>                            // for nd_range
-#include <sycl/property_list.hpp>                       // for property_list
-#include <sycl/range.hpp>                               // for range
+#include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>    // for command_graph...
+#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properti...
+#include <sycl/handler.hpp>                          // for handler, isDev...
+#include <sycl/id.hpp>                               // for id
+#include <sycl/kernel.hpp>                           // for auto_name
+#include <sycl/kernel_handler.hpp>                   // for kernel_handler
+#include <sycl/nd_range.hpp>                         // for nd_range
+#include <sycl/property_list.hpp>                    // for property_list
+#include <sycl/range.hpp>                            // for range
 
 #include <cstddef>     // for size_t
 #include <functional>  // for function
@@ -99,6 +100,9 @@ public:
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
 
+  ext::oneapi::experimental::event_mode_enum &EventMode();
+  const ext::oneapi::experimental::event_mode_enum &EventMode() const;
+
 private:
   std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
 };
@@ -111,9 +115,14 @@ enum class queue_state { executing, recording };
 struct image_descriptor;
 
 namespace detail {
-template <typename CommandGroupFunc>
-void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+template <typename CommandGroupFunc, typename PropertiesT>
+void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc);
+
+template <typename CommandGroupFunc, typename PropertiesT>
+event submit_with_event_impl(queue &Q, PropertiesT Props,
+                             CommandGroupFunc &&CGF,
+                             const sycl::detail::code_location &CodeLoc);
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
@@ -366,7 +375,9 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(CGF, /*SecondaryQueuePtr=*/nullptr, CodeLoc);
+    return submit_with_event(
+        sycl::ext::oneapi::experimental::empty_properties_t{}, CGF,
+        /*SecondaryQueuePtr=*/nullptr, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -384,7 +395,9 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(CGF, &SecondaryQueue, CodeLoc);
+    return submit_with_event(
+        sycl::ext::oneapi::experimental::empty_properties_t{}, CGF,
+        &SecondaryQueue, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -2747,10 +2760,27 @@ private:
                                            const detail::code_location &);
 #endif
 
-  template <typename CommandGroupFunc>
+  template <typename CommandGroupFunc, typename PropertiesT>
   friend void ext::oneapi::experimental::detail::submit_impl(
-      queue &Q, CommandGroupFunc &&CGF,
+      queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
+
+  template <typename CommandGroupFunc, typename PropertiesT>
+  friend event ext::oneapi::experimental::detail::submit_with_event_impl(
+      queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+      const sycl::detail::code_location &CodeLoc);
+
+  template <typename PropertiesT>
+  void ProcessSubmitProperties(PropertiesT Props, detail::SubmissionInfo &SI) {
+    if constexpr (Props.template has_property<
+                      ext::oneapi::experimental::event_mode_key>()) {
+      ext::oneapi::experimental::event_mode EventModeProp =
+          Props.template get_property<ext::oneapi::experimental::event_mode>();
+      if (EventModeProp.value !=
+          ext::oneapi::experimental::event_mode_enum::none)
+        SI.EventMode() = EventModeProp.value;
+    }
+  }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
@@ -2800,16 +2830,18 @@ private:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
+  /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  template <typename T>
+  template <typename T, typename PropertiesT>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event>
   submit_with_event(
-      T CGF, queue *SecondaryQueuePtr,
+      PropertiesT Props, T CGF, queue *SecondaryQueuePtr,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::SubmissionInfo SI{};
+    ProcessSubmitProperties(Props, SI);
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
 #if __SYCL_USE_FALLBACK_ASSERT
@@ -2834,18 +2866,21 @@ private:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
+  /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
-  template <typename T>
+  template <typename T, typename PropertiesT>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
-  submit_without_event(T CGF, const detail::code_location &CodeLoc) {
+  submit_without_event(PropertiesT Props, T CGF,
+                       const detail::code_location &CodeLoc) {
 #if __SYCL_USE_FALLBACK_ASSERT
     // If post-processing is needed, fall back to the regular submit.
     // TODO: Revisit whether we can avoid this.
-    submit_with_event(CGF, nullptr, CodeLoc);
+    submit_with_event(Props, CGF, nullptr, CodeLoc);
 #else
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::SubmissionInfo SI{};
+    ProcessSubmitProperties(Props, SI);
     submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                               TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
@@ -3072,8 +3107,12 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     });
   };
 
-  CopierEv = Self.submit_with_event(CopierCGF, SecondaryQueue, CodeLoc);
-  CheckerEv = Self.submit_with_event(CheckerCGF, SecondaryQueue, CodeLoc);
+  CopierEv = Self.submit_with_event(
+      sycl::ext::oneapi::experimental::empty_properties_t{}, CopierCGF,
+      SecondaryQueue, CodeLoc);
+  CheckerEv = Self.submit_with_event(
+      sycl::ext::oneapi::experimental::empty_properties_t{}, CheckerCGF,
+      SecondaryQueue, CodeLoc);
 
   return CheckerEv;
 }

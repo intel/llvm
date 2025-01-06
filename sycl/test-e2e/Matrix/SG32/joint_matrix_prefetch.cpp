@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-4181
 
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
