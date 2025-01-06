@@ -799,7 +799,7 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 // Note: Although SPIR-V supports vector shuffles, the OpenCL specification only
 //       allow scalars in the operations. As such, we scalarize those too, then
 //       expect vectorization from the device compiler if possible.
-// See https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Env.html#_cl_khr_subgroup_shuffle
+// https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Env.html#_cl_khr_subgroup_shuffle
 template <typename T>
 using EnableIfNativeShuffle =
     std::enable_if_t<detail::is_arithmetic<T>::value &&
