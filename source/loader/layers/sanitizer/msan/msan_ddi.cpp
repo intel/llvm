@@ -45,7 +45,6 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
             UR_CALL(DI->allocShadowMemory(Context));
         }
         CI->DeviceList.emplace_back(hDevice);
-        CI->AllocInfosMap[hDevice];
     }
     return UR_RESULT_SUCCESS;
 }
@@ -517,6 +516,12 @@ ur_result_t urMemBufferCreate(
             UR_CALL(pMemBuffer->getHandle(hDevice, Handle));
             UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
                 InternalQueue, true, Handle, Host, size, 0, nullptr, nullptr));
+
+            // Update shadow memory
+            std::shared_ptr<DeviceInfo> DeviceInfo =
+                getMsanInterceptor()->getDeviceInfo(hDevice);
+            UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
+                InternalQueue, (uptr)Handle, size, 0));
         }
     }
 
@@ -732,10 +737,25 @@ ur_result_t urEnqueueMemBufferWrite(
     if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
         ur_device_handle_t Device = GetDevice(hQueue);
         char *pDst = nullptr;
+        ur_event_handle_t Events[2];
         UR_CALL(MemBuffer->getHandle(Device, pDst));
         UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
             hQueue, blockingWrite, pDst + offset, pSrc, size,
-            numEventsInWaitList, phEventWaitList, phEvent));
+            numEventsInWaitList, phEventWaitList, &Events[0]));
+
+        // Update shadow memory
+        std::shared_ptr<DeviceInfo> DeviceInfo =
+            getMsanInterceptor()->getDeviceInfo(Device);
+        const char Val = 0;
+        uptr ShadowAddr = DeviceInfo->Shadow->MemToShadow((uptr)pDst + offset);
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+            hQueue, (void *)ShadowAddr, 1, &Val, size, numEventsInWaitList,
+            phEventWaitList, &Events[1]));
+
+        if (phEvent) {
+            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+                hQueue, 2, Events, phEvent));
+        }
     } else {
         UR_CALL(pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size,
                                   pSrc, numEventsInWaitList, phEventWaitList,
@@ -895,15 +915,32 @@ ur_result_t urEnqueueMemBufferCopy(
 
     if (SrcBuffer && DstBuffer) {
         ur_device_handle_t Device = GetDevice(hQueue);
+        std::shared_ptr<DeviceInfo> DeviceInfo =
+            getMsanInterceptor()->getDeviceInfo(Device);
         char *SrcHandle = nullptr;
         UR_CALL(SrcBuffer->getHandle(Device, SrcHandle));
 
         char *DstHandle = nullptr;
         UR_CALL(DstBuffer->getHandle(Device, DstHandle));
 
+        ur_event_handle_t Events[2];
         UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
             hQueue, false, DstHandle + dstOffset, SrcHandle + srcOffset, size,
-            numEventsInWaitList, phEventWaitList, phEvent));
+            numEventsInWaitList, phEventWaitList, &Events[0]));
+
+        // Update shadow memory
+        uptr DstShadowAddr =
+            DeviceInfo->Shadow->MemToShadow((uptr)DstHandle + dstOffset);
+        uptr SrcShadowAddr =
+            DeviceInfo->Shadow->MemToShadow((uptr)SrcHandle + srcOffset);
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            hQueue, false, (void *)DstShadowAddr, (void *)SrcShadowAddr, size,
+            numEventsInWaitList, phEventWaitList, &Events[1]));
+
+        if (phEvent) {
+            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+                hQueue, 2, Events, phEvent));
+        }
     } else {
         UR_CALL(pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
                                  dstOffset, size, numEventsInWaitList,
@@ -1002,11 +1039,27 @@ ur_result_t urEnqueueMemBufferFill(
 
     if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
         char *Handle = nullptr;
+        ur_event_handle_t Events[2];
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, Handle));
         UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
             hQueue, Handle + offset, patternSize, pPattern, size,
-            numEventsInWaitList, phEventWaitList, phEvent));
+            numEventsInWaitList, phEventWaitList, &Events[0]));
+
+        // Update shadow memory
+        std::shared_ptr<DeviceInfo> DeviceInfo =
+            getMsanInterceptor()->getDeviceInfo(Device);
+        const char Val = 0;
+        uptr ShadowAddr =
+            DeviceInfo->Shadow->MemToShadow((uptr)Handle + offset);
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+            hQueue, (void *)ShadowAddr, 1, &Val, size, numEventsInWaitList,
+            phEventWaitList, &Events[1]));
+
+        if (phEvent) {
+            UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+                hQueue, 2, Events, phEvent));
+        }
     } else {
         UR_CALL(pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
                                  size, numEventsInWaitList, phEventWaitList,
