@@ -12,7 +12,6 @@ TEST_P(urEventGetInfoTest, SuccessCommandQueue) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_queue_handle_t));
 
     ur_queue_handle_t returned_queue;
@@ -27,7 +26,6 @@ TEST_P(urEventGetInfoTest, SuccessContext) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_context_handle_t));
 
     ur_context_handle_t returned_context;
@@ -42,7 +40,6 @@ TEST_P(urEventGetInfoTest, SuccessCommandType) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_command_t));
 
     ur_command_t returned_command_type;
@@ -57,7 +54,6 @@ TEST_P(urEventGetInfoTest, SuccessCommandExecutionStatus) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_event_status_t));
 
     ur_event_status_t returned_status;
@@ -72,7 +68,6 @@ TEST_P(urEventGetInfoTest, SuccessReferenceCount) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(uint32_t));
 
     uint32_t returned_reference_count;
