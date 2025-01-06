@@ -12,7 +12,6 @@ TEST_P(urContextGetInfoTest, SuccessNumDevices) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(uint32_t));
 
     uint32_t nDevices = 0;
@@ -29,23 +28,19 @@ TEST_P(urContextGetInfoTest, SuccessDevices) {
     ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
     ASSERT_NE(size, 0);
 
-    if (size > 0) {
-        ur_device_handle_t devices = 0;
-        ASSERT_SUCCESS(
-            urContextGetInfo(context, info_type, size, &devices, nullptr));
+    ur_device_handle_t devices = 0;
+    ASSERT_SUCCESS(
+        urContextGetInfo(context, info_type, size, &devices, nullptr));
 
-        size_t devices_count = size / sizeof(ur_device_handle_t);
-        ASSERT_GT(devices_count, 0);
+    size_t devices_count = size / sizeof(ur_device_handle_t);
+    ASSERT_GT(devices_count, 0);
 
-        for (uint32_t i = 0; i < devices_count; i++) {
-            auto &devices = uur::DevicesEnvironment::instance->devices;
-            auto queried_device =
-                std::find(devices.begin(), devices.end(), devices[i]);
-            EXPECT_TRUE(queried_device != devices.end())
-                << "device associated with the context is not valid";
-        }
-    } else {
-        ASSERT_EQ(size, 0);
+    for (uint32_t i = 0; i < devices_count; i++) {
+        auto &devices = uur::DevicesEnvironment::instance->devices;
+        auto queried_device =
+            std::find(devices.begin(), devices.end(), devices[i]);
+        EXPECT_TRUE(queried_device != devices.end())
+            << "device associated with the context is not valid";
     }
 }
 
@@ -54,7 +49,6 @@ TEST_P(urContextGetInfoTest, SuccessUSMMemCpy2DSupport) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_bool_t));
 }
 
@@ -63,7 +57,6 @@ TEST_P(urContextGetInfoTest, SuccessUSMFill2DSupport) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_bool_t));
 }
 
@@ -72,7 +65,6 @@ TEST_P(urContextGetInfoTest, SuccessReferenceCount) {
     size_t size = 0;
 
     ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(uint32_t));
 
     uint32_t reference_count = 0;
@@ -88,7 +80,6 @@ TEST_P(urContextGetInfoTest, SuccessAtomicMemoryOrderCapabilities) {
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_memory_order_capability_flags_t));
 
     ur_memory_order_capability_flags_t flags = 0;
@@ -104,7 +95,6 @@ TEST_P(urContextGetInfoTest, SuccessAtomicMemoryScopeCapabilities) {
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_memory_scope_capability_flags_t));
 
     ur_memory_scope_capability_flags_t flags = 0;
@@ -120,7 +110,6 @@ TEST_P(urContextGetInfoTest, SuccessAtomicFenceOrderCapabilities) {
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_memory_order_capability_flags_t));
 
     ur_memory_order_capability_flags_t flags = 0;
@@ -136,7 +125,6 @@ TEST_P(urContextGetInfoTest, SuccessAtomicFenceScopeCapabilities) {
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(size, sizeof(ur_memory_scope_capability_flags_t));
 
     ur_memory_scope_capability_flags_t flags = 0;
