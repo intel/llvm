@@ -148,8 +148,9 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     std::vector<ur_kernel_handle_t> kernels;
     std::vector<ur_program_metadata_t> metadatas{};
 };
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceContextMemBufferTest);
 
-TEST_F(urMultiDeviceContextMemBufferTest, WriteRead) {
+TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
     if (num_devices == 1) {
         GTEST_SKIP();
     }
@@ -173,7 +174,7 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteRead) {
     }
 }
 
-TEST_F(urMultiDeviceContextMemBufferTest, FillRead) {
+TEST_P(urMultiDeviceContextMemBufferTest, FillRead) {
     if (num_devices == 1) {
         GTEST_SKIP();
     }
@@ -197,7 +198,7 @@ TEST_F(urMultiDeviceContextMemBufferTest, FillRead) {
     }
 }
 
-TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
+TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
     if (num_devices == 1) {
         GTEST_SKIP();
     }
@@ -233,7 +234,7 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
     }
 }
 
-TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
+TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
     if (num_devices == 1) {
         GTEST_SKIP();
     }

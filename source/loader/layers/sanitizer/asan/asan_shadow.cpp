@@ -104,10 +104,14 @@ ur_result_t ShadowMemoryGPU::Setup() {
     // shadow memory for each contexts, this will cause out-of-resource error when user uses
     // multiple contexts. Therefore, we just create one shadow memory here.
     static ur_result_t Result = [this]() {
-        size_t ShadowSize = GetShadowSize();
+        const size_t ShadowSize = GetShadowSize();
+        // To reserve very large amount of GPU virtual memroy, the pStart param should be beyond
+        // the SVM range, so that GFX driver will automatically switch to reservation on the GPU
+        // heap.
+        const void *StartAddress = (void *)(0x100'0000'0000'0000ULL);
         // TODO: Protect Bad Zone
         auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
-            Context, nullptr, ShadowSize, (void **)&ShadowBegin);
+            Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
         if (Result != UR_RESULT_SUCCESS) {
             getContext()->logger.error(
                 "Shadow memory reserved failed with size {}: {}",

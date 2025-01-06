@@ -145,6 +145,7 @@ void uur::PlatformEnvironment::selectPlatformFromOptions() {
             urPlatformGet(&a, 1, count, platform_list.data(), nullptr));
 
         for (auto p : platform_list) {
+            all_platforms.push_back(p);
             ur_platform_backend_t backend;
             ASSERT_SUCCESS(urPlatformGetInfo(p, UR_PLATFORM_INFO_BACKEND,
                                              sizeof(ur_platform_backend_t),

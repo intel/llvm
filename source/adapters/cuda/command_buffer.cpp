@@ -54,7 +54,7 @@ ur_result_t commandHandleReleaseInternal(
   // of the `ur_event_t` object doesn't free the underlying CuEvent_t object and
   // we need to do it manually ourselves.
   if (Command->SignalNode) {
-    CUevent SignalEvent;
+    CUevent SignalEvent{};
     UR_CHECK_ERROR(
         cuGraphEventRecordNodeGetEvent(Command->SignalNode, &SignalEvent));
     UR_CHECK_ERROR(cuEventDestroy(SignalEvent));
@@ -90,7 +90,7 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 std::unique_ptr<ur_event_handle_t_>
 ur_exp_command_buffer_handle_t_::addSignalNode(CUgraphNode DepNode,
                                                CUgraphNode &SignalNode) {
-  CUevent Event;
+  CUevent Event{};
   UR_CHECK_ERROR(cuEventCreate(&Event, CU_EVENT_DEFAULT));
   UR_CHECK_ERROR(
       cuGraphAddEventRecordNode(&SignalNode, CudaGraph, &DepNode, 1, Event));
@@ -236,16 +236,29 @@ static ur_result_t enqueueCommandBufferFillHelper(
                                                EventWaitList));
   }
 
+  // CUDA has no memset functions that allow setting values more than 4
+  // bytes. UR API lets you pass an arbitrary "pattern" to the buffer
+  // fill, which can be more than 4 bytes. Calculate the number of steps
+  // required here to see if decomposing to multiple fill nodes is required.
+  size_t NumberOfSteps = PatternSize / sizeof(uint8_t);
+
   // Graph node added to graph, if multiple nodes are created this will
   // be set to the leaf node
   CUgraphNode GraphNode;
+  // Track if multiple nodes are created so we can pass them to the command
+  // handle
+  std::vector<CUgraphNode> DecomposedNodes;
+
+  if (NumberOfSteps > 4) {
+    DecomposedNodes.reserve(NumberOfSteps);
+  }
 
   const size_t N = Size / PatternSize;
   auto DstPtr = DstType == CU_MEMORYTYPE_DEVICE
                     ? *static_cast<CUdeviceptr *>(DstDevice)
                     : (CUdeviceptr)DstDevice;
 
-  if ((PatternSize == 1) || (PatternSize == 2) || (PatternSize == 4)) {
+  if (NumberOfSteps <= 4) {
     CUDA_MEMSET_NODE_PARAMS NodeParams = {};
     NodeParams.dst = DstPtr;
     NodeParams.elementSize = PatternSize;
@@ -276,14 +289,9 @@ static ur_result_t enqueueCommandBufferFillHelper(
         &GraphNode, CommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, CommandBuffer->Device->getNativeContext()));
   } else {
-    // CUDA has no memset functions that allow setting values more than 4
-    // bytes. UR API lets you pass an arbitrary "pattern" to the buffer
-    // fill, which can be more than 4 bytes. We must break up the pattern
-    // into 1 byte values, and set the buffer using multiple strided calls.
-    // This means that one cuGraphAddMemsetNode call is made for every 1
-    // bytes in the pattern.
-
-    size_t NumberOfSteps = PatternSize / sizeof(uint8_t);
+    // We must break up the rest of the pattern into 1 byte values, and set
+    // the buffer using multiple strided calls. This means that one
+    // cuGraphAddMemsetNode call is made for every 1 bytes in the pattern.
 
     // Update NodeParam
     CUDA_MEMSET_NODE_PARAMS NodeParamsStepFirst = {};
@@ -294,12 +302,13 @@ static ur_result_t enqueueCommandBufferFillHelper(
     NodeParamsStepFirst.value = *static_cast<const uint32_t *>(Pattern);
     NodeParamsStepFirst.width = 1;
 
+    // Inital decomposed node depends on the provided external event wait
+    // nodes
     UR_CHECK_ERROR(cuGraphAddMemsetNode(
         &GraphNode, CommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParamsStepFirst, CommandBuffer->Device->getNativeContext()));
 
-    DepsList.clear();
-    DepsList.push_back(GraphNode);
+    DecomposedNodes.push_back(GraphNode);
 
     // we walk up the pattern in 1-byte steps, and call cuMemset for each
     // 1-byte chunk of the pattern.
@@ -319,13 +328,16 @@ static ur_result_t enqueueCommandBufferFillHelper(
       NodeParamsStep.value = Value;
       NodeParamsStep.width = 1;
 
+      // Copy the last GraphNode ptr so we can pass it as the dependency for
+      // the next one
+      CUgraphNode PrevNode = GraphNode;
+
       UR_CHECK_ERROR(cuGraphAddMemsetNode(
-          &GraphNode, CommandBuffer->CudaGraph, DepsList.data(),
-          DepsList.size(), &NodeParamsStep,
+          &GraphNode, CommandBuffer->CudaGraph, &PrevNode, 1, &NodeParamsStep,
           CommandBuffer->Device->getNativeContext()));
 
-      DepsList.clear();
-      DepsList.push_back(GraphNode);
+      // Store the decomposed node
+      DecomposedNodes.push_back(GraphNode);
     }
   }
 
@@ -344,7 +356,8 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
   std::vector<CUgraphNode> WaitNodes =
       NumEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new T(CommandBuffer, GraphNode, SignalNode, WaitNodes);
+  auto NewCommand = new T(CommandBuffer, GraphNode, SignalNode, WaitNodes,
+                          std::move(DecomposedNodes));
   CommandBuffer->CommandHandles.push_back(NewCommand);
 
   if (RetCommand) {
@@ -1417,7 +1430,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  CUevent SignalEvent;
+  CUevent SignalEvent{};
   UR_CHECK_ERROR(cuGraphEventRecordNodeGetEvent(SignalNode, &SignalEvent));
 
   if (phEvent) {

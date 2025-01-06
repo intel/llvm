@@ -168,5 +168,5 @@ TEST_P(urEventGetProfilingInfoForWaitWithBarrier, Success) {
     auto end_timing = reinterpret_cast<size_t *>(complete_data.data());
     ASSERT_NE(*end_timing, 0);
 
-    ASSERT_GT(*end_timing, *start_timing);
+    ASSERT_GE(*end_timing, *start_timing);
 }

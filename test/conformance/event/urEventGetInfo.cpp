@@ -5,70 +5,84 @@
 
 #include "fixtures.h"
 
-using urEventGetInfoTest = uur::event::urEventTestWithParam<ur_event_info_t>;
+using urEventGetInfoTest = uur::event::urEventTest;
 
-TEST_P(urEventGetInfoTest, Success) {
+TEST_P(urEventGetInfoTest, SuccessCommandQueue) {
+    ur_event_info_t info_type = UR_EVENT_INFO_COMMAND_QUEUE;
+    size_t size = 0;
 
-    ur_event_info_t info_type = getParam();
-    size_t size;
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urEventGetInfo(event, info_type, 0, nullptr, &size), info_type);
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
     ASSERT_NE(size, 0);
-    std::vector<uint8_t> data(size);
-    ASSERT_SUCCESS(
-        urEventGetInfo(event, info_type, size, data.data(), nullptr));
+    ASSERT_EQ(size, sizeof(ur_queue_handle_t));
 
-    switch (info_type) {
-    case UR_EVENT_INFO_COMMAND_QUEUE: {
-        ASSERT_EQ(sizeof(ur_queue_handle_t), size);
-        auto returned_queue =
-            reinterpret_cast<ur_queue_handle_t *>(data.data());
-        ASSERT_EQ(queue, *returned_queue);
-        break;
-    }
-    case UR_EVENT_INFO_CONTEXT: {
-        ASSERT_EQ(sizeof(ur_context_handle_t), size);
-        auto returned_context =
-            reinterpret_cast<ur_context_handle_t *>(data.data());
-        ASSERT_EQ(context, *returned_context);
-        break;
-    }
-    case UR_EVENT_INFO_COMMAND_TYPE: {
-        ASSERT_EQ(sizeof(ur_command_t), size);
-        auto returned_command = reinterpret_cast<ur_command_t *>(data.data());
-        ASSERT_EQ(UR_COMMAND_MEM_BUFFER_WRITE, *returned_command);
-        break;
-    }
-    case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
-        ASSERT_EQ(sizeof(ur_event_status_t), size);
-        auto returned_status =
-            reinterpret_cast<ur_event_status_t *>(data.data());
-        ASSERT_EQ(UR_EVENT_STATUS_COMPLETE, *returned_status);
-        break;
-    }
-    case UR_EVENT_INFO_REFERENCE_COUNT: {
-        ASSERT_EQ(sizeof(uint32_t), size);
-        auto returned_reference_count =
-            reinterpret_cast<uint32_t *>(data.data());
-        ASSERT_GT(*returned_reference_count, 0U);
-        break;
-    }
-    default:
-        FAIL() << "Invalid event info enumeration";
-    }
+    ur_queue_handle_t returned_queue;
+    ASSERT_SUCCESS(
+        urEventGetInfo(event, info_type, size, &returned_queue, nullptr));
+
+    ASSERT_EQ(queue, returned_queue);
 }
 
-UUR_TEST_SUITE_P(urEventGetInfoTest,
-                 ::testing::Values(UR_EVENT_INFO_COMMAND_QUEUE,
-                                   UR_EVENT_INFO_CONTEXT,
-                                   UR_EVENT_INFO_COMMAND_TYPE,
-                                   UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                                   UR_EVENT_INFO_REFERENCE_COUNT),
-                 uur::deviceTestWithParamPrinter<ur_event_info_t>);
+TEST_P(urEventGetInfoTest, SuccessContext) {
+    ur_event_info_t info_type = UR_EVENT_INFO_CONTEXT;
+    size_t size = 0;
 
-using urEventGetInfoNegativeTest = uur::event::urEventTest;
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
+    ASSERT_NE(size, 0);
+    ASSERT_EQ(size, sizeof(ur_context_handle_t));
 
-TEST_P(urEventGetInfoNegativeTest, InvalidNullHandle) {
+    ur_context_handle_t returned_context;
+    ASSERT_SUCCESS(
+        urEventGetInfo(event, info_type, size, &returned_context, nullptr));
+
+    ASSERT_EQ(context, returned_context);
+}
+
+TEST_P(urEventGetInfoTest, SuccessCommandType) {
+    ur_event_info_t info_type = UR_EVENT_INFO_COMMAND_TYPE;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
+    ASSERT_NE(size, 0);
+    ASSERT_EQ(size, sizeof(ur_command_t));
+
+    ur_command_t returned_command_type;
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, size,
+                                  &returned_command_type, nullptr));
+
+    ASSERT_EQ(UR_COMMAND_MEM_BUFFER_WRITE, returned_command_type);
+}
+
+TEST_P(urEventGetInfoTest, SuccessCommandExecutionStatus) {
+    ur_event_info_t info_type = UR_EVENT_INFO_COMMAND_EXECUTION_STATUS;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
+    ASSERT_NE(size, 0);
+    ASSERT_EQ(size, sizeof(ur_event_status_t));
+
+    ur_event_status_t returned_status;
+    ASSERT_SUCCESS(
+        urEventGetInfo(event, info_type, size, &returned_status, nullptr));
+
+    ASSERT_EQ(UR_EVENT_STATUS_COMPLETE, returned_status);
+}
+
+TEST_P(urEventGetInfoTest, SuccessReferenceCount) {
+    ur_event_info_t info_type = UR_EVENT_INFO_REFERENCE_COUNT;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
+    ASSERT_NE(size, 0);
+    ASSERT_EQ(size, sizeof(uint32_t));
+
+    uint32_t returned_reference_count;
+    ASSERT_SUCCESS(urEventGetInfo(event, info_type, size,
+                                  &returned_reference_count, nullptr));
+
+    ASSERT_GT(returned_reference_count, 0U);
+}
+
+TEST_P(urEventGetInfoTest, InvalidNullHandle) {
     ur_event_info_t info_type = UR_EVENT_INFO_COMMAND_QUEUE;
     size_t size;
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
@@ -81,14 +95,14 @@ TEST_P(urEventGetInfoNegativeTest, InvalidNullHandle) {
         UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
-TEST_P(urEventGetInfoNegativeTest, InvalidEnumeration) {
+TEST_P(urEventGetInfoTest, InvalidEnumeration) {
     size_t size;
     ASSERT_EQ_RESULT(
         urEventGetInfo(event, UR_EVENT_INFO_FORCE_UINT32, 0, nullptr, &size),
         UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
-TEST_P(urEventGetInfoNegativeTest, InvalidSizePropSize) {
+TEST_P(urEventGetInfoTest, InvalidSizePropSize) {
     ur_event_info_t info_type = UR_EVENT_INFO_COMMAND_QUEUE;
     size_t size = 0;
     ASSERT_SUCCESS(urEventGetInfo(event, info_type, 0, nullptr, &size));
@@ -101,24 +115,24 @@ TEST_P(urEventGetInfoNegativeTest, InvalidSizePropSize) {
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_P(urEventGetInfoNegativeTest, InvalidSizePropSizeSmall) {
+TEST_P(urEventGetInfoTest, InvalidSizePropSizeSmall) {
     ur_queue_handle_t q;
     ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE,
                                     sizeof(q) - 1, &q, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_P(urEventGetInfoNegativeTest, InvalidNullPointerPropValue) {
+TEST_P(urEventGetInfoTest, InvalidNullPointerPropValue) {
     ASSERT_EQ_RESULT(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE,
                                     sizeof(ur_queue_handle_t), nullptr,
                                     nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-TEST_P(urEventGetInfoNegativeTest, InvalidNullPointerPropSizeRet) {
+TEST_P(urEventGetInfoTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(
         urEventGetInfo(event, UR_EVENT_INFO_COMMAND_QUEUE, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetInfoNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetInfoTest);
