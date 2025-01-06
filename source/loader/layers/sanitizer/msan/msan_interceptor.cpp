@@ -298,16 +298,26 @@ ur_result_t MsanInterceptor::eraseProgram(ur_program_handle_t Program) {
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t MsanInterceptor::insertKernel(ur_kernel_handle_t Kernel) {
-    std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-    if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
-        return UR_RESULT_SUCCESS;
+KernelInfo &MsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
+    {
+        std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+        if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
+            return *m_KernelMap[Kernel].get();
+        }
     }
-    m_KernelMap.emplace(Kernel, std::make_shared<KernelInfo>(Kernel));
-    return UR_RESULT_SUCCESS;
+
+    // Create new KernelInfo
+    auto Program = GetProgram(Kernel);
+    auto PI = getProgramInfo(Program);
+    bool IsInstrumented = PI->isKernelInstrumented(Kernel);
+
+    std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+    m_KernelMap.emplace(Kernel,
+                        std::make_unique<KernelInfo>(Kernel, IsInstrumented));
+    return *m_KernelMap[Kernel].get();
 }
 
-ur_result_t MsanInterceptor::eraseKernel(ur_kernel_handle_t Kernel) {
+ur_result_t MsanInterceptor::eraseKernelInfo(ur_kernel_handle_t Kernel) {
     std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
     assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
     m_KernelMap.erase(Kernel);
@@ -360,10 +370,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
         };
 
     // Set membuffer arguments
-    auto KernelInfo = getKernelInfo(Kernel);
-    assert(KernelInfo && "Kernel must be instrumented");
+    auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
-    for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
+    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
         char *ArgPointer = nullptr;
         UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
         ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
@@ -374,6 +384,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
                 ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
                 URes);
         }
+    }
+
+    if (!KernelInfo.IsInstrumented) {
+        return UR_RESULT_SUCCESS;
     }
 
     // Set LaunchInfo

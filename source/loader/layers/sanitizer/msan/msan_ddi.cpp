@@ -50,12 +50,6 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     return UR_RESULT_SUCCESS;
 }
 
-bool isInstrumentedKernel(ur_kernel_handle_t hKernel) {
-    auto hProgram = GetProgram(hKernel);
-    auto PI = getMsanInterceptor()->getProgramInfo(hProgram);
-    return PI->isKernelInstrumented(hKernel);
-}
-
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -353,12 +347,6 @@ ur_result_t urEnqueueKernelLaunch(
     auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
 
     getContext()->logger.debug("==== urEnqueueKernelLaunch");
-
-    if (!isInstrumentedKernel(hKernel)) {
-        return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numEventsInWaitList, phEventWaitList, phEvent);
-    }
 
     USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
                              pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
@@ -1156,26 +1144,6 @@ ur_result_t urEnqueueMemUnmap(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelCreate
-ur_result_t urKernelCreate(
-    ur_program_handle_t hProgram, ///< [in] handle of the program instance
-    const char *pKernelName,      ///< [in] pointer to null-terminated string.
-    ur_kernel_handle_t
-        *phKernel ///< [out] pointer to handle of kernel object created.
-) {
-    auto pfnCreate = getContext()->urDdiTable.Kernel.pfnCreate;
-
-    getContext()->logger.debug("==== urKernelCreate");
-
-    UR_CALL(pfnCreate(hProgram, pKernelName, phKernel));
-    if (isInstrumentedKernel(*phKernel)) {
-        UR_CALL(getMsanInterceptor()->insertKernel(*phKernel));
-    }
-
-    return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 ur_result_t urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
@@ -1186,10 +1154,8 @@ ur_result_t urKernelRetain(
 
     UR_CALL(pfnRetain(hKernel));
 
-    auto KernelInfo = getMsanInterceptor()->getKernelInfo(hKernel);
-    if (KernelInfo) {
-        KernelInfo->RefCount++;
-    }
+    auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    KernelInfo.RefCount++;
 
     return UR_RESULT_SUCCESS;
 }
@@ -1204,11 +1170,9 @@ ur_result_t urKernelRelease(
     getContext()->logger.debug("==== urKernelRelease");
     UR_CALL(pfnRelease(hKernel));
 
-    auto KernelInfo = getMsanInterceptor()->getKernelInfo(hKernel);
-    if (KernelInfo) {
-        if (--KernelInfo->RefCount == 0) {
-            UR_CALL(getMsanInterceptor()->eraseKernel(hKernel));
-        }
+    auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    if (--KernelInfo.RefCount == 0) {
+        UR_CALL(getMsanInterceptor()->eraseKernelInfo(hKernel));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1230,13 +1194,12 @@ ur_result_t urKernelSetArgValue(
     getContext()->logger.debug("==== urKernelSetArgValue");
 
     std::shared_ptr<MemBuffer> MemBuffer;
-    std::shared_ptr<KernelInfo> KernelInfo;
     if (argSize == sizeof(ur_mem_handle_t) &&
         (MemBuffer = getMsanInterceptor()->getMemBuffer(
-             *ur_cast<const ur_mem_handle_t *>(pArgValue))) &&
-        (KernelInfo = getMsanInterceptor()->getKernelInfo(hKernel))) {
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
-        KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
+             *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
+        auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
         UR_CALL(
             pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue));
@@ -1260,10 +1223,10 @@ ur_result_t urKernelSetArgMemObj(
 
     std::shared_ptr<MemBuffer> MemBuffer;
     std::shared_ptr<KernelInfo> KernelInfo;
-    if ((MemBuffer = getMsanInterceptor()->getMemBuffer(hArgValue)) &&
-        (KernelInfo = getMsanInterceptor()->getKernelInfo(hKernel))) {
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
-        KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
+    if ((MemBuffer = getMsanInterceptor()->getMemBuffer(hArgValue))) {
+        auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
         UR_CALL(pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue));
     }
@@ -1348,7 +1311,6 @@ ur_result_t urGetKernelProcAddrTable(
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_sanitizer_layer::msan::urKernelCreate;
     pDdiTable->pfnRetain = ur_sanitizer_layer::msan::urKernelRetain;
     pDdiTable->pfnRelease = ur_sanitizer_layer::msan::urKernelRelease;
     pDdiTable->pfnSetArgValue = ur_sanitizer_layer::msan::urKernelSetArgValue;

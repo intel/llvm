@@ -308,9 +308,6 @@ class AsanInterceptor {
     ur_result_t insertProgram(ur_program_handle_t Program);
     ur_result_t eraseProgram(ur_program_handle_t Program);
 
-    ur_result_t insertKernel(ur_kernel_handle_t Kernel);
-    ur_result_t eraseKernel(ur_kernel_handle_t Kernel);
-
     ur_result_t insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer);
     ur_result_t eraseMemBuffer(ur_mem_handle_t MemHandle);
     std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
@@ -350,11 +347,8 @@ class AsanInterceptor {
         return nullptr;
     }
 
-    std::shared_ptr<KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {
-        std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-        assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
-        return m_KernelMap[Kernel];
-    }
+    KernelInfo &getOrCreateKernelInfo(ur_kernel_handle_t Kernel);
+    ur_result_t eraseKernelInfo(ur_kernel_handle_t Kernel);
 
     const AsanOptions &getOptions() { return m_Options; }
 
@@ -401,7 +395,7 @@ class AsanInterceptor {
         m_ProgramMap;
     ur_shared_mutex m_ProgramMapMutex;
 
-    std::unordered_map<ur_kernel_handle_t, std::shared_ptr<KernelInfo>>
+    std::unordered_map<ur_kernel_handle_t, std::unique_ptr<KernelInfo>>
         m_KernelMap;
     ur_shared_mutex m_KernelMapMutex;
 
