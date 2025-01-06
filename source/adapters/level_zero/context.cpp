@@ -533,6 +533,13 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   if (*ZePool == nullptr) {
     ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
         ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
+
+    ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
+        ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
+    eventSyncMode.syncModeFlags =
+        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
+        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = 0;
@@ -552,14 +559,11 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
       }
       logger::debug("ze_event_pool_desc_t counter based flags set to: {}",
                     counterBasedExt.flags);
+      if (InterruptBasedEventEnabled) {
+        counterBasedExt.pNext = &eventSyncMode;
+      }
       ZeEventPoolDesc.pNext = &counterBasedExt;
-    }
-    if (InterruptBasedEventEnabled) {
-      ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
-          ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
-      eventSyncMode.syncModeFlags =
-          ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
-          ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+    } else if (InterruptBasedEventEnabled) {
       ZeEventPoolDesc.pNext = &eventSyncMode;
     }
 
