@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define __SYCL_GRAPH_IMPL_CPP
+
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -1009,10 +1011,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // If we have no requirements or dependent events for the command buffer,
       // enqueue it directly
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
-        if (NewEvent != nullptr) {
-          NewEvent->setSubmissionTime();
-          NewEvent->setHostEnqueueTime();
-        }
+        NewEvent->setSubmissionTime();
+        NewEvent->setHostEnqueueTime();
         ur_result_t Res =
             Queue->getAdapter()
                 ->call_nocheck<
@@ -1080,7 +1080,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               nullptr,
               // TODO: Extract from handler
               UR_KERNEL_CACHE_CONFIG_DEFAULT, CG->MKernelIsCooperative,
-              CG->MKernelUsesClusterLaunch);
+              CG->MKernelUsesClusterLaunch, CG->MKernelWorkGroupMemorySize);
           ScheduledEvents.push_back(NewEvent);
         } else if (!NodeImpl->isEmpty()) {
           // Empty nodes are node processed as other nodes, but only their
@@ -1510,7 +1510,10 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   PtrDescs.reserve(MaskedArgs.size());
   ValueDescs.reserve(MaskedArgs.size());
 
-  ur_exp_command_buffer_update_kernel_launch_desc_t UpdateDesc;
+  ur_exp_command_buffer_update_kernel_launch_desc_t UpdateDesc{};
+  UpdateDesc.stype =
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC;
+  UpdateDesc.pNext = nullptr;
 
   // Collect arg descriptors and fill kernel launch descriptor
   using sycl::detail::kernel_param_kind_t;
@@ -1634,7 +1637,7 @@ node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DynCGFImpl, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
@@ -1646,7 +1649,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
@@ -1659,7 +1662,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 void modifiable_command_graph::addGraphLeafDependencies(node Node) {
@@ -1757,15 +1760,9 @@ void modifiable_command_graph::end_recording(
   }
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
-#else
-void modifiable_command_graph::print_graph(std::string path,
-#endif
                                            bool verbose) const {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::string path{pathstr.data()};
-#endif
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(path, verbose);
@@ -1990,8 +1987,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     // shared_ptr<detail::CGExecKernel> to store
     sycl::detail::CG *RawCGPtr = Handler.impl->MGraphNodeCG.release();
     auto RawCGExecPtr = static_cast<sycl::detail::CGExecKernel *>(RawCGPtr);
-    auto CGExecSP = std::shared_ptr<sycl::detail::CGExecKernel>(RawCGExecPtr);
-    MKernels.push_back(CGExecSP);
+    MKernels.push_back(
+        std::shared_ptr<sycl::detail::CGExecKernel>(RawCGExecPtr));
 
     // Track dynamic_parameter usage in command-list
     auto &DynamicParams = Handler.impl->MDynamicParameters;
@@ -2079,10 +2076,10 @@ dynamic_command_group::dynamic_command_group(
   impl->finalizeCGFList(CGFList);
 }
 
-size_t dynamic_command_group::get_active_cgf() const {
+size_t dynamic_command_group::get_active_index() const {
   return impl->getActiveIndex();
 }
-void dynamic_command_group::set_active_cgf(size_t Index) {
+void dynamic_command_group::set_active_index(size_t Index) {
   return impl->setActiveIndex(Index);
 }
 } // namespace experimental

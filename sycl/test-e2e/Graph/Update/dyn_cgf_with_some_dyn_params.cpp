@@ -5,9 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// XFAIL: level_zero
-// XFAIL-TRACKER: OFNAAO-307
-
 // Tests using a dynamic command-group object where some but not all the
 // command-groups use dynamic parameters.
 
@@ -89,12 +86,12 @@ int main() {
   ExecuteGraphAndVerifyResults(false, true, false);
 
   // CGFB with DynParam using PtrB
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(false, true, false);
 
   // CGFC unconditionally using PtrC
-  DynamicCG.set_active_cgf(2);
+  DynamicCG.set_active_index(2);
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(false, false, true);
 

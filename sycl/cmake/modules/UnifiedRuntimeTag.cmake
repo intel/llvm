@@ -1,5 +1,7 @@
-# commit b5294ee0762e9eb4919102e5663e724c152487bc
-# Author: Yang Zhao <yang2.zhao@intel.com>
-# Date:   Fri Nov 22 15:59:23 2024 +0800
-#    [DeviceASAN][NFC] Code Restructure (#2232)
-set(UNIFIED_RUNTIME_TAG b5294ee0762e9eb4919102e5663e724c152487bc)
+# commit ad288bb36c45e24a35a75c665d382ce18935fcf7
+# Merge: db491abc6aba f8b04f4216e8
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Fri Jan 3 10:08:59 2025 +0000
+#     Merge pull request #2502 from ldrumm/luke/tensormap-version
+#     CUTensorMap is only in CUDA v12
+set(UNIFIED_RUNTIME_TAG ad288bb36c45e24a35a75c665d382ce18935fcf7)

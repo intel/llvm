@@ -17,7 +17,6 @@
 #include "clang/Driver/OffloadBundler.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/TargetID.h"
-#include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -687,12 +686,12 @@ class ObjectFileHandler final : public FileHandler {
         if (Error Err = Symbol.printName(NameOS))
           return std::move(Err);
 
-        // If we are dealing with a bitcode file do not add special globals
-        // llvm.used and llvm.compiler.used and __AsanDeviceGlobalMetadata to
+        // If we are dealing with a bitcode file do not add special globals to
         // the list of defined symbols.
         if (SF->isIR() &&
             (Name == "llvm.used" || Name == "llvm.compiler.used" ||
-             Name == "__AsanDeviceGlobalMetadata"))
+             Name == "__AsanDeviceGlobalMetadata" ||
+             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
