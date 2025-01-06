@@ -1682,15 +1682,10 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
         (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
   }
 
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (SignalCommandList->first, nullptr, 1,
-              &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
-
   // Reset the wait-event for the UR command-buffer that is signaled when its
   // submission dependencies have been satisfied.
   ZE2UR_CALL(zeCommandListAppendEventReset,
              (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
-
   // Reset the all-reset-event for the UR command-buffer that is signaled when
   // all events of the main command-list have been reset.
   ZE2UR_CALL(zeCommandListAppendEventReset,
@@ -1698,11 +1693,13 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
 
   if (DoProfiling) {
     UR_CALL(appendProfilingQueries(CommandBuffer, SignalCommandList->first,
-                                   nullptr, nullptr));
+                                   *Event,
+                                   CommandBuffer->ExecutionFinishedEvent));
+  } else {
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (SignalCommandList->first, (*Event)->ZeEvent, 1,
+                &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
   }
-
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (SignalCommandList->first, (*Event)->ZeEvent, 0, nullptr));
 
   UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
                                     false /*OKToBatchCommand*/));
