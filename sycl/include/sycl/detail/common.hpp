@@ -374,6 +374,11 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
 #endif
 
+// Tag to help create CTAD definition to avoid ctad-maybe-unsupported warning
+// in GCC when relying on default deductions on non-template ctors in template
+// classes.
+struct AllowCTADTag;
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
