@@ -49,8 +49,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             size_t Size, void **ResultPtr) {
 
     auto ContextInfo = getContextInfo(Context);
-    std::shared_ptr<DeviceInfo> DeviceInfo =
-        Device ? getDeviceInfo(Device) : nullptr;
+    std::shared_ptr<DeviceInfo> DeviceInfo = getDeviceInfo(Device);
 
     void *Allocated = nullptr;
 
@@ -70,16 +69,30 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
     AI->print();
 
-    // For updating shadow memory
-    ContextInfo->insertAllocInfo({Device}, AI);
-
     // For memory release
     {
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-        m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
+        m_AllocationMap.emplace(AI->AllocBegin, AI);
     }
 
+    ManagedQueue Queue(Context, Device);
+    DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
+                                            AI->AllocSize, 0xff);
+
     return UR_RESULT_SUCCESS;
+}
+
+ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
+                                           void *Ptr) {
+    auto Addr = reinterpret_cast<uptr>(Ptr);
+    auto AddrInfoItOp = findAllocInfoByAddress(Addr);
+
+    if (AddrInfoItOp) {
+        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+        m_AllocationMap.erase(*AddrInfoItOp);
+    }
+
+    return getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
 }
 
 ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
@@ -97,8 +110,6 @@ ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
     }
 
     UR_CALL(prepareLaunch(DeviceInfo, InternalQueue, Kernel, LaunchInfo));
-
-    UR_CALL(updateShadowMemory(ContextInfo, DeviceInfo, InternalQueue));
 
     return UR_RESULT_SUCCESS;
 }
@@ -122,29 +133,6 @@ ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     }
 
     return Result;
-}
-
-ur_result_t
-MsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
-                                  ur_queue_handle_t Queue,
-                                  std::shared_ptr<MsanAllocInfo> &AI) {
-    return DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
-                                                   AI->AllocSize, 0xff);
-}
-
-ur_result_t
-MsanInterceptor::updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
-                                    std::shared_ptr<DeviceInfo> &DeviceInfo,
-                                    ur_queue_handle_t Queue) {
-    auto &AllocInfos = ContextInfo->AllocInfosMap[DeviceInfo->Handle];
-    std::scoped_lock<ur_shared_mutex> Guard(AllocInfos.Mutex);
-
-    for (auto &AI : AllocInfos.List) {
-        UR_CALL(enqueueAllocInfo(DeviceInfo, Queue, AI));
-    }
-    AllocInfos.List.clear();
-
-    return UR_RESULT_SUCCESS;
 }
 
 ur_result_t MsanInterceptor::registerProgram(ur_program_handle_t Program) {
@@ -417,13 +405,16 @@ MsanInterceptor::findAllocInfoByAddress(uptr Address) {
     std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     auto It = m_AllocationMap.upper_bound(Address);
     if (It == m_AllocationMap.begin()) {
-        return std::optional<MsanAllocationIterator>{};
+        return std::nullopt;
     }
     --It;
-    // Make sure we got the right MsanAllocInfo
-    assert(Address >= It->second->AllocBegin &&
-           Address < It->second->AllocBegin + It->second->AllocSize &&
-           "Wrong MsanAllocInfo for the address");
+
+    // Since we haven't intercepted all USM APIs, we can't make sure the found AllocInfo is correct.
+    if (Address < It->second->AllocBegin ||
+        Address >= It->second->AllocBegin + It->second->AllocSize) {
+        return std::nullopt;
+    }
+
     return It;
 }
 
