@@ -2723,7 +2723,8 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   if (Error != UR_RESULT_SUCCESS) {
     if (LinkedProg) {
-      const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
+      const std::string ErrorMsg =
+          getProgramBuildLog(LinkedProg, std::move(ContextImpl));
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
     throw set_ur_error(exception(make_error_code(errc::build), "link() failed"),
@@ -2751,7 +2752,7 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
-  return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
+  return {createSyclObjFromImpl<device_image_plain>(std::move(ExecutableImpl))};
 }
 
 // The function duplicates most of the code from existing getBuiltPIProgram.
