@@ -796,30 +796,19 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 //   variants for all scalar types
 #ifndef __NVPTX__
 
-template <typename T>
-struct TypeIsProhibitedForShuffleEmulation
-    : std::bool_constant<
-          check_type_in_v<vector_element_t<T>, double, long, long long,
-                          unsigned long, unsigned long long, half>> {};
-
-template <typename T>
-struct VecTypeIsProhibitedForShuffleEmulation
-    : std::bool_constant<
-          (detail::get_vec_size<T>::size > 1) &&
-          TypeIsProhibitedForShuffleEmulation<vector_element_t<T>>::value> {};
-
+// Note: Although SPIR-V supports vector shuffles, the OpenCL specification only
+//       allow scalars in the operations. As such, we scalarize those too, then
+//       expect vectorization from the device compiler if possible.
+// See https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Env.html#_cl_khr_subgroup_shuffle
 template <typename T>
 using EnableIfNativeShuffle =
     std::enable_if_t<detail::is_arithmetic<T>::value &&
-                         !VecTypeIsProhibitedForShuffleEmulation<T>::value &&
-                         !detail::is_marray_v<T>,
+                         !detail::is_marray_v<T> && !detail::is_vec_v<T>,
                      T>;
 
 template <typename T>
 using EnableIfNonScalarShuffle =
-    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value ||
-                         detail::is_marray_v<T>,
-                     T>;
+    std::enable_if_t<detail::is_marray_v<T> || detail::is_vec_v<T>, T>;
 
 #else  // ifndef __NVPTX__
 
@@ -924,24 +913,8 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   uint32_t LocalId = MapShuffleID(g, local_id);
 #ifndef __NVPTX__
   std::ignore = g;
-  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = Shuffle(g, x[s], local_id);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                          convertToOpenCLType(x), LocalId);
-  } else {
-    // Subgroup.
-    return __spirv_GroupNonUniformShuffle(__spv::Scope::Subgroup,
-                                          convertToOpenCLType(x), LocalId);
-  }
+  return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                        convertToOpenCLType(x), LocalId);
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
@@ -958,16 +931,7 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
 #ifndef __NVPTX__
   std::ignore = g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = ShuffleXor(g, x[s], mask);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
+                    GroupT>) {
     // Since the masks are relative to the groups, we could either try to adjust
     // the mask or simply do the xor ourselves. Latter option is efficient,
     // general, and simple so we go with that.
@@ -1006,16 +970,7 @@ template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
 #ifndef __NVPTX__
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = ShuffleDown(g, x[s], delta);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
+                    GroupT>) {
     id<1> TargetLocalId = g.get_local_id();
     // ID outside the group range is UB, so we just keep the current item ID
     // unchanged.
@@ -1051,16 +1006,7 @@ template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 #ifndef __NVPTX__
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = ShuffleUp(g, x[s], delta);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
+                    GroupT>) {
     id<1> TargetLocalId = g.get_local_id();
     // Underflow is UB, so we just keep the current item ID unchanged.
     if (TargetLocalId[0] >= delta)
