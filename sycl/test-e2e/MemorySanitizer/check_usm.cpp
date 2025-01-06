@@ -1,5 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// RUN: %{build} %device_msan_flags -O1 -g -o %t2.out
+// RUN: %{build} %device_msan_flags -O0 -g -o %t2.out
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
