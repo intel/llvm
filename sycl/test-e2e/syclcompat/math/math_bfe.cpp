@@ -172,6 +172,8 @@ template <typename T> bool test(const char *Msg, int N) {
 
 int main() {
   const int N = 1000;
+  assert(test<int8_t>("int8", N));
+  assert(test<uint8_t>("uint8", N));
   assert(test<int16_t>("int16", N));
   assert(test<uint16_t>("uint16", N));
   assert(test<int32_t>("int32", N));

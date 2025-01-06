@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <climits>
 #include <sycl/feature_test.hpp>
 #include <type_traits>
 
@@ -307,8 +308,9 @@ inline T bfe(const T source, const uint32_t bit_start,
   static_assert(std::is_unsigned_v<T>);
   // FIXME(syclcompat-lib-reviewers): This ternary was added to catch a case
   // which may be undefined anyway. Consider that we are losing perf here.
-  const T mask =
-      num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
+  const T mask = num_bits >= CHAR_BIT * sizeof(T)
+                     ? static_cast<T>(-1)
+                     : ((static_cast<T>(1) << num_bits) - 1);
   return (source >> bit_start) & mask;
 }
 
