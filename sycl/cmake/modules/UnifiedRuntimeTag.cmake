@@ -1,7 +1,7 @@
-# commit fe6c83a3a40e69eaa0c4829c8ba99b03e05bb4e2
-# Merge: 93fc1331 cf0c9482
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Fri Dec 27 17:39:52 2024 +0000
-#     Merge pull request #2507 from AllanZyne/review/yang/fix_msan_shadow
-#     [DeviceMSAN] Fix MemToShadow algorithm and VA reservation
-set(UNIFIED_RUNTIME_TAG review/yang/fix_msan_usm)
+# commit 533ab9b08dfbf061585eb3487aed94ca45d0b331
+# Merge: e7366f94 3eeb2a17
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Jan 6 15:24:08 2025 +0000
+#     Merge pull request #2513 from AllanZyne/review/yang/fix_msan_usm
+#     [DeviceMSAN] Fix "urEnqueueUSM" APIs
+set(UNIFIED_RUNTIME_TAG 533ab9b08dfbf061585eb3487aed94ca45d0b331)
