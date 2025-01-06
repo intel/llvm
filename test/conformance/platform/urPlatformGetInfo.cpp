@@ -4,32 +4,24 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/environment.h"
+#include "uur/fixtures.h"
 #include <cstring>
 
-struct urPlatformGetInfoTest
-    : uur::platform::urPlatformTest,
-      ::testing::WithParamInterface<ur_platform_info_t> {
+using urPlatformGetInfoTest =
+    uur::platform::urPlatformTestWithParam<ur_platform_info_t>;
 
-    void SetUp() {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::platform::urPlatformTest::SetUp());
-    }
-};
-
-INSTANTIATE_TEST_SUITE_P(
-    urPlatformGetInfo, urPlatformGetInfoTest,
+UUR_PLATFORM_TEST_SUITE_P(
+    urPlatformGetInfoTest,
     ::testing::Values(UR_PLATFORM_INFO_NAME, UR_PLATFORM_INFO_VENDOR_NAME,
                       UR_PLATFORM_INFO_VERSION, UR_PLATFORM_INFO_EXTENSIONS,
                       UR_PLATFORM_INFO_PROFILE, UR_PLATFORM_INFO_BACKEND,
                       UR_PLATFORM_INFO_ADAPTER),
-    [](const ::testing::TestParamInfo<ur_platform_info_t> &info) {
-        std::stringstream ss;
-        ss << info.param;
-        return ss.str();
-    });
+    ur_platform_info_t);
 
 TEST_P(urPlatformGetInfoTest, Success) {
     size_t size = 0;
-    ur_platform_info_t info_type = GetParam();
+    ur_platform_info_t info_type = getParam();
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urPlatformGetInfo(platform, info_type, 0, nullptr, &size), info_type);
     if (info_type == UR_PLATFORM_INFO_BACKEND) {
@@ -57,8 +49,11 @@ TEST_P(urPlatformGetInfoTest, Success) {
         auto queried_adapter =
             *reinterpret_cast<ur_adapter_handle_t *>(name.data());
         auto adapter_found =
-            std::find(adapters.begin(), adapters.end(), queried_adapter);
-        ASSERT_NE(adapter_found, adapters.end());
+            std::find(uur::PlatformEnvironment::instance->adapters.begin(),
+                      uur::PlatformEnvironment::instance->adapters.end(),
+                      queried_adapter);
+        ASSERT_NE(adapter_found,
+                  uur::AdapterEnvironment::instance->adapters.end());
         break;
     }
     default:
@@ -69,38 +64,41 @@ TEST_P(urPlatformGetInfoTest, Success) {
 TEST_P(urPlatformGetInfoTest, InvalidNullHandlePlatform) {
     size_t size = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urPlatformGetInfo(nullptr, GetParam(), 0, nullptr, &size));
+                     urPlatformGetInfo(nullptr, getParam(), 0, nullptr, &size));
 }
 
-TEST_F(urPlatformGetInfoTest, InvalidEnumerationPlatformInfoType) {
+using urPlatformGetInfoNegativeTest = uur::urPlatformTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetInfoNegativeTest);
+
+TEST_P(urPlatformGetInfoNegativeTest, InvalidEnumerationPlatformInfoType) {
     size_t size = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urPlatformGetInfo(platform, UR_PLATFORM_INFO_FORCE_UINT32,
                                        0, nullptr, &size));
 }
 
-TEST_F(urPlatformGetInfoTest, InvalidSizeZero) {
+TEST_P(urPlatformGetInfoNegativeTest, InvalidSizeZero) {
     ur_platform_backend_t backend;
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
                                        &backend, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_F(urPlatformGetInfoTest, InvalidSizeSmall) {
+TEST_P(urPlatformGetInfoNegativeTest, InvalidSizeSmall) {
     ur_platform_backend_t backend;
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                        sizeof(backend) - 1, &backend, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_F(urPlatformGetInfoTest, InvalidNullPointerPropValue) {
+TEST_P(urPlatformGetInfoNegativeTest, InvalidNullPointerPropValue) {
     ur_platform_backend_t backend;
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                        sizeof(backend), nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-TEST_F(urPlatformGetInfoTest, InvalidNullPointerPropSizeRet) {
+TEST_P(urPlatformGetInfoNegativeTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
                                        nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);

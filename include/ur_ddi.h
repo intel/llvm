@@ -651,6 +651,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetKernelProcAddrTable_t)(
 /// @brief Function-pointer for urKernelSuggestMaxCooperativeGroupCountExp
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t)(
     ur_kernel_handle_t,
+    ur_device_handle_t,
     uint32_t,
     const size_t *,
     size_t,
