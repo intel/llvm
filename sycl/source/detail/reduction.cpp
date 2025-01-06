@@ -58,7 +58,7 @@ reduShouldUseKernelBundle(std::shared_ptr<detail::queue_impl> Queue) {
   const device Device = Queue->get_device();
   const backend Backend = Device.get_backend();
   return SYCLConfig<SYCL_REDUCTION_ENABLE_USE_KERNEL_BUNDLES>::get(Backend);
-};
+}
 
 // Returns the estimated number of physical threads on the device associated
 // with the given queue.

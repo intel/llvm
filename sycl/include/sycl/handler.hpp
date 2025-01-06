@@ -152,8 +152,7 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <typename, typename>
-class work_group_memory;
+template <typename, typename> class work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -482,7 +481,8 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
+  /// TODO: remove the first version of this func (the one without the
+  /// IsTopCodeLoc arg)
   ///   at the next ABI breaking window since removing it breaks ABI on windows.
   void saveCodeLoc(detail::code_location CodeLoc);
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
@@ -692,8 +692,9 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    MHostKernel =
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -3258,8 +3259,9 @@ private:
                                              PropertiesT Properties,
                                              RestT... Rest);
 
-  template <typename KernelName, detail::reduction::strategy Strategy, bool IsDeducedNDRange, int Dims,
-            typename PropertiesT, typename... RestT>
+  template <typename KernelName, detail::reduction::strategy Strategy,
+            bool IsDeducedNDRange, int Dims, typename PropertiesT,
+            typename... RestT>
   friend void
   detail::reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                                  PropertiesT Properties, RestT... Rest);

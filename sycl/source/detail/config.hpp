@@ -9,12 +9,12 @@
 #pragma once
 
 #include <detail/global_handler.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/backend_types.hpp>
 
 #include <algorithm>
 #include <array>
@@ -854,6 +854,9 @@ private:
       EvictionThresholds = Parser();
 
     return EvictionThresholds;
+  }
+};
+
 template <> class SYCLConfig<SYCL_REDUCTION_ENABLE_USE_KERNEL_BUNDLES> {
   using BaseT = SYCLConfigBase<SYCL_REDUCTION_ENABLE_USE_KERNEL_BUNDLES>;
 
