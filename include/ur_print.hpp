@@ -2291,6 +2291,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
         os << "UR_DEVICE_INFO_MAX_COMPUTE_UNITS";
         break;
+    case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:
+        os << "UR_DEVICE_INFO_NUM_COMPUTE_UNITS";
+        break;
     case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
         os << "UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS";
         break;
@@ -2791,6 +2794,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+        case UR_DEVICE_INFO_NUM_COMPUTE_UNITS: {
         const uint32_t *tptr = (const uint32_t *)ptr;
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";

@@ -56,6 +56,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VENDOR_ID: {
     return ReturnValue(4318u);
   }
+  case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     return ReturnValue(hDevice->getNumComputeUnits());
   }

@@ -827,6 +827,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:{
+    
+    bool ExtensionSupported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, ExtensionSupported));
+    
+    cl_device_type CLType;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_TYPE,
+                        sizeof(cl_device_type), &CLType, nullptr));
+    
+    cl_uint NumComputeUnits;
+    if (ExtensionSupported && (CLType & CL_DEVICE_TYPE_GPU)) {
+      cl_uint SliceCount = 0;
+      cl_uint SubSlicePerSliceCount =0; 
+      CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_NUM_SLICES_INTEL, sizeof(cl_uint), &SliceCount, nullptr));
+      CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_NUM_SUB_SLICES_PER_SLICE_INTEL, sizeof(cl_uint), &SubSlicePerSliceCount, nullptr));
+      NumComputeUnits = SliceCount*SubSlicePerSliceCount;  
+    }else{
+      CL_RETURN_ON_FAILURE(clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &NumComputeUnits, nullptr));
+    }
+    
+    return ReturnValue(static_cast<size_t>(NumComputeUnits));
+  }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(false);
   }

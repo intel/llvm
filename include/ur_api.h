@@ -1719,6 +1719,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,                    ///< [::ur_bool_t] returns true if the device supports low-power events.
     UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,         ///< [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
                                                                      ///< of Intel GPU 2D block array capabilities
+    UR_DEVICE_INFO_NUM_COMPUTE_UNITS = 0x2023,                       ///< [uint32_t] the number of compute units for specific backend
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
