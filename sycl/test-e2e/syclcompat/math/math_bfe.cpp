@@ -79,7 +79,7 @@ bfe_slow(const T source, const uint32_t bit_start, const uint32_t num_bits) {
 
 template <typename T> bool test(const char *Msg, int N) {
   uint32_t bit_width = std::numeric_limits<unsigned char>::digits * sizeof(T);
-  T min_value = std::numeric_limits<T>::min();
+  T min_value = std::numeric_limits<T>::lowest();
   T max_value = std::numeric_limits<T>::max();
   std::random_device rd;
   std::mt19937::result_type seed =
@@ -94,7 +94,9 @@ template <typename T> bool test(const char *Msg, int N) {
                .count());
 
   std::mt19937 gen(seed);
-  std::uniform_int_distribution<T> rd_source(min_value, max_value);
+  // Support for char type with uniform_int_distribution isn't universal
+  using RandomDataT = std::conditional_t<sizeof(T) == 1, int, T>;
+  std::uniform_int_distribution<RandomDataT> rd_source(min_value, max_value);
 
   // Define a small overshoot so that we adequately test out-of-range cases
   // without sacrificing depth of testing of valid start+length combinations
@@ -108,7 +110,7 @@ template <typename T> bool test(const char *Msg, int N) {
   std::vector<uint32_t> starts(N, 0);
   std::vector<uint32_t> lengths(N, 0);
   for (int i = 0; i < N; ++i) {
-    sources[i] = rd_source(gen);
+    sources[i] = static_cast<T>(rd_source(gen));
     starts[i] = rd_start(gen);
     lengths[i] = rd_length(gen);
   }
