@@ -587,7 +587,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
       TheTarget =
           TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
       if (!TheTarget) {
-        WithColor::error(errs(), argv[0]) << Error;
+        WithColor::error(errs(), argv[0]) << Error << "\n";
         exit(1);
       }
 
@@ -630,7 +630,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
     TheTarget =
         TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
     if (!TheTarget) {
-      WithColor::error(errs(), argv[0]) << Error;
+      WithColor::error(errs(), argv[0]) << Error << "\n";
       return 1;
     }
 

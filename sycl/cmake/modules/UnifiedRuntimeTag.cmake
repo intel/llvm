@@ -1,7 +1,7 @@
-# commit 13f5e52ac047bb81f478f0dbe9416a8bc179130a
-# Merge: fe6c83a3 fa1e678a
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Mon Dec 30 15:14:19 2024 +0000
-#     Merge pull request #2484 from zhaomaosu/move-clean-shadow-to-launchinfo
-#     [DevMSAN] Move clean shadow into launch info
-set(UNIFIED_RUNTIME_TAG 13f5e52ac047bb81f478f0dbe9416a8bc179130a)
+# commit 3472b5bda88fc06560561d7538a9c21d02f749e7
+# Merge: 33c94851 da04d138
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Jan 7 10:40:35 2025 +0000
+#     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
+#     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
+set(UNIFIED_RUNTIME_TAG da04d13807044aaf17615b66577fb0e832011ab1)

@@ -498,8 +498,6 @@ if len(config.sycl_devices) > 1:
         "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
     )
 
-config.sycl_devices = [x.replace("ext_oneapi_", "") for x in config.sycl_devices]
-
 available_devices = {
     "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",

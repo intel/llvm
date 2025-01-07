@@ -194,7 +194,6 @@ public:
     Freescale,
     IBM,
     ImaginationTechnologies,
-    Intel,
     MipsTechnologies,
     NVIDIA,
     CSR,
@@ -202,7 +201,8 @@ public:
     Mesa,
     SUSE,
     OpenEmbedded,
-    LastVendorType = OpenEmbedded
+    Intel,
+    LastVendorType = Intel
   };
   enum OSType {
     UnknownOS,

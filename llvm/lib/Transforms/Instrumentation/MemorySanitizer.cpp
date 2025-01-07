@@ -681,7 +681,9 @@ private:
   FunctionCallee MemmoveFn, MemcpyFn, MemsetFn;
 
   /// MSan runtime replacements for memset with address space.
-  FunctionCallee MemsetOffloadFn[kNumberOfAddressSpace];
+  FunctionCallee MemmoveOffloadFn[kNumberOfAddressSpace][kNumberOfAddressSpace],
+      MemcpyOffloadFn[kNumberOfAddressSpace][kNumberOfAddressSpace],
+      MemsetOffloadFn[kNumberOfAddressSpace];
 
   /// KMSAN callback for task-local function argument shadow.
   StructType *MsanContextStateTy;
@@ -948,7 +950,7 @@ static Constant *getOrInsertGlobal(Module &M, StringRef Name, Type *Ty) {
   // FIXME: spirv target doesn't support TLS, need to handle it later.
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     return M.getOrInsertGlobal(Name, Ty, [&] {
-      return new GlobalVariable(M, Ty, false, GlobalVariable::ExternalLinkage,
+      return new GlobalVariable(M, Ty, false, GlobalVariable::InternalLinkage,
                                 Constant::getNullValue(Ty), Name, nullptr,
                                 GlobalVariable::NotThreadLocal,
                                 kSpirOffloadGlobalAS);
@@ -1088,11 +1090,23 @@ void MemorySanitizer::initializeCallbacks(Module &M,
   } else {
     for (unsigned FirstArgAS = 0; FirstArgAS < kNumberOfAddressSpace;
          FirstArgAS++) {
-      const std::string Suffix = "_p" + itostr(FirstArgAS);
+      const std::string Suffix1 = "_p" + itostr(FirstArgAS);
       PointerType *FirstArgPtrTy = IRB.getPtrTy(FirstArgAS);
       MemsetOffloadFn[FirstArgAS] = M.getOrInsertFunction(
-          "__msan_memset" + Suffix, TLI.getAttrList(C, {1}, /*Signed=*/true),
+          "__msan_memset" + Suffix1, TLI.getAttrList(C, {1}, /*Signed=*/true),
           FirstArgPtrTy, FirstArgPtrTy, IRB.getInt32Ty(), IntptrTy);
+
+      for (unsigned SecondArgAS = 0; SecondArgAS < kNumberOfAddressSpace;
+           SecondArgAS++) {
+        const std::string Suffix2 = Suffix1 + "_p" + itostr(SecondArgAS);
+        PointerType *SecondArgPtrTy = IRB.getPtrTy(SecondArgAS);
+        MemmoveOffloadFn[FirstArgAS][SecondArgAS] =
+            M.getOrInsertFunction("__msan_memmove" + Suffix2, FirstArgPtrTy,
+                                  FirstArgPtrTy, SecondArgPtrTy, IntptrTy);
+        MemcpyOffloadFn[FirstArgAS][SecondArgAS] =
+            M.getOrInsertFunction("__msan_memcpy" + Suffix2, FirstArgPtrTy,
+                                  FirstArgPtrTy, SecondArgPtrTy, IntptrTy);
+      }
     }
   }
 
@@ -1320,8 +1334,6 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
     Addr = XCHG->getPointerOperand();
   else if (const auto *ASC = dyn_cast<AddrSpaceCastInst>(&I))
     Addr = ASC->getPointerOperand();
-  else if (isa<MemCpyInst>(&I))
-    I.setNoSanitizeMetadata();
   else if (isa<AllocaInst>(&I))
     I.setNoSanitizeMetadata();
   else if (const auto *CI = dyn_cast<CallInst>(&I)) {
@@ -3180,9 +3192,19 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///
   /// Similar situation exists for memcpy and memset.
   void visitMemMoveInst(MemMoveInst &I) {
+    if (SpirOrSpirv && ((isa<Instruction>(I.getArgOperand(0)) &&
+                         cast<Instruction>(I.getArgOperand(0))
+                             ->getMetadata(LLVMContext::MD_nosanitize)) ||
+                        (isa<Instruction>(I.getArgOperand(1)) &&
+                         cast<Instruction>(I.getArgOperand(1))
+                             ->getMetadata(LLVMContext::MD_nosanitize))))
+      return;
+
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
-    IRB.CreateCall(MS.MemmoveFn,
+    IRB.CreateCall(SpirOrSpirv ? MS.MemmoveOffloadFn[I.getDestAddressSpace()]
+                                                    [I.getSourceAddressSpace()]
+                               : MS.MemmoveFn,
                    {I.getArgOperand(0), I.getArgOperand(1),
                     IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
     I.eraseFromParent();
@@ -3203,9 +3225,19 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// __msan_memcpy(). Should this be wrong, such as when implementing memcpy()
   /// itself, instrumentation should be disabled with the no_sanitize attribute.
   void visitMemCpyInst(MemCpyInst &I) {
+    if (SpirOrSpirv && ((isa<Instruction>(I.getArgOperand(0)) &&
+                         cast<Instruction>(I.getArgOperand(0))
+                             ->getMetadata(LLVMContext::MD_nosanitize)) ||
+                        (isa<Instruction>(I.getArgOperand(1)) &&
+                         cast<Instruction>(I.getArgOperand(1))
+                             ->getMetadata(LLVMContext::MD_nosanitize))))
+      return;
+
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
-    IRB.CreateCall(MS.MemcpyFn,
+    IRB.CreateCall(SpirOrSpirv ? MS.MemcpyOffloadFn[I.getDestAddressSpace()]
+                                                   [I.getSourceAddressSpace()]
+                               : MS.MemcpyFn,
                    {I.getArgOperand(0), I.getArgOperand(1),
                     IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
     I.eraseFromParent();
@@ -3220,10 +3252,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     IRBuilder<> IRB(&I);
     IRB.CreateCall(
-        SpirOrSpirv ? MS.MemsetOffloadFn[cast<PointerType>(
-                                             I.getArgOperand(0)->getType())
-                                             ->getAddressSpace()]
-                    : MS.MemsetFn,
+        SpirOrSpirv ? MS.MemsetOffloadFn[I.getDestAddressSpace()] : MS.MemsetFn,
         {I.getArgOperand(0),
          IRB.CreateIntCast(I.getArgOperand(1), IRB.getInt32Ty(), false),
          IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
