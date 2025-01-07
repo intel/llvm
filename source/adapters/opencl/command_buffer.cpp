@@ -92,7 +92,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
   try {
     auto URCommandBuffer = std::make_unique<ur_exp_command_buffer_handle_t_>(
-        Queue, hContext, CLCommandBuffer, IsUpdatable);
+        Queue, hContext, hDevice, CLCommandBuffer, IsUpdatable);
     *phCommandBuffer = URCommandBuffer.release();
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -540,6 +540,64 @@ void updateKernelArgs(std::vector<cl_mutable_dispatch_arg_khr> &CLArgs,
   }
 }
 
+ur_result_t validateCommandDesc(
+    ur_exp_command_buffer_command_handle_t Command,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *UpdateDesc) {
+  // Kernel handle updates are not yet supported.
+  if (UpdateDesc->hNewKernel && UpdateDesc->hNewKernel != Command->Kernel) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  // Error if work-dim has change but a new global size/offset hasn't been set
+  if (UpdateDesc->newWorkDim != Command->WorkDim &&
+      (!UpdateDesc->pNewGlobalWorkOffset || !UpdateDesc->pNewGlobalWorkSize)) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // Verify that the device supports updating the aspects of the kernel that
+  // the user is requesting.
+  ur_device_handle_t URDevice = Command->hCommandBuffer->hDevice;
+  cl_device_id CLDevice = cl_adapter::cast<cl_device_id>(URDevice);
+
+  ur_device_command_buffer_update_capability_flags_t UpdateCapabilities = 0;
+  CL_RETURN_ON_FAILURE(
+      getDeviceCommandBufferUpdateCapabilities(CLDevice, UpdateCapabilities));
+
+  size_t *NewGlobalWorkOffset = UpdateDesc->pNewGlobalWorkOffset;
+  UR_ASSERT(
+      !NewGlobalWorkOffset ||
+          (UpdateCapabilities &
+           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  size_t *NewLocalWorkSize = UpdateDesc->pNewLocalWorkSize;
+  UR_ASSERT(
+      !NewLocalWorkSize ||
+          (UpdateCapabilities &
+           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  size_t *NewGlobalWorkSize = UpdateDesc->pNewGlobalWorkSize;
+  UR_ASSERT(
+      !NewGlobalWorkSize ||
+          (UpdateCapabilities &
+           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+  UR_ASSERT(
+      !(NewGlobalWorkSize && !NewLocalWorkSize) ||
+          (UpdateCapabilities &
+           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  UR_ASSERT(
+      (!UpdateDesc->numNewMemObjArgs && !UpdateDesc->numNewPointerArgs &&
+       !UpdateDesc->numNewValueArgs) ||
+          (UpdateCapabilities &
+           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+  return UR_RESULT_SUCCESS;
+}
 } // end anonymous namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
@@ -547,11 +605,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
 
-  // Kernel handle updates are not yet supported.
-  if (pUpdateKernelLaunch->hNewKernel &&
-      pUpdateKernelLaunch->hNewKernel != hCommand->Kernel) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  UR_RETURN_ON_FAILURE(validateCommandDesc(hCommand, pUpdateKernelLaunch));
 
   ur_exp_command_buffer_handle_t hCommandBuffer = hCommand->hCommandBuffer;
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
@@ -564,12 +618,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
   if (!hCommandBuffer->IsFinalized || !hCommandBuffer->IsUpdatable)
     return UR_RESULT_ERROR_INVALID_OPERATION;
-
-  if (pUpdateKernelLaunch->newWorkDim != hCommand->WorkDim &&
-      (!pUpdateKernelLaunch->pNewGlobalWorkOffset ||
-       !pUpdateKernelLaunch->pNewGlobalWorkSize)) {
-    return UR_RESULT_ERROR_INVALID_OPERATION;
-  }
 
   // Find the CL USM pointer arguments to the kernel to update
   std::vector<cl_mutable_dispatch_arg_khr> CLUSMArgs;
