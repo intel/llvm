@@ -32,8 +32,11 @@ struct MsanShadowMemory {
 
     virtual uptr MemToShadow(uptr Ptr) = 0;
 
-    virtual ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr,
-                                            uptr Size, u8 Value) = 0;
+    virtual ur_result_t
+    EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
+                        uint32_t NumEvents = 0,
+                        const ur_event_handle_t *EventWaitList = nullptr,
+                        ur_event_handle_t *OutEvent = nullptr) = 0;
 
     virtual ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo>) {
         return UR_RESULT_SUCCESS;
@@ -74,8 +77,11 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
 
     uptr MemToShadow(uptr Ptr) override;
 
-    ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr,
-                                    uptr Size, u8 Value) override;
+    ur_result_t
+    EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
+                        uint32_t NumEvents = 0,
+                        const ur_event_handle_t *EventWaitList = nullptr,
+                        ur_event_handle_t *OutEvent = nullptr) override;
 };
 
 struct MsanShadowMemoryGPU : public MsanShadowMemory {
@@ -85,19 +91,27 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
     ur_result_t Setup() override;
 
     ur_result_t Destory() override;
-    ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr,
-                                    uptr Size, u8 Value) override final;
+
+    ur_result_t
+    EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
+                        uint32_t NumEvents = 0,
+                        const ur_event_handle_t *EventWaitList = nullptr,
+                        ur_event_handle_t *OutEvent = nullptr) override final;
 
     ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;
 
     virtual size_t GetShadowSize() = 0;
 
-    ur_mutex VirtualMemMapsMutex;
+  private:
+    ur_result_t EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+                                 std::vector<ur_event_handle_t> &EventWaitList,
+                                 ur_event_handle_t *OutEvent);
 
     std::unordered_map<
         uptr, std::pair<ur_physical_mem_handle_t,
                         std::unordered_set<std::shared_ptr<MsanAllocInfo>>>>
         VirtualMemMaps;
+    ur_mutex VirtualMemMapsMutex;
 };
 
 /// Shadow Memory layout of GPU PVC device
