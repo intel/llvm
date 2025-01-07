@@ -1,7 +1,7 @@
-# commit ad288bb36c45e24a35a75c665d382ce18935fcf7
-# Merge: db491abc6aba f8b04f4216e8
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Jan 3 10:08:59 2025 +0000
-#     Merge pull request #2502 from ldrumm/luke/tensormap-version
-#     CUTensorMap is only in CUDA v12
-set(UNIFIED_RUNTIME_TAG ad288bb36c45e24a35a75c665d382ce18935fcf7)
+# commit 3472b5bda88fc06560561d7538a9c21d02f749e7
+# Merge: 33c94851 da04d138
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Jan 7 10:40:35 2025 +0000
+#     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
+#     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
+set(UNIFIED_RUNTIME_TAG da04d13807044aaf17615b66577fb0e832011ab1)

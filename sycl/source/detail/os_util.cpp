@@ -59,7 +59,7 @@ inline namespace _V1 {
 namespace detail {
 
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-static std::string getDirName(const char *Path)
+[[maybe_unused]] static std::string getDirName(const char *Path)
 #else
 std::string OSUtil::getDirName(const char *Path)
 #endif
@@ -248,33 +248,45 @@ size_t getFileSize(const std::string &Path) {
 // Function to recursively iterate over the directory and execute
 // 'Func' on each regular file.
 void fileTreeWalk(const std::string Path,
-                  std::function<void(const std::string)> Func) {
+                  std::function<void(const std::string)> Func,
+                  bool ignoreErrors) {
 
   std::error_code EC;
   for (auto It = fs::recursive_directory_iterator(Path, EC);
        It != fs::recursive_directory_iterator(); It.increment(EC)) {
 
     // Errors can happen if a file was removed/added during the iteration.
-    if (EC)
-      throw sycl::exception(
-          make_error_code(errc::runtime),
-          "Failed to do File Tree Walk. Ensure that the directory is not "
-          "getting updated while FileTreeWalk is in progress.: " +
-              Path + "\n" + EC.message());
+    if (EC) {
+      if (ignoreErrors) {
+        EC.clear();
+        continue;
+      } else
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "Failed to do File Tree Walk. Ensure that the directory is not "
+            "getting updated while FileTreeWalk is in progress.: " +
+                Path + "\n" + EC.message());
+    }
 
-    if (fs::is_regular_file(It->path()))
-      Func(It->path().string());
+    try {
+      if (fs::is_regular_file(It->path()))
+        Func(It->path().string());
+    } catch (...) {
+      // Ignore errors if ignoreErrors is set to true.
+      if (!ignoreErrors)
+        throw;
+    }
   }
 }
 
 // Get size of a directory in bytes.
-size_t getDirectorySize(const std::string &Path) {
+size_t getDirectorySize(const std::string &Path, bool ignoreErrors) {
   size_t DirSizeVar = 0;
 
   auto CollectFIleSize = [&DirSizeVar](const std::string Path) {
     DirSizeVar += getFileSize(Path);
   };
-  fileTreeWalk(Path, CollectFIleSize);
+  fileTreeWalk(Path, CollectFIleSize, ignoreErrors);
 
   return DirSizeVar;
 }

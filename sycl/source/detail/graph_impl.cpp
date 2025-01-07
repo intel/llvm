@@ -1765,7 +1765,7 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
   std::string path{pathstr.data()};
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
-    impl->printGraphAsDot(path, verbose);
+    impl->printGraphAsDot(std::move(path), verbose);
   } else {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
