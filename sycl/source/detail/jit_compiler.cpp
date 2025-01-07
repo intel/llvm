@@ -23,13 +23,21 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+static std::function<void(void *)> CustomDeleterForLibHandle =
+    [](void *StoredPtr) {
+      if (!StoredPtr)
+        return;
+      std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
+    };
+
 static inline void printPerformanceWarning(const std::string &Message) {
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
     std::cerr << "WARNING: " << Message << "\n";
   }
 }
 
-jit_compiler::jit_compiler() {
+jit_compiler::jit_compiler()
+    : LibraryHandle(nullptr, CustomDeleterForLibHandle) {
   auto checkJITLibrary = [this]() -> bool {
 #ifdef _WIN32
     static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
@@ -37,14 +45,9 @@ jit_compiler::jit_compiler() {
 #else
     static const std::string JITLibraryName = "libsycl-jit.so";
 #endif
-
-    auto CustomDeleter = [](void *StoredPtr) {
-      if (!StoredPtr)
-        return;
-      std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
-    };
-    std::unique_ptr<void, decltype(CustomDeleter)> LibraryPtr(
-        sycl::detail::ur::loadOsLibrary(JITLibraryName), CustomDeleter);
+    std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryPtr(
+        sycl::detail::ur::loadOsLibrary(JITLibraryName),
+        CustomDeleterForLibHandle);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
@@ -95,16 +98,13 @@ jit_compiler::jit_compiler() {
           "Cannot resolve JIT library function entry point");
       return false;
     }
-    MLibraryHandle = LibraryPtr.release();
+    LibraryHandle = std::move(LibraryPtr);
     return true;
   };
   Available = checkJITLibrary();
 }
 
-jit_compiler::~jit_compiler() {
-  if (MLibraryHandle)
-    std::ignore = sycl::detail::ur::unloadOsLibrary(MLibraryHandle);
-}
+jit_compiler::~jit_compiler() {}
 
 static ::jit_compiler::BinaryFormat
 translateBinaryImageFormat(ur::DeviceBinaryType Type) {
