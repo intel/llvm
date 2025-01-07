@@ -8,14 +8,11 @@
 
 #pragma once
 
-#include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
-#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/type_traits.hpp>         // for is_floating_point
-
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
-
-#include <cstddef>
-#include <type_traits> // for enable_if_t, is_same
+#include <sycl/aliases.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/type_traits/vec_marray_traits.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -50,13 +47,7 @@ struct UnaryPlus {
 };
 
 struct VecOperators {
-#ifdef __SYCL_DEVICE_ONLY__
-  static constexpr bool is_host = false;
-#else
-  static constexpr bool is_host = true;
-#endif
-
-  template <typename BinOp, typename... ArgTys>
+  template <typename OpTy, typename... ArgTys>
   static constexpr auto apply(const ArgTys &...Args) {
     using Self = nth_type_t<0, ArgTys...>;
     static_assert(is_vec_v<Self>);
@@ -65,14 +56,14 @@ struct VecOperators {
     using element_type = typename Self::element_type;
     constexpr int N = Self::size();
     constexpr bool is_logical = check_type_in_v<
-        BinOp, std::equal_to<void>, std::not_equal_to<void>, std::less<void>,
+        OpTy, std::equal_to<void>, std::not_equal_to<void>, std::less<void>,
         std::greater<void>, std::less_equal<void>, std::greater_equal<void>,
         std::logical_and<void>, std::logical_or<void>, std::logical_not<void>>;
 
     using result_t = std::conditional_t<
         is_logical, vec<fixed_width_signed<sizeof(element_type)>, N>, Self>;
 
-    BinOp Op{};
+    OpTy Op{};
 #ifdef __has_extension
 #if __has_extension(attribute_ext_vector_type)
     // ext_vector_type's bool vectors are mapped onto <N x i1> and have
@@ -82,32 +73,33 @@ struct VecOperators {
     // sycl::vec<bool, N>. This is a hack actually, but we've been doing
     // that for a long time using sycl::vec::vector_t type.
     using vec_elem_ty =
-        typename detail::map_type<element_type, bool, /*->*/ std::uint8_t,
+        typename detail::map_type<element_type, //
+                                  bool, /*->*/ std::int8_t,
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-                                  std::byte, /*->*/ std::int8_t,
+                                  std::byte, /*->*/ std::uint8_t,
 #endif
 #ifdef __SYCL_DEVICE_ONLY__
                                   half, /*->*/ _Float16,
 #endif
                                   element_type, /*->*/ element_type>::type;
-    if constexpr (N != 1 && !check_type_in_v<vec_elem_ty, bool, half,
-                                             ext::oneapi::bfloat16>) {
-      using vec_t = vec_elem_ty __attribute__((ext_vector_type(N)));
+    if constexpr (N != 1 &&
+                  detail::is_valid_type_for_ext_vector_v<vec_elem_ty>) {
+      using vec_t = ext_vector<vec_elem_ty, N>;
       auto tmp = [&](auto... xs) {
         // Workaround for https://github.com/llvm/llvm-project/issues/119617.
         if constexpr (sizeof...(Args) == 2) {
           return [&](auto x, auto y) {
-            if constexpr (std::is_same_v<BinOp, std::equal_to<void>>)
+            if constexpr (std::is_same_v<OpTy, std::equal_to<void>>)
               return x == y;
-            else if constexpr (std::is_same_v<BinOp, std::not_equal_to<void>>)
+            else if constexpr (std::is_same_v<OpTy, std::not_equal_to<void>>)
               return x != y;
-            else if constexpr (std::is_same_v<BinOp, std::less<void>>)
+            else if constexpr (std::is_same_v<OpTy, std::less<void>>)
               return x < y;
-            else if constexpr (std::is_same_v<BinOp, std::less_equal<void>>)
+            else if constexpr (std::is_same_v<OpTy, std::less_equal<void>>)
               return x <= y;
-            else if constexpr (std::is_same_v<BinOp, std::greater<void>>)
+            else if constexpr (std::is_same_v<OpTy, std::greater<void>>)
               return x > y;
-            else if constexpr (std::is_same_v<BinOp, std::greater_equal<void>>)
+            else if constexpr (std::is_same_v<OpTy, std::greater_equal<void>>)
               return x >= y;
             else
               return Op(x, y);
@@ -120,12 +112,28 @@ struct VecOperators {
         // Some operations are known to produce the required bit patterns and
         // the following post-processing isn't necessary for them:
         if constexpr (!is_logical &&
-                      !check_type_in_v<BinOp, std::multiplies<void>,
+                      !check_type_in_v<OpTy, std::multiplies<void>,
                                        std::divides<void>, std::bit_or<void>,
                                        std::bit_and<void>, std::bit_xor<void>,
-                                       ShiftRight, UnaryPlus>)
-          for (size_t i = 0; i < N; ++i)
-            tmp[i] = (tmp[i] != 0);
+                                       ShiftRight, UnaryPlus>) {
+          // Extra cast is needed because:
+          static_assert(std::is_same_v<int8_t, signed char>);
+          static_assert(!std::is_same_v<
+                        decltype(std::declval<ext_vector<int8_t, 2>>() != 0),
+                        ext_vector<int8_t, 2>>);
+          static_assert(std::is_same_v<
+                        decltype(std::declval<ext_vector<int8_t, 2>>() != 0),
+                        ext_vector<char, 2>>);
+
+          // `... * -1` is needed because ext_vector_type's comparison follows
+          // OpenCL binary representation for "true" (-1).
+          // `std::array<bool, N>` is different and LLVM annotates its
+          // elements with [0, 2) range metadata when loaded, so we need to
+          // ensure we generate 0/1 only (and not 2/-1/etc.).
+          static_assert((ext_vector<int8_t, 2>{1, 0} == 0)[1] == -1);
+
+          tmp = reinterpret_cast<decltype(tmp)>((tmp != 0) * -1);
+        }
       }
       return bit_cast<result_t>(tmp);
     }
