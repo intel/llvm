@@ -8,11 +8,11 @@
 
 struct urKernelGetSubGroupInfoFixedSubGroupSizeTest : uur::urKernelTest {
     void SetUp() override {
-        program_name = "fixed_wg_size";
+        program_name = "fixed_sg_size";
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
     }
 
-    // This value correlates to sub_group_size<8> in fixed_wg_size.cpp.
+    // This value correlates to sub_group_size<8> in fixed_sg_size.cpp.
     uint32_t num_sub_groups{8};
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(
