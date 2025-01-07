@@ -1,7 +1,7 @@
-# commit 533ab9b08dfbf061585eb3487aed94ca45d0b331
-# Merge: e7366f94 3eeb2a17
+# commit 3472b5bda88fc06560561d7538a9c21d02f749e7
+# Merge: 33c94851 da04d138
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 6 15:24:08 2025 +0000
-#     Merge pull request #2513 from AllanZyne/review/yang/fix_msan_usm
-#     [DeviceMSAN] Fix "urEnqueueUSM" APIs
+# Date:   Tue Jan 7 10:40:35 2025 +0000
+#     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
+#     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
 set(UNIFIED_RUNTIME_TAG da04d13807044aaf17615b66577fb0e832011ab1)
