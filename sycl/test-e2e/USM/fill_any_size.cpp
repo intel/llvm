@@ -21,7 +21,6 @@
 
 constexpr size_t MaxPatternSize{32}; // Bytes.
 constexpr size_t NumElements{10};
-constexpr size_t NumRepeats{1};
 constexpr bool verbose{false};
 
 template <size_t PatternSize, bool SameValue>
@@ -37,9 +36,7 @@ int test(sycl::queue &q, uint8_t firstValue = 0) {
   }
 
   T *dptr{sycl::malloc_device<T>(NumElements, q)};
-  for (size_t repeat{0}; repeat < NumRepeats; ++repeat) {
-    q.fill(dptr, value, NumElements).wait();
-  }
+  q.fill(dptr, value, NumElements).wait();
 
   std::array<T, NumElements> host{};
   q.copy<T>(dptr, host.data(), NumElements).wait();
