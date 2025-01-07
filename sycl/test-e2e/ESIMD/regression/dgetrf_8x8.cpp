@@ -218,7 +218,7 @@ static int dgetrfnp_batch_strided_check(int64_t m, int64_t n, double *a_in,
   double res = 0.0, nrm = 0.0, ulp = *(double *)prec_b;
   double *w = (double *)malloc(sizeof(double) * MAX(m * n, 1));
 
-  sprintf(label, "m=%ld, n=%ld, lda=%ld, batch=%ld", m, n, lda, batch);
+  sprintf(label, "m=%lld, n=%lld, lda=%lld, batch=%lld", m, n, lda, batch);
 
   for (k = 0; k < batch; k++) {
     /* info == 0 */
