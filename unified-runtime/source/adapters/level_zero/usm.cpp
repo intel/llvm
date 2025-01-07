@@ -27,7 +27,8 @@ namespace umf {
 ur_result_t getProviderNativeError(const char *providerName,
                                    int32_t nativeError) {
   if (strcmp(providerName, "Level Zero") == 0) {
-    return ze2urResult(static_cast<ze_result_t>(nativeError));
+    // L0 provider stores native errors of ur_result_t type
+    return static_cast<ur_result_t>(nativeError);
   }
 
   return UR_RESULT_ERROR_UNKNOWN;
