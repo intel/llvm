@@ -237,9 +237,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      # v2.2.0 of the action is broken.
-      # https://github.com/softprops/action-gh-release/issues/556
-      uses: softprops/action-gh-release@v2.1.0
+      uses: softprops/action-gh-release@v2.2.1
       with:
         files: |
           sycl_linux.tar.gz
