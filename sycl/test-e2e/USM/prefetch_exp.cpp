@@ -56,13 +56,12 @@ int main() {
     }
 
     // Test device-to-host prefetch via prefetch(handler ...).
-    event InitPrefetchBack =
-        q.submit([&](handler &CGH) {
-          CGH.single_task<class quadruple_dest>([=]() {
-            for (int i = 0; i < Count; i++)
-              Dest[i] = 4 * Src[i];
-          });
-        });
+    event InitPrefetchBack = q.submit([&](handler &CGH) {
+      CGH.single_task<class quadruple_dest>([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 4 * Src[i];
+      });
+    });
 
     ext::oneapi::experimental::submit(q, [&](handler &CGH) {
       CGH.depends_on(InitPrefetch);

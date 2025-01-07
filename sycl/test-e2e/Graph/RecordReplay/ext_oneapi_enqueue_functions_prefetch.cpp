@@ -20,28 +20,25 @@ int main() {
     return 0;
   }
 
-  int *Src = (int*) malloc_shared(sizeof(int) * N, Q.get_device(),
-                                  Q.get_context());
-  int *Dst = (int*) malloc_shared(sizeof(int) * N, Q.get_device(),
-                                  Q.get_context());
+  int *Src =
+      (int *)malloc_shared(sizeof(int) * N, Q.get_device(), Q.get_context());
+  int *Dst =
+      (int *)malloc_shared(sizeof(int) * N, Q.get_device(), Q.get_context());
   for (int i = 0; i < N; i++)
     Src[i] = Pattern;
-                                  
+
   {
     exp_ext::command_graph Graph{Q.get_context(), Q.get_device(), {}};
 
     Graph.begin_recording(Q);
 
     // Test submitting host-to-device prefetch
-    event TestH2D = exp_ext::submit_with_event(Q, [&](handler &CGH) {
-      exp_ext::prefetch(CGH, Src, sizeof(int) * N);
-    });
+    event TestH2D = exp_ext::submit_with_event(
+        Q, [&](handler &CGH) { exp_ext::prefetch(CGH, Src, sizeof(int) * N); });
 
     exp_ext::submit(Q, [&](handler &CGH) {
       CGH.depends_on(TestH2D);
-      exp_ext::parallel_for(range<1>(N), [=](id<1> i) {
-        Dst[i] = Src[i] * 2;
-      });
+      exp_ext::parallel_for(range<1>(N), [=](id<1> i) { Dst[i] = Src[i] * 2; });
     });
 
     Graph.end_recording();
@@ -63,9 +60,7 @@ int main() {
 
     // Test submitting device-to-host prefetch
     event TestD2H = exp_ext::submit_with_event(Q, [&](handler &CGH) {
-      exp_ext::parallel_for(range<1>(N), [=](id<1> i) {
-        Dst[i] = Src[i] + 1;
-      });
+      exp_ext::parallel_for(range<1>(N), [=](id<1> i) { Dst[i] = Src[i] + 1; });
     });
 
     exp_ext::submit(Q, [&](handler &CGH) {
