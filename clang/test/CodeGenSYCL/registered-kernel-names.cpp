@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm -triple spir64 -o - %s | FileCheck %s
 
-// This test checks if the sycl_registered_kernels module flag and
+// This test checks if the sycl_registered_kernels named metadata and
 // associated entries are generated for registered kernel names.
 
 __attribute__((sycl_device))
@@ -58,8 +58,7 @@ namespace N {
 )]];
 }
 
-// Check for the presence of sycl-device module flag in device
-// compilations and its absence in host compilations.
+// Check for the presence of sycl_registered_kernels named metadata.
 // CHECK: !sycl_registered_kernels = !{![[LIST:[0-9]+]]}
 // CHECK: ![[LIST]] = !{![[ENT1:[0-9]+]], ![[ENT2:[0-9]+]], ![[ENT3:[0-9]+]], ![[ENT4:[0-9]+]],  ![[ENT5:[0-9]+]], ![[ENT6:[0-9]+]], ![[ENT7:[0-9]+]], ![[ENT8:[0-9]+]]}
 // CHECK: ![[ENT1]] = !{!"foo", !"{{.*}}sycl_kernel{{.*}}foo{{.*}}"}
