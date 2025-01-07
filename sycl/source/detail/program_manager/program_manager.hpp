@@ -132,13 +132,11 @@ public:
 
   RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
                                       const context &Context,
-                                      const device &Device,
-                                      bool JITCompilationIsRequired = false);
+                                      const device &Device);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const context &Context, const device &Device,
-      bool JITCompilationIsRequired = false);
+      const context &Context, const device &Device);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       const context &Context,
@@ -174,13 +172,10 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
-  ///        add a check that kernel is compiled, otherwise don't add the check.
   ur_program_handle_t getBuiltURProgram(const ContextImplPtr &ContextImpl,
                                         const DeviceImplPtr &DeviceImpl,
                                         const std::string &KernelName,
-                                        const NDRDescT &NDRDesc = {},
-                                        bool JITCompilationIsRequired = false);
+                                        const NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.

@@ -780,8 +780,7 @@ static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage 
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, const NDRDescT &NDRDesc,
-    bool JITCompilationIsRequired) {
+    const std::string &KernelName, const NDRDescT &NDRDesc) {
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
   DeviceImplPtr RootDevImpl = DeviceImpl;
@@ -802,8 +801,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   auto Device = createSyclObjFromImpl<device>(
       MustBuildOnSubdevice == true ? DeviceImpl : RootDevImpl);
-  const RTDeviceBinaryImage &Img =
-      getDeviceImage(KernelName, Context, Device, JITCompilationIsRequired);
+  const RTDeviceBinaryImage &Img = getDeviceImage(KernelName, Context, Device);
 
   // Check that device supports all aspects used by the kernel
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img, NDRDesc))
@@ -1397,23 +1395,6 @@ ProgramManager::ProgramManager()
   }
 }
 
-void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
-                                 bool JITCompilationIsRequired) {
-  if (!JITCompilationIsRequired)
-    return;
-  // If the image is already compiled with AOT, throw an exception.
-  const sycl_device_binary_struct &RawImg = Image->getRawData();
-  if ((strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-      (strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-      (strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
-    throw sycl::exception(sycl::errc::feature_not_supported,
-                          "Recompiling AOT image is not supported");
-  }
-}
-
 const char *getArchName(const device &Device) {
   namespace syclex = sycl::ext::oneapi::experimental;
   auto Arch = getSyclObjImpl(Device)->getDeviceArch();
@@ -1475,13 +1456,11 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
 
 RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(const std::string &KernelName,
-                               const context &Context, const device &Device,
-                               bool JITCompilationIsRequired) {
+                               const context &Context, const device &Device) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
               << getSyclObjImpl(Context).get() << ", "
-              << getSyclObjImpl(Device).get() << ", "
-              << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Device).get() << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1491,7 +1470,7 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     assert(m_SpvFileImage);
     return getDeviceImage(
         std::unordered_set<RTDeviceBinaryImage *>({m_SpvFileImage.get()}),
-        Context, Device, JITCompilationIsRequired);
+        Context, Device);
   }
 
   RTDeviceBinaryImage *Img = nullptr;
@@ -1511,8 +1490,6 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
   CheckAndDecompressImage(Img);
 
   if (Img) {
-    CheckJITCompilationForImage(Img, JITCompilationIsRequired);
-
     if constexpr (DbgProgMgr > 0) {
       std::cerr << "selected device image: " << &Img->getRawData() << "\n";
       Img->print();
@@ -1526,15 +1503,13 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
     const std::unordered_set<RTDeviceBinaryImage *> &ImageSet,
-    const context &Context, const device &Device,
-    bool JITCompilationIsRequired) {
+    const context &Context, const device &Device) {
   assert(ImageSet.size() > 0);
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file "
               << getSyclObjImpl(Context).get() << ", "
-              << getSyclObjImpl(Device).get() << ", "
-              << JITCompilationIsRequired << ")\n";
+              << getSyclObjImpl(Device).get() << ")\n";
 
     std::cerr << "available device images:\n";
     debugPrintBinaryImages();
@@ -1562,8 +1537,6 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
 
   ImageIterator = ImageSet.begin();
   std::advance(ImageIterator, ImgInd);
-
-  CheckJITCompilationForImage(*ImageIterator, JITCompilationIsRequired);
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << "selected device image: " << &(*ImageIterator)->getRawData()
