@@ -2859,8 +2859,8 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
         ProgramManager::getInstance().getDeviceImageFromBinaryImage(
             hostPipeEntry->getDevBinImage(), Queue->get_context(),
             Queue->get_device());
-    device_image_plain BuiltImage =
-        ProgramManager::getInstance().build(devImgPlain, {Device}, {});
+    device_image_plain BuiltImage = ProgramManager::getInstance().build(
+        std::move(devImgPlain), {std::move(Device)}, {});
     Program = getSyclObjImpl(BuiltImage)->get_ur_program_ref();
   }
   assert(Program && "Program for this hostpipe is not compiled.");

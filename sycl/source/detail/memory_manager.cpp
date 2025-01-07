@@ -1232,7 +1232,8 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
       PM.getDeviceImage(DeviceGlobalEntry->MImages, Context, Device);
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
-  device_image_plain BuiltImage = PM.build(DeviceImage, {Device}, {});
+  device_image_plain BuiltImage =
+      PM.build(std::move(DeviceImage), {Device}, {});
   return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
 }
 

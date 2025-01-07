@@ -1,4 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_msan_flags -O0 -g -o %t2.out
+// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O1 -g -o %t2.out
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
@@ -20,9 +22,10 @@ int main() {
         [=]() { array[0] = foo(array[0], array[1]); });
   });
   Q.wait();
+  // CHECK-NOT: [kernel]
   // CHECK: use-of-uninitialized-value
   // CHECK: kernel <{{.*MyKernel}}>
-  // CHECK: #0 {{.*}} {{.*check_call.cpp}}:[[@LINE-5]]
+  // CHECK: #0 {{.*}} {{.*check_call.cpp}}:[[@LINE-6]]
 
   sycl::free(array, Q);
   return 0;

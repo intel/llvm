@@ -75,6 +75,13 @@ private:
   friend struct detail::LaunchConfigAccess;
 };
 
+#ifdef __cpp_deduction_guides
+// CTAD work-around to avoid warning from GCC when using default deduction
+// guidance.
+launch_config(detail::AllowCTADTag)
+    -> launch_config<void, empty_properties_t, void>;
+#endif // __cpp_deduction_guides
+
 namespace detail {
 // Helper for accessing the members of launch_config.
 template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
