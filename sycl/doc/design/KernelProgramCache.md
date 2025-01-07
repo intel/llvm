@@ -415,15 +415,16 @@ When adding a new program to cache, we check if the size of the program cache ex
 
 #### Persistent cache eviction
 
-Persistent cache eviction is going to be applied based on file last access
-(read/write) date (access time). On SYCL application shutdown phase cache
-eviction process is initiated which walks through cache directories as follows:
+Persistent cache eviction can be enabled using the SYCL_CACHE_MAX_SIZE environment variable and is based on the LRU strategy.
 
-- if the file is locked, go to the next file;
-- otherwise check file access time:
-  - if file access time is above threshold, delete the file and remove parent
-    directory while they are unlocked and empty;
-  - otherwise do nothing.
+- A new file, called `cache_size.txt`, is created at the root of the persistent cache directory. This file contains the total size of the cache in bytes. When a new item is added to the cache, the size of the item is added to the total size in the `cache_size.txt` file. When the total size exceeds the threshold, the eviction process is initiated.
+
+- Whenever a cache entry is added or accessed, the corresponding cache item directory is updated with the current time. This is done by creating a new file, called `<entry name>_access_time.txt`, in the cache item directory. This file contains the current time in nanoseconds since the epoch. When the eviction process is initiated, we use this file to determine the last access time of the cache item.
+
+- When a new item is added to the cache, we check if the total size exceeds the threshold. If so, we iterate through the cache item directories and delete the least recently accessed items until the total size is below half the cache size.
+
+Note that once the eviction is triggered, the cache size is reduced to half the cache size to avoid frequent eviction.
+
 
 ## Cache limitations
 

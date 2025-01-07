@@ -34,7 +34,7 @@ int main() {
 
   auto DynamicCGB = exp_ext::dynamic_command_group(GraphB, {CGFA, CGFB});
   auto DynamicCGNodeB = GraphB.add(DynamicCGB);
-  DynamicCGB.set_active_cgf(1); //  Check if doesn't affect GraphA
+  DynamicCGB.set_active_index(1); //  Check if doesn't affect GraphA
 
   auto ExecGraph = GraphA.finalize(exp_ext::property::graph::updatable{});
 
@@ -57,7 +57,7 @@ int main() {
 
   // Both ExecGraph and Graph B have CGFB as active, so
   // whole graph update should be valid as graphs match.
-  DynamicCGA.set_active_cgf(1);
+  DynamicCGA.set_active_index(1);
   ExecGraph.update(DynamicCGNodeA);
   ExecGraph.update(GraphB);
 
