@@ -163,6 +163,17 @@ Intel Xeon processor codenamed Granite Rapids.
 The utility of this enumeration is currently limited.
 See the section "Limitations with the experimental version" for details.
 
+a|
+[source]
+----
+intel_cpu_dnr
+----
+|-
+|
+Intel Xeon processor codenamed Diamond Rapids.
+The utility of this enumeration is currently limited.
+See the section "Limitations with the experimental version" for details.
+
 3+^|*Intel GPU family*
 
 a|
@@ -1130,7 +1141,7 @@ option.
 These are the target names of the form "intel_gpu_*", "nvidia_gpu_*", or
 "amd_gpu_*".
 
-The architecture enumerations `intel_cpu_spr` and `intel_cpu_gnr` do
+The architecture enumerations `intel_cpu_spr`, `intel_cpu_gnr` and `intel_cpu_dmr` do
 not currently work with any of the APIs described in this extension.
 They cannot be used with the `if_architecture_is` function, the
 `device::ext_oneapi_architecture_is` function, or the
