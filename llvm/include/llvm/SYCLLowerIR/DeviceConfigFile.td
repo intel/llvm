@@ -255,8 +255,14 @@ class CudaTargetInfo<string targetName, list<Aspect> aspectList, int subGroupSiz
   assert !eq(subGroupSize, 32), "sub-group size for Cuda must be equal to 32 and not " # subGroupSize # ".";
 }
 
-defvar CudaMinAspects = !listconcat(AllUSMAspects, [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker,
-    AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth, AspectExt_intel_memory_bus_width,
+defvar CudaUSMAspects = [
+    AspectUsm_device_allocations, AspectUsm_host_allocations,
+    AspectUsm_shared_allocations, AspectUsm_atomic_host_allocations,
+    AspectUsm_atomic_shared_allocations
+];
+
+defvar CudaMinAspects = !listconcat(CudaUSMAspects, [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker,
+    AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_memory_bus_width,
     AspectExt_intel_device_info_uuid, AspectExt_oneapi_native_assert, AspectExt_intel_free_memory, AspectExt_intel_device_id,
     AspectExt_intel_memory_clock_rate, AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group,
     AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
@@ -312,37 +318,43 @@ defvar HipSubgroupSizesRDNA = [32];     // gfxX10-gfx11 (encapsulates RDNA1..3),
 defvar HipSubgroupSizesCDNA = [64];     // gfx908, gfx90a (encapsulates CDNA1..2)
 
 defvar HipMinAspects = [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker, AspectQueue_profiling,
-    AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth, AspectExt_intel_device_id,
+    AspectExt_intel_pci_address, AspectExt_intel_device_id,
     AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectExt_intel_free_memory];
+
+defvar HipUSMAspects = [
+    AspectUsm_device_allocations, AspectUsm_host_allocations,
+    AspectUsm_shared_allocations, AspectUsm_atomic_host_allocations,
+    AspectUsm_atomic_shared_allocations
+];
 
 // The following AMDGCN targets are ordered based on their ROCm driver support:
 //
 // Officially supported:
-def : HipTargetInfo<"amd_gpu_gfx908", !listconcat(HipMinAspects, AllUSMAspects,
+def : HipTargetInfo<"amd_gpu_gfx908", !listconcat(HipMinAspects, HipUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]), HipSubgroupSizesCDNA>;
-def : HipTargetInfo<"amd_gpu_gfx90a", !listconcat(HipMinAspects, AllUSMAspects,
+def : HipTargetInfo<"amd_gpu_gfx90a", !listconcat(HipMinAspects, HipUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_native_assert]),
     HipSubgroupSizesCDNA>;
 // TODO: Need to verify whether device-side asserts (oneapi_native_assert) are
 // now working for the new CDNA3 gfx940, gfx941, gfx942 GPUs and fixed for the
 // other supported, gfx1030 and gfx1100, RDNA3 GPUs.
-def : HipTargetInfo<"amd_gpu_gfx940", !listconcat(HipMinAspects, AllUSMAspects,
+def : HipTargetInfo<"amd_gpu_gfx940", !listconcat(HipMinAspects, HipUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
     HipSubgroupSizesCDNA>;
-def : HipTargetInfo<"amd_gpu_gfx941", !listconcat(HipMinAspects, AllUSMAspects,
+def : HipTargetInfo<"amd_gpu_gfx941", !listconcat(HipMinAspects, HipUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
     HipSubgroupSizesCDNA>;
-def : HipTargetInfo<"amd_gpu_gfx942", !listconcat(HipMinAspects, AllUSMAspects,
+def : HipTargetInfo<"amd_gpu_gfx942", !listconcat(HipMinAspects, HipUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
     HipSubgroupSizesCDNA>;
-def : HipTargetInfo<"amd_gpu_gfx1030", !listconcat(HipMinAspects, AllUSMAspects,
+def : HipTargetInfo<"amd_gpu_gfx1030", !listconcat(HipMinAspects, HipUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
     HipSubgroupSizesRDNA>;
-def : HipTargetInfo<"amd_gpu_gfx1100", !listconcat(HipMinAspects, AllUSMAspects,
+def : HipTargetInfo<"amd_gpu_gfx1100", !listconcat(HipMinAspects, HipUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
     HipSubgroupSizesRDNA>;
 // Deprecated support:
-def : HipTargetInfo<"amd_gpu_gfx906", !listconcat(HipMinAspects, AllUSMAspects), HipSubgroupSizesGCN5>;
+def : HipTargetInfo<"amd_gpu_gfx906", !listconcat(HipMinAspects, HipUSMAspects), HipSubgroupSizesGCN5>;
 // Unsupported (or unofficially supported):
 def : HipTargetInfo<"amd_gpu_gfx700", HipMinAspects, HipSubgroupSizesGCN2>;
 def : HipTargetInfo<"amd_gpu_gfx701", HipMinAspects, HipSubgroupSizesGCN2>;
