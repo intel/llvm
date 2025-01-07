@@ -138,12 +138,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #else
   bool isLocalSizeOne =
       ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
-  if (isLocalSizeOne && ndr.GlobalSize[0] > numParallelThreads) {
+  if (isLocalSizeOne && ndr.GlobalSize[0] > numParallelThreads &&
+      !hKernel->hasLocalArgs()) {
     // If the local size is one, we make the assumption that we are running a
     // parallel_for over a sycl::range.
-    // Todo: we could add compiler checks and
-    // kernel properties for this (e.g. check that no barriers are called, no
-    // local memory args).
+    // Todo: we could add more compiler checks and
+    // kernel properties for this (e.g. check that no barriers are called).
 
     // Todo: this assumes that dim 0 is the best dimension over which we want to
     // parallelize
