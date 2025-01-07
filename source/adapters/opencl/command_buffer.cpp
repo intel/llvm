@@ -548,7 +548,7 @@ ur_result_t validateCommandDesc(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  // Error if work-dim has change but a new global size/offset hasn't been set
+  // Error if work-dim has changed but a new global size/offset hasn't been set
   if (UpdateDesc->newWorkDim != Command->WorkDim &&
       (!UpdateDesc->pNewGlobalWorkOffset || !UpdateDesc->pNewGlobalWorkSize)) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
