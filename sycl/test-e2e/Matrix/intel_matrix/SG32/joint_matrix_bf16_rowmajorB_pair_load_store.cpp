@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: aspect-ext_intel_matrix, cpu
+// REQUIRES: cpu
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
