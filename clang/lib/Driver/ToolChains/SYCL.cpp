@@ -153,8 +153,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
-    const llvm::opt::ArgList &Args)
-    : D(D) {}
+    const llvm::opt::ArgList &Args) : D(D) {}
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
@@ -1618,12 +1617,12 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
-// Unsupported options for device compilation
+// Unsupported options for SYCL device compilation.
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
 //  -fcs-profile-generate -forder-file-instrumentation, --coverage
-static std::vector<OptSpecifier> getUnsupportedOpts(void) {
-  std::vector<OptSpecifier> UnsupportedOpts = {
+static ArrayRef<options::ID> getUnsupportedOpts() {
+  static constexpr options::ID UnsupportedOpts[] = {
       options::OPT_fsanitize_EQ,      // -fsanitize
       options::OPT_fcf_protection_EQ, // -fcf-protection
       options::OPT_fprofile_generate,
@@ -1644,7 +1643,8 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
       options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
       options::OPT_forder_file_instrumentation, // -forder-file-instrumentation
       options::OPT_fcs_profile_generate,        // -fcs-profile-generate
-      options::OPT_fcs_profile_generate_EQ};
+      options::OPT_fcs_profile_generate_EQ,
+  };
   return UnsupportedOpts;
 }
 
