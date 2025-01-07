@@ -512,10 +512,11 @@ ur_result_t urKernelGetGroupInfo(
         ZE_CALL_NOCHECK(zeKernelGetProperties, (zeDevice, &kernelProperties));
     if (zeResult == ZE_RESULT_SUCCESS &&
         workGroupProperties.maxGroupSize != 0) {
-      return returnValue(workGroupProperties.maxGroupSize);
+      // Specification states this returns a size_t.
+      return returnValue(size_t{workGroupProperties.maxGroupSize});
     }
     return returnValue(
-        uint64_t{hDevice->ZeDeviceComputeProperties->maxTotalGroupSize});
+        size_t{hDevice->ZeDeviceComputeProperties->maxTotalGroupSize});
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     auto props = hKernel->getProperties(hDevice);
@@ -527,7 +528,7 @@ ur_result_t urKernelGetGroupInfo(
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     auto props = hKernel->getProperties(hDevice);
-    return returnValue(uint32_t{props.localMemSize});
+    return returnValue(size_t{props.localMemSize});
   }
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     return returnValue(
@@ -535,7 +536,7 @@ ur_result_t urKernelGetGroupInfo(
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
     auto props = hKernel->getProperties(hDevice);
-    return returnValue(uint32_t{props.privateMemSize});
+    return returnValue(size_t{props.privateMemSize});
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
   case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
