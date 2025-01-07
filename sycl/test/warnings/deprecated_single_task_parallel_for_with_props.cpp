@@ -13,8 +13,6 @@ int main() {
   range<2> R2(1, 1);
   range<3> R3(1, 1, 1);
   nd_range<1> NDR1{R1, R1};
-  nd_range<2> NDR2{R2, R2};
-  nd_range<3> NDR3{R3, R3};
   constexpr auto Props = sycl::ext::oneapi::experimental::properties{};
 
   // expected-warning@+1{{'single_task' is deprecated: Use sycl::ext::oneapi::experimental::single_task (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
