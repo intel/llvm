@@ -2907,14 +2907,12 @@ private:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for_impl(range<Dims> Range, PropertiesT Properties,
-                               RestT &&...Rest) {
+      event>
+  parallel_for_impl(range<Dims> Range, PropertiesT Properties,
+                    RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2945,13 +2943,10 @@ private:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for_impl(range<Dims> Range, event DepEvent,
-                               PropertiesT Properties, RestT &&...Rest) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
+                    RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2985,14 +2980,10 @@ private:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event> parallel_for_impl(range<Dims> Range,
-                               const std::vector<event> &DepEvents,
-                               PropertiesT Properties, RestT &&...Rest) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
+                    PropertiesT Properties, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
