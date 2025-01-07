@@ -151,6 +151,11 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
 
+SYCLInstallationDetector::SYCLInstallationDetector(
+    const Driver &D, const llvm::Triple &HostTriple,
+    const llvm::opt::ArgList &Args)
+    : D(D) {}
+
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
   for (const auto &IC : InstallationCandidates) {
@@ -162,8 +167,10 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 
-void SYCLInstallationDetector::AddSYCLIncludeArgs(
+void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
+  if (DriverArgs.hasArg(clang::driver::options::OPT_nobuiltininc))
+    return;
   // Add the SYCL header search locations in the specified order.
   //   ../include/sycl/stl_wrappers
   //   ../include
@@ -1617,26 +1624,26 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 //  -fcs-profile-generate -forder-file-instrumentation, --coverage
 static std::vector<OptSpecifier> getUnsupportedOpts(void) {
   std::vector<OptSpecifier> UnsupportedOpts = {
-      options::OPT_fsanitize_EQ,
-      options::OPT_fcf_protection_EQ,
+      options::OPT_fsanitize_EQ,      // -fsanitize
+      options::OPT_fcf_protection_EQ, // -fcf-protection
       options::OPT_fprofile_generate,
       options::OPT_fprofile_generate_EQ,
-      options::OPT_fno_profile_generate,
+      options::OPT_fno_profile_generate, // -f[no-]profile-generate
       options::OPT_ftest_coverage,
-      options::OPT_fno_test_coverage,
+      options::OPT_fno_test_coverage, // -f[no-]test-coverage
       options::OPT_fcoverage_mapping,
-      options::OPT_fno_coverage_mapping,
-      options::OPT_coverage,
+      options::OPT_coverage,             // --coverage
+      options::OPT_fno_coverage_mapping, // -f[no-]coverage-mapping
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
       options::OPT_fprofile_arcs,
-      options::OPT_fno_profile_arcs,
-      options::OPT_fno_profile_instr_generate,
-      options::OPT_fcreate_profile,
+      options::OPT_fno_profile_arcs, // -f[no-]profile-arcs
+      options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
+      options::OPT_fcreate_profile,  // -fcreate-profile
       options::OPT_fprofile_instr_use,
-      options::OPT_fprofile_instr_use_EQ,
-      options::OPT_forder_file_instrumentation,
-      options::OPT_fcs_profile_generate,
+      options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
+      options::OPT_forder_file_instrumentation, // -forder-file-instrumentation
+      options::OPT_fcs_profile_generate,        // -fcs-profile-generate
       options::OPT_fcs_profile_generate_EQ};
   return UnsupportedOpts;
 }
@@ -1661,9 +1668,10 @@ static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
-      IsSYCLNativeCPU(Triple == HostTC.getTriple()), SYCLInstallation(D) {
-  // Lookup binaries into the driver directory, this is used to
-  // discover the clang-offload-bundler executable.
+      IsSYCLNativeCPU(Triple == HostTC.getTriple()),
+      SYCLInstallation(D, Triple, Args) {
+  // Lookup binaries into the driver directory, this is used to discover any
+  // dependent SYCL offload compilation tools.
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
@@ -2111,9 +2119,9 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
   return HostTC.GetCXXStdlibType(Args);
 }
 
-void SYCLToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void SYCLToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
-  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+  SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,

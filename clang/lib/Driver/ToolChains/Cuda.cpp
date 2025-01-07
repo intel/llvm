@@ -957,7 +957,7 @@ void CudaToolChain::addClangTargetOptions(
   // If we are compiling SYCL kernels for Nvidia GPUs, we do not support Cuda
   // device code compatability, hence we do not set Cuda mode in that instance.
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
 
     if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
       CC1Args.push_back("-fcuda-prec-sqrt");
@@ -1221,7 +1221,7 @@ CudaToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_fsycl)) {
-    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 

@@ -284,7 +284,7 @@ void HIPAMDToolChain::addClangTargetOptions(
   }
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||

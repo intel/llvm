@@ -44,6 +44,7 @@
 #include "ToolChains/SPIRV.h"
 #include "ToolChains/SYCL.h"
 #include "ToolChains/SPIRVOpenMP.h"
+#include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
 #include "ToolChains/UEFI.h"
@@ -850,6 +851,23 @@ static const char *getDefaultSYCLArch(Compilation &C) {
   return "spir64";
 }
 
+llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch) const {
+  SmallVector<StringRef, 5> SYCLAlias = {
+      "spir",       "spir64",  "spir64_fpga", "spir64_x86_64",
+      "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
+  if (llvm::is_contained(SYCLAlias, TargetArch)) {
+    llvm::Triple TT;
+    TT.setArchName(TargetArch);
+    // Return the full SYCL target triple string for NVidia GPU targets.
+    if (TT.getArch() == llvm::Triple::nvptx64)
+      return llvm::Triple("nvptx64-nvidia-cuda");
+    TT.setVendor(llvm::Triple::UnknownVendor);
+    TT.setOS(llvm::Triple::UnknownOS);
+    return TT;
+  }
+  return llvm::Triple(TargetArch);
+}
+
 static bool addSYCLDefaultTriple(Compilation &C,
                                  SmallVectorImpl<llvm::Triple> &SYCLTriples) {
   /// Returns true if a triple is added to SYCLTriples, false otherwise
@@ -866,7 +884,12 @@ static bool addSYCLDefaultTriple(Compilation &C,
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
       return false;
   }
-  // Add the default triple as it was not found.
+  // Check current set of triples to see if the default has already been set.
+  for (const auto &SYCLTriple : SYCLTriples) {
+    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
+        SYCLTriple.isSPIROrSPIRV())
+      return false;
+  }
   SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
   return true;
 }
@@ -933,7 +956,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       return;
     auto *HIPTC = &getOffloadingDeviceToolChain(C.getInputArgs(), *HIPTriple,
                                                 *HostTC, OFK);
-    assert(HIPTC && "Could not create offloading device tool chain.");
     C.addOffloadDeviceToolChain(HIPTC, OFK);
   }
 
@@ -1098,6 +1120,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                          options::OPT_fno_sycl, false) ||
                 C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
+  auto argSYCLIncompatible = [&](OptSpecifier OptId) {
+    if (!IsSYCL)
+      return;
+    if (Arg *IncompatArg = C.getInputArgs().getLastArg(OptId))
+      Diag(clang::diag::err_drv_argument_not_allowed_with)
+          << IncompatArg->getSpelling() << "-fsycl";
+  };
+  // -static-libstdc++ is not compatible with -fsycl.
+  argSYCLIncompatible(options::OPT_static_libstdcxx);
+  // -ffreestanding cannot be used with -fsycl
+  argSYCLIncompatible(options::OPT_ffreestanding);
+
+  llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
+
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
   // Make -fintelfpga flag imply -fsycl.
@@ -1135,18 +1171,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::warn_drv_opt_requires_opt)
         << SYCLHostCompilerOptions->getSpelling().split('=').first
         << "-fsycl-host-compiler";
-
-  auto argSYCLIncompatible = [&](OptSpecifier OptId) {
-    if (!IsSYCL)
-      return;
-    if (Arg *IncompatArg = C.getInputArgs().getLastArg(OptId))
-      Diag(clang::diag::err_drv_argument_not_allowed_with)
-          << IncompatArg->getSpelling() << "-fsycl";
-  };
-  // -static-libstdc++ is not compatible with -fsycl.
-  argSYCLIncompatible(options::OPT_static_libstdcxx);
-  // -ffreestanding cannot be used with -fsycl
-  argSYCLIncompatible(options::OPT_ffreestanding);
 
   // Diagnose incorrect inputs to SYCL options.
   // FIXME: Since the option definition includes the list of possible values,
@@ -1204,7 +1228,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
   llvm::StringMap<llvm::DenseSet<StringRef>> DerivedArchs;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
-  llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
   // StringSet to contain SYCL target triples.
   llvm::StringSet<> SYCLTriples;
   if (HasSYCLTargetsOption) {
@@ -2601,23 +2624,6 @@ void Driver::PrintHelp(bool ShowHidden) const {
                       VisibilityMask);
 }
 
-llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch) const {
-  SmallVector<StringRef, 5> SYCLAlias = {
-      "spir",       "spir64",  "spir64_fpga", "spir64_x86_64",
-      "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
-  if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TargetArch) !=
-      SYCLAlias.end()) {
-    llvm::Triple TT;
-    TT.setArchName(TargetArch);
-    // Return the full SYCL target triple string for NVidia GPU targets.
-    if (TT.getArch() == llvm::Triple::nvptx64)
-      return llvm::Triple("nvptx64-nvidia-cuda");
-    TT.setVendor(llvm::Triple::UnknownVendor);
-    TT.setOS(llvm::Triple::UnknownOS);
-    return TT;
-  }
-  return llvm::Triple(TargetArch);
-}
 
 // Print the help from any of the given tools which are used for AOT
 // compilation for SYCL
@@ -8145,6 +8151,15 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     if (DeviceActions.empty())
       return HostAction;
 
+    // FIXME: Do not collapse the host side for Darwin targets with SYCL offload
+    // compilations. The toolchain is not properly initialized for the target.
+    if (isa<CompileJobAction>(HostAction) && Kind == Action::OFK_SYCL &&
+        HostAction->getType() != types::TY_Nothing &&
+        C.getSingleOffloadToolChain<Action::OFK_Host>()
+            ->getTriple()
+            .isOSDarwin())
+      HostAction->setCannotBeCollapsedWithNextDependentAction();
+
     auto PL = types::getCompilationPhases(*this, Args, InputType);
 
     for (phases::ID Phase : PL) {
@@ -10510,7 +10525,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(
       break;
     }
   }
-
+  assert(TC && "Could not create offloading device tool chain.");
   return *TC;
 }
 
