@@ -3,8 +3,3 @@
 urKernelGetGroupInfoMaxWorkGroupSizeTest.CompileMaxWorkGroupSize/*
 urKernelGetGroupInfoMaxWorkGroupSizeTest.CompileMaxLinearWorkGroupSize/*
 urKernelGetSubGroupInfoFixedSubGroupSizeTest.CompileNumSubGroups/*
-
-urKernelSetExecInfoTest.SuccessIndirectAccess/*
-urKernelSetExecInfoUSMPointersTest.SuccessHost/*
-urKernelSetExecInfoUSMPointersTest.SuccessDevice/*
-urKernelSetExecInfoUSMPointersTest.SuccessShared/*
