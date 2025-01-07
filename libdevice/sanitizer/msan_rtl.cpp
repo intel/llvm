@@ -245,13 +245,13 @@ MSAN_MEMSET(4)
     uptr dest_shadow = __msan_get_shadow((uptr)dest, dst_as);                  \
     uptr src_shadow = __msan_get_shadow((uptr)src, src_as);                    \
     if ((uptr)dest > (uptr)src) {                                              \
-      for (int i = size - 1; i >= 0; i--) {                                    \
+      for (size_t i = size - 1; i < size; i--) {                               \
         dest[i] = src[i];                                                      \
         ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                             \
             ((__SYCL_GLOBAL__ char *)src_shadow)[i];                           \
       }                                                                        \
     } else {                                                                   \
-      for (int i = 0; i < size; i++) {                                         \
+      for (size_t i = 0; i < size; i++) {                                      \
         dest[i] = src[i];                                                      \
         ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                             \
             ((__SYCL_GLOBAL__ char *)src_shadow)[i];                           \
@@ -279,7 +279,7 @@ MSAN_MEMMOVE(4)
           __attribute__((address_space(src_as))) char *src, size_t size) {     \
     uptr dest_shadow = __msan_get_shadow((uptr)dest, dst_as);                  \
     uptr src_shadow = __msan_get_shadow((uptr)src, src_as);                    \
-    for (int i = 0; i < size; i++) {                                           \
+    for (size_t i = 0; i < size; i++) {                                        \
       dest[i] = src[i];                                                        \
       ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                               \
           ((__SYCL_GLOBAL__ char *)src_shadow)[i];                             \
