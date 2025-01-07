@@ -6759,6 +6759,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
              (A->getOption().getID() == options::OPT_mlong_double_64))
       // Only allow for -mlong-double-64 for SPIR/SPIR-V
       A->render(Args, CmdArgs);
+    else if ((IsSYCL &&
+              (TC.getTriple().isAMDGCN() || TC.getTriple().isNVPTX())) &&
+             (A->getOption().getID() == options::OPT_mlong_double_64))
+      // similarly, allow 64bit long double for SYCL GPU targets
+      A->render(Args, CmdArgs);
     else if (TC.getTriple().isPPC() &&
              (A->getOption().getID() != options::OPT_mlong_double_80))
       A->render(Args, CmdArgs);
