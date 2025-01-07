@@ -76,11 +76,15 @@ struct KernelInfo {
     ur_kernel_handle_t Handle;
     std::atomic<int32_t> RefCount = 1;
 
+    // sanitized kernel
+    bool IsInstrumented = false;
+
     // lock this mutex if following fields are accessed
     ur_shared_mutex Mutex;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
-    explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
+    explicit KernelInfo(ur_kernel_handle_t Kernel, bool IsInstrumented)
+        : Handle(Kernel), IsInstrumented(IsInstrumented) {
         [[maybe_unused]] auto Result =
             getContext()->urDdiTable.Kernel.pfnRetain(Kernel);
         assert(Result == UR_RESULT_SUCCESS);
@@ -171,6 +175,7 @@ class MsanInterceptor {
                                const ur_usm_desc_t *Properties,
                                ur_usm_pool_handle_t Pool, size_t Size,
                                void **ResultPtr);
+    ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     ur_result_t registerProgram(ur_program_handle_t Program);
     ur_result_t unregisterProgram(ur_program_handle_t Program);
@@ -192,9 +197,6 @@ class MsanInterceptor {
 
     ur_result_t insertProgram(ur_program_handle_t Program);
     ur_result_t eraseProgram(ur_program_handle_t Program);
-
-    ur_result_t insertKernel(ur_kernel_handle_t Kernel);
-    ur_result_t eraseKernel(ur_kernel_handle_t Kernel);
 
     ur_result_t insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer);
     ur_result_t eraseMemBuffer(ur_mem_handle_t MemHandle);
@@ -235,13 +237,8 @@ class MsanInterceptor {
         return m_ProgramMap[Program];
     }
 
-    std::shared_ptr<msan::KernelInfo> getKernelInfo(ur_kernel_handle_t Kernel) {
-        std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-        if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
-            return m_KernelMap[Kernel];
-        }
-        return nullptr;
-    }
+    KernelInfo &getOrCreateKernelInfo(ur_kernel_handle_t Kernel);
+    ur_result_t eraseKernelInfo(ur_kernel_handle_t Kernel);
 
     const MsanOptions &getOptions() { return m_Options; }
 

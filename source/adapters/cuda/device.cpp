@@ -1239,7 +1239,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
                                                    uint64_t *pDeviceTimestamp,
                                                    uint64_t *pHostTimestamp) {
-  CUevent Event;
+  CUevent Event{};
   ScopedContext Active(hDevice);
 
   if (pDeviceTimestamp) {
