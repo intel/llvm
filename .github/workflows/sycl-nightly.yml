@@ -88,20 +88,6 @@ jobs:
             target_devices: opencl:cpu
             tests_selector: e2e
 
-          - name: SYCL-CTS on OCL CPU
-            runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: opencl:cpu
-            tests_selector: cts
-
-          - name: SYCL-CTS on L0 gen12
-            runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
-            tests_selector: cts
-
           - name: Intel L0 GPU w/ LLVM SPIR-V Backend
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest

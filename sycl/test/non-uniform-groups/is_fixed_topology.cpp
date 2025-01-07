@@ -1,4 +1,4 @@
-// RUN: %{build} -fsyntax-only -Wno-error=unused-command-line-argument -o %t.out
+// RUN: %{build} -fsyntax-only -o %t.out
 
 #include <sycl/detail/core.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;

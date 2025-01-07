@@ -1,4 +1,4 @@
-// RUN: %{build} -fsyntax-only -Wno-error=unused-command-line-argument -o %t.out
+// RUN: %{build} -fsyntax-only -o %t.out
 // TODO: launch the test if the feature is supported.
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
