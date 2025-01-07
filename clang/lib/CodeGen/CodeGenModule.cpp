@@ -1430,14 +1430,15 @@ void CodeGenModule::Release() {
 
     if (!SYCLRegKernelNames.empty()) {
       std::vector<llvm::Metadata *> Nodes;
+      llvm::LLVMContext &Ctx = TheModule.getContext();
       for (auto MDKernelNames : SYCLRegKernelNames) {
         llvm::Metadata *Vals[] = {MDKernelNames.first, MDKernelNames.second};
-        Nodes.push_back(llvm::MDTuple::get(TheModule.getContext(), Vals));
+        Nodes.push_back(llvm::MDTuple::get(Ctx, Vals));
       }
 
-      getModule().addModuleFlag(
-          llvm::Module::Append, "sycl_registered_kernels",
-          llvm::MDTuple::get(TheModule.getContext(), Nodes));
+      llvm::NamedMDNode *SYCLRegKernelsMD =
+          TheModule.getOrInsertNamedMetadata("sycl_registered_kernels");
+      SYCLRegKernelsMD->addOperand(llvm::MDNode::get(Ctx, Nodes));
     }
   }
 

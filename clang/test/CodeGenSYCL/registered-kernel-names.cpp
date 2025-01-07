@@ -60,7 +60,7 @@ namespace N {
 
 // Check for the presence of sycl-device module flag in device
 // compilations and its absence in host compilations.
-// CHECK: !{{[0-9]+}} = !{i32 5, !"sycl_registered_kernels", ![[LIST:[0-9]+]]}
+// CHECK: !sycl_registered_kernels = !{![[LIST:[0-9]+]]}
 // CHECK: ![[LIST]] = !{![[ENT1:[0-9]+]], ![[ENT2:[0-9]+]], ![[ENT3:[0-9]+]], ![[ENT4:[0-9]+]],  ![[ENT5:[0-9]+]], ![[ENT6:[0-9]+]], ![[ENT7:[0-9]+]], ![[ENT8:[0-9]+]]}
 // CHECK: ![[ENT1]] = !{!"foo", !"{{.*}}sycl_kernel{{.*}}foo{{.*}}"}
 // CHECK: ![[ENT2]] = !{!"foo3", !"{{.*}}sycl_kernel{{.*}}ff_4{{.*}}"}
