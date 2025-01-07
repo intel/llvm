@@ -2,15 +2,19 @@
 # used in XFAIL, UNSUPPORTED and REQUIRES.
 
 # To use:
-# from sycl_lit_features.py import get_all_sycl_lit_features
+# from sycl_lit_features import get_all_sycl_lit_features
 # all_features = get_all_sycl_lit_features()
 
 # Note:
 # The set below (partial_set_of_features) is maintained manually. If the new
 # feature is NOT an aspect or an architecture - it should be added to this set.
 # And vice versa - if the feature was deleted, it also should be deleted from
-# this set, otherwise the feature is treated as valid. Aspects and device
-# architectures are added automatically and require no additional changes.
+# this set, otherwise the feature is still treated as valid.
+#
+# Aspects and device architectures are added automatically and require no
+# additional changes.
+
+import os
 
 partial_set_of_features = {
     # for completely disabled tests
@@ -36,7 +40,6 @@ partial_set_of_features = {
     # tools:
     "sycl-ls",
     "cm-compiler",
-    "aot_tool",
     "ocloc",
     "opencl-aot",
     "llvm-spirv",
@@ -63,10 +66,13 @@ partial_set_of_features = {
     "any-device-is-opencl",
     "any-device-is-level_zero",
     "any-device-is-native_cpu",
-    # sg-sizes (should we allow any sg-X?)
+    # sg-sizes (should we allow any sg-X?):
     "sg-8",
     "sg-16",
     "sg-32",
+    # e2e-modes:
+    "run-mode",
+    "build-and-run-mode",
     # miscellaneous:
     "cl_options",
     "opencl_icd",
@@ -79,6 +85,7 @@ partial_set_of_features = {
     "O0",
     "ze_debug",
     "igc-dev",
+    "enable-perf-tests",
 }
 
 
@@ -94,18 +101,23 @@ def parse_defines(path, macro, prefix):
 
 
 def get_all_sycl_lit_features():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     aspects = parse_defines(
-        "../include/sycl/info/aspects.def", "__SYCL_ASPECT", "aspect"
+        current_dir + "/../include/sycl/info/aspects.def", "__SYCL_ASPECT", "aspect"
     )
     aspects_deprecated = parse_defines(
-        "../include/sycl/info/aspects_deprecated.def", "__SYCL_ASPECT", "aspect"
+        current_dir + "/../include/sycl/info/aspects_deprecated.def",
+        "__SYCL_ASPECT",
+        "aspect",
     )
     architectures = parse_defines(
-        "../include/sycl/ext/oneapi/experimental/device_architecture.def",
+        current_dir
+        + "/../include/sycl/ext/oneapi/experimental/device_architecture.def",
         "__SYCL_ARCHITECTURE",
         "arch",
     )
 
+    # Combine all sets
     all_features = (
         partial_set_of_features | aspects | aspects_deprecated | architectures
     )

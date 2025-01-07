@@ -14,6 +14,9 @@ import lit.util
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
+# See sycl/test-e2e/sycl_lit_features.py.
+from sycl_lit_features import get_all_sycl_lit_features
+
 # Configuration file for the 'lit' test runner.
 
 # name: The name of this test suite.
@@ -36,18 +39,33 @@ config.recursiveExpansionLimit = 10
 # To be filled by lit.local.cfg files.
 config.required_features = []
 config.unsupported_features = []
+# Get the set of all features possible in E2E tests.
+all_features = get_all_sycl_lit_features()
+
+# Please do not call config.available_features.add directly. Use this function.
+# This wrapper function checks if the feature is contained in all_features
+# and updates available_features. It ensures all new available features are added
+# to all_features.
+def register_feature(config, all_features, feature_name, condition):
+    if feature_name not in all_features:
+        raise Exception(
+            feature_name
+            + " is not presented in all_features. Please update the set in sycl/test-e2e/sycl_lit_features.py."
+        )
+    if condition:
+        config.available_features.add(feature_name)
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
 config.fallback_build_run_only = False
 if config.test_mode == "full":
-    config.available_features.add("run-mode")
-    config.available_features.add("build-and-run-mode")
+    register_feature(config, all_features, "run-mode", True)
+    register_feature(config, all_features, "build-and-run-mode", True)
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
-    config.available_features.add("run-mode")
+    register_feature(config, all_features, "run-mode", True)
     if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
-        config.available_features.add("build-and-run-mode")
+        register_feature(config, all_features, "build-and-run-mode", True)
         config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
@@ -104,14 +122,14 @@ llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
-    config.available_features.add("linux")
+    register_feature(config, all_features, "linux", True)
     llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH"])
     llvm_config.with_environment(
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
 elif platform.system() == "Windows":
-    config.available_features.add("windows")
+    register_feature(config, all_features, "windows", True)
     llvm_config.with_system_environment(["LIB", "CPATH", "INCLUDE"])
     llvm_config.with_environment("LIB", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment("PATH", config.sycl_libs_dir, append_path=True)
@@ -162,26 +180,20 @@ elif platform.system() == "Linux":
     config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # Intel GPU FAMILY availability
-if lit_config.params.get("gpu-intel-gen11", False):
-    config.available_features.add("gpu-intel-gen11")
-if lit_config.params.get("gpu-intel-gen12", False):
-    config.available_features.add("gpu-intel-gen12")
+register_feature(config, all_features, "gpu-intel-gen11", lit_config.params.get("gpu-intel-gen11", False))
+register_feature(config, all_features, "gpu-intel-gen12", lit_config.params.get("gpu-intel-gen12", False))
 
 # Intel GPU DEVICE availability
-if lit_config.params.get("gpu-intel-dg2", False):
-    config.available_features.add("gpu-intel-dg2")
-if lit_config.params.get("gpu-intel-pvc-vg", False):
-    config.available_features.add("gpu-intel-pvc-vg")
+register_feature(config, all_features, "gpu-intel-dg2", lit_config.params.get("gpu-intel-dg2", False))
+register_feature(config, all_features, "gpu-intel-pvc-vg", lit_config.params.get("gpu-intel-pvc-vg", False))
 
-if lit_config.params.get("igc-dev", False):
-    config.available_features.add("igc-dev")
+register_feature(config, all_features, "igc-dev", lit_config.params.get("igc-dev", False))
 
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
-            if "igc-dev" in contents:
-                config.available_features.add("igc-dev")
+            register_feature(config, all_features, "igc-dev", "igc-dev" in contents)
 
 
 # Call the function to perform the check and add the feature
@@ -197,8 +209,8 @@ if lit_config.params.get("ur_l0_leaks_debug"):
     config.ur_l0_leaks_debug = lit_config.params.get("ur_l0_leaks_debug")
     lit_config.note("UR_L0_LEAKS_DEBUG: " + config.ur_l0_leaks_debug)
 
-if lit_config.params.get("enable-perf-tests", False):
-    config.available_features.add("enable-perf-tests")
+
+register_feature(config, all_features, "enable-perf-tests", lit_config.params.get("enable-perf-tests", False))
 
 
 # Use this to make sure that any dynamic checks below are done in the build
@@ -213,7 +225,7 @@ cl_options = False
 sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
 if sp[0] == 0:
     cl_options = True
-    config.available_features.add("cl_options")
+    register_feature(config, all_features, "cl_options", True)
 
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
@@ -224,8 +236,7 @@ ps = subprocess.Popen(
     stderr=subprocess.PIPE,
 )
 _ = ps.communicate(input=b"int main(){}\n")
-if ps.wait() == 0:
-    config.available_features.add("has_ndebug")
+register_feature(config, all_features, "has_ndebug", ps.wait() == 0)
 
 # Check for Level Zero SDK
 check_l0_file = "l0_include.cpp"
@@ -272,7 +283,7 @@ sp = subprocess.getstatusoutput(
     config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
 )
 if sp[0] == 0:
-    config.available_features.add("level_zero_dev_kit")
+    register_feature(config, all_features, "level_zero_dev_kit", True)
     config.substitutions.append(("%level_zero_options", level_zero_options))
 else:
     config.substitutions.append(("%level_zero_options", ""))
@@ -298,8 +309,7 @@ sp = subprocess.getstatusoutput(
     + " -fsycl -fpreview-breaking-changes "
     + check_preview_breaking_changes_file
 )
-if sp[0] == 0:
-    config.available_features.add("preview-breaking-changes-supported")
+register_feature(config, all_features, "preview-breaking-changes-supported", sp[0] == 0)
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
@@ -310,8 +320,7 @@ ps = subprocess.Popen(
     stderr=subprocess.PIPE,
 )
 op = ps.communicate(input=b"")
-if ps.wait() == 0:
-    config.available_features.add("zstd")
+register_feature(config, all_features, "zstd", ps.wait() == 0)
 
 # Check for CUDA SDK
 check_cuda_file = "cuda_include.cpp"
@@ -352,7 +361,7 @@ sp = subprocess.getstatusoutput(
     config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
 )
 if sp[0] == 0:
-    config.available_features.add("cuda_dev_kit")
+    register_feature(config, all_features, "cuda_dev_kit", True)
     config.substitutions.append(("%cuda_options", cuda_options))
 else:
     config.substitutions.append(("%cuda_options", ""))
@@ -367,7 +376,7 @@ if config.opencl_libs_dir:
         config.substitutions.append(
             ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
         )
-    config.available_features.add("opencl_icd")
+    register_feature(config, all_features, "opencl_icd", True)
 config.substitutions.append(("%opencl_include_dir", config.opencl_include_dir))
 
 if cl_options:
@@ -438,16 +447,15 @@ else:
         )
     )
 
-if config.vulkan_found == "TRUE":
-    config.available_features.add("vulkan")
+register_feature(config, all_features, "vulkan", config.vulkan_found == "TRUE")
+
 
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
 
 config.substitutions.append(("%gpu_aot_target_opts", config.gpu_aot_target_opts))
 
-if config.dump_ir_supported:
-    config.available_features.add("dump_ir")
+register_feature(config, all_features, "dump_ir", config.dump_ir_supported)
 
 lit_config.note("Targeted devices: {}".format(", ".join(config.sycl_devices)))
 
@@ -560,8 +568,7 @@ if "cuda:gpu" in config.sycl_devices:
 
 config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 
-if lit_config.params.get("ze_debug"):
-    config.available_features.add("ze_debug")
+register_feature(config, all_features, "ze_debug", lit_config.params.get("ze_debug"))
 
 if config.run_launcher:
     config.substitutions.append(("%e2e_tests_root", config.test_source_root))
@@ -583,7 +590,7 @@ xptifw_includes = os.path.join(config.dpcpp_root_dir, "include")
 if os.path.exists(xptifw_lib_dir) and os.path.exists(
     os.path.join(xptifw_includes, "xpti", "xpti_trace_framework.h")
 ):
-    config.available_features.add("xptifw")
+    register_feature(config, all_features, "xptifw", True)
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
         # Use debug version of xptifw library if tests are built with \MDd.
@@ -630,12 +637,11 @@ llvm_config.add_tool_substitutions(
 )
 for tool in feature_tools:
     if tool.was_resolved:
-        config.available_features.add(tool.key)
+        register_feature(config, all_features, tool.key, True)
     else:
         lit_config.warning("Can't find " + tool.key)
 
-if shutil.which("cmc") is not None:
-    config.available_features.add("cm-compiler")
+register_feature(config, all_features, "cm-compiler", shutil.which("cmc") is not None)
 
 # Device AOT compilation tools aren't part of the SYCL project,
 # so they need to be pre-installed on the machine
@@ -644,7 +650,7 @@ aot_tools = ["ocloc", "opencl-aot"]
 for aot_tool in aot_tools:
     if shutil.which(aot_tool) is not None:
         lit_config.note("Found pre-installed AOT device compiler " + aot_tool)
-        config.available_features.add(aot_tool)
+        register_feature(config, all_features, aot_tool, True)
     else:
         lit_config.warning(
             "Couldn't find pre-installed AOT device compiler " + aot_tool
@@ -652,9 +658,9 @@ for aot_tool in aot_tools:
 
 for sycl_device in config.sycl_devices:
     be, dev = sycl_device.split(":")
-    config.available_features.add("any-device-is-" + dev)
+    register_feature(config, all_features, "any-device-is-" + dev, True)
     # Use short names for LIT rules.
-    config.available_features.add("any-device-is-" + be)
+    register_feature(config, all_features, "any-device-is-" + be, True)
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
@@ -721,10 +727,8 @@ for sycl_device in config.sycl_devices:
             gpu_intel_pvc_2T_device_id = "3029"
             _, device_id = line.strip().split(":", 1)
             device_id = device_id.strip()
-            if device_id == gpu_intel_pvc_1T_device_id:             
-                config.available_features.add("gpu-intel-pvc-1T")
-            if device_id == gpu_intel_pvc_2T_device_id:
-                config.available_features.add("gpu-intel-pvc-2T")
+            register_feature(config, all_features, "gpu-intel-pvc-1T", device_id == gpu_intel_pvc_1T_device_id)
+            register_feature(config, all_features, "gpu-intel-pvc-2T", device_id == gpu_intel_pvc_2T_device_id)
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
@@ -796,7 +800,7 @@ for sycl_device in config.sycl_devices:
                 )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
         llvm_config.with_system_environment("ROCM_PATH")
-        config.available_features.add("hip_amd")
+        register_feature(config, all_features, "hip_amd", True)
         arch_flag = (
             "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
         )
@@ -804,7 +808,7 @@ for sycl_device in config.sycl_devices:
             ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
         )
     elif be == "hip" and config.hip_platform == "NVIDIA":
-        config.available_features.add("hip_nvidia")
+        register_feature(config, all_features, "hip_nvidia", True)
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
