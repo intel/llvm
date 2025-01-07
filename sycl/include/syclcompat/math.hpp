@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <limits>
 #include <sycl/feature_test.hpp>
 #include <type_traits>
 
@@ -308,7 +309,9 @@ inline T bfe(const T source, const uint32_t bit_start,
   // FIXME(syclcompat-lib-reviewers): This ternary was added to catch a case
   // which may be undefined anyway. Consider that we are losing perf here.
   const T mask =
-      num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
+      num_bits >= std::numeric_limits<unsigned char>::digits * sizeof(T)
+          ? static_cast<T>(-1)
+          : ((static_cast<T>(1) << num_bits) - 1);
   return (source >> bit_start) & mask;
 }
 
@@ -321,7 +324,7 @@ inline T bfe(const T source, const uint32_t bit_start,
 /// and source \param num_bits gives the bit field length in bits.
 ///
 /// The result is padded with the sign bit of the extracted field. If `num_bits`
-/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// is zero, the result is zero. If the start position is beyond the msb of the
 /// input, the result is filled with the replicated sign bit of the extracted
 /// field.
 ///
@@ -363,7 +366,8 @@ inline T bfe_safe(const T source, const uint32_t bit_start,
     return res;
   }
 #endif
-  const uint32_t bit_width = CHAR_BIT * sizeof(T);
+  const uint32_t bit_width =
+      std::numeric_limits<unsigned char>::digits * sizeof(T);
   const uint32_t pos = std::min(bit_start, bit_width);
   const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
   if constexpr (std::is_signed_v<T>) {
@@ -397,7 +401,8 @@ template <typename T>
 inline T bfi(const T x, const T y, const uint32_t bit_start,
              const uint32_t num_bits) {
   static_assert(std::is_unsigned_v<T>);
-  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+  constexpr unsigned bit_width =
+      std::numeric_limits<unsigned char>::digits * sizeof(T);
 
   // if bit_start > bit_width || len == 0, should return y.
   const T ignore_bfi = static_cast<T>(bit_start > bit_width || num_bits == 0);
@@ -441,7 +446,8 @@ inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
     return res;
   }
 #endif
-  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+  constexpr unsigned bit_width =
+      std::numeric_limits<unsigned char>::digits * sizeof(T);
   const uint32_t pos = std::min(bit_start, bit_width);
   const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
   return syclcompat::detail::bfi(x, y, pos, len);
