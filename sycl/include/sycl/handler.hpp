@@ -2303,40 +2303,52 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<1> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+      PropertiesT>::value> parallel_for(range<1> NumWorkItems,
+                                        PropertiesT Props,
+                                        _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<2> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+      PropertiesT>::value> parallel_for(range<2> NumWorkItems,
+                                        PropertiesT Props,
+                                        _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<3> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+      PropertiesT>::value> parallel_for(range<3> NumWorkItems,
+                                        PropertiesT Props,
+                                        _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT, int Dims>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<ext::oneapi::experimental::is_property_list<
+      PropertiesT>::value> parallel_for(nd_range<Dims> Range,
+                                        PropertiesT Properties,
+                                        _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
@@ -2400,24 +2412,33 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<1> Range, RestT &&...Rest) {
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<detail::AreAllButLastReductions<
+      RestT...>::value> parallel_for(range<1> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
                              std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<2> Range, RestT &&...Rest) {
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<detail::AreAllButLastReductions<
+      RestT...>::value> parallel_for(range<2> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
                              std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<3> Range, RestT &&...Rest) {
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<detail::AreAllButLastReductions<
+      RestT...>::value> parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
                              std::forward<RestT>(Rest)...);
