@@ -27,6 +27,9 @@ public:
   static llvm::Error translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
                                      JITContext &JITCtx, BinaryFormat Format);
 
+  static llvm::Expected<RTCBundleBinaryInfo>
+  translateBundleToSPIRV(llvm::Module &Mod, JITContext &JITCtx);
+
 private:
   ///
   /// Pair of address and size to represent a binary blob.

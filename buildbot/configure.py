@@ -69,7 +69,7 @@ def do_configure(args):
     if sys.platform != "darwin":
         sycl_enabled_backends.append("level_zero")
 
-    # lld is needed on Windows or for the HIP plugin on AMD
+    # lld is needed on Windows or for the HIP adapter on AMD
     if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
         llvm_enable_projects += ";lld"
 
@@ -152,8 +152,8 @@ def do_configure(args):
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
 
-    if args.enable_plugin:
-        sycl_enabled_backends += args.enable_plugin
+    if args.enable_backends:
+        sycl_enabled_backends += args.enable_backends
 
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
@@ -374,7 +374,9 @@ def main():
     parser.add_argument(
         "--ci-defaults", action="store_true", help="Enable default CI parameters"
     )
-    parser.add_argument("--enable-plugin", action="append", help="Enable SYCL plugin")
+    parser.add_argument(
+        "--enable-backends", action="append", help="Enable SYCL backend"
+    )
     parser.add_argument(
         "--disable-preview-lib",
         action="store_true",

@@ -1,7 +1,7 @@
-# commit 2f479e01f62ed96a9466d19d9df1aabeda77b335
-# Merge: b0f9293d b693389e
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 22 15:27:05 2024 +0000
-#     Merge pull request #2370 from againull/multi_device_sanitizer
-#     [L0] Check that program is in exe state in urProgramGetGlobalVariablePointer
-set(UNIFIED_RUNTIME_TAG 2f479e01f62ed96a9466d19d9df1aabeda77b335)
+# commit 533ab9b08dfbf061585eb3487aed94ca45d0b331
+# Merge: e7366f94 3eeb2a17
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Jan 6 15:24:08 2025 +0000
+#     Merge pull request #2513 from AllanZyne/review/yang/fix_msan_usm
+#     [DeviceMSAN] Fix "urEnqueueUSM" APIs
+set(UNIFIED_RUNTIME_TAG 533ab9b08dfbf061585eb3487aed94ca45d0b331)

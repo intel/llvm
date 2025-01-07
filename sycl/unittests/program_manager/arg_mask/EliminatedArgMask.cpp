@@ -140,7 +140,7 @@ public:
           CGH->MKernelName.c_str(), std::move(CGH->MStreamStorage),
           std::move(impl->MAuxiliaryResources), impl->MCGType, {},
           impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-          CGH->MCodeLoc));
+          impl->MKernelWorkGroupMemorySize, CGH->MCodeLoc));
       break;
     }
     default:

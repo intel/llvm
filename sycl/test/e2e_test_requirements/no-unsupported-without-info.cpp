@@ -32,7 +32,7 @@
 // RUN: grep -rI "UNSUPPORTED:" %S/../../test-e2e \
 // RUN: -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "UNSUPPORTED:" | \
-// RUN: grep -Pv "UNSUPPORTED-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
+// RUN: grep -Pv "(?:UNSUPPORTED-TRACKER:\s+(?:(?:https:\/\/github.com\/[\w\d-]+\/[\w\d-]+\/issues\/[\d]+)|(?:[\w]+-[\d]+)))|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-UNSUPPORTED-WITHOUT-INFO
 // RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
 //
@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 382
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 415
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -62,6 +62,27 @@
 // CHECK: AOT/early_aot.cpp
 // CHECK-NEXT: AOT/gpu.cpp
 // CHECK-NEXT: AOT/multiple-devices.cpp
+// CHECK-NEXT: Adapters/enqueue-arg-order-buffer.cpp
+// CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
+// CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
+// CHECK-NEXT: Adapters/interop-l0-direct.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-buffer-ownership.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-buffer.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-get-native-mem.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image-get-native-mem.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image-ownership.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image-ownership.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image.cpp
+// CHECK-NEXT: Adapters/interop-level-zero.cpp
+// CHECK-NEXT: Adapters/level_zero_batch_event_status.cpp
+// CHECK-NEXT: Adapters/level_zero_batch_test.cpp
+// CHECK-NEXT: Adapters/level_zero_batch_test_copy_with_compute.cpp
+// CHECK-NEXT: Adapters/level_zero_device_scope_events.cpp
+// CHECK-NEXT: Adapters/level_zero_dynamic_batch_test.cpp
+// CHECK-NEXT: Adapters/level_zero_imm_cmdlist_per_thread.cpp
+// CHECK-NEXT: Adapters/level_zero_queue_profiling.cpp
+// CHECK-NEXT: Adapters/level_zero_usm_device_read_only.cpp
+// CHECK-NEXT: Adapters/max_malloc.cpp
 // CHECK-NEXT: AddressCast/dynamic_address_cast.cpp
 // CHECK-NEXT: AddressCast/static_address_cast.cpp
 // CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
@@ -213,6 +234,40 @@
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
 // CHECK-NEXT: HostInteropTask/host-task-failure.cpp
 // CHECK-NEXT: HostInteropTask/interop-task.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_bad_opcode.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_bad_operand_syntax.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_duplicate_label.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_illegal_exec_size.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_missing_label.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_missing_region.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_simple.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_undefined_decl.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_undefined_pred.cpp
+// CHECK-NEXT: InlineAsm/Negative/asm_wrong_declare.cpp
+// CHECK-NEXT: InlineAsm/asm_16_empty.cpp
+// CHECK-NEXT: InlineAsm/asm_16_matrix_mult.cpp
+// CHECK-NEXT: InlineAsm/asm_16_no_input_int.cpp
+// CHECK-NEXT: InlineAsm/asm_16_no_opts.cpp
+// CHECK-NEXT: InlineAsm/asm_8_empty.cpp
+// CHECK-NEXT: InlineAsm/asm_8_no_input_int.cpp
+// CHECK-NEXT: InlineAsm/asm_arbitrary_ops_order.cpp
+// CHECK-NEXT: InlineAsm/asm_decl_in_scope.cpp
+// CHECK-NEXT: InlineAsm/asm_float_add.cpp
+// CHECK-NEXT: InlineAsm/asm_float_imm_arg.cpp
+// CHECK-NEXT: InlineAsm/asm_float_neg.cpp
+// CHECK-NEXT: InlineAsm/asm_if.cpp
+// CHECK-NEXT: InlineAsm/asm_imm_arg.cpp
+// CHECK-NEXT: InlineAsm/asm_loop.cpp
+// CHECK-NEXT: InlineAsm/asm_mul.cpp
+// CHECK-NEXT: InlineAsm/asm_multiple_instructions.cpp
+// CHECK-NEXT: InlineAsm/asm_no_operands.cpp
+// CHECK-NEXT: InlineAsm/asm_no_output.cpp
+// CHECK-NEXT: InlineAsm/asm_plus_mod.cpp
+// CHECK-NEXT: InlineAsm/asm_switch.cpp
+// CHECK-NEXT: InlineAsm/letter_example.cpp
+// CHECK-NEXT: InlineAsm/malloc_shared_32.cpp
+// CHECK-NEXT: InlineAsm/malloc_shared_in_out_dif.cpp
+// CHECK-NEXT: InlineAsm/malloc_shared_no_input.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
@@ -243,9 +298,7 @@
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops_int8_packed.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_sizes.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_int8_matB.cpp
+// CHECK-NEXT: Matrix/SG32/get_coordinate_ops.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_all_sizes.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_apply_bf16.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_apply_two_matrices.cpp
@@ -279,34 +332,13 @@
 // CHECK-NEXT: NewOffloadDriver/aot-gpu.cpp
 // CHECK-NEXT: NewOffloadDriver/spirv_device_obj_smoke.cpp
 // CHECK-NEXT: NonUniformGroups/ballot_group.cpp
+// CHECK-NEXT: NonUniformGroups/fixed_size_group.cpp
 // CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
-// CHECK-NEXT: OptionalKernelFeatures/fp64-conv-emu.cpp
 // CHECK-NEXT: OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
-// CHECK-NEXT: Plugin/enqueue-arg-order-buffer.cpp
-// CHECK-NEXT: Plugin/enqueue-arg-order-image.cpp
-// CHECK-NEXT: Plugin/enqueue-arg-order-image.cpp
-// CHECK-NEXT: Plugin/interop-l0-direct.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-buffer-ownership.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-buffer.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-get-native-mem.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image-get-native-mem.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image-ownership.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image-ownership.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image.cpp
-// CHECK-NEXT: Plugin/interop-level-zero.cpp
-// CHECK-NEXT: Plugin/level_zero_batch_event_status.cpp
-// CHECK-NEXT: Plugin/level_zero_batch_test.cpp
-// CHECK-NEXT: Plugin/level_zero_batch_test_copy_with_compute.cpp
-// CHECK-NEXT: Plugin/level_zero_device_scope_events.cpp
-// CHECK-NEXT: Plugin/level_zero_dynamic_batch_test.cpp
-// CHECK-NEXT: Plugin/level_zero_imm_cmdlist_per_thread.cpp
-// CHECK-NEXT: Plugin/level_zero_queue_profiling.cpp
-// CHECK-NEXT: Plugin/level_zero_usm_device_read_only.cpp
-// CHECK-NEXT: Plugin/max_malloc.cpp
 // CHECK-NEXT: Printf/char.cpp
 // CHECK-NEXT: Printf/double.cpp
 // CHECK-NEXT: Printf/float.cpp
@@ -359,6 +391,7 @@
 // CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
+// CHECK-NEXT: Regression/no-split-reqd-wg-size-2.cpp
 // CHECK-NEXT: Regression/no-split-reqd-wg-size.cpp
 // CHECK-NEXT: Regression/reduction_resource_leak_usm.cpp
 // CHECK-NEXT: Regression/static-buffer-dtor.cpp

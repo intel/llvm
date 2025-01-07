@@ -152,8 +152,10 @@ SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
 }
 
 void SPIRVToLLVMDbgTran::transDbgInfo(const SPIRVValue *SV, Value *V) {
-  // A constant sampler does not have a corresponding SPIRVInstruction.
-  if (SV->getOpCode() == OpConstantSampler)
+  // Constant samplers and composites do not have a corresponding
+  // SPIRVInstruction, but they may be mapped to an LLVM Instruction.
+  if (SV->getOpCode() == OpConstantSampler ||
+      SV->getOpCode() == OpConstantComposite)
     return;
 
   if (Instruction *I = dyn_cast<Instruction>(V)) {
@@ -809,7 +811,7 @@ DINode *SPIRVToLLVMDbgTran::transTypeEnum(const SPIRVExtInst *DebugInst) {
       UnderlyingType = transDebugInst<DIType>(static_cast<SPIRVExtInst *>(E));
     return getDIBuilder(DebugInst).createEnumerationType(
         Scope, Name, File, LineNo, SizeInBits, AlignInBits, Enumerators,
-        UnderlyingType, 0, "", UnderlyingType);
+        UnderlyingType, 0, "", Flags & SPIRVDebug::FlagIsEnumClass);
   }
 }
 

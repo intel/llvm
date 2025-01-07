@@ -55,14 +55,6 @@ typedef void *xpti_plugin_function_t;
 #endif
 #endif
 
-/// Insert something when compiled with msvc
-/// https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros
-#ifdef _MSC_VER
-#define __XPTI_INSERT_IF_MSVC(x) x
-#else
-#define __XPTI_INSERT_IF_MSVC(x)
-#endif
-
 namespace xpti {
 namespace utils {
 /// @class StringHelper
@@ -219,7 +211,9 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    __XPTI_INSERT_IF_MSVC(__pragma(warning(suppress : 4996)))
+#ifdef _MSC_VER
+#pragma warning(suppress : 4996)
+#endif
     const char *val = std::getenv(var.c_str());
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop

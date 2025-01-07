@@ -140,7 +140,7 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
 int main() {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>() << "\n";
 
   constexpr bool AIsVector = true;
   constexpr bool BIsVector = true;

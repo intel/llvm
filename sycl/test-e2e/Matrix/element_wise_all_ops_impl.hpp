@@ -242,9 +242,9 @@ int main() {
       test_ewops_ab<bfloat16, 8, 16, use::a, layout::row_major, 1>();
       test_ewops_ab<bfloat16, 16, 8, use::b, layout::ext_intel_packed, 2>();
       test_ewops_c<float, 8, 8>();
-      // test_ewops_ab<bfloat16, 32, 16, use::a, layout::row_major, 1>();
-      // test_ewops_ab<bfloat16, 16, 32, use::b, layout::ext_intel_packed, 2>();
-      // test_ewops_c<float, 32, 32>();
+      test_ewops_ab<bfloat16, 32, 16, use::a, layout::row_major, 1>();
+      test_ewops_ab<bfloat16, 16, 32, use::b, layout::ext_intel_packed, 2>();
+      test_ewops_c<float, 32, 32>();
       break;
     }
   }
