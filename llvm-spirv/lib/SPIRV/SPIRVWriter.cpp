@@ -5532,10 +5532,15 @@ SPIRVWord LLVMToSPIRVBase::transFunctionControlMask(Function *F) {
       [&](Attribute::AttrKind Attr, SPIRVFunctionControlMaskKind Mask) {
         if (F->hasFnAttribute(Attr)) {
           if (Attr == Attribute::OptimizeNone) {
-            if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_optnone))
+            if (BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_optnone)) {
+              BM->addExtension(ExtensionID::SPV_EXT_optnone);
+              BM->addCapability(CapabilityOptNoneEXT);
+            } else if (BM->isAllowedToUseExtension(
+                           ExtensionID::SPV_INTEL_optnone)) {
+              BM->addExtension(ExtensionID::SPV_INTEL_optnone);
+              BM->addCapability(CapabilityOptNoneINTEL);
+            } else
               return;
-            BM->addExtension(ExtensionID::SPV_INTEL_optnone);
-            BM->addCapability(internal::CapabilityOptNoneINTEL);
           }
           FCM |= Mask;
         }
@@ -7024,6 +7029,7 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_INTEL_cache_controls,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_fpga_decorations,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_host_access,
+      SPIRV::ExtensionID::SPV_EXT_optnone,
       SPIRV::ExtensionID::SPV_INTEL_optnone,
       SPIRV::ExtensionID::SPV_INTEL_usm_storage_classes,
       SPIRV::ExtensionID::SPV_INTEL_subgroups,
