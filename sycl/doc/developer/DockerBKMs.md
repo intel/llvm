@@ -32,7 +32,7 @@ container images. Unlike Docker, Podman runs without a daemon and allows you
 to run containers without root permissions. The command line syntax is mostly
 identical for Docker and Podman. Choose whatever is available on your system.
 
-## SYCL Containers overview
+## SYCL Dockerfiles overview
 
 The following Dockerfiles are publicly available for creating DPC++ compiler
 development containers:
