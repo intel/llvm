@@ -102,6 +102,7 @@ def on_missing_reference(app, env, node, contnode):
 reRelativeRstUri = re.compile("([a-z0-9_/.-]*)\.rst")
 reRelativeAsciidocUri = re.compile("[a-z0-9_/.-]*\.asciidoc")
 
+
 # We want the extension specification documents to be readable in either of two
 # ways:
 #
@@ -147,8 +148,8 @@ def on_doctree_resolved(app, doctree, docname):
             # replace the ".rst" suffix with ".html".
             m = reRelativeRstUri.fullmatch(uri)
             if m:
-              ref["refuri"] = m[1] + ".html"
-              continue
+                ref["refuri"] = m[1] + ".html"
+                continue
 
             # This is a relative link to an .asciidoc file.  These files are not
             # processed by Sphinx, so there is no generated HTML.  Instead,
@@ -159,8 +160,10 @@ def on_doctree_resolved(app, doctree, docname):
             # transformation won't be needed anymore.
             m = reRelativeAsciidocUri.fullmatch(uri)
             if m:
-              ref["refuri"] = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + dirs + uri
-              continue
+                ref["refuri"] = (
+                    "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + dirs + uri
+                )
+                continue
 
 
 def setup(app):
