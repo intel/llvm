@@ -166,7 +166,7 @@ See the section "Limitations with the experimental version" for details.
 a|
 [source]
 ----
-intel_cpu_dnr
+intel_cpu_dmr
 ----
 |-
 |
