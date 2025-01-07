@@ -653,6 +653,39 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheEviction) {
   ConcurentReadWriteCache(2, 100);
 }
 
+// Unit test for ensuring that os_utils::getDirectorySize is thread-safe.
+TEST_P(PersistentDeviceCodeCache, ConcurentDirectorySizeCalculation) {
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  // Spawn multiple threads to calculate the size of the directory concurrently
+  // and adding/removing file simultaneously.
+  constexpr size_t ThreadCount = 50;
+  Barrier b(ThreadCount);
+  {
+    auto testLambda = [&](std::size_t threadId) {
+      b.wait();
+      // Create a file named: test_file_<thread_id>.txt
+      std::string FileName =
+          CacheRoot + "/test_file_" + std::to_string(threadId) + ".txt";
+      std::ofstream FileStream(FileName,
+                               std::ofstream::out | std::ofstream::trunc);
+      FileStream << "Test file for thread: " << threadId;
+      FileStream.close();
+
+      // Calculate the size of the directory.
+      [[maybe_unused]] auto i = detail::getDirectorySize(CacheRoot, true);
+
+      // Remove the created file.
+      ASSERT_NO_ERROR(llvm::sys::fs::remove(FileName));
+    };
+
+    ThreadPool MPool(ThreadCount, testLambda);
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
                          PersistentDeviceCodeCache,
                          ::testing::Values(SYCL_DEVICE_BINARY_TYPE_SPIRV,
