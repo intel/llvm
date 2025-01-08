@@ -1,0 +1,22 @@
+//==-------joint_matrix_rowmajorA_rowmajorB.cpp  - DPC++ joint_matrix-------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// VNNI transform is not supported yet by IGC on DG2
+// UNSUPPORTED: gpu-intel-dg2
+// REQUIRES-INTEL-DRIVER: lin: 30049
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
+
+// This tests support of row major layout for matrix B which does automatic VNNI
+// transform. This is currently only available on AMX and XMX of PVC
+
+#include "../include/common.hpp"
+#include "../include/joint_matrix_rowmajorA_rowmajorB_impl.hpp"

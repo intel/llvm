@@ -21,8 +21,8 @@
 // information on this issue consult
 // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
 
-#include "joint_matrix_apply_cuda.hpp"
-#include "joint_matrix_gemm_cuda.hpp"
+#include "include/joint_matrix_apply_cuda.hpp"
+#include "include/joint_matrix_gemm_cuda.hpp"
 
 static constexpr size_t M = 16;
 static constexpr size_t N = 16;
