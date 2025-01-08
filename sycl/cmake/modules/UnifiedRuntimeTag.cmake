@@ -1,7 +1,7 @@
-# commit bb64b3e9f6d30b232b204590b94250ce2da6967b
-# Merge: d23739306f2c e625bfdaa99b
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Martin Grant <martin.morrisongrant@codeplay.com>
-#     Merge pull request #2471 from Bensuo/ben/l0-include-fix
-#     [L0] Fix issue with test include path
-set(UNIFIED_RUNTIME_TAG bb64b3e9f6d30b232b204590b94250ce2da6967b)
+# commit 3472b5bda88fc06560561d7538a9c21d02f749e7
+# Merge: 33c94851 da04d138
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Jan 7 10:40:35 2025 +0000
+#     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
+#     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
+set(UNIFIED_RUNTIME_TAG da04d13807044aaf17615b66577fb0e832011ab1)

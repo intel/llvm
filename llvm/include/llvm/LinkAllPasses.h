@@ -73,7 +73,8 @@ struct ForcePassLinking {
     (void)llvm::createCallGraphViewerPass();
     (void)llvm::createCFGSimplificationPass();
     (void)llvm::createStructurizeCFGPass();
-    (void)llvm::createDXILResourceWrapperPassPass();
+    (void)llvm::createDXILResourceBindingWrapperPassPass();
+    (void)llvm::createDXILResourceTypeWrapperPassPass();
     (void)llvm::createDeadArgEliminationPass();
     (void)llvm::createDeadCodeEliminationPass();
     (void)llvm::createDependenceAnalysisWrapperPass();

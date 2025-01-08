@@ -15,4 +15,4 @@
 #define __CLC_BUILTIN __nv_fast_log
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 #define __FLOAT_ONLY
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin_scalarize.inc>

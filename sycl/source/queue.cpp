@@ -199,12 +199,12 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 /// TODO: Unused. Remove these when ABI-break window is open.
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
-  return submit_with_event_impl(CGH, {}, CodeLoc, true);
+  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, true);
 }
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc,
                          bool IsTopCodeLoc) {
-  return submit_with_event_impl(CGH, {}, CodeLoc, IsTopCodeLoc);
+  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
@@ -219,12 +219,12 @@ event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
 
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::code_location &CodeLoc) {
-  submit_without_event_impl(CGH, {}, CodeLoc, true);
+  submit_without_event_impl(std::move(CGH), {}, CodeLoc, true);
 }
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::code_location &CodeLoc,
                                       bool IsTopCodeLoc) {
-  submit_without_event_impl(CGH, {}, CodeLoc, IsTopCodeLoc);
+  submit_without_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl_and_postprocess(
@@ -232,14 +232,14 @@ event queue::submit_impl_and_postprocess(
     const detail::SubmitPostProcessF &PostProcess) {
   detail::SubmissionInfo SI{};
   SI.PostProcessorFunc() = std::move(PostProcess);
-  return submit_with_event_impl(CGH, SI, CodeLoc, true);
+  return submit_with_event_impl(std::move(CGH), SI, CodeLoc, true);
 }
 event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc) {
   detail::SubmissionInfo SI{};
   SI.PostProcessorFunc() = std::move(PostProcess);
-  return submit_with_event_impl(CGH, SI, CodeLoc, IsTopCodeLoc);
+  return submit_with_event_impl(std::move(CGH), SI, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl_and_postprocess(
