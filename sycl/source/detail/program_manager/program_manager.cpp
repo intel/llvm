@@ -509,7 +509,7 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     const context &Context, const std::vector<device> &Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  ur_program_handle_t NativePrg; // TODO: Or native?
+  ur_program_handle_t NativePrg;
 
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
@@ -768,7 +768,8 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+static inline void
+CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
@@ -913,6 +914,11 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+      // NativePrograms map does not intend to keep reference to program handle,
+      // so keys in the map can be invalid (reference count went to zero and the
+      // underlying program disposed of). Protecting from incorrect values by
+      // removal of map entries with same handle (obviously invalid entries).
+      std::ignore = NativePrograms.erase(BuiltProgram.get());
       for (const RTDeviceBinaryImage *Img : ImgWithDeps) {
         NativePrograms.insert({BuiltProgram.get(), Img});
       }
@@ -2747,6 +2753,11 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+    // NativePrograms map does not intend to keep reference to program handle,
+    // so keys in the map can be invalid (reference count went to zero and the
+    // underlying program disposed of). Protecting from incorrect values by
+    // removal of map entries with same handle (obviously invalid entries).
+    std::ignore = NativePrograms.erase(LinkedProg);
     for (const device_image_plain &Img : ImgWithDeps) {
       NativePrograms.insert(
           {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
