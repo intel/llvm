@@ -12,7 +12,6 @@ TEST_P(urQueueGetInfoTest, Context) {
     auto infoType = UR_QUEUE_INFO_CONTEXT;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(sizeof(ur_context_handle_t), size);
 
     std::vector<uint8_t> data(size);
@@ -28,7 +27,6 @@ TEST_P(urQueueGetInfoTest, Device) {
     auto infoType = UR_QUEUE_INFO_DEVICE;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(sizeof(ur_device_handle_t), size);
 
     std::vector<uint8_t> data(size);
@@ -43,7 +41,6 @@ TEST_P(urQueueGetInfoTest, Flags) {
     auto infoType = UR_QUEUE_INFO_FLAGS;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(sizeof(ur_queue_flags_t), size);
 
     std::vector<uint8_t> data(size);
@@ -58,7 +55,6 @@ TEST_P(urQueueGetInfoTest, ReferenceCount) {
     auto infoType = UR_QUEUE_INFO_REFERENCE_COUNT;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(sizeof(uint32_t), size);
 
     std::vector<uint8_t> data(size);
@@ -73,7 +69,6 @@ TEST_P(urQueueGetInfoTest, EmptyQueue) {
     auto infoType = UR_QUEUE_INFO_EMPTY;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_NE(size, 0);
     ASSERT_EQ(sizeof(ur_bool_t), size);
 
     std::vector<uint8_t> data(size);

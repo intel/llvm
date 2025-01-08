@@ -145,10 +145,6 @@ ur_result_t urEnqueueEventsWait(
     std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
-  if (OutEvent && (*OutEvent)->Completed) {
-    UR_CALL(CleanupCompletedEvent((*OutEvent), false, false));
-    UR_CALL(urEventReleaseInternal((*OutEvent)));
-  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -795,7 +791,7 @@ urEventWait(uint32_t NumEvents, ///< [in] number of events in the event list
       //
       ur_event_handle_t_ *Event = ur_cast<ur_event_handle_t_ *>(e);
       if (!Event->hasExternalRefs())
-        die("urEventsWait must not be called for an internal event");
+        die("urEventWait must not be called for an internal event");
 
       ze_event_handle_t ZeHostVisibleEvent;
       if (auto Res = Event->getOrCreateHostVisibleEvent(ZeHostVisibleEvent))
