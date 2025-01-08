@@ -1,6 +1,7 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv.
 
 // UNSUPPORTED: hip || cuda
+// REQUIRED-TRIPLES: spir64
 
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir

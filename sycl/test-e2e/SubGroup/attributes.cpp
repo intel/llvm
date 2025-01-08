@@ -2,6 +2,7 @@
 // reports as 0 on cuda and hip
 // XFAIL: cuda || hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14357
+// REQUIRED-TRIPLES: spir64
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

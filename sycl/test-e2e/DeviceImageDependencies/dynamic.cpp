@@ -1,6 +1,7 @@
 // Test -fsycl-allow-device-image-dependencies with dynamic libraries.
 
 // UNSUPPORTED: cuda || hip
+// REQUIRED-TRIPLES: spir64
 
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}

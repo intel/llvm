@@ -1,4 +1,5 @@
 // REQUIRES: accelerator
+// REQUIRED-TRIPLES: spir64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==-------- fpga_pipes_legacy_ns.cpp - SYCL FPGA pipes test ---------------==//

@@ -6,6 +6,7 @@
 // RUN: %{run} %t2.out
 //
 // UNSUPPORTED: cuda || hip
+// REQUIRED-TRIPLES: spir64
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
 

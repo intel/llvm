@@ -1,4 +1,5 @@
 // REQUIRES: ocloc && gpu && linux && (opencl || level_zero)
+// REQUIRED-TRIPLES: spir64
 
 // Test to check several use cases for multi-device kernel bundles.
 // Test covers AOT and JIT cases. Kernel is using some math functions to enforce

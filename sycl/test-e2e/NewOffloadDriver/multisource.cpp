@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // XFAIL: cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
+// UNSUPPORTED-TRIPLES: nvptx64-nvidia-cuda
 // Separate kernel sources and host code sources
 // Test with `--offload-new-driver`
 // RUN: %{build} --offload-new-driver -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL

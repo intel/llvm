@@ -3,6 +3,7 @@
 
 // UNSUPPORTED: cuda || hip
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
+// REQUIRED-TRIPLES: spir64
 
 // RUN: %clangxx --offload-new-driver -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs \
 // RUN:    %S/Inputs/a.cpp                                                              \

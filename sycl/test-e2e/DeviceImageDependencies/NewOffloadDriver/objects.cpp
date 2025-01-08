@@ -2,6 +2,7 @@
 
 // UNSUPPORTED: cuda || hip
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
+// REQUIRED-TRIPLES: spir64
 
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/b.cpp -I %S/Inputs -c -o %t_b.o

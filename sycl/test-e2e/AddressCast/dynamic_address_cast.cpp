@@ -10,6 +10,7 @@
 // OpGenericCastToPtr* intrinsics not implemented on AMD or NVIDIA
 // FPGA emulator affected by same issue as OpenCL CPU runtime
 // UNSUPPORTED: cpu, hip, cuda, accelerator
+// REQUIRED-TRIPLES: spir64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

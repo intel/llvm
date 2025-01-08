@@ -1,4 +1,5 @@
 // REQUIRES: level_zero
+// REQUIRED-TRIPLES: spir64
 // RUN: %{build} -Xsycl-target-linker=spir64 -foo -o %t.out
 // RUN: %{run} %t.out
 //==--- level-zero-link-flags.cpp - Error handling for link flags --==//

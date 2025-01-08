@@ -4,6 +4,7 @@
 //
 // XFAIL: cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
+// UNSUPPORTED-TRIPLES: nvptx64-nvidia-cuda
 
 #include "Inputs/split-per-source.h"
 

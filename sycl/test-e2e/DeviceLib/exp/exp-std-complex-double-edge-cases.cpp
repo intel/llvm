@@ -4,6 +4,7 @@
 // REQUIRES: aspect-fp64
 // UNSUPPORTED: hip || cuda
 // UNSUPPORTED-INTENDED: This test is intended for backends with SPIR-V support.
+// REQUIRED-TRIPLES: spir64
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

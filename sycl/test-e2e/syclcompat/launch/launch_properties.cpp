@@ -21,9 +21,10 @@
  *     correctly. Adapted from
  *     sycl/test-e2e/ClusterLaunch/cluster_launch_parallel_for.cpp
  **************************************************************************/
+// FIXME this test never actually runs
+// XFAIL: *
 
 // REQUIRES: aspect-ext_oneapi_cuda_cluster_group
-// REQUIRED-TRIPLES: nvptx64-nvidia-cuda
 // RUN: %{build} -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 

@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: cuda || hip
+// REQUIRED-TRIPLES: spir64
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>

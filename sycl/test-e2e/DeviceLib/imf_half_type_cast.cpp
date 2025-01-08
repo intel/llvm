@@ -8,6 +8,7 @@
 // RUN: %{run} %t2.out
 
 // UNSUPPORTED: cuda, hip
+// REQUIRED-TRIPLES: spir64
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

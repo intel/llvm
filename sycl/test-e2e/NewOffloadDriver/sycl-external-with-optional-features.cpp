@@ -5,6 +5,7 @@
 // RUN: %{run} %t.exe
 // XFAIL: cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
+// UNSUPPORTED-TRIPLES: nvptx64-nvidia-cuda
 
 #ifdef SOURCE1
 #include <iostream>

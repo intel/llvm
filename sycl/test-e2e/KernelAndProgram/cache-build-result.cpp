@@ -1,5 +1,6 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
 // UNSUPPORTED: cuda || hip || ze_debug
+// REQUIRED-TRIPLES: spir64
 
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU -o %t_gpu.out

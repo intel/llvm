@@ -2,6 +2,7 @@
 // types.
 
 // UNSUPPORTED: hip || cuda
+// REQUIRED-TRIPLES: spir64
 
 // XFAIL: gpu
 // XFAIL-TRACKER: https://github.com/intel/intel-graphics-compiler/issues/330
