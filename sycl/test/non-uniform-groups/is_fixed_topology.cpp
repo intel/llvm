@@ -1,4 +1,4 @@
-// RUN: %{build} -fsyntax-only -o %t.out
+// RUN: %clangxx -fsyntax-only -o %t.out
 
 #include <sycl/detail/core.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
