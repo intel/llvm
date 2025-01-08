@@ -23,7 +23,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-static std::function<void(void *)> CustomDeleterForLibHandle =
+std::function<void(void *)> jit_compiler::CustomDeleterForLibHandle =
     [](void *StoredPtr) {
       if (!StoredPtr)
         return;
@@ -103,8 +103,6 @@ jit_compiler::jit_compiler()
   };
   Available = checkJITLibrary();
 }
-
-jit_compiler::~jit_compiler() {}
 
 static ::jit_compiler::BinaryFormat
 translateBinaryImageFormat(ur::DeviceBinaryType Type) {

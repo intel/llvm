@@ -61,7 +61,7 @@ public:
 
 private:
   jit_compiler();
-  ~jit_compiler();
+  ~jit_compiler() = default;
   jit_compiler(const jit_compiler &) = delete;
   jit_compiler(jit_compiler &&) = delete;
   jit_compiler &operator=(const jit_compiler &) = delete;
@@ -99,7 +99,8 @@ private:
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
-  std::unique_ptr<void, std::function<void(void *)>> LibraryHandle;
+  static std::function<void(void *)> CustomDeleterForLibHandle;
+  std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryHandle;
 #endif // SYCL_EXT_JIT_ENABLE
 };
 
