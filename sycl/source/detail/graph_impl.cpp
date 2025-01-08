@@ -302,6 +302,48 @@ void exec_graph_impl::makePartitions() {
   }
 }
 
+static void checkGraphPropertiesAndThrow(const property_list &Properties) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
+    default:
+      return false;
+    }
+  };
+  // No properties with data for graph now.
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  sycl::detail::PropertyValidator::checkPropsAndThrow(
+      Properties, CheckDataLessProperties, NoAllowedPropertiesCheck);
+}
+
+graph_impl::graph_impl(const sycl::context &SyclContext,
+                       const sycl::device &SyclDevice,
+                       const sycl::property_list &PropList)
+    : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
+      MEventsMap(), MInorderQueueMap() {
+  checkGraphPropertiesAndThrow(PropList);
+  if (PropList.has_property<property::graph::no_cycle_check>()) {
+    MSkipCycleChecks = true;
+  }
+  if (PropList.has_property<property::graph::assume_buffer_outlives_graph>()) {
+    MAllowBuffers = true;
+  }
+
+  if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
+      !SyclDevice.has(aspect::ext_oneapi_graph)) {
+    std::stringstream Stream;
+    Stream << SyclDevice.get_backend();
+    std::string BackendString = Stream.str();
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        BackendString + " backend is not supported by SYCL Graph extension.");
+  }
+}
+
 graph_impl::~graph_impl() {
   try {
     clearQueues();
@@ -872,7 +914,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
       MEnableProfiling(
           PropList.has_property<property::graph::enable_profiling>()) {
-
+  checkGraphPropertiesAndThrow(PropList);
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
   // have support for graph update.
@@ -1699,7 +1741,9 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
 
 void modifiable_command_graph::begin_recording(
     queue &RecordingQueue, const sycl::property_list &PropList) {
-  std::ignore = PropList;
+  // No properties is handled here originally, just check that properties are
+  // related to graph at all.
+  checkGraphPropertiesAndThrow(PropList);
 
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
@@ -1782,6 +1826,34 @@ std::vector<node> modifiable_command_graph::get_root_nodes() const {
 
   std::copy(Roots.begin(), Roots.end(), std::back_inserter(Impls));
   return createNodesFromImpls(Impls);
+}
+
+void modifiable_command_graph::checkNodePropertiesAndThrow(
+    const property_list &Properties) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/node_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/node_properties.def>
+    default:
+      return false;
+    }
+  };
+  sycl::detail::PropertyValidator::checkPropsAndThrow(
+      Properties, CheckDataLessProperties, CheckPropertiesWithData);
 }
 
 executable_command_graph::executable_command_graph(
