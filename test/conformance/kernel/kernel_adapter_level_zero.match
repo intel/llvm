@@ -1,3 +1,7 @@
+# Match tests that use fixed_sg_size.cpp as it fails to compile on some 
+# hardware.
+{{OPT}}urKernelGetSubGroupInfoFixedSubGroupSizeTest.CompileNumSubGroups/*
+
 urKernelSetExecInfoTest.SuccessIndirectAccess/*
 urKernelSetExecInfoUSMPointersTest.SuccessHost/*
 urKernelSetExecInfoUSMPointersTest.SuccessDevice/*
