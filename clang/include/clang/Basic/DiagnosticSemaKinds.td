@@ -2402,6 +2402,7 @@ def err_reference_bind_to_vector_element : Error<
   "%select{non-const|volatile}0 reference cannot bind to vector element">;
 def err_reference_bind_to_matrix_element : Error<
   "%select{non-const|volatile}0 reference cannot bind to matrix element">;
+// compilations and its absence in host compilations.
 def err_reference_var_requires_init : Error<
   "declaration of reference variable %0 requires an initializer">;
 def err_reference_without_init : Error<
@@ -12515,12 +12516,12 @@ def warn_launch_bounds_is_cuda_specific : Warning<
   "%0 attribute ignored, only applicable when targeting Nvidia devices">,
   InGroup<IgnoredAttributes>;
 def err_registered_kernels_num_of_args : Error<
-  "'__registered_kernels__' atribute must have at least one argument">;
+  "'__registered_kernels__' attribute must have at least one argument">;
 def err_registered_kernels_init_list : Error<
-  "argument to the '__registered_kernels__' atribute must be an "
+  "argument to the '__registered_kernels__' attribute must be an "
   "initializer list expression">;
 def err_registered_kernels_init_list_pair_values : Error<
-  "each initializer list argument to the '__registered_kernels__' atribute "
+  "each initializer list argument to the '__registered_kernels__' attribute "
   "must contain a pair of values">;
 def err_registered_kernels_resolve_function : Error<
   "unable to resolve free function kernel '%0'">;

@@ -7,21 +7,21 @@ void foo();
 
 constexpr const char *str = "foo";
 
-// expected-error@+1 {{'__registered_kernels__' atribute must have at least one argument}}
+// expected-error@+1 {{'__registered_kernels__' attribute must have at least one argument}}
 [[__sycl_detail__::__registered_kernels__(
 )]];
 
-// expected-error@+2 {{argument to the '__registered_kernels__' atribute must be an initializer list expression}}
+// expected-error@+2 {{argument to the '__registered_kernels__' attribute must be an initializer list expression}}
 [[__sycl_detail__::__registered_kernels__(
   1
 )]];
 
-// expected-error@+2 {{each initializer list argument to the '__registered_kernels__' atribute must contain a pair of values}}
+// expected-error@+2 {{each initializer list argument to the '__registered_kernels__' attribute must contain a pair of values}}
 [[__sycl_detail__::__registered_kernels__(
   {}
 )]];
 
-// expected-error@+2 {{each initializer list argument to the '__registered_kernels__' atribute must contain a pair of values}}
+// expected-error@+2 {{each initializer list argument to the '__registered_kernels__' attribute must contain a pair of values}}
 [[__sycl_detail__::__registered_kernels__(
   { "foo" }
 )]];
@@ -36,7 +36,7 @@ constexpr const char *str = "foo";
   { str, 1 }
 )]];
 
-// expected-error@+2 {{each initializer list argument to the '__registered_kernels__' atribute must contain a pair of values}}
+// expected-error@+2 {{each initializer list argument to the '__registered_kernels__' attribute must contain a pair of values}}
 [[__sycl_detail__::__registered_kernels__(
   { "foo", 1, foo }
 )]];

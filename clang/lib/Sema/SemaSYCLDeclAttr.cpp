@@ -3212,7 +3212,7 @@ void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
       return;
     }
 
-    /* The first value of the pair muse be a string. */
+    /* The first value of the pair must be a string. */
     const Expr *FirstExpr = ArgListE->getInit(0);
     StringRef CurStr;
     SourceLocation Loc = FirstExpr->getExprLoc();
