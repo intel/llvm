@@ -509,7 +509,7 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     const context &Context, const std::vector<device> &Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  ur_program_handle_t NativePrg; // TODO: Or native?
+  ur_program_handle_t NativePrg;
 
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
@@ -768,7 +768,8 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+static inline void
+CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
@@ -913,6 +914,11 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+      // NativePrograms map does not intend to keep reference to program handle,
+      // so keys in the map can be invalid (reference count went to zero and the
+      // underlying program disposed of). Protecting from incorrect values by
+      // removal of map entries with same handle (obviously invalid entries).
+      std::ignore = NativePrograms.erase(BuiltProgram.get());
       for (const RTDeviceBinaryImage *Img : ImgWithDeps) {
         NativePrograms.insert({BuiltProgram.get(), Img});
       }
@@ -2569,7 +2575,12 @@ std::vector<DevImgPlainWithDeps> ProgramManager::getSYCLDeviceImages(
 DevImgPlainWithDeps
 ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
                         const std::vector<device> &Devs,
-                        const property_list &) {
+                        const property_list &PropList) {
+  {
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   // TODO: Extract compile options from property list once the Spec clarifies
   // how they can be passed.
@@ -2672,7 +2683,11 @@ std::vector<device_image_plain>
 ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
                      const std::vector<device> &Devs,
                      const property_list &PropList) {
-  (void)PropList;
+  {
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   const std::vector<device_image_plain> &Imgs = ImgWithDeps.getAll();
   std::vector<ur_program_handle_t> URPrograms;
@@ -2723,7 +2738,8 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   if (Error != UR_RESULT_SUCCESS) {
     if (LinkedProg) {
-      const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
+      const std::string ErrorMsg =
+          getProgramBuildLog(LinkedProg, std::move(ContextImpl));
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
     throw set_ur_error(exception(make_error_code(errc::build), "link() failed"),
@@ -2737,6 +2753,11 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+    // NativePrograms map does not intend to keep reference to program handle,
+    // so keys in the map can be invalid (reference count went to zero and the
+    // underlying program disposed of). Protecting from incorrect values by
+    // removal of map entries with same handle (obviously invalid entries).
+    std::ignore = NativePrograms.erase(LinkedProg);
     for (const device_image_plain &Img : ImgWithDeps) {
       NativePrograms.insert(
           {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
@@ -2751,7 +2772,7 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
-  return {createSyclObjFromImpl<device_image_plain>(ExecutableImpl)};
+  return {createSyclObjFromImpl<device_image_plain>(std::move(ExecutableImpl))};
 }
 
 // The function duplicates most of the code from existing getBuiltPIProgram.
@@ -2762,7 +2783,11 @@ device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
                       const std::vector<device> &Devs,
                       const property_list &PropList) {
-  (void)PropList;
+  {
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   const std::shared_ptr<device_image_impl> &MainInputImpl =
       getSyclObjImpl(DevImgWithDeps.getMain());
@@ -2814,7 +2839,11 @@ ProgramManager::getOrCreateKernel(const context &Context,
                                   const property_list &PropList,
                                   ur_program_handle_t Program) {
 
-  (void)PropList;
+  {
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 

@@ -1,7 +1,7 @@
-# commit ad288bb36c45e24a35a75c665d382ce18935fcf7
-# Merge: db491abc6aba f8b04f4216e8
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Jan 3 10:08:59 2025 +0000
-#     Merge pull request #2502 from ldrumm/luke/tensormap-version
-#     CUTensorMap is only in CUDA v12
-set(UNIFIED_RUNTIME_TAG ad288bb36c45e24a35a75c665d382ce18935fcf7)
+# commit b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf
+# Merge: 3472b5bd ead3d07d
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 8 10:49:59 2025 +0000
+#     Merge pull request #2462 from Bensuo/cmd-buf_update_errors
+#     Improve specification of command-buffer update errors
+set(UNIFIED_RUNTIME_TAG b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf)

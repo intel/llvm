@@ -6751,6 +6751,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
              (A->getOption().getID() == options::OPT_mlong_double_64))
       // Only allow for -mlong-double-64 for SPIR/SPIR-V
       A->render(Args, CmdArgs);
+    else if ((IsSYCL &&
+              (TC.getTriple().isAMDGCN() || TC.getTriple().isNVPTX())) &&
+             (A->getOption().getID() == options::OPT_mlong_double_64))
+      // similarly, allow 64bit long double for SYCL GPU targets
+      A->render(Args, CmdArgs);
     else if (TC.getTriple().isPPC() &&
              (A->getOption().getID() != options::OPT_mlong_double_80))
       A->render(Args, CmdArgs);
@@ -10246,7 +10251,11 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
 
     SmallString<128> HostTripleOpt("-host=");
-    HostTripleOpt += getToolChain().getAuxTriple()->str();
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    // Use the Effective Triple to match the expected triple when using the
+    // clang compiler to compile the wrapped binary.
+    std::string HostTripleStr = HostTC->ComputeEffectiveClangTriple(TCArgs);
+    HostTripleOpt += HostTripleStr;
     WrapperArgs.push_back(C.getArgs().MakeArgString(HostTripleOpt));
 
     llvm::Triple TT = getToolChain().getTriple();
@@ -10375,9 +10384,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (WrapperCompileEnabled) {
       // TODO Use TC.SelectTool().
-      ArgStringList ClangArgs{
-          TCArgs.MakeArgString("--target=" + TC.getAuxTriple()->str()), "-c",
-          "-o", Output.getFilename(), WrapperFileName};
+      ArgStringList ClangArgs{TCArgs.MakeArgString("--target=" + HostTripleStr),
+                              "-c", "-o", Output.getFilename(),
+                              WrapperFileName};
       llvm::Reloc::Model RelocationModel;
       unsigned PICLevel;
       bool IsPIE;
