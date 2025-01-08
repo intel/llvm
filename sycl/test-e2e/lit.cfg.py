@@ -36,6 +36,10 @@ config.recursiveExpansionLimit = 10
 # To be filled by lit.local.cfg files.
 config.required_features = []
 config.unsupported_features = []
+config.build_required_features = []
+config.build_unsupported_features = []
+config.required_triples = []
+config.unsupported_triples = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
@@ -52,6 +56,8 @@ elif config.test_mode == "run-only":
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
+    if not config.amd_arch:
+        config.amd_arch = "gfx1031"
 else:
     lit_config.error("Invalid argument for test-mode")
 
@@ -658,8 +664,6 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
-# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
-arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
@@ -795,9 +799,6 @@ for sycl_device in config.sycl_devices:
             config.amd_arch = arch.replace(amd_arch_prefix, "")
         llvm_config.with_system_environment("ROCM_PATH")
         config.available_features.add("hip_amd")
-        arch_flag = (
-            "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
-        )
         config.substitutions.append(
             ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
         )
@@ -810,6 +811,12 @@ for sycl_device in config.sycl_devices:
     else:
         config.intel_driver_ver[sycl_device] = {}
 
+# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
+config.arch_flag = ""
+if config.amd_arch:
+    config.arch_flag = (
+        "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
+    )
 if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
@@ -817,7 +824,7 @@ else:
     config.substitutions.append(
         (
             "%clangxx",
-            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
+            " " + config.dpcpp_compiler + " " + config.cxx_flags,
         )
     )
     config.substitutions.append(

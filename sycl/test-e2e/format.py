@@ -70,6 +70,22 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                         "REQUIRES-INTEL-DRIVER:",
                         ParserKind.CUSTOM,
                         parse_min_intel_driver_req,
+                    ),
+                    IntegratedTestKeywordParser(
+                        "REQUIRED-TRIPLES:",
+                        ParserKind.LIST,
+                    ),
+                    IntegratedTestKeywordParser(
+                        "UNSUPPORTED-TRIPLES:",
+                        ParserKind.LIST,
+                    ),
+                    IntegratedTestKeywordParser(
+                        "BUILD-REQUIRES:",
+                        ParserKind.BOOLEAN_EXPR,
+                    ),
+                    IntegratedTestKeywordParser(
+                        "BUILD-UNSUPPORTED:",
+                        ParserKind.BOOLEAN_EXPR,
                     )
                 ],
                 require_script=True,
@@ -86,6 +102,19 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         test.unsupported += test.config.unsupported_features
         test.unsupported += parsed["UNSUPPORTED:"] or []
 
+        test.build_requires = test.config.build_required_features
+        test.build_requires += parsed["BUILD-REQUIRES:"] or []
+        test.build_unsupported = test.config.build_unsupported_features
+        test.build_unsupported += parsed["BUILD-UNSUPPORTED:"] or []
+
+        test.requires += test.build_requires
+        test.unsupported += test.build_unsupported
+
+        test.required_triples = test.config.required_triples
+        test.required_triples += parsed["REQUIRED-TRIPLES:"] or []
+        test.unsupported_triples = test.config.unsupported_triples
+        test.unsupported_triples += parsed["UNSUPPORTED-TRIPLES:"] or []
+
         test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
 
         return script
@@ -98,11 +127,38 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
 
+    def getMissingRequiredFeaturesFromList(self, features, requires):
+        try:
+            return [
+                item
+                for item in requires
+                if not BooleanExpression.evaluate(item, features)
+            ]
+        except ValueError as e:
+            raise ValueError("Error in REQUIRES list:\n%s" % str(e))
+
+
+    def check_build_requirements(self, test):
+        if "build-and-run-mode" in test.requires or "true" in test.unsupported:
+            return False
+        if self.getMissingRequiredFeaturesFromList(test.config.available_features, test.build_requires):
+            return False
+        if self.getMatchedFromList(test.config.available_features, test.build_unsupported):
+            return False
+        return True
+
+    def select_triples_for_test(self, test):
+        available_triples = {"spir64", "nvptx64-nvidia-cuda", "amdgcn-amd-amdhsa"}
+        available_triples = available_triples - set(test.unsupported_triples)
+        if test.required_triples:
+            available_triples = available_triples.intersection(set(test.required_triples))
+        return available_triples
+
     def select_devices_for_test(self, test):
         devices = []
         for d in test.config.sycl_devices:
             features = test.config.sycl_dev_features[d]
-            if test.getMissingRequiredFeaturesFromList(features):
+            if self.getMissingRequiredFeaturesFromList(features, test.requires):
                 continue
 
             if self.getMatchedFromList(features, test.unsupported):
@@ -157,11 +213,15 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
-            if "build-and-run-mode" in test.requires or "true" in test.unsupported:
+            if not self.check_build_requirements(test):
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "Test unsupported for this environment"
                 )
-            triples = {"spir64"}
+            triples = self.select_triples_for_test(test)
+            if not triples:
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED, "No supported triple to build for"
+                )
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
@@ -175,13 +235,19 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
+        substitutions.append(
+                (
+                    "%{arch_flag}",
+                    test.config.arch_flag if "amdgcn-amd-amdhsa" in triples else ""
+                    )
+                )
         # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
         substitutions.append(
             (
                 "%{build}",
-                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s",
+                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %{arch_flag} %verbose_print %s",
             )
         )
         if platform.system() == "Windows":
