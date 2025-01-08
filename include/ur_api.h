@@ -1656,6 +1656,7 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_USM_POOL_SUPPORT = 119,                           ///< [::ur_bool_t] return true if the device supports USM pooling. Pertains
                                                                      ///< to the `USMPool` entry points and usage of the `pool` parameter of the
                                                                      ///< USM alloc entry points.
+    UR_DEVICE_INFO_NUM_COMPUTE_UNITS = 120,                          ///< [uint32_t] the number of compute units for specific backend.
     UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,              ///< [::ur_bool_t] Returns true if the device supports the use of
                                                                      ///< command-buffers.
     UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP = 0x1001,  ///< [::ur_device_command_buffer_update_capability_flags_t] Command-buffer
@@ -1719,7 +1720,6 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,                    ///< [::ur_bool_t] returns true if the device supports low-power events.
     UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,         ///< [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
                                                                      ///< of Intel GPU 2D block array capabilities
-    UR_DEVICE_INFO_NUM_COMPUTE_UNITS = 0x2023,                       ///< [uint32_t] the number of compute units for specific backend
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond

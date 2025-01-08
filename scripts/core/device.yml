@@ -443,6 +443,8 @@ etors:
       desc: "[$x_bool_t] return true if the device supports the `EnqueueDeviceGlobalVariableWrite` and `EnqueueDeviceGlobalVariableRead` entry points."
     - name: USM_POOL_SUPPORT
       desc: "[$x_bool_t] return true if the device supports USM pooling. Pertains to the `USMPool` entry points and usage of the `pool` parameter of the USM alloc entry points."
+    - name: NUM_COMPUTE_UNITS
+      desc: "[uint32_t] the number of compute units for specific backend."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

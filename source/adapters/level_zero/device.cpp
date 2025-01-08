@@ -322,8 +322,8 @@ ur_result_t urDeviceGetInfo(
 
     return ReturnValue(uint32_t{MaxComputeUnits});
   }
-  case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:{
-    uint32_t NumComputeUnits =  
+  case UR_DEVICE_INFO_NUM_COMPUTE_UNITS: {
+    uint32_t NumComputeUnits =
         Device->ZeDeviceProperties->numSubslicesPerSlice *
         Device->ZeDeviceProperties->numSlices;
     return ReturnValue(uint32_t{NumComputeUnits});
