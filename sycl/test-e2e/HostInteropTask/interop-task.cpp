@@ -1,7 +1,8 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out %threads_lib %opencl_lib
 // RUN: %{run} %t.out
 // UNSUPPORTED: level_zero, cuda
-// REQUIRES: opencl, opencl_icd
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd
 
 #include <iostream>
 #include <sycl/backend.hpp>

@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
 // REQUIRES: cuda, cuda_dev_kit
-// REQUIRES: build-and-run-mode
+// REQUIRED-TRIPLES: nvptx64-nvidia-cuda
 
 #include <iostream>
 #include <sycl/backend.hpp>

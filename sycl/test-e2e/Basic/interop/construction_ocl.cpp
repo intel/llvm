@@ -1,4 +1,5 @@
-// REQUIRES: opencl, opencl_icd
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd
 // RUN: %{build} %opencl_lib -o %t.ocl.out
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.ocl.out
 

@@ -1,4 +1,5 @@
-// REQUIRES: opencl, opencl_icd
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd
 
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib
 // RUN: %{run} %t.out

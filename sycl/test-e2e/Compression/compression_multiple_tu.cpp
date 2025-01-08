@@ -1,6 +1,6 @@
 // End-to-End test for testing device image compression when we have two
 // translation units, one compressed and one not compressed.
-// REQUIRES: zstd, linux
+// BUILD-REQUIRES: zstd, linux
 
 // RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared -fPIC -o %T/kernel1.so
 // RUN: %{build} -DENABLE_KERNEL2 -shared -fPIC -o %T/kernel2.so

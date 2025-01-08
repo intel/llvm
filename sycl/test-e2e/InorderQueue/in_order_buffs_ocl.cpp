@@ -1,4 +1,5 @@
-// REQUIRES: opencl_icd,opencl
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd
 // RUN: %{build} -o %t.out %opencl_lib
 // RUN: %{run} %t.out
 //==-------- ordered_buffs.cpp - SYCL buffers in ordered queues test--------==//

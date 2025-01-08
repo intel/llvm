@@ -1,8 +1,8 @@
 // End-to-End test for testing device image compression when we
 // seperatly compile and link device images.
 
-// REQUIRES: zstd, opencl-aot, cpu, linux
-// REQUIRES: build-and-run-mode
+// BUILD-REQUIRES: zstd, opencl-aot, linux
+// REQUIRES: cpu
 
 //////////////////////  Compile device images
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL1' -DENABLE_KERNEL1 -c %s -o %t_kernel1_aot.o

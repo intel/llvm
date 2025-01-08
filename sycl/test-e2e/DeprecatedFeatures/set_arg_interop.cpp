@@ -1,4 +1,5 @@
-// REQUIRES: opencl, opencl_icd
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd
 
 // XFAIL: arch-intel_gpu_pvc
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14826

@@ -1,4 +1,5 @@
-// REQUIRES: opencl, opencl_icd, cm-compiler
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd, cm-compiler
 // XFAIL: (gpu && !(arch-intel_gpu_pvc && igc-dev)) || cpu || accelerator
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16406
 // RUN: %{build} -Wno-error=deprecated-declarations -DRUN_KERNELS %opencl_lib -o %t.out

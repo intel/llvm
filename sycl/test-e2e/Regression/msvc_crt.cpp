@@ -2,8 +2,7 @@
 // RUN: %{run} %t1.exe
 // RUN: %{build} /MDd -o %t2.exe
 // RUN: %{run} %t2.exe
-// REQUIRES: system-windows, cl_options
-// REQUIRES: build-and-run-mode
+// BUILD-REQUIRES: system-windows, cl_options
 //==-------------- msvc_crt.cpp - SYCL MSVC CRT test -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

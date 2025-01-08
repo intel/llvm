@@ -1,6 +1,5 @@
 // REQUIRES: cuda
-// REQUIRES: vulkan
-// REQUIRES: build-and-run-mode
+// BUILD-REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out
 // RUN: %{run} %t.out

@@ -1,5 +1,4 @@
-// REQUIRES: windows
-// REQUIRES: build-and-run-mode
+// BUILD-REQUIRES: windows
 // RUN: env SYCL_UR_TRACE=-1 sycl-ls | FileCheck %s
 
 // ensure that the adapters are detached AFTER urLoaderTearDown is done

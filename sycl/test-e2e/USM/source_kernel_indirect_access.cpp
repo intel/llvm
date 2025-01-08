@@ -1,6 +1,7 @@
 // RUN: %{build} %opencl_lib -o %t1.out
 // RUN: %{run} %t1.out
-// REQUIRES: opencl,opencl_icd
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd
 
 #include <CL/cl.h>
 #include <iostream>

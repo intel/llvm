@@ -1,6 +1,6 @@
 // REQUIRES: cuda,aspect-ext_oneapi_cubemap
 // REQUIRES: aspect-ext_oneapi_cubemap_seamless_filtering
-// REQUIRES: build-and-run-mode
+// REQUIRED-TRIPLES: nvptx64-nvidia-cuda
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

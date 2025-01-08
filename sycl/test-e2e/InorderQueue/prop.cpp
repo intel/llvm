@@ -1,4 +1,5 @@
-// REQUIRES: opencl_icd,opencl
+// REQUIRES: opencl
+// BUILD-REQUIRES: opencl_icd
 // RUN: %{build} -o %t1.out %opencl_lib
 // RUN: %{run} %t1.out
 

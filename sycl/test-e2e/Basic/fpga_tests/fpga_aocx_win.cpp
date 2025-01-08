@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: opencl-aot, accelerator
-// REQUIRES: system-windows
+// BUILD-REQUIRES: system-windows
 
 /// E2E test for AOCX creation/use/run for FPGA
 // Produce an archive with device (AOCX) image. To avoid appending objects to
