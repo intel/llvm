@@ -4,4 +4,4 @@
 # Date:   Tue Jan 7 10:40:35 2025 +0000
 #     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
 #     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
-set(UNIFIED_RUNTIME_TAG e6d65d72ef7980f376ea192e34d2b6bb8fb30050)
+set(UNIFIED_RUNTIME_TAG b8216ab9a35d3a4a8bf68cf48533e6dc7297dd17)
