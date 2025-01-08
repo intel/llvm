@@ -64,6 +64,8 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_queue_handle_t hInternalQueue;
   /// Context the command-buffer is created for.
   ur_context_handle_t hContext;
+  /// Device the command-buffer is created for.
+  ur_device_handle_t hDevice;
   /// OpenCL command-buffer object.
   cl_command_buffer_khr CLCommandBuffer;
   /// Set to true if the kernel commands in the command-buffer can be updated,
@@ -83,9 +85,10 @@ struct ur_exp_command_buffer_handle_t_ {
 
   ur_exp_command_buffer_handle_t_(ur_queue_handle_t hQueue,
                                   ur_context_handle_t hContext,
+                                  ur_device_handle_t hDevice,
                                   cl_command_buffer_khr CLCommandBuffer,
                                   bool IsUpdatable)
-      : hInternalQueue(hQueue), hContext(hContext),
+      : hInternalQueue(hQueue), hContext(hContext), hDevice(hDevice),
         CLCommandBuffer(CLCommandBuffer), IsUpdatable(IsUpdatable),
         IsFinalized(false), RefCountInternal(0), RefCountExternal(0) {}
 
