@@ -83,15 +83,20 @@ ur_result_t EnqueueMemCopyRectHelper(
                 NumEventsInWaitList, EventWaitList, &NewEvent));
             Events.push_back(NewEvent);
         } else if (IsDstDeviceUSM && !IsSrcDeviceUSM) {
-            NewEvent = nullptr;
             uptr DstShadowAddr = DeviceInfo->Shadow->MemToShadow(
                 (uptr)DstOrigin + (i * DstSlicePitch));
             const char Val = 0;
-            UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
-                Queue, (void *)DstShadowAddr, DstRowPitch, 1, &Val,
-                Region.width, Region.height, NumEventsInWaitList, EventWaitList,
-                &NewEvent));
-            Events.push_back(NewEvent);
+            // opencl & l0 adapter doesn't implement urEnqueueUSMFill2D, so
+            // emulate the operation with urEnqueueUSMFill.
+            for (size_t HeightIndex = 0; HeightIndex < Region.height;
+                 HeightIndex++) {
+                NewEvent = nullptr;
+                UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+                    Queue, (void *)(DstShadowAddr + HeightIndex * DstRowPitch),
+                    1, &Val, Region.width, NumEventsInWaitList, EventWaitList,
+                    &NewEvent));
+                Events.push_back(NewEvent);
+            }
         }
     }
 
