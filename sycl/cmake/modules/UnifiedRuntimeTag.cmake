@@ -1,4 +1,7 @@
-# Date:   Mon Dec 16 13:53:13 2024 +0000
-#     Merge pull request #2467 from nrspruit/fix_external_import_function_call
-#     [L0] Fix external semaphore import function calls to match the header
-set(UNIFIED_RUNTIME_TAG "cmd-buf_update_errors")
+# commit b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf
+# Merge: 3472b5bd ead3d07d
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 8 10:49:59 2025 +0000
+#     Merge pull request #2462 from Bensuo/cmd-buf_update_errors
+#     Improve specification of command-buffer update errors
+set(UNIFIED_RUNTIME_TAG b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf)
