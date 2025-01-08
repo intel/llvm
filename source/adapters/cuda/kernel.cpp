@@ -190,9 +190,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pLocalWorkSize,
-    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
+    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
+    uint32_t *pGroupCountRet) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_KERNEL);
+
+  std::ignore = hDevice;
 
   size_t localWorkSize = pLocalWorkSize[0];
   localWorkSize *= (workDim >= 2 ? pLocalWorkSize[1] : 1);

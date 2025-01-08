@@ -3,18 +3,12 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "fixtures.h"
+#include <uur/fixtures.h>
 
-struct urAdapterRetainTest : uur::runtime::urAdapterTest {
-    void SetUp() {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::runtime::urAdapterTest::SetUp());
-        adapter = adapters[0];
-    }
+using urAdapterRetainTest = uur::urAdapterTest;
+UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(urAdapterRetainTest);
 
-    ur_adapter_handle_t adapter;
-};
-
-TEST_F(urAdapterRetainTest, Success) {
+TEST_P(urAdapterRetainTest, Success) {
     uint32_t referenceCountBefore = 0;
 
     ASSERT_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_REFERENCE_COUNT,
@@ -30,7 +24,7 @@ TEST_F(urAdapterRetainTest, Success) {
     ASSERT_GT(referenceCountAfter, referenceCountBefore);
 }
 
-TEST_F(urAdapterRetainTest, InvalidNullHandleAdapter) {
+TEST_P(urAdapterRetainTest, InvalidNullHandleAdapter) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urAdapterRetain(nullptr));
 }

@@ -4,7 +4,6 @@ urMemBufferPartitionTest.InvalidValueCreateType/*
 urMemBufferPartitionTest.InvalidValueBufferCreateInfoOutOfBounds/*
 urMemGetInfoTestWithParam.Success/*
 urMemGetInfoTest.InvalidSizeSmall/*
-urMemImageCreateTestWithImageFormatParam.Success/*
 urMemReleaseTest.Success/*
 urMemReleaseTest.CheckReferenceCount/*
 urMemRetainTest.Success/*

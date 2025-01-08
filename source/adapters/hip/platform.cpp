@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "platform.hpp"
+#include "adapter.hpp"
 #include "context.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -33,6 +34,9 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
   }
   case UR_PLATFORM_INFO_EXTENSIONS: {
     return ReturnValue("");
+  }
+  case UR_PLATFORM_INFO_ADAPTER: {
+    return ReturnValue(&adapter);
   }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

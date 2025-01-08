@@ -22,7 +22,8 @@ UUR_TEST_SUITE_P(urUSMPoolGetInfoTestWithInfoParam,
 TEST_P(urUSMPoolGetInfoTestWithInfoParam, Success) {
     ur_usm_pool_info_t info_type = getParam();
     size_t size = 0;
-    ASSERT_SUCCESS(urUSMPoolGetInfo(pool, info_type, 0, nullptr, &size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urUSMPoolGetInfo(pool, info_type, 0, nullptr, &size), info_type);
     ASSERT_NE(size, 0);
 
     if (const auto expected_size = pool_info_size_map.find(info_type);

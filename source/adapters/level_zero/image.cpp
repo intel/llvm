@@ -265,6 +265,16 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   return UR_RESULT_SUCCESS;
 }
 
+static bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
+  switch (ChannelOrder) {
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGX:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Construct ZE image desc from UR image format and desc.
 ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                            const ur_image_desc_t *ImageDesc,
@@ -843,6 +853,14 @@ ur_result_t urBindlessImagesImageCopyExp(
   UR_CALL(ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, ZeImageDesc));
 
   bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
+  // Due to the limitation of the copy engine, disable usage of Copy Engine
+  // Given 3 channel image
+  if (Is3ChannelOrder(
+          ur_cast<ur_image_channel_order_t>(pSrcImageFormat->channelOrder)) ||
+      Is3ChannelOrder(
+          ur_cast<ur_image_channel_order_t>(pDstImageFormat->channelOrder))) {
+    UseCopyEngine = false;
+  }
 
   _ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
@@ -1237,7 +1255,7 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
   }
 
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
-             (hDevice->ZeDevice, &ExtSemaphoreHandle, &SemDesc));
+             (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
   *phExternalSemaphoreHandle =
       (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
 
@@ -1310,7 +1328,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
       reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                  .zexCommandListAppendWaitExternalSemaphoresExp,
-             (ZeCommandList, &hExtSemaphore, &WaitParams, 1, ZeEvent,
+             (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   return UR_RESULT_SUCCESS;
@@ -1373,7 +1391,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
 
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                  .zexCommandListAppendSignalExternalSemaphoresExp,
-             (ZeCommandList, &hExtSemaphore, &SignalParams, 1, ZeEvent,
+             (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   return UR_RESULT_SUCCESS;

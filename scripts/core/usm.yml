@@ -74,7 +74,7 @@ etors:
     - name: DEVICE
       desc: "[$x_device_handle_t] Memory allocation device info"
     - name: POOL
-      desc: "[$x_usm_pool_handle_t] Memory allocation pool info"
+      desc: "[$x_usm_pool_handle_t][optional-query] Memory allocation pool info"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM memory advice"

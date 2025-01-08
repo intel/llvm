@@ -175,10 +175,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
                 Device, Program, kSPIR_MsanSpirKernelMetadata, &MetadataSize,
                 &MetadataPtr);
         if (Result != UR_RESULT_SUCCESS) {
-            getContext()->logger.error(
-                "Can't get the pointer of <{}> under device {}: {}",
-                kSPIR_MsanSpirKernelMetadata, (void *)Device, Result);
-            return Result;
+            continue;
         }
 
         const uint64_t NumOfSpirKernel = MetadataSize / sizeof(SpirKernelInfo);

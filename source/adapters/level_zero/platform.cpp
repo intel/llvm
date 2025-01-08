@@ -95,6 +95,8 @@ ur_result_t urPlatformGetInfo(
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
+  case UR_PLATFORM_INFO_ADAPTER:
+    return ReturnValue(GlobalAdapter);
   default:
     logger::debug("urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -222,6 +224,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
 
   bool MutableCommandListSpecExtensionSupported = false;
   bool ZeIntelExternalSemaphoreExtensionSupported = false;
+  bool ZeImmediateCommandListAppendExtensionFound = false;
   for (auto &extension : ZeExtensions) {
     // Check if global offset extension is available
     if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
@@ -244,6 +247,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
       if (extension.version ==
           ZE_EVENT_POOL_COUNTER_BASED_EXP_VERSION_CURRENT) {
         ZeDriverEventPoolCountingEventsExtensionFound = true;
+      }
+    }
+    // Check if the ImmediateAppendCommandLists extension is available.
+    if (strncmp(extension.name, ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME,
+                strlen(ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME) + 1) == 0) {
+      if (extension.version ==
+          ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_VERSION_CURRENT) {
+        ZeImmediateCommandListAppendExtensionFound = true;
       }
     }
     // Check if extension is available for Mutable Command List v1.1.
@@ -425,6 +436,21 @@ ur_result_t ur_platform_handle_t_::initialize() {
                   &ZeMutableCmdListExt
                        .zexCommandListGetNextCommandIdWithKernelsExp))) == 0);
   }
+
+  // Check if ImmediateAppendCommandList is supported and initialize the
+  // function pointer.
+  if (ZeImmediateCommandListAppendExtensionFound) {
+    ZeCommandListImmediateAppendExt
+        .zeCommandListImmediateAppendCommandListsExp =
+        (ze_pfnCommandListImmediateAppendCommandListsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListImmediateAppendCommandListsExp");
+    ZeCommandListImmediateAppendExt.Supported =
+        ZeCommandListImmediateAppendExt
+            .zeCommandListImmediateAppendCommandListsExp != nullptr;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
