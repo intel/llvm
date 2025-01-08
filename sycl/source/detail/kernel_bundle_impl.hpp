@@ -384,6 +384,12 @@ public:
                      syclex::source_language Lang)
       : kernel_bundle_impl(Ctx, Devs, KernelIDs, bundle_state::executable) {
     assert(Lang == syclex::source_language::sycl_jit);
+    // Mark this bundle explicitly as "interop" to ensure that its kernels are
+    // enqueued with the info from the kernel object passed by the application,
+    // cf. `enqueueImpKernel` in `commands.cpp`. While runtime-compiled kernels
+    // loaded via the program manager have `kernel_id`s, they can't be looked up
+    // from the (unprefixed) kernel name.
+    MIsInterop = true;
     KernelNames = KNames;
     Prefix = Pfx;
     Language = Lang;
