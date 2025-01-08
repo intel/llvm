@@ -119,6 +119,9 @@ static bool builtinIsSupported(const Builtin::Info &BuiltinInfo,
   /* CUDA Unsupported */
   if (!LangOpts.CUDA && BuiltinInfo.Langs == CUDA_LANG)
     return false;
+  /* SYCL Unsupported */
+  if (!LangOpts.isSYCL() && BuiltinInfo.Langs == SYCL_LANG)
+    return false;
   /* CPlusPlus Unsupported */
   if (!LangOpts.CPlusPlus && BuiltinInfo.Langs == CXX_LANG)
     return false;
@@ -134,7 +137,7 @@ static bool builtinIsSupported(const Builtin::Info &BuiltinInfo,
 void Builtin::Context::initializeBuiltins(IdentifierTable &Table,
                                           const LangOptions& LangOpts) {
   // Step #1: mark all target-independent builtins with their ID's.
-  for (unsigned i = Builtin::NotBuiltin+1; i != Builtin::FirstTSBuiltin; ++i)
+  for (unsigned i = Builtin::NotBuiltin + 1; i != Builtin::FirstTSBuiltin; ++i)
     if (builtinIsSupported(BuiltinInfo[i], LangOpts)) {
       Table.get(BuiltinInfo[i].Name).setBuiltinID(i);
     }

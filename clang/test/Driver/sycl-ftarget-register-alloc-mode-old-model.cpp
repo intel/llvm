@@ -21,8 +21,16 @@
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
 // RUN: %clang -### -fsycl --no-offload-new-driver \
+// RUN:    -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
+
+// RUN: %clang -### -fsycl --no-offload-new-driver \
+// RUN:    -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s 2>&1 \
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
+
+// RUN: %clang -### -fsycl --no-offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device 0x0BD5" %s 2>&1 \
-// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=0x0BD5
+// RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
 // RUN: %clang -### -fsycl --no-offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device 12.60.7" %s 2>&1 \

@@ -11,7 +11,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:*
+// XFAIL: run-mode
+// XFAIL-TRACKER: GSD-5768
 
 #include "../common.hpp"
 

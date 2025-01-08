@@ -302,7 +302,8 @@ public:
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), impl->MAuxiliaryResources,
           getType(), {}, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, getCodeLoc()));
+          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+          getCodeLoc()));
       break;
     }
     case sycl::detail::CGType::CodeplayHostTask: {

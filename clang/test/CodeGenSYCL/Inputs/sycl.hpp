@@ -649,6 +649,24 @@ const stream& operator<<(const stream &S, T&&) {
   return S;
 }
 
+// Dummy implementation of work_group_memory for use in CodeGenSYCL tests.
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(work_group_memory) work_group_memory {
+public:
+  work_group_memory(handler &CGH) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  work_group_memory() = default;
+#endif
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->Ptr = Ptr; }
+  __attribute((opencl_local)) DataT *operator&() const { return Ptr; }
+
+private:
+  __attribute((opencl_local)) DataT *Ptr;
+};
+
 template <typename T, int dimensions = 1,
           typename AllocatorT = int /*fake type as AllocatorT is not used*/>
 class buffer {

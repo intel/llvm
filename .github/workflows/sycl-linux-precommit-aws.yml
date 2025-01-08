@@ -68,7 +68,7 @@ jobs:
       runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
-      target_devices: ext_oneapi_cuda:gpu
+      target_devices: cuda:gpu
       # No idea why but that seems to work and be in sync with the main
       # pre-commit workflow.
       ref: ${{ github.event.workflow_run.referenced_workflows[0].sha }}

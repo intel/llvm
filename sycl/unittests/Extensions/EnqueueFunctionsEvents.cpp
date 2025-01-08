@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // Tests the behavior of enqueue free functions when events can be discarded.
 
+#include "detail/event_impl.hpp"
+#include "detail/queue_impl.hpp"
 #include "sycl/platform.hpp"
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
@@ -107,6 +109,13 @@ protected:
   queue Q;
 };
 
+inline void CheckLastEventDiscarded(sycl::queue &Q) {
+  auto QueueImplPtr = sycl::detail::getSyclObjImpl(Q);
+  event LastEvent = QueueImplPtr->getLastEvent();
+  auto LastEventImplPtr = sycl::detail::getSyclObjImpl(LastEvent);
+  ASSERT_TRUE(LastEventImplPtr->isDiscarded());
+}
+
 TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
                                             &redefined_urEnqueueKernelLaunch);
@@ -116,6 +125,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutNoEvent) {
@@ -125,6 +136,8 @@ TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutNoEvent) {
   oneapiext::single_task<TestKernel<>>(Q, []() {});
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskKernelNoEvent) {
@@ -144,6 +157,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskKernelNoEvent) {
                     [&](handler &CGH) { oneapiext::single_task(CGH, Kernel); });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutKernelNoEvent) {
@@ -163,6 +178,8 @@ TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutKernelNoEvent) {
   oneapiext::single_task(Q, Kernel);
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForNoEvent) {
@@ -174,6 +191,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutNoEvent) {
@@ -183,6 +202,8 @@ TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutNoEvent) {
   oneapiext::parallel_for<TestKernel<>>(Q, range<1>{32}, [](item<1>) {});
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForKernelNoEvent) {
@@ -203,6 +224,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForKernelNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutKernelNoEvent) {
@@ -222,6 +245,8 @@ TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutKernelNoEvent) {
   oneapiext::parallel_for(Q, range<1>{32}, Kernel);
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchNoEvent) {
@@ -234,6 +259,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutNoEvent) {
@@ -244,6 +271,8 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutNoEvent) {
                                      [](nd_item<1>) {});
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchKernelNoEvent) {
@@ -264,6 +293,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchKernelNoEvent) {
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutKernelNoEvent) {
@@ -283,6 +314,8 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutKernelNoEvent) {
   oneapiext::nd_launch(Q, nd_range<1>{range<1>{32}, range<1>{32}}, Kernel);
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitMemcpyNoEvent) {
@@ -299,6 +332,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitMemcpyNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
 
+  CheckLastEventDiscarded(Q);
+
   free(Src, Q);
   free(Dst, Q);
 }
@@ -314,6 +349,8 @@ TEST_F(EnqueueFunctionsEventsTests, MemcpyShortcutNoEvent) {
   oneapiext::memcpy(Q, Src, Dst, sizeof(int) * N);
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 
   free(Src, Q);
   free(Dst, Q);
@@ -332,6 +369,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitCopyNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
 
+  CheckLastEventDiscarded(Q);
+
   free(Src, Q);
   free(Dst, Q);
 }
@@ -347,6 +386,8 @@ TEST_F(EnqueueFunctionsEventsTests, CopyShortcutNoEvent) {
   oneapiext::memcpy(Q, Dst, Src, N);
 
   ASSERT_EQ(counter_urUSMEnqueueMemcpy, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 
   free(Src, Q);
   free(Dst, Q);
@@ -365,6 +406,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitMemsetNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueueFill, size_t{1});
 
+  CheckLastEventDiscarded(Q);
+
   free(Dst, Q);
 }
 
@@ -378,6 +421,8 @@ TEST_F(EnqueueFunctionsEventsTests, MemsetShortcutNoEvent) {
   oneapiext::memset(Q, Dst, 1, sizeof(int) * N);
 
   ASSERT_EQ(counter_urUSMEnqueueFill, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 
   free(Dst, Q);
 }
@@ -394,6 +439,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitPrefetchNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueuePrefetch, size_t{1});
 
+  CheckLastEventDiscarded(Q);
+
   free(Dst, Q);
 }
 
@@ -407,6 +454,8 @@ TEST_F(EnqueueFunctionsEventsTests, PrefetchShortcutNoEvent) {
   oneapiext::prefetch(Q, Dst, sizeof(int) * N);
 
   ASSERT_EQ(counter_urUSMEnqueuePrefetch, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 
   free(Dst, Q);
 }
@@ -424,6 +473,8 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitMemAdviseNoEvent) {
 
   ASSERT_EQ(counter_urUSMEnqueueMemAdvise, size_t{1});
 
+  CheckLastEventDiscarded(Q);
+
   free(Dst, Q);
 }
 
@@ -437,6 +488,8 @@ TEST_F(EnqueueFunctionsEventsTests, MemAdviseShortcutNoEvent) {
   oneapiext::mem_advise(Q, Dst, sizeof(int) * N, 1);
 
   ASSERT_EQ(counter_urUSMEnqueueMemAdvise, size_t{1});
+
+  CheckLastEventDiscarded(Q);
 
   free(Dst, Q);
 }

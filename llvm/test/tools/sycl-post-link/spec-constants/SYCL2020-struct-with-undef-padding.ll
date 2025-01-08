@@ -29,25 +29,25 @@ define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlN2cl4sycl14kernel_handl
   %2 = addrspacecast %struct.coeff_str_aligned_t* %1 to %struct.coeff_str_aligned_t addrspace(4)*
   %3 = bitcast %struct.coeff_str_aligned_t* %1 to i8*
   call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI19coeff_str_aligned_tET_PKcPKvS5_(%struct.coeff_str_aligned_t addrspace(4)* sret(%struct.coeff_str_aligned_t) align 32 %2, i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([32 x i8], [32 x i8]* @__usid_str, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::specialization_id" addrspace(1)* @_ZL8coeff_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null) #4
-; CHECK-IR: %[[#NS0:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID0:]], float 0.000000e+00)
-; CHECK-IR: %[[#NS1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID1:]], float 0.000000e+00)
-; CHECK-IR: %[[#NS2:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID2:]], float 0.000000e+00)
-; CHECK-IR: %[[#NS3:]] = call [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS0]], float %[[#NS1]], float %[[#NS2]])
-; CHECK-IR: %[[#NS4:]] = call %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array"([3 x float] %[[#NS3]])
-; CHECK-IR: %[[#NS5:]] = call i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID3:]], i64 0)
-; CHECK-IR: %[[#NS6:]] = call %struct.coeff_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA8_a_Rstruct.coeff_str_aligned_t"(%"class.std::array" %[[#NS4]], i64 %[[#NS5]], [8 x i8] undef)
+; CHECK-IR: %[[#NS0:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID0:]], float 0.000000e+00)
+; CHECK-IR: %[[#NS1:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID1:]], float 0.000000e+00)
+; CHECK-IR: %[[#NS2:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID2:]], float 0.000000e+00)
+; CHECK-IR: %[[#NS3:]] = call spir_func [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS0]], float %[[#NS1]], float %[[#NS2]])
+; CHECK-IR: %[[#NS4:]] = call spir_func %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array"([3 x float] %[[#NS3]])
+; CHECK-IR: %[[#NS5:]] = call spir_func i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID3:]], i64 0)
+; CHECK-IR: %[[#NS6:]] = call spir_func %struct.coeff_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA8_a_Rstruct.coeff_str_aligned_t"(%"class.std::array" %[[#NS4]], i64 %[[#NS5]], [8 x i8] undef)
 
   %4 = alloca %struct.coeff2_str_aligned_t, align 32
   %5 = addrspacecast %struct.coeff2_str_aligned_t* %4 to %struct.coeff2_str_aligned_t addrspace(4)*
   %6 = bitcast %struct.coeff2_str_aligned_t* %4 to i8*
   call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI19coeff2_str_aligned_tET_PKcPKvS5_(%struct.coeff2_str_aligned_t addrspace(4)* sret(%struct.coeff2_str_aligned_t) align 32 %5, i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([33 x i8], [33 x i8]* @__usid_str.0, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::specialization_id.1" addrspace(1)* @_ZL8coeff_id2 to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null) #4
-; CHECK-IR: %[[#NS7:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID4:]], float 0.000000e+00)
-; CHECK-IR: %[[#NS8:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID5:]], float 0.000000e+00)
-; CHECK-IR: %[[#NS9:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID6:]], float 0.000000e+00)
-; CHECK-IR: %[[#NS10:]] = call [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS7]], float %[[#NS8]], float %[[#NS9]])
-; CHECK-IR: %[[#NS11:]] = call %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array"([3 x float] %[[#NS10]])
-; CHECK-IR: %[[#NS12:]] = call i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID7:]], i64 0)
-; CHECK-IR: %[[#NS13:]] = call %struct.coeff2_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA7_aa_Rstruct.coeff2_str_aligned_t"(%"class.std::array" %[[#NS11]], i64 %[[#NS12]], [7 x i8] undef, i8 undef)
+; CHECK-IR: %[[#NS7:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID4:]], float 0.000000e+00)
+; CHECK-IR: %[[#NS8:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID5:]], float 0.000000e+00)
+; CHECK-IR: %[[#NS9:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID6:]], float 0.000000e+00)
+; CHECK-IR: %[[#NS10:]] = call spir_func [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS7]], float %[[#NS8]], float %[[#NS9]])
+; CHECK-IR: %[[#NS11:]] = call spir_func %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array"([3 x float] %[[#NS10]])
+; CHECK-IR: %[[#NS12:]] = call spir_func i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID7:]], i64 0)
+; CHECK-IR: %[[#NS13:]] = call spir_func %struct.coeff2_str_aligned_t @"_Z29__spirv_SpecConstantCompositeclass.std::arrayxA7_aa_Rstruct.coeff2_str_aligned_t"(%"class.std::array" %[[#NS11]], i64 %[[#NS12]], [7 x i8] undef, i8 undef)
 
   ret void
 }

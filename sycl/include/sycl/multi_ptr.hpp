@@ -732,12 +732,25 @@ private:
   decorated_type *m_Pointer;
 };
 
+namespace detail {
+// See access.hpp's DecoratedType<..., access::address_space::constant_space>.
+//
+// This is only applicable to `access::decorated::legacy` mode because constant
+// AS is deprecated itself and is only accessible in legacy modes.
+template <auto Space>
+#ifdef __SYCL_DEVICE_ONLY__
+inline constexpr auto decoration_space =
+    deduce_AS<typename DecoratedType<void, Space>::type>::value;
+#else
+inline constexpr auto decoration_space = Space;
+#endif
+} // namespace detail
+
 // Legacy specialization of multi_ptr.
-// TODO: Add deprecation warning here when possible.
 template <typename ElementType, access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<ElementType, Space, access::decorated::legacy> {
+class multi_ptr<ElementType, Space, access::decorated::legacy> {
+  static constexpr auto DecorationSpace = detail::decoration_space<Space>;
+
 public:
   using value_type = ElementType;
   using element_type =
@@ -777,7 +790,8 @@ public:
 
   multi_ptr(ElementType *pointer)
       : m_Pointer(detail::dynamic_address_cast<
-                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {
+                  DecorationSpace, /* SupressNotImplementedAssert = */ true>(
+            pointer)) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
@@ -786,7 +800,8 @@ public:
   template <typename = typename detail::const_if_const_AS<Space, ElementType>>
   multi_ptr(const ElementType *pointer)
       : m_Pointer(detail::dynamic_address_cast<
-                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {}
+                  DecorationSpace, /* SupressNotImplementedAssert = */ true>(
+            pointer)) {}
 #endif
 
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
@@ -814,7 +829,7 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
     m_Pointer = detail::dynamic_address_cast<
-        Space, /* SupressNotImplementedAssert = */ true>(pointer);
+        DecorationSpace, /* SupressNotImplementedAssert = */ true>(pointer);
     return *this;
   }
 
@@ -856,8 +871,8 @@ public:
   multi_ptr(accessor<ElementType, dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(
-            detail::static_address_cast<Space>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::static_address_cast<DecorationSpace>(
+            Accessor.get_pointer().get())) {}
 
   // Only if Space == local_space || generic_space
   template <
@@ -1083,11 +1098,10 @@ private:
 };
 
 // Legacy specialization of multi_ptr for void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<void, Space, access::decorated::legacy> {
+class multi_ptr<void, Space, access::decorated::legacy> {
+  static constexpr auto DecorationSpace = detail::decoration_space<Space>;
+
 public:
   using value_type = void;
   using element_type = void;
@@ -1113,17 +1127,17 @@ public:
                                   !std::is_same_v<RelayPointerT, void *>>>
   multi_ptr(void *pointer)
       : m_Pointer(detail::dynamic_address_cast<
-                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {
+                  DecorationSpace, /* SupressNotImplementedAssert = */ true>(
+            pointer)) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   template <typename = typename detail::const_if_const_AS<Space, void>>
   multi_ptr(const void *pointer)
-      : m_Pointer(
-            detail::dynamic_address_cast<
-                pointer_t, /* SupressNotImplementedAssert = */ true>(pointer)) {
-  }
+      : m_Pointer(detail::dynamic_address_cast<
+                  DecorationSpace, /* SupressNotImplementedAssert = */ true>(
+            pointer)) {}
 #endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
@@ -1154,7 +1168,7 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
     m_Pointer = detail::dynamic_address_cast<
-        Space, /* SupressNotImplementedAssert = */ true>(pointer);
+        DecorationSpace, /* SupressNotImplementedAssert = */ true>(pointer);
     return *this;
   }
 #endif
@@ -1244,11 +1258,10 @@ private:
 };
 
 // Legacy specialization of multi_ptr for const void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<const void, Space, access::decorated::legacy> {
+class multi_ptr<const void, Space, access::decorated::legacy> {
+  static constexpr auto DecorationSpace = detail::decoration_space<Space>;
+
 public:
   using value_type = const void;
   using element_type = const void;
@@ -1275,7 +1288,8 @@ public:
                                   !std::is_same_v<RelayPointerT, const void *>>>
   multi_ptr(const void *pointer)
       : m_Pointer(detail::dynamic_address_cast<
-                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {
+                  DecorationSpace, /* SupressNotImplementedAssert = */ true>(
+            pointer)) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
@@ -1283,7 +1297,8 @@ public:
   template <typename = typename detail::const_if_const_AS<Space, void>>
   multi_ptr(const void *pointer)
       : m_Pointer(detail::dynamic_address_cast<
-                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {}
+                  DecorationSpace, /* SupressNotImplementedAssert = */ true>(
+            pointer)) {}
 #endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
@@ -1314,7 +1329,7 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
     m_Pointer = detail::dynamic_address_cast<
-        pointer_t, /* SupressNotImplementedAssert = */ true>(pointer);
+        DecorationSpace, /* SupressNotImplementedAssert = */ true>(pointer);
     return *this;
   }
 #endif
@@ -1442,7 +1457,7 @@ address_space_cast(ElementType *pointer) {
   // space is not compatible with Space.
   // Use LegacyPointerTypes here to also allow constant_space
   return multi_ptr<ElementType, Space, DecorateAddress>(
-      detail::dynamic_address_cast<Space,
+      detail::dynamic_address_cast<detail::decoration_space<Space>,
                                    /* SupressNotImplementedAssert = */ true>(
           pointer));
 }

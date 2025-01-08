@@ -77,20 +77,24 @@ template <typename T, class BinaryOperation, int Dims, size_t Extent,
 class reducer;
 
 namespace detail {
+
+#ifdef SYCL_DETERMINISTIC_REDUCTION
+// Act as if all operators require determinism.
+template <typename T> struct IsDeterministicOperator : std::true_type {};
+#else
+// Each operator declares whether determinism is required.
+template <typename T> struct IsDeterministicOperator : std::false_type {};
+#endif
+
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
 // The order in which the atomic operations are performed may be arbitrary and
 // thus may cause different results from run to run even on the same elements
-// and on same device. The macro SYCL_REDUCTION_DETERMINISTIC prohibits using
-// atomic operations for reduction and helps to produce stable results.
-// SYCL_REDUCTION_DETERMINISTIC is a short term solution, which perhaps become
-// deprecated eventually and is replaced by a sycl property passed to reduction.
+// and on same device.
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
-#ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
-#else
-    std::bool_constant<((is_sgenfloat_v<T> && sizeof(T) == 4) ||
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
+                       ((is_sgenfloat_v<T> && sizeof(T) == 4) ||
                         is_sgeninteger_v<T>) &&
                        IsValidAtomicType<T>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
@@ -99,44 +103,33 @@ using IsReduOptForFastAtomicFetch =
                         IsBitOR<T, BinaryOperation>::value ||
                         IsBitXOR<T, BinaryOperation>::value ||
                         IsBitAND<T, BinaryOperation>::value)>;
-#endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction, in
 // addition to the cases covered by "IsReduOptForFastAtomicFetch", if the device
 // has the atomic64 aspect. This type trait should only be used if the device
 // has the atomic64 aspect.  Note that this type trait is currently a subset of
-// IsReduOptForFastReduce. The macro SYCL_REDUCTION_DETERMINISTIC prohibits
-// using the reduce_over_group() algorithm to produce stable results across same
-// type devices.
+// IsReduOptForFastReduce.
 template <typename T, class BinaryOperation>
 using IsReduOptForAtomic64Op =
-#ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
-#else
-    std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
+                       (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value) &&
                        is_sgenfloat_v<T> && sizeof(T) == 8>;
-#endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
 // operands of the type T and the operation BinaryOperation is available
 // for using in reduction.
-// The macro SYCL_REDUCTION_DETERMINISTIC prohibits using the reduce() algorithm
-// to produce stable results across same type devices.
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
-#ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
-#else
-    std::bool_constant<((is_sgeninteger_v<T> &&
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
+                       ((is_sgeninteger_v<T> &&
                          (sizeof(T) == 4 || sizeof(T) == 8)) ||
                         is_sgenfloat_v<T>) &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value)>;
-#endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
 // Thus sycl::detail::tuple is used instead.
@@ -1021,7 +1014,7 @@ public:
             }
           });
         } else {
-          accessor OutAcc{Out, CGH};
+          accessor OutAcc{Out, CopyHandler};
           CopyHandler.copy(Mem, OutAcc);
         }
       });

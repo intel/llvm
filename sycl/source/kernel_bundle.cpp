@@ -195,11 +195,11 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
       !checkAllDevicesHaveAspect(Devs, aspect::online_linker))
     return false;
 
-  const std::vector<device_image_plain> DeviceImages =
+  const std::vector<DevImgPlainWithDeps> DeviceImages =
       detail::ProgramManager::getInstance()
           .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
 
-  return (bool)DeviceImages.size();
+  return !DeviceImages.empty();
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -229,17 +229,19 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   if (!DeviceHasRequireAspectForState)
     return false;
 
-  const std::vector<device_image_plain> DeviceImages =
+  const std::vector<DevImgPlainWithDeps> DeviceImagesWithDeps =
       detail::ProgramManager::getInstance()
           .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
 
   std::set<kernel_id, LessByNameComp> CombinedKernelIDs;
-  for (const device_image_plain &DeviceImage : DeviceImages) {
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl =
-        getSyclObjImpl(DeviceImage);
+  for (const DevImgPlainWithDeps &DeviceImageWithDeps : DeviceImagesWithDeps) {
+    for (const device_image_plain &DeviceImage : DeviceImageWithDeps) {
+      const std::shared_ptr<device_image_impl> &DeviceImageImpl =
+          getSyclObjImpl(DeviceImage);
 
-    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
-                             DeviceImageImpl->get_kernel_ids_ptr()->end());
+      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                               DeviceImageImpl->get_kernel_ids_ptr()->end());
+    }
   }
 
   const bool AllKernelIDsRepresented =
@@ -307,35 +309,6 @@ std::vector<kernel_id> get_kernel_ids() {
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   if (KernelIDs.empty())
     return true;
-  // TODO: also need to check that the architecture specified by the
-  // "-fsycl-targets" flag matches the device when we are able to get the
-  // device's arch.
-  auto doesImageTargetMatchDevice = [](const device &Dev,
-                                       const detail::RTDeviceBinaryImage &Img) {
-    const char *Target = Img.getRawData().DeviceTargetSpec;
-    auto BE = Dev.get_backend();
-    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
-      return (BE == sycl::backend::opencl ||
-              BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
-               0) {
-      return Dev.is_cpu();
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-      return Dev.is_gpu() && (BE == sycl::backend::opencl ||
-                              BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
-      return Dev.is_accelerator();
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
-      return BE == sycl::backend::ext_oneapi_cuda;
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
-      return BE == sycl::backend::ext_oneapi_hip;
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
-      return BE == sycl::backend::ext_oneapi_native_cpu;
-    }
-
-    return false;
-  };
-
   // One kernel may be contained in several binary images depending on the
   // number of targets. This kernel is compatible with the device if there is
   // at least one image (containing this kernel) whose aspects are supported by
@@ -347,7 +320,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
     if (std::none_of(BinImages.begin(), BinImages.end(),
                      [&](const detail::RTDeviceBinaryImage *Img) {
                        return doesDevSupportDeviceRequirements(Dev, *Img) &&
-                              doesImageTargetMatchDevice(Dev, *Img);
+                              doesImageTargetMatchDevice(*Img, Dev);
                      }))
       return false;
   }
@@ -380,6 +353,8 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
       return true;
     } else if (Language == source_language::sycl) {
       return detail::SYCL_Compilation_Available();
+    } else if (Language == source_language::sycl_jit) {
+      return detail::SYCL_JIT_Compilation_Available();
     }
   }
 

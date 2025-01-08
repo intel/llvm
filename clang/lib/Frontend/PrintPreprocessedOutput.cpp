@@ -265,10 +265,23 @@ void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
   *OS << '\n';
 }
 
+static bool is_separator(char value) { return value == '\\'; }
+
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
                                              unsigned ExtraLen) {
   startNewLineIfNeeded();
+
+  if (PP.getLangOpts().isSYCL()) {
+    StringRef CurFilenameWithNoLeadingDotSlash =
+        llvm::sys::path::remove_leading_dotbackslash_only(CurFilename.str());
+    if ((CurFilenameWithNoLeadingDotSlash ==
+         PP.getPreprocessorOpts().IncludeFooter) ||
+        CurFilenameWithNoLeadingDotSlash ==
+            PP.getPreprocessorOpts().IncludeHeader) {
+      CurFilename = "<uninit>";
+    }
+  }
 
   // Emit #line directives or GNU line markers depending on what mode we're in.
   if (UseLineDirectives) {
@@ -288,6 +301,7 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
     else if (FileType == SrcMgr::C_ExternCSystem)
       OS->write(" 3 4", 4);
   }
+
   *OS << '\n';
 }
 
@@ -913,8 +927,6 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
     return;
   FileID FooterFileID = SourceMgr.ComputeValidFooterFileID(Footer);
   StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
-  // print out the name of the integration footer.
-  Callbacks->WriteFooterInfo(Footer);
   SmallVector<StringRef, 8> FooterContentArr;
   FooterContentBuffer.split(FooterContentArr, '\r');
   // print out the content of the integration footer.
@@ -988,13 +1000,15 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
       continue;
     } else if (Tok.is(tok::annot_header_unit)) {
       // This is a header-name that has been (effectively) converted into a
-      // module-name.
+      // module-name, print them inside quote.
       // FIXME: The module name could contain non-identifier module name
-      // components. We don't have a good way to round-trip those.
+      // components and OS specific file paths components. We don't have a good
+      // way to round-trip those.
       Module *M = reinterpret_cast<Module *>(Tok.getAnnotationValue());
       std::string Name = M->getFullModuleName();
-      Callbacks->OS->write(Name.data(), Name.size());
-      Callbacks->HandleNewlinesInToken(Name.data(), Name.size());
+      *Callbacks->OS << '"';
+      Callbacks->OS->write_escaped(Name);
+      *Callbacks->OS << '"';
     } else if (Tok.is(tok::annot_embed)) {
       // Manually explode the binary data out to a stream of comma-delimited
       // integer values. If the user passed -dE, that is handled by the
@@ -1184,15 +1198,6 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   // Read all the preprocessed tokens, printing them out to the stream.
   PrintPreprocessedTokens(PP, Tok, Callbacks);
   *OS << '\n';
-
-  if (!PP.getPreprocessorOpts().IncludeFooter.empty() &&
-      !PP.IncludeFooterProcessed) {
-    assert(PP.getLangOpts().SYCLIsHost &&
-           "The 'include-footer' is expected in host compilation only");
-    SourceLocation Loc = Tok.getLocation();
-    PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
-                       Callbacks);
-  }
 
   // Remove the handlers we just added to leave the preprocessor in a sane state
   // so that it can be reused (for example by a clang::Parser instance).

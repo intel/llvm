@@ -17,9 +17,29 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 enum class architecture : uint64_t {
+// If new device architecture is added to sycl_ext_oneapi_device_architecture:
+//
+// Update
+//   - device_architecture.def file in the same directory
+//   - "detail::min_<category>_architecture" below if needed
+//   - "detail::max_<category>_architecture" below if needed
+//   - sycl_ext_oneapi_device_architecture specification doc
+//   - "-fsycl-targets" description in sycl/doc/UsersManual.md
+//
+// Add
+//   - new value for -fsycl-targets option to the compiler driver in
+//     accordance with changes from sycl/doc/UsersManual.md and update the
+//     compiler driver tests
+//   - ___SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
+//   - the unique ID of the new architecture to the SYCL RT source code to
+//     support querying the device architecture through
+//     device::get_info<ext::oneapi::experimental::info::device::architecture>
+//   - supported aspects of architecture in
+//     llvm/include/llvm/SYCLLowerIR/DeviceConfigFile.td
+//
 #define __SYCL_ARCHITECTURE(NAME, VAL) NAME = VAL,
 #define __SYCL_ARCHITECTURE_ALIAS(NAME, VAL) NAME = VAL,
-#include <sycl/ext/oneapi/experimental/architectures.def>
+#include <sycl/ext/oneapi/experimental/device_architecture.def>
 #undef __SYCL_ARCHITECTURE
 #undef __SYCL_ARCHITECTURE_ALIAS
 };
@@ -52,7 +72,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::intel_gpu_bdw;
 static constexpr ext::oneapi::experimental::architecture
     max_intel_gpu_architecture =
-        ext::oneapi::experimental::architecture::intel_gpu_lnl_m;
+        ext::oneapi::experimental::architecture::intel_gpu_ptl_u;
 
 static constexpr ext::oneapi::experimental::architecture
     min_nvidia_gpu_architecture =
@@ -152,6 +172,12 @@ static constexpr ext::oneapi::experimental::architecture
 #ifndef __SYCL_TARGET_INTEL_GPU_LNL_M__
 #define __SYCL_TARGET_INTEL_GPU_LNL_M__ 0
 #endif
+#ifndef __SYCL_TARGET_INTEL_GPU_PTL_H__
+#define __SYCL_TARGET_INTEL_GPU_PTL_H__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_PTL_U__
+#define __SYCL_TARGET_INTEL_GPU_PTL_U__ 0
+#endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM_50__
 #define __SYCL_TARGET_NVIDIA_GPU_SM_50__ 0
 #endif
@@ -202,6 +228,15 @@ static constexpr ext::oneapi::experimental::architecture
 #endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX702__
 #define __SYCL_TARGET_AMD_GPU_GFX702__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX703__
+#define __SYCL_TARGET_AMD_GPU_GFX703__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX704__
+#define __SYCL_TARGET_AMD_GPU_GFX704__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX705__
+#define __SYCL_TARGET_AMD_GPU_GFX705__ 0
 #endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX801__
 #define __SYCL_TARGET_AMD_GPU_GFX801__ 0
@@ -343,6 +378,8 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_ARL_H__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_BMG_G21__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_LNL_M__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_PTL_H__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_PTL_U__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_50__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_52__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_53__ == 1) ||
@@ -360,6 +397,9 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX700__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX701__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX702__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX703__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX704__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX705__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX801__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX802__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX803__ == 1) ||
@@ -487,6 +527,12 @@ get_current_architecture_aot() {
 #if __SYCL_TARGET_INTEL_GPU_LNL_M__
   return ext::oneapi::experimental::architecture::intel_gpu_lnl_m;
 #endif
+#if __SYCL_TARGET_INTEL_GPU_PTL_H__
+  return ext::oneapi::experimental::architecture::intel_gpu_ptl_h;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_PTL_U__
+  return ext::oneapi::experimental::architecture::intel_gpu_ptl_u;
+#endif
 #if __SYCL_TARGET_NVIDIA_GPU_SM_50__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
 #endif
@@ -537,6 +583,15 @@ get_current_architecture_aot() {
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX702__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx702;
+#endif
+#if __SYCL_TARGET_AMD_GPU_GFX703__
+  return ext::oneapi::experimental::architecture::amd_gpu_gfx703;
+#endif
+#if __SYCL_TARGET_AMD_GPU_GFX704__
+  return ext::oneapi::experimental::architecture::amd_gpu_gfx704;
+#endif
+#if __SYCL_TARGET_AMD_GPU_GFX705__
+  return ext::oneapi::experimental::architecture::amd_gpu_gfx705;
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX801__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx801;

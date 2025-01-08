@@ -1,3 +1,4 @@
-# These two take too much time
-kernel_bundle
-marray
+# Please use "#" to add comments here.
+# Do not delete the file even if it's empty.
+# CMPLRTST-26179
+device

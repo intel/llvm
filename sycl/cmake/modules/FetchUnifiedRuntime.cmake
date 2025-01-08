@@ -117,13 +117,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 80fdb0261d4a3623b05d1795f2f59ace9f718d76
-  # Merge: 568a96aa 77b6c4c7
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 16 13:53:51 2024 +0100
-  #     Merge pull request #2206 from oneapi-src/revert-2138-counter-based-3
-  #     Revert "[L0] Phase 2 of Counter-Based Event Implementation"
-  set(UNIFIED_RUNTIME_TAG 80fdb0261d4a3623b05d1795f2f59ace9f718d76)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

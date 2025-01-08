@@ -37,7 +37,7 @@ void matrix_verify_op(big_matrix<T, Rows, Cols> &A, const R ref, OP op) {
      cgh.parallel_for<kernel_name>(
          r, [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-                [[intel::reqd_sub_group_size(SG_SZ)]]
+                [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
