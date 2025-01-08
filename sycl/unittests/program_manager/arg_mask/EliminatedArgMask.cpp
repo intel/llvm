@@ -214,7 +214,7 @@ std::vector<std::unique_ptr<mock::dummy_handle_t_>> UsedProgramHandles;
 std::vector<std::unique_ptr<mock::dummy_handle_t_>> ProgramHandlesToReuse;
 inline ur_result_t setFixedProgramPtr(void *pParams) {
   auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
-  if (ProgramHandlesToReuse.size()) {
+  if (!ProgramHandlesToReuse.empty()) {
     auto it = ProgramHandlesToReuse.begin() + 1;
     std::move(ProgramHandlesToReuse.begin(), it,
               std::back_inserter(UsedProgramHandles));
