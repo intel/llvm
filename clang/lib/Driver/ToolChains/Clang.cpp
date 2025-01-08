@@ -10714,7 +10714,8 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
   // Meanwhile we enable all the SPIR-V backend extensions.
   BackendArgs.push_back(TCArgs.MakeArgString("--spirv-ext=all"));
   // TODO:
-  // - handle -Xspirv-translator option to avoid "argument unused during compilation" error
+  // - handle -Xspirv-translator option to avoid "argument unused during
+  // compilation" error
   // - handle --spirv-ext=+<extension> and --spirv-ext=-<extension> options
 }
 
