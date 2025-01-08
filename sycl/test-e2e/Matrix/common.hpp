@@ -174,7 +174,7 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                                 std::is_same_v<T2, double>))) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
-          std::cout << "Incorrect result in matrix. "
+          std::cerr << "Incorrect result in matrix. "
                     << "i: " << i << ", j: " << j
                     << ", Ref: " << (T1)ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << ", Diff: " << diff
@@ -183,14 +183,14 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
         }
       } else if constexpr (exact || std::is_integral_v<T1>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cout << "Incorrect result in matrix."
+          std::cerr << "Incorrect result in matrix."
                     << "i: " << i << ", j: " << j
                     << ", Ref: " << ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << "\n";
           return false;
         }
       } else {
-        std::cout << "Unsupported type in matrix_compare\n";
+        std::cerr << "Unsupported type in matrix_compare\n";
         return false;
       }
     }
