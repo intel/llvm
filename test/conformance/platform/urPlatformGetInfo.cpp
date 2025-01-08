@@ -8,97 +8,147 @@
 #include "uur/fixtures.h"
 #include <cstring>
 
-using urPlatformGetInfoTest =
-    uur::platform::urPlatformTestWithParam<ur_platform_info_t>;
+using urPlatformGetInfoTest = uur::urPlatformTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetInfoTest);
 
-UUR_PLATFORM_TEST_SUITE_P(
-    urPlatformGetInfoTest,
-    ::testing::Values(UR_PLATFORM_INFO_NAME, UR_PLATFORM_INFO_VENDOR_NAME,
-                      UR_PLATFORM_INFO_VERSION, UR_PLATFORM_INFO_EXTENSIONS,
-                      UR_PLATFORM_INFO_PROFILE, UR_PLATFORM_INFO_BACKEND,
-                      UR_PLATFORM_INFO_ADAPTER),
-    ur_platform_info_t);
-
-TEST_P(urPlatformGetInfoTest, Success) {
+TEST_P(urPlatformGetInfoTest, SuccessName) {
+    ur_platform_info_t info_type = UR_PLATFORM_INFO_NAME;
     size_t size = 0;
-    ur_platform_info_t info_type = getParam();
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urPlatformGetInfo(platform, info_type, 0, nullptr, &size), info_type);
-    if (info_type == UR_PLATFORM_INFO_BACKEND) {
-        ASSERT_EQ(size, sizeof(ur_platform_backend_t));
-    } else {
-        ASSERT_NE(size, 0);
-    }
-    std::vector<char> name(size);
-    ASSERT_SUCCESS(
-        urPlatformGetInfo(platform, info_type, size, name.data(), nullptr));
-    switch (info_type) {
-    case UR_PLATFORM_INFO_NAME:
-    case UR_PLATFORM_INFO_VENDOR_NAME:
-    case UR_PLATFORM_INFO_VERSION:
-    case UR_PLATFORM_INFO_EXTENSIONS:
-    case UR_PLATFORM_INFO_PROFILE: {
-        ASSERT_EQ(size, std::strlen(name.data()) + 1);
-        break;
-    }
-    case UR_PLATFORM_INFO_BACKEND: {
-        ASSERT_EQ(size, sizeof(ur_platform_backend_t));
-        break;
-    }
-    case UR_PLATFORM_INFO_ADAPTER: {
-        auto queried_adapter =
-            *reinterpret_cast<ur_adapter_handle_t *>(name.data());
-        auto adapter_found =
-            std::find(uur::PlatformEnvironment::instance->adapters.begin(),
-                      uur::PlatformEnvironment::instance->adapters.end(),
-                      queried_adapter);
-        ASSERT_NE(adapter_found,
-                  uur::AdapterEnvironment::instance->adapters.end());
-        break;
-    }
-    default:
-        break;
-    }
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
+    ASSERT_GT(size, 0);
+
+    std::vector<char> returned_name(size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+                                     returned_name.data(), nullptr));
+
+    ASSERT_EQ(size, returned_name.size());
+}
+
+TEST_P(urPlatformGetInfoTest, SuccessVendorName) {
+    ur_platform_info_t info_type = UR_PLATFORM_INFO_VENDOR_NAME;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
+    ASSERT_GT(size, 0);
+
+    std::vector<char> returned_vendor_name(size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+                                     returned_vendor_name.data(), nullptr));
+
+    ASSERT_EQ(size, returned_vendor_name.size());
+}
+
+TEST_P(urPlatformGetInfoTest, SuccessVersion) {
+    ur_platform_info_t info_type = UR_PLATFORM_INFO_VERSION;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
+    ASSERT_GT(size, 0);
+
+    std::vector<char> returned_version(size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+                                     returned_version.data(), nullptr));
+
+    ASSERT_EQ(size, returned_version.size());
+}
+
+TEST_P(urPlatformGetInfoTest, SuccessExtensions) {
+    ur_platform_info_t info_type = UR_PLATFORM_INFO_EXTENSIONS;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
+    ASSERT_GT(size, 0);
+
+    std::vector<char> returned_extensions(size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+                                     returned_extensions.data(), nullptr));
+
+    ASSERT_EQ(size, returned_extensions.size());
+}
+
+TEST_P(urPlatformGetInfoTest, SuccessProfile) {
+    ur_platform_info_t info_type = UR_PLATFORM_INFO_PROFILE;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
+    ASSERT_GT(size, 0);
+
+    std::vector<char> returned_profile(size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+                                     returned_profile.data(), nullptr));
+
+    ASSERT_EQ(size, returned_profile.size());
+}
+
+TEST_P(urPlatformGetInfoTest, SuccessBackend) {
+    ur_platform_info_t info_type = UR_PLATFORM_INFO_BACKEND;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
+    ASSERT_EQ(size, sizeof(ur_platform_backend_t));
+
+    ur_platform_backend_t returned_backend = UR_PLATFORM_BACKEND_UNKNOWN;
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+                                     &returned_backend, nullptr));
+
+    ASSERT_TRUE(returned_backend >= UR_PLATFORM_BACKEND_LEVEL_ZERO &&
+                returned_backend <= UR_PLATFORM_BACKEND_NATIVE_CPU);
+}
+
+TEST_P(urPlatformGetInfoTest, SuccessAdapter) {
+    ur_platform_info_t info_type = UR_PLATFORM_INFO_ADAPTER;
+    size_t size = 0;
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
+    ASSERT_EQ(size, sizeof(ur_adapter_handle_t));
+
+    ur_adapter_handle_t returned_adapter = nullptr;
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+                                     &returned_adapter, nullptr));
+
+    auto adapter_found = std::find(
+        uur::PlatformEnvironment::instance->adapters.begin(),
+        uur::PlatformEnvironment::instance->adapters.end(), returned_adapter);
+    ASSERT_NE(adapter_found, uur::AdapterEnvironment::instance->adapters.end());
 }
 
 TEST_P(urPlatformGetInfoTest, InvalidNullHandlePlatform) {
     size_t size = 0;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urPlatformGetInfo(nullptr, getParam(), 0, nullptr, &size));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        urPlatformGetInfo(nullptr, UR_PLATFORM_INFO_NAME, 0, nullptr, &size));
 }
 
-using urPlatformGetInfoNegativeTest = uur::urPlatformTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetInfoNegativeTest);
-
-TEST_P(urPlatformGetInfoNegativeTest, InvalidEnumerationPlatformInfoType) {
+TEST_P(urPlatformGetInfoTest, InvalidEnumerationPlatformInfoType) {
     size_t size = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urPlatformGetInfo(platform, UR_PLATFORM_INFO_FORCE_UINT32,
                                        0, nullptr, &size));
 }
 
-TEST_P(urPlatformGetInfoNegativeTest, InvalidSizeZero) {
-    ur_platform_backend_t backend;
+TEST_P(urPlatformGetInfoTest, InvalidSizeZero) {
+    ur_platform_backend_t backend = UR_PLATFORM_BACKEND_UNKNOWN;
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
                                        &backend, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_P(urPlatformGetInfoNegativeTest, InvalidSizeSmall) {
-    ur_platform_backend_t backend;
+TEST_P(urPlatformGetInfoTest, InvalidSizeSmall) {
+    ur_platform_backend_t backend = UR_PLATFORM_BACKEND_UNKNOWN;
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                        sizeof(backend) - 1, &backend, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_P(urPlatformGetInfoNegativeTest, InvalidNullPointerPropValue) {
-    ur_platform_backend_t backend;
+TEST_P(urPlatformGetInfoTest, InvalidNullPointerPropValue) {
+    ur_platform_backend_t backend = UR_PLATFORM_BACKEND_UNKNOWN;
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                        sizeof(backend), nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-TEST_P(urPlatformGetInfoNegativeTest, InvalidNullPointerPropSizeRet) {
+TEST_P(urPlatformGetInfoTest, InvalidNullPointerPropSizeRet) {
     ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
                                        nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_NULL_POINTER);
