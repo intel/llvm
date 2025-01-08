@@ -17,7 +17,6 @@
 // XFAIL: arch-intel_gpu_pvc && opencl
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
-
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t1.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
