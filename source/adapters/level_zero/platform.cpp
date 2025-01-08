@@ -386,6 +386,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
     ZeMutableCmdListExt.Supported |=
         ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp !=
         nullptr;
+    ZeMutableCmdListExt.LoaderExtension = true;
   } else {
     ZeMutableCmdListExt.Supported |=
         (ZE_CALL_NOCHECK(
