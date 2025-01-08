@@ -15,9 +15,9 @@
 
 #include <sycl/detail/core.hpp>
 
-#include <syclcompat/memory.hpp>
 #include <syclcompat/device.hpp>
 #include <syclcompat/math.hpp>
+#include <syclcompat/memory.hpp>
 
 using namespace std;
 
