@@ -47,8 +47,7 @@ std::string generateSemiUniqueId() {
 
   // Combine time and random number into a string.
   std::stringstream Ss;
-  Ss << Milliseconds.count() << "_" << std::setfill('0') << std::setw(5)
-     << RandomNumber;
+  Ss << Milliseconds.count() << "_" << RandomNumber;
 
   return Ss.str();
 }
@@ -230,7 +229,7 @@ fs::path findSpv(const fs::path &ParentDir, const std::string &Id,
 
   // Iterate through all files in the directory matching the pattern.
   for (const auto &Entry : fs::directory_iterator(ParentDir)) {
-    if (Entry.is_regular_file() &&
+    if (fs::is_regular_file(Entry.path()) &&
         std::regex_match(Entry.path().filename().string(), PatternRegex)) {
       return Entry.path(); // Return the path if it matches the SPV pattern.
     }
