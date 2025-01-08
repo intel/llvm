@@ -2402,7 +2402,6 @@ def err_reference_bind_to_vector_element : Error<
   "%select{non-const|volatile}0 reference cannot bind to vector element">;
 def err_reference_bind_to_matrix_element : Error<
   "%select{non-const|volatile}0 reference cannot bind to matrix element">;
-// compilations and its absence in host compilations.
 def err_reference_var_requires_init : Error<
   "declaration of reference variable %0 requires an initializer">;
 def err_reference_without_init : Error<
