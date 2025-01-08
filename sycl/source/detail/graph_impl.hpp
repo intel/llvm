@@ -1412,6 +1412,10 @@ private:
 
 class dynamic_parameter_impl {
 public:
+  /// Used for parameters that don't have data such as local_accessors.
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
+      : MGraph(GraphImpl) {}
+
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
                          size_t ParamSize, const void *Data)
       : MGraph(GraphImpl), MValueStorage(ParamSize) {
@@ -1477,6 +1481,26 @@ public:
   /// @param Acc The new accessor value
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
+  /// Updates the value of all local accessors in registered nodes and dynamic
+  /// CGs.
+  /// @param NewAllocationSize The new size for the update local accessors.
+  void updateLocalAccessor(range<3> NewAllocationSize);
+
+  /// Gets the implementation for the local accessor that is associated with
+  /// a specific handler.
+  /// @param The handler that the local accessor is associated with.
+  /// @return returns the impl object for the local accessor that is associated
+  /// with this handler. Or nullptr if no local accessor has been registered
+  /// for this handler.
+  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler *Handler);
+
+  /// Associates a local accessor with this dynamic local accessor for a
+  /// specific handler.
+  /// @param LocalAccBase the local accessor that needs to be registered.
+  /// @param Handler the handler that the LocalAccessor is associated with.
+  void registerLocalAccessor(sycl::detail::LocalAccessorBaseHost *LocalAccBase,
+                             handler *Handler);
+
   /// Static helper function for updating command-group value arguments.
   /// @param CG The command-group to update the argument information for.
   /// @param ArgIndex The argument index to update.
@@ -1493,6 +1517,18 @@ public:
                                int ArgIndex,
                                const sycl::detail::AccessorBaseHost *Acc);
 
+  /// Static helper function for updating command-group local accessor
+  /// arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param NewAllocationSize The new allocation size for the local accessor
+  /// argument.
+  /// @param Dims The dimensions of the local accessor argument.
+  /// @param ElemSize The size of each element in the local accessor.
+  static void updateCGLocalAccessor(std::shared_ptr<sycl::detail::CG> CG,
+                                    int ArgIndex, range<3> NewAllocationSize,
+                                    int Dims, int ElemSize);
+
   // Weak ptrs to node_impls which will be updated
   std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
   // Dynamic command-groups which will be updated
@@ -1500,6 +1536,10 @@ public:
 
   std::shared_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
+
+  std::unordered_map<std::shared_ptr<sycl::detail::handler_impl>,
+                     sycl::detail::LocalAccessorImplPtr>
+      MHandlerToLocalAccMap;
 };
 
 class dynamic_command_group_impl

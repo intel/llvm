@@ -1899,6 +1899,11 @@ dynamic_parameter_base::dynamic_parameter_base(
     : impl(std::make_shared<dynamic_parameter_impl>(
           sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {}
 
+dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable> Graph)
+    : impl(std::make_shared<dynamic_parameter_impl>(
+          sycl::detail::getSyclObjImpl(Graph))) {}
+
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
 }
@@ -1911,6 +1916,20 @@ void dynamic_parameter_base::updateValue(const raw_kernel_arg *NewRawValue,
 void dynamic_parameter_base::updateAccessor(
     const sycl::detail::AccessorBaseHost *Acc) {
   impl->updateAccessor(Acc);
+}
+
+sycl::detail::LocalAccessorImplPtr
+dynamic_parameter_base::getLocalAccessor(handler *Handler) {
+  return impl->getLocalAccessor(Handler);
+}
+
+void dynamic_parameter_base::registerLocalAccessor(
+    sycl::detail::LocalAccessorBaseHost *LocalAccBaseHost, handler *Handler) {
+  impl->registerLocalAccessor(LocalAccBaseHost, Handler);
+}
+
+void dynamic_parameter_base::updateLocalAccessor(range<3> NewAllocationSize) {
+  impl->updateLocalAccessor(NewAllocationSize);
 }
 
 void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
@@ -1966,6 +1985,53 @@ void dynamic_parameter_impl::updateAccessor(
 
   std::memcpy(MValueStorage.data(), Acc,
               sizeof(sycl::detail::AccessorBaseHost));
+}
+
+sycl::detail::LocalAccessorImplPtr
+dynamic_parameter_impl::getLocalAccessor(handler *Handler) {
+  auto HandlerImpl = sycl::detail::getSyclObjImpl(*Handler);
+  auto FindLocalAcc = MHandlerToLocalAccMap.find(HandlerImpl);
+
+  if (FindLocalAcc != MHandlerToLocalAccMap.end()) {
+    auto LocalAccImpl = FindLocalAcc->second;
+    return LocalAccImpl;
+  }
+  return nullptr;
+}
+
+void dynamic_parameter_impl::registerLocalAccessor(
+    sycl::detail::LocalAccessorBaseHost *LocalAccBaseHost, handler *Handler) {
+
+  auto HandlerImpl = sycl::detail::getSyclObjImpl(*Handler);
+  auto LocalAccImpl = sycl::detail::getSyclObjImpl(*LocalAccBaseHost);
+
+  MHandlerToLocalAccMap.insert({HandlerImpl, LocalAccImpl});
+}
+
+void dynamic_parameter_impl::updateLocalAccessor(range<3> NewAllocationSize) {
+
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      //  We can use the first local accessor in the map since the dimensions
+      //  and element type should be identical.
+      auto LocalAccessor = MHandlerToLocalAccMap.begin()->second;
+      dynamic_parameter_impl::updateCGLocalAccessor(
+          NodeShared->MCommandGroup, ArgIndex, NewAllocationSize,
+          LocalAccessor->MDims, LocalAccessor->MElemSize);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MKernels[DynCGInfo.CGIndex];
+      auto LocalAccessor = MHandlerToLocalAccMap.begin()->second;
+      dynamic_parameter_impl::updateCGLocalAccessor(
+          CG, DynCGInfo.ArgIndex, NewAllocationSize, LocalAccessor->MDims,
+          LocalAccessor->MElemSize);
+    }
+  }
 }
 
 void dynamic_parameter_impl::updateCGArgValue(
@@ -2029,6 +2095,27 @@ void dynamic_parameter_impl::updateCGAccessor(
       }
     }
     Arg.MPtr = NewAccImpl.get();
+    break;
+  }
+}
+
+void dynamic_parameter_impl::updateCGLocalAccessor(
+    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex,
+    range<3> NewAllocationSize, int Dims, int ElemSize) {
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+
+    int SizeInBytes = ElemSize;
+    for (int I = 0; I < Dims; ++I)
+      SizeInBytes *= NewAllocationSize[I];
+    SizeInBytes = std::max(SizeInBytes, 1);
+
+    Arg.MSize = SizeInBytes;
     break;
   }
 }
@@ -2154,6 +2241,7 @@ size_t dynamic_command_group::get_active_index() const {
 void dynamic_command_group::set_active_index(size_t Index) {
   return impl->setActiveIndex(Index);
 }
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

@@ -40,6 +40,43 @@ TEST_F(CommandGraphTest, DynamicParamRegister) {
   });
 }
 
+TEST_F(CommandGraphTest, DynamicLocalAccessorRegister) {
+  // Check that registering a dynamic local accessor with a node from a graph
+  // that was not passed to its constructor throws.
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc(Graph, 10);
+
+  auto OtherGraph =
+      experimental::command_graph(Queue.get_context(), Queue.get_device());
+  auto Node = OtherGraph.add([&](sycl::handler &cgh) {
+    // This should throw since OtherGraph is not associated with DynamicParam
+    EXPECT_ANY_THROW(cgh.set_arg(0, DynamicLocalAcc));
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+}
+
+TEST_F(CommandGraphTest, DynamicLocalAccessorNoGraph) {
+  // Check that using a dynamic local accessor in an eager sycl submission
+  // throws an exception.
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc(Graph, 10);
+
+  Queue.submit([&](sycl::handler &cgh) {
+    EXPECT_ANY_THROW(cgh.set_arg(0, DynamicLocalAcc));
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+}
+
+TEST_F(CommandGraphTest, DynamicLocalAccessorRecordingQueue) {
+  // Check that using a dynamic local accessor with a recording queue
+  // throws an exception.
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc(Graph, 10);
+  Graph.begin_recording(Queue);
+
+  Queue.submit([&](sycl::handler &cgh) {
+    EXPECT_ANY_THROW(cgh.set_arg(0, DynamicLocalAcc));
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+}
+
 TEST_F(CommandGraphTest, UpdateNodeNotInGraph) {
   // Check that updating a graph with a node which is not part of that graph is
   // an error.
