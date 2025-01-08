@@ -10,9 +10,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../../include/common.hpp"
+#include "../../Inputs/common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
 
-#include "../../include/element_wise_all_ops_tf32_impl.hpp"
+#include "../../Inputs/element_wise_all_ops_tf32_impl.hpp"

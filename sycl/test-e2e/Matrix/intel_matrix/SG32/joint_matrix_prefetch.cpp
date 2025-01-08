@@ -15,8 +15,8 @@
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 
-#include "../../include/common.hpp"
+#include "../../Inputs/common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
-#include "../../include/joint_matrix_prefetch_impl.hpp"
+#include "../../Inputs/joint_matrix_prefetch_impl.hpp"

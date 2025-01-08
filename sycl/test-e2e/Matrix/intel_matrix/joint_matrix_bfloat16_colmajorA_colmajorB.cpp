@@ -15,5 +15,5 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
 
-#include "../include/common.hpp"
-#include "../include/joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"
+#include "../Inputs/common.hpp"
+#include "../Inputs/joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"

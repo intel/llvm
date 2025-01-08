@@ -9,5 +9,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../include/common.hpp"
-#include "../include/joint_matrix_transposeC_impl.hpp"
+#include "../Inputs/common.hpp"
+#include "../Inputs/joint_matrix_transposeC_impl.hpp"

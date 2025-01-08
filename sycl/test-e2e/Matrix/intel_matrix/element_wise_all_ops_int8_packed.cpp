@@ -11,5 +11,5 @@
 
 // This test stores the matrix B that is VNNIed (packed).
 
-#include "../include/common.hpp"
-#include "../include/element_wise_all_ops_int8_packed_impl.hpp"
+#include "../Inputs/common.hpp"
+#include "../Inputs/element_wise_all_ops_int8_packed_impl.hpp"

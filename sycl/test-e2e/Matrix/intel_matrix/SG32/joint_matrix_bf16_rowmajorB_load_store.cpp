@@ -10,8 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../../include/common.hpp"
+#include "../../Inputs/common.hpp"
 
 #define SG_SZ 32
 
-#include "../../include/joint_matrix_bf16_rowmajorB_load_store_impl.hpp"
+#include "../../Inputs/joint_matrix_bf16_rowmajorB_load_store_impl.hpp"

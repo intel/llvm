@@ -17,8 +17,8 @@
 // since IGC doesn't support some variants of IR for Joint Matrix currently
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-#include "../../include/common.hpp"
+#include "../../Inputs/common.hpp"
 
 #define SG_SZ 32
 
-#include "../../include/joint_matrix_bf16_fill_k_cache_impl.hpp"
+#include "../../Inputs/joint_matrix_bf16_fill_k_cache_impl.hpp"

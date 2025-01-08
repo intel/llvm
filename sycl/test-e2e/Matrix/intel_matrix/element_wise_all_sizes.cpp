@@ -15,5 +15,5 @@
 // RUN: %{build} -fsycl-device-code-split=off -o %t_split.out
 // RUN: %if gpu-intel-dg2 %{ %{run} %t_split.out %}
 
-#include "../include/common.hpp"
-#include "../include/element_wise_all_sizes_impl.hpp"
+#include "../Inputs/common.hpp"
+#include "../Inputs/element_wise_all_sizes_impl.hpp"

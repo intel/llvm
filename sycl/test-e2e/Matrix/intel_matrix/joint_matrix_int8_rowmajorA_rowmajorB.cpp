@@ -14,5 +14,5 @@
 // RUN: %if arch-intel_gpu_pvc %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 // RUN: %if arch-intel_gpu_pvc %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
-#include "../include/common.hpp"
-#include "../include/joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"
+#include "../Inputs/common.hpp"
+#include "../Inputs/joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"

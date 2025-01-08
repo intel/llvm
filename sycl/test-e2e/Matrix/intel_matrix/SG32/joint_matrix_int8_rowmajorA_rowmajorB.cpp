@@ -15,8 +15,8 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-4181
 
-#include "../../include/common.hpp"
+#include "../../Inputs/common.hpp"
 
 #define SG_SZ 32
 
-#include "../../include/joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"
+#include "../../Inputs/joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"

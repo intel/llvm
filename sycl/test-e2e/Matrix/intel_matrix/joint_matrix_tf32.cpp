@@ -10,8 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../include/common.hpp"
+#include "../Inputs/common.hpp"
 
 constexpr size_t TN = 16;
 
-#include "../include/joint_matrix_tf32_impl.hpp"
+#include "../Inputs/joint_matrix_tf32_impl.hpp"

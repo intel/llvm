@@ -14,7 +14,7 @@
 // Test checks that exception will be thrown in case object of joint_matrix type
 // is used on unsupported HW, in this case, on Gen12.
 
-#include "include/common.hpp"
+#include "Inputs/common.hpp"
 
 int main() {
   sycl::queue q;

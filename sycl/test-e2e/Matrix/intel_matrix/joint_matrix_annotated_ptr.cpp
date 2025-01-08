@@ -12,8 +12,8 @@
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
-#include "../include/common.hpp"
+#include "../Inputs/common.hpp"
 
 constexpr size_t TN = 16;
 
-#include "../include/joint_matrix_annotated_ptr_impl.hpp"
+#include "../Inputs/joint_matrix_annotated_ptr_impl.hpp"

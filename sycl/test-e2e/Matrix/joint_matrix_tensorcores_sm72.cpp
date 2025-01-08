@@ -14,8 +14,8 @@
 // This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx,
 // where sm_xx >= sm_72.
 
-#include "include/joint_matrix_apply_cuda.hpp"
-#include "include/joint_matrix_gemm_cuda.hpp"
+#include "Inputs/joint_matrix_apply_cuda.hpp"
+#include "Inputs/joint_matrix_gemm_cuda.hpp"
 
 static constexpr size_t M = 16;
 static constexpr size_t N = 16;

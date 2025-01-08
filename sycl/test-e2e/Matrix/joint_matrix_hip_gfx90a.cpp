@@ -12,10 +12,10 @@
 // REQUIRES: arch-amd_gpu_gfx90a
 // REQUIRES: build-and-run-mode
 
-#include "include/joint_matrix_hip_apply.hpp"
-#include "include/joint_matrix_hip_copy.hpp"
-#include "include/joint_matrix_hip_fill.hpp"
-#include "include/joint_matrix_hip_mfma.hpp"
+#include "Inputs/joint_matrix_hip_apply.hpp"
+#include "Inputs/joint_matrix_hip_copy.hpp"
+#include "Inputs/joint_matrix_hip_fill.hpp"
+#include "Inputs/joint_matrix_hip_mfma.hpp"
 
 template <size_t KX> void matrix_mfma() {
   hip_matrix_mfma<int8_t, int32_t, 32, 32, 8, KX, layout::row_major>();
