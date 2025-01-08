@@ -13,6 +13,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include <sycl/detail/core.hpp>
+
+#include <syclcompat/memory.hpp>
 #include <syclcompat/device.hpp>
 #include <syclcompat/math.hpp>
 
