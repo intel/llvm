@@ -68,17 +68,6 @@ urEnqueueKernelLaunchKernelWgSizeTest.Success/*
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion2D/*
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion3D/*
 {{OPT}}urEnqueueKernelLaunchMultiDeviceTest.KernelLaunchReadDifferentQueues/*
-urEnqueueUSMFill2DNegativeTest.OutOfBounds/*
 urEnqueueUSMAdviseTest.InvalidSizeTooLarge/*
 urEnqueueUSMPrefetchTest.InvalidSizeTooLarge/*
-urEnqueueReadHostPipeTest.InvalidNullHandleQueue/*
-urEnqueueReadHostPipeTest.InvalidNullHandleProgram/*
-urEnqueueReadHostPipeTest.InvalidNullPointerPipeSymbol/*
-urEnqueueReadHostPipeTest.InvalidNullPointerBuffer/*
-urEnqueueReadHostPipeTest.InvalidEventWaitList/*
-urEnqueueWriteHostPipeTest.InvalidNullHandleQueue/*
-urEnqueueWriteHostPipeTest.InvalidNullHandleProgram/*
-urEnqueueWriteHostPipeTest.InvalidNullPointerPipeSymbol/*
-urEnqueueWriteHostPipeTest.InvalidNullPointerBuffer/*
-urEnqueueWriteHostPipeTest.InvalidEventWaitList/*
 {{OPT}}urEnqueueTimestampRecordingExpTest.SuccessBlocking/*

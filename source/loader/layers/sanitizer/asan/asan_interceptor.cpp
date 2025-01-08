@@ -644,7 +644,13 @@ ur_result_t AsanInterceptor::insertKernel(ur_kernel_handle_t Kernel) {
     if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
         return UR_RESULT_SUCCESS;
     }
-    m_KernelMap.emplace(Kernel, std::make_shared<KernelInfo>(Kernel));
+
+    auto hProgram = GetProgram(Kernel);
+    auto PI = getAsanInterceptor()->getProgramInfo(hProgram);
+    bool IsInstrumented = PI->isKernelInstrumented(Kernel);
+
+    m_KernelMap.emplace(Kernel,
+                        std::make_shared<KernelInfo>(Kernel, IsInstrumented));
     return UR_RESULT_SUCCESS;
 }
 
@@ -685,9 +691,19 @@ ur_result_t AsanInterceptor::prepareLaunch(
     std::shared_ptr<ContextInfo> &ContextInfo,
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
     ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
-
     auto KernelInfo = getKernelInfo(Kernel);
-    assert(KernelInfo && "Kernel should be instrumented");
+
+    auto ArgNums = GetKernelNumArgs(Kernel);
+    auto LocalMemoryUsage =
+        GetKernelLocalMemorySize(Kernel, DeviceInfo->Handle);
+    auto PrivateMemoryUsage =
+        GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
+
+    getContext()->logger.info(
+        "KernelInfo {} (Name={}, ArgNums={}, IsInstrumented={}, "
+        "LocalMemory={}, PrivateMemory={})",
+        (void *)Kernel, GetKernelName(Kernel), ArgNums,
+        KernelInfo->IsInstrumented, LocalMemoryUsage, PrivateMemoryUsage);
 
     // Validate pointer arguments
     if (getOptions().DetectKernelArguments) {
@@ -719,11 +735,17 @@ ur_result_t AsanInterceptor::prepareLaunch(
         }
     }
 
-    auto ArgNums = GetKernelNumArgs(Kernel);
+    if (!KernelInfo->IsInstrumented) {
+        return UR_RESULT_SUCCESS;
+    }
+
     // We must prepare all kernel args before call
     // urKernelGetSuggestedLocalWorkSize, otherwise the call will fail on
     // CPU device.
-    if (ArgNums) {
+    {
+        assert(ArgNums >= 1 &&
+               "Sanitized Kernel should have at least one argument");
+
         ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
             Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
         if (URes != UR_RESULT_SUCCESS) {
@@ -762,15 +784,6 @@ ur_result_t AsanInterceptor::prepareLaunch(
     LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
     LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
     LaunchInfo.Data.Host.Debug = getOptions().Debug ? 1 : 0;
-
-    auto LocalMemoryUsage =
-        GetKernelLocalMemorySize(Kernel, DeviceInfo->Handle);
-    auto PrivateMemoryUsage =
-        GetKernelPrivateMemorySize(Kernel, DeviceInfo->Handle);
-
-    getContext()->logger.info(
-        "KernelInfo {} (LocalMemory={}, PrivateMemory={})", (void *)Kernel,
-        LocalMemoryUsage, PrivateMemoryUsage);
 
     // Write shadow memory offset for local memory
     if (getOptions().DetectLocals) {
@@ -831,10 +844,12 @@ ur_result_t AsanInterceptor::prepareLaunch(
     // sync asan runtime data to device side
     UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
-    getContext()->logger.debug("launch_info {} (numLocalArgs={}, localArgs={})",
-                               (void *)LaunchInfo.Data.getDevicePtr(),
-                               LaunchInfo.Data.Host.NumLocalArgs,
-                               (void *)LaunchInfo.Data.Host.LocalArgs);
+    getContext()->logger.info(
+        "LaunchInfo {} (device={}, debug={}, numLocalArgs={}, localArgs={})",
+        (void *)LaunchInfo.Data.getDevicePtr(),
+        ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug,
+        LaunchInfo.Data.Host.NumLocalArgs,
+        (void *)LaunchInfo.Data.Host.LocalArgs);
 
     return UR_RESULT_SUCCESS;
 }

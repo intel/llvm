@@ -75,6 +75,42 @@ TEST_P(CommandEventSyncTest, USMFillExp) {
     }
 }
 
+// Test fill using a large pattern size since implementations may need to handle
+// this differently.
+TEST_P(CommandEventSyncTest, USMFillLargePatternExp) {
+    // Device ptrs are allocated in the test fixture with 32-bit values * num
+    // elements, since we are doubling the pattern size we want to treat those
+    // device pointers as if they were created with half the number of elements.
+    constexpr size_t modifiedElementSize = elements / 2;
+    // Get wait event from queue fill on ptr 0
+    uint64_t patternX = 42;
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, device_ptrs[0], sizeof(patternX),
+                                    &patternX, allocation_size, 0, nullptr,
+                                    &external_events[0]));
+
+    // Test fill command overwriting ptr 0 waiting on queue event
+    uint64_t patternY = 0xA;
+    ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
+        cmd_buf_handle, device_ptrs[0], &patternY, sizeof(patternY),
+        allocation_size, 0, nullptr, 1, &external_events[0], nullptr,
+        &external_events[1], nullptr));
+    ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+    ASSERT_SUCCESS(
+        urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+
+    // Queue read ptr 0 based on event returned from command-buffer command
+    std::array<uint64_t, modifiedElementSize> host_enqueue_ptr{};
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
+                                      device_ptrs[0], allocation_size, 1,
+                                      &external_events[1], nullptr));
+
+    // Verify
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    for (size_t i = 0; i < modifiedElementSize; i++) {
+        ASSERT_EQ(host_enqueue_ptr[i], patternY);
+    }
+}
+
 TEST_P(CommandEventSyncTest, MemBufferCopyExp) {
     // Get wait event from queue fill on buffer 0
     uint32_t patternX = 42;
@@ -337,6 +373,42 @@ TEST_P(CommandEventSyncTest, MemBufferFillExp) {
     // Verify
     ASSERT_SUCCESS(urQueueFinish(queue));
     for (size_t i = 0; i < elements; i++) {
+        ASSERT_EQ(host_enqueue_ptr[i], patternY);
+    }
+}
+
+// Test fill using a large pattern size since implementations may need to handle
+// this differently.
+TEST_P(CommandEventSyncTest, MemBufferFillLargePatternExp) {
+    // Device buffers are allocated in the test fixture with 32-bit values * num
+    // elements, since we are doubling the pattern size we want to treat those
+    // device pointers as if they were created with half the number of elements.
+    constexpr size_t modifiedElementSize = elements / 2;
+    // Get wait event from queue fill on buffer 0
+    uint64_t patternX = 42;
+    ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, buffers[0], &patternX,
+                                          sizeof(patternX), 0, allocation_size,
+                                          0, nullptr, &external_events[0]));
+
+    // Test fill command overwriting buffer 0 based on queue event
+    uint64_t patternY = 0xA;
+    ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
+        cmd_buf_handle, buffers[0], &patternY, sizeof(patternY), 0,
+        allocation_size, 0, nullptr, 1, &external_events[0], nullptr,
+        &external_events[1], nullptr));
+    ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+    ASSERT_SUCCESS(
+        urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+
+    // Queue read buffer 0 based on event returned from command-buffer command
+    std::array<uint64_t, modifiedElementSize> host_enqueue_ptr{};
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(
+        queue, buffers[0], false, 0, allocation_size, host_enqueue_ptr.data(),
+        1, &external_events[1], nullptr));
+
+    // Verify
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    for (size_t i = 0; i < modifiedElementSize; i++) {
         ASSERT_EQ(host_enqueue_ptr[i], patternY);
     }
 }

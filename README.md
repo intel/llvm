@@ -76,7 +76,14 @@ history to avoid pulling potentially breaking changes from the `main` branch.
 
 ## Third-Party tools
 
-Tools can be acquired via instructions in [third_party](/third_party/README.md).
+The recommended method to install the third-party tools is using a Python
+virtual environment, for example:
+
+```bash
+$ python -m venv .venv
+$ source .venv/bin/activate
+$ pip install -r third_party/requirements.txt
+```
 
 ## Building
 

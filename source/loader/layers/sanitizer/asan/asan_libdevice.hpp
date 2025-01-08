@@ -66,7 +66,7 @@ struct AsanRuntimeData {
     uint32_t Debug = 0;
 
     int ReportFlag = 0;
-    AsanErrorReport Report[ASAN_MAX_NUM_REPORTS];
+    AsanErrorReport Report[ASAN_MAX_NUM_REPORTS] = {};
 };
 
 constexpr unsigned ASAN_SHADOW_SCALE = 4;

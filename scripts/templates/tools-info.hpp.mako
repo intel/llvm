@@ -32,8 +32,9 @@ namespace urinfo {
 inline void printLoaderConfigInfos(${x}_loader_config_handle_t hLoaderConfig, std::string_view prefix = "  ") {
 %for etor in obj['etors']:
 %if 'REFERENCE_COUNT' not in etor['name']:
-    std::cout << prefix;
-    printLoaderConfigInfo<${etor['desc'][1:etor['desc'].find(' ')-1].replace('$x', x)}>(hLoaderConfig, ${etor['name'].replace('$X', X)});
+    <%etype = th.etor_get_associated_type(n, tags, etor)
+    %>std::cout << prefix;
+    printLoaderConfigInfo<${etype}>(hLoaderConfig, ${etor['name'].replace('$X', X)});
 %endif
 %endfor
 }
@@ -42,8 +43,9 @@ inline void printLoaderConfigInfos(${x}_loader_config_handle_t hLoaderConfig, st
 inline void printAdapterInfos(${x}_adapter_handle_t hAdapter, std::string_view prefix = "  ") {
 %for etor in obj['etors']:
 %if 'REFERENCE_COUNT' not in etor['name']:
-    std::cout << prefix;
-    printAdapterInfo<${etor['desc'][1:etor['desc'].find(' ')-1].replace('$x', x)}>(hAdapter, ${etor['name'].replace('$X', X)});
+    <%etype = th.etor_get_associated_type(n, tags, etor)
+    %>std::cout << prefix;
+    printAdapterInfo<${etype}>(hAdapter, ${etor['name'].replace('$X', X)});
 %endif
 %endfor
 }
@@ -52,8 +54,9 @@ inline void printAdapterInfos(${x}_adapter_handle_t hAdapter, std::string_view p
 %if obj["name"] == '$x_platform_info_t':
 inline void printPlatformInfos(${x}_platform_handle_t hPlatform, std::string_view prefix = "    ") {
 %for etor in obj['etors']:
-    std::cout << prefix;
-    printPlatformInfo<${etor['desc'][1:etor['desc'].find(' ')-1].replace('$x', x)}>(hPlatform, ${etor['name'].replace('$X', X)});
+    <%etype = th.etor_get_associated_type(n, tags, etor)
+    %>std::cout << prefix;
+    printPlatformInfo<${etype}>(hPlatform, ${etor['name'].replace('$X', X)});
 %endfor
 }
 
@@ -61,11 +64,12 @@ inline void printPlatformInfos(${x}_platform_handle_t hPlatform, std::string_vie
 %if obj['name'] == '$x_device_info_t':
 inline void printDeviceInfos(${x}_device_handle_t hDevice, std::string_view prefix = "      ") {
 %for etor in obj['etors']:
-    std::cout << prefix;
+    <%etype = th.etor_get_associated_type(n, tags, etor)
+    %>std::cout << prefix;
 %if etor['name'] == '$X_DEVICE_INFO_UUID':
     printDeviceUUID(hDevice, ${etor['name'].replace('$X', X)});
 %else:
-    printDeviceInfo<${etor['desc'][1:etor['desc'].find(' ')-1].replace('$x', x)}>(hDevice, ${etor['name'].replace('$X', X)});
+    printDeviceInfo<${etype}>(hDevice, ${etor['name'].replace('$X', X)});
 %endif
 %endfor
 }

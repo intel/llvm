@@ -18,7 +18,8 @@ UUR_TEST_SUITE_P(urSamplerGetInfoTestWithParam,
 TEST_P(urSamplerGetInfoTestWithParam, Success) {
     size_t size = 0;
     ur_sampler_info_t info = getParam();
-    ASSERT_SUCCESS(urSamplerGetInfo(sampler, info, 0, nullptr, &size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urSamplerGetInfo(sampler, info, 0, nullptr, &size), info);
     ASSERT_NE(size, 0);
     std::vector<uint8_t> infoData(size);
     ASSERT_SUCCESS(

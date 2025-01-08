@@ -414,8 +414,14 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     // In SYCL this is only used in kernel bundle when building from source
     // which isn't currently supported for CUDA.
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  case UR_PROGRAM_INFO_NUM_KERNELS:
   case UR_PROGRAM_INFO_IL:
+    // Cuda only supports urProgramCreateWithBinary, so we can always return
+    // nothing for INFO_IL.
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
+  case UR_PROGRAM_INFO_NUM_KERNELS:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;

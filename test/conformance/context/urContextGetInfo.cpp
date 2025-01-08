@@ -66,8 +66,8 @@ UUR_TEST_SUITE_P(urContextGetInfoTestWithInfoParam,
 TEST_P(urContextGetInfoTestWithInfoParam, Success) {
     ur_context_info_t info = getParam();
     size_t info_size = 0;
-    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-        urContextGetInfo(context, info, 0, nullptr, &info_size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urContextGetInfo(context, info, 0, nullptr, &info_size), info);
     ASSERT_NE(info_size, 0);
 
     if (const auto expected_size = ctx_info_size_map.find(info);

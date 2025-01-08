@@ -52,6 +52,8 @@ struct MsanLaunchInfo {
     uint32_t IsRecover = 0;
 
     MsanErrorReport Report;
+
+    uint8_t CleanShadow[128] = {};
 };
 
 // Based on the observation, only the last 24 bits of the address of the private

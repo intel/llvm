@@ -78,6 +78,9 @@ params:
     - type: $x_kernel_handle_t
       name: hKernel
       desc: "[in] handle of the kernel object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: uint32_t
       name: workDim
       desc: "[in] number of dimensions, from 1 to 3, to specify the work-group work-items"

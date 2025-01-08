@@ -43,16 +43,14 @@ TEST_P(urKernelGetGroupInfoTest, Success) {
     auto property_name = getParam();
     size_t property_size = 0;
     std::vector<char> property_value;
-    auto result = urKernelGetGroupInfo(kernel, device, property_name, 0,
-                                       nullptr, &property_size);
-    if (result == UR_RESULT_SUCCESS) {
-        property_value.resize(property_size);
-        ASSERT_SUCCESS(urKernelGetGroupInfo(kernel, device, property_name,
-                                            property_size,
-                                            property_value.data(), nullptr));
-    } else {
-        ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
-    }
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetGroupInfo(kernel, device, property_name, 0, nullptr,
+                             &property_size),
+        property_name);
+    property_value.resize(property_size);
+    ASSERT_SUCCESS(urKernelGetGroupInfo(kernel, device, property_name,
+                                        property_size, property_value.data(),
+                                        nullptr));
 }
 
 TEST_P(urKernelGetGroupInfoTest, InvalidNullHandleKernel) {

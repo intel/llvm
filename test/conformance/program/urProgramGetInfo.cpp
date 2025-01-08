@@ -52,15 +52,18 @@ TEST_P(urProgramGetInfoTest, Success) {
                                         sizeof(binaries[0]), binaries,
                                         nullptr));
     } else {
-        auto result = urProgramGetInfo(program, property_name, 0, nullptr,
-                                       &property_size);
-        if (result != UR_RESULT_SUCCESS) {
-            ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
-            return;
+        ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+            urProgramGetInfo(program, property_name, 0, nullptr,
+                             &property_size),
+            property_name);
+        if (property_size) {
+            property_value.resize(property_size);
+            ASSERT_SUCCESS(urProgramGetInfo(program, property_name,
+                                            property_size,
+                                            property_value.data(), nullptr));
+        } else {
+            ASSERT_EQ(property_name, UR_PROGRAM_INFO_IL);
         }
-        property_value.resize(property_size);
-        ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
-                                        property_value.data(), nullptr));
     }
     switch (property_name) {
     case UR_PROGRAM_INFO_REFERENCE_COUNT: {
@@ -108,7 +111,11 @@ TEST_P(urProgramGetInfoTest, Success) {
         break;
     }
     case UR_PROGRAM_INFO_IL: {
-        ASSERT_EQ(property_value, *il_binary.get());
+        // Some adapters only support ProgramCreateWithBinary, in those cases we
+        // expect a return size of 0 and an empty return value for INFO_IL.
+        if (!property_value.empty()) {
+            ASSERT_EQ(property_value, *il_binary.get());
+        }
         break;
     }
     default:

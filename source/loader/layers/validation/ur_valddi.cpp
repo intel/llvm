@@ -280,7 +280,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_PLATFORM_INFO_BACKEND < propName) {
+        if (UR_PLATFORM_INFO_ADAPTER < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -9656,6 +9656,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    ur_device_handle_t hDevice, ///< [in] handle of the device object
     uint32_t
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the work-group
                  ///< work-items
@@ -9681,6 +9682,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
         if (NULL == pLocalWorkSize) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -9695,8 +9700,13 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
         getContext()->refCountContext->logInvalidReference(hKernel);
     }
 
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hDevice)) {
+        getContext()->refCountContext->logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
-        hKernel, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+        hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
         pGroupCountRet);
 
     return result;
