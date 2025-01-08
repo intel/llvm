@@ -804,13 +804,9 @@ NativeToT ConvertToBF16(NativeFromT val) {
 /// conversion kind. It is expected to be \c DataT template argument of a vector
 /// we are trying to convert \a to
 /// \tparam NativeFromT \b scalar or \b vector internal type corresponding to
-/// \c FromT, which is used to hold vector data. It is expected to be
-/// vec<FromT, VecSize>::vector_t of a vector we are trying to convert \a from
-/// if VecSize > 1, or result of detail::ConvertToOpenCLType_t<FromT>
+/// \c FromT, which is used to hold vector data.
 /// \tparam NativeToT \b scalar or \b vector internal type corresponding to
-/// \c ToT, which is used to hold vector data. It is expected to be
-/// vec<ToT, VecSize>::vector_t of a vector we are trying to convert \a from
-/// if VecSize > 1, or result of detail::ConvertToOpenCLType_t<ToT>
+/// \c ToT
 ///
 /// \note Each pair of types FromT, ToT and NativeFromT, NativeToT can't contain
 /// the same type, because there are no no-op convert instructions in SPIR-V.
@@ -911,9 +907,6 @@ vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
     using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
     using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
 
-    auto NativeVector = sycl::bit_cast<vector_t>(*this);
-    using ConvertTVecType = typename vec<convertT, NumElements>::vector_t;
-
     // Whole vector conversion can only be done, if:
     constexpr bool canUseNativeVectorConvert =
 #ifdef __NVPTX__
@@ -923,11 +916,6 @@ vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
         false &&
 #endif
         NumElements > 1 &&
-        // - vec storage has an equivalent OpenCL native vector it is
-        //   implicitly convertible to. There are some corner cases where it
-        //   is not the case with char, long and long long types.
-        std::is_convertible_v<vector_t, OpenCLVecT> &&
-        std::is_convertible_v<ConvertTVecType, OpenCLVecR> &&
         // - it is not a signed to unsigned (or vice versa) conversion
         //   see comments within 'convertImpl' for more details;
         !detail::is_sint_to_from_uint<T, R>::value &&
@@ -939,8 +927,9 @@ vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
         !std::is_same_v<convertT, bool>;
 
     if constexpr (canUseNativeVectorConvert) {
-      auto val = detail::convertImpl<T, R, roundingMode, NumElements,
-                                     OpenCLVecT, OpenCLVecR>(NativeVector);
+      auto val =
+          detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
+                              OpenCLVecR>(bit_cast<OpenCLVecT>(*this));
       Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
     } else
 #endif // __SYCL_DEVICE_ONLY__

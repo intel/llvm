@@ -2075,6 +2075,45 @@ recording mode, as opposed to throwing.
 This section defines the interaction of `sycl_ext_oneapi_graph` with other
 extensions.
 
+==== sycl_ext_codeplay_enqueue_native_command
+
+`ext_codeplay_enqueue_native_command`, defined in
+link:../experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc[sycl_ext_codeplay_enqueue_native_command]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_intel_queue_index
+
+The compute index queue property defined by
+link:../supported/sycl_ext_intel_queue_index.asciidoc[sycl_ext_intel_queue_index]
+is ignored during queue recording.
+
+Using this information is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_bindless_images
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_device_global
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
 ==== sycl_ext_oneapi_discard_queue_events
 
 When recording a `sycl::queue` which has been created with the
@@ -2108,88 +2147,6 @@ nodes that are recorded from multiple queues and/or added by the explicit API:
 * The only commands which have an implicit dependency on the barrier command
   are those recorded from the same queue the barrier command was submitted to.
 
-==== sycl_ext_oneapi_memcpy2d
-
-The new handler methods, and queue shortcuts, defined by
-link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[sycl_ext_oneapi_memcpy2d]
-cannot be used in graph nodes. A synchronous exception will be thrown with
-error code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
-
-==== sycl_ext_oneapi_queue_priority
-
-The queue priority property defined by
-link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
-is ignored during queue recording.
-
-==== sycl_ext_oneapi_queue_empty
-
-The `queue::ext_oneapi_empty()` query defined by the
-link:../supported/sycl_ext_oneapi_queue_empty.asciidoc[sycl_ext_oneapi_queue_empty]
-extension behaves as normal during queue recording and is not captured to the graph.
-Recorded commands are not counted as submitted for the purposes of this query.
-
-==== sycl_ext_intel_queue_index
-
-The compute index queue property defined by
-link:../supported/sycl_ext_intel_queue_index.asciidoc[sycl_ext_intel_queue_index]
-is ignored during queue recording.
-
-Using this information is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
-
-==== sycl_ext_oneapi_kernel_properties
-
-The new handler methods, and queue shortcuts, defined by
-link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
-can be used in graph nodes in the same way as they are used in normal queue
-submission. 
-
-==== sycl_ext_oneapi_prod
-
-The new `sycl::queue::ext_oneapi_prod()` method added by
-link:../proposed/sycl_ext_oneapi_prod.asciidoc[sycl_ext_oneapi_prod]
-behaves as normal during queue recording and is not captured to the graph.
-Recorded commands are not counted as submitted for the purposes of its operation.
-
-==== sycl_ext_oneapi_device_global
-
-The new handler methods, and queue shortcuts, defined by
-link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
-
-==== sycl_ext_oneapi_bindless_images
-
-The new handler methods, and queue shortcuts, defined by
-link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
-
-==== sycl_ext_oneapi_kernel_compiler_spirv
-
-The kernels loaded using
-link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
-behave as normal when used in graph nodes.
-
-==== sycl_ext_codeplay_enqueue_native_command
-
-`ext_codeplay_enqueue_native_command`, defined in
-link:../experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc[sycl_ext_codeplay_enqueue_native_command]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
-
 ==== sycl_ext_oneapi_enqueue_functions
 
 The command submission functions defined in
@@ -2203,6 +2160,55 @@ e.g. directly to a queue without returning an event.
 `sycl_ext_oneapi_free_function_kernels`, defined in
 link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
 can be used with SYCL Graphs.
+
+==== sycl_ext_oneapi_kernel_compiler_spirv
+
+The kernels loaded using
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+behave as normal when used in graph nodes.
+
+==== sycl_ext_oneapi_kernel_properties
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+can be used in graph nodes in the same way as they are used in normal queue
+submission. 
+
+==== sycl_ext_oneapi_local_memory
+
+Allocating local memory inside a graph kernel node with `sycl::ext::oneapi::group_local_memory()` or
+`sycl::ext::oneapi::group_local_memory_for_overwrite()` is supported. These methods are defined by
+link:../supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory.]
+
+==== sycl_ext_oneapi_memcpy2d
+
+The new handler methods, and queue shortcuts, defined by
+link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[sycl_ext_oneapi_memcpy2d]
+cannot be used in graph nodes. A synchronous exception will be thrown with
+error code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_prod
+
+The new `sycl::queue::ext_oneapi_prod()` method added by
+link:../proposed/sycl_ext_oneapi_prod.asciidoc[sycl_ext_oneapi_prod]
+behaves as normal during queue recording and is not captured to the graph.
+Recorded commands are not counted as submitted for the purposes of its operation.
+
+==== sycl_ext_oneapi_queue_empty
+
+The `queue::ext_oneapi_empty()` query defined by the
+link:../supported/sycl_ext_oneapi_queue_empty.asciidoc[sycl_ext_oneapi_queue_empty]
+extension behaves as normal during queue recording and is not captured to the graph.
+Recorded commands are not counted as submitted for the purposes of this query.
+
+==== sycl_ext_oneapi_queue_priority
+
+The queue priority property defined by
+link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
+is ignored during queue recording.
 
 ==== sycl_ext_oneapi_work_group_memory
 
