@@ -340,6 +340,9 @@ bool setEnvVar(const char *name, const char *value);
 // Map Level Zero runtime error code to UR error code.
 ur_result_t ze2urResult(ze_result_t ZeResult);
 
+// Parse Level Zero error code and return the error string.
+void zeParseError(ze_result_t ZeError, const char *&ErrorString);
+
 // Trace a call to Level-Zero RT
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \
   {                                                                            \
@@ -359,6 +362,9 @@ ur_result_t ze2urResult(ze_result_t ZeResult);
 // Perform traced call to L0 without checking for errors
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
+  
+#define ZE_CALL_NOCHECK_NAME(ZeName, ZeArgs, callName)                                        \
+  ZeCall().doCall(ZeName ZeArgs, callName, #ZeArgs, false)
 
 // This wrapper around std::atomic is created to limit operations with reference
 // counter and to make allowed operations more transparent in terms of

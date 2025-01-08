@@ -15,12 +15,21 @@
 
 #include "../common.hpp"
 #include "logger/ur_logger.hpp"
+namespace {
+  const char* desturctorNames[] = {
+  "zeKernelDestroy",
+  "zeEventDestroy",
+  "zeEventPoolDestroy",
+  "zeContextDestroy",
+  "zeCommandListDestroy"
+  };
+}
 
 namespace v2 {
 
 namespace raii {
 
-template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT)>
+template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT), size_t nameId>
 struct ze_handle_wrapper {
   ze_handle_wrapper(bool ownZeHandle = true)
       : handle(nullptr), ownZeHandle(ownZeHandle) {}
@@ -65,7 +74,7 @@ struct ze_handle_wrapper {
     }
 
     if (ownZeHandle) {
-      auto zeResult = ZE_CALL_NOCHECK(destroy, (handle));
+      auto zeResult = ZE_CALL_NOCHECK_NAME(destroy, (handle), desturctorNames[nameId]);
       // Gracefully handle the case that L0 was already unloaded.
       if (zeResult && zeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         throw ze2urResult(zeResult);
@@ -90,19 +99,19 @@ private:
 };
 
 using ze_kernel_handle_t =
-    ze_handle_wrapper<::ze_kernel_handle_t, zeKernelDestroy>;
+    ze_handle_wrapper<::ze_kernel_handle_t, zeKernelDestroy, 0>;
 
 using ze_event_handle_t =
-    ze_handle_wrapper<::ze_event_handle_t, zeEventDestroy>;
+    ze_handle_wrapper<::ze_event_handle_t, zeEventDestroy, 1>;
 
 using ze_event_pool_handle_t =
-    ze_handle_wrapper<::ze_event_pool_handle_t, zeEventPoolDestroy>;
+    ze_handle_wrapper<::ze_event_pool_handle_t, zeEventPoolDestroy, 2>;
 
 using ze_context_handle_t =
-    ze_handle_wrapper<::ze_context_handle_t, zeContextDestroy>;
+    ze_handle_wrapper<::ze_context_handle_t, zeContextDestroy, 3>;
 
 using ze_command_list_handle_t =
-    ze_handle_wrapper<::ze_command_list_handle_t, zeCommandListDestroy>;
+    ze_handle_wrapper<::ze_command_list_handle_t, zeCommandListDestroy, 4>;
 
 } // namespace raii
 } // namespace v2
