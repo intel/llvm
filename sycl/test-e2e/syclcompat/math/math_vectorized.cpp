@@ -25,8 +25,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
-#include <syclcompat/syclcompat.hpp>
+#include <syclcompat/math.hpp>
 
 #include "../common.hpp"
 #include "math_fixt.hpp"
