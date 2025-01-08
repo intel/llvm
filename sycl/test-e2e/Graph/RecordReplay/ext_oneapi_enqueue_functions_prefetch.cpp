@@ -38,7 +38,9 @@ int main() {
 
     exp_ext::submit(Q, [&](handler &CGH) {
       CGH.depends_on(TestH2D);
-      exp_ext::parallel_for(range<1>(N), [=](id<1> i) { Dst[i] = Src[i] * 2; });
+      exp_ext::parallel_for(CGH, range<1>(N), [=](id<1> i) {
+        Dst[i] = Src[i] * 2;
+      });
     });
 
     Graph.end_recording();
@@ -60,7 +62,9 @@ int main() {
 
     // Test submitting device-to-host prefetch
     event TestD2H = exp_ext::submit_with_event(Q, [&](handler &CGH) {
-      exp_ext::parallel_for(range<1>(N), [=](id<1> i) { Dst[i] = Src[i] + 1; });
+      exp_ext::parallel_for(CGH, range<1>(N), [=](id<1> i) {
+        Dst[i] = Src[i] + 1;
+      });
     });
 
     exp_ext::submit(Q, [&](handler &CGH) {
