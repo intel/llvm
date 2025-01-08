@@ -126,7 +126,8 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
      sizeof(ur_memory_scope_capability_flags_t)},
     {UR_DEVICE_INFO_ESIMD_SUPPORT, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t)},
-    {UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT, sizeof(ur_bool_t)}};
+    {UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_NUM_COMPUTE_UNITS, sizeof(uint32_t)}};
 
 using urDeviceGetInfoTest = uur::urDeviceTestWithParam<ur_device_info_t>;
 
