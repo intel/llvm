@@ -73,7 +73,7 @@ ur_command_list_handler_t::ur_command_list_handler_t(
     : commandList(hZeCommandList,
                   [ownZeHandle](ze_command_list_handle_t hZeCommandList) {
                     if (ownZeHandle) {
-                      zeCommandListDestroy(hZeCommandList);
+                      ZE_CALL_NOCHECK(zeCommandListDestroy, (hZeCommandList));
                     }
                   }) {}
 
