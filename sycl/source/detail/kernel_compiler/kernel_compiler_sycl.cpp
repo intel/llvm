@@ -88,8 +88,7 @@ std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
                          });
 }
 
-void outputPreamble(std::ofstream &Os, const fs::path &FilePath,
-                    const std::string &Id,
+void outputPreamble(std::ofstream &Os, const std::string &Id,
                     const std::vector<std::string> &UserArgs) {
 
   Os << "/*\n";
@@ -107,7 +106,7 @@ fs::path outputCpp(const fs::path &ParentDir, const std::string &Id,
   std::ofstream Outfile(FilePath, std::ios::out | std::ios::trunc);
 
   if (Outfile.is_open()) {
-    outputPreamble(Outfile, FilePath, Id, UserArgs);
+    outputPreamble(Outfile, Id, UserArgs);
     Outfile << RawCodeString << std::endl;
 
     // Temporarily needed until -c works with -fsycl-dump-spirv.
