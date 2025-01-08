@@ -142,7 +142,9 @@ struct ur_kernel_handle_t_ : RefCounted {
     _localMemPoolSize = reqSize;
   }
 
-  // To be called before executing a work group
+  bool hasLocalArgs() const { return !_localArgInfo.empty(); }
+
+  // To be called before executing a work group if local args are present
   void handleLocalArgs(size_t numParallelThread, size_t threadId) {
     // For each local argument we have size*numthreads
     size_t offset = 0;
