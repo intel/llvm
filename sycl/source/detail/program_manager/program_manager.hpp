@@ -46,6 +46,9 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(sycl_device_binaries desc);
 
 // +++ }
 
+// For testing purposes
+class ProgramManagerTest;
+
 namespace sycl {
 inline namespace _V1 {
 class context;
@@ -494,6 +497,8 @@ private:
   using MaterializedEntries =
       std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
   std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
+
+  friend class ::ProgramManagerTest;
 };
 } // namespace detail
 } // namespace _V1

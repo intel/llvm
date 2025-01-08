@@ -284,11 +284,11 @@ group_load(Group g, InputIteratorT in_ptr,
 
       if constexpr (std::is_same_v<std::remove_const_t<value_type>, OutputT>) {
         static_assert(sizeof(load) == out.size_bytes());
-        std::memcpy(out.begin(), &load, out.size_bytes());
+        sycl::detail::memcpy_no_adl(out.begin(), &load, out.size_bytes());
       } else {
         std::remove_const_t<value_type> values[ElementsPerWorkItem];
         static_assert(sizeof(load) == sizeof(values));
-        std::memcpy(values, &load, sizeof(values));
+        sycl::detail::memcpy_no_adl(values, &load, sizeof(values));
 
         // Note: can't `memcpy` directly into `out` because that might bypass
         // an implicit conversion required by the specification.
