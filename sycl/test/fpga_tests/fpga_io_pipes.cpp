@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsyntax-only -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 // TODO: launch the test if the feature is supported.
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
