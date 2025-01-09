@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda, hip
-// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
+// REQUIRED-TRIPLES: spir64
 // REQUIRES: gpu,linux,sg-8
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
