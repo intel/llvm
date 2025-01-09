@@ -1700,6 +1700,8 @@ ur_result_t urGetUSMProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::msan::urUSMDeviceAlloc;
+    pDdiTable->pfnHostAlloc = ur_sanitizer_layer::msan::urUSMHostAlloc;
+    pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::msan::urUSMSharedAlloc;
     pDdiTable->pfnFree = ur_sanitizer_layer::msan::urUSMFree;
 
     return result;
