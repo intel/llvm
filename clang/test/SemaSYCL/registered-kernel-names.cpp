@@ -69,3 +69,16 @@ void good1() {
   {"reg1", good1},
   {"reg2", good1}
 )]];
+
+template <typename T>
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void uses_throw() {
+  // expected-error@+2 {{cannot use 'throw' with exceptions disabled}}
+  // expected-error@+1 {{SYCL kernel cannot use exceptions}}
+  throw 5;
+}
+
+[[__sycl_detail__::__registered_kernels__(
+  {"throw", uses_throw<float>}
+)]];

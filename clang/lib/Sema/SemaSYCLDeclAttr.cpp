@@ -3163,40 +3163,22 @@ void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
           << Attr;
 }
 
-static bool isFreeFunctionKernel(SemaSYCL &S, FunctionDecl *FD) {
-  /* If it does not have the attribute, return false. */
-  if (!FD->hasAttr<SYCLAddIRAttributesFunctionAttr>())
-    return false;
-  /* If it does, traverse through the pairs and return true, if
-     it is one of the two free function types. */
-  auto *SAIRAttr = FD->getAttr<SYCLAddIRAttributesFunctionAttr>();
-  SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-      SAIRAttr->getFilteredAttributeNameValuePairs(S.getASTContext());
-  for (const auto &NVPair : NameValuePairs) {
-    if (!NVPair.first.compare("sycl-single-task-kernel") ||
-        !NVPair.first.compare("sycl-nd-range-kernel"))
-      return true;
-  }
-  /* If it does not have free function attributes, return false. */
-  return false;
-}
-
 void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
   // Check for SYCL device compilation context.
   if (!getLangOpts().SYCLIsDevice)
     return;
 
   unsigned NumArgs = A.getNumArgs();
-  /* When declared, we expect at least one item in the list. */
+  // When declared, we expect at least one item in the list.
   if (NumArgs == 0) {
     Diag(A.getLoc(), diag::err_registered_kernels_num_of_args);
     return;
   }
 
-  /* Traverse through the items in the list. */
+  // Traverse through the items in the list.
   for (unsigned I = 0; I < NumArgs; I++) {
     assert(A.isArgExpr(I) && "Expected expression argument");
-    /* Each item in the list must be an initializer list expression. */
+    // Each item in the list must be an initializer list expression.
     Expr *ArgExpr = A.getArgAsExpr(I);
     if (!isa<InitListExpr>(ArgExpr)) {
       Diag(ArgExpr->getExprLoc(), diag::err_registered_kernels_init_list);
@@ -3205,45 +3187,45 @@ void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
 
     const auto *ArgListE = cast<InitListExpr>(ArgExpr);
     unsigned NumInits = ArgListE->getNumInits();
-    /* Each init-list expression must have a pair of values. */
+    // Each init-list expression must have a pair of values.
     if (NumInits != 2) {
       Diag(ArgExpr->getExprLoc(),
            diag::err_registered_kernels_init_list_pair_values);
       return;
     }
 
-    /* The first value of the pair must be a string. */
+    // The first value of the pair must be a string.
     const Expr *FirstExpr = ArgListE->getInit(0);
     StringRef CurStr;
     SourceLocation Loc = FirstExpr->getExprLoc();
     if (!SemaRef.checkStringLiteralArgumentAttr(A, FirstExpr, CurStr, &Loc))
       return;
 
-    /* Resolve the FunctionDecl from the second value of the pair. */
+    // Resolve the FunctionDecl from the second value of the pair.
     auto *SecondE = const_cast<Expr *>(ArgListE->getInit(1));
     FunctionDecl *FD = nullptr;
     if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(SecondE)) {
       FD = SemaRef.ResolveSingleFunctionTemplateSpecialization(ULE, true);
       Loc = ULE->getExprLoc();
     } else {
-      while (isa<CastExpr>(SecondE))
-        SecondE = cast<CastExpr>(SecondE)->getSubExpr();
+      if (isa<CastExpr>(SecondE))
+        SecondE = cast<CastExpr>(SecondE)->getSubExpr()->IgnoreParenImpCasts();
       auto *DRE = dyn_cast<DeclRefExpr>(SecondE);
       if (DRE)
         FD = dyn_cast<FunctionDecl>(DRE->getDecl());
       Loc = SecondE->getExprLoc();
     }
-    /* Issue a diagnostic if we are unable to resolve the FunctionDecl. */
+    // Issue a diagnostic if we are unable to resolve the FunctionDecl.
     if (!FD) {
       Diag(Loc, diag::err_registered_kernels_resolve_function) << CurStr;
       return;
     }
-    /* Issue a diagnostic is the FunctionDecl is not a SYCL free function. */
-    if (!isFreeFunctionKernel(*this, FD)) {
+    // Issue a diagnostic is the FunctionDecl is not a SYCL free function.
+    if (!isFreeFunction(FD)) {
       Diag(FD->getLocation(), diag::err_not_sycl_free_function) << CurStr;
       return;
     }
-    /* Construct a free function kernel. */
+    // Construct a free function kernel.
     constructFreeFunctionKernel(FD, CurStr);
   }
 }

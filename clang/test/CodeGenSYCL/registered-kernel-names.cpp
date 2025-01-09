@@ -9,6 +9,10 @@ void foo() {
 }
 
 __attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void bar();
+
+__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
 void ff_4() {
 }
@@ -54,13 +58,14 @@ namespace N {
   {"decl spec", tempfoo2<float>},
   {"def spec", tempfoo2<short>},
   {"foo3", ff_4},
-  {"nontype", tempfoo3<5>}
+  {"nontype", tempfoo3<5>},
+  {"decl non-temp", bar}
 )]];
 }
 
 // Check for the presence of sycl_registered_kernels named metadata.
 // CHECK: !sycl_registered_kernels = !{![[LIST:[0-9]+]]}
-// CHECK: ![[LIST]] = !{![[ENT1:[0-9]+]], ![[ENT2:[0-9]+]], ![[ENT3:[0-9]+]], ![[ENT4:[0-9]+]],  ![[ENT5:[0-9]+]], ![[ENT6:[0-9]+]], ![[ENT7:[0-9]+]], ![[ENT8:[0-9]+]]}
+// CHECK: ![[LIST]] = !{![[ENT1:[0-9]+]], ![[ENT2:[0-9]+]], ![[ENT3:[0-9]+]], ![[ENT4:[0-9]+]],  ![[ENT5:[0-9]+]], ![[ENT6:[0-9]+]], ![[ENT7:[0-9]+]], ![[ENT8:[0-9]+]], ![[ENT9:[0-9]+]]}
 // CHECK: ![[ENT1]] = !{!"foo", !"{{.*}}sycl_kernel{{.*}}foo{{.*}}"}
 // CHECK: ![[ENT2]] = !{!"foo3", !"{{.*}}sycl_kernel{{.*}}ff_4{{.*}}"}
 // CHECK: ![[ENT3]] = !{!"iota", !"{{.*}}sycl_kernel{{.*}}iota{{.*}}"}
@@ -69,3 +74,4 @@ namespace N {
 // CHECK: ![[ENT6]] = !{!"decl temp", !"{{.*}}sycl_kernel{{.*}}tempfoo{{.*}}"}
 // CHECK: ![[ENT7]] = !{!"decl spec", !"{{.*}}sycl_kernel{{.*}}tempfoo2{{.*}}"}
 // CHECK: ![[ENT8]] = !{!"nontype", !"{{.*}}sycl_kernel{{.*}}tempfoo3{{.*}}"}
+// CHECK: ![[ENT9]] = !{!"decl non-temp", !"{{.*}}sycl_kernel{{.*}}bar{{.*}}"}

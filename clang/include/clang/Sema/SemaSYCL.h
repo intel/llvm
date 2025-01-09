@@ -661,6 +661,10 @@ public:
   void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E);
   void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
+
+  // Used to check whether the function represented by FD is a SYCL
+  // free function kernel or not.
+  bool isFreeFunction(const FunctionDecl *FD);
 };
 
 } // namespace clang
