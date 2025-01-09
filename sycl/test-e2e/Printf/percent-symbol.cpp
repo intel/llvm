@@ -5,6 +5,7 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: hip_amd
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 // XFAIL: cuda && windows
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14733
 // RUN: %{build} -o %t.out

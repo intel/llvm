@@ -4,17 +4,16 @@
 //
 // REQUIRES: cuda || hip || native_cpu
 // UNSUPPORTED-TRIPLES: spir64
-//
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -o %t1.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 %{arch_flag} -o %t1.out %s
 // RUN: %{run} %t1.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -o %t2.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} %{arch_flag} -o %t2.out %s
 // RUN: %{run} %t2.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -fsycl-device-code-split=per_kernel -o %t3.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 %{arch_flag} -fsycl-device-code-split=per_kernel -o %t3.out %s
 // RUN: %{run} %t3.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -fsycl-device-code-split=per_kernel -o %t4.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} %{arch_flag} -fsycl-device-code-split=per_kernel -o %t4.out %s
 // RUN: %{run} %t4.out
 
 #include <sycl/detail/core.hpp>

@@ -10,6 +10,7 @@
 
 // Failing on HIP AMD, enable after fixed
 // UNSUPPORTED: hip_amd
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 
 #include <iostream>

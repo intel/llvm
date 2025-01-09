@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 // UNSUPPORTED: native_cpu
 
 #include <cstdlib>
