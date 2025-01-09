@@ -1,5 +1,6 @@
 // REQUIRES: opencl, opencl_icd, cm-compiler
-// UNSUPPORTED: accelerator
+// XFAIL: (gpu && !(arch-intel_gpu_pvc && igc-dev)) || cpu || accelerator
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16406
 
 // RUN: %{build} -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %{run} %t.out
