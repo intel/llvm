@@ -121,6 +121,7 @@ struct ProgramInfo {
 
 struct ContextInfo {
     ur_context_handle_t Handle;
+    size_t MaxAllocatedSize = 1024;
     std::atomic<int32_t> RefCount = 1;
 
     std::vector<ur_device_handle_t> DeviceList;
@@ -179,7 +180,7 @@ class MsanInterceptor {
                                ur_device_handle_t Device,
                                const ur_usm_desc_t *Properties,
                                ur_usm_pool_handle_t Pool, size_t Size,
-                               void **ResultPtr);
+                               AllocType Type, void **ResultPtr);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     ur_result_t registerProgram(ur_program_handle_t Program);
