@@ -170,6 +170,8 @@ synchronization) are being used as part of a performance optimization,
 developers should check that the values returned by these queries is not
 1._{endnote}_]
 
+'''
+
 [source,c++]
 ----
 template <typename Param, uint32_t Dimensions>
@@ -229,6 +231,8 @@ implementation will launch a kernel on the specified queue.
 The values of these queries should also be checked if a kernel is expected to
 be launched in a specific way (e.g., if the kernel requires two sub-groups for
 correctness).
+
+'''
 
 [source,c++]
 ----
