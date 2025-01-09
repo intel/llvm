@@ -518,8 +518,45 @@ public:
         }
       }
 
-      return std::make_shared<kernel_bundle_impl>(
+      // Create the executable bundle.
+      auto ExecBundle = std::make_shared<kernel_bundle_impl>(
           MContext, MDevices, KernelIDs, KernelNames, Prefix, Language);
+
+      // Determine IDs of all device globals referenced by this bundle's
+      // kernels. These IDs are also prefixed.
+      std::set<std::string> UniqueDeviceGlobalIDs;
+      std::vector<std::string> DeviceGlobalIDs;
+      for (const auto &RawImg : PM.getRawDeviceImages(KernelIDs)) {
+        for (const auto &DeviceGlobalProp : RawImg->getDeviceGlobals()) {
+          auto [It, Ins] = UniqueDeviceGlobalIDs.insert(DeviceGlobalProp->Name);
+          if (Ins) {
+            DeviceGlobalIDs.push_back(*It);
+          }
+        }
+      }
+
+      for (auto *DeviceGlobalEntry :
+           PM.getDeviceGlobalEntries(DeviceGlobalIDs)) {
+        // Device globals without `device_image_scope` are usually statically
+        // allocated and registered in the integration footer, which we don't
+        // have in the RTC context. Instead, we dynamically allocate storage
+        // tied to the executable kernel bundle.
+        if (!DeviceGlobalEntry->MIsDeviceImageScopeDecorated) {
+          auto Alloc = std::make_unique<std::byte[]>(
+              DeviceGlobalEntry->MDeviceGlobalTSize);
+          PM.addOrInitDeviceGlobalEntry(Alloc.get(),
+                                        DeviceGlobalEntry->MUniqueId.c_str());
+          ExecBundle->DeviceGlobals.push_back(std::move(Alloc));
+        }
+
+        // Drop the RTC prefix from the entry's symbol name. Note that the PM
+        // still manages this device global under its prefixed name.
+        assert(DeviceGlobalEntry->MUniqueId.find(Prefix) == 0);
+        DeviceGlobalEntry->MUniqueId =
+            DeviceGlobalEntry->MUniqueId.substr(Prefix.length());
+      }
+
+      return ExecBundle;
     }
 
     ur_program_handle_t UrProgram = nullptr;
@@ -960,6 +997,7 @@ private:
   std::vector<std::string> KernelNames;
   std::string Prefix;
   include_pairs_t IncludePairs;
+  std::vector<std::unique_ptr<std::byte[]>> DeviceGlobals;
 };
 
 } // namespace detail

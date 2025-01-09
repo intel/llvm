@@ -503,8 +503,9 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints);
   assert(Splitter->hasMoreSplits());
 
-  // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
-  //       be processed.
+  if (auto Err = Splitter->verifyNoCrossModuleDeviceGlobalUsage()) {
+    return std::move(Err);
+  }
 
   // TODO: This allocation assumes that there are no further splits required,
   //       i.e. there are no mixed SYCL/ESIMD modules.
@@ -547,7 +548,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     GlobalBinImageProps PropReq{
         /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
         /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
-        /*DeviceGlobals=*/false};
+        /*DeviceGlobals=*/true};
     PropertySetRegistry Properties =
         computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
     // TODO: Manually add `compile_target` property as in

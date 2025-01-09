@@ -58,6 +58,29 @@ void ff_templated(T *ptr, T *unused) {
 }
 )===";
 
+auto constexpr DGSource = R"===(
+#include <sycl/sycl.hpp>
+
+namespace syclex = sycl::ext::oneapi::experimental;
+
+syclex::device_global<int> DG;
+
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclex::single_task_kernel)) void ff_dg_setter(int val) {
+  DG = val;
+}
+
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclex::single_task_kernel)) void ff_dg_adder(int val) {
+  DG = DG + val;
+}
+
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclex::single_task_kernel)) void ff_dg_getter(int *val) {
+  *val = DG;
+}
+)===";
+
 auto constexpr ESIMDSource = R"===(
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
@@ -215,6 +238,73 @@ int test_build_and_run() {
   // Can we still run the original compilation?
   sycl::kernel k4 = kbExe1.ext_oneapi_get_kernel("ff_cp");
   test_1(q, k4, 37 + 5);
+
+  return 0;
+}
+
+int test_device_global() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  auto modifyDG = [&q](sycl::kernel &k, int val) {
+    q.submit([&](sycl::handler &CGH) {
+      CGH.set_arg(0, val);
+      CGH.single_task(k);
+    });
+    q.wait();
+  };
+
+  auto getDG = [&q](sycl::kernel &k) -> int {
+    int *buf = sycl::malloc_shared<int>(1, q);
+    q.submit([&](sycl::handler &CGH) {
+      CGH.set_arg(0, buf);
+      CGH.single_task(k);
+    });
+    q.wait();
+    int val = *buf;
+    sycl::free(buf, q);
+    return val;
+  };
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, DGSource);
+
+  exe_kb kbExe1 = syclex::build(kbSrc);
+
+  auto setK = kbExe1.ext_oneapi_get_kernel("ff_dg_setter");
+  auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
+  auto getK = kbExe1.ext_oneapi_get_kernel("ff_dg_getter");
+
+  assert(getDG(getK) == 0);
+  modifyDG(setK, 42);
+  assert(getDG(getK) == 42);
+  modifyDG(addK, 1);
+  assert(getDG(getK) == 43);
+
+  exe_kb kbExe2 = syclex::build(kbSrc);
+
+  auto setK2 = kbExe2.ext_oneapi_get_kernel("ff_dg_setter");
+  auto getK2 = kbExe2.ext_oneapi_get_kernel("ff_dg_getter");
+
+  // `DG` is private per RTC bundle
+  assert(getDG(getK2) == 0);
+  modifyDG(setK2, -17);
+  assert(getDG(getK2) == -17);
+  assert(getDG(getK) == 43);
 
   return 0;
 }
@@ -390,8 +480,8 @@ int test_warning() {
 int main(int argc, char **) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   int optional_tests = (argc > 1) ? test_warning() : 0;
-  return test_build_and_run() || test_esimd() || test_unsupported_options() ||
-         test_error() || optional_tests;
+  return test_build_and_run() || test_device_global() || test_esimd() ||
+         test_unsupported_options() || test_error() || optional_tests;
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
