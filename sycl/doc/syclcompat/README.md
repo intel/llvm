@@ -2090,6 +2090,25 @@ struct sub_sat {
 } // namespace syclcompat
 ```
 
+`vectorized_binary` also supports comparison operators from the standard library (`std::equal_to`, `std::not_equal_to`, etc) 
+and the semantics can be modified by changing the comparison operator template instantiation. For example:
+
+```cpp
+unsigned int Input1;
+unsigned int Input2;
+// initialize inputs...
+
+// Performs comparison on sycl::ushort2, following sycl::vec semantics
+// Returns unsigned int containing, per vector element, 0xFFFF if true, and 0x0000 if false
+syclcompat::vectorized_binary<sycl::ushort2>(
+      Input1, Input2, std::equal_to<>());
+
+// Performs element-wise comparison on unsigned short
+// Returns unsigned int containing, per vector element, 1 if true, and 0 if false
+syclcompat::vectorized_binary<sycl::ushort2>(
+      Input1, Input2, std::equal_to<unsigned short>());
+```
+
 The math header provides a set of functions to extend 32-bit operations
 to 33 bit, and handle sign extension internally. There is support for `add`,
 `sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
