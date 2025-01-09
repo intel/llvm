@@ -125,7 +125,7 @@ int get_mem_idx(GroupTy g, int vec_or_array_idx) {
 // | block type | # of blocks |
 // +------------+-------------+
 // | uchar      | 1,2,4,8,16  |
-// | ushort     | 1,2,4,8     |
+// | ushort     | 1,2,4,8,16  |
 // | uint       | 1,2,4,8     |
 // | ulong      | 1,2,4,8     |
 // +------------+-------------+
@@ -146,7 +146,7 @@ struct BlockInfo {
   static constexpr bool has_builtin =
       detail::is_power_of_two(block_size) &&
       detail::is_power_of_two(num_blocks) && block_size <= 8 &&
-      (num_blocks <= 8 || (num_blocks == 16 && block_size == 1));
+      (num_blocks <= 8 || (num_blocks == 16 && block_size <= 2));
 };
 
 template <typename BlockInfoTy> struct BlockTypeInfo;
