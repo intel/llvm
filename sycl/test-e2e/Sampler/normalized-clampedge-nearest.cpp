@@ -6,6 +6,7 @@
 // __spirv_ImageSampleExplicitLod on AMD
 // XFAIL: hip_amd
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14732
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 /*
     This file sets up an image, initializes it with data,

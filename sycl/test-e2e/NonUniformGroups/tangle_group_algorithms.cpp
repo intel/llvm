@@ -5,6 +5,7 @@
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_tangle_group
 // UNSUPPORTED: cuda || windows

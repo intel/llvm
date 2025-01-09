@@ -4,6 +4,7 @@
 
 // UNSUPPORTED: cuda || hip
 // CUDA does not support info::device::image3d_max_width query.
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // The test checks that 'image' with max allowed sizes is handled correctly.
 

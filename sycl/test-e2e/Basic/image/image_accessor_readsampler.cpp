@@ -1,6 +1,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: cuda || hip
 // CUDA cannot support SYCL 1.2.1 images.
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

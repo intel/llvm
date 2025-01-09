@@ -1,4 +1,5 @@
 // REQUIRES: level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // the ze_debug=4 memory check will fail on this test, since it itentionally
 // makes an 'unbalanced' create/destroy situation for the test.

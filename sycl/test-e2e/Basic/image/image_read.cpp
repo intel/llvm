@@ -1,6 +1,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip
 // Temporarily add explicit '-O2' to avoid GPU hang issue with O0 optimization.
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 // RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
 

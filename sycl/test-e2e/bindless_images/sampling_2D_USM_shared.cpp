@@ -1,5 +1,6 @@
 // REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out

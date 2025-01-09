@@ -1,6 +1,7 @@
 // REQUIRES: aspect-fp16, aspect-ext_intel_legacy_image
 
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

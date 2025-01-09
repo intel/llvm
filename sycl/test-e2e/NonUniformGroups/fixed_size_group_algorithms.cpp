@@ -7,6 +7,7 @@
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_fixed_size_group
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>

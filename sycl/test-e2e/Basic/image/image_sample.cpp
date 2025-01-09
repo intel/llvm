@@ -2,6 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>

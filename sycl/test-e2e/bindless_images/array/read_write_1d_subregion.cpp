@@ -1,4 +1,5 @@
 // REQUIRES: cuda
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

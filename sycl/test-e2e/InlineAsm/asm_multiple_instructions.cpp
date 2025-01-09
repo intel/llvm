@@ -1,4 +1,5 @@
 // UNSUPPORTED: cuda || hip
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 // REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -DTO_PASS -o %t.out.pass
 // RUN: %{run} %t.out.pass

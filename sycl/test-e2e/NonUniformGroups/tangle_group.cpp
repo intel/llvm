@@ -6,6 +6,7 @@
 //
 // REQUIRES: cpu || gpu
 // UNSUPPORTED: cuda || hip
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>

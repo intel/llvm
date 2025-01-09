@@ -1,5 +1,6 @@
 // REQUIRES: linux
 // REQUIRES: aspect-ext_oneapi_bindless_images
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out

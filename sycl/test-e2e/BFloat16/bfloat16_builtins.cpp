@@ -5,7 +5,7 @@
 // + below sm_80 always uses generic impls
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %{arch_flag} %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
 // RUN: %{run} %t.out
 
 // Test "new" (ABI breaking) for all platforms ( sm_80/native if CUDA )

@@ -1,4 +1,5 @@
 // REQUIRES: cuda,aspect-ext_oneapi_cubemap
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out

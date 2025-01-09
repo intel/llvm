@@ -1,5 +1,6 @@
 // REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_3d
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

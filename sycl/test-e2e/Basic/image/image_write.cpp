@@ -6,6 +6,7 @@
 // TODO: re-enable on cuda device.
 // See https://github.com/intel/llvm/issues/1542#issuecomment-707877817 for more
 // details.
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 
 #include "image_write.h"
 

@@ -1,4 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_srgb, aspect-ext_intel_legacy_image
+// UNSUPPORTED-TRIPLES: amdgcn-amd-amdhsa
 // XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14387
 // RUN: %{build} -o %t.out
