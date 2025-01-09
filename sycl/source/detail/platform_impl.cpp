@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sycl/detail/ur.hpp"
-#include "sycl/info/info_desc.hpp"
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
-#include <sycl/backend.hpp>
+#include <detail/ur_info_code.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -136,24 +136,6 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
     }
   }
   return Platforms;
-}
-
-std::vector<platform> platform_impl::get_unsupported_platforms() {
-  std::vector<platform> UnsupportedPlatforms;
-
-  std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
-  // Ignore UR as it has to be supported.
-  for (auto &Adapter : Adapters) {
-    if (Adapter->hasBackend(backend::all)) {
-      continue; // skip UR
-    }
-    std::vector<platform> AdapterPlatforms =
-        getAdapterPlatforms(Adapter, /*Supported=*/false);
-    std::copy(AdapterPlatforms.begin(), AdapterPlatforms.end(),
-              std::back_inserter(UnsupportedPlatforms));
-  }
-
-  return UnsupportedPlatforms;
 }
 
 // This routine has the side effect of registering each platform's last device

@@ -9,8 +9,8 @@
 #include <detail/adapter.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/backend.hpp>
-#include <sycl/sycl.hpp>
+#include <detail/ur.hpp>
+#include <sycl/backend_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {

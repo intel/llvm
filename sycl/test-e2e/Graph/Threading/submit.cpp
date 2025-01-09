@@ -19,8 +19,9 @@ int main() {
 
   using T = int;
 
-  const unsigned NumThreads = std::thread::hardware_concurrency();
-  const unsigned SubmitsPerThread = 128;
+  const unsigned HwThreads = std::thread::hardware_concurrency();
+  const unsigned NumThreads = std::min(HwThreads, static_cast<unsigned>(4));
+  const unsigned SubmitsPerThread = 8;
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
 
   std::iota(DataA.begin(), DataA.end(), 1);

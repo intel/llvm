@@ -25,8 +25,6 @@
 #include "clang/CodeGen/ModuleBuilder.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendActions.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Serialization/ASTWriter.h"
@@ -52,7 +50,6 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
@@ -589,9 +586,9 @@ const FullSourceLoc BackendConsumer::getBestLocationFromDebugLoc(
   if (D.isLocationAvailable()) {
     D.getLocation(Filename, Line, Column);
     if (Line > 0) {
-      auto FE = FileMgr.getFile(Filename);
+      auto FE = FileMgr.getOptionalFileRef(Filename);
       if (!FE)
-        FE = FileMgr.getFile(D.getAbsolutePath());
+        FE = FileMgr.getOptionalFileRef(D.getAbsolutePath());
       if (FE) {
         // If -gcolumn-info was not used, Column will be 0. This upsets the
         // source manager, so pass 1 if Column is not set.
@@ -657,7 +654,7 @@ void BackendConsumer::UnsupportedDiagHandler(
   auto DiagType = D.getSeverity() == llvm::DS_Error
                       ? diag::err_fe_backend_unsupported
                       : diag::warn_fe_backend_unsupported;
-  Diags.Report(Loc, DiagType) << MsgStream.str();
+  Diags.Report(Loc, DiagType) << Msg;
 
   if (BadDebugInfo)
     // If we were not able to translate the file:line:col information
@@ -694,9 +691,7 @@ void BackendConsumer::EmitOptimizationMessage(
   if (D.getHotness())
     MsgStream << " (hotness: " << *D.getHotness() << ")";
 
-  Diags.Report(Loc, DiagID)
-      << AddFlagValue(D.getPassName())
-      << MsgStream.str();
+  Diags.Report(Loc, DiagID) << AddFlagValue(D.getPassName()) << Msg;
 
   if (BadDebugInfo)
     // If we were not able to translate the file:line:col information
@@ -1019,10 +1014,9 @@ CodeGenerator *CodeGenAction::getCodeGenerator() const {
   return BEConsumer->getCodeGenerator();
 }
 
-bool CodeGenAction::BeginInvocation(CompilerInstance &CI) {
+bool CodeGenAction::BeginSourceFileAction(CompilerInstance &CI) {
   if (CI.getFrontendOpts().GenReducedBMI)
-    return BeginInvocationForModules(CI);
-
+    CI.getLangOpts().setCompilingModule(LangOptions::CMK_ModuleInterface);
   return true;
 }
 

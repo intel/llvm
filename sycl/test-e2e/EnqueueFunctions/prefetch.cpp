@@ -35,5 +35,5 @@ int main() {
   return 0;
 }
 
-// CHECK-COUNT-3:---> urEnqueueUSMPrefetch
-// CHECK-NOT:---> urEnqueueUSMPrefetch
+// CHECK-COUNT-3: <--- urEnqueueUSMPrefetch
+// CHECK-NOT: <--- urEnqueueUSMPrefetch

@@ -1,7 +1,5 @@
-/* This test checks that get_info checks its aspect and throws an invalid object
-   error when ext::intel::info::device::free_memory is missing on L0*/
-
-// REQUIRES: gpu, level_zero
+/* This test checks that get_info checks its aspect and passes without ZES_ENABLE_SYSMAN=1.*/
+// REQUIRES: gpu-intel-dg2, level_zero
 // RUN: %{build} -o %t.out
 // RUN: env ZES_ENABLE_SYSMAN=0 %{run} %t.out
 // Explicitly set 'ZES_ENABLE_SYSMAN=0'. HWLOC initializes this environment
@@ -12,14 +10,14 @@
 #include <sycl/detail/core.hpp>
 int main() {
   sycl::queue q;
-  bool failed = true;
+  bool failed = false;
   try {
     sycl::device d(sycl::default_selector_v);
     size_t mem_free = d.get_info<sycl::ext::intel::info::device::free_memory>();
   } catch (const sycl::exception &e) {
     assert(e.code() == sycl::errc::feature_not_supported);
-    std::cout << "Expected exception encountered: " << e.what() << std::endl;
-    failed = false;
+    std::cout << "UnExpected exception encountered: " << e.what() << std::endl;
+    failed = true;
   }
   return failed;
 }

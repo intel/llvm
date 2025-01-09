@@ -34,6 +34,6 @@ int main() {
   }
 }
 
-// CHECK:---> urMemBufferCreate
-// CHECK:---> urMemBufferCreate
+// CHECK: <--- urMemBufferCreate
+// CHECK: <--- urMemBufferCreate
 // CHECK-SAME: UR_MEM_FLAG_ALLOC_HOST_POINTER

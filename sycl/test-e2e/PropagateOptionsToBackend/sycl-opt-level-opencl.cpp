@@ -31,7 +31,7 @@ int main() {
   return 0;
 }
 
-// CHECKOCL0: urProgramBuild{{.*}}-cl-opt-disable
-// CHECKOCL1-NOT: urProgramBuild{{.*}}-cl-opt-disable
-// CHECKOCL2-NOT: urProgramBuild{{.*}}-cl-opt-disable
-// CHECKOCL3-NOT: urProgramBuild{{.*}}-cl-opt-disable
+// CHECKOCL0: <--- urProgramBuild{{.*}}-cl-opt-disable
+// CHECKOCL1-NOT: <--- urProgramBuild{{.*}}-cl-opt-disable
+// CHECKOCL2-NOT: <--- urProgramBuild{{.*}}-cl-opt-disable
+// CHECKOCL3-NOT: <--- urProgramBuild{{.*}}-cl-opt-disable

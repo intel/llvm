@@ -5,10 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: igc-dev
 // REQUIRES: ocloc && arch-intel_gpu_tgllp
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 // This is basic test to test hardware dispatch functionality with ESIMD.
 

@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>           // for __spirv_ControlBarrier
-#include <CL/__spirv/spirv_types.hpp>         // for Scope
-#include <CL/__spirv/spirv_vars.hpp>          // for initLocalInvocationId
+#include <sycl/__spirv/spirv_ops.hpp>         // for __spirv_ControlBarrier
+#include <sycl/__spirv/spirv_types.hpp>       // for Scope
+#include <sycl/__spirv/spirv_vars.hpp>        // for initLocalInvocationId
 #include <sycl/access/access.hpp>             // for mode, fence_space
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
@@ -25,7 +25,6 @@
 #include <sycl/nd_range.hpp>  // for nd_range
 #include <sycl/pointers.hpp>  // for decorated_global_ptr, decor...
 #include <sycl/range.hpp>     // for range
-#include <sycl/sub_group.hpp> // for sub_group
 
 #include <cstddef>     // for size_t
 #include <stdint.h>    // for uint32_t
@@ -33,6 +32,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+struct sub_group;
 namespace detail {
 class Builder;
 }
@@ -117,7 +117,8 @@ public:
                                         get_group_range(), get_group_id());
   }
 
-  sub_group get_sub_group() const { return sub_group(); }
+  // Out-of-class definition in sub_group.hpp
+  sub_group get_sub_group() const;
 
   size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
     size_t Id = get_group_id()[Dimension];
@@ -384,12 +385,12 @@ public:
     using QualSrcT =
         std::conditional_t<std::is_const_v<SrcT>, const uint8_t, uint8_t>;
     auto DestP = multi_ptr<uint8_t, DestS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<uint8_t, DestS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<uint8_t, DestS,
+                                            access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
@@ -413,12 +414,12 @@ public:
     using QualSrcVecT =
         std::conditional_t<std::is_const_v<SrcT>, std::add_const_t<VecT>, VecT>;
     auto DestP = multi_ptr<VecT, DestS, access::decorated::yes>(
-        detail::cast_AS<
+        reinterpret_cast<
             typename multi_ptr<VecT, DestS, access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcVecT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcVecT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcVecT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }

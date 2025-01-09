@@ -90,6 +90,7 @@ public:
   PropertyWithDataBase(int ID) : MID(ID) {}
   bool isSame(int ID) const { return ID == MID; }
   virtual ~PropertyWithDataBase() = default;
+  int getKind() const { return MID; }
 
 private:
   int MID = -1;
@@ -101,7 +102,7 @@ private:
 template <int ID> class PropertyWithData : public PropertyWithDataBase {
 public:
   PropertyWithData() : PropertyWithDataBase(ID) {}
-  static int getKind() { return ID; }
+  static constexpr int getKind() { return ID; }
 };
 
 } // namespace detail

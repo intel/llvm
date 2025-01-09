@@ -22,6 +22,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/ur_info_code.hpp>
 #include <detail/usm/usm_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -33,6 +34,7 @@
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -267,8 +269,8 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-          StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue,
-          impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
+          StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc, MKernelName.c_str(),
+          MQueue, impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
 #else
@@ -288,7 +290,8 @@ event handler::finalize() {
                          KernelBundleImpPtr, MKernel, MKernelName.c_str(),
                          RawEvents, NewEvent, nullptr, impl->MKernelCacheConfig,
                          impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch, BinImage);
+                         impl->MKernelUsesClusterLaunch,
+                         impl->MKernelWorkGroupMemorySize, BinImage);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -347,7 +350,8 @@ event handler::finalize() {
         std::move(impl->MArgs), MKernelName.c_str(), std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-        impl->MKernelUsesClusterLaunch, MCodeLoc));
+        impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+        MCodeLoc));
     break;
   }
   case detail::CGType::CopyAccToPtr:
@@ -420,9 +424,9 @@ event handler::finalize() {
       CommandGroup.reset(new detail::CG(detail::CGType::Barrier,
                                         std::move(impl->CGData), MCodeLoc));
     } else {
-      CommandGroup.reset(
-          new detail::CGBarrier(std::move(impl->MEventsWaitWithBarrier),
-                                std::move(impl->CGData), getType(), MCodeLoc));
+      CommandGroup.reset(new detail::CGBarrier(
+          std::move(impl->MEventsWaitWithBarrier), impl->MEventMode,
+          std::move(impl->CGData), getType(), MCodeLoc));
     }
     break;
   }
@@ -494,27 +498,18 @@ event handler::finalize() {
         MCodeLoc));
     break;
   case detail::CGType::None:
-    if (detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL)) {
-      std::cout << "WARNING: An empty command group is submitted." << std::endl;
-    }
-
-    // Empty nodes are handled by Graph like standard nodes
-    // For Standard mode (non-graph),
-    // empty nodes are not sent to the scheduler to save time
-    if (impl->MGraph || (MQueue && MQueue->getCommandGraph())) {
-      CommandGroup.reset(new detail::CG(detail::CGType::None,
-                                        std::move(impl->CGData), MCodeLoc));
-    } else {
-      detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
-      MLastEvent = detail::createSyclObjFromImpl<event>(Event);
-      return MLastEvent;
-    }
+    CommandGroup.reset(new detail::CG(detail::CGType::None,
+                                      std::move(impl->CGData), MCodeLoc));
     break;
   }
 
   if (!CommandGroup)
     throw exception(make_error_code(errc::runtime),
                     "Internal Error. Command group cannot be constructed.");
+
+  // Propagate MIsTopCodeLoc state to CommandGroup.
+  // Will be used for XPTI payload generation for CG's related events.
+  CommandGroup->MIsTopCodeLoc = impl->MIsTopCodeLoc;
 
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
@@ -548,12 +543,12 @@ event handler::finalize() {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
-      auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
-
-      NodeImpl = DependentNode
-                     ? GraphImpl->add(NodeType, std::move(CommandGroup),
-                                      {DependentNode})
-                     : GraphImpl->add(NodeType, std::move(CommandGroup));
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Deps;
+      if (auto DependentNode = GraphImpl->getLastInorderNode(MQueue)) {
+        Deps.push_back(std::move(DependentNode));
+      }
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
@@ -561,12 +556,13 @@ event handler::finalize() {
       GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
       auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Deps;
+
       if (LastBarrierRecordedFromQueue) {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup),
-                                  {LastBarrierRecordedFromQueue});
-      } else {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
+        Deps.push_back(LastBarrierRecordedFromQueue);
       }
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
         GraphImpl->setBarrierDep(MQueue, NodeImpl);
@@ -574,9 +570,7 @@ event handler::finalize() {
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, NodeImpl);
-
-    NodeImpl->MNDRangeUsed = impl->MNDRangeUsed;
+    GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -790,6 +784,12 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     break;
   }
+  case kernel_param_kind_t::kind_work_group_memory: {
+    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
+           static_cast<detail::work_group_memory_impl *>(Ptr)->buffer_size,
+           Index + IndexShift);
+    break;
+  }
   case kernel_param_kind_t::kind_sampler: {
     addArg(kernel_param_kind_t::kind_sampler, Ptr, sizeof(sampler),
            Index + IndexShift);
@@ -805,6 +805,13 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                     "Invalid kernel param kind");
     break;
   }
+}
+
+void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
+  impl->MWorkGroupMemoryObjects.push_back(
+      std::make_shared<detail::work_group_memory_impl>(Arg));
+  addArg(detail::kernel_param_kind_t::kind_work_group_memory,
+         impl->MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
 }
 
 // The argument can take up more space to store additional information about
@@ -1243,6 +1250,105 @@ void handler::ext_oneapi_copy(
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
   impl->MDstImageFormat = UrFormat;
+  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
+  setType(detail::CGType::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  SrcImgDesc.verify();
+  DestImgDesc.verify();
+
+  auto isOutOfRange = [](const sycl::range<3> &range,
+                         const sycl::range<3> &offset,
+                         const sycl::range<3> &copyExtent) {
+    sycl::range<3> result = (range > 0UL && ((offset + copyExtent) > range));
+
+    return (static_cast<bool>(result[0]) || static_cast<bool>(result[1]) ||
+            static_cast<bool>(result[2]));
+  };
+
+  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
+                                 SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
+                                  DestImgDesc.depth};
+
+  if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
+      isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Image copy attempted to access out of bounds memory!");
+  }
+
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
+
+  ur_image_desc_t UrSrcDesc = {};
+  UrSrcDesc.width = SrcImgDesc.width;
+  UrSrcDesc.height = SrcImgDesc.height;
+  UrSrcDesc.depth = SrcImgDesc.depth;
+  UrSrcDesc.arraySize = SrcImgDesc.array_size;
+
+  ur_image_desc_t UrDestDesc = {};
+  UrDestDesc.width = DestImgDesc.width;
+  UrDestDesc.height = DestImgDesc.height;
+  UrDestDesc.depth = DestImgDesc.depth;
+  UrDestDesc.arraySize = DestImgDesc.array_size;
+
+  auto fill_image_type =
+      [](const ext::oneapi::experimental::image_descriptor &Desc,
+         ur_image_desc_t &UrDesc) {
+        if (Desc.array_size > 1) {
+          // Image Array.
+          UrDesc.type = Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
+                                        : UR_MEM_TYPE_IMAGE1D_ARRAY;
+
+          // Cubemap.
+          UrDesc.type =
+              Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+                  ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+                  : UrDesc.type;
+        } else {
+          UrDesc.type = Desc.depth > 0
+                            ? UR_MEM_TYPE_IMAGE3D
+                            : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                               : UR_MEM_TYPE_IMAGE1D);
+        }
+      };
+
+  fill_image_type(SrcImgDesc, UrSrcDesc);
+  fill_image_type(DestImgDesc, UrDestDesc);
+
+  auto fill_format = [](const ext::oneapi::experimental::image_descriptor &Desc,
+                        ur_image_format_t &UrFormat) {
+    UrFormat.channelType =
+        sycl::_V1::detail::convertChannelType(Desc.channel_type);
+    UrFormat.channelOrder = sycl::detail::convertChannelOrder(
+        sycl::_V1::ext::oneapi::experimental::detail::
+            get_image_default_channel_order(Desc.num_channels));
+  };
+
+  ur_image_format_t UrSrcFormat;
+  ur_image_format_t UrDestFormat;
+
+  fill_format(SrcImgDesc, UrSrcFormat);
+  fill_format(DestImgDesc, UrDestFormat);
+
+  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  impl->MSrcImageDesc = UrSrcDesc;
+  impl->MDstImageDesc = UrDestDesc;
+  impl->MSrcImageFormat = UrSrcFormat;
+  impl->MDstImageFormat = UrDestFormat;
   impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
@@ -1844,6 +1950,12 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   impl->MNDRDesc.setClusterDimensions(ClusterSize, Dims);
 }
 
+void handler::setKernelWorkGroupMem(size_t Size) {
+  throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
+                             sycl_ext_oneapi_work_group_scratch_memory>();
+  impl->MKernelWorkGroupMemorySize = Size;
+}
+
 void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<
         ext::oneapi::experimental::graph_state::executable>
@@ -1857,7 +1969,12 @@ handler::getCommandGraph() const {
   if (impl->MGraph) {
     return impl->MGraph;
   }
-  return MQueue->getCommandGraph();
+
+  if (this->MQueue)
+    return MQueue->getCommandGraph();
+  // We should never reach here. MGraph and MQueue can not be null
+  // simultaneously.
+  return nullptr;
 }
 
 void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
@@ -1885,7 +2002,9 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
-void handler::setNDRangeUsed(bool Value) { impl->MNDRangeUsed = Value; }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::setNDRangeUsed(bool Value) { (void)Value; }
+#endif
 
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
@@ -1932,12 +2051,16 @@ void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
   setType(detail::CGType::CodeplayHostTask);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: This function is not used anymore, remove it in the next
+// ABI-breaking window.
 void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
   // Add accessor to the list of requirements.
   impl->CGData.MRequirements.push_back(Accessor.get());
   // Store copy of the accessor.
   impl->CGData.MAccStorage.push_back(std::move(Accessor));
 }
+#endif
 
 void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));
@@ -1980,6 +2103,19 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+}
+
+void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
+  MCodeLoc = CodeLoc;
+  impl->MIsTopCodeLoc = IsTopCodeLoc;
+}
+void handler::saveCodeLoc(detail::code_location CodeLoc) {
+  MCodeLoc = CodeLoc;
+  impl->MIsTopCodeLoc = true;
+}
+void handler::copyCodeLoc(const handler &other) {
+  MCodeLoc = other.MCodeLoc;
+  impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
 
 } // namespace _V1

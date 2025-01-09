@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
@@ -671,13 +672,16 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_intel_matrix: {
     using arch = sycl::ext::oneapi::experimental::architecture;
-    const std::vector<arch> supported_archs = {
+    const arch supported_archs[] = {
         arch::intel_cpu_spr,     arch::intel_cpu_gnr,
-        arch::intel_gpu_pvc,     arch::intel_gpu_dg2_g10,
-        arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
+        arch::intel_cpu_dmr,     arch::intel_gpu_pvc,
+        arch::intel_gpu_dg2_g10, arch::intel_gpu_dg2_g11,
+        arch::intel_gpu_dg2_g12, arch::intel_gpu_bmg_g21,
+        arch::intel_gpu_lnl_m,   arch::intel_gpu_arl_h,
+    };
     try {
       return std::any_of(
-          supported_archs.begin(), supported_archs.end(),
+          std::begin(supported_archs), std::end(supported_archs),
           [=](const arch a) { return this->extOneapiArchitectureIs(a); });
     } catch (const sycl::exception &) {
       // If we're here it means the device does not support architecture
@@ -704,17 +708,27 @@ bool device_impl::has(aspect Aspect) const {
     return CallSuccessful && Result != nullptr;
   }
   case aspect::ext_oneapi_graph: {
-    bool SupportsCommandBufferUpdate = false;
+    ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
     bool CallSuccessful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP,
-            sizeof(SupportsCommandBufferUpdate), &SupportsCommandBufferUpdate,
+            MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
+            sizeof(UpdateCapabilities), &UpdateCapabilities,
             nullptr) == UR_RESULT_SUCCESS;
     if (!CallSuccessful) {
       return false;
     }
 
-    return has(aspect::ext_oneapi_limited_graph) && SupportsCommandBufferUpdate;
+    /* The kernel handle update capability is not yet required for the
+     * ext_oneapi_graph aspect */
+    ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+
+    return has(aspect::ext_oneapi_limited_graph) &&
+           (UpdateCapabilities & RequiredCapabilities) == RequiredCapabilities;
   }
   case aspect::ext_oneapi_limited_graph: {
     bool SupportsCommandBuffers = false;
@@ -757,6 +771,13 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_atomic16: {
     // Likely L0 doesn't check it properly. Need to double-check.
     return has_extension("cl_ext_float_atomics");
+  }
+  case aspect::ext_oneapi_virtual_functions: {
+    // TODO: move to UR like e.g. aspect::ext_oneapi_virtual_mem
+    backend BE = getBackend();
+    bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero ||
+                          BE == sycl::backend::opencl;
+    return (is_cpu() || is_gpu()) && isCompatibleBE;
   }
   }
 

@@ -16,6 +16,7 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
@@ -28,18 +29,29 @@ constexpr int DebugModuleProps = 0;
 #endif
 
 namespace llvm::sycl {
+namespace {
+module_split::SyclEsimdSplitStatus
+getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
+  auto *SplitMD = M.getNamedMetadata(module_split::SYCL_ESIMD_SPLIT_MD_NAME);
+  assert(SplitMD && "Unexpected metadata");
+  auto *MDOp = SplitMD->getOperand(0);
+  assert(MDOp && "Unexpected metadata operand");
+  const auto &MDConst = MDOp->getOperand(0);
+  auto *MDVal = mdconst::dyn_extract_or_null<ConstantInt>(MDConst);
+  assert(MDVal && "Unexpected metadata operand type");
+  uint8_t Val = MDVal->getZExtValue();
+  assert(Val < 3 && "Unexpected value for split metadata");
+  auto AsEnum = static_cast<module_split::SyclEsimdSplitStatus>(Val);
+  return AsEnum;
+}
+} // namespace
 
 bool isModuleUsingAsan(const Module &M) {
-  for (const auto &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
-    if (F.arg_size() == 0)
-      continue;
-    const auto *LastArg = F.getArg(F.arg_size() - 1);
-    if (LastArg->getName() == "__asan_launch")
-      return true;
-  }
-  return false;
+  return M.getNamedGlobal("__AsanKernelMetadata");
+}
+
+bool isModuleUsingMsan(const Module &M) {
+  return M.getNamedGlobal("__MsanKernelMetadata");
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
@@ -112,28 +124,35 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   return SPIRKernelNames;
 }
 
-// Gets reqd_work_group_size information for function Func.
-std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
-  MDNode *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
-  if (!ReqdWorkGroupSizeMD)
+// Gets 1- to 3-dimension work-group related information for function Func.
+// Returns an empty vector if not present.
+template <typename T>
+std::vector<T> getKernelWorkGroupMetadata(const Function &Func,
+                                          const char *MDName) {
+  MDNode *WorkGroupMD = Func.getMetadata(MDName);
+  if (!WorkGroupMD)
     return {};
-  size_t NumOperands = ReqdWorkGroupSizeMD->getNumOperands();
+  size_t NumOperands = WorkGroupMD->getNumOperands();
   assert(NumOperands >= 1 && NumOperands <= 3 &&
-         "reqd_work_group_size does not have between 1 and 3 operands.");
-  std::vector<uint32_t> OutVals;
+         "work-group metadata does not have between 1 and 3 operands.");
+  std::vector<T> OutVals;
   OutVals.reserve(NumOperands);
-  for (const MDOperand &MDOp : ReqdWorkGroupSizeMD->operands())
+  for (const MDOperand &MDOp : WorkGroupMD->operands())
     OutVals.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
   return OutVals;
 }
-// Gets work_group_num_dim information for function Func, conviniently 0 if
-// metadata is not present.
-uint32_t getKernelWorkGroupNumDim(const Function &Func) {
-  MDNode *MaxDimMD = Func.getMetadata("work_group_num_dim");
-  if (!MaxDimMD)
-    return 0;
-  assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
-  return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))->getZExtValue();
+
+// Gets a single-dimensional piece of information for function Func.
+// Returns std::nullopt if metadata is not present.
+template <typename T>
+std::optional<T> getKernelSingleEltMetadata(const Function &Func,
+                                            const char *MDName) {
+  if (MDNode *MaxDimMD = Func.getMetadata(MDName)) {
+    assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
+    return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))
+        ->getZExtValue();
+  }
+  return std::nullopt;
 }
 
 PropSetRegTy computeModuleProperties(const Module &M,
@@ -249,22 +268,40 @@ PropSetRegTy computeModuleProperties(const Module &M,
   SmallVector<std::string, 4> MetadataNames;
 
   if (GlobProps.EmitProgramMetadata) {
-    // Add reqd_work_group_size and work_group_num_dim information to
-    // program metadata.
+    // Add various pieces of function metadata to program metadata.
     for (const Function &Func : M.functions()) {
-      std::vector<uint32_t> KernelReqdWorkGroupSize =
-          getKernelReqdWorkGroupSizeMetadata(Func);
-      if (!KernelReqdWorkGroupSize.empty()) {
+      // Note - we're implicitly truncating 64-bit work-group data to 32 bits in
+      // all work-group related metadata. All current consumers of this program
+      // metadata format only support SYCL ID queries that fit within MAX_INT.
+      if (auto KernelReqdWorkGroupSize = getKernelWorkGroupMetadata<uint32_t>(
+              Func, "reqd_work_group_size");
+          !KernelReqdWorkGroupSize.empty()) {
         MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
                     KernelReqdWorkGroupSize);
       }
 
-      uint32_t WorkGroupNumDim = getKernelWorkGroupNumDim(Func);
-      if (WorkGroupNumDim) {
+      if (auto WorkGroupNumDim = getKernelSingleEltMetadata<uint32_t>(
+              Func, "work_group_num_dim")) {
         MetadataNames.push_back(Func.getName().str() + "@work_group_num_dim");
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
-                    WorkGroupNumDim);
+                    *WorkGroupNumDim);
+      }
+
+      if (auto KernelMaxWorkGroupSize =
+              getKernelWorkGroupMetadata<uint32_t>(Func, "max_work_group_size");
+          !KernelMaxWorkGroupSize.empty()) {
+        MetadataNames.push_back(Func.getName().str() + "@max_work_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    KernelMaxWorkGroupSize);
+      }
+
+      if (auto MaxLinearWGSize = getKernelSingleEltMetadata<uint64_t>(
+              Func, "max_linear_work_group_size")) {
+        MetadataNames.push_back(Func.getName().str() +
+                                "@max_linear_work_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    *MaxLinearWGSize);
       }
     }
 
@@ -280,16 +317,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
                   GV.getName());
     }
   }
-  bool SeenESIMDFunction = false;
-  bool SeenSYCLFunction = false;
-  for (const auto &F : M) {
-    if (llvm::module_split::isESIMDFunction(F))
-      SeenESIMDFunction = true;
-    else if (utils::isSYCLExternalFunction(&F) &&
-             !F.getName().starts_with("__itt"))
-      SeenSYCLFunction = true;
-  }
-  if (SeenESIMDFunction && !SeenSYCLFunction)
+
+  module_split::SyclEsimdSplitStatus SplitType =
+      getSYCLESIMDSplitStatusFromMetadata(M);
+
+  if (SplitType == module_split::SyclEsimdSplitStatus::ESIMD_ONLY)
     PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "isEsimdImage", true);
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
@@ -334,7 +366,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
   // 'if' below essentially preserves the behavior (presumably mistakenly)
   // implemented in intel/llvm#8763: ignore 'optLevel' property for images which
   // were produced my merge after ESIMD split
-  if (!SeenESIMDFunction || !SeenSYCLFunction) {
+  if (SplitType != module_split::SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
     // Handle sycl-optlevel property
     int OptLevel = -1;
     for (const Function *F : EntryPoints) {
@@ -361,10 +393,19 @@ PropSetRegTy computeModuleProperties(const Module &M,
     for (const StringRef &FName : FuncNames)
       PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
   }
+  {
+    std::vector<std::pair<StringRef, int>> ArgPos =
+        getKernelNamesUsingImplicitLocalMem(M);
+    for (const auto &FuncAndArgPos : ArgPos)
+      PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, FuncAndArgPos.first,
+                  FuncAndArgPos.second);
+  }
 
   {
     if (isModuleUsingAsan(M))
-      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "asanUsed", true);
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
+    else if (isModuleUsingMsan(M))
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {

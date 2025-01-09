@@ -132,6 +132,13 @@ void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
+  // Additionally, diagnose deprecated [[intel::reqd_sub_group_size]] spelling
+  if (A.getKind() == ParsedAttr::AT_IntelReqdSubGroupSize && A.getScopeName() &&
+      A.getScopeName()->isStr("intel")) {
+    diagnoseDeprecatedAttribute(A, "sycl", "reqd_sub_group_size");
+    return;
+  }
+
   // Diagnose SYCL 2020 spellings in later SYCL modes.
   if (getLangOpts().getSYCLVersion() >= LangOptions::SYCL_2020) {
     // All attributes in the cl vendor namespace are deprecated in favor of a
@@ -3100,6 +3107,21 @@ void SemaSYCL::handleSYCLRegisterNumAttr(Decl *D, const ParsedAttr &AL) {
     return;
   ASTContext &Context = getASTContext();
   D->addAttr(::new (Context) SYCLRegisterNumAttr(Context, AL, RegNo));
+}
+
+void SemaSYCL::handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL) {
+  if (!AL.checkExactlyNumArgs(SemaRef, 0))
+    return;
+  if (auto *CRD = dyn_cast<CXXRecordDecl>(D);
+      !CRD || !(CRD->isClass() || CRD->isStruct())) {
+    SemaRef.Diag(AL.getRange().getBegin(),
+                 diag::err_attribute_wrong_decl_type_str)
+        << AL << AL.isRegularKeywordAttribute() << "classes";
+    return;
+  }
+
+  D->addAttr(SYCLScopeAttr::Create(SemaRef.getASTContext(),
+                                   SYCLScopeAttr::Level::WorkGroup, AL));
 }
 
 void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {

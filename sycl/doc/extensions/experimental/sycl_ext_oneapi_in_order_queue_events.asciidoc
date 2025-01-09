@@ -122,11 +122,6 @@ copy of the event that was passed to `ext_oneapi_set_external_event()`.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
-
-Calls to this member function throw a `sycl::exception` with `errc::invalid` if
-the queue has the `ext::oneapi::property::queue::discard_events` property from
-the
-link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
   
 a| 
 [source, c++]
@@ -154,10 +149,5 @@ undefined.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
-
-Calls to this member function throw a `sycl::exception` with `errc::invalid` if
-the queue has the `ext::oneapi::property::queue::discard_events` property from
-the
-link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
 |====
 --

@@ -1,8 +1,10 @@
-// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: windows
+// REQUIRES: build-and-run-mode
 
-// RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
-// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+// DEFINE: %{link-flags}=%if cl_options %{ /clang:-ld3d12 /clang:-ldxgi /clang:-ldxguid %} %else %{ -ld3d12 -ldxgi -ldxguid %}
+// RUN: %{build} %{link-flags} -o %t.out %if any-device-is-level_zero %{ -DDISABLE_UNORM_TESTS %}
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
@@ -731,8 +733,10 @@ int main() {
   validated &=
       runTest<1, uint32_t, 1>(device, sycl::image_channel_type::unsigned_int32,
                               globalSize1, localSize1);
+#ifndef DISABLE_UNORM_TESTS
   validated &= runTest<1, uint8_t, 4>(
       device, sycl::image_channel_type::unorm_int8, globalSize1, localSize1);
+#endif
   validated &= runTest<1, float, 1>(device, sycl::image_channel_type::fp32,
                                     globalSize1, localSize1);
   validated &= runTest<1, sycl::half, 2>(device, sycl::image_channel_type::fp16,
@@ -750,8 +754,10 @@ int main() {
   validated &=
       runTest<2, uint32_t, 1>(device, sycl::image_channel_type::unsigned_int32,
                               globalSize2[0], {16, 16});
+#ifndef DISABLE_UNORM_TESTS
   validated &= runTest<2, uint8_t, 4>(
       device, sycl::image_channel_type::unorm_int8, globalSize2[1], {16, 8});
+#endif
   validated &= runTest<2, float, 1>(device, sycl::image_channel_type::fp32,
                                     globalSize2[2], {16, 8});
   validated &= runTest<2, sycl::half, 2>(device, sycl::image_channel_type::fp16,
@@ -772,8 +778,10 @@ int main() {
   validated &=
       runTest<3, uint32_t, 1>(device, sycl::image_channel_type::unsigned_int32,
                               globalSize3[0], {16, 16, 1});
+#ifndef DISABLE_UNORM_TESTS
   validated &= runTest<3, uint8_t, 4>(
       device, sycl::image_channel_type::unorm_int8, globalSize3[1], {16, 8, 2});
+#endif
   validated &= runTest<3, float, 1>(device, sycl::image_channel_type::fp32,
                                     globalSize3[2], {16, 8, 1});
   validated &= runTest<3, sycl::half, 2>(device, sycl::image_channel_type::fp16,

@@ -1,15 +1,15 @@
 // REQUIRES: gpu
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-DEFAULT
+// RUN: %{build} -o %t1.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t1.out | FileCheck %s --check-prefix=CHECK-DEFAULT
 
-// RUN: %{build} -fsycl-range-rounding=force -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-DEFAULT
+// RUN: %{build} -fsycl-range-rounding=force -o %t2.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t2.out | FileCheck %s --check-prefix=CHECK-DEFAULT
 
-// RUN: %{build} -fsycl-exp-range-rounding -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-EXP
+// RUN: %{build} -fsycl-exp-range-rounding -o %t3.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t3.out | FileCheck %s --check-prefix=CHECK-EXP
 
-// RUN: %{build} -fsycl-range-rounding=force -fsycl-exp-range-rounding -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-EXP
+// RUN: %{build} -fsycl-range-rounding=force -fsycl-exp-range-rounding -o %t4.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t4.out | FileCheck %s --check-prefix=CHECK-EXP
 //
 // These tests test 3 things:
 //
@@ -24,7 +24,7 @@
 //
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 

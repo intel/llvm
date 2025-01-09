@@ -82,6 +82,8 @@ constexpr sycl::vec<DType, NChannel> init_vector(DType val) {
     return sycl::vec<DType, NChannel>{val};
   } else if constexpr (NChannel == 2) {
     return sycl::vec<DType, NChannel>{val, val};
+  } else if constexpr (NChannel == 3) {
+    return sycl::vec<DType, NChannel>{val, val, val};
   } else if constexpr (NChannel == 4) {
     return sycl::vec<DType, NChannel>{val, val, val, val};
   } else {
@@ -183,5 +185,53 @@ template <int NDims> struct ImageArrayDims {
   sycl::range<NDims - 1> array_dims;
   unsigned int array_count;
 };
+
+template <int NDims> static sycl::range<NDims> getGlobalSize(size_t index) {
+
+  const std::vector<sycl::range<1>> globalSizes1D = {{32}, {16}, {20},
+                                                     {9},  {14}, {2}};
+  const std::vector<sycl::range<2>> globalSizes2D = {{32, 16}, {8, 32}, {20, 5},
+                                                     {3, 9},   {14, 7}, {2, 2}};
+  const std::vector<sycl::range<3>> globalSizes3D = {
+      {16, 8, 4}, {2, 6, 12}, {10, 15, 5}, {9, 6, 3}, {15, 7, 3}, {2, 2, 2}};
+
+  const size_t globalIndex = index % 6;
+
+  if constexpr (NDims == 1) {
+    return {globalSizes1D[globalIndex]};
+  }
+
+  if constexpr (NDims == 2) {
+    return {globalSizes2D[globalIndex]};
+  }
+
+  if constexpr (NDims == 3) {
+    return {globalSizes3D[globalIndex]};
+  }
+}
+
+template <int NDims> static sycl::range<NDims> getLocalSize(size_t index) {
+
+  const std::vector<sycl::range<1>> localSizes1D = {{2}, {16}, {5},
+                                                    {3}, {7},  {1}};
+  const std::vector<sycl::range<2>> localSizes2D = {{16, 4}, {2, 32}, {5, 5},
+                                                    {3, 3},  {7, 7},  {1, 1}};
+  const std::vector<sycl::range<3>> localSizes3D = {
+      {8, 4, 2}, {1, 3, 12}, {5, 5, 5}, {3, 3, 3}, {5, 7, 3}, {1, 1, 1}};
+
+  const size_t localIndex = index % 6;
+
+  if constexpr (NDims == 1) {
+    return localSizes1D[localIndex];
+  }
+
+  if constexpr (NDims == 2) {
+    return localSizes2D[localIndex];
+  }
+
+  if constexpr (NDims == 3) {
+    return localSizes3D[localIndex];
+  }
+}
 
 }; // namespace bindless_helpers

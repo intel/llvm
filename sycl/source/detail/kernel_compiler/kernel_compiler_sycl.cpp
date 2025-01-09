@@ -9,49 +9,25 @@
 #include "kernel_compiler_sycl.hpp"
 #include <sycl/exception.hpp> // make_error_code
 
-#if __GNUC__ && __GNUC__ < 8
-
-// std::filesystem is not availalbe for GCC < 8
-// and much of the  cross-platform file handling code depends upon it.
-// Given that this extension is experimental and that the file
-// handling aspects are most likely temporary, it makes sense to
-// simply not support GCC<8.
-
-namespace sycl {
-inline namespace _V1 {
-namespace ext::oneapi::experimental {
-namespace detail {
-
-bool SYCL_Compilation_Available() { return false; }
-
-spirv_vec_t
-SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
-              const std::vector<std::string> &UserArgs, std::string *LogPtr,
-              const std::vector<std::string> &RegisteredKernelNames) {
-  (void)SYCLSource;
-  (void)IncludePairs;
-  (void)UserArgs;
-  (void)LogPtr;
-  (void)RegisteredKernelNames;
-  throw sycl::exception(sycl::errc::build,
-                        "kernel_compiler does not support GCC<8");
-}
-} // namespace detail
-} // namespace ext::oneapi::experimental
-} // namespace _V1
-} // namespace sycl
-
-#else
-
 #include <sycl/detail/os_util.hpp>
 
 #include <ctime>
-#include <filesystem>
 #include <fstream>
 #include <random>
 #include <regex>
 #include <sstream>
 #include <stdio.h>
+
+// For GCC versions less than 8, use experimental/filesystem.
+#if defined(__has_include) && __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif defined(__has_include) && __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "kernel_compiler sycl requires C++ filesystem support"
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -71,14 +47,12 @@ std::string generateSemiUniqueId() {
 
   // Combine time and random number into a string.
   std::stringstream Ss;
-  Ss << Milliseconds.count() << "_" << std::setfill('0') << std::setw(5)
-     << RandomNumber;
+  Ss << Milliseconds.count() << "_" << RandomNumber;
 
   return Ss.str();
 }
 
-std::filesystem::path prepareWS(const std::string &Id) {
-  namespace fs = std::filesystem;
+fs::path prepareWS(const std::string &Id) {
   const fs::path TmpDirectoryPath = fs::temp_directory_path();
   fs::path NewDirectoryPath = TmpDirectoryPath / Id;
 
@@ -95,10 +69,10 @@ std::filesystem::path prepareWS(const std::string &Id) {
   return NewDirectoryPath;
 }
 
-void deleteWS(const std::filesystem::path &ParentDir) {
+void deleteWS(const fs::path &ParentDir) {
   try {
-    std::filesystem::remove_all(ParentDir);
-  } catch (const std::filesystem::filesystem_error &E) {
+    fs::remove_all(ParentDir);
+  } catch (const fs::filesystem_error &E) {
     // We could simply suppress this, since deleting the directory afterwards
     // is not critical. But if there are problems, seems good to know.
     throw sycl::exception(sycl::errc::build, E.what());
@@ -113,8 +87,7 @@ std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
                          });
 }
 
-void outputPreamble(std::ofstream &Os, const std::filesystem::path &FilePath,
-                    const std::string &Id,
+void outputPreamble(std::ofstream &Os, const std::string &Id,
                     const std::vector<std::string> &UserArgs) {
 
   Os << "/*\n";
@@ -124,15 +97,15 @@ void outputPreamble(std::ofstream &Os, const std::filesystem::path &FilePath,
   Os << ".cpp \n */" << std::endl;
 }
 
-std::filesystem::path
-outputCpp(const std::filesystem::path &ParentDir, const std::string &Id,
-          std::string RawCodeString, const std::vector<std::string> &UserArgs,
-          const std::vector<std::string> &RegisteredKernelNames) {
-  std::filesystem::path FilePath = ParentDir / (Id + ".cpp");
+fs::path outputCpp(const fs::path &ParentDir, const std::string &Id,
+                   std::string RawCodeString,
+                   const std::vector<std::string> &UserArgs,
+                   const std::vector<std::string> &RegisteredKernelNames) {
+  fs::path FilePath = ParentDir / (Id + ".cpp");
   std::ofstream Outfile(FilePath, std::ios::out | std::ios::trunc);
 
   if (Outfile.is_open()) {
-    outputPreamble(Outfile, FilePath, Id, UserArgs);
+    outputPreamble(Outfile, Id, UserArgs);
     Outfile << RawCodeString << std::endl;
 
     // Temporarily needed until -c works with -fsycl-dump-spirv.
@@ -152,12 +125,11 @@ outputCpp(const std::filesystem::path &ParentDir, const std::string &Id,
   return FilePath;
 }
 
-void outputIncludeFiles(const std::filesystem::path &Dirpath,
-                        include_pairs_t IncludePairs) {
+void outputIncludeFiles(const fs::path &Dirpath, include_pairs_t IncludePairs) {
   using pairStrings = std::pair<std::string, std::string>;
   for (pairStrings p : IncludePairs) {
-    std::filesystem::path FilePath = Dirpath / p.first;
-    std::filesystem::create_directories(FilePath.parent_path());
+    fs::path FilePath = Dirpath / p.first;
+    fs::create_directories(FilePath.parent_path());
     std::ofstream outfile(FilePath, std::ios::out | std::ios::trunc);
     if (outfile.is_open()) {
       outfile << p.second << std::endl;
@@ -182,11 +154,10 @@ std::string getCompilerName() {
 
 // We are assuming that the compiler is in /bin and the shared lib in
 // the adjacent /lib.
-std::filesystem::path getCompilerPath() {
+fs::path getCompilerPath() {
   std::string Compiler = getCompilerName();
   const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
-  std::filesystem::path CompilerPath =
-      std::filesystem::path(LibSYCLDir) / ".." / "bin" / Compiler;
+  fs::path CompilerPath = fs::path(LibSYCLDir) / ".." / "bin" / Compiler;
   return CompilerPath;
 }
 
@@ -216,16 +187,15 @@ int invokeCommand(const std::string &command, std::string &output) {
   return 0;
 }
 
-std::string invokeCompiler(const std::filesystem::path &FPath,
-                           const std::filesystem::path &DPath,
+std::string invokeCompiler(const fs::path &FPath, const fs::path &DPath,
                            const std::string &Id,
                            const std::vector<std::string> &UserArgs,
                            std::string *LogPtr) {
 
-  std::filesystem::path FilePath(FPath);
-  std::filesystem::path ParentDir(DPath);
-  std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
-  std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
+  fs::path FilePath(FPath);
+  fs::path ParentDir(DPath);
+  fs::path TargetPath = ParentDir / (Id + ".bin");
+  fs::path LogPath = ParentDir / "compilation_log.txt";
   std::string Compiler = getCompilerPath().make_preferred().string();
 
   std::string Command =
@@ -253,13 +223,13 @@ std::string invokeCompiler(const std::filesystem::path &FPath,
   return CompileLog;
 }
 
-std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
-                              const std::string &Id, std::string &CompileLog) {
+fs::path findSpv(const fs::path &ParentDir, const std::string &Id,
+                 std::string &CompileLog) {
   std::regex PatternRegex(Id + R"(.*\.spv)");
 
   // Iterate through all files in the directory matching the pattern.
-  for (const auto &Entry : std::filesystem::directory_iterator(ParentDir)) {
-    if (Entry.is_regular_file() &&
+  for (const auto &Entry : fs::directory_iterator(ParentDir)) {
+    if (fs::is_regular_file(Entry.path()) &&
         std::regex_match(Entry.path().filename().string(), PatternRegex)) {
       return Entry.path(); // Return the path if it matches the SPV pattern.
     }
@@ -269,7 +239,7 @@ std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
   throw sycl::exception(sycl::errc::build, "Compile failure: " + CompileLog);
 }
 
-spirv_vec_t loadSpvFromFile(const std::filesystem::path &FileName) {
+spirv_vec_t loadSpvFromFile(const fs::path &FileName) {
   std::ifstream SpvStream(FileName, std::ios::binary);
   SpvStream.seekg(0, std::ios::end);
   size_t Size = SpvStream.tellg();
@@ -285,23 +255,23 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
               const std::vector<std::string> &UserArgs, std::string *LogPtr,
               const std::vector<std::string> &RegisteredKernelNames) {
   // clang-format off
-  const std::string id                   = generateSemiUniqueId();
-  const std::filesystem::path ParentDir  = prepareWS(id);
-  std::filesystem::path FilePath         = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
-                                           outputIncludeFiles(ParentDir, IncludePairs);
-  std::string CompileLog                 = invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
-  std::filesystem::path SpvPath          = findSpv(ParentDir, id, CompileLog);
-  spirv_vec_t Spv                        = loadSpvFromFile(SpvPath);
-                                           deleteWS(ParentDir);
-                                           return Spv;
+  const std::string id      = generateSemiUniqueId();
+  const fs::path ParentDir  = prepareWS(id);
+  fs::path FilePath         = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
+                              outputIncludeFiles(ParentDir, IncludePairs);
+  std::string CompileLog    = invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
+  fs::path SpvPath          = findSpv(ParentDir, id, CompileLog);
+  spirv_vec_t Spv           = loadSpvFromFile(SpvPath);
+                              deleteWS(ParentDir);
+                              return Spv;
   // clang-format on
 }
 
 bool SYCL_Compilation_Available() {
   // Is compiler on $PATH ? We try to invoke it.
   std::string id = generateSemiUniqueId();
-  const std::filesystem::path tmp = std::filesystem::temp_directory_path();
-  std::filesystem::path DumpPath = tmp / (id + "_version.txt");
+  const fs::path tmp = fs::temp_directory_path();
+  fs::path DumpPath = tmp / (id + "_version.txt");
   std::string Compiler = getCompilerPath().make_preferred().string();
   std::string TestCommand =
       Compiler + " --version > " + DumpPath.make_preferred().string();
@@ -314,4 +284,40 @@ bool SYCL_Compilation_Available() {
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
+
+#if SYCL_EXT_JIT_ENABLE
+#include "../jit_compiler.hpp"
 #endif
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace detail {
+
+bool SYCL_JIT_Compilation_Available() {
+#if SYCL_EXT_JIT_ENABLE
+  return sycl::detail::jit_compiler::get_instance().isAvailable();
+#else
+  return false;
+#endif
+}
+
+sycl_device_binaries SYCL_JIT_to_SPIRV(
+    [[maybe_unused]] const std::string &SYCLSource,
+    [[maybe_unused]] include_pairs_t IncludePairs,
+    [[maybe_unused]] const std::vector<std::string> &UserArgs,
+    [[maybe_unused]] std::string *LogPtr,
+    [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
+#if SYCL_EXT_JIT_ENABLE
+  return sycl::detail::jit_compiler::get_instance().compileSYCL(
+      "rtc", SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
+#else
+  throw sycl::exception(sycl::errc::build,
+                        "kernel_compiler via sycl-jit is not available");
+#endif
+}
+
+} // namespace detail
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl

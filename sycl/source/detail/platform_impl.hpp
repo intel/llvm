@@ -10,7 +10,8 @@
 
 #include <detail/adapter.hpp>
 #include <detail/platform_info.hpp>
-#include <sycl/backend.hpp>
+#include <detail/ur.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -32,8 +33,7 @@ class device_impl;
 // TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  /// Constructs platform_impl from a plug-in interoperability platform
-  /// handle.
+  /// Constructs platform_impl from a UR platform handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
   /// \param AAdapter is a plug-in handle.
@@ -106,7 +106,7 @@ public:
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 
-  /// Returns raw underlying plug-in platform handle.
+  /// Returns raw underlying UR platform handle.
   ///
   /// Unlike get() method, this method does not retain handler. It is caller
   /// responsibility to make sure that platform stays alive while raw handle
@@ -123,11 +123,6 @@ public:
   ///
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
-
-  /// Returns all unsupported (non-SYCL) platforms in the system.
-  ///
-  /// \return a vector of all unsupported (non-SYCL) platforms.
-  static std::vector<platform> get_unsupported_platforms();
 
   // \return the Adapter associated with this platform.
   const AdapterPtr &getAdapter() const { return MAdapter; }

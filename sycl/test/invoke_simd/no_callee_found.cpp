@@ -26,5 +26,5 @@ void foo() {
 
 int main() {
   foo();
-  // CHECK: {{.*}}error:{{.*}}static assertion failed due to requirement 'found_invoke_simd_target': No callable invoke_simd target found. Confirm the invoke_simd invocation argument types are convertible to the invoke_simd target argument types{{.*}}
+  // CHECK: {{.*}}error:{{.*}}static assertion failed due to requirement 'num_found != 0': No callable invoke_simd target found. Confirm the invoke_simd invocation argument types are convertible to the invoke_simd target argument types{{.*}}
 }

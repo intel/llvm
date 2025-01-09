@@ -127,7 +127,7 @@ public:
   }
   std::set<std::string> &getExtension() override { return SPIRVExt; }
   SPIRVFunction *getFunction(unsigned I) const override { return FuncVec[I]; }
-  SPIRVVariable *getVariable(unsigned I) const override {
+  SPIRVVariableBase *getVariable(unsigned I) const override {
     return VariableVec[I];
   }
   SPIRVValue *getValue(SPIRVId TheId) const override;
@@ -142,6 +142,13 @@ public:
   SPIRVConstant *getLiteralAsConstant(unsigned Literal) override;
   unsigned getNumFunctions() const override { return FuncVec.size(); }
   unsigned getNumVariables() const override { return VariableVec.size(); }
+  std::vector<SPIRVValue *> getFunctionPointers() const override {
+    std::vector<SPIRVValue *> Res;
+    for (auto *C : ConstVec)
+      if (C->getOpCode() == OpConstantFunctionPointerINTEL)
+        Res.emplace_back(C);
+    return Res;
+  }
   SourceLanguage getSourceLanguage(SPIRVWord *Ver = nullptr) const override {
     if (Ver)
       *Ver = SrcLangVer;
@@ -252,6 +259,8 @@ public:
   SPIRVTypeInt *addIntegerType(unsigned BitWidth) override;
   SPIRVTypeOpaque *addOpaqueType(const std::string &) override;
   SPIRVTypePointer *addPointerType(SPIRVStorageClassKind, SPIRVType *) override;
+  SPIRVTypeUntypedPointerKHR *
+      addUntypedPointerKHRType(SPIRVStorageClassKind) override;
   SPIRVTypeImage *addImageType(SPIRVType *,
                                const SPIRVTypeImageDescriptor &) override;
   SPIRVTypeImage *addImageType(SPIRVType *, const SPIRVTypeImageDescriptor &,
@@ -314,8 +323,7 @@ public:
                                      SPIRVWord Capacity) override;
 
   // Instruction creation functions
-  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
-                                          std::vector<SPIRVValue *>,
+  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, std::vector<SPIRVWord>,
                                           SPIRVBasicBlock *, bool) override;
   SPIRVInstruction *addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest,
                                       SPIRVValue *Src, SPIRVValue *NumElems,
@@ -353,7 +361,7 @@ public:
   SPIRVInstruction *addCmpInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addLoadInst(SPIRVValue *, const std::vector<SPIRVWord> &,
-                                SPIRVBasicBlock *) override;
+                                SPIRVBasicBlock *, SPIRVType *) override;
   SPIRVInstruction *addPhiInst(SPIRVType *, std::vector<SPIRVValue *>,
                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addCompositeConstructInst(SPIRVType *,
@@ -454,9 +462,9 @@ public:
                                      SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                  SPIRVBasicBlock *) override;
-  SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,
-                                SPIRVValue *, const std::string &,
-                                SPIRVStorageClassKind,
+  SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
+                                SPIRVLinkageTypeKind, SPIRVValue *,
+                                const std::string &, SPIRVStorageClassKind,
                                 SPIRVBasicBlock *) override;
   SPIRVValue *addVectorShuffleInst(SPIRVType *Type, SPIRVValue *Vec1,
                                    SPIRVValue *Vec2,
@@ -485,6 +493,9 @@ public:
   SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy, SPIRVValue *Value,
                                      SPIRVValue *ExpectedValue,
                                      SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addUntypedPrefetchKHRInst(SPIRVType *Ty,
+                                              std::vector<SPIRVWord> Args,
+                                              SPIRVBasicBlock *BB) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -514,7 +525,7 @@ private:
   typedef std::vector<SPIRVTypeForwardPointer *> SPIRVForwardPointerVec;
   typedef std::vector<SPIRVType *> SPIRVTypeVec;
   typedef std::vector<SPIRVValue *> SPIRVConstantVector;
-  typedef std::vector<SPIRVVariable *> SPIRVVariableVec;
+  typedef std::vector<SPIRVVariableBase *> SPIRVVariableVec;
   typedef std::vector<SPIRVString *> SPIRVStringVec;
   typedef std::vector<SPIRVMemberName *> SPIRVMemberNameVec;
   typedef std::vector<SPIRVDecorationGroup *> SPIRVDecGroupVec;
@@ -563,6 +574,8 @@ private:
   SPIRVUnknownStructFieldMap UnknownStructFieldMap;
   SPIRVTypeBool *BoolTy;
   SPIRVTypeVoid *VoidTy;
+  SmallDenseMap<SPIRVStorageClassKind, SPIRVTypeUntypedPointerKHR *>
+      UntypedPtrTyMap;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
   SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
@@ -753,8 +766,9 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
   case OpMemberName:
     addTo(MemberNameVec, E);
     break;
-  case OpVariable: {
-    auto *BV = static_cast<SPIRVVariable *>(E);
+  case OpVariable:
+  case OpUntypedVariableKHR: {
+    auto *BV = static_cast<SPIRVVariableBase *>(E);
     if (!BV->getParent())
       addTo(VariableVec, E);
   } break;
@@ -1011,6 +1025,17 @@ SPIRVModuleImpl::addPointerType(SPIRVStorageClassKind StorageClass,
     return Loc->second;
   auto *Ty = new SPIRVTypePointer(this, getId(), StorageClass, ElementType);
   PointerTypeMap[Desc] = Ty;
+  return addType(Ty);
+}
+
+SPIRVTypeUntypedPointerKHR *
+SPIRVModuleImpl::addUntypedPointerKHRType(SPIRVStorageClassKind StorageClass) {
+  auto Loc = UntypedPtrTyMap.find(StorageClass);
+  if (Loc != UntypedPtrTyMap.end())
+    return Loc->second;
+
+  auto *Ty = new SPIRVTypeUntypedPointerKHR(this, getId(), StorageClass);
+  UntypedPtrTyMap[StorageClass] = Ty;
   return addType(Ty);
 }
 
@@ -1430,9 +1455,10 @@ SPIRVModuleImpl::addInstruction(SPIRVInstruction *Inst, SPIRVBasicBlock *BB,
 SPIRVInstruction *
 SPIRVModuleImpl::addLoadInst(SPIRVValue *Source,
                              const std::vector<SPIRVWord> &TheMemoryAccess,
-                             SPIRVBasicBlock *BB) {
+                             SPIRVBasicBlock *BB, SPIRVType *TheType) {
   return addInstruction(
-      new SPIRVLoad(getId(), Source->getId(), TheMemoryAccess, BB), BB);
+      new SPIRVLoad(getId(), Source->getId(), TheMemoryAccess, BB, TheType),
+      BB);
 }
 
 SPIRVInstruction *
@@ -1701,13 +1727,19 @@ SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
 }
 
 SPIRVInstruction *
-SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
-                                       std::vector<SPIRVValue *> Indices,
+SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type,
+                                       std::vector<SPIRVWord> TheOps,
                                        SPIRVBasicBlock *BB, bool IsInBounds) {
+  if (Type->isTypeUntypedPointerKHR())
+    return addInstruction(SPIRVInstTemplateBase::create(
+                              IsInBounds ? OpUntypedInBoundsPtrAccessChainKHR
+                                         : OpUntypedPtrAccessChainKHR,
+                              Type, getId(), TheOps, BB, this),
+                          BB);
   return addInstruction(
-      SPIRVInstTemplateBase::create(
-          IsInBounds ? OpInBoundsPtrAccessChain : OpPtrAccessChain, Type,
-          getId(), getVec(Base->getId(), Base->getIds(Indices)), BB, this),
+      SPIRVInstTemplateBase::create(IsInBounds ? OpInBoundsPtrAccessChain
+                                               : OpPtrAccessChain,
+                                    Type, getId(), TheOps, BB, this),
       BB);
 }
 
@@ -1803,6 +1835,11 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,
                         BB);
 }
 
+SPIRVInstruction *SPIRVModuleImpl::addUntypedPrefetchKHRInst(
+    SPIRVType *Ty, std::vector<SPIRVWord> Args, SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVUntypedPrefetchKHR(Ty, Args, BB), BB);
+}
+
 // Create AliasDomainDeclINTEL/AliasScopeDeclINTEL/AliasScopeListDeclINTEL
 // instructions
 template <typename AliasingInstType>
@@ -1839,12 +1876,20 @@ SPIRVModuleImpl::getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
   return getOrAddMemAliasingINTELInst<SPIRVAliasScopeListDeclINTEL>(Args, MD);
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addVariable(
-    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
-    SPIRVValue *Initializer, const std::string &Name,
-    SPIRVStorageClassKind StorageClass, SPIRVBasicBlock *BB) {
-  SPIRVVariable *Variable = new SPIRVVariable(Type, getId(), Initializer, Name,
-                                              StorageClass, BB, this);
+SPIRVInstruction *
+SPIRVModuleImpl::addVariable(SPIRVType *Type, SPIRVType *AllocType,
+                             bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
+                             SPIRVValue *Initializer, const std::string &Name,
+                             SPIRVStorageClassKind StorageClass,
+                             SPIRVBasicBlock *BB) {
+  SPIRVVariableBase *Variable = nullptr;
+  if (Type->isTypeUntypedPointerKHR()) {
+    Variable = new SPIRVUntypedVariableKHR(
+        Type, getId(), AllocType, Initializer, Name, StorageClass, BB, this);
+  } else {
+    Variable = new SPIRVVariable(Type, getId(), Initializer, Name, StorageClass,
+                                 BB, this);
+  }
   if (BB)
     return addInstruction(Variable, BB, BB->getVariableInsertionPoint());
 
@@ -1877,7 +1922,7 @@ class TopologicalSort {
   enum DFSState : char { Unvisited, Discovered, Visited };
   typedef std::vector<SPIRVType *> SPIRVTypeVec;
   typedef std::vector<SPIRVValue *> SPIRVConstantVector;
-  typedef std::vector<SPIRVVariable *> SPIRVVariableVec;
+  typedef std::vector<SPIRVVariableBase *> SPIRVVariableVec;
   typedef std::vector<SPIRVEntry *> SPIRVConstAndVarVec;
   typedef std::vector<SPIRVTypeForwardPointer *> SPIRVForwardPointerVec;
   typedef std::function<bool(SPIRVEntry *, SPIRVEntry *)> Comp;
@@ -1925,11 +1970,13 @@ class TopologicalSort {
         // We've found a recursive data type, e.g. a structure having a member
         // which is a pointer to the same structure.
         State = Unvisited; // Forget about it
-        if (E->getOpCode() == OpTypePointer) {
+        if (E->getOpCode() == OpTypePointer ||
+            E->getOpCode() == OpTypeUntypedPointerKHR) {
           // If we have a pointer in the recursive chain, we can break the
           // cyclic dependency by inserting a forward declaration of that
           // pointer.
-          SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
+          SPIRVTypePointerBase<> *Ptr =
+              static_cast<SPIRVTypePointerBase<> *>(E);
           SPIRVModule *BM = E->getModule();
           ForwardPointerSet.insert(BM->add(new SPIRVTypeForwardPointer(
               BM, Ptr->getId(), Ptr->getPointerStorageClass())));

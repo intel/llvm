@@ -1,8 +1,7 @@
 // REQUIRES: cpu,windows
 //
-// FIXME: OpenCL CPU backend compiler crashes on a call to _wassert.
-// Disable the test until the fix reaches SYCL test infrastructure.
 // XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16507
 //
 // RUN: %{build} -o %t.out
 //
@@ -20,7 +19,7 @@
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
 // "Invalid value"` failed.
 //
-// CHECK-FALLBACK: ---> urProgramLink
+// CHECK-FALLBACK: <--- urProgramLink
 
 #include "../helpers.hpp"
 #include <array>

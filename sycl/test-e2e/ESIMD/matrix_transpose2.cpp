@@ -296,9 +296,8 @@ bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
     for (int i = 0; i <= num_iters; ++i) {
       // make sure that image object has short live-range
       // than M
-      sycl::image<2> imgM((unsigned int *)M, image_channel_order::rgba,
-                          image_channel_type::unsigned_int32,
-                          range<2>{MZ / 4, MZ});
+      sycl::image<2> imgM((unsigned char *)M, image_channel_order::rgba,
+                          image_channel_type::unsigned_int8, range<2>{MZ, MZ});
 
       double etime = 0;
       if (block_size == 16 && MZ >= 16) {

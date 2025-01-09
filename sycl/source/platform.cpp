@@ -10,7 +10,8 @@
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <sycl/detail/ur.hpp>
+#include <detail/ur.hpp>
+#include <sycl/context.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/image.hpp>
@@ -50,10 +51,6 @@ std::vector<device> platform::get_devices(info::device_type DeviceType) const {
 
 std::vector<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
-}
-
-std::vector<platform> platform::get_unsupported_platforms() {
-  return detail::platform_impl::get_unsupported_platforms();
 }
 
 backend platform::get_backend() const noexcept { return impl->getBackend(); }

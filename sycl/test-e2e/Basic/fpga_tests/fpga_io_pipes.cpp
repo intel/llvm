@@ -1,6 +1,5 @@
-// REQUIRES: accelerator
-// RUN: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{build} -fsyntax-only -o %t.out
+// TODO: launch the test if the feature is supported.
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

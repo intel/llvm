@@ -36,11 +36,19 @@ static constexpr void manually_unroll_loop(F &&f) {
 
 template <size_t TM, size_t TN, size_t TK> class MatMul;
 
-template <size_t rowsA, size_t colsA, size_t rowsB, size_t colsB,
+template <
+#if !defined(ARG_DIM) && !defined(RUNTIME_DIM)
+          size_t rowsA, size_t colsA, size_t rowsB, size_t colsB,
+#endif // ARG_DIM, RUNTIME_DIM
           size_t vnniFactor, typename TOperand, typename TResult, size_t TM,
           size_t TN, size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
           size_t MCache2, size_t NCache2, size_t KCache2>
-double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
+double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
+#if defined(ARG_DIM) || defined(RUNTIME_DIM)
+       , size_t rowsA, size_t colsA, size_t rowsB, size_t colsB
+#endif // ARG_DIM, RUNTIME_DIM
+       ) {
+
   size_t sgSize = get_sg_size<MatMul<TM, TN, TK>>(q);
   range<2> global{rowsA / MCache1, (colsB / NCache1) * sgSize};
   range<2> cachelocal{MCache2 / MCache1, NCache2 / NCache1 * sgSize};
@@ -67,7 +75,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
         // loop localrange
         [=](nd_item<2> it)
 #ifdef SG_SZ
-            [[intel::reqd_sub_group_size(SG_SZ)]]
+            [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif // SG_SZ
         {
           // sg::load and sg::store expect decorations to be ON
@@ -111,7 +119,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           // along the workgroup prefetch for B matrix. For A matrix, sgId is
           // enough.
           size_t pm1B = sgId / 16;   // prefetch m1 (sgId/16)
-          size_t pn1B = sgId & 0x15; // prefetch n1 (sgId%16)
+          size_t pn1B = sgId & 0xF;  // prefetch n1 (sgId%16)
 #else                                // VNNI
           size_t pm1B = sgId / 8;   // prefetch m1 (sgId/8)
           size_t pn1B = sgId & 0x7; // prefetch n1 (sgId%8)
@@ -287,8 +295,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #ifdef PREFETCH
             auto prefetch_offsetA = (m2 * MCache2 + sgId * prefRow) * colsA +
                                     (k2 + prefDistance) * prefCol;
-            if ((prefetch_offsetA + (prefRow * MATRIX_SIZE) + prefCol) <
-                (MATRIX_SIZE * MATRIX_SIZE))
+            if ((prefetch_offsetA + (prefRow * colsA) + prefCol) <
+                (rowsA * colsA))
               joint_matrix_prefetch<prefRow, prefCol>(
                   sg, A + prefetch_offsetA, colsA, layout::row_major,
                   syclex::properties{syclex::prefetch_hint_L1});
@@ -298,8 +306,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
                  pm1B * prefRow) *
                     (colsB)*vnniFactor +
                 (n2 * NCache2 * vnniFactor + pn1B * prefCol);
-            if ((prefetch_offsetB + (prefRow * MATRIX_SIZE * vnniFactor) +
-                 prefCol) < (MATRIX_SIZE * MATRIX_SIZE))
+            if ((prefetch_offsetB + (prefRow * colsB * vnniFactor) +
+                 prefCol) < (rowsB * colsB))
               joint_matrix_prefetch<prefRow, prefCol>(
                   sg, B + prefetch_offsetB, colsB * vnniFactor,
                   layout::row_major,
@@ -349,31 +357,37 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 template <typename T, typename TResult, size_t vnniFactor, size_t TM, size_t TN,
           size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
           size_t MCache2, size_t NCache2, size_t KCache2>
-void test() {
-  assert(MATRIX_SIZE >= TM && MATRIX_SIZE >= TK && MATRIX_SIZE >= TN &&
+void test(size_t matrix_size_input) {
+#ifdef RUNTIME_DIM
+  size_t matrix_size = matrix_size_input;
+#else
+  constexpr size_t matrix_size = MATRIX_SIZE;
+#endif // RUNTIME_DIM
+
+  assert(matrix_size >= TM && matrix_size >= TK && matrix_size >= TN &&
          "invalid matrix size");
-  assert((MATRIX_SIZE % TM) == 0 && (MATRIX_SIZE % TN) == 0 &&
-         (MATRIX_SIZE % TK) == 0 &&
+  assert((matrix_size % TM) == 0 && (matrix_size % TN) == 0 &&
+         (matrix_size % TK) == 0 &&
          "invalid matrix size detected: not a multiple of <TM,TN,TK>");
 
   std::cout << "Testing: " << TM << " x " << TN << " x " << TK
             << " [TM x TN x TK]" << std::endl;
 
   queue q;
-  T *A = malloc_shared<T>(MATRIX_SIZE * MATRIX_SIZE, q);
-  T *B = malloc_shared<T>(MATRIX_SIZE * MATRIX_SIZE, q);
-  TResult *C = malloc_shared<TResult>(MATRIX_SIZE * MATRIX_SIZE, q);
-  TResult *refC = malloc_shared<TResult>(MATRIX_SIZE * MATRIX_SIZE, q);
+  T *A = malloc_shared<T>(matrix_size * matrix_size, q);
+  T *B = malloc_shared<T>(matrix_size * matrix_size, q);
+  TResult *C = malloc_shared<TResult>(matrix_size * matrix_size, q);
+  TResult *refC = malloc_shared<TResult>(matrix_size * matrix_size, q);
 
-  matrix_rand<T>(MATRIX_SIZE, MATRIX_SIZE, A, T(1));
-  matrix_rand<T>(MATRIX_SIZE, MATRIX_SIZE, B, T(1));
+  matrix_rand<T>(matrix_size, matrix_size, A, T(1));
+  matrix_rand<T>(matrix_size, matrix_size, B, T(1));
 
-  matrix_multiply_ref<T, T, TResult, 1>(A, B, refC, MATRIX_SIZE, MATRIX_SIZE,
-                                        MATRIX_SIZE);
+  matrix_multiply_ref<T, T, TResult, 1>(A, B, refC, matrix_size, matrix_size,
+                                        matrix_size);
 
 #ifdef VNNI
-  T *vnniB = malloc_shared<T>(MATRIX_SIZE * MATRIX_SIZE, q);
-  matrix_vnni<T>(MATRIX_SIZE, MATRIX_SIZE, B, vnniB, vnniFactor);
+  T *vnniB = malloc_shared<T>(matrix_size * matrix_size, q);
+  matrix_vnni<T>(matrix_size, matrix_size, B, vnniB, vnniFactor);
   free(B, q);
   B = vnniB;
 #endif
@@ -382,22 +396,31 @@ void test() {
   double totalDuration = 0;
   for (unsigned int i = 0; i < testIterations; i++) {
     double duration =
-        joint_matmul<MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE,
-                     vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
-                     KCache1, MCache2, NCache2, KCache2>(A, B, C, q, i);
+            joint_matmul<
+#if !defined(ARG_DIM) && !defined(RUNTIME_DIM)
+                    matrix_size, matrix_size, matrix_size, matrix_size,
+#endif // ARG_DIM, RUNTIME_DIM
+                    vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
+                    KCache1, MCache2, NCache2, KCache2>
+                    (A, B, C, q, i
+#if defined(ARG_DIM) || defined(RUNTIME_DIM)
+                    , matrix_size, matrix_size, matrix_size, matrix_size
+#endif // ARG_DIM, RUNTIME_DIM
+                    );
+
     if (i >= recordThresh) {
       totalDuration += duration;
     }
   }
 
-  assert(matrix_compare(MATRIX_SIZE, MATRIX_SIZE, C, refC));
+  assert(matrix_compare(matrix_size, matrix_size, C, refC));
 
   double msecPerMatrixMul =
       totalDuration / static_cast<double>(testIterations - recordThresh);
-  double gflops = (2.f * MATRIX_SIZE * MATRIX_SIZE * MATRIX_SIZE * 1.0e-9f) /
+  double gflops = (2.f * matrix_size * matrix_size * matrix_size * 1.0e-9f) /
                   (msecPerMatrixMul / 1000.f);
 
-  std::cout << "DONE for size " << MATRIX_SIZE << std::endl;
+  std::cout << "DONE for size " << matrix_size << std::endl;
   std::cout << "GOPS is " << gflops << " Gop/s" << std::endl;
 
   free(A, q);
@@ -406,7 +429,22 @@ void test() {
   free(refC, q);
 }
 
-int main() {
+int main(
+#ifdef RUNTIME_DIM
+  int argc, char *argv[]
+#endif //RUNTIME_DIM
+  ) {
+
+size_t matrix_size = -1;
+#ifdef RUNTIME_DIM
+  if (argc == 2) {
+    matrix_size = std::stoul(argv[1]);
+  } else {
+    std::cerr << "Usage: ./program matrix_size\n";
+    return 1; // Error if no argument
+  }
+#endif //RUNTIME_DIM
+
   queue q;
   std::vector<combination> combinations =
       q.get_device()
@@ -429,7 +467,7 @@ int main() {
       constexpr size_t NCache1 = 32;
       constexpr size_t KCache1 = 32;
       test<bfloat16, float, VnniFactor, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32,
-           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>();
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
       break;
     }
 
@@ -437,14 +475,14 @@ int main() {
       constexpr size_t NCache1 = 4 * /*TN*/ 16;
       constexpr size_t KCache1 = 16;
       test<bfloat16, float, VnniFactor, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
+           NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
 #if (!defined(SG_SZ) || SG_SZ != 32)
       // These combination are not currently supported for subgroup size = 32 in
       // IGC
       test<bfloat16, float, VnniFactor, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
-           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>();
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
       test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16,
-           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>();
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
 #endif
       break;
     }
@@ -454,10 +492,9 @@ int main() {
       constexpr size_t KCache1 = 16;
 
       test<bfloat16, float, VnniFactor, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
-      // test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16,
-      // MCache1,
-      //      NCache1, KCache1, MCache2, NCache2, KCache2>();
+           NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
+      test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16,
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
       break;
     }
   }
