@@ -1156,6 +1156,8 @@ ur_result_t urDeviceGetInfo(
     // L0 does not support sampling 1D USM sampled image data.
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:

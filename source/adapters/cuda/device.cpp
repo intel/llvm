@@ -1065,6 +1065,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(AddressBuffer,
                        strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
   }
+  case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(static_cast<ur_bool_t>(false));
     // TODO: Investigate if this information is available on CUDA.
