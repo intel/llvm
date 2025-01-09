@@ -12,14 +12,11 @@
 // -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
 
-// If clang++ is not on the PATH, or if sycl was compiled with GCC < 8, then
-// the kernel_compiler is not available for SYCL language.
 // Note: this 'invoking clang++' version for SYCL language support is temporary,
 // and will be replaced by the SYCL_JIT version soon.
-// DEFINE: %{available} = %t.out available
 
-// RUN: %if available %{  %{run} %t.out  %}
-// RUN: %if available %{ %{l0_leak_check} %{run} %t.out %}
+// RUN: %{run} %t.out
+// RUN: %{l0_leak_check} %{run} %t.out
 
 // -- Test again, with caching.
 // 'reading-from-cache' is just a string we pass to differentiate between the
@@ -27,13 +24,13 @@
 
 // DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
 // RUN: rm -rf %t/cache_dir
-// RUN:  %if available %{  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE %}
-// RUN:  %if available %{  %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE %}
+// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN:  %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // -- Add leak check.
 // RUN: rm -rf %t/cache_dir
-// RUN: %if available %{  %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE  %}
-// RUN: %if available %{ %{l0_leak_check} %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE  %}
+// RUN: %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{l0_leak_check} %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
 // CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
