@@ -1,4 +1,8 @@
-{{OPT}}urSamplerGetInfoTestWithParam.Success/*
+{{OPT}}urSamplerGetInfoTest.SuccessReferenceCount/*
+{{OPT}}urSamplerGetInfoTest.SuccessContext/*
+{{OPT}}urSamplerGetInfoTest.SuccessNormalizedCoords/*
+{{OPT}}urSamplerGetInfoTest.SuccessAddressingMode/*
+{{OPT}}urSamplerGetInfoTest.SuccessFilterMode/*
 {{OPT}}urSamplerGetInfoTest.InvalidSizePropSizeSmall/*
 {{OPT}}urSamplerReleaseTest.Success/*
 {{OPT}}urSamplerRetainTest.Success/*
