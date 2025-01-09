@@ -5495,6 +5495,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   const llvm::Triple *AuxTriple =
       (IsSYCL || IsCuda || IsHIP) ? TC.getAuxTriple() : nullptr;
   bool IsWindowsMSVC = RawTriple.isWindowsMSVCEnvironment();
+  bool IsUEFI = RawTriple.isUEFI();
   bool IsIAMCU = RawTriple.isOSIAMCU();
 
   // Adjust IsWindowsXYZ for CUDA/HIP/SYCL compilations.  Even when compiling in
@@ -8035,7 +8036,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fms-extensions=0 is default.
   if (Args.hasFlag(options::OPT_fms_extensions, options::OPT_fno_ms_extensions,
-                   IsWindowsMSVC))
+                   IsWindowsMSVC || IsUEFI))
     CmdArgs.push_back("-fms-extensions");
 
   // -fms-compatibility=0 is default.
@@ -11467,6 +11468,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (const Arg *A = Args.getLastArg(options::OPT_Rpass_analysis_EQ))
     CmdArgs.push_back(Args.MakeArgString(
         Twine("--offload-opt=-pass-remarks-analysis=") + A->getValue()));
+
+  if (Args.getLastArg(options::OPT_ftime_report))
+    CmdArgs.push_back("--device-compiler=-ftime-report");
+
   if (Args.getLastArg(options::OPT_save_temps_EQ))
     CmdArgs.push_back("--save-temps");
 

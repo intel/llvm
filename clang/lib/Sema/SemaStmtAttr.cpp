@@ -1163,12 +1163,6 @@ static Attr *handleHLSLLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
   return ::new (S.Context) HLSLLoopHintAttr(S.Context, A, UnrollFactor);
 }
 
-static Attr *handleHLSLControlFlowHint(Sema &S, Stmt *St, const ParsedAttr &A,
-                                       SourceRange Range) {
-
-  return ::new (S.Context) HLSLControlFlowHintAttr(S.Context, A);
-}
-
 static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
                                   SourceRange Range) {
   if (A.isInvalid() || A.getKind() == ParsedAttr::IgnoredAttribute)
@@ -1221,8 +1215,6 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleSYCLIntelLoopCountAttr(S, St, A);
   case ParsedAttr::AT_HLSLLoopHint:
     return handleHLSLLoopHintAttr(S, St, A, Range);
-  case ParsedAttr::AT_HLSLControlFlowHint:
-    return handleHLSLControlFlowHint(S, St, A, Range);
   case ParsedAttr::AT_OpenCLUnrollHint:
   case ParsedAttr::AT_LoopUnrollHint:
     return handleLoopUnrollHint(S, St, A, Range);
