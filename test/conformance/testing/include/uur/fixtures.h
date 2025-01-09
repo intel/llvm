@@ -222,8 +222,8 @@ struct urSamplerTest : urContextTest {
 struct urMemBufferTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 4096,
-                                         nullptr, &buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                         allocation_size, nullptr, &buffer));
         ASSERT_NE(nullptr, buffer);
     }
 
@@ -235,6 +235,7 @@ struct urMemBufferTest : urContextTest {
     }
 
     ur_mem_handle_t buffer = nullptr;
+    size_t allocation_size = 4096;
 };
 
 struct urMemImageTest : urContextTest {
@@ -331,24 +332,6 @@ template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
 
     ur_sampler_handle_t sampler = nullptr;
     ur_sampler_desc_t sampler_desc;
-};
-
-template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                         allocation_size, nullptr, &buffer));
-        ASSERT_NE(nullptr, buffer);
-    }
-
-    void TearDown() override {
-        if (buffer) {
-            EXPECT_SUCCESS(urMemRelease(buffer));
-        }
-        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
-    }
-    ur_mem_handle_t buffer = nullptr;
-    size_t allocation_size = 4096;
 };
 
 template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
