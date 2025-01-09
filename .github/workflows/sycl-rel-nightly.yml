@@ -36,10 +36,10 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: v6
+      build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda'
       merge_ref: ''
-      ref: sycl-rel-6_0_0
+      build_ref: sycl-rel-6_0_0
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -118,10 +118,12 @@ jobs:
     if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
+      merge_ref: ''
+      build_ref: sycl-rel-6_0_0
+
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
-      build_ref: sycl-rel-6_0_0
 
   e2e-win:
     needs: build-win

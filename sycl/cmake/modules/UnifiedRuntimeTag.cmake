@@ -1,7 +1,7 @@
-# commit b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf
-# Merge: 3472b5bd ead3d07d
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 8 10:49:59 2025 +0000
-#     Merge pull request #2462 from Bensuo/cmd-buf_update_errors
-#     Improve specification of command-buffer update errors
-set(UNIFIED_RUNTIME_TAG b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf)
+# commit 19182934ba5b15ebf26ae9ec7c06df1b9269725a
+# Merge: 3e62cc91 9c2b0400
+# Author: Isaac Ault <isaac.ault@codeplay.com>
+# Date:   Wed Jan 8 22:24:12 2025 +0000
+#     Merge pull request #2444 from isaacault/kernel-cts
+#     Reduce gap between Kernel CTS and Specification.
+set(UNIFIED_RUNTIME_TAG 19182934ba5b15ebf26ae9ec7c06df1b9269725a)
