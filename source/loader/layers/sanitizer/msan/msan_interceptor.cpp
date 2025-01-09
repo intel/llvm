@@ -46,17 +46,35 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
                                             const ur_usm_desc_t *Properties,
                                             ur_usm_pool_handle_t Pool,
-                                            size_t Size, void **ResultPtr) {
+                                            size_t Size, AllocType Type,
+                                            void **ResultPtr) {
 
     auto ContextInfo = getContextInfo(Context);
-    std::shared_ptr<DeviceInfo> DeviceInfo = getDeviceInfo(Device);
+    std::shared_ptr<DeviceInfo> DeviceInfo =
+        Device ? getDeviceInfo(Device) : nullptr;
 
     void *Allocated = nullptr;
 
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
+    if (Type == AllocType::DEVICE_USM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, Properties, Pool, Size, &Allocated));
+    } else if (Type == AllocType::HOST_USM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(
+            Context, Properties, Pool, Size, &Allocated));
+    } else if (Type == AllocType::SHARED_USM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
+            Context, Device, Properties, Pool, Size, &Allocated));
+    }
 
     *ResultPtr = Allocated;
+
+    ContextInfo->MaxAllocatedSize =
+        std::max(ContextInfo->MaxAllocatedSize, Size);
+
+    // For host/shared usm, we only record the alloc size.
+    if (Type != AllocType::DEVICE_USM) {
+        return UR_RESULT_SUCCESS;
+    }
 
     auto AI =
         std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
@@ -432,10 +450,14 @@ ur_result_t MsanInterceptor::prepareLaunch(
     }
 
     // Set LaunchInfo
+    auto ContextInfo = getContextInfo(LaunchInfo.Context);
     LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
     LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
     LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
     LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
+        ContextInfo->MaxAllocatedSize, &LaunchInfo.Data->CleanShadow));
 
     getContext()->logger.info(
         "launch_info {} (GlobalShadow={}, Device={}, Debug={})",
@@ -518,6 +540,11 @@ ur_result_t USMLaunchInfo::initialize() {
 USMLaunchInfo::~USMLaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
     if (Data) {
+        if (Data->CleanShadow) {
+            Result = getContext()->urDdiTable.USM.pfnFree(Context,
+                                                          Data->CleanShadow);
+            assert(Result == UR_RESULT_SUCCESS);
+        }
         Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);
         assert(Result == UR_RESULT_SUCCESS);
     }

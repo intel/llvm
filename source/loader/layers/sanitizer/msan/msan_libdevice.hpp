@@ -53,7 +53,7 @@ struct MsanLaunchInfo {
 
     MsanErrorReport Report;
 
-    uint8_t CleanShadow[128] = {};
+    void *CleanShadow = nullptr;
 };
 
 // Based on the observation, only the last 24 bits of the address of the private
