@@ -144,6 +144,12 @@ ur_result_t MsanInterceptor::registerProgram(ur_program_handle_t Program) {
         return Result;
     }
 
+    getContext()->logger.info("registerDeviceGlobals");
+    Result = registerDeviceGlobals(Program);
+    if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+    }
+
     return Result;
 }
 
@@ -207,6 +213,53 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
         }
         getContext()->logger.info("Number of sanitized kernel: {}",
                                   PI->InstrumentedKernels.size());
+    }
+
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
+    std::vector<ur_device_handle_t> Devices = GetDevices(Program);
+    assert(Devices.size() != 0 && "No devices in registerDeviceGlobals");
+    auto Context = GetContext(Program);
+    auto ContextInfo = getContextInfo(Context);
+    auto ProgramInfo = getProgramInfo(Program);
+    assert(ProgramInfo != nullptr && "unregistered program!");
+
+    for (auto Device : Devices) {
+        ManagedQueue Queue(Context, Device);
+
+        size_t MetadataSize;
+        void *MetadataPtr;
+        auto Result =
+            getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+                Device, Program, kSPIR_MsanDeviceGlobalMetadata, &MetadataSize,
+                &MetadataPtr);
+        if (Result != UR_RESULT_SUCCESS) {
+            getContext()->logger.info("No device globals");
+            continue;
+        }
+
+        const uint64_t NumOfDeviceGlobal =
+            MetadataSize / sizeof(DeviceGlobalInfo);
+        assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+               "DeviceGlobal metadata size is not correct");
+        std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
+        Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, &GVInfos[0], MetadataPtr,
+            sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
+        if (Result != UR_RESULT_SUCCESS) {
+            getContext()->logger.error("Device Global[{}] Read Failed: {}",
+                                       kSPIR_MsanDeviceGlobalMetadata, Result);
+            return Result;
+        }
+
+        auto DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+        for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
+            const auto &GVInfo = GVInfos[i];
+            UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr, GVInfo.Size, 0));
+        }
     }
 
     return UR_RESULT_SUCCESS;

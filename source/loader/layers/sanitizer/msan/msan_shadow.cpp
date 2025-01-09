@@ -227,15 +227,10 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
             VirtualMemMaps[MappedPtr].first = PhysicalMem;
         }
 
-        // We don't need to record virtual memory map for null pointer,
-        // since it doesn't have an alloc info.
-        if (Ptr == 0) {
-            continue;
+        auto AllocInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Ptr);
+        if (AllocInfoItOp) {
+            VirtualMemMaps[MappedPtr].second.insert((*AllocInfoItOp)->second);
         }
-
-        auto AllocInfoIt = getMsanInterceptor()->findAllocInfoByAddress(Ptr);
-        assert(AllocInfoIt);
-        VirtualMemMaps[MappedPtr].second.insert((*AllocInfoIt)->second);
     }
 
     return UR_RESULT_SUCCESS;
