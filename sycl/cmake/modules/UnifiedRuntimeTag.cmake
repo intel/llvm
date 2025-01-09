@@ -1,7 +1,7 @@
-# commit 9d2a711684f2ba4065fc68e2276fb326d1f6ec01
-# Merge: b2ac58f2 6972fbbd
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 8 16:12:33 2025 +0000
-#     Merge pull request #2512 from hvdijk/handle-local-args
-#     [NativeCPU] Handle local args.
-set(UNIFIED_RUNTIME_TAG 9d2a711684f2ba4065fc68e2276fb326d1f6ec01)
+# commit 19182934ba5b15ebf26ae9ec7c06df1b9269725a
+# Merge: 3e62cc91 9c2b0400
+# Author: Isaac Ault <isaac.ault@codeplay.com>
+# Date:   Wed Jan 8 22:24:12 2025 +0000
+#     Merge pull request #2444 from isaacault/kernel-cts
+#     Reduce gap between Kernel CTS and Specification.
+set(UNIFIED_RUNTIME_TAG 19182934ba5b15ebf26ae9ec7c06df1b9269725a)
