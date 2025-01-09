@@ -12,6 +12,11 @@
 // RUN:  %if preview-breaking-changes-supported %{  %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 %} %s -o %t2.out %{mathflags} %}
 // RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
 
+// Flaky timeout on CPU. Enable when fixed.
+// Depends on SPIR-V Backend & run-time drivers version.
+// UNSUPPORTED: spirv-backend && cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
+
 #include "bfloat16_builtins.hpp"
 
 int main() {

@@ -14,7 +14,7 @@
 //   compiler option
 
 // REQUIRES: arch-intel_gpu_pvc
-// XFAIL: arch-intel_gpu_pvc
+// XFAIL: arch-intel_gpu_pvc && !(spirv-backend && opencl)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t1.out
