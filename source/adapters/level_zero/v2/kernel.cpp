@@ -13,6 +13,7 @@
 #include "context.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "queue_api.hpp"
 
 #include "../device.hpp"
 #include "../helpers/kernel_helpers.hpp"
@@ -623,5 +624,29 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  uint32_t localWorkSize[3];
+  size_t globalWorkSize3D[3]{1, 1, 1};
+  std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, globalWorkSize3D);
+
+  ur_device_handle_t hDevice;
+  UR_CALL(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
+                               reinterpret_cast<void *>(&hDevice), nullptr));
+
+  UR_CALL(getSuggestedLocalWorkSize(hDevice, hKernel->getZeHandle(hDevice),
+                                    globalWorkSize3D, localWorkSize));
+
+  std::copy(localWorkSize, localWorkSize + workDim, pSuggestedLocalWorkSize);
+  return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero

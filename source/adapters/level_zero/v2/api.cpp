@@ -103,16 +103,6 @@ ur_result_t urKernelSetSpecializationConstants(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
-                                              ur_queue_handle_t hQueue,
-                                              uint32_t numWorkDim,
-                                              const size_t *pGlobalWorkOffset,
-                                              const size_t *pGlobalWorkSize,
-                                              size_t *pSuggestedLocalWorkSize) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
                                ur_execution_info_t execStatus,
                                ur_event_callback_t pfnNotify, void *pUserData) {
