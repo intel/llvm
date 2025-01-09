@@ -174,10 +174,20 @@ developers should check that the values returned by these queries is not
 
 [source,c++]
 ----
-template <typename Param, uint32_t Dimensions>
-id<Dimensions> ext_oneapi_get_info(sycl::queue q) const;
+template <typename Param>
+id<1> ext_oneapi_get_info(sycl::queue q) const; // (1)
+
+template <typename Param>
+id<2> ext_oneapi_get_info(sycl::queue q) const; // (2)
+
+template <typename Param>
+id<3> ext_oneapi_get_info(sycl::queue q) const; // (3)
 ----
-_Constraints_: `Param` is `max_work_item_sizes`.
+_Constraints (1)_: `Param` is `max_work_item_sizes<1>`.
+
+_Constraints (2)_: `Param` is `max_work_item_sizes<2>`.
+
+_Constraints (3)_: `Param` is `max_work_item_sizes<3>`.
 
 _Returns_: The maximum number of work-items that are permitted in each
 dimension of a work-group, when the kernel is submitted to the specified queue,
