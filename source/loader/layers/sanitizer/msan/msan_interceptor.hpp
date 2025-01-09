@@ -159,6 +159,11 @@ struct USMLaunchInfo {
     ur_result_t initialize();
 };
 
+struct DeviceGlobalInfo {
+    uptr Size;
+    uptr Addr;
+};
+
 struct SpirKernelInfo {
     uptr KernelName;
     uptr Size;
@@ -261,6 +266,7 @@ class MsanInterceptor {
                       std::shared_ptr<msan::DeviceInfo> &DeviceInfo);
 
     ur_result_t registerSpirKernels(ur_program_handle_t Program);
+    ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
 
   private:
     std::unordered_map<ur_context_handle_t, std::shared_ptr<msan::ContextInfo>>
