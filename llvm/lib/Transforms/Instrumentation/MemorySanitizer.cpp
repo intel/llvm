@@ -767,50 +767,106 @@ Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
   });
 }
 
+static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
+  if (!G->hasAttribute("sycl-device-image-scope"))
+    return true;
+
+  // Skip instrumenting on "__MsanKernelMetadata" etc.
+  if (G->getName().starts_with("__Msan"))
+    return true;
+
+  Attribute Attr = G->getAttribute("sycl-device-image-scope");
+  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
+}
+
 static void extendSpirKernelArgs(Module &M) {
-  SmallVector<Constant *, 8> SpirKernelsMetadata;
 
   const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
-  // SpirKernelsMetadata only saves fixed kernels, and is described by
-  // following structure:
-  //  uptr unmangled_kernel_name
-  //  uptr unmangled_kernel_name_size
-  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
-  for (Function &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
+  // Instrument __MsanKernelMetadata, which records information of sanitized
+  // kernel
+  {
+    SmallVector<Constant *, 8> SpirKernelsMetadata;
 
-    if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
-        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
-      continue;
+    // SpirKernelsMetadata only saves fixed kernels, and is described by
+    // following structure:
+    //  uptr unmangled_kernel_name
+    //  uptr unmangled_kernel_name_size
+    StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+    for (Function &F : M) {
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+        continue;
 
-    auto KernelName = F.getName();
-    auto *KernelNameGV = getOrCreateGlobalString(M, "__msan_kernel", KernelName,
-                                                 kSpirOffloadConstantAS);
-    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
-        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-        ConstantInt::get(IntptrTy, KernelName.size())));
+      if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
+          F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+        continue;
+
+      auto KernelName = F.getName();
+      auto *KernelNameGV = getOrCreateGlobalString(
+          M, "__msan_kernel", KernelName, kSpirOffloadConstantAS);
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size())));
+    }
+
+    // Create global variable to record spirv kernels' information
+    ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+    Constant *MetadataInitializer =
+        ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+    GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
+        M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+        MetadataInitializer, "__MsanKernelMetadata", nullptr,
+        GlobalValue::NotThreadLocal, 1);
+    MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+    // Add device global attributes
+    MsanSpirKernelMetadata->addAttribute(
+        "sycl-device-global-size",
+        std::to_string(DL.getTypeAllocSize(ArrayTy)));
+    MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+    MsanSpirKernelMetadata->addAttribute("sycl-host-access",
+                                         "0"); // read only
+    MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                         "_Z20__MsanKernelMetadata");
+    MsanSpirKernelMetadata->setDSOLocal(true);
   }
 
-  // Create global variable to record spirv kernels' information
-  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
-  Constant *MetadataInitializer =
-      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
-  GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__MsanKernelMetadata", nullptr,
-      GlobalValue::NotThreadLocal, 1);
-  MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
-  // Add device global attributes
-  MsanSpirKernelMetadata->addAttribute(
-      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
-  MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
-  MsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z20__MsanKernelMetadata");
-  MsanSpirKernelMetadata->setDSOLocal(true);
+  // Instrument __MsanDeviceGlobalMetadata, which records information of device
+  // global
+  do {
+    SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+    // Device global meta data is described by a structure
+    //  size_t device_global_size
+    //  size_t beginning address of the device global
+    StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+    for (auto &G : M.globals()) {
+      if (isUnsupportedDeviceGlobal(&G))
+        continue;
+
+      DeviceGlobalMetadata.push_back(ConstantStruct::get(
+          StructTy,
+          ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
+          ConstantExpr::getPointerCast(&G, IntptrTy)));
+    }
+
+    if (DeviceGlobalMetadata.empty())
+      break;
+
+    // Create meta data global to record device globals' information
+    ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+    Constant *MetadataInitializer =
+        ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+    GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
+        M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+        MetadataInitializer, "__MsanDeviceGlobalMetadata", nullptr,
+        GlobalValue::NotThreadLocal, 1);
+    MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  } while (false);
 }
 
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
