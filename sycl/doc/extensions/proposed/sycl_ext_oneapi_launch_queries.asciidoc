@@ -120,8 +120,59 @@ namespace sycl {
 
 class kernel {
  public:
-  template <typename Param, typename... T>
-  /*return-type*/ ext_oneapi_get_info(T... args) const;
+
+  // Only available if Param is max_work_item_sizes<1>
+  template <typename Param>
+  id<1> ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_work_item_sizes<2>
+  template <typename Param>
+  id<2> ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_work_item_sizes<3>
+  template <typename Param>
+  id<3> ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_work_group_size
+  template <typename Param>
+  size_t ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_num_work_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r, size_t bytes = 0) const;
+
+  // Only available if Param is max_num_work_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r, size_t bytes = 0) const;
+
+  // Only available if Param is max_num_work_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r, size_t bytes = 0) const;
+
+  // Only available if Param is max_sub_group_size
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r) const;
+
+  // Only available if Param is max_sub_group_size
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r) const;
+
+  // Only available if Param is max_sub_group_size
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r) const;
+
+  // Only available if Param is num_sub_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r) const;
+
+  // Only available if Param is num_sub_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r) const;
+
+  // Only available if Param is num_sub_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r) const;
+
 };
 
 namespace ext::oneapi::experimental::info::kernel {
@@ -139,17 +190,6 @@ struct num_sub_groups;
 
 } // namespace sycl
 ----
-
-[source,c++]
-----
-template <typename Param, typename... T>
-/*return-type*/ ext_oneapi_get_info(T... args) const;
-----
-_Constraints_: `Param` must be one of the `info::kernel` descriptors defined
-in this extension.
-
-_Returns_: The result of the query specified by the combination of `Param` and
-any parameters.
 
 ==== Querying valid launch configurations
 
