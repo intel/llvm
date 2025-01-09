@@ -118,16 +118,15 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
                             logger::Level default_log_level) {
     std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                    ::toupper);
-    std::stringstream env_var_name;
     const auto default_flush_level = logger::Level::ERR;
     const std::string default_output = "stderr";
     auto level = default_log_level;
     auto flush_level = default_flush_level;
     std::unique_ptr<logger::Sink> sink;
 
-    env_var_name << "UR_LOG_" << logger_name;
+    auto env_var_name = "UR_LOG_" + logger_name;
     try {
-        auto map = getenv_to_map(env_var_name.str().c_str());
+        auto map = getenv_to_map(env_var_name.c_str());
         if (!map.has_value()) {
             return Logger(
                 default_log_level,
@@ -173,7 +172,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
                                    skip_linebreak);
     } catch (const std::invalid_argument &e) {
         std::cerr << "Error when creating a logger instance from the '"
-                  << env_var_name.str() << "' environment variable:\n"
+                  << env_var_name << "' environment variable:\n"
                   << e.what() << std::endl;
         return Logger(default_log_level,
                       std::make_unique<logger::StderrSink>(
