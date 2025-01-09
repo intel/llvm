@@ -1,4 +1,4 @@
-//==-- atomic_update_usm_dg2_pvc.cpp - DPC++ ESIMD on-device test----==//
+//==-- atomic_update_usm_dg2_pvc_2.cpp - DPC++ ESIMD on-device test----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,7 +23,7 @@ int main(void) {
   bool passed = true;
 
   constexpr bool TestCacheHintProperties = true;
-  passed &= test_main<TestCacheHintProperties, true>(q);
+  passed &= test_main<TestCacheHintProperties, false>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
