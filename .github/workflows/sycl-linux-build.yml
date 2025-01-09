@@ -141,6 +141,7 @@ jobs:
         fi
     - uses: actions/checkout@v4
       with:
+        ref: ${{ inputs.build_ref || github.sha }}
         sparse-checkout: |
           devops/actions
     # Cleanup will be run after all actions are completed.
