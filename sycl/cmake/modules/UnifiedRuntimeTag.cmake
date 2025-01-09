@@ -1,5 +1,7 @@
-# commit 568ac3fe5fc56dd066541543acc14aaf5e7c0cfc
+# commit 19182934ba5b15ebf26ae9ec7c06df1b9269725a
+# Merge: 3e62cc91 9c2b0400
 # Author: Isaac Ault <isaac.ault@codeplay.com>
-# Date:   Wed Jan 8 07:38:41 2025 +1000
-#     Isolate fixed sub-group kernel for CTS.
-set(UNIFIED_RUNTIME_TAG 568ac3fe5fc56dd066541543acc14aaf5e7c0cfc)
+# Date:   Wed Jan 8 22:24:12 2025 +0000
+#     Merge pull request #2444 from isaacault/kernel-cts
+#     Reduce gap between Kernel CTS and Specification.
+set(UNIFIED_RUNTIME_TAG 19182934ba5b15ebf26ae9ec7c06df1b9269725a)
