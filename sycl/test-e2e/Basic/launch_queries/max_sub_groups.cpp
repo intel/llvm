@@ -48,17 +48,19 @@ int main() {
   q.submit([&](sycl::handler &h) {
     h.parallel_for( sycl::nd_range<1>(1, 1), [=](sycl::nd_item<1> item) {
           const auto sg = item.get_sub_group();
-          *MaxLocalRange = sg.get_max_local_range()[0];
+          if (item.get_local_id(0) == 0) {
+            *MaxLocalRange = sg.get_group_range()[0];
+          }
         });
   }).wait();
   
   const sycl::range<3> r{};
   // get value to test
-  const auto MaxSubSGSize = kernel.template ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_sub_group_size>(q, r);
+  const auto SubSGSize = kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::num_sub_groups>(q, r);
 
-  static_assert(std::is_same_v<std::remove_cv_t<decltype(MaxSubSGSize)>, size_t>,
-                "max_sub_group_size query must return size_t");
-  assert(MaxSubSGSize == *MaxLocalRange);
+  static_assert(std::is_same_v<std::remove_cv_t<decltype(SubSGSize)>, size_t>,
+                "num_sub_groups query must return size_t");
+  assert(SubSGSize == *MaxLocalRange);
   sycl::free(MaxLocalRange, q);
 }
