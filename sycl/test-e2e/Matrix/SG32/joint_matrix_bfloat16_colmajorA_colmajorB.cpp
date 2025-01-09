@@ -16,16 +16,7 @@
 
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
+
 #include "../common.hpp"
-#include <iostream>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
-
 #define SG_SZ 32
-constexpr size_t TN = 16;
-
 #include "../joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"
