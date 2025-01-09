@@ -142,31 +142,9 @@ undefined behavior.
 
 '''
 
-The following free functions provide new overloads of existing functions:
-
-'''
-=== Additions to the `device` class
-
-
-[frame=all,grid=none,separator="@"]
-!====
-a@
-[source,c++]
-----
-namespace sycl {
-class device {
-    ext_oneapi_get_default_queue();
-}             
-} // namespace sycl
-----
-!====
-
-_Returns:_ The default queue for the device. This queue must be associated with the default
-context for the device.
-
-'''
-
 == Issues
 . [RESOLVED] Should the currrent device be global or should we also support a per-thread
    device? Answer: It should be per-thread to align with the behavior of other programming
    models.
+. [OPEN] We want to add a default queue per device. Should this queue be in-order or out-of-order?
+   Do we want to allow the user to specify this?
