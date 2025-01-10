@@ -23,11 +23,13 @@ int main() {
   constexpr size_t width = 512;
   std::vector<unsigned short> out(width);
   std::vector<unsigned short> expected(width);
-  std::vector<sycl::ushort3> dataIn(width);
+  std::vector<unsigned short> dataIn(width * 3);
   unsigned short exp = 512;
   for (unsigned int i = 0; i < width; i++) {
     expected[i] = exp;
-    dataIn[i] = sycl::ushort3(exp, width, i);
+    dataIn[(i * 3)] = exp;
+    dataIn[(i * 3) + 1] = static_cast<unsigned short>(width);
+    dataIn[(i * 3) + 2] = static_cast<unsigned short>(i);
   }
 
   try {
