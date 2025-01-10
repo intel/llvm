@@ -70,15 +70,18 @@ void good1() {
   {"reg2", good1}
 )]];
 
+
+struct S1 {
+// expected-error@+1 {{'int &' cannot be used as the type of a kernel parameter}}
+  int &ri;
+};
+
 template <typename T>
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
-void uses_throw() {
-  // expected-error@+2 {{cannot use 'throw' with exceptions disabled}}
-  // expected-error@+1 {{SYCL kernel cannot use exceptions}}
-  throw 5;
+void func_with_S1_param(T s) {
 }
 
 [[__sycl_detail__::__registered_kernels__(
-  {"throw", uses_throw<float>}
+  {"ref field", func_with_S1_param<S1>}
 )]];
