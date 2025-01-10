@@ -112,6 +112,8 @@ device selected by the default device selector.
 _Preconditions:_ The function is called from a host thread, executing
 outside of a host task or an asynchronous error handler.
 
+'''
+
 [frame=all,grid=none,separator="@"]
 !====
 a@
@@ -125,13 +127,13 @@ void set_current_device(sycl::device dev);
 ----
 !====
 
-_Effects:_ Sets the current default device to `dev` for the current host thread.
+_Effects:_ Sets the current default device to `dev` for the calling host thread.
 
 _Preconditions:_ The function is called from a host thread, executing outside
 of a host task or an asynchronous error handler.
 
 == Issues
-. [RESOLVED] Should the currrent device be global or should we also support a per-thread
+. [RESOLVED] Should the current device be global or should we also support a per-thread
    device? Answer: It should be per-thread to align with the behavior of other programming
    models.
 . [OPEN] We want to add a default queue per device. Should this queue be in-order or out-of-order?
