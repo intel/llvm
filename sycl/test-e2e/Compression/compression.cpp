@@ -1,6 +1,5 @@
 // End-to-End test for testing device image compression.
 // BUILD-REQUIRES: zstd
-// UNSUPPORTED: true
 
 // RUN: %{build} %O0 -g %S/Inputs/single_kernel.cpp -o %t_not_compress.out
 // RUN: %{build} %O0 -g --offload-compress --offload-compression-level=3 %S/Inputs/single_kernel.cpp -o %t_compress.out
