@@ -60,7 +60,7 @@ int main() {
         // 3-channel formats, but we need to ensure the kernel can compile
         using pixel_t = sycl::ushort4;
 #else
-        using pixel_t = sycl::ushort3;
+            using pixel_t = sycl::ushort3;
 #endif
         auto pixel = syclexp::fetch_image<pixel_t>(imgHandle, int(id[0]));
         outAcc[id] = pixel[0];
