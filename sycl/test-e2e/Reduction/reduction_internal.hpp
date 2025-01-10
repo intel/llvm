@@ -1,6 +1,3 @@
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-
 #include <sycl/detail/core.hpp>
 
 #include <sycl/reduction.hpp>
@@ -120,27 +117,9 @@ void testAllStrategies(RedStorage &Storage, RangeTy Range) {
   });
 }
 
-int main() {
-  queue q;
-  RedStorage Storage(q);
-
-  auto TestRange = [&](auto Range) {
-    testAllStrategies<true, true>(Storage, Range);
-    testAllStrategies<true, false>(Storage, Range);
-    testAllStrategies<false, true>(Storage, Range);
-    testAllStrategies<false, false>(Storage, Range);
-  };
-
-  TestRange(range<1>{42});
-  TestRange(range<2>{8, 8});
-  TestRange(range<3>{7, 7, 5});
-  TestRange(nd_range<1>{range<1>{7}, range<1>{7}});
-  TestRange(nd_range<1>{range<1>{3 * 3}, range<1>{3}});
-
-  // TODO: Strategies historically adopted from sycl::range implementation only
-  // support 1-Dim case.
-  //
-  // TestRange(nd_range<2>{range<2>{7, 3}, range<2> {7, 3}});
-  // TestRange(nd_range<2>{range<2>{14, 9}, range<2> {7, 3}});
-  return 0;
+template <typename RangeTy> void testRange(RedStorage &Storage, RangeTy Range) {
+  testAllStrategies<true, true>(Storage, Range);
+  testAllStrategies<true, false>(Storage, Range);
+  testAllStrategies<false, true>(Storage, Range);
+  testAllStrategies<false, false>(Storage, Range);
 }
