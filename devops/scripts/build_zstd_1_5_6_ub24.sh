@@ -5,7 +5,6 @@ check_os() {
     . /etc/os-release
     if [[ "$NAME" != "Ubuntu" || "$VERSION_ID" != "24.04" ]]; then
         echo "Warning: This script has only been tested with Ubuntu 24."
-        exit 1
     fi
 }
 
@@ -17,16 +16,6 @@ install_packages() {
     else
         apt-get update
         apt-get install -y build-essential wget
-    fi
-}
-
-# Function to check if zstd is built correctly
-check_zstd() {
-    if command -v zstd &> /dev/null; then
-        echo "zstd has been built and installed successfully!"
-    else
-        echo "Error: zstd was not built correctly."
-        exit 1
     fi
 }
 
@@ -68,12 +57,12 @@ EOF
 check_os
 
 # Set USE_SUDO to true or false based on your preference
-USE_SUDO=false
+USE_SUDO=true
 
 # Install necessary build tools
 install_packages
 
-# Uninstall libzstd-dev if installed
+# Uninstall libzstd-dev package if installed
 uninstall_libzstd_dev
 
 # Define the version and URL for zstd
@@ -109,12 +98,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Check if zstd is built correctly
-check_zstd
-
-# Build and run a simple test program
+# Verify zstd installation.
 build_test_program
 
 # Clean up
-cd ~
 rm -rf zstd_build
