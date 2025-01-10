@@ -9,7 +9,6 @@
 // XFAIL: spirv-backend && cpu
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
-
 #include <sycl/detail/core.hpp>
 
 #include <sycl/reduction.hpp>
