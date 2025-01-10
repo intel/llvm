@@ -782,7 +782,9 @@ desc: "Enqueue a command to fill an image object with specified color"
 class: $xEnqueue
 name: MemImageFill
 ordinal: "0"
-version: "9999.0" # see #50
+# Will not be generated
+# https://github.com/oneapi-src/unified-runtime/issues/50
+version: "9999.0"
 details:
     - "Currently not implemented in Level Zero"
     - "TODO: add a driver function in Level Zero?"
@@ -919,7 +921,9 @@ type: function
 desc: "Enqueue a command to map a region of the image object into the host address space and return a pointer to the mapped region"
 class: $xEnqueue
 name: MemImageMap
-version: "9999.0" # See #50
+# Will not be generated
+# https://github.com/oneapi-src/unified-runtime/issues/50
+version: "9999.0"
 ordinal: "0"
 details:
     - "Input parameter blockingMap indicates if the map is blocking or non-blocking."

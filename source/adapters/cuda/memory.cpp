@@ -17,7 +17,8 @@
 
 /// Creates a UR Memory object using a CUDA memory allocation.
 /// Can trigger a manual copy depending on the mode.
-/// \TODO Implement USE_HOST_PTR using cuHostRegister - See #9789
+/// \TODO Implement USE_HOST_PTR using cuHostRegister
+/// https://github.com/intel/llvm/issues/9789
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,

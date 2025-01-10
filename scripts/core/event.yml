@@ -43,14 +43,18 @@ etors:
       desc: Event created by $xEnqueueMemImageWrite
     - name: MEM_IMAGE_COPY
       desc: Event created by $xEnqueueMemImageCopy
+    # Will not be generated
+    # https://github.com/oneapi-src/unified-runtime/issues/50
     - name: MEM_IMAGE_FILL
       desc: Event created by $xEnqueueMemImageFill
-      version: "9999.0" # See #50
+      version: "9999.0"
     - name: MEM_BUFFER_MAP
       desc: Event created by $xEnqueueMemBufferMap
+    # Will not be generated
+    # https://github.com/oneapi-src/unified-runtime/issues/50
     - name: MEM_IMAGE_MAP
       desc: Event created by $xEnqueueMemImageMap
-      version: "9999.0" # See #50
+      version: "9999.0"
     - name: MEM_UNMAP
       desc: Event created by $xEnqueueMemUnmap
     - name: USM_FILL
