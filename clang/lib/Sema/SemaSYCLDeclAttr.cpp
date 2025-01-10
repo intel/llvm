@@ -3185,7 +3185,7 @@ void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
       return;
     }
 
-    const auto *ArgListE = cast<InitListExpr>(ArgExpr);
+    auto *ArgListE = cast<InitListExpr>(ArgExpr);
     unsigned NumInits = ArgListE->getNumInits();
     // Each init-list expression must have a pair of values.
     if (NumInits != 2) {
@@ -3195,14 +3195,14 @@ void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
     }
 
     // The first value of the pair must be a string.
-    const Expr *FirstExpr = ArgListE->getInit(0);
+    Expr *FirstExpr = ArgListE->getInit(0);
     StringRef CurStr;
     SourceLocation Loc = FirstExpr->getExprLoc();
     if (!SemaRef.checkStringLiteralArgumentAttr(A, FirstExpr, CurStr, &Loc))
       return;
 
     // Resolve the FunctionDecl from the second value of the pair.
-    auto *SecondE = const_cast<Expr *>(ArgListE->getInit(1));
+    Expr *SecondE = ArgListE->getInit(1);
     FunctionDecl *FD = nullptr;
     if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(SecondE)) {
       FD = SemaRef.ResolveSingleFunctionTemplateSpecialization(ULE, true);
@@ -3210,8 +3210,7 @@ void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
     } else {
       if (isa<CastExpr>(SecondE))
         SecondE = cast<CastExpr>(SecondE)->getSubExpr()->IgnoreParenImpCasts();
-      auto *DRE = dyn_cast<DeclRefExpr>(SecondE);
-      if (DRE)
+      if (auto *DRE = dyn_cast<DeclRefExpr>(SecondE))
         FD = dyn_cast<FunctionDecl>(DRE->getDecl());
       Loc = SecondE->getExprLoc();
     }

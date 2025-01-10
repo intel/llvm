@@ -5426,7 +5426,7 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
   using KernelPair = std::pair<const FunctionDecl *, FunctionDecl *>;
   for (const KernelPair &Pair : S.getKernelFDPairs()) {
     if (Pair.first == FD) {
-      // If the current list of free function entries already contain this
+      // If the current list of free function entries already contains this
       // free function, apply the name Str as an attribute.  But if it already
       // has an attribute name, issue a diagnostic instead.
       if (!Str.empty()) {
