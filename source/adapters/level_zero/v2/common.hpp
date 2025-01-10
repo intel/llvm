@@ -16,13 +16,9 @@
 #include "../common.hpp"
 #include "logger/ur_logger.hpp"
 namespace {
-  const char* desturctorNames[] = {
-  "zeKernelDestroy",
-  "zeEventDestroy",
-  "zeEventPoolDestroy",
-  "zeContextDestroy",
-  "zeCommandListDestroy"
-  };
+const char *desturctorNames[] = {"zeKernelDestroy", "zeEventDestroy",
+                                 "zeEventPoolDestroy", "zeContextDestroy",
+                                 "zeCommandListDestroy"};
 }
 
 namespace v2 {
@@ -74,7 +70,8 @@ struct ze_handle_wrapper {
     }
 
     if (ownZeHandle) {
-      auto zeResult = ZE_CALL_NOCHECK_NAME(destroy, (handle), desturctorNames[nameId]);
+      auto zeResult =
+          ZE_CALL_NOCHECK_NAME(destroy, (handle), desturctorNames[nameId]);
       // Gracefully handle the case that L0 was already unloaded.
       if (zeResult && zeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         throw ze2urResult(zeResult);

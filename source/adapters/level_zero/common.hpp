@@ -362,8 +362,8 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 // Perform traced call to L0 without checking for errors
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
-  
-#define ZE_CALL_NOCHECK_NAME(ZeName, ZeArgs, callName)                                        \
+
+#define ZE_CALL_NOCHECK_NAME(ZeName, ZeArgs, callName)                         \
   ZeCall().doCall(ZeName ZeArgs, callName, #ZeArgs, false)
 
 // This wrapper around std::atomic is created to limit operations with reference
