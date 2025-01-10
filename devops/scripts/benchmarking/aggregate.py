@@ -33,11 +33,11 @@ class StreamingMedian:
             return -self.maxheap_smaller[0]
 
 
-def aggregate_median(benchmark: str, cutoff: str):
+def aggregate_median(runner: str, benchmark: str, cutoff: str):
 
 	def csv_samples() -> list[str]:
 		# TODO check that the path below is valid directory
-		with Path(f"{common.PERF_RES_PATH}/{benchmark}") as cache_dir:
+		with Path(f"{common.PERF_RES_PATH}/{runner}/{benchmark}") as cache_dir:
 			# TODO check for time range; What time range do I want?
 			return filter(lambda f: f.is_file() and
 						  common.valid_timestamp(str(f)[-19:-4]) and str(f)[-19:-4] > cutoff,
@@ -54,7 +54,7 @@ def aggregate_median(benchmark: str, cutoff: str):
 				for metric in common.metrics_variance:
 					aggregate_s[s["TestCase"]][metric].add(common.sanitize(s[metric]))
 
-	with open(f"{common.PERF_RES_PATH}/{benchmark}/{benchmark}-median.csv", 'w') as output_csv:
+	with open(f"{common.PERF_RES_PATH}/{runner}/{benchmark}/{benchmark}-median.csv", 'w') as output_csv:
 		writer = csv.DictWriter(output_csv,
 							    fieldnames=["TestCase", *common.metrics_variance.keys()])
 		writer.writeheader()
@@ -65,11 +65,12 @@ def aggregate_median(benchmark: str, cutoff: str):
 	
 		
 if __name__ == "__main__":
-	if len(sys.argv) < 3:
-		print(f"Usage: {sys.argv[0]} <test case name> <cutoff date YYMMDD_HHMMSS>")
+	if len(sys.argv) < 4:
+		print(f"Usage: {sys.argv[0]} <runner name> <test case name> <cutoff date YYMMDD_HHMMSS>")
 		exit(1)
-	if not common.valid_timestamp(sys.argv[2]):
-		print(f"Bad cutoff timestamp, please use YYMMDD_HHMMSS.")
+	if not common.valid_timestamp(sys.argv[3]):
+		print(sys.argv)
+		print(f"Bad cutoff timestamp, please use YYYYMMDD_HHMMSS.")
 		exit(1)
 	common.load_configs()
-	aggregate_median(sys.argv[1], sys.argv[2])
+	aggregate_median(sys.argv[1], sys.argv[2], sys.argv[3])

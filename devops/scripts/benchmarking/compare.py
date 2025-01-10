@@ -6,8 +6,8 @@ from pathlib import Path
 import common 
 
 # TODO compare_to(metric) instead?
-def compare_to_median(test_name: str, test_csv_path: str):
-	median_path = f"{common.PERF_RES_PATH}/{test_name}/{test_name}-median.csv"
+def compare_to_median(runner: str, test_name: str, test_csv_path: str):
+	median_path = f"{common.PERF_RES_PATH}/{runner}/{test_name}/{test_name}-median.csv"
 
 	if not os.path.isfile(test_csv_path):
 		print("Invalid test file provided: " + test_csv_path)
@@ -52,8 +52,8 @@ def compare_to_median(test_name: str, test_csv_path: str):
 
 
 if __name__ == "__main__":
-	if len(sys.argv) < 3:
-		print(f"Usage: {sys.argv[0]} <test name> <test csv path>")
+	if len(sys.argv) < 4:
+		print(f"Usage: {sys.argv[0]} <runner name> <test name> <test csv path>")
 		exit(-1)
 	common.load_configs()
-	exit(compare_to_median(sys.argv[1], sys.argv[2]))
+	exit(compare_to_median(sys.argv[1], sys.argv[2], sys.argv[3]))

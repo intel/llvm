@@ -240,8 +240,9 @@ jobs:
         whereis sycl-ls
         clang++ --version
         ls
+        export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
         export CMPLR_ROOT=$PWD/toolchain
-        ./devops/scripts/benchmarking/benchmark.sh ${{ inputs.cache_results == true && '-s' }}
+        ./devops/scripts/benchmarking/benchmark.sh -t '${{ inputs.runner }}' ${{ inputs.cache_results == true && '-s' }}
     - name: Push compute-benchmarks
       if: inputs.cache_results == true && success()
       env:

@@ -5,14 +5,16 @@
 #
 
 usage () {
-    >&2 echo "Usage: $0 <compute-benchmarks git repo> [-B <compute-benchmarks build path>]
+    >&2 echo "Usage: $0 <compute-benchmarks git repo> -t <runner type> [-B <compute-benchmarks build path>]
+  -t  Specify runner type -- Required
   -B  Path to clone and build compute-benchmarks on
   -p  Path to compute-benchmarks (or directory to build compute-benchmarks in)
   -r  Git repo url to use for compute-benchmarks origin
   -b  Git branch to use within compute-benchmarks
   -f  Compile flags passed into building compute-benchmarks
-  -c  _cleanup=1 ;;
-  -C  _cleanup=1 && _exit_after_cleanup=1 ;;
+  -c  Clean up working directory
+  -C  Clean up working directory and exit
+  -s  Cache results
 
 This script builds and runs benchmarks from compute-benchmarks."
     exit 1
@@ -44,11 +46,6 @@ build_compute_bench() {
             make $COMPUTE_BENCH_COMPILE_FLAGS "$case"
         done
     fi
-    echo "###"
-    ls $COMPUTE_BENCH_PATH/build/bin
-    echo "###"
-    ls $COMPUTE_BENCH_PATH/build/
-    echo "###"
     # No reason to turn on ccache, if this docker image will be disassembled later on
     #compute_bench_build_stat=$?
     cd -
@@ -94,16 +91,16 @@ samples_under_threshold () {
 }
 
 check_regression() {
-    if samples_under_threshold "$PERF_RES_PATH/$1"; then
+    if samples_under_threshold "$PERF_RES_PATH/$RUNNER/$1"; then
         echo "Not enough samples to construct an average, performance check skipped!"
         return $STATUS_SUCCESS
     fi
-    BENCHMARKING_ROOT="$BENCHMARKING_ROOT" python "$BENCHMARKING_ROOT/compare.py" "$1" "$2"
+    BENCHMARKING_ROOT="$BENCHMARKING_ROOT" python "$BENCHMARKING_ROOT/compare.py" "$RUNNER" "$1" "$2"
     return $?
 }
 
 cache() {
-    mv "$2" "$PERF_RES_PATH/$1/"
+    mv "$2" "$PERF_RES_PATH/$RUNNER/$1/"
 }
 
 # Check for a regression, and cache if no regression found
@@ -133,7 +130,10 @@ process_benchmarks() {
         # Ignore lines in the test config starting with #'s
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
             echo "# Running $testcase..."
-            test_csv_output="$OUTPUT_PATH/$testcase-$TIMESTAMP.csv"
+
+            test_csv_output="$OUTPUT_PATH/$RUNNER/$testcase-$TIMESTAMP.csv"
+			mkdir -p "$OUTPUT_PATH/$RUNNER/"
+
             $COMPUTE_BENCH_PATH/build/bin/$testcase --csv --iterations="$COMPUTE_BENCH_ITERATIONS" | tail +8 > "$test_csv_output"
             # The tail +8 filters out initial debug prints not in csv format
             if [ "$?" -eq 0 ] && [ -s "$test_csv_output" ]; then 
@@ -172,7 +172,7 @@ cleanup() {
 }
 
 _sanitize_configs() {
-    echo "$1" | sed 's/[^a-zA-Z0-9_.:/%-]//g'
+    echo "$1" | sed 's/[^a-zA-Z0-9_.,:/%-]//g'
 }
 
 load_configs() {
@@ -215,26 +215,28 @@ load_configs() {
             'TIMESTAMP_FORMAT') export TIMESTAMP_FORMAT="$sanitized_value" ;;
             'BENCHMARK_SLOW_LOG') export BENCHMARK_SLOW_LOG="$sanitized_value" ;;
             'BENCHMARK_ERROR_LOG') export BENCHMARK_ERROR_LOG="$sanitized_value" ;;
+            'RUNNER_TYPES') export RUNNER_TYPES="$sanitized_value" ;;
             # *) echo "Unknown key: $sanitized_key" ;;
         esac
     done < "$BENCHMARK_CI_CONFIG"
 
     # Debug
-    echo "PERF_RES_GIT_REPO: $PERF_RES_GIT_REPO"
-    echo "PERF_RES_BRANCH: $PERF_RES_BRANCH"
-    echo "PERF_RES_PATH: $PERF_RES_PATH"
-    echo "COMPUTE_BENCH_GIT_REPO: $COMPUTE_BENCH_GIT_REPO"
-    echo "COMPUTE_BENCH_BRANCH: $COMPUTE_BENCH_BRANCH"
-    echo "COMPUTE_BENCH_PATH: $COMPUTE_BENCH_PATH"
-    echo "COMPUTE_BENCH_COMPILE_FLAGS: $COMPUTE_BENCH_COMPILE_FLAGS"
-    echo "OUTPUT_PATH: $OUTPUT_PATH"
+    # echo "PERF_RES_GIT_REPO: $PERF_RES_GIT_REPO"
+    # echo "PERF_RES_BRANCH: $PERF_RES_BRANCH"
+    # echo "PERF_RES_PATH: $PERF_RES_PATH"
+    # echo "COMPUTE_BENCH_GIT_REPO: $COMPUTE_BENCH_GIT_REPO"
+    # echo "COMPUTE_BENCH_BRANCH: $COMPUTE_BENCH_BRANCH"
+    # echo "COMPUTE_BENCH_PATH: $COMPUTE_BENCH_PATH"
+    # echo "COMPUTE_BENCH_COMPILE_FLAGS: $COMPUTE_BENCH_COMPILE_FLAGS"
+    # echo "OUTPUT_PATH: $OUTPUT_PATH"
     # echo "METRICS_VARIANCE: $METRICS_VARIANCE"
     # echo "METRICS_RECORDED: $METRICS_RECORDED"
-    echo "AVERAGE_THRESHOLD: $AVERAGE_THRESHOLD"
-    echo "AVERAGE_CUTOFF_RANGE: $AVERAGE_CUTOFF_RANGE"
-    echo "TIMESTAMP_FORMAT: $TIMESTAMP_FORMAT"
-    echo "BENCHMARK_SLOW_LOG: $BENCHMARK_SLOW_LOG"
-    echo "BENCHMARK_ERROR_LOG: $BENCHMARK_ERROR_LOG"
+    # echo "AVERAGE_THRESHOLD: $AVERAGE_THRESHOLD"
+    # echo "AVERAGE_CUTOFF_RANGE: $AVERAGE_CUTOFF_RANGE"
+    # echo "TIMESTAMP_FORMAT: $TIMESTAMP_FORMAT"
+    # echo "BENCHMARK_SLOW_LOG: $BENCHMARK_SLOW_LOG"
+    # echo "BENCHMARK_ERROR_LOG: $BENCHMARK_ERROR_LOG"
+	echo "RUNNER_TYPES: $RUNNER_TYPES"
 }
 
 load_configs
@@ -244,12 +246,13 @@ CACHE_RESULTS="0"
 TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
 
 # CLI overrides to configuration options
-while getopts "p:b:r:f:cCs" opt; do
+while getopts "p:b:r:f:t:cCs" opt; do
     case $opt in
         p) COMPUTE_BENCH_PATH=$OPTARG ;;
         r) COMPUTE_BENCH_GIT_REPO=$OPTARG ;;
         b) COMPUTE_BENCH_BRANCH=$OPTARG ;;
         f) COMPUTE_BENCH_COMPILE_FLAGS=$OPTARG ;;
+		t) RUNNER_TYPE=$OPTARG ;;
         # Cleanup status is saved in a var to ensure all arguments are processed before
         # performing cleanup
         c) _cleanup=1 ;;
@@ -263,6 +266,20 @@ if [ -z "$CMPLR_ROOT" ]; then
     echo "Please set \$CMPLR_ROOT first; it is needed by compute-benchmarks to build."
     exit 1
 fi
+if [ -z "$RUNNER_TYPE" ]; then
+    echo "Please specify runner type using -t first; it is needed for comparing benchmark results"
+    exit 1
+else
+	# Identify runner being used
+	runner_regex="$(printf "$RUNNER_TYPES" | sed 's/,/|/g')"
+	RUNNER="$(printf "$RUNNER_TYPE" | grep -o -E "\b($runner_regex)\b")"
+	if [ -z "$RUNNER" ]; then
+		echo "Unknown runner type! Configured runners: $RUNNER_TYPES"
+		exit 1
+	fi
+	echo "Chosen runner: $RUNNER"
+fi
+
 [ ! -z "$_cleanup" ] && cleanup
 
 [ ! -d "$PERF_RES_PATH"            ] && clone_perf_res

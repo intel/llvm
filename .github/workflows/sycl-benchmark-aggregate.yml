@@ -33,6 +33,8 @@ jobs:
           devops/scripts/benchmarking
     - name: Load benchmarking configuration
       run: |
+        # TODO isolate sanitation from benchmark.sh different script
+        # use sanitation here
         . llvm/devops/scripts/benchmarking/benchmark-ci.conf;
         echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
         echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
@@ -58,8 +60,10 @@ jobs:
         git clone -b $PERF_RES_BRANCH $PERF_RES_GIT_REPO $PERF_RES_PATH
     - name: Run aggregator on cloned data
       run: |
-        for dir in $(find "$PERF_RES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '.*'); do
-          python llvm/devops/scripts/benchmarking/aggregate.py "$(basename $dir)" "$CUTOFF_TIMESTAMP"
+        for dir in $(find "$PERF_RES_PATH" -mindepth 2 -maxdepth 2 -type d ! -path '*.git*'); do
+          _runner="$(basename $(dirname $dir))"
+          _testcase="$(basename $dir)"
+          python llvm/devops/scripts/benchmarking/aggregate.py "$_runner" "$_testcase" "$CUTOFF_TIMESTAMP"
         done
     - name: Debug
       run: |
