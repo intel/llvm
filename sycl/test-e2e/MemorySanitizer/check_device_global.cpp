@@ -18,9 +18,7 @@ sycl::ext::oneapi::experimental::device_global<
     int[4], decltype(properties(device_image_scope, host_access_read_write))>
     dev_global;
 
-__attribute__((noinline)) int check(int data) {
-  return data + 1;
-}
+__attribute__((noinline)) int check(int data) { return data + 1; }
 
 int main() {
   sycl::queue Q;
