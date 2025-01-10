@@ -148,6 +148,7 @@ on:
           - 'opencl:fpga'
           - 'level_zero:gpu'
           - 'hip:gpu'
+          - 'native_cpu:cpu;hip:gpu'
       tests_selector:
         type: choice
         options:
