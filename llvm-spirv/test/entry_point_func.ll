@@ -12,10 +12,57 @@ define spir_kernel void @testfunction() {
    ret void
 }
 
+define spir_kernel void @callerfunction() {
+   call spir_kernel void @testfunction()
+   call spir_kernel void @testdeclaration()
+   ret void
+}
+
+declare spir_kernel void @testdeclaration()
+
 ; Check there is an entrypoint and a function produced.
-; CHECK-SPIRV: EntryPoint 6 [[EP:[0-9]+]] "testfunction"
-; CHECK-SPIRV: Name [[FUNC:[0-9]+]] "testfunction"
-; CHECK-SPIRV: Decorate [[FUNC]] LinkageAttributes "testfunction" Export
-; CHECK-SPIRV: Function 2 [[FUNC]] 0 3
-; CHECK-SPIRV: Function 2 [[EP]] 0 3
-; CHECK-SPIRV: FunctionCall 2 8 [[FUNC]]
+; CHECK-SPIRV: EntryPoint 6 [[#TestEn:]] "testfunction"
+; CHECK-SPIRV: EntryPoint 6 [[#CallerEn:]] "callerfunction"
+; CHECK-SPIRV: Name [[#TestDecl:]] "testdeclaration"
+; CHECK-SPIRV: Name [[#TestFn:]] "testfunction"
+; CHECK-SPIRV: Name [[#CallerFn:]] "callerfunction"
+; CHECK-SPIRV: Decorate [[#TestDecl]] LinkageAttributes "testdeclaration" Import
+; CHECK-SPIRV: Decorate [[#TestFn]] LinkageAttributes "testfunction" Export
+; CHECK-SPIRV: Decorate [[#CallerFn]] LinkageAttributes "callerfunction" Export
+
+; CHECK-SPIRV: Function [[#]] [[#TestDecl]] [[#]] [[#]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: FunctionEnd
+
+; CHECK-SPIRV: Function [[#]] [[#TestFn]] [[#]] [[#]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: Return
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: FunctionEnd
+
+; CHECK-SPIRV: Function [[#]] [[#CallerFn]] [[#]] [[#]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: FunctionCall [[#]] [[#]] [[#TestFn]]
+; CHECK-SPIRV-NEXT: FunctionCall [[#]] [[#]] [[#TestDecl]]
+; CHECK-SPIRV-NEXT: Return
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: FunctionEnd
+
+
+; CHECK-SPIRV: Function [[#]] [[#TestEn]] [[#]] [[#]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: FunctionCall [[#]] [[#]] [[#TestFn]]
+; CHECK-SPIRV-NEXT: Return
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: FunctionEnd
+
+; CHECK-SPIRV: Function [[#]] [[#CallerEn]] [[#]] [[#]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: FunctionCall [[#]] [[#]] [[#CallerFn]]
+; CHECK-SPIRV-NEXT: Return
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: FunctionEnd
