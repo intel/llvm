@@ -380,8 +380,9 @@ public:
   // program manager integration, only for sycl_jit language
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
-                     std::vector<std::string> KNames, std::string Pfx,
-                     syclex::source_language Lang)
+                     const std::vector<std::string> &KNames,
+                     const std::vector<std::string> &DGNames,
+                     const std::string &Pfx, syclex::source_language Lang)
       : kernel_bundle_impl(Ctx, Devs, KernelIDs, bundle_state::executable) {
     assert(Lang == syclex::source_language::sycl_jit);
     // Mark this bundle explicitly as "interop" to ensure that its kernels are
@@ -391,6 +392,7 @@ public:
     // from the (unprefixed) kernel name.
     MIsInterop = true;
     KernelNames = KNames;
+    DeviceGlobalNames = DGNames;
     Prefix = Pfx;
     Language = Lang;
   }
@@ -509,51 +511,60 @@ public:
       // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
       // for offload entry names.
       std::string Prefix = CompilationID + '$';
+      auto PrefixLen = Prefix.length();
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
         if (KernelName.find(Prefix) == 0) {
           KernelIDs.push_back(KernelID);
-          KernelName.remove_prefix(Prefix.length());
+          KernelName.remove_prefix(PrefixLen);
           KernelNames.emplace_back(KernelName);
+        }
+      }
+
+      // Determine IDs of all device globals referenced by this bundle's
+      // kernels. These IDs are also prefixed.
+      std::set<std::string> DeviceGlobalIDSet;
+      std::vector<std::string> DeviceGlobalIDVec;
+      std::vector<std::string> DeviceGlobalNames;
+      for (const auto &RawImg : PM.getRawDeviceImages(KernelIDs)) {
+        for (const auto &DeviceGlobalProp : RawImg->getDeviceGlobals()) {
+          std::string_view DeviceGlobalName{DeviceGlobalProp->Name};
+          assert(DeviceGlobalName.find(Prefix) == 0);
+          auto [It, Ins] = DeviceGlobalIDSet.emplace(DeviceGlobalName);
+          if (Ins) {
+            DeviceGlobalIDVec.emplace_back(DeviceGlobalName);
+            DeviceGlobalName.remove_prefix(PrefixLen);
+            DeviceGlobalNames.emplace_back(DeviceGlobalName);
+          }
         }
       }
 
       // Create the executable bundle.
       auto ExecBundle = std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, KernelNames, Prefix, Language);
+          MContext, MDevices, KernelIDs, KernelNames, DeviceGlobalNames, Prefix,
+          Language);
 
-      // Determine IDs of all device globals referenced by this bundle's
-      // kernels. These IDs are also prefixed.
-      std::set<std::string> UniqueDeviceGlobalIDs;
-      std::vector<std::string> DeviceGlobalIDs;
-      for (const auto &RawImg : PM.getRawDeviceImages(KernelIDs)) {
-        for (const auto &DeviceGlobalProp : RawImg->getDeviceGlobals()) {
-          auto [It, Ins] = UniqueDeviceGlobalIDs.insert(DeviceGlobalProp->Name);
-          if (Ins) {
-            DeviceGlobalIDs.push_back(*It);
-          }
-        }
-      }
-
+      // Device globals are usually statically allocated and registered in the
+      // integration footer, which we don't have in the RTC context. Instead, we
+      // dynamically allocate storage tied to the executable kernel bundle.
       for (auto *DeviceGlobalEntry :
-           PM.getDeviceGlobalEntries(DeviceGlobalIDs)) {
-        // Device globals without `device_image_scope` are usually statically
-        // allocated and registered in the integration footer, which we don't
-        // have in the RTC context. Instead, we dynamically allocate storage
-        // tied to the executable kernel bundle.
+           PM.getDeviceGlobalEntries(DeviceGlobalIDVec)) {
+
+        size_t AllocSize = DeviceGlobalEntry->MDeviceGlobalTSize; // init value
         if (!DeviceGlobalEntry->MIsDeviceImageScopeDecorated) {
-          auto Alloc = std::make_unique<std::byte[]>(
-              DeviceGlobalEntry->MDeviceGlobalTSize);
-          PM.addOrInitDeviceGlobalEntry(Alloc.get(),
-                                        DeviceGlobalEntry->MUniqueId.c_str());
-          ExecBundle->DeviceGlobals.push_back(std::move(Alloc));
+          // USM pointer. TODO: it's actually a decorated multi_ptr.
+          AllocSize += sizeof(void *);
         }
+        auto Alloc = std::make_unique<std::byte[]>(AllocSize);
+        std::string_view DeviceGlobalName{DeviceGlobalEntry->MUniqueId};
+        PM.addOrInitDeviceGlobalEntry(Alloc.get(), DeviceGlobalName.data());
+        ExecBundle->DeviceGlobalAllocations.push_back(std::move(Alloc));
 
         // Drop the RTC prefix from the entry's symbol name. Note that the PM
         // still manages this device global under its prefixed name.
-        assert(DeviceGlobalEntry->MUniqueId.find(Prefix) == 0);
-        DeviceGlobalEntry->MUniqueId =
-            DeviceGlobalEntry->MUniqueId.substr(Prefix.length());
+        assert(DeviceGlobalName.find(Prefix) == 0);
+        DeviceGlobalName.remove_prefix(PrefixLen);
+        DeviceGlobalEntry->MUniqueId = DeviceGlobalName;
       }
 
       return ExecBundle;
@@ -733,6 +744,18 @@ public:
         UrKernel, detail::getSyclObjImpl(MContext), Self);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
+  }
+
+  std::string mangle_device_global_name(const std::string &Name) {
+    // TODO: Support device globals declared in namespaces.
+    return "_Z" + std::to_string(Name.length()) + Name;
+  }
+
+  bool ext_oneapi_has_device_global(const std::string &Name,
+                                    [[maybe_unused]] const device &Dev) {
+    std::string MangledName = mangle_device_global_name(Name);
+    return std::find(DeviceGlobalNames.begin(), DeviceGlobalNames.end(),
+                     MangledName) != DeviceGlobalNames.end();
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
@@ -993,11 +1016,13 @@ private:
   // Language is for both state::source and state::executable.
   syclex::source_language Language = syclex::source_language::opencl;
   const std::variant<std::string, std::vector<std::byte>> Source;
-  // only kernel_bundles created from source have KernelNames member.
+  // only kernel_bundles created from source have the following members.
   std::vector<std::string> KernelNames;
+  std::vector<std::string> DeviceGlobalNames;
   std::string Prefix;
   include_pairs_t IncludePairs;
-  std::vector<std::unique_ptr<std::byte[]>> DeviceGlobals;
+
+  std::vector<std::unique_ptr<std::byte[]>> DeviceGlobalAllocations;
 };
 
 } // namespace detail

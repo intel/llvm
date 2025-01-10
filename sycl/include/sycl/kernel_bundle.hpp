@@ -201,6 +201,11 @@ public:
     return ext_oneapi_get_kernel(detail::string_view{name});
   }
 
+  bool ext_oneapi_has_device_global(const std::string &name,
+                                    const device &dev) {
+    return ext_oneapi_has_device_global(detail::string_view{name}, dev);
+  }
+
 protected:
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -229,6 +234,9 @@ protected:
 private:
   bool ext_oneapi_has_kernel(detail::string_view name);
   kernel ext_oneapi_get_kernel(detail::string_view name);
+
+  bool ext_oneapi_has_device_global(detail::string_view name,
+                                    const device &dev);
 };
 
 } // namespace detail
@@ -447,6 +455,17 @@ public:
             typename = std::enable_if_t<_State == bundle_state::executable>>
   kernel ext_oneapi_get_kernel(const std::string &name) {
     return detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_has_device_global
+  //  only true if created from source and has this global for the given device
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  bool ext_oneapi_has_device_global(const std::string &name,
+                                    const device &dev) {
+    return detail::kernel_bundle_plain::ext_oneapi_has_device_global(name, dev);
   }
 
 private:

@@ -285,6 +285,11 @@ int test_device_global() {
 
   exe_kb kbExe1 = syclex::build(kbSrc);
 
+  // Check presence of device global.
+  assert(kbExe1.ext_oneapi_has_device_global("DG", q.get_device()));
+  // Querying a non-existing device global shall not crash.
+  assert(!kbExe1.ext_oneapi_has_device_global("bogus_DG", q.get_device()));
+
   auto setK = kbExe1.ext_oneapi_get_kernel("ff_dg_setter");
   auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
   auto getK = kbExe1.ext_oneapi_get_kernel("ff_dg_getter");
