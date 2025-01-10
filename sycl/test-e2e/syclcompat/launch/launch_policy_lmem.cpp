@@ -29,6 +29,10 @@
 // XFAIL: arch-intel_gpu_pvc
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
+// Flaky pass/fail behaviour.
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
