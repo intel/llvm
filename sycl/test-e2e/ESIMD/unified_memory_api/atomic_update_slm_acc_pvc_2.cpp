@@ -1,4 +1,4 @@
-//==------- atomic_update_slm_pvc.cpp - DPC++ ESIMD on-device test ---------==//
+//==- atomic_update_slm_acc_pvc_2.cpp - DPC++ ESIMD on-device test -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,7 +19,7 @@ int main(void) {
   esimd_test::printTestLabel(q);
 
   constexpr auto Features = TestFeatures::PVC;
-  bool passed = test_main<Features, true>(q);
+  bool passed = test_main_acc<Features, false>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
