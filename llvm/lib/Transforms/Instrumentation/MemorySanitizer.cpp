@@ -782,7 +782,7 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
 
-static void extendSpirKernelArgs(Module &M) {
+static void instrumentSPIRModule(Module &M) {
 
   const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
@@ -834,8 +834,9 @@ static void extendSpirKernelArgs(Module &M) {
     MsanSpirKernelMetadata->setDSOLocal(true);
   }
 
-  // Instrument __MsanDeviceGlobalMetadata, which records information of device
-  // global
+  // Handle global variables:
+  //   - Skip sanitizing unsupported variables
+  //   - Instrument __MsanDeviceGlobalMetadata for device globals
   do {
     SmallVector<Constant *, 8> DeviceGlobalMetadata;
 
@@ -845,6 +846,13 @@ static void extendSpirKernelArgs(Module &M) {
     StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
     for (auto &G : M.globals()) {
+      // FIXME: temporarily disable local variables
+      if (G.isConstant() || G.getAddressSpace() == kSpirOffloadLocalAS) {
+        for (auto *User : G.users())
+          if (auto *Inst = dyn_cast<Instruction>(User))
+            Inst->setNoSanitizeMetadata();
+      }
+
       if (isUnsupportedDeviceGlobal(&G))
         continue;
 
@@ -883,7 +891,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   }
 
   if (TargetTriple.isSPIROrSPIRV()) {
-    extendSpirKernelArgs(M);
+    instrumentSPIRModule(M);
     Modified = true;
   }
 
