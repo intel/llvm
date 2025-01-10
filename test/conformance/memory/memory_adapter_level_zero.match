@@ -4,7 +4,7 @@ urMemBufferPartitionWithFlagsTest.Success/*__UR_MEM_FLAG_READ_ONLY
 urMemBufferPartitionTest.InvalidValueCreateType/*
 urMemBufferPartitionTest.InvalidValueBufferCreateInfoOutOfBounds/*
 {{OPT}}urMemImageCreateWithNativeHandleTest.Success/*
-{{OPT}}urMemGetInfoImageTest.Success/*__UR_MEM_INFO_SIZE
+{{OPT}}urMemGetInfoImageTest.SuccessSize/*
 {{OPT}}urMemImageCreateTestWithImageFormatParam.Success/*__UR_IMAGE_CHANNEL_ORDER_RGBA__*
 
 # These tests fail in the "Multi device testing" job, but pass in the hardware specific test
