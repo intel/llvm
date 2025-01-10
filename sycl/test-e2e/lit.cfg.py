@@ -332,7 +332,18 @@ fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
 dll_opt = "/LD" if cl_options else "-shared"
 
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-fsycl", "--offload-compress", dll_opt, fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    [
+        config.dpcpp_compiler,
+        "-fsycl",
+        "--offload-compress",
+        dll_opt,
+        fPIC_opt,
+        "-x",
+        "c++",
+        "-",
+        "-o",
+        "-",
+    ],
     stdin=subprocess.PIPE,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
