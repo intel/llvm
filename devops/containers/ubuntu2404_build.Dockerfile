@@ -8,6 +8,10 @@ USER root
 COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
+# Build zstd from sources with -fPIC flag.
+COPY scripts/build_zstd_1_5_6_ub24.sh /build_zstd_1_5_6_ub24.sh
+RUN /build_zstd_1_5_6_ub24.sh
+
 SHELL ["/bin/bash", "-ec"]
 
 # Make the directory if it doesn't exist yet.

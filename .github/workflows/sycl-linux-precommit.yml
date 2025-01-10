@@ -44,13 +44,11 @@ jobs:
       build_ref: ${{ github.sha }}
       merge_ref: ''
       build_cache_root: "/__w/"
-      build_artifact_suffix: "default"
-      build_cache_suffix: "default"
+      build_artifact_suffix: "sprod_shared"
+      build_cache_suffix: "sprod_shared"
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/ubuntu2404_build:latest"
       build_configure_extra_args: '--shared-libs'
-      cc: clang
-      cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
 
   determine_arc_tests:
