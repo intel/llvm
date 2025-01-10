@@ -607,20 +607,26 @@ struct ScheduleGenerator {
           idsTail[1] = tailGroupCall->getOperand(3);
           idsTail[2] = tailGroupCall->getOperand(4);
           getUniformValues(tailUniformBlock, *barrierTail, idsTail);
-        }
 
-        // If both barrier structs had to be used, we need to merge the result.
-        if (mainUniformBlock && tailUniformBlock) {
-          block = BasicBlock::Create(context, "ca_merge_uniform_load", func);
-          BranchInst::Create(block, tailUniformBlock);
-          BranchInst::Create(block, mainUniformBlock);
+          if (mainUniformBlock) {
+            // If both barrier structs had to be used, we need to merge the
+            // result.
+            block = BasicBlock::Create(context, "ca_merge_uniform_load", func);
+            BranchInst::Create(block, tailUniformBlock);
+            BranchInst::Create(block, mainUniformBlock);
 
-          for (size_t i = 0; i != 3; ++i) {
-            auto *mergePhi = PHINode::Create(idsMain[i]->getType(), 2,
-                                             "uniform_merge", block);
-            mergePhi->addIncoming(idsMain[i], mainUniformBlock);
-            mergePhi->addIncoming(idsTail[i], tailUniformBlock);
-            idsMain[i] = mergePhi;
+            for (size_t i = 0; i != 3; ++i) {
+              auto *mergePhi = PHINode::Create(idsMain[i]->getType(), 2,
+                                               "uniform_merge", block);
+              mergePhi->addIncoming(idsMain[i], mainUniformBlock);
+              mergePhi->addIncoming(idsTail[i], tailUniformBlock);
+              idsMain[i] = mergePhi;
+            }
+          } else {
+            // Otherwise we can use the tail.
+            for (size_t i = 0; i != 3; ++i) {
+              idsMain[i] = idsTail[i];
+            }
           }
         }
 
@@ -1017,6 +1023,8 @@ struct ScheduleGenerator {
                       // No main iterations at all!
                       mainPreheaderBB = nullptr;
                       mainExitBB = block;
+                      nextSubgroupIV = ivs1[0];
+                      nextScanIV = ivs1[1];
                     }
                   } else {
                     mainPreheaderBB = BasicBlock::Create(
