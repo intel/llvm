@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_global_defaults
+= sycl_ext_oneapi_current_device
 
 
 :source-highlighter: coderay
@@ -42,16 +42,6 @@ This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-This extension also depends on the following other SYCL extensions:
-
-* link:../supported/sycl_ext_oneapi_defaultcontext.asciidoc[
-  sycl_ext_oneapi_defaultcontext]
-* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
-  sycl_ext_oneapi_enqueue_functions]
-* link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[
-  sycl_ext_oneapi_enqueue_barrier]
-
-
 == Status
 
 This is a proposed extension specification, intended to gather community
@@ -64,13 +54,16 @@ not rely on APIs defined in this specification.*
 
 This extension introduces additional state into SYCL in order to simplify 
 programming for developers. The extension provides a mechanism to both set and
-query the 'current' global `sycl::device`. By adding the notion of a 'current'
+query the 'current' per-thread `sycl::device`. By adding the notion of a 'current'
 device, this can simplify interfaces and reduce the amount of boilerplate code
 required to write a SYCL application.
 
-This extension also introduces the notion of a default queue for a device. When
-combined with the notion of the current device and the extension for new 
-free enqueue functions, this allows for a simplified way to write SYCL code.
+Since this function relates to the environment of the calling thread,
+it is the user's responsibility to ensure that it is called by the correct thread.
+For example, it is unsafe to call this function inside of a host task, within an
+asynchronous error handler, or within other functions that may be executed
+asynchronously, since these operations are not guaranteed to execute on any
+specific thread.
 
 == Specification
 
@@ -78,8 +71,7 @@ free enqueue functions, this allows for a simplified way to write SYCL code.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_GLOBAL_DEFAULTS` to one of the values defined in the table
-
+macro `SYCL_EXT_ONEAPI_CURRENT_DEVICE` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -114,11 +106,12 @@ sycl::device get_current_device();
 ----
 !====
 
-_Returns:_ The current default device for the calling host thread. If `set_current_device()` 
-has not been called by this thread, returns the device selected by the default device selector.
+_Returns:_ The current default device for the calling host thread. If 
+`set_current_device()` has not been called by this thread, returns the
+device selected by the default device selector.
 
-_Remarks:_ Calling this method from within a host task or an asynchronous error handler is
-undefined behavior.
+_Preconditions:_ The function is called from a host thread, executing
+outside of a host task or an asynchronous error handler.
 
 [frame=all,grid=none,separator="@"]
 !====
@@ -133,14 +126,10 @@ void set_current_device(sycl::device dev);
 ----
 !====
 
-_Returns:_ Nothing
-
 _Effects:_ Sets the current default device to `dev` for the current host thread.
 
-_Remarks:_ Calling this method from within a host task or an asynchronous error handler is
-undefined behavior.
-
-'''
+_Preconditions:_ The function is called from a host thread, executing outside
+of a host task or an asynchronous error handler.
 
 == Issues
 . [RESOLVED] Should the currrent device be global or should we also support a per-thread
