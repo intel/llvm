@@ -38,7 +38,8 @@ public:
 };
 
 // FIXME: Remove the default log level when querying logging info is supported
-// through UR entry points. See #1330.
+// through UR entry points.
+// https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
     : logger(logger::get_logger("cuda",
                                 /*default_log_level*/ logger::Level::ERR)) {
