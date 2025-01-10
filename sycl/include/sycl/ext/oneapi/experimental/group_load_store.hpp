@@ -58,6 +58,13 @@ struct naive_key : detail::compile_time_property_key<detail::PropKind::Naive> {
   using value_t = property_value<naive_key>;
 };
 inline constexpr naive_key::value_t naive;
+
+struct native_local_block_io_key
+    : detail::compile_time_property_key<detail::PropKind::NativeLocalBlockIO> {
+  using value_t = property_value<native_local_block_io_key>;
+};
+inline constexpr native_local_block_io_key::value_t native_local_block_io;
+
 using namespace sycl::detail;
 } // namespace detail
 
@@ -154,7 +161,6 @@ template <typename BlockInfoTy> struct BlockTypeInfo;
 template <typename IteratorT, std::size_t ElementsPerWorkItem, bool Blocked>
 struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
   using BlockInfoTy = BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>;
-  static_assert(BlockInfoTy::has_builtin);
 
   using block_type = detail::fixed_width_unsigned<BlockInfoTy::block_size>;
 
@@ -163,15 +169,23 @@ struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
           typename std::iterator_traits<IteratorT>::reference>>,
       std::add_const_t<block_type>, block_type>;
 
-  using block_pointer_type = typename detail::DecoratedType<
-      block_pointer_elem_type, access::address_space::global_space>::type *;
+  static constexpr auto deduced_address_space =
+      detail::deduce_AS<std::remove_cv_t<IteratorT>>::value;
+
+  using block_pointer_type =
+      typename detail::DecoratedType<block_pointer_elem_type,
+                                     deduced_address_space>::type *;
+
   using block_op_type = std::conditional_t<
       BlockInfoTy::num_blocks == 1, block_type,
       detail::ConvertToOpenCLType_t<vec<block_type, BlockInfoTy::num_blocks>>>;
 };
 
-// Returns either a pointer suitable to use in a block read/write builtin or
-// nullptr if some legality conditions aren't satisfied.
+// Returns either a pointer decorated with the deduced address space, suitable
+// to use in a block read/write builtin, or nullptr if some legality conditions
+// aren't satisfied. If deduced address space is generic then returned pointer
+// will have generic address space and has to be dynamically casted to global or
+// local space before using in a builtin.
 template <int RequiredAlign, std::size_t ElementsPerWorkItem,
           typename IteratorT, typename Properties>
 auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
@@ -211,16 +225,17 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
     bool is_aligned = alignof(value_type) >= RequiredAlign ||
                       reinterpret_cast<uintptr_t>(iter) % RequiredAlign == 0;
 
-    constexpr auto AS = detail::deduce_AS<iter_no_cv>::value;
     using block_pointer_type =
         typename BlockTypeInfo<BlkInfo>::block_pointer_type;
-    if constexpr (AS == access::address_space::global_space) {
+
+    static constexpr auto deduced_address_space =
+        BlockTypeInfo<BlkInfo>::deduced_address_space;
+    if constexpr (deduced_address_space ==
+                      access::address_space::generic_space ||
+                  deduced_address_space ==
+                      access::address_space::global_space ||
+                  deduced_address_space == access::address_space::local_space) {
       return is_aligned ? reinterpret_cast<block_pointer_type>(iter) : nullptr;
-    } else if constexpr (AS == access::address_space::generic_space) {
-      return is_aligned ? reinterpret_cast<block_pointer_type>(
-                              detail::dynamic_address_cast<
-                                  access::address_space::global_space>(iter))
-                        : nullptr;
     } else {
       return nullptr;
     }
@@ -261,11 +276,37 @@ group_load(Group g, InputIteratorT in_ptr,
       // Do optimized load.
       using value_type = remove_decoration_t<
           typename std::iterator_traits<InputIteratorT>::value_type>;
+      using block_info = typename detail::BlockTypeInfo<
+          detail::BlockInfo<InputIteratorT, ElementsPerWorkItem, blocked>>;
+      static constexpr auto deduced_address_space =
+          block_info::deduced_address_space;
+      using block_op_type = typename block_info::block_op_type;
 
-      auto load = __spirv_SubgroupBlockReadINTEL<
-          typename detail::BlockTypeInfo<detail::BlockInfo<
-              InputIteratorT, ElementsPerWorkItem, blocked>>::block_op_type>(
-          ptr);
+      if constexpr (deduced_address_space ==
+                        access::address_space::local_space &&
+                    !props.template has_property<
+                        detail::native_local_block_io_key>())
+        return group_load(g, in_ptr, out, use_naive{});
+
+      block_op_type load;
+      if constexpr (deduced_address_space ==
+                    access::address_space::generic_space) {
+        if (auto local_ptr = detail::dynamic_address_cast<
+                access::address_space::local_space>(ptr)) {
+          if constexpr (props.template has_property<
+                            detail::native_local_block_io_key>())
+            load = __spirv_SubgroupBlockReadINTEL<block_op_type>(local_ptr);
+          else
+            return group_load(g, in_ptr, out, use_naive{});
+        } else if (auto global_ptr = detail::dynamic_address_cast<
+                       access::address_space::global_space>(ptr)) {
+          load = __spirv_SubgroupBlockReadINTEL<block_op_type>(global_ptr);
+        } else {
+          return group_load(g, in_ptr, out, use_naive{});
+        }
+      } else {
+        load = __spirv_SubgroupBlockReadINTEL<block_op_type>(ptr);
+      }
 
       // TODO: accessor_iterator's value_type is weird, so we need
       // `std::remove_const_t` below:
@@ -331,6 +372,16 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
       return group_store(g, in, out_ptr, use_naive{});
 
     if constexpr (!std::is_same_v<std::nullptr_t, decltype(ptr)>) {
+      using block_info = typename detail::BlockTypeInfo<
+          detail::BlockInfo<OutputIteratorT, ElementsPerWorkItem, blocked>>;
+      static constexpr auto deduced_address_space =
+          block_info::deduced_address_space;
+      if constexpr (deduced_address_space ==
+                        access::address_space::local_space &&
+                    !props.template has_property<
+                        detail::native_local_block_io_key>())
+        return group_store(g, in, out_ptr, use_naive{});
+
       // Do optimized store.
       std::remove_const_t<remove_decoration_t<
           typename std::iterator_traits<OutputIteratorT>::value_type>>
@@ -341,11 +392,28 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
         values[i] = in[i];
       }
 
-      __spirv_SubgroupBlockWriteINTEL(
-          ptr,
-          sycl::bit_cast<typename detail::BlockTypeInfo<detail::BlockInfo<
-              OutputIteratorT, ElementsPerWorkItem, blocked>>::block_op_type>(
-              values));
+      using block_op_type = typename block_info::block_op_type;
+      if constexpr (deduced_address_space ==
+                    access::address_space::generic_space) {
+        if (auto local_ptr = detail::dynamic_address_cast<
+                access::address_space::local_space>(ptr)) {
+          if constexpr (props.template has_property<
+                            detail::native_local_block_io_key>())
+            __spirv_SubgroupBlockWriteINTEL(
+                local_ptr, sycl::bit_cast<block_op_type>(values));
+          else
+            return group_store(g, in, out_ptr, use_naive{});
+        } else if (auto global_ptr = detail::dynamic_address_cast<
+                       access::address_space::global_space>(ptr)) {
+          __spirv_SubgroupBlockWriteINTEL(
+              global_ptr, sycl::bit_cast<block_op_type>(values));
+        } else {
+          return group_store(g, in, out_ptr, use_naive{});
+        }
+      } else {
+        __spirv_SubgroupBlockWriteINTEL(ptr,
+                                        sycl::bit_cast<block_op_type>(values));
+      }
     }
   }
 }
