@@ -25351,6 +25351,9 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
     case Builtin::BIldexpf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_ldexp;
       break;
+    case Builtin::BIsincos:
+      FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sincos;
+      break;
     }
   }
   if (!FPAccuracyIntrinsicID)
