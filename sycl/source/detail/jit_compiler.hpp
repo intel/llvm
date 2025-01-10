@@ -16,6 +16,7 @@
 #include <KernelFusion.h>
 #endif // SYCL_EXT_JIT_ENABLE
 
+#include <functional>
 #include <unordered_map>
 
 namespace jit_compiler {
@@ -80,7 +81,7 @@ private:
       const ::jit_compiler::SYCLKernelAttribute &Attr) const;
 
   // Indicate availability of the JIT compiler
-  bool Available;
+  bool Available = false;
 
   // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
@@ -98,6 +99,8 @@ private:
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
+  static std::function<void(void *)> CustomDeleterForLibHandle;
+  std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryHandle;
 #endif // SYCL_EXT_JIT_ENABLE
 };
 

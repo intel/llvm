@@ -1,7 +1,8 @@
-# commit 93fc1331edfd5519ea1fab42a8b96abe9e53672f
-# Merge: 259b67db d2c04518
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Dec 26 16:52:33 2024 +0000
-#     Merge pull request #2402 from yingcong-wu/yc/1202-mmap-failure
-#     [DevASAN][CPU] bugfix for mmap return value check.
-set(UNIFIED_RUNTIME_TAG 93fc1331edfd5519ea1fab42a8b96abe9e53672f)
+# commit 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f
+# Merge: 9c652ffb b78cfa71
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Thu Jan 9 17:28:00 2025 +0000
+# Merge pull request #2048 from RossBrunton/ross/refc
+#
+# Use reference counting on factories
+set(UNIFIED_RUNTIME_TAG 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f)

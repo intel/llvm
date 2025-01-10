@@ -18,6 +18,12 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
+        type: string
+        default: 'FETCH_HEAD'
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.gz
@@ -100,6 +106,7 @@ jobs:
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Configure
       shell: cmd
