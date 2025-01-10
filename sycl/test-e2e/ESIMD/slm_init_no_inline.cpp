@@ -20,8 +20,8 @@ int main() {
 
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>()
-            << ", driver=" << D.get_info<info::device::driver_version>()
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>()
+            << ", driver=" << D.get_info<sycl::info::device::driver_version>()
             << std::endl;
 
   constexpr int Size = VL * 2;

@@ -14467,62 +14467,10 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(
     const simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
     PropertyListT) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, Addr, this](unsigned Block) {
-        select<BlockN, 1>(Block * BlockN) =
-            block_load<UT, BlockN>(Addr + (Block * BlockN), PropertyListT{});
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      select<RemN, 1>(NumBlocks * BlockN) =
-          block_load<UT, RemN>(Addr + (NumBlocks * BlockN), PropertyListT{});
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC(reinterpret_cast<const int32_t *>(Addr),
-                            PropertyListT{});
-    bit_cast_view<int32_t>() = BC;
-  } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll([Addr, &Offsets, this](unsigned Block) {
-        select<ChunkSize, 1>(Block * ChunkSize) = gather<UT, ChunkSize>(
-            Addr + (Block * ChunkSize), Offsets, PropertyListT{});
-      });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1) {
-        select<1, 1>(NumChunks * ChunkSize) = Addr[NumChunks * ChunkSize];
-      } else if constexpr (RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN>(
-            Addr + (NumChunks * ChunkSize), Offsets, PropertyListT{});
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
-        simd<UT, N1> Vals = gather<UT, N1>(Addr + (NumChunks * ChunkSize),
-                                           Offsets, Pred, PropertyListT{});
-        select<RemN, 1>(NumChunks * ChunkSize) =
-            Vals.template select<RemN, 1>();
-      }
-    }
-  }
+  // Assume element aligned if not specified.
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, sizeof(UT)>;
+  *this = block_load<UT, N>(Addr, NewPropertyListT{});
 }
 
 template <typename T, int N, class T1, class SFINAE>
@@ -14543,68 +14491,80 @@ ESIMD_INLINE std::enable_if_t<
 simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
     AccessorT acc, TOffset offset, PropertyListT) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  simd<UT, N> Tmp{data()};
-  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, &Tmp](unsigned Block) {
-        block_store<UT, BlockN, AccessorT>(
-            acc, offset + (Block * BlockSize),
-            Tmp.template select<BlockN, 1>(Block * BlockN), PropertyListT{});
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      block_store<UT, RemN, AccessorT>(
-          acc, offset + (NumBlocks * BlockSize),
-          Tmp.template select<RemN, 1>(NumBlocks * BlockN), PropertyListT{});
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
-    BC.copy_to(acc, offset, PropertyListT{});
+  if constexpr (sycl::detail::acc_properties::is_local_accessor_v<AccessorT>) {
+    simd<UT, N> Tmp{data()};
+    slm_block_store<UT, N>(offset + localAccessorToOffset(acc), Tmp,
+                           PropertyListT{});
   } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<TOffset, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll(
-          [acc, offset, &Offsets, &Tmp](unsigned Block) {
-            scatter<UT, ChunkSize>(
-                acc, Offsets + (offset + (Block * ChunkSize * sizeof(T))),
-                Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
-                PropertyListT{});
-          });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<TOffset, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN>(
-            acc, Offsets + (offset + (NumChunks * ChunkSize * sizeof(T))),
-            Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
-            PropertyListT{});
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<UT, N1> Vals;
-        Vals.template select<RemN, 1>() =
-            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
-        simd<TOffset, N1> Offsets(0u, sizeof(T));
-        scatter<UT, N1>(
-            acc, Offsets + (offset + (NumChunks * ChunkSize * sizeof(T))), Vals,
-            Pred, PropertyListT{});
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+    copy_to(__ESIMD_DNS::accessorToPointer<UT>(acc, offset), PropertyListT{});
+#else // !__ESIMD_FORCE_STATELESS_MEM
+    constexpr unsigned Size = sizeof(T) * N;
+    constexpr size_t Align =
+        detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
+
+    constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+    constexpr unsigned NumBlocks = Size / BlockSize;
+    constexpr unsigned RemSize = Size % BlockSize;
+
+    simd<UT, N> Tmp{data()};
+    if constexpr (Align >= OperandSize::OWORD &&
+                  Size % OperandSize::OWORD == 0 &&
+                  detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+      if constexpr (NumBlocks > 0) {
+        constexpr unsigned BlockN = BlockSize / sizeof(T);
+        ForHelper<NumBlocks>::unroll([BlockN, acc, offset,
+                                      &Tmp](unsigned Block) {
+          block_store<UT, BlockN, AccessorT>(
+              acc, offset + (Block * BlockSize),
+              Tmp.template select<BlockN, 1>(Block * BlockN), PropertyListT{});
+        });
+      }
+      if constexpr (RemSize > 0) {
+        constexpr unsigned RemN = RemSize / sizeof(T);
+        constexpr unsigned BlockN = BlockSize / sizeof(T);
+        block_store<UT, RemN, AccessorT>(
+            acc, offset + (NumBlocks * BlockSize),
+            Tmp.template select<RemN, 1>(NumBlocks * BlockN), PropertyListT{});
+      }
+    } else if constexpr (sizeof(T) == 8) {
+      simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
+      BC.copy_to(acc, offset, PropertyListT{});
+    } else {
+      constexpr unsigned NumChunks = N / ChunkSize;
+      if constexpr (NumChunks > 0) {
+        simd<TOffset, ChunkSize> Offsets(0u, sizeof(T));
+        ForHelper<NumChunks>::unroll(
+            [acc, offset, &Offsets, &Tmp](unsigned Block) {
+              scatter<UT, ChunkSize>(
+                  acc, Offsets + (offset + (Block * ChunkSize * sizeof(T))),
+                  Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
+                  PropertyListT{});
+            });
+      }
+      constexpr unsigned RemN = N % ChunkSize;
+      if constexpr (RemN > 0) {
+        if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+          simd<TOffset, RemN> Offsets(0u, sizeof(T));
+          scatter<UT, RemN>(
+              acc, Offsets + (offset + (NumChunks * ChunkSize * sizeof(T))),
+              Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
+              PropertyListT{});
+        } else {
+          constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+          simd_mask_type<N1> Pred(0);
+          Pred.template select<RemN, 1>() = 1;
+          simd<UT, N1> Vals;
+          Vals.template select<RemN, 1>() =
+              Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
+          simd<TOffset, N1> Offsets(0u, sizeof(T));
+          scatter<UT, N1>(
+              acc, Offsets + (offset + (NumChunks * ChunkSize * sizeof(T))),
+              Vals, Pred, PropertyListT{});
+        }
       }
     }
+#endif
   }
 }
 
@@ -14626,62 +14586,73 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(
     AccessorT acc, TOffset offset, PropertyListT) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   static_assert(sizeof(UT) == sizeof(T));
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, this](unsigned Block) {
-        select<BlockN, 1>(Block * BlockN) = block_load<UT, BlockN, AccessorT>(
-            acc, offset + (Block * BlockSize), PropertyListT{});
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      select<RemN, 1>(NumBlocks * BlockN) = block_load<UT, RemN, AccessorT>(
-          acc, offset + (NumBlocks * BlockSize), PropertyListT{});
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC(acc, offset, PropertyListT{});
-    bit_cast_view<int32_t>() = BC;
+  if constexpr (sycl::detail::acc_properties::is_local_accessor_v<AccessorT>) {
+    *this = slm_block_load<UT, N>(offset + localAccessorToOffset(acc),
+                                  PropertyListT{});
   } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<TOffset, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll(
-          [acc, offset, &Offsets, this](unsigned Block) {
-            select<ChunkSize, 1>(Block * ChunkSize) =
-                gather<UT, ChunkSize, AccessorT>(
-                    acc, Offsets + (offset + (Block * ChunkSize * sizeof(T))),
-                    PropertyListT{});
-          });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<TOffset, RemN> Offsets(0u, sizeof(T));
-        select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN, AccessorT>(
-            acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)));
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<TOffset, N1> Offsets(0u, sizeof(T));
-        simd<UT, N1> Vals = gather<UT, N1>(
-            acc, Offsets + (offset + (NumChunks * ChunkSize * sizeof(T))), Pred,
-            PropertyListT{});
-        select<RemN, 1>(NumChunks * ChunkSize) =
-            Vals.template select<RemN, 1>();
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+    copy_from(accessorToPointer<UT>(acc, offset), PropertyListT{});
+#else // !__ESIMD_FORCE_STATELESS_MEM
+    constexpr unsigned Size = sizeof(T) * N;
+    constexpr size_t Align =
+        detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
+
+    constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+    constexpr unsigned NumBlocks = Size / BlockSize;
+    constexpr unsigned RemSize = Size % BlockSize;
+
+    if constexpr (Align >= OperandSize::DWORD &&
+                  Size % OperandSize::OWORD == 0 &&
+                  detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+      if constexpr (NumBlocks > 0) {
+        constexpr unsigned BlockN = BlockSize / sizeof(T);
+        ForHelper<NumBlocks>::unroll([BlockN, acc, offset,
+                                      this](unsigned Block) {
+          select<BlockN, 1>(Block * BlockN) = block_load<UT, BlockN, AccessorT>(
+              acc, offset + (Block * BlockSize), PropertyListT{});
+        });
+      }
+      if constexpr (RemSize > 0) {
+        constexpr unsigned RemN = RemSize / sizeof(T);
+        constexpr unsigned BlockN = BlockSize / sizeof(T);
+        select<RemN, 1>(NumBlocks * BlockN) = block_load<UT, RemN, AccessorT>(
+            acc, offset + (NumBlocks * BlockSize), PropertyListT{});
+      }
+    } else if constexpr (sizeof(T) == 8) {
+      simd<int32_t, N * 2> BC(acc, offset, PropertyListT{});
+      bit_cast_view<int32_t>() = BC;
+    } else {
+      constexpr unsigned NumChunks = N / ChunkSize;
+      if constexpr (NumChunks > 0) {
+        simd<TOffset, ChunkSize> Offsets(0u, sizeof(T));
+        ForHelper<NumChunks>::unroll(
+            [acc, offset, &Offsets, this](unsigned Block) {
+              select<ChunkSize, 1>(Block * ChunkSize) =
+                  gather<UT, ChunkSize, AccessorT>(
+                      acc, Offsets + (offset + (Block * ChunkSize * sizeof(T))),
+                      PropertyListT{});
+            });
+      }
+      constexpr unsigned RemN = N % ChunkSize;
+      if constexpr (RemN > 0) {
+        if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+          simd<TOffset, RemN> Offsets(0u, sizeof(T));
+          select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN, AccessorT>(
+              acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)));
+        } else {
+          constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+          simd_mask_type<N1> Pred(0);
+          Pred.template select<RemN, 1>() = 1;
+          simd<TOffset, N1> Offsets(0u, sizeof(T));
+          simd<UT, N1> Vals = gather<UT, N1>(
+              acc, Offsets + (offset + (NumChunks * ChunkSize * sizeof(T))),
+              Pred, PropertyListT{});
+          select<RemN, 1>(NumChunks * ChunkSize) =
+              Vals.template select<RemN, 1>();
+        }
       }
     }
+#endif
   }
 }
 
@@ -14749,92 +14720,11 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(
     simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
     PropertyListT) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr size_t Align =
-      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(UT));
-
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
+  // Assume element aligned if not specified.
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, sizeof(UT)>;
   simd<UT, N> Tmp{data()};
-  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, Addr, &Tmp](unsigned Block) {
-        block_store<UT, BlockN>(Addr + (Block * BlockN),
-                                Tmp.template select<BlockN, 1>(Block * BlockN),
-                                PropertyListT{});
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      block_store<UT, RemN>(Addr + (NumBlocks * BlockN),
-                            Tmp.template select<RemN, 1>(NumBlocks * BlockN),
-                            PropertyListT{});
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
-    BC.copy_to(reinterpret_cast<int32_t *>(Addr), PropertyListT{});
-  } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll([Addr, &Offsets, &Tmp](unsigned Block) {
-        scatter<UT, ChunkSize>(
-            Addr + (Block * ChunkSize), Offsets,
-            Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
-            PropertyListT{});
-      });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1) {
-        Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
-      } else if constexpr (RemN == 8 || RemN == 16) {
-        // TODO: GPU runtime may handle scatter of 16 byte elements
-        // incorrectly. The code below is a workaround which must be deleted
-        // once GPU runtime is fixed.
-        if constexpr (sizeof(T) == 1 && RemN == 16) {
-          if constexpr (Align % OperandSize::DWORD > 0) {
-            ForHelper<RemN>::unroll([Addr, &Tmp](unsigned Index) {
-              Addr[Index + NumChunks * ChunkSize] =
-                  Tmp[Index + NumChunks * ChunkSize];
-            });
-          } else {
-            simd_mask_type<8> Pred(0);
-            simd<int32_t, 8> Vals;
-            Pred.template select<4, 1>() = 1;
-            Vals.template select<4, 1>() =
-                Tmp.template bit_cast_view<int32_t>().template select<4, 1>(
-                    NumChunks * ChunkSize);
-
-            simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
-            scatter<int32_t, 8>(
-                reinterpret_cast<int32_t *>(Addr + (NumChunks * ChunkSize)),
-                Offsets, Vals, Pred, PropertyListT{});
-          }
-        } else {
-          simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-          scatter<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets,
-                            Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
-                            PropertyListT{});
-        }
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<UT, N1> Vals;
-        Vals.template select<RemN, 1>() =
-            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
-        simd<uint32_t, N1> Offsets(0u, sizeof(T));
-        scatter<UT, N1>(Addr + (NumChunks * ChunkSize), Offsets, Vals, Pred,
-                        PropertyListT{});
-      }
-    }
-  }
+  block_store(Addr, Tmp, NewPropertyListT{});
 }
 
 template <typename T, int N, class T1, class SFINAE>

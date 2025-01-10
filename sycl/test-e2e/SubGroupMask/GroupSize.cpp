@@ -15,6 +15,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <iostream>
 
@@ -37,8 +38,8 @@ template <size_t SGSize> void test(queue Queue) {
         auto resacc = resbuf.template get_access<access::mode::read_write>(cgh);
 
         cgh.parallel_for<sycl_subgr<SGSize>>(
-            NdRange, [=
-        ](nd_item<1> NdItem) [[intel::reqd_sub_group_size(SGSize)]] {
+            NdRange,
+            [=](nd_item<1> NdItem) [[sycl::reqd_sub_group_size(SGSize)]] {
               auto SG = NdItem.get_sub_group();
               auto LID = SG.get_local_id();
               auto SGID = SG.get_group_id();

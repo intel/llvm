@@ -422,14 +422,15 @@ template <typename T> void test_fill_q() {
   free(h_A);
 }
 
+constexpr size_t size = 2000;
+constexpr size_t offset = 1000;
+
+syclcompat::constant_memory<float, 1> d_A(size);
+syclcompat::constant_memory<float, 1> d_B(size);
+
 void test_constant_memcpy() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  constexpr size_t size = 2000;
-  constexpr size_t offset = 1000;
-
-  syclcompat::constant_memory<float, 1> d_A(size);
-  syclcompat::constant_memory<float, 1> d_B(size);
 
   float *h_A = (float *)malloc(size / 2 * sizeof(float));
   float *h_B = (float *)malloc(size / 2 * sizeof(float));

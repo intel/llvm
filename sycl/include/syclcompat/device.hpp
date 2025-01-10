@@ -440,6 +440,10 @@ public:
     return get_device_info().get_global_mem_size();
   }
 
+  size_t get_local_mem_size() const {
+    return get_device_info().get_local_mem_size();
+  }
+
   /// Get the number of bytes of free and total memory on the SYCL device.
   /// \param [out] free_memory The number of bytes of free memory on the SYCL
   /// device.

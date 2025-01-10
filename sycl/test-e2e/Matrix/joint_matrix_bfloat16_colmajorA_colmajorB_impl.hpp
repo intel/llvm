@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define TM 8
-#define TK 16
+constexpr size_t TM = 8;
+constexpr size_t TN = 16;
+constexpr size_t TK = 16;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
@@ -29,7 +30,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -43,7 +44,6 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::col_major>
                sub_a;
-           // For B, we assume B has been already VNNIed.
            joint_matrix<sub_group, bfloat16, use::b, TK, TN, layout::col_major>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;

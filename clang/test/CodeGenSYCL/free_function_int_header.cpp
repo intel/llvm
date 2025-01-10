@@ -2,7 +2,7 @@
 // RUN: FileCheck -input-file=%t.h %s
 // 
 // This test checks integration header contents for free functions with scalar,
-// pointer and non-decomposed struct parameters.
+// pointer, non-decomposed struct parameters and work group memory parameters.
 
 #include "mock_properties.hpp"
 #include "sycl.hpp"
@@ -96,6 +96,12 @@ void ff_7(KArgWithPtrArray<ArrSize> KArg) {
 
 template void ff_7(KArgWithPtrArray<TestArrSize> KArg);
 
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]] 
+void ff_8(sycl::work_group_memory<int>) {
+}
+
+
 // CHECK:      const char* const kernel_names[] = {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piiii
@@ -105,6 +111,7 @@ template void ff_7(KArgWithPtrArray<TestArrSize> KArg);
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_410NoPointers8Pointers3Agg
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
@@ -147,6 +154,9 @@ template void ff_7(KArgWithPtrArray<TestArrSize> KArg);
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 48, 0 },
+
+// CHECK:  //--- _Z18__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
+// CHECK-NEXT:  { kernel_param_kind_t::kind_work_group_memory, 8, 0 },
 
 // CHECK:        { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
@@ -294,6 +304,26 @@ template void ff_7(KArgWithPtrArray<TestArrSize> KArg);
 // CHECK-NEXT: };
 // CHECK-NEXT: }
 
+// CHECK: Definition of _Z18__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE as a free function kernel
+
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: template <typename DataT> class work_group_memory;
+
+// CHECK: void ff_8(sycl::work_group_memory<int>);
+// CHECK-NEXT: static constexpr auto __sycl_shim9() {
+// CHECK-NEXT: return (void (*)(class sycl::work_group_memory<int>))ff_8;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim9()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim9()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
 // CHECK: #include <sycl/kernel_bundle.hpp>
 
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_2Piii
@@ -357,5 +387,13 @@ template void ff_7(KArgWithPtrArray<TestArrSize> KArg);
 // CHECK-NEXT: template <>
 // CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim8()>() {
 // CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE"});
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+// CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim9()>() {
+// CHECK-NEXT: return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE"});
 // CHECK-NEXT: }
 // CHECK-NEXT: }

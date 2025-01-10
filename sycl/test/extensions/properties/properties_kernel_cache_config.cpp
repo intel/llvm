@@ -5,10 +5,6 @@
 using namespace sycl::ext::intel::experimental;
 
 int main() {
-  // Check that oneapi::experimental::is_property_key is correctly specialized
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                cache_config_key>::value);
-
   // Check that oneapi::experimental::is_property_value is correctly specialized
   static_assert(sycl::ext::oneapi::experimental::is_property_value<
                 decltype(cache_config{large_slm})>::value);

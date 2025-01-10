@@ -28,8 +28,8 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -73,42 +73,42 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   static const std::string KernelName = "TestKernel";
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
   setKernelUsesAssert({KernelName}, PropSet);
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  UrImage Img(std::move(Entries), std::move(PropSet));
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::UrImage generateCopierKernelImage() {
+static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
-  UrImage Img(std::move(Entries), std::move(PropSet));
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-sycl::unittest::UrImage Imgs[] = {generateDefaultImage(),
-                                  generateCopierKernelImage()};
-sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {generateDefaultImage(),
+                                          generateCopierKernelImage()};
+sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 struct AssertHappened {
   int Flag = 0;
@@ -145,10 +145,12 @@ static AssertHappened ExpectedToOutput = {
 };
 
 static constexpr int KernelLaunchCounterBase = 0;
-static int KernelLaunchCounter = KernelLaunchCounterBase;
 static constexpr int MemoryMapCounterBase = 1000;
 static int MemoryMapCounter = MemoryMapCounterBase;
+#ifndef _WIN32
+static int KernelLaunchCounter = KernelLaunchCounterBase;
 static constexpr int PauseWaitOnIdx = KernelLaunchCounterBase + 1;
+#endif
 
 // Mock redifinitions
 static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
@@ -167,6 +169,7 @@ static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+#ifndef _WIN32
 static ur_result_t redefinedEnqueueKernelLaunchAfter(void *pParams) {
   auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
   static ur_event_handle_t UserKernelEvent = **params.pphEvent;
@@ -197,6 +200,7 @@ static ur_result_t redefinedEventWaitPositive(void *pParams) {
   printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
   return UR_RESULT_SUCCESS;
 }
+#endif
 
 static ur_result_t redefinedEventWaitNegative(void *pParams) {
   auto params = *static_cast<ur_enqueue_events_wait_params_t *>(pParams);
@@ -223,6 +227,7 @@ static ur_result_t redefinedEnqueueMemBufferMapAfter(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+#ifndef _WIN32
 static void setupMock(sycl::unittest::UrMock<> &Mock) {
   using namespace sycl::detail;
   mock::getCallbacks().set_after_callback("urKernelGetGroupInfo",
@@ -234,6 +239,7 @@ static void setupMock(sycl::unittest::UrMock<> &Mock) {
   mock::getCallbacks().set_before_callback("urEventWait",
                                            &redefinedEventWaitPositive);
 }
+#endif
 
 namespace TestInteropKernel {
 const sycl::context *Context = nullptr;
@@ -315,6 +321,18 @@ static ur_result_t redefinedProgramGetInfo(void *pParams) {
       memcpy(*params.ppPropValue, &Dev, sizeof(Dev));
     if (*params.ppPropSizeRet)
       **params.ppPropSizeRet = sizeof(Dev);
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Required if program cache eviction is enabled.
+  if (UR_PROGRAM_INFO_BINARY_SIZES == *params.ppropName) {
+    size_t BinarySize = 1;
+
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &BinarySize, sizeof(size_t));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(size_t);
 
     return UR_RESULT_SUCCESS;
   }

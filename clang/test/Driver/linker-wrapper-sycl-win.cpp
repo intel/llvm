@@ -112,3 +112,7 @@
 // CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Error handling when --linker-path is not provided for clang-linker-wrapper
+// RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
+// LINKER-PATH-NOT-PROVIDED: linker path missing, must pass 'linker-path'

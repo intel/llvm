@@ -1,0 +1,30 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; TODO: re-enable spirv-val
+; R/U/N: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+OpCapability Addresses
+OpCapability Kernel
+OpCapability CooperativeMatrixKHR
+OpExtension "SPV_KHR_cooperative_matrix"
+OpMemoryModel Physical64 OpenCL
+OpEntryPoint Kernel %1 "testCoopMat"
+%void = OpTypeVoid
+%uint = OpTypeInt 32 0
+%_ptr_CrossWorkgroup_uint = OpTypePointer CrossWorkgroup %uint
+%fnTy = OpTypeFunction %void %_ptr_CrossWorkgroup_uint
+%uint_0 = OpConstant %uint 0
+%uint_3 = OpConstant %uint 3
+%uint_8 = OpConstant %uint 8
+%uint_42 = OpConstant %uint 42
+%matTy = OpTypeCooperativeMatrixKHR %uint %uint_3 %uint_8 %uint_8 %uint_0
+%matConst = OpConstantComposite %matTy %uint_42
+%1 = OpFunction %void None %fnTy
+%outPtr = OpFunctionParameter %_ptr_CrossWorkgroup_uint
+%2 = OpLabel
+OpCooperativeMatrixStoreKHR %outPtr %matConst %uint_0 %uint_8
+OpReturn
+OpFunctionEnd
+
+; CHECK: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 8, 8, 0) @__spirv_ConstantComposite_RPU3AS142__spirv_CooperativeMatrixKHR__uint_3_8_8_0(i32 42)

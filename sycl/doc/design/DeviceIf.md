@@ -88,6 +88,9 @@ recognizes:
 * `amd_gpu_gfx700`
 * `amd_gpu_gfx701`
 * `amd_gpu_gfx702`
+* `amd_gpu_gfx703`
+* `amd_gpu_gfx704`
+* `amd_gpu_gfx705`
 * `amd_gpu_gfx801`
 * `amd_gpu_gfx802`
 * `amd_gpu_gfx803`
@@ -187,6 +190,9 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX700__`
 * `__SYCL_TARGET_AMD_GPU_GFX701__`
 * `__SYCL_TARGET_AMD_GPU_GFX702__`
+* `__SYCL_TARGET_AMD_GPU_GFX703__`
+* `__SYCL_TARGET_AMD_GPU_GFX704__`
+* `__SYCL_TARGET_AMD_GPU_GFX705__`
 * `__SYCL_TARGET_AMD_GPU_GFX801__`
 * `__SYCL_TARGET_AMD_GPU_GFX802__`
 * `__SYCL_TARGET_AMD_GPU_GFX803__`

@@ -3,6 +3,7 @@
 // The test is repeated for per_kernel device code splitting.
 //
 // REQUIRES: cuda || hip || native_cpu
+// REQUIRES: build-and-run-mode
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -o %t1.out %s
 // RUN: %{run} %t1.out
 //
@@ -14,9 +15,6 @@
 //
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -fsycl-device-code-split=per_kernel -o %t4.out %s
 // RUN: %{run} %t4.out
-//
-// XFAIL: hip_nvidia
-//
 
 #include <sycl/detail/core.hpp>
 
