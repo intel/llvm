@@ -11,15 +11,16 @@ struct KernelFunctor {
 
     auto get(sycl::ext::oneapi::experimental::properties_tag) {
         return sycl::ext::oneapi::experimental::properties{
-            sycl::ext::oneapi::experimental::work_group_size<8, 4, 2>};
+            sycl::ext::oneapi::experimental::max_work_group_size<8, 4, 2>,
+            sycl::ext::oneapi::experimental::max_linear_work_group_size<64>};
     }
 };
 
 int main() {
     sycl::queue myQueue;
     myQueue.submit([&](sycl::handler &cgh) {
-        cgh.parallel_for<class FixedWgSize>(sycl::range<3>(8, 8, 8),
-                                            KernelFunctor{});
+        cgh.parallel_for<class MaxWgSize>(sycl::range<3>(8, 8, 8),
+                                          KernelFunctor{});
     });
 
     myQueue.wait();

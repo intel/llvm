@@ -1,4 +1,5 @@
-urKernelGetGroupInfoWgSizeTest.CompileWorkGroupSize/*
+urKernelGetGroupInfoFixedWorkGroupSizeTest.CompileWorkGroupSize/*
+urKernelGetSubGroupInfoFixedSubGroupSizeTest.CompileNumSubGroups/*
 urKernelSetArgLocalTest.InvalidKernelArgumentIndex/*
 urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/*
 urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/*

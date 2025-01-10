@@ -27,8 +27,10 @@ struct urEnqueueKernelLaunchKernelWgSizeTest : uur::urKernelExecutionTest {
 
     std::array<size_t, 3> global_size{32, 32, 32};
     std::array<size_t, 3> global_offset{0, 0, 0};
-    // This must match the size in fixed_wg_size.cpp
-    std::array<size_t, 3> wg_size{4, 4, 4};
+    // This value correlates to work_group_size<8, 4, 2> in fixed_wg_size.cpp.
+    // In SYCL, the right-most dimension varies the fastest in linearization.
+    // In UR, this is on the left, so we reverse the order of these values.
+    std::array<size_t, 3> wg_size{2, 4, 8};
     size_t n_dimensions = 3;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelWgSizeTest);

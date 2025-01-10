@@ -273,11 +273,17 @@ namespace ur_loader
 
         %endif
         %endif
-        ## Before we can re-enable the releases we will need ref-counted object_t.
-        ## See unified-runtime github issue #1784
-        ##%if item['release']:
-        ##// release loader handle
-        ##${item['factory']}.release( ${item['name']} );
+        ## Possibly handle release/retain ref counting - there are no ur_exp-image factories
+        %if 'factory' in item and '_exp_image_' not in item['factory']:
+            %if item['release']:
+            // release loader handle
+            context->factories.${item['factory']}.release( ${item['name']} );
+            %endif
+            %if item['retain']:
+            // increment refcount of handle
+            context->factories.${item['factory']}.retain( ${item['name']} );
+            %endif
+        %endif
         %if not item['release'] and not item['retain'] and not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
         try
         {
