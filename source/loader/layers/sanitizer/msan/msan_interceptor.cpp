@@ -276,7 +276,8 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         auto DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
         for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
             const auto &GVInfo = GVInfos[i];
-            UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr, GVInfo.Size, 0));
+            UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
+                                                            GVInfo.Size, 0));
         }
     }
 
