@@ -1,4 +1,5 @@
 // REQUIRES: gpu, level-zero
+// REQUIRES: build-and-run-mode
 
 // TODO: Remove unsetting SYCL_DEVICE_FILTER when feature is dropped
 // RUN: env --unset=SYCL_DEVICE_FILTER --unset=ONEAPI_DEVICE_SELECTOR sycl-ls --verbose >%t.default.out

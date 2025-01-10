@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
-//
-// XFAIL: hip_nvidia
 
 //===- MultipleDevices.cpp - Test checking multi-device execution --------===//
 //

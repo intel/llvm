@@ -24,7 +24,7 @@ int main() {
                                    sycl::range<1>{32}};
 
     Queue.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:34
       auto Accessor1 = SubBuffer.get_access<sycl::access::mode::write>(cgh);
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID2:.*]]

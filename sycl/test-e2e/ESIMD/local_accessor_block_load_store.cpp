@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
+// XFAIL: igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16388
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // This test verifies usage of block_load/block_store for local_accessor.

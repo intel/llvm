@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/is_device_copyable.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
@@ -24,6 +25,7 @@ namespace ext::oneapi::experimental {
 template <typename properties_type_list_ty> class __SYCL_EBO properties;
 
 namespace detail {
+using namespace sycl::detail;
 
 // NOTE: Meta-function to implement CTAD rules isn't allowed to return
 // `properties<something>` and it's impossible to return a pack as well. As

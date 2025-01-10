@@ -31,7 +31,7 @@ int main() {
 
   auto DynamicCG = exp_ext::dynamic_command_group(Graph, {CGFA, CGFB});
   auto DynamicCGNode = Graph.add(DynamicCG);
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   auto ExecGraph = Graph.finalize();
 
   Queue.ext_oneapi_graph(ExecGraph).wait();

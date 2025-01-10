@@ -1091,6 +1091,14 @@ extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
 extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
     __clc_native_exp2(__ocl_vec_t<_Float16, 16>);
 
+// FIXME: __clc symbols are intended to be internal symbols to libclc/libspirv
+// and should not be relied upon externally; consider them deprecated. We can't,
+// however, explicitly declare __spirv_ocl versions of these builtins as that
+// interferes with the implicit declarations provided by clang. This results in
+// legitimate calls being seen as ambiguous and causing errors. Since these
+// symbols are intended to expose native versions of bfloat16 builtins for
+// NVPTX, we should probably just be exposing builtins with actual bfloat16
+// types, not unsigned integer types.
 #define __CLC_BF16(...)                                                        \
   extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fabs(           \
       __VA_ARGS__) noexcept;                                                   \

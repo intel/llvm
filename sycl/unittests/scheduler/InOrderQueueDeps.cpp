@@ -87,9 +87,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
 bool BarrierCalled = false;
 ur_event_handle_t ExpectedEvent = nullptr;
-ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
+ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
-      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
   EXPECT_EQ(*params.pnumEventsInWaitList, 1u);
   EXPECT_EQ(ExpectedEvent, **params.pphEventWaitList);
   BarrierCalled = true;
@@ -107,7 +107,8 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
   BarrierCalled = false;
 
   context Ctx{Plt.get_devices()[0]};
@@ -197,7 +198,8 @@ TEST_F(SchedulerTest, BypassSchedulerWithBarrier) {
   sycl::platform Plt = sycl::platform();
 
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
   BarrierCalled = false;
 
   context Ctx{Plt};

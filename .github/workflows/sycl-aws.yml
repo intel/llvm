@@ -15,6 +15,9 @@ on:
         description: "JSON string with array of objects with aws-type, runs-on, aws-ami, aws-spot, aws-disk, aws-timebomb, one-job properties"
         type: string
         default: '[{"runs-on":"aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
+      ref:
+        type: string
+        required: false
 
 jobs:
   aws:
@@ -24,6 +27,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: devops/actions/aws-ec2
+          ref: ${{ inputs.ref || github.sha }}
       - run: npm install ./devops/actions/aws-ec2
       - uses: ./devops/actions/aws-ec2
         with:

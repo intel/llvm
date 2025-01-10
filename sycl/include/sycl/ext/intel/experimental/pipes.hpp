@@ -69,7 +69,7 @@ protected:
 #ifdef __SYCL_PIPES_CPP
 // Magic combination found by trial and error:
 __SYCL_EXPORT
-#ifdef WIN32
+#if _WIN32
 inline
 #endif
 #else

@@ -150,6 +150,13 @@ inline bool isAccessChainOpCode(Op OpCode) {
   return OpCode == OpAccessChain || OpCode == OpInBoundsAccessChain;
 }
 
+inline bool isUntypedAccessChainOpCode(Op OpCode) {
+  return OpCode == OpUntypedAccessChainKHR ||
+         OpCode == OpUntypedInBoundsAccessChainKHR ||
+         OpCode == OpUntypedPtrAccessChainKHR ||
+         OpCode == OpUntypedInBoundsPtrAccessChainKHR;
+}
+
 inline bool hasExecScope(Op OpCode) {
   unsigned OC = OpCode;
   return (OpGroupWaitEvents <= OC && OC <= OpGroupSMax) ||

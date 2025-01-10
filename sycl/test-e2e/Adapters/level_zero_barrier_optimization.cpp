@@ -34,7 +34,7 @@ int main() {
     auto EventB = submitKernel(Q2);
 
     // CHECK: Test1
-    // CHECK: ---> urEnqueueEventsWaitWithBarrier
+    // CHECK: ---> urEnqueueEventsWaitWithBarrierExt
     // CHECK: ZE ---> zeEventCreate
     // CHECK-OPT: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK: ZE ---> zeCommandListAppendSignalEvent
@@ -54,7 +54,7 @@ int main() {
     auto EventB = submitKernel(Q2);
 
     // CHECK: Test2
-    // CHECK: ---> urEnqueueEventsWaitWithBarrier
+    // CHECK: ---> urEnqueueEventsWaitWithBarrierExt
     // CHECK-OPT: ZE ---> {{zeEventCreate|zeEventHostReset}}
     // CHECK-OPT: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK: ZE ---> zeCommandListAppendSignalEvent
@@ -74,7 +74,7 @@ int main() {
     Q2.wait();
     Q3.wait();
     // CHECK: Test3
-    // CHECK: ---> urEnqueueEventsWaitWithBarrier
+    // CHECK: ---> urEnqueueEventsWaitWithBarrierExt
     // CHECK: ZE ---> zeEventCreate
     // CHECK-NOT: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK-NOT: ZE ---> zeCommandListAppendSignalEvent

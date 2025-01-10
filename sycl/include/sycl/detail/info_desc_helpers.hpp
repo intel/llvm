@@ -129,6 +129,18 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
 #include <sycl/info/sycl_backend_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+template <typename SyclObject, typename Param>
+constexpr int emit_get_backend_info_error() {
+  // Implementation of get_backend_info doesn't seem to be aligned with the
+  // spec and is likely going to be deprecated/removed. However, in pre-C++11
+  // ABI mode if result in ABI mismatch and causes crashes, so emit
+  // compile-time error under those conditions.
+  constexpr bool False = !std::is_same_v<Param, Param>;
+  static_assert(False,
+                "This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0");
+  return 0;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

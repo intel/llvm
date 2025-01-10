@@ -1,11 +1,11 @@
-; This test checks that the post-link tool properly generates "asanUsed=1"
+; This test checks that the post-link tool properly generates "sanUsed=asan"
 ; in prop file, and fixes the attributes and metadata of @__AsanKernelMetadata
 
 ; RUN: sycl-post-link -properties -split=kernel -symbols -S < %s -o %t.table
 
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefix CHECK-PROP
 ; CHECK-PROP: [SYCL/misc properties]
-; CHECK-PROP: asanUsed=1
+; CHECK-PROP: sanUsed=2|gAAAAAAAAAQYzFmb
 
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK-IR
 
@@ -18,7 +18,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel = comdat any
 
 @__asan_kernel = internal addrspace(1) constant [55 x i8] c"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel\00"
 @__AsanKernelMetadata = appending dso_local local_unnamed_addr addrspace(1) global [1 x { i64, i64 }] [{ i64, i64 } { i64 ptrtoint (ptr addrspace(1) @__asan_kernel to i64), i64 54 }] #2
-; CHECK-IR: @__AsanKernelMetadata {{.*}} !spirv.Decorations
+; CHECK-IR: @__AsanKernelMetadata = dso_local local_unnamed_addr addrspace(1) global %0 { {{.*}} }, !spirv.Decorations
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 @__asan_func = internal addrspace(2) constant [106 x i8] c"typeinfo name for main::'lambda'(sycl::_V1::handler&)::operator()(sycl::_V1::handler&) const::MyKernelR_4\00"
 

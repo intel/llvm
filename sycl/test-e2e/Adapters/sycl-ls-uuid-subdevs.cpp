@@ -1,4 +1,5 @@
 /* Test to check that sycl-ls is outputting UUID and number of sub and sub-sub
+// REQUIRES: build-and-run-mode
  * devices. */
 // REQUIRES:  gpu, level_zero
 

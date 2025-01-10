@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Nvidia should not allow sub_devices but does not throw corresponding error.
-// XFAIL: hip_nvidia
 /* Check that:
 1) if partition_equally is supported, then we check that the correct
 invalid errc is returned if more than max_compute_units are requested

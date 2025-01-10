@@ -67,6 +67,20 @@ public:
     IgnoredAttribute,
     UnknownAttribute,
   };
+  enum class Scope {
+    NONE,
+    CLANG,
+    GNU,
+    MSVC,
+    OMP,
+    HLSL,
+    GSL,
+    RISCV,
+    INTEL,
+    SYCL,
+    CL,
+    SYCL_DETAIL
+  };
 
 private:
   const IdentifierInfo *AttrName = nullptr;

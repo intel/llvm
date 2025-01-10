@@ -1,7 +1,7 @@
-# commit 5f4a5a27e8192ee41ce21c8fb140d770c779af78
-# Merge: 4111306dc9d2 039cf144f535
+# commit f0b35200c07e6a15766ba75d01a3c176d42a2429
+# Merge: 545a01bae624 ceb0465d4090
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 5 10:49:58 2024 +0000
-#     Merge pull request #2334 from winstonzhang-intel/interrupt-based
-#     [L0] Interrupt-based event implementation
+# Date:   Mon Jan 6 09:51:26 2025 +0000
+#     Merge pull request #2519 from oneapi-src/revert-2481-fabio/fix_potential_race_condition
+#     Revert "Fix potential deadlock in the WaitEvent path of CmdBuffers"
 set(UNIFIED_RUNTIME_TAG uwe/tbb_integration)

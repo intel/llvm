@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// XFAIL: gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16388
 // REQUIRES: gpu-intel-dg2 && level_zero
 // UNSUPPORTED: windows
 

@@ -1,6 +1,6 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 /* Refer to the exp routine for the underlying algorithm */
 

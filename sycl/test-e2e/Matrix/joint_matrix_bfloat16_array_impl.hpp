@@ -140,8 +140,8 @@ int main() {
       test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      break;
 #endif
+      break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*

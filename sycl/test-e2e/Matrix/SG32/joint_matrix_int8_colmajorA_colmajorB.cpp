@@ -15,6 +15,7 @@
 // then VNNI transform. This is currently only available on AMX
 
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-5768
 
 #include "../common.hpp"
 

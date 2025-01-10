@@ -22,7 +22,7 @@
 
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF float sin(float x)
 {

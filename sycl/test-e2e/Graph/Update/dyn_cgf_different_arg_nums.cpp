@@ -90,7 +90,7 @@ int main() {
   // CHECK-SAME: .argIndex = 0
   // CHECK-SAME: .stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
   // CHECK-SAME: .argIndex = 1
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
   Queue.ext_oneapi_graph(ExecGraph).wait();
   Queue.copy(Ptr, HostData.data(), Size).wait();
@@ -107,7 +107,7 @@ int main() {
   // CHECK-SAME: .numNewValueArgs = 0
   // CHECK-SAME: .stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
   // CHECK-SAME: .argIndex = 0
-  DynamicCG.set_active_cgf(2);
+  DynamicCG.set_active_index(2);
   ExecGraph.update(DynamicCGNode);
   Queue.ext_oneapi_graph(ExecGraph).wait();
   Queue.copy(Ptr, HostData.data(), Size).wait();
@@ -130,7 +130,7 @@ int main() {
   // CHECK-SAME: .argIndex = 2
   // CHECK-SAME: .stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
   // CHECK-SAME: .argIndex = 3
-  DynamicCG.set_active_cgf(3);
+  DynamicCG.set_active_index(3);
   ExecGraph.update(DynamicCGNode);
   Queue.ext_oneapi_graph(ExecGraph).wait();
   Queue.copy(Ptr, HostData.data(), Size).wait();

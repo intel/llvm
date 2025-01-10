@@ -1,7 +1,7 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <core/clc_core.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 // From add_sat.ll
 _CLC_DECL char   __clc_add_sat_s8(char, char);

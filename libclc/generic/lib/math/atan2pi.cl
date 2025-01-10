@@ -23,7 +23,7 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 
-#include "../../libspirv/math/tables.h"
+#include <libspirv/math/tables.h>
 #include "math.h"
 
 _CLC_OVERLOAD _CLC_DEF  float atan2pi(float y, float x) {

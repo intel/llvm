@@ -24,49 +24,143 @@ template <typename DataT, int NumElem> class __SYCL_EBO vec;
 
 namespace detail {
 
-template <typename VecT> class VecAccess;
+// We use std::plus<void> and similar to "map" template parameter to an
+// overloaded operator. These three below are missing from `<functional>`.
+struct ShiftLeft {
+  template <class T, class U>
+  constexpr auto operator()(T &&lhs, U &&rhs) const
+      -> decltype(std::forward<T>(lhs) << std::forward<U>(rhs)) {
+    return std::forward<T>(lhs) << std::forward<U>(rhs);
+  }
+};
+struct ShiftRight {
+  template <class T, class U>
+  constexpr auto operator()(T &&lhs,
+                            U &&rhs) const -> decltype(std::forward<T>(lhs) >>
+                                                       std::forward<U>(rhs)) {
+    return std::forward<T>(lhs) >> std::forward<U>(rhs);
+  }
+};
 
-// Macros to populate binary operation on sycl::vec.
-#if defined(__SYCL_BINOP) || defined(BINOP_BASE)
-#error "Undefine __SYCL_BINOP and BINOP_BASE macro"
+struct UnaryPlus {
+  template <class T>
+  constexpr auto operator()(T &&arg) const -> decltype(+std::forward<T>(arg)) {
+    return +std::forward<T>(arg);
+  }
+};
+
+struct VecOperators {
+#ifdef __SYCL_DEVICE_ONLY__
+  static constexpr bool is_host = false;
+#else
+  static constexpr bool is_host = true;
 #endif
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                             \
+  template <typename BinOp, typename... ArgTys>
+  static constexpr auto apply(const ArgTys &...Args) {
+    using Self = nth_type_t<0, ArgTys...>;
+    static_assert(is_vec_v<Self>);
+    static_assert(((std::is_same_v<Self, ArgTys> && ...)));
+
+    using element_type = typename Self::element_type;
+    constexpr int N = Self::size();
+    constexpr bool is_logical = check_type_in_v<
+        BinOp, std::equal_to<void>, std::not_equal_to<void>, std::less<void>,
+        std::greater<void>, std::less_equal<void>, std::greater_equal<void>,
+        std::logical_and<void>, std::logical_or<void>, std::logical_not<void>>;
+
+    using result_t = std::conditional_t<
+        is_logical, vec<fixed_width_signed<sizeof(element_type)>, N>, Self>;
+
+    BinOp Op{};
+    if constexpr (is_host || N == 1 ||
+                  std::is_same_v<element_type, ext::oneapi::bfloat16>) {
+      result_t res{};
+      for (size_t i = 0; i < N; ++i)
+        if constexpr (is_logical)
+          res[i] = Op(Args[i]...) ? -1 : 0;
+        else
+          res[i] = Op(Args[i]...);
+      return res;
+    } else {
+      using vector_t = typename Self::vector_t;
+
+      auto res = [&](auto... xs) {
+        // Workaround for https://github.com/llvm/llvm-project/issues/119617.
+        if constexpr (sizeof...(Args) == 2) {
+          return [&](auto x, auto y) {
+            if constexpr (std::is_same_v<BinOp, std::equal_to<void>>)
+              return x == y;
+            else if constexpr (std::is_same_v<BinOp, std::not_equal_to<void>>)
+              return x != y;
+            else if constexpr (std::is_same_v<BinOp, std::less<void>>)
+              return x < y;
+            else if constexpr (std::is_same_v<BinOp, std::less_equal<void>>)
+              return x <= y;
+            else if constexpr (std::is_same_v<BinOp, std::greater<void>>)
+              return x > y;
+            else if constexpr (std::is_same_v<BinOp, std::greater_equal<void>>)
+              return x >= y;
+            else
+              return Op(x, y);
+          }(xs...);
+        } else {
+          return Op(xs...);
+        }
+      }(bit_cast<vector_t>(Args)...);
+
+      if constexpr (std::is_same_v<element_type, bool>) {
+        // vec(vector_t) ctor does a simple bit_cast and the way "bool" is
+        // stored is that only one bit matters. vector_t, however, is a char
+        // type and it can have non-zero value with lowest bit unset. E.g.,
+        // consider this:
+        //
+        //   auto x = true + true; // int x = 2
+        //   bool y = true + true; // bool y = true
+        //
+        // and the vec<bool, N> has to behave in a similar way. As such, current
+        // implementation needs to do some extra processing for operators that
+        // can result in this scenario.
+        //
+        if constexpr (!is_logical &&
+                      !check_type_in_v<BinOp, std::multiplies<void>,
+                                       std::divides<void>, std::bit_or<void>,
+                                       std::bit_and<void>, std::bit_xor<void>,
+                                       ShiftRight, UnaryPlus>) {
+          // TODO: Not sure why the following doesn't work
+          // (test-e2e/Basic/vector/bool.cpp fails).
+          //
+          // res = (decltype(res))(res != 0);
+          for (size_t i = 0; i < N; ++i)
+            res[i] = bit_cast<int8_t>(res[i]) != 0;
+        }
+      }
+      // The following is true:
+      //
+      // using char2 = char __attribute__((ext_vector_type(2)));
+      // using uchar2 = unsigned char __attribute__((ext_vector_type(2)));
+      // static_assert(std::is_same_v<decltype(std::declval<uchar2>() ==
+      //                                       std::declval<uchar2>()),
+      //                              char2>);
+      //
+      // so we need some extra casts. Also, static_cast<uchar2>(char2{})
+      // isn't allowed either.
+      return result_t{(typename result_t::vector_t)res};
+    }
+  }
+};
+
+// Macros to populate binary operation on sycl::vec.
+#if defined(__SYCL_BINOP)
+#error "Undefine __SYCL_BINOP macro"
+#endif
+
+#define __SYCL_BINOP(BINOP, OPASSIGN, COND, FUNCTOR)                           \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
                                                         const vec_t & Rhs) {   \
-    vec_t Ret;                                                                 \
-    if constexpr (vec_t::IsBfloat16) {                                         \
-      for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
-      }                                                                        \
-    } else {                                                                   \
-      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);          \
-      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);          \
-      Ret = vec<DataT, NumElements>(ExtVecLhs BINOP ExtVecRhs);                \
-      if constexpr (std::is_same_v<DataT, bool> && CONVERT) {                  \
-        vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);              \
-      }                                                                        \
-    }                                                                          \
-    return Ret;                                                                \
-  }
-#else // __SYCL_DEVICE_ONLY__
-
-#define BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                             \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
-                                                        const vec_t & Rhs) {   \
-    vec_t Ret{};                                                               \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret[I] = Lhs[I] BINOP Rhs[I];                                            \
-    }                                                                          \
-    return Ret;                                                                \
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
-#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT, COND)                           \
-  BINOP_BASE(BINOP, OPASSIGN, CONVERT, COND)                                   \
+    return VecOperators::apply<FUNCTOR>(Lhs, Rhs);                             \
+  }                                                                            \
                                                                                \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
@@ -117,57 +211,17 @@ protected:
 
   // operator!.
   friend vec<ocl_t, NumElements> operator!(const vec_t &Rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (!vec_t::IsBfloat16) {
-      auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Rhs);
-      vec<ocl_t, NumElements> Ret{
-          (typename vec<ocl_t, NumElements>::vector_t) !extVec};
-      return Ret;
-    } else
-#endif // __SYCL_DEVICE_ONLY__
-    {
-      vec<ocl_t, NumElements> Ret{};
-      for (size_t I = 0; I < NumElements; ++I) {
-        // static_cast will work here as the output of ! operator is either 0 or
-        // -1.
-        Ret[I] = static_cast<ocl_t>(-1 * (!Rhs[I]));
-      }
-      return Ret;
-    }
+    return VecOperators::apply<std::logical_not<void>>(Rhs);
   }
 
   // operator +.
   friend vec_t operator+(const vec_t &Lhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Lhs);
-    return vec_t{+extVec};
-#else
-    vec_t Ret{};
-    for (size_t I = 0; I < NumElements; ++I)
-      Ret[I] = +Lhs[I];
-    return Ret;
-#endif
+    return VecOperators::apply<UnaryPlus>(Lhs);
   }
 
   // operator -.
   friend vec_t operator-(const vec_t &Lhs) {
-    vec_t Ret{};
-    if constexpr (vec_t::IsBfloat16) {
-      for (size_t I = 0; I < NumElements; I++)
-        Ret[I] = -Lhs[I];
-    } else {
-#ifndef __SYCL_DEVICE_ONLY__
-      for (size_t I = 0; I < NumElements; ++I)
-        Ret[I] = -Lhs[I];
-#else
-      auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Lhs);
-      Ret = vec_t{-extVec};
-      if constexpr (std::is_same_v<DataT, bool>) {
-        vec_arith_common<bool, NumElements>::ConvertToDataT(Ret);
-      }
-#endif
-    }
-    return Ret;
+    return VecOperators::apply<std::negate<void>>(Lhs);
   }
 
 // Unary operations on sycl::vec
@@ -195,52 +249,16 @@ protected:
   // logical operations should result in 0 and -1 (similar to OpenCL vectors).
   // That's why, for vec<DataT, 1>, we need to invert the result of the logical
   // operations since we store vec<DataT, 1> as scalar type on the device.
-#if defined(__SYCL_RELLOGOP) || defined(RELLOGOP_BASE)
-#error "Undefine __SYCL_RELLOGOP and RELLOGOP_BASE macro."
+#if defined(__SYCL_RELLOGOP)
+#error "Undefine __SYCL_RELLOGOP macro."
 #endif
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define RELLOGOP_BASE(RELLOGOP, COND)                                          \
+#define __SYCL_RELLOGOP(RELLOGOP, COND, FUNCTOR)                               \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
       const vec_t & Lhs, const vec_t & Rhs) {                                  \
-    vec<ocl_t, NumElements> Ret{};                                             \
-    /* ext_vector_type does not support bfloat16, so for these   */            \
-    /* we do element-by-element operation on the underlying std::array.  */    \
-    if constexpr (vec_t::IsBfloat16) {                                         \
-      for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret[I] = static_cast<ocl_t>(-(Lhs[I] RELLOGOP Rhs[I]));                \
-      }                                                                        \
-    } else {                                                                   \
-      auto ExtVecLhs = sycl::bit_cast<typename vec_t::vector_t>(Lhs);          \
-      auto ExtVecRhs = sycl::bit_cast<typename vec_t::vector_t>(Rhs);          \
-      /* Cast required to convert unsigned char ext_vec_type to */             \
-      /* char ext_vec_type. */                                                 \
-      Ret = vec<ocl_t, NumElements>(                                           \
-          (typename vec<ocl_t, NumElements>::vector_t)(                        \
-              ExtVecLhs RELLOGOP ExtVecRhs));                                  \
-      /* For NumElements == 1, we use scalar instead of ext_vector_type. */    \
-      if constexpr (NumElements == 1) {                                        \
-        Ret *= -1;                                                             \
-      }                                                                        \
-    }                                                                          \
-    return Ret;                                                                \
-  }
-#else // __SYCL_DEVICE_ONLY__
-#define RELLOGOP_BASE(RELLOGOP, COND)                                          \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
-      const vec_t & Lhs, const vec_t & Rhs) {                                  \
-    vec<ocl_t, NumElements> Ret{};                                             \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret[I] = static_cast<ocl_t>(-(Lhs[I] RELLOGOP Rhs[I]));                  \
-    }                                                                          \
-    return Ret;                                                                \
-  }
-#endif
-
-#define __SYCL_RELLOGOP(RELLOGOP, COND)                                        \
-  RELLOGOP_BASE(RELLOGOP, COND)                                                \
+    return VecOperators::apply<FUNCTOR>(Lhs, Rhs);                             \
+  }                                                                            \
                                                                                \
   template <typename T = DataT>                                                \
   friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
@@ -256,34 +274,34 @@ protected:
   // OP is: ==, !=, <, >, <=, >=, &&, ||
   // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
   // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
-  __SYCL_RELLOGOP(==, true)
-  __SYCL_RELLOGOP(!=, true)
-  __SYCL_RELLOGOP(>, true)
-  __SYCL_RELLOGOP(<, true)
-  __SYCL_RELLOGOP(>=, true)
-  __SYCL_RELLOGOP(<=, true)
+  __SYCL_RELLOGOP(==, true, std::equal_to<void>)
+  __SYCL_RELLOGOP(!=, true, std::not_equal_to<void>)
+  __SYCL_RELLOGOP(>, true, std::greater<void>)
+  __SYCL_RELLOGOP(<, true, std::less<void>)
+  __SYCL_RELLOGOP(>=, true, std::greater_equal<void>)
+  __SYCL_RELLOGOP(<=, true, std::less_equal<void>)
 
   // Only available to integral types.
-  __SYCL_RELLOGOP(&&, (!detail::is_vgenfloat_v<T>))
-  __SYCL_RELLOGOP(||, (!detail::is_vgenfloat_v<T>))
+  __SYCL_RELLOGOP(&&, (!detail::is_vgenfloat_v<T>), std::logical_and<void>)
+  __SYCL_RELLOGOP(||, (!detail::is_vgenfloat_v<T>), std::logical_or<void>)
 #undef __SYCL_RELLOGOP
 #undef RELLOGOP_BASE
 
   // Binary operations on sycl::vec<> for all types except std::byte.
-  __SYCL_BINOP(+, +=, true, true)
-  __SYCL_BINOP(-, -=, true, true)
-  __SYCL_BINOP(*, *=, false, true)
-  __SYCL_BINOP(/, /=, false, true)
+  __SYCL_BINOP(+, +=, true, std::plus<void>)
+  __SYCL_BINOP(-, -=, true, std::minus<void>)
+  __SYCL_BINOP(*, *=, true, std::multiplies<void>)
+  __SYCL_BINOP(/, /=, true, std::divides<void>)
 
   // The following OPs are available only when: DataT != cl_float &&
   // DataT != cl_double && DataT != cl_half && DataT != BF16.
-  __SYCL_BINOP(%, %=, false, (!detail::is_vgenfloat_v<T>))
+  __SYCL_BINOP(%, %=, (!detail::is_vgenfloat_v<T>), std::modulus<void>)
   // Bitwise operations are allowed for std::byte.
-  __SYCL_BINOP(|, |=, false, (!detail::is_vgenfloat_v<DataT>))
-  __SYCL_BINOP(&, &=, false, (!detail::is_vgenfloat_v<DataT>))
-  __SYCL_BINOP(^, ^=, false, (!detail::is_vgenfloat_v<DataT>))
-  __SYCL_BINOP(>>, >>=, false, (!detail::is_vgenfloat_v<DataT>))
-  __SYCL_BINOP(<<, <<=, true, (!detail::is_vgenfloat_v<DataT>))
+  __SYCL_BINOP(|, |=, (!detail::is_vgenfloat_v<DataT>), std::bit_or<void>)
+  __SYCL_BINOP(&, &=, (!detail::is_vgenfloat_v<DataT>), std::bit_and<void>)
+  __SYCL_BINOP(^, ^=, (!detail::is_vgenfloat_v<DataT>), std::bit_xor<void>)
+  __SYCL_BINOP(>>, >>=, (!detail::is_vgenfloat_v<DataT>), ShiftRight)
+  __SYCL_BINOP(<<, <<=, (!detail::is_vgenfloat_v<DataT>), ShiftLeft)
 
   // friends
   template <typename T1, int T2> friend class __SYCL_EBO vec;
@@ -334,9 +352,9 @@ protected:
     return Lhs;
   }
 
-  __SYCL_BINOP(|, |=, false, true)
-  __SYCL_BINOP(&, &=, false, true)
-  __SYCL_BINOP(^, ^=, false, true)
+  __SYCL_BINOP(|, |=, true, std::bit_or<void>)
+  __SYCL_BINOP(&, &=, true, std::bit_and<void>)
+  __SYCL_BINOP(^, ^=, true, std::bit_xor<void>)
 
   // friends
   template <typename T1, int T2> friend class __SYCL_EBO vec;
@@ -355,38 +373,14 @@ protected:
   template <typename T = DataT>
   friend std::enable_if_t<!detail::is_vgenfloat_v<T>, vec_t>
   operator~(const vec_t &Rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    auto extVec = sycl::bit_cast<typename vec_t::vector_t>(Rhs);
-    vec_t Ret{~extVec};
-    if constexpr (std::is_same_v<DataT, bool>) {
-      ConvertToDataT(Ret);
-    }
-    return Ret;
-#else
-    vec_t Ret{};
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret[I] = ~Rhs[I];
-    }
-    return Ret;
-#endif
+    return VecOperators::apply<std::bit_not<void>>(Rhs);
   }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  using vec_bool_t = vec<bool, NumElements>;
-  // Required only for std::bool.
-  static void ConvertToDataT(vec_bool_t &Ret) {
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret[I] = bit_cast<int8_t>(Ret[I]) != 0;
-    }
-  }
-#endif
 
   // friends
   template <typename T1, int T2> friend class __SYCL_EBO vec;
 };
 
 #undef __SYCL_BINOP
-#undef BINOP_BASE
 
 } // namespace detail
 } // namespace _V1

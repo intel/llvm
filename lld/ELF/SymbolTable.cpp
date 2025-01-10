@@ -203,7 +203,7 @@ void SymbolTable::handleDynamicList() {
       syms = findByVersion(ver);
 
     for (Symbol *sym : syms)
-      sym->inDynamicList = true;
+      sym->exportDynamic = sym->inDynamicList = true;
   }
 }
 
@@ -276,8 +276,8 @@ void SymbolTable::scanVersionScript() {
                                    pat.isExternCpp, /*hasWildCard=*/false},
                                   id, ver, /*includeNonDefault=*/true);
       if (!found && !ctx.arg.undefinedVersion)
-        errorOrWarn("version script assignment of '" + ver + "' to symbol '" +
-                    pat.name + "' failed: symbol not defined");
+        Err(ctx) << "version script assignment of '" << ver << "' to symbol '"
+                 << pat.name << "' failed: symbol not defined";
     };
     for (SymbolVersion &pat : v.nonLocalPatterns)
       if (!pat.hasWildcard)
@@ -349,13 +349,6 @@ void SymbolTable::scanVersionScript() {
       if (pat.hasWildcard && pat.name == "*")
         assignAsterisk(pat, &v, true);
   }
-
-  // Symbol themselves might know their versions because symbols
-  // can contain versions in the form of <name>@<version>.
-  // Let them parse and update their names to exclude version suffix.
-  for (Symbol *sym : symVector)
-    if (sym->hasVersionSuffix)
-      sym->parseSymbolVersion(ctx);
 
   // isPreemptible is false at this point. To correctly compute the binding of a
   // Defined (which is used by includeInDynsym(ctx)), we need to know if it is
