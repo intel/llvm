@@ -433,65 +433,6 @@ bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   return true;
 }
 
-// This is a temporary workaround to deal with a graphics driver failure not
-// able to support the typed pointer reverse translation of
-// getelementptr i8, ptr @__spirv_Builtin* patterns. This replaces such
-// accesses with getelementptr i32, ptr @__spirv_Builtin instead.
-static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
-  // IGC only supports:
-  // load GV
-  // load (addrspacecast GV)
-  // load (gep (addrspacecast GV))
-  // load (gep GV)
-  // Opaque pointers will cause the optimizer to use i8 geps, or to remove
-  // 0-index geps entirely (adding bitcasts to the result). Restore these to
-  // avoid bitcasts in the resulting IR.
-  Type *Ty = GV->getValueType();
-  Type *ScalarTy = Ty->getScalarType();
-  SmallVector<Value *, 4> Users;
-  for (auto User : GV->users()) {
-    if (auto *LI = dyn_cast<LoadInst>(User)) {
-      if (LI->getType() != Ty)
-        Users.push_back(LI);
-    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
-      if (GEP->getSourceElementType() != Ty)
-        Users.push_back(GEP);
-    }
-  }
-
-  Type *Int32Ty = Type::getInt32Ty(GV->getContext());
-  auto GetGep = [&](unsigned Offset,
-                    std::optional<ConstantRange> InRange = std::nullopt) {
-    llvm::ConstantRange GepInRange(llvm::APInt(32, -((signed)Offset), true),
-                                   llvm::APInt(32, Offset, true));
-    if (InRange)
-      GepInRange = *InRange;
-    return ConstantExpr::getGetElementPtr(
-        Ty, GV,
-        ArrayRef<Constant *>(
-            {ConstantInt::get(Int32Ty, 0), ConstantInt::get(Int32Ty, Offset)}),
-        true, GepInRange);
-  };
-
-  const DataLayout &DL = GV->getParent()->getDataLayout();
-  for (auto *User : Users) {
-    if (auto *LI = dyn_cast<LoadInst>(User)) {
-      LI->setOperand(0, GetGep(0));
-    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
-      APInt Offset(64, 0);
-      GEP->accumulateConstantOffset(DL, Offset);
-      APInt Index;
-      uint64_t Remainder;
-      APInt::udivrem(Offset, ScalarTy->getScalarSizeInBits() / 8, Index,
-                     Remainder);
-      assert(Remainder == 0 && "Cannot handle misaligned access to builtins");
-      GEP->replaceAllUsesWith(GetGep(Index.getZExtValue(), GEP->getInRange()));
-      if (auto *Inst = dyn_cast<Instruction>(GEP))
-        Inst->eraseFromParent();
-    }
-  }
-}
-
 namespace {
 void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
                                        Module *M,
@@ -639,12 +580,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
   expandSYCLTypeUsing(M);
   cleanupConversionToNonStdIntegers(M);
-
-  for (auto &GV : M->globals()) {
-    SPIRVBuiltinVariableKind Kind;
-    if (isSPIRVBuiltinVariable(&GV, &Kind))
-      simplifyBuiltinVarAccesses(&GV);
-  }
 
   // Kernels called by other kernels
   std::vector<Function *> CalledKernels;
