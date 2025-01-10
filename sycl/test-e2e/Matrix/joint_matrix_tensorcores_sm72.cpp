@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: cuda
+// REQUIRED-TRIPLES: nvptx64-nvidia-cuda
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_72 -o %t.out
 // RUN: %{run} %t.out
 //

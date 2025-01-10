@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // REQUIRES: aspect-ext_intel_matrix
+// REQUIRED-TRIPLES: spir64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

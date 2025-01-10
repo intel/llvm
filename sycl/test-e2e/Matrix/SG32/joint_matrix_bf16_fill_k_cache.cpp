@@ -9,6 +9,7 @@
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
+// REQUIRED-TRIPLES: spir64
 
 // RUN: %{build} -o %t_vnni.out -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out

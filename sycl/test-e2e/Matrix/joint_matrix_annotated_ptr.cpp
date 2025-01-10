@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
+// REQUIRED-TRIPLES: spir64
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out

@@ -8,6 +8,7 @@
 // This tests support of row major layout for matrix B which does automatic VNNI
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
+// REQUIRED-TRIPLES: spir64
 // VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
 // UNSUPPORTED: gpu-intel-dg2
 
