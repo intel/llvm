@@ -146,6 +146,8 @@ jobs:
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
+    - name: Install zstd
+      uses: ./devops/scripts/build_zstd_1_5_6_ub24.sh
     - uses: ./devops/actions/cached_checkout
       with:
         path: src
