@@ -333,8 +333,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
     // targetting for Intel GPU devices. Users have 2 ways to apply AOT,
     // 1). clang++ -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc,...,"
     // 2). clang++ -fsycl -fsycl-targets=intel_gpu_pvc,...
-    // We assume that users will only apply either 1) or 2) and won't mix the
-    // 2 ways in their compiling command.
+    // 3). clang++ -fsycl -fsycl-targets=spir64_gen,intel_gpu_pvc,...
+    // -Xsycl-target-backend=spir64_gen "-device dg2"
 
     std::string Params;
     for (const auto &Arg : TargArgs) {
@@ -353,13 +353,34 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
     };
 
     size_t DevicesPos = Params.find("-device ");
-    // "-device xxx" is used to specify AOT target device.
+    // "-device xxx" is used to specify AOT target device, so user must apply
+    // -Xs "-device xxx" or -Xsycl-target-backend=spir64_gen "-device xxx"
     if (DevicesPos != std::string::npos) {
       UseNative = true;
       std::istringstream Devices(Params.substr(DevicesPos + 8));
       for (std::string S; std::getline(Devices, S, ',');)
         UseNative &= checkBF(S);
+
+      // When "-device XXX" is applied to speicify GPU type, user can still
+      // add -fsycl-targets=intel_gpu_pvc..., native bfloat16 devicelib can
+      // only be linked when all GPU types specified support.
+      // We need to filter CPU and FPGA target here and only focus on GPU
+      // device.
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+        for (auto TargetsV : SYCLTarget->getValues()) {
+          if (!checkSpirvJIT(StringRef(TargetsV)) &&
+              !StringRef(TargetsV).starts_with("spir64_gen") &&
+              !StringRef(TargetsV).starts_with("spir64_x86_64") &&
+              !StringRef(TargetsV).starts_with("spir64_fpga") &&
+              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+            UseNative = false;
+            break;
+          }
+        }
+      }
+
       return NeedLibs;
+
     } else {
       // -fsycl-targets=intel_gpu_xxx is used to specify AOT target device.
       // Multiple Intel GPU devices can be specified, native bfloat16 devicelib
