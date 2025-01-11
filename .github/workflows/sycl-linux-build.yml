@@ -153,7 +153,9 @@ jobs:
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
     - name: Install zstd
-      run: ./devops/scripts/build_zstd_1_5_6_ub24.sh
+      run: |
+        ls
+        bash $GITHUB_WORKSPACE/src/devops/scripts/build_zstd_1_5_6_ub24.sh
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
