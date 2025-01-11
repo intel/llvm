@@ -23,13 +23,21 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+std::function<void(void *)> jit_compiler::CustomDeleterForLibHandle =
+    [](void *StoredPtr) {
+      if (!StoredPtr)
+        return;
+      std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
+    };
+
 static inline void printPerformanceWarning(const std::string &Message) {
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
     std::cerr << "WARNING: " << Message << "\n";
   }
 }
 
-jit_compiler::jit_compiler() {
+jit_compiler::jit_compiler()
+    : LibraryHandle(nullptr, CustomDeleterForLibHandle) {
   auto checkJITLibrary = [this]() -> bool {
 #ifdef _WIN32
     static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
@@ -37,15 +45,16 @@ jit_compiler::jit_compiler() {
 #else
     static const std::string JITLibraryName = "libsycl-jit.so";
 #endif
-
-    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
+    std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryPtr(
+        sycl::detail::ur::loadOsLibrary(JITLibraryName),
+        CustomDeleterForLibHandle);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
                                                   "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
@@ -54,7 +63,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
                                                   "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
@@ -63,7 +72,8 @@ jit_compiler::jit_compiler() {
     }
 
     this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
+                                                  "fuseKernels"));
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -73,7 +83,7 @@ jit_compiler::jit_compiler() {
     this->MaterializeSpecConstHandle =
         reinterpret_cast<MaterializeSpecConstFuncT>(
             sycl::detail::ur::getOsLibraryFuncAddress(
-                LibraryPtr, "materializeSpecConstants"));
+                LibraryPtr.get(), "materializeSpecConstants"));
     if (!this->MaterializeSpecConstHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -81,13 +91,14 @@ jit_compiler::jit_compiler() {
     }
 
     this->CompileSYCLHandle = reinterpret_cast<CompileSYCLFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "compileSYCL"));
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
+                                                  "compileSYCL"));
     if (!this->CompileSYCLHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
       return false;
     }
-
+    LibraryHandle = std::move(LibraryPtr);
     return true;
   };
   Available = checkJITLibrary();
