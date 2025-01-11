@@ -107,6 +107,7 @@ enum InternalDecoration {
 
 enum InternalCapability {
   ICapFastCompositeINTEL = 6093,
+  ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
   ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
@@ -130,6 +131,8 @@ enum InternalCapability {
   ICapabilitySubgroupRequirementsINTEL = 6445,
   ICapabilityBindlessImagesINTEL = 6528
 };
+
+enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
@@ -288,6 +291,8 @@ constexpr Decoration DecorationArgumentAttributeINTEL =
 
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
+constexpr Capability CapabilityOptNoneINTEL =
+    static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
 constexpr Capability CapabilityFPArithmeticFenceINTEL =
@@ -296,6 +301,9 @@ constexpr Capability CapabilityBfloat16ConversionINTEL =
     static_cast<Capability>(ICapBfloat16ConversionINTEL);
 constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
     static_cast<Capability>(ICapGlobalVariableDecorationsINTEL);
+
+constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
+    static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);

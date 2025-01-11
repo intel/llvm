@@ -294,7 +294,7 @@ inline bool isValidFunctionControlMask(SPIRVWord Mask) {
   ValidMask |= FunctionControlDontInlineMask;
   ValidMask |= FunctionControlPureMask;
   ValidMask |= FunctionControlConstMask;
-  ValidMask |= FunctionControlOptNoneEXTMask;
+  ValidMask |= internal::FunctionControlOptNoneINTELMask;
 
   return (Mask & ~ValidMask) == 0;
 }
