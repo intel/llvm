@@ -8,19 +8,20 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>               // for access_mode
-#include <sycl/accessor.hpp>                    // for host_acce...
-#include <sycl/accessor.hpp>                    // for accessor
-#include <sycl/context.hpp>                     // for context
-#include <sycl/device.hpp>                      // for device
-#include <sycl/event.hpp>                       // for event
-#include <sycl/ext/oneapi/weak_object.hpp>      // for weak_object
-#include <sycl/kernel.hpp>                      // for kernel
-#include <sycl/kernel_bundle_enums.hpp>         // for bundle_state
-#include <sycl/platform.hpp>                    // for platform
-#include <sycl/properties/image_properties.hpp> // for sampled_i...
-#include <sycl/queue.hpp>                       // for queue
-#include <sycl/stream.hpp>                      // for stream
+#include <sycl/access/access.hpp>                 // for access_mode
+#include <sycl/accessor.hpp>                      // for host_acce...
+#include <sycl/accessor.hpp>                      // for accessor
+#include <sycl/context.hpp>                       // for context
+#include <sycl/device.hpp>                        // for device
+#include <sycl/event.hpp>                         // for event
+#include <sycl/ext/oneapi/experimental/graph.hpp> // for command_graph
+#include <sycl/ext/oneapi/weak_object.hpp>        // for weak_object
+#include <sycl/kernel.hpp>                        // for kernel
+#include <sycl/kernel_bundle_enums.hpp>           // for bundle_state
+#include <sycl/platform.hpp>                      // for platform
+#include <sycl/properties/image_properties.hpp>   // for sampled_i...
+#include <sycl/queue.hpp>                         // for queue
+#include <sycl/stream.hpp>                        // for stream
 
 namespace sycl {
 inline namespace _V1 {
@@ -128,6 +129,10 @@ template <typename DataT, int Dimensions>
 struct owner_less<host_sampled_image_accessor<DataT, Dimensions>>
     : public detail::owner_less_base<
           host_sampled_image_accessor<DataT, Dimensions>> {};
+
+template <experimental::graph_state State>
+struct owner_less<experimental::command_graph<State>>
+    : public detail::owner_less_base<experimental::command_graph<State>> {};
 
 } // namespace ext::oneapi
 } // namespace _V1

@@ -972,8 +972,9 @@ void CudaToolChain::addClangTargetOptions(
       CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
                       "--nvptx-prec-sqrtf32=0"});
   } else {
-    CC1Args.append(
-        {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
+    CC1Args.append({"-fcuda-is-device", "-mllvm",
+                    "-enable-memcpyopt-without-libcalls",
+                    "-fno-threadsafe-statics"});
 
     // Unsized function arguments used for variadics were introduced in CUDA-9.0
     // We still do not support generating code that actually uses variadic

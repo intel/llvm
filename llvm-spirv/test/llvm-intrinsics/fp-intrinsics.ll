@@ -422,3 +422,17 @@ entry:
 }
 
 declare float @llvm.tanh.f32(float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: FunctionParameter {{[0-9]+}} [[y:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] atan2 [[y]] [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestAtan2(float %x, float %y) {
+entry:
+  %t = tail call float @llvm.atan2.f32(float %y, float %x)
+  ret float %t
+}
+
+declare float @llvm.atan2.f32(float, float)

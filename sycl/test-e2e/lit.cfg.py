@@ -39,12 +39,16 @@ config.unsupported_features = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
+config.fallback_build_run_only = False
 if config.test_mode == "full":
     config.available_features.add("run-mode")
     config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
+    if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
+        config.available_features.add("build-and-run-mode")
+        config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
@@ -149,10 +153,13 @@ if platform.system() == "Windows":
         ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
     )
     config.substitutions.append(("%obj_ext", ".obj"))
+    config.substitutions.append(
+        ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
+    )
 elif platform.system() == "Linux":
     config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
-config.substitutions.append(("%sycl_include", config.sycl_include))
+    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
@@ -161,8 +168,6 @@ if lit_config.params.get("gpu-intel-gen12", False):
     config.available_features.add("gpu-intel-gen12")
 
 # Intel GPU DEVICE availability
-if lit_config.params.get("gpu-intel-dg1", False):
-    config.available_features.add("gpu-intel-dg1")
 if lit_config.params.get("gpu-intel-dg2", False):
     config.available_features.add("gpu-intel-dg2")
 if lit_config.params.get("gpu-intel-pvc-vg", False):
@@ -170,6 +175,31 @@ if lit_config.params.get("gpu-intel-pvc-vg", False):
 
 if lit_config.params.get("igc-dev", False):
     config.available_features.add("igc-dev")
+
+# Map between device family and architecture types.
+device_family_arch_map = {
+    # <Family name> : Set of architectures types (and aliases)
+    # DG2
+    "gpu-intel-dg2": {
+        "intel_gpu_acm_g12",
+        "intel_gpu_dg2_g12",
+        "intel_gpu_acm_g11",
+        "intel_gpu_dg2_g11",
+        "intel_gpu_acm_g10",
+        "intel_gpu_dg2_g10",
+    },
+    # Gen12
+    "gpu-intel-gen12": {"intel_gpu_tgllp", "intel_gpu_tgl"},
+    # Gen11
+    "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
+}
+
+
+def get_device_family_from_arch(arch):
+    for device_family, arch_set in device_family_arch_map.items():
+        if arch in arch_set:
+            return device_family
+    return None
 
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
@@ -298,8 +328,22 @@ if sp[0] == 0:
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+# -shared is invalid for icx on Windows, use /LD instead.
+dll_opt = "/LD" if cl_options else "-shared"
+
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    [
+        config.dpcpp_compiler,
+        "-fsycl",
+        "--offload-compress",
+        dll_opt,
+        fPIC_opt,
+        "-x",
+        "c++",
+        "-",
+        "-o",
+        "-",
+    ],
     stdin=subprocess.PIPE,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
@@ -378,7 +422,7 @@ if cl_options:
         )
     )
     config.substitutions.append(("%include_option", "/FI"))
-    config.substitutions.append(("%debug_option", "/DEBUG"))
+    config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
     config.substitutions.append(("%cxx_std_option", "/std:"))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
@@ -467,8 +511,6 @@ if len(config.sycl_devices) > 1:
     lit_config.note(
         "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
     )
-
-config.sycl_devices = [x.replace("ext_oneapi_", "") for x in config.sycl_devices]
 
 available_devices = {
     "opencl": ("cpu", "gpu", "fpga"),
@@ -663,7 +705,9 @@ for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+    if sycl_device.startswith("hip:"):
+        env["UR_HIP_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
@@ -768,10 +812,27 @@ for sycl_device in config.sycl_devices:
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
     architecture_feature = set("arch-" + s for s in architectures)
+    # Add device family features like intel-gpu-gen12, intel-gpu-dg2 based on
+    # the architecture reported by sycl-ls.
+    device_family = set(
+        get_device_family_from_arch(arch)
+        for arch in architectures
+        if get_device_family_from_arch(arch) is not None
+    )
+
+    # Print the detected GPU family name.
+    if len(device_family) > 0:
+        lit_config.note(
+            "Detected GPU family for {}: {}".format(
+                sycl_device, ", ".join(device_family)
+            )
+        )
+
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
+    features.update(device_family)
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))

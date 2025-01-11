@@ -46,6 +46,9 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(sycl_device_binaries desc);
 
 // +++ }
 
+// For testing purposes
+class ProgramManagerTest;
+
 namespace sycl {
 inline namespace _V1 {
 class context;
@@ -87,6 +90,13 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_bfloat16,
 };
 
+enum class SanitizerType {
+  None,
+  AddressSanitizer,
+  MemorySanitizer,
+  ThreadSanitizer
+};
+
 // A helper class for storing image/program objects and their dependencies
 // and making their handling a bit more readable.
 template <typename T> class ObjectWithDeps {
@@ -125,13 +135,11 @@ public:
 
   RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
                                       const context &Context,
-                                      const device &Device,
-                                      bool JITCompilationIsRequired = false);
+                                      const device &Device);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const context &Context, const device &Device,
-      bool JITCompilationIsRequired = false);
+      const context &Context, const device &Device);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       const context &Context,
@@ -167,13 +175,10 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
-  ///        add a check that kernel is compiled, otherwise don't add the check.
   ur_program_handle_t getBuiltURProgram(const ContextImplPtr &ContextImpl,
                                         const DeviceImplPtr &DeviceImpl,
                                         const std::string &KernelName,
-                                        const NDRDescT &NDRDesc = {},
-                                        bool JITCompilationIsRequired = false);
+                                        const NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
@@ -213,7 +218,7 @@ public:
   void addImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
-                                        const ContextImplPtr Context);
+                                        const ContextImplPtr &Context);
 
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
@@ -330,10 +335,10 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
+  SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
+
   std::optional<int>
   kernelImplicitLocalArgPos(const std::string &KernelName) const;
-
-  bool kernelUsesAsan() const { return m_AsanFoundInImage; }
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -465,8 +470,8 @@ private:
   std::set<std::string> m_KernelUsesAssert;
   std::unordered_map<std::string, int> m_KernelImplicitLocalArgPos;
 
-  // True iff there is a device image compiled with AddressSanitizer
-  bool m_AsanFoundInImage;
+  // Sanitizer type used in device image
+  SanitizerType m_SanitizerFoundInImage;
 
   // Maps between device_global identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>
@@ -487,6 +492,8 @@ private:
   using MaterializedEntries =
       std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
   std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
+
+  friend class ::ProgramManagerTest;
 };
 } // namespace detail
 } // namespace _V1
