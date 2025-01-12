@@ -32,7 +32,6 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_image: ghcr.io/intel/llvm/ubuntu2404_build:latest
       build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
       merge_ref: ''
 
