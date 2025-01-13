@@ -767,19 +767,16 @@ Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
   });
 }
 
-static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
-  // Non image scope device globals are implemented by device USM, and the
-  // out-of-bounds check for them will be done by sanitizer USM part. So we
-  // exclude them here.
-  if (!G->hasAttribute("sycl-device-image-scope"))
-    return true;
-
+static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
   // Skip instrumenting on "__MsanKernelMetadata" etc.
   if (G->getName().starts_with("__Msan"))
     return true;
-
-  Attribute Attr = G->getAttribute("sycl-device-image-scope");
-  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
+  if (G->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+  if (G->getAddressSpace() == kSpirOffloadLocalAS ||
+      G->getAddressSpace() == kSpirOffloadConstantAS)
+    return true;
+  return false;
 }
 
 static void instrumentSPIRModule(Module &M) {
@@ -846,15 +843,12 @@ static void instrumentSPIRModule(Module &M) {
     StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
     for (auto &G : M.globals()) {
-      // FIXME: temporarily disable local variables
-      if (G.isConstant() || G.getAddressSpace() == kSpirOffloadLocalAS) {
+      if (isUnsupportedDeviceGlobal(&G)) {
         for (auto *User : G.users())
           if (auto *Inst = dyn_cast<Instruction>(User))
             Inst->setNoSanitizeMetadata();
-      }
-
-      if (isUnsupportedDeviceGlobal(&G))
         continue;
+      }
 
       DeviceGlobalMetadata.push_back(ConstantStruct::get(
           StructTy,
