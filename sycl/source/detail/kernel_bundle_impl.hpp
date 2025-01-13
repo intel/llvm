@@ -674,6 +674,8 @@ public:
                                                 KernelNames, Language);
   }
 
+  // Utility methods for kernel_compiler functionality
+private:
   std::string adjust_kernel_name(const std::string &Name,
                                  syclex::source_language Lang) {
     // Once name demangling support is in, we won't need this.
@@ -685,6 +687,35 @@ public:
     return isMangled ? Name : "__sycl_kernel_" + Name;
   }
 
+  std::string mangle_device_global_name(const std::string &Name) {
+    // TODO: Support device globals declared in namespaces.
+    return "_Z" + std::to_string(Name.length()) + Name;
+  }
+
+  const DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name,
+                                                      const device &Dev) {
+    if (Language != syclex::source_language::sycl_jit || Prefix.empty()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Querying device globals by name is only available "
+                            "in kernel_bundles successfully built from "
+                            "kernel_bundle<bundle_state:ext_oneapi_source> "
+                            "with 'sycl_jit' source language.");
+    }
+
+    if (!ext_oneapi_has_device_global(Name, Dev)) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "device global '" + Name +
+                                "' not found in kernel_bundle");
+    }
+
+    std::vector<DeviceGlobalMapEntry *> Entries =
+        ProgramManager::getInstance().getDeviceGlobalEntries(
+            {Prefix + mangle_device_global_name(Name)});
+    assert(Entries.size() == 1);
+    return Entries.front();
+  }
+
+public:
   bool ext_oneapi_has_kernel(const std::string &Name) {
     auto it = std::find(KernelNames.begin(), KernelNames.end(),
                         adjust_kernel_name(Name, Language));
@@ -746,16 +777,56 @@ public:
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
 
-  std::string mangle_device_global_name(const std::string &Name) {
-    // TODO: Support device globals declared in namespaces.
-    return "_Z" + std::to_string(Name.length()) + Name;
-  }
-
   bool ext_oneapi_has_device_global(const std::string &Name,
-                                    [[maybe_unused]] const device &Dev) {
+                                    const device &Dev) {
+    if (!std::any_of(
+            MDevices.begin(), MDevices.end(),
+            [&Dev](const device &DevCand) { return Dev == DevCand; })) {
+      // TODO: device_image::has_kernel(id, device) checks the  device if the
+      //       given device is a sub-device.
+      return false;
+    }
+
     std::string MangledName = mangle_device_global_name(Name);
     return std::find(DeviceGlobalNames.begin(), DeviceGlobalNames.end(),
                      MangledName) != DeviceGlobalNames.end();
+  }
+
+  void *ext_oneapi_get_device_global_address(const std::string &Name,
+                                             const device &Dev) {
+    return const_cast<void *>(
+        get_device_global_entry(Name, Dev)->MDeviceGlobalPtr);
+  }
+
+  size_t ext_oneapi_get_device_global_size(const std::string &Name,
+                                           const device &Dev) {
+    return get_device_global_entry(Name, Dev)->MDeviceGlobalTSize;
+  }
+
+  event ext_oneapi_copy_to_device_global(const std::string &Dest,
+                                         const void *Src, size_t NumBytes,
+                                         const queue &Queue) {
+    const auto *Entry = get_device_global_entry(Dest, Queue.get_device());
+    if (NumBytes != Entry->MDeviceGlobalTSize) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Incompatible type size for device global '" +
+                                Dest + "'");
+    }
+    return syclex::detail::SYCL_JIT_memcpy_to_device_global(
+        Entry, Src, NumBytes, /*Offset=*/0, Queue, /*DepEvents=*/{});
+  }
+
+  event ext_oneapi_copy_from_device_global(void *Dest, const std::string &Src,
+                                           size_t NumBytes,
+                                           const queue &Queue) {
+    const auto *Entry = get_device_global_entry(Src, Queue.get_device());
+    if (NumBytes != Entry->MDeviceGlobalTSize) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Incompatible type size for device global '" + Src +
+                                "'");
+    }
+    return syclex::detail::SYCL_JIT_memcpy_from_device_global(
+        Dest, Entry, NumBytes, /*Offset=*/0, Queue, /*DepEvents=*/{});
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }

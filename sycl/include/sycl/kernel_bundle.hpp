@@ -206,6 +206,30 @@ public:
     return ext_oneapi_has_device_global(detail::string_view{name}, dev);
   }
 
+  void *ext_oneapi_get_device_global_address(const std::string &name,
+                                             const device &dev) {
+    return ext_oneapi_get_device_global_address(detail::string_view{name}, dev);
+  }
+
+  size_t ext_oneapi_get_device_global_size(const std::string &name,
+                                           const device &dev) {
+    return ext_oneapi_get_device_global_size(detail::string_view{name}, dev);
+  }
+
+  template <typename T>
+  event ext_oneapi_copy_to_device_global(const std::string &dest, const T &src,
+                                         const queue &queue) {
+    return ext_oneapi_copy_to_device_global(detail::string_view{dest}, &src,
+                                            sizeof(T), queue);
+  }
+
+  template <typename T>
+  event ext_oneapi_copy_from_device_global(T &dest, const std::string &src,
+                                           const queue &queue) {
+    return ext_oneapi_copy_from_device_global(&dest, detail::string_view{src},
+                                              sizeof(T), queue);
+  }
+
 protected:
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -237,6 +261,16 @@ private:
 
   bool ext_oneapi_has_device_global(detail::string_view name,
                                     const device &dev);
+  void *ext_oneapi_get_device_global_address(detail::string_view name,
+                                             const device &dev);
+  size_t ext_oneapi_get_device_global_size(detail::string_view name,
+                                           const device &dev);
+  event ext_oneapi_copy_to_device_global(detail::string_view dest,
+                                         const void *src, size_t num_bytes,
+                                         const queue &queue);
+  event ext_oneapi_copy_from_device_global(void *dest, detail::string_view src,
+                                           size_t num_bytes,
+                                           const queue &queue);
 };
 
 } // namespace detail

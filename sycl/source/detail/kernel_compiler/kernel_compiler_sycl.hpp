@@ -11,6 +11,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp> // __SYCL_EXPORT
 #include <sycl/device.hpp>
+#include <sycl/queue.hpp>
 
 #include <detail/compiler.hpp> // sycl_device_binaries
 
@@ -20,6 +21,11 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace detail {
+struct DeviceGlobalMapEntry;
+} // namespace detail
+
 namespace ext::oneapi::experimental {
 namespace detail {
 
@@ -41,6 +47,17 @@ SYCL_JIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
                   const std::vector<std::string> &RegisteredKernelNames);
 
 bool SYCL_JIT_Compilation_Available();
+
+event SYCL_JIT_memcpy_to_device_global(const DeviceGlobalMapEntry *Dest,
+                                       const void *Src, size_t NumBytes,
+                                       size_t Offset, const queue &Queue,
+                                       const std::vector<event> &DepEvents);
+
+event SYCL_JIT_memcpy_from_device_global(void *Dest,
+                                         const DeviceGlobalMapEntry *Src,
+                                         size_t NumBytes, size_t Offset,
+                                         const queue &Queue,
+                                         const std::vector<event> &DepEvents);
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

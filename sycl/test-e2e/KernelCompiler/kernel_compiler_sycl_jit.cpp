@@ -63,12 +63,8 @@ auto constexpr DGSource = R"===(
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
-syclex::device_global<int> DG;
-
-extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (syclex::single_task_kernel)) void ff_dg_setter(int val) {
-  DG = val;
-}
+syclex::device_global<int32_t> DG;
+syclex::device_global<int64_t, decltype(syclex::properties(syclex::device_image_scope))> DG_DIS;
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (syclex::single_task_kernel)) void ff_dg_adder(int val) {
@@ -76,8 +72,8 @@ extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
 }
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (syclex::single_task_kernel)) void ff_dg_getter(int *val) {
-  *val = DG;
+    (syclex::single_task_kernel)) void ff_dg_dis_adder(int val) {
+  DG_DIS += val;
 }
 )===";
 
@@ -249,14 +245,13 @@ int test_device_global() {
 
   sycl::queue q;
   sycl::context ctx = q.get_context();
+  sycl::device d = q.get_device();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl_jit);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl_jit` source "
                  "kernel bundle extension: "
-              << q.get_device().get_info<sycl::info::device::name>()
-              << std::endl;
+              << d.get_info<sycl::info::device::name>() << std::endl;
     return -1;
   }
 
@@ -268,48 +263,53 @@ int test_device_global() {
     q.wait();
   };
 
-  auto getDG = [&q](sycl::kernel &k) -> int {
-    int *buf = sycl::malloc_shared<int>(1, q);
-    q.submit([&](sycl::handler &CGH) {
-      CGH.set_arg(0, buf);
-      CGH.single_task(k);
-    });
-    q.wait();
-    int val = *buf;
-    sycl::free(buf, q);
-    return val;
+  int32_t i32_val;
+  int64_t i64_val;
+  auto checkDGs = [&](int32_t expected32, int64_t expected64, exe_kb &bundle) {
+    bundle.ext_oneapi_copy_from_device_global(i32_val, "DG", q).wait();
+    bundle.ext_oneapi_copy_from_device_global(i64_val, "DG_DIS", q).wait();
+    std::cout << "DG = " << i32_val << ", DG_DIS = " << i64_val << '\n';
+    assert(i32_val == expected32);
+    assert(i64_val == expected64);
   };
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, DGSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
-
-  // Check presence of device global.
-  assert(kbExe1.ext_oneapi_has_device_global("DG", q.get_device()));
-  // Querying a non-existing device global shall not crash.
-  assert(!kbExe1.ext_oneapi_has_device_global("bogus_DG", q.get_device()));
-
-  auto setK = kbExe1.ext_oneapi_get_kernel("ff_dg_setter");
   auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
-  auto getK = kbExe1.ext_oneapi_get_kernel("ff_dg_getter");
+  auto addDisK = kbExe1.ext_oneapi_get_kernel("ff_dg_dis_adder");
 
-  assert(getDG(getK) == 0);
-  modifyDG(setK, 42);
-  assert(getDG(getK) == 42);
-  modifyDG(addK, 1);
-  assert(getDG(getK) == 43);
+  // Check presence of device globals.
+  assert(kbExe1.ext_oneapi_has_device_global("DG", d));
+  assert(kbExe1.ext_oneapi_has_device_global("DG_DIS", d));
+  // Querying a non-existing device global shall not crash.
+  assert(!kbExe1.ext_oneapi_has_device_global("bogus_DG", d));
 
+  // Check sizes only, as addresses are not meaningful to the app).
+  assert(kbExe1.ext_oneapi_get_device_global_size("DG", d) == 4);
+  assert(kbExe1.ext_oneapi_get_device_global_size("DG_DIS", d) == 8);
+
+  // Both variables should be zero-initialized.
+  checkDGs(0, 0, kbExe1);
+
+  // Set.
+  kbExe1.ext_oneapi_copy_to_device_global("DG", -10, q).wait();
+  kbExe1.ext_oneapi_copy_to_device_global("DG_DIS", -20L, q).wait();
+
+  checkDGs(-10, -20, kbExe1);
+
+  // Increment.
+  modifyDG(addK, 5);
+  modifyDG(addDisK, -5);
+
+  checkDGs(-5, -25, kbExe1);
+
+  // Rebuilding to test isololation per bundle.
   exe_kb kbExe2 = syclex::build(kbSrc);
 
-  auto setK2 = kbExe2.ext_oneapi_get_kernel("ff_dg_setter");
-  auto getK2 = kbExe2.ext_oneapi_get_kernel("ff_dg_getter");
-
-  // `DG` is private per RTC bundle
-  assert(getDG(getK2) == 0);
-  modifyDG(setK2, -17);
-  assert(getDG(getK2) == -17);
-  assert(getDG(getK) == 43);
+  checkDGs(0, 0, kbExe2);
+  checkDGs(-5, -25, kbExe1);
 
   return 0;
 }
