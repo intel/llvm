@@ -803,32 +803,6 @@ public:
     return get_device_global_entry(Name, Dev)->MDeviceGlobalTSize;
   }
 
-  event ext_oneapi_copy_to_device_global(const std::string &Dest,
-                                         const void *Src, size_t NumBytes,
-                                         const queue &Queue) {
-    const auto *Entry = get_device_global_entry(Dest, Queue.get_device());
-    if (NumBytes != Entry->MDeviceGlobalTSize) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Incompatible type size for device global '" +
-                                Dest + "'");
-    }
-    return syclex::detail::SYCL_JIT_memcpy_to_device_global(
-        Entry, Src, NumBytes, /*Offset=*/0, Queue, /*DepEvents=*/{});
-  }
-
-  event ext_oneapi_copy_from_device_global(void *Dest, const std::string &Src,
-                                           size_t NumBytes,
-                                           const queue &Queue) {
-    const auto *Entry = get_device_global_entry(Src, Queue.get_device());
-    if (NumBytes != Entry->MDeviceGlobalTSize) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Incompatible type size for device global '" + Src +
-                                "'");
-    }
-    return syclex::detail::SYCL_JIT_memcpy_from_device_global(
-        Dest, Entry, NumBytes, /*Offset=*/0, Queue, /*DepEvents=*/{});
-  }
-
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
   backend get_backend() const noexcept {

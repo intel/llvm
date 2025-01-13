@@ -288,8 +288,6 @@ bool SYCL_Compilation_Available() {
 #if SYCL_EXT_JIT_ENABLE
 #include "../jit_compiler.hpp"
 #include <atomic>
-#include <detail/device_global_map_entry.hpp>
-#include <detail/queue_impl.hpp>
 #endif
 
 namespace sycl {
@@ -322,41 +320,6 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
 #else
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler via sycl-jit is not available");
-#endif
-}
-
-event SYCL_JIT_memcpy_to_device_global(
-    [[maybe_unused]] const DeviceGlobalMapEntry *Dest,
-    [[maybe_unused]] const void *Src, [[maybe_unused]] size_t NumBytes,
-    [[maybe_unused]] size_t Offset, [[maybe_unused]] const queue &Queue,
-    [[maybe_unused]] const std::vector<event> &DepEvents) {
-#if SYCL_EXT_JIT_ENABLE
-  const std::shared_ptr<queue_impl> &QueueImplPtr = getSyclObjImpl(Queue);
-  return QueueImplPtr->memcpyToDeviceGlobal(
-      QueueImplPtr, const_cast<void *>(Dest->MDeviceGlobalPtr), Src,
-      Dest->MIsDeviceImageScopeDecorated, NumBytes, Offset, DepEvents,
-      /*CallerNeedsEvent=*/true);
-#else
-  throw sycl::exception(sycl::errc::invalid,
-                        "runtime-compiled device global support not available");
-#endif
-}
-
-event SYCL_JIT_memcpy_from_device_global(
-    [[maybe_unused]] void *Dest,
-    [[maybe_unused]] const DeviceGlobalMapEntry *Src,
-    [[maybe_unused]] size_t NumBytes, [[maybe_unused]] size_t Offset,
-    [[maybe_unused]] const queue &Queue,
-    [[maybe_unused]] const std::vector<event> &DepEvents) {
-#if SYCL_EXT_JIT_ENABLE
-  const std::shared_ptr<queue_impl> &QueueImplPtr = getSyclObjImpl(Queue);
-  return QueueImplPtr->memcpyFromDeviceGlobal(
-      QueueImplPtr, Dest, const_cast<void *>(Src->MDeviceGlobalPtr),
-      Src->MIsDeviceImageScopeDecorated, NumBytes, Offset, DepEvents,
-      /*CallerNeedsEvent=*/true);
-#else
-  throw sycl::exception(sycl::errc::invalid,
-                        "runtime-compiled device global support not available");
 #endif
 }
 

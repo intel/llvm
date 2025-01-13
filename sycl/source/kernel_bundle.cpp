@@ -140,19 +140,6 @@ kernel_bundle_plain::ext_oneapi_get_device_global_size(detail::string_view name,
   return impl->ext_oneapi_get_device_global_size(name.data(), dev);
 }
 
-event kernel_bundle_plain::ext_oneapi_copy_to_device_global(
-    detail::string_view dest, const void *src, size_t num_bytes,
-    const queue &queue) {
-  return impl->ext_oneapi_copy_to_device_global(dest.data(), src, num_bytes,
-                                                queue);
-}
-
-event kernel_bundle_plain::ext_oneapi_copy_from_device_global(
-    void *dest, detail::string_view src, size_t num_bytes, const queue &queue) {
-  return impl->ext_oneapi_copy_from_device_global(dest, src.data(), num_bytes,
-                                                  queue);
-}
-
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////

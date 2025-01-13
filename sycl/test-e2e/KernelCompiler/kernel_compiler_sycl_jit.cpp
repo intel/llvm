@@ -64,17 +64,12 @@ auto constexpr DGSource = R"===(
 namespace syclex = sycl::ext::oneapi::experimental;
 
 syclex::device_global<int32_t> DG;
-syclex::device_global<int64_t, decltype(syclex::properties(syclex::device_image_scope))> DG_DIS;
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (syclex::single_task_kernel)) void ff_dg_adder(int val) {
   DG = DG + val;
 }
 
-extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (syclex::single_task_kernel)) void ff_dg_dis_adder(int val) {
-  DG_DIS += val;
-}
 )===";
 
 auto constexpr ESIMDSource = R"===(
@@ -263,53 +258,19 @@ int test_device_global() {
     q.wait();
   };
 
-  int32_t i32_val;
-  int64_t i64_val;
-  auto checkDGs = [&](int32_t expected32, int64_t expected64, exe_kb &bundle) {
-    bundle.ext_oneapi_copy_from_device_global(i32_val, "DG", q).wait();
-    bundle.ext_oneapi_copy_from_device_global(i64_val, "DG_DIS", q).wait();
-    std::cout << "DG = " << i32_val << ", DG_DIS = " << i64_val << '\n';
-    assert(i32_val == expected32);
-    assert(i64_val == expected64);
-  };
-
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, DGSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
   auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
-  auto addDisK = kbExe1.ext_oneapi_get_kernel("ff_dg_dis_adder");
 
   // Check presence of device globals.
   assert(kbExe1.ext_oneapi_has_device_global("DG", d));
-  assert(kbExe1.ext_oneapi_has_device_global("DG_DIS", d));
   // Querying a non-existing device global shall not crash.
   assert(!kbExe1.ext_oneapi_has_device_global("bogus_DG", d));
 
   // Check sizes only, as addresses are not meaningful to the app).
   assert(kbExe1.ext_oneapi_get_device_global_size("DG", d) == 4);
-  assert(kbExe1.ext_oneapi_get_device_global_size("DG_DIS", d) == 8);
-
-  // Both variables should be zero-initialized.
-  checkDGs(0, 0, kbExe1);
-
-  // Set.
-  kbExe1.ext_oneapi_copy_to_device_global("DG", -10, q).wait();
-  kbExe1.ext_oneapi_copy_to_device_global("DG_DIS", -20L, q).wait();
-
-  checkDGs(-10, -20, kbExe1);
-
-  // Increment.
-  modifyDG(addK, 5);
-  modifyDG(addDisK, -5);
-
-  checkDGs(-5, -25, kbExe1);
-
-  // Rebuilding to test isololation per bundle.
-  exe_kb kbExe2 = syclex::build(kbSrc);
-
-  checkDGs(0, 0, kbExe2);
-  checkDGs(-5, -25, kbExe1);
 
   return 0;
 }
