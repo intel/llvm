@@ -251,9 +251,13 @@ UUR_DEVICE_TEST_SUITE_P(
         UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP,        //
         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE,          //
         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF,            //
-        UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT              //
-        ),
-    uur::deviceTestWithParamPrinter<ur_device_info_t>);
+        UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT,             //
+        UR_DEVICE_INFO_NUM_COMPUTE_UNITS),
+    [](const ::testing::TestParamInfo<ur_device_info_t> &info) {
+        std::stringstream ss;
+        ss << info.param;
+        return ss.str();
+    });
 
 using urDeviceGetInfoSingleTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceGetInfoSingleTest);
