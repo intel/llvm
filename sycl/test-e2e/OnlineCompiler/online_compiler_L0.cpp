@@ -1,5 +1,5 @@
 // REQUIRES: level_zero, level_zero_dev_kit, cm-compiler
-// XFAIL: gpu && !(arch-intel_gpu_pvc && igc-dev)
+// XFAIL: gpu && igc-dev
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16406
 // RUN: %{build} -Wno-error=deprecated-declarations -DRUN_KERNELS %level_zero_options -o %t.out
 // RUN: %{run} %t.out
