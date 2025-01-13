@@ -1389,7 +1389,7 @@ with bytes selected according to a third unsigned integer argument.
 `match_all_over_sub_group` and `match_any_over_sub_group` allows comparison of
 values across work-items within a sub-group.
 
-The function `lop3`performs bitwise logical operations on three input values of
+The function `ternary_logic_op`performs bitwise logical operations on three input values of
 `a`, `b` and `c` based on the specified 8-bit truth table `lut` and return the
 result.
 
