@@ -269,8 +269,37 @@ int test_device_global() {
   // Querying a non-existing device global shall not crash.
   assert(!kbExe1.ext_oneapi_has_device_global("bogus_DG", d));
 
-  // Check sizes only, as addresses are not meaningful to the app).
-  assert(kbExe1.ext_oneapi_get_device_global_size("DG", d) == 4);
+  void *dgAddr = kbExe1.ext_oneapi_get_device_global_address("DG", d);
+  size_t dgSize = kbExe1.ext_oneapi_get_device_global_size("DG", d);
+  assert(dgSize == 4);
+
+  int32_t val;
+  auto checkVal = [&](int32_t expected) {
+    val = -1;
+    q.memcpy(&val, dgAddr, dgSize).wait();
+    std::cout << "val: " << val << " == " << expected << '\n';
+    assert(val == expected);
+  };
+
+  // Device globals are zero-initialized.
+  checkVal(0);
+
+  // Set the DG.
+  val = 123;
+  q.memcpy(dgAddr, &val, dgSize).wait();
+  checkVal(123);
+
+  // Run a kernel using it.
+  modifyDG(addK, -17);
+  checkVal(123 - 17);
+
+  // Test that each bundle has its distinct set of globals.
+  exe_kb kbExe2 = syclex::build(kbSrc);
+  dgAddr = kbExe2.ext_oneapi_get_device_global_address("DG", d);
+  checkVal(0);
+
+  dgAddr = kbExe1.ext_oneapi_get_device_global_address("DG", d);
+  checkVal(123 - 17);
 
   return 0;
 }

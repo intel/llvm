@@ -711,8 +711,8 @@ private:
     return false;
   }
 
-  const DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name,
-                                                      const device &Dev) {
+  DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name,
+                                                const device &Dev) {
     if (Language != syclex::source_language::sycl_jit || Prefix.empty()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Querying device globals by name is only available "
@@ -809,8 +809,20 @@ public:
 
   void *ext_oneapi_get_device_global_address(const std::string &Name,
                                              const device &Dev) {
-    return const_cast<void *>(
-        get_device_global_entry(Name, Dev)->MDeviceGlobalPtr);
+    DeviceGlobalMapEntry *Entry = get_device_global_entry(Name, Dev);
+    if (Entry->MIsDeviceImageScopeDecorated) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Cannot query USM pointer for device global with "
+                            "'device_image_scope' property");
+    }
+
+    // TODO: Is this the right approach? Should we just pass the queue as an
+    //       argument?
+    queue InitQueue{Dev};
+    auto &USMMem =
+        Entry->getOrAllocateDeviceGlobalUSM(getSyclObjImpl(InitQueue));
+    InitQueue.wait_and_throw();
+    return USMMem.getPtr();
   }
 
   size_t ext_oneapi_get_device_global_size(const std::string &Name,
