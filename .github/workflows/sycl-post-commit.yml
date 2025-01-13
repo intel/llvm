@@ -42,7 +42,7 @@ jobs:
 
   e2e-lin:
     needs: [build-lin]
-    if: ${{ always() && !cancelled() }}
+    if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
