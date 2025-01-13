@@ -14,6 +14,7 @@ atomic/atomic_min.cl
 atomic/atomic_max.cl
 atomic/atomic_sub.cl
 atomic/atomic_store.cl
+conversion/GenericCastToPtrExplicit.cl
 synchronization/barrier.cl
 math/acos.cl
 math/acosh.cl

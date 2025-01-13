@@ -92,4 +92,7 @@
 #include <libspirv/image/image.h>
 #include <libspirv/image/image_defines.h>
 
+/* Pointer Conversion */
+#include <libspirv/conversion/GenericCastToPtrExplicit.h>
+
 #pragma OPENCL EXTENSION all : disable
