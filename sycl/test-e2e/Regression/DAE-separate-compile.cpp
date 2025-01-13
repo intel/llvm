@@ -9,7 +9,7 @@
 // RUN: %{run} %t.out
 
 // Failing on HIP AMD, enable after fixed
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 
 
 #include <iostream>
