@@ -1,7 +1,8 @@
-# commit ad288bb36c45e24a35a75c665d382ce18935fcf7
-# Merge: db491abc6aba f8b04f4216e8
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Jan 3 10:08:59 2025 +0000
-#     Merge pull request #2502 from ldrumm/luke/tensormap-version
-#     CUTensorMap is only in CUDA v12
-set(UNIFIED_RUNTIME_TAG aaron/parameterizeDeviceTests)
+# commit 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f
+# Merge: 9c652ffb b78cfa71
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Thu Jan 9 17:28:00 2025 +0000
+# Merge pull request #2048 from RossBrunton/ross/refc
+#
+# Use reference counting on factories
+set(UNIFIED_RUNTIME_TAG 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f)
