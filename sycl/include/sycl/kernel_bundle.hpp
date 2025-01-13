@@ -482,6 +482,33 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_has_device_global(name, dev);
   }
 
+  /////////////////////////
+  // ext_oneapi_get_device_global_address
+  //  kernel_bundle must be created from source, throws if device global is not
+  //  present for the given device, or has `device_image_scope` property.
+  //  Returns a USM pointer to the variable's allocation on the device.
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  void *ext_oneapi_get_device_global_address(const std::string &name,
+                                             const device &dev) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_address(
+        name, dev);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_device_global_size
+  //  kernel_bundle must be created from source, throws if device global is not
+  //  present for the given device. Returns size in bytes.
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  size_t ext_oneapi_get_device_global_size(const std::string &name,
+                                           const device &dev) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name,
+                                                                          dev);
+  }
+
 private:
   kernel_bundle(detail::KernelBundleImplPtr Impl)
       : kernel_bundle_plain(std::move(Impl)) {}
