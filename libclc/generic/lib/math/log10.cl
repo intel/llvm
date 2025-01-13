@@ -42,3 +42,11 @@ _CLC_OVERLOAD _CLC_DEF double log10(double x) {
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, log10, double);
 #endif // cl_khr_fp64
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DEF half log10(half x) {
+    return __spirv_ocl_log10(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, log10, half);
+#endif // cl_khr_fp16

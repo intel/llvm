@@ -55,7 +55,9 @@ limit_max = {'char'  : 'CHAR_MAX',
              'int'   : 'INT_MAX',
              'uint'  : 'UINT_MAX',
              'long'  : 'LONG_MAX',
-             'ulong' : 'ULONG_MAX'}
+             'ulong' : 'ULONG_MAX',
+             'half'  : '0x1.ffcp+15'
+             }
 
 limit_min = {'char'  : 'CHAR_MIN',
              'schar' : 'CHAR_MIN',
@@ -65,7 +67,10 @@ limit_min = {'char'  : 'CHAR_MIN',
              'int'   : 'INT_MIN',
              'uint'  : '0',
              'long'  : 'LONG_MIN',
-             'ulong' : '0'}
+             'ulong' : '0',
+             'half'  : '-0x1.ffcp+15'
+             }
+
 
 
 def conditional_guard(src, dst):
