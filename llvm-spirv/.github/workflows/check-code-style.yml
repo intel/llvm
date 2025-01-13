@@ -24,7 +24,7 @@ env:
   # We need compile command database in order to perform clang-tidy check. So,
   # in order to perform configure step we need to setup llvm-dev package. This
   # env variable used to specify desired version of it
-  LLVM_VERSION: 19
+  LLVM_VERSION: 20
 
 jobs:
   clang-format-and-tidy:
@@ -68,9 +68,9 @@ jobs:
         sudo apt-get update
         sudo apt-get install -yqq \
             clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \
-            llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev \
-            libllvmlibc-${{ env.LLVM_VERSION }}-dev \
-            mlir-${{ env.LLVM_VERSION }}-tools \
+            clang-tools-${{ env.LLVM_VERSION }} llvm-${{ env.LLVM_VERSION }}-dev \
+            libomp-${{ env.LLVM_VERSION }}-dev libllvmlibc-${{ env.LLVM_VERSION }}-dev \
+            mlir-${{ env.LLVM_VERSION }}-tools libpolly-${{ env.LLVM_VERSION }}-dev \
 
     - name: Generate compile command database
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
@@ -100,7 +100,7 @@ jobs:
             -path ${{ github.workspace}}/build
 
     - name: Upload patch with clang-format fixes
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       if: ${{ failure() && steps.run-clang-format.outcome == 'failure' }}
       with:
         name: clang-format.patch
@@ -108,7 +108,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Upload clang-tidy log
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       if: ${{ failure() && steps.run-clang-tidy.outcome == 'failure' }}
       with:
         name: clang-tidy.log

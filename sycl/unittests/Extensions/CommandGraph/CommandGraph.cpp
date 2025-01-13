@@ -7,8 +7,48 @@
 //===----------------------------------------------------------------------===//
 #include "Common.hpp"
 
+#include <map>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi;
+
+// Helper function for testing weak_object and owner_less for different graph
+// types
+template <typename T>
+void TestGraphTypeInMaps(const T &Graph1, const T &Graph2) {
+  weak_object<T> WeakGraph1 = Graph1;
+  weak_object<T> WeakGraph2 = Graph2;
+
+  // Use the graph type directly in a map
+  std::map<T, int, owner_less<T>> GraphMap;
+  ASSERT_NO_THROW(GraphMap.insert({Graph1, 1}));
+  ASSERT_NO_THROW(GraphMap.insert({Graph2, 2}));
+
+  // Use the weak_object graph type in a map
+  std::map<weak_object<T>, int, owner_less<T>> WeakGraphMap;
+  ASSERT_NO_THROW(WeakGraphMap.insert({WeakGraph1, 1}));
+  ASSERT_NO_THROW(WeakGraphMap.insert({WeakGraph2, 2}));
+}
+
+// Test creating and using ext::oneapi::weak_object and owner_less for
+// command_graph class in a map
+TEST_F(CommandGraphTest, OwnerLessGraph) {
+
+  using ModifiableGraphT =
+      experimental::command_graph<experimental::graph_state::modifiable>;
+  using ExecutableGraphT =
+      experimental::command_graph<experimental::graph_state::executable>;
+  experimental::command_graph Graph2{Queue.get_context(), Dev};
+
+  // Test the default template parameter command_graph explicitly
+  TestGraphTypeInMaps<experimental::command_graph<>>(Graph, Graph2);
+
+  TestGraphTypeInMaps<ModifiableGraphT>(Graph, Graph2);
+
+  auto ExecGraph = Graph.finalize();
+  auto ExecGraph2 = Graph2.finalize();
+  TestGraphTypeInMaps<ExecutableGraphT>(ExecGraph, ExecGraph2);
+}
 
 TEST_F(CommandGraphTest, AddNode) {
   auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
@@ -131,11 +171,12 @@ TEST_F(CommandGraphTest, BeginEndRecording) {
   sycl::queue Queue2{Queue.get_context(), Dev};
 
   // Test throwing behaviour
-  // Check we can repeatedly begin recording on the same queues
+  // Check that repeatedly calling begin recording on the same queues is an
+  // error
   ASSERT_NO_THROW(Graph.begin_recording(Queue));
-  ASSERT_NO_THROW(Graph.begin_recording(Queue));
+  ASSERT_ANY_THROW(Graph.begin_recording(Queue));
   ASSERT_NO_THROW(Graph.begin_recording(Queue2));
-  ASSERT_NO_THROW(Graph.begin_recording(Queue2));
+  ASSERT_ANY_THROW(Graph.begin_recording(Queue2));
   // Check we can repeatedly end recording on the same queues
   ASSERT_NO_THROW(Graph.end_recording(Queue));
   ASSERT_NO_THROW(Graph.end_recording(Queue));
@@ -143,7 +184,7 @@ TEST_F(CommandGraphTest, BeginEndRecording) {
   ASSERT_NO_THROW(Graph.end_recording(Queue2));
   // Vector versions
   ASSERT_NO_THROW(Graph.begin_recording({Queue, Queue2}));
-  ASSERT_NO_THROW(Graph.begin_recording({Queue, Queue2}));
+  ASSERT_ANY_THROW(Graph.begin_recording({Queue, Queue2}));
   ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
   ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
 
@@ -167,7 +208,7 @@ TEST_F(CommandGraphTest, GetCGCopy) {
   auto Node2Imp = sycl::detail::getSyclObjImpl(Node2);
   auto Node2CGCopy = Node2Imp->getCGCopy();
   ASSERT_EQ(Node2CGCopy->getType(), Node2Imp->MCGType);
-  ASSERT_EQ(Node2CGCopy->getType(), sycl::detail::CG::Kernel);
+  ASSERT_EQ(Node2CGCopy->getType(), sycl::detail::CGType::Kernel);
   ASSERT_EQ(Node2CGCopy->getType(), Node2Imp->MCommandGroup->getType());
   ASSERT_EQ(Node2CGCopy->getAccStorage(),
             Node2Imp->MCommandGroup->getAccStorage());
@@ -585,4 +626,51 @@ TEST_F(CommandGraphTest, AccessorModeEdges) {
   testAccessorModeCombo<access_mode::atomic, access_mode::read_write, true>(
       Queue);
   testAccessorModeCombo<access_mode::atomic, access_mode::atomic, true>(Queue);
+}
+
+// Tests the transitive queue recording behaviour with queue shortcuts.
+TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
+  device Dev;
+  context Ctx{{Dev}};
+  queue Q1{Ctx, Dev};
+  queue Q2{Ctx, Dev};
+  queue Q3{Ctx, Dev};
+
+  ext::oneapi::experimental::command_graph Graph1{Q1.get_context(),
+                                                  Q1.get_device()};
+
+  Graph1.begin_recording(Q1);
+
+  auto GraphEvent1 = Q1.single_task<class Kernel1>([=] {});
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+
+  auto GraphEvent2 = Q2.single_task<class Kernel2>(GraphEvent1, [=] {});
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+
+  auto GraphEvent3 = Q3.parallel_for<class Kernel3>(range<1>{1024}, GraphEvent1,
+                                                    [=](item<1> Id) {});
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+
+  Graph1.end_recording();
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
 }

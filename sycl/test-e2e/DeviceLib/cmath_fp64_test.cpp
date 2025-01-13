@@ -1,30 +1,32 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: gpu
+// UNSUPPORTED: hip || cuda
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// RUN: %{build} %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} %{mathflags} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %{build} -fsycl-device-lib-jit-link %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fsycl-device-lib-jit-link %{mathflags} -o %t2.out
+// RUN: %{run} %t2.out
 
 #include "math_utils.hpp"
 #include <cmath>
 #include <cstdint>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 64
+#define TEST_NUM 74
 
 double ref[TEST_NUM] = {
-    1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0.5, 0, 2, 0,   0,   1,   0,   2, 0, 0,
-    0, 0, 0, 1, 0, 1, 2, 0, 1, 2, 5, 0, 0,   0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0,   0,   0,   0,   0};
+    6, 100, 0.5, 1.0, 0, 0, -2, 1, 2, 1,   1,   1,   0,   1, 1, 0, 0, 0, 0,
+    0, 1,   1,   0.5, 0, 2, 0,  0, 1, 0,   2,   0,   0,   0, 0, 0, 1, 0, 1,
+    2, 0,   1,   2,   5, 0, 0,  0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0,
+    0, 0,   0,   0,   0, 0, 0,  0, 0, 0,   0,   0,   0,   0, 0, 0, 0};
 
 double refIptr = 1;
 
@@ -59,7 +61,17 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
         T minus_infinity = -INFINITY;
         double subnormal;
         *((uint64_t *)&subnormal) = 0xFFFFFFFFFFFFFULL;
+        res_access[i++] = std::scalbln(1.5, 2);
+        res_access[i++] = sycl::exp10(2.0);
+        res_access[i++] = sycl::rsqrt(4.0);
+        res_access[i++] = std::trunc(1.3);
+        res_access[i++] = sycl::sinpi(0.0);
+        res_access[i++] = sycl::cospi(0.5);
+        res_access[i++] = std::copysign(2, -1);
+        res_access[i++] = std::fmin(2, 1);
+        res_access[i++] = std::fmax(2, 1);
         res_access[i++] = std::fabs(-1.0);
+        res_access[i++] = std::ceil(0.1);
         res_access[i++] = std::cos(0.0);
         res_access[i++] = std::sin(0.0);
         res_access[i++] = std::round(1.0);

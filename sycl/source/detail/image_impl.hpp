@@ -40,25 +40,20 @@ namespace detail {
 using image_allocator = aligned_allocator<byte>;
 
 // utility function: Returns the Number of Channels for a given Order.
-__SYCL_EXPORT uint8_t getImageNumberChannels(image_channel_order Order);
+uint8_t getImageNumberChannels(image_channel_order Order);
 
 // utility function: Returns the number of bytes per image element
-__SYCL_EXPORT uint8_t getImageElementSize(uint8_t NumChannels,
-                                          image_channel_type Type);
+uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type);
 
-__SYCL_EXPORT sycl::detail::pi::PiMemImageChannelOrder
-convertChannelOrder(image_channel_order Order);
+ur_image_channel_order_t convertChannelOrder(image_channel_order Order);
 
-__SYCL_EXPORT image_channel_order
-convertChannelOrder(sycl::detail::pi::PiMemImageChannelOrder Order);
+image_channel_order convertChannelOrder(ur_image_channel_order_t Order);
 
-__SYCL_EXPORT sycl::detail::pi::PiMemImageChannelType
-convertChannelType(image_channel_type Type);
+ur_image_channel_type_t convertChannelType(image_channel_type Type);
 
-__SYCL_EXPORT image_channel_type
-convertChannelType(sycl::detail::pi::PiMemImageChannelType Type);
+image_channel_type convertChannelType(ur_image_channel_type_t Type);
 
-class __SYCL_EXPORT image_impl final : public SYCLMemObjT {
+class image_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 
@@ -107,6 +102,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -119,6 +115,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -131,6 +128,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -144,6 +142,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize), IsConstPtr);
@@ -158,6 +157,7 @@ public:
         MRange(ImageRange), MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize), IsConstPtr);
@@ -173,6 +173,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -187,6 +188,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
@@ -201,6 +203,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches();
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize),
@@ -218,6 +221,7 @@ public:
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)),
         MSampler(Sampler) {
+    verifyProps(PropList);
     setPitches(Pitch);
     BaseT::handleHostData(std::const_pointer_cast<void>(HData),
                           detail::getNextPowerOfTwo(MElementSize),
@@ -228,7 +232,7 @@ public:
              std::unique_ptr<SYCLMemObjAllocator> Allocator,
              uint8_t Dimensions);
 
-  image_impl(pi_native_handle MemObject, const context &SyclContext,
+  image_impl(ur_native_handle_t MemObject, const context &SyclContext,
              event AvailableEvent,
              std::unique_ptr<SYCLMemObjAllocator> Allocator, uint8_t Dimensions,
              image_channel_order Order, image_channel_type Type,
@@ -243,11 +247,15 @@ public:
 
   // Returns the total number of elements in the image
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return MRange.size(); }
+  size_t size() const noexcept try {
+    return MRange.size();
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in size", e);
+    std::abort();
+  }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr,
-                    sycl::detail::pi::PiEvent &OutEventToWait) override;
+                    void *HostPtr, ur_event_handle_t &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::Image; }
 
@@ -292,47 +300,47 @@ public:
 private:
   std::vector<device> getDevices(const ContextImplPtr Context);
 
-  sycl::detail::pi::PiMemObjectType getImageType() {
+  ur_mem_type_t getImageType() {
     if (MDimensions == 1)
-      return (MIsArrayImage ? PI_MEM_TYPE_IMAGE1D_ARRAY : PI_MEM_TYPE_IMAGE1D);
+      return (MIsArrayImage ? UR_MEM_TYPE_IMAGE1D_ARRAY : UR_MEM_TYPE_IMAGE1D);
     if (MDimensions == 2)
-      return (MIsArrayImage ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE2D);
-    return PI_MEM_TYPE_IMAGE3D;
+      return (MIsArrayImage ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE2D);
+    return UR_MEM_TYPE_IMAGE3D;
   }
 
-  sycl::detail::pi::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
-    sycl::detail::pi::PiMemImageDesc Desc;
-    Desc.image_type = getImageType();
+  ur_image_desc_t getImageDesc(bool InitFromHostPtr) {
+    ur_image_desc_t Desc = {};
+    Desc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
+    Desc.type = getImageType();
 
     // MRange<> is [width], [width,height], or [width,height,depth] (which
     // is different than MAccessRange, etc in bufffers)
     constexpr int XTermPos = 0, YTermPos = 1, ZTermPos = 2;
-    Desc.image_width = MRange[XTermPos];
-    Desc.image_height = MDimensions > 1 ? MRange[YTermPos] : 1;
-    Desc.image_depth = MDimensions > 2 ? MRange[ZTermPos] : 1;
+    Desc.width = MRange[XTermPos];
+    Desc.height = MDimensions > 1 ? MRange[YTermPos] : 1;
+    Desc.depth = MDimensions > 2 ? MRange[ZTermPos] : 1;
 
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
-    Desc.image_array_size = 0;
+    Desc.arraySize = 0;
     // Pitches must be 0 if host ptr is not provided.
-    Desc.image_row_pitch = InitFromHostPtr ? MRowPitch : 0;
-    Desc.image_slice_pitch = InitFromHostPtr ? MSlicePitch : 0;
-    Desc.num_mip_levels = 0;
-    Desc.num_samples = 0;
-    Desc.buffer = nullptr;
+    Desc.rowPitch = InitFromHostPtr ? MRowPitch : 0;
+    Desc.slicePitch = InitFromHostPtr ? MSlicePitch : 0;
+    Desc.numMipLevel = 0;
+    Desc.numSamples = 0;
     return Desc;
   }
 
-  bool checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
-                      ContextImplPtr Context, void *UserPtr);
+  bool checkImageDesc(const ur_image_desc_t &Desc, ContextImplPtr Context,
+                      void *UserPtr);
 
-  sycl::detail::pi::PiMemImageFormat getImageFormat() {
-    sycl::detail::pi::PiMemImageFormat Format;
-    Format.image_channel_order = detail::convertChannelOrder(MOrder);
-    Format.image_channel_data_type = detail::convertChannelType(MType);
+  ur_image_format_t getImageFormat() {
+    ur_image_format_t Format = {};
+    Format.channelOrder = detail::convertChannelOrder(MOrder);
+    Format.channelType = detail::convertChannelType(MType);
     return Format;
   }
 
-  bool checkImageFormat(const sycl::detail::pi::PiMemImageFormat &Format,
+  bool checkImageFormat(const ur_image_format_t &Format,
                         ContextImplPtr Context);
 
   uint8_t MDimensions = 0;
@@ -347,6 +355,8 @@ private:
 
   // Image may carry a 2020 sampler.
   std::optional<image_sampler> MSampler = std::nullopt;
+
+  void verifyProps(const property_list &Props) const;
 };
 } // namespace detail
 } // namespace _V1

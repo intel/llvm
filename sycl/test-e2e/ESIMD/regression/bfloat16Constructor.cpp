@@ -1,4 +1,4 @@
-// REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+// REQUIRES: gpu-intel-dg2 || arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- bfloat16Constructor.cpp - Test to verify use of bfloat16 constructor -==//
@@ -10,9 +10,10 @@
 //===----------------------------------------------------------------------===//
 // This is basic test to verify use of bfloat16 constructor in kernel.
 
-#include <ext/intel/esimd.hpp>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

@@ -8,10 +8,6 @@
 
 #include "../../esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
@@ -86,8 +82,6 @@ const char *to_string(atomic_op op) {
     return "load";
   case atomic_op::store:
     return "store";
-  case atomic_op::predec:
-    return "predec";
   }
   return "<unknown>";
 }
@@ -124,7 +118,7 @@ bool verify(T *arr, const Config &cfg, size_t size) {
 
 template <class T, int N, template <class, int> class ImplF, bool UseMask,
           bool UseProperties>
-bool test_usm(queue q, const Config &cfg) {
+bool test_usm(queue &q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
@@ -251,7 +245,7 @@ bool test_usm(queue q, const Config &cfg) {
 
 template <class T, int N, template <class, int> class ImplF, bool UseMask,
           bool UseProperties>
-bool test_acc(queue q, const Config &cfg) {
+bool test_acc(queue &q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
@@ -621,7 +615,7 @@ struct ImplFcmpwr : ImplCmpxchgBase<T, N, atomic_op, atomic_op::fcmpxchg> {};
 
 template <bool UseAcc, class T, int N, template <class, int> class ImplF,
           bool UseMask, bool UseLSCFeatures>
-auto run_test(queue q, const Config &cfg) {
+auto run_test(queue &q, const Config &cfg) {
   if constexpr (UseAcc)
     return test_acc<T, N, ImplF, UseMask, UseLSCFeatures>(q, cfg);
   else
@@ -630,7 +624,7 @@ auto run_test(queue q, const Config &cfg) {
 
 template <int N, template <class, int> class Op, bool UseMask,
           bool UseLSCFeatures, bool UseAcc, int SignMask = (Signed | Unsigned)>
-bool test_int_types(queue q, const Config &cfg) {
+bool test_int_types(queue &q, const Config &cfg) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
     // Supported by LSC atomic:
@@ -668,7 +662,7 @@ bool test_int_types(queue q, const Config &cfg) {
 
 template <int N, template <class, int> class Op, bool UseMask,
           bool UseLSCFeatures, bool UseAcc>
-bool test_fp_types(queue q, const Config &cfg) {
+bool test_fp_types(queue &q, const Config &cfg) {
   bool passed = true;
   // TODO: Enable FADD/FSUB on DG2/PVC when the error in GPU driver is resolved.
   if constexpr (UseLSCFeatures &&
@@ -691,7 +685,7 @@ bool test_fp_types(queue q, const Config &cfg) {
 
 template <template <class, int> class Op, bool UseMask, bool UseLSCFeatures,
           bool UseAcc, int SignMask = (Signed | Unsigned)>
-bool test_int_types_and_sizes(queue q, const Config &cfg) {
+bool test_int_types_and_sizes(queue &q, const Config &cfg) {
   bool passed = true;
   passed &=
       test_int_types<1, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
@@ -721,7 +715,7 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
 
 template <template <class, int> class Op, bool UseMask, bool UseLSCFeatures,
           bool UseAcc>
-bool test_fp_types_and_sizes(queue q, const Config &cfg) {
+bool test_fp_types_and_sizes(queue &q, const Config &cfg) {
   bool passed = true;
   passed &= test_fp_types<1, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
   passed &= test_fp_types<2, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
@@ -739,7 +733,7 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
 }
 
 template <bool UseMask, bool UseLSCFeatures, bool UseAcc>
-bool test_with_mask(queue q) {
+bool test_with_mask(queue &q) {
   bool passed = true;
 
   Config cfg{
@@ -824,26 +818,37 @@ bool test_with_mask(queue q) {
   return passed;
 }
 
-template <bool UseLSCFeatures> bool test_main(queue q) {
+template <bool UseLSCFeatures, bool PartOne> bool test_main(queue &q) {
   bool passed = true;
 
   constexpr const bool UseMask = true;
   constexpr const bool UseAcc = true;
-
-  passed &= test_with_mask<UseMask, UseLSCFeatures, !UseAcc>(q);
-  passed &= test_with_mask<!UseMask, UseLSCFeatures, !UseAcc>(q);
+  if constexpr (PartOne)
+    passed &= test_with_mask<UseMask, UseLSCFeatures, !UseAcc>(q);
+  else
+    passed &= test_with_mask<!UseMask, UseLSCFeatures, !UseAcc>(q);
 
   return passed;
 }
 
-template <bool UseLSCFeatures> bool test_main_acc(queue q) {
+template <bool UseLSCFeature> bool test_main(queue &q) {
+  return test_main<UseLSCFeature, true>(q) &&
+         test_main<UseLSCFeature, false>(q);
+}
+
+template <bool UseLSCFeatures, bool PartOne> bool test_main_acc(queue &q) {
   bool passed = true;
 
   constexpr const bool UseMask = true;
   constexpr const bool UseAcc = true;
-
-  passed &= test_with_mask<UseMask, UseLSCFeatures, UseAcc>(q);
-  passed &= test_with_mask<!UseMask, UseLSCFeatures, UseAcc>(q);
+  if constexpr (PartOne)
+    passed &= test_with_mask<UseMask, UseLSCFeatures, UseAcc>(q);
+  else
+    passed &= test_with_mask<!UseMask, UseLSCFeatures, UseAcc>(q);
 
   return passed;
+}
+template <bool UseLSCFeatures> bool test_main_acc(queue &q) {
+  return test_main_acc<UseLSCFeatures, true>(q) &&
+         test_main_acc<UseLSCFeatures, false>(q);
 }

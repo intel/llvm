@@ -1,8 +1,9 @@
-// RUN: %{build} -o %t.out -fsycl-dead-args-optimization
+// RUN: %{build} -Wno-error=unused-command-line-argument -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include <cmath>

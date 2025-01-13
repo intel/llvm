@@ -1,6 +1,6 @@
 // TODO: Investigate fail of this test on Gen12 platform
 // REQUIRES-INTEL-DRIVER: lin: 27427, win: 101.4827
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // TODO: Support ze_debug once GPU hang introduced in new GPU driver is solved
 // UNSUPPORTED: ze_debug
 // DEFINE: %{inlineflags} = %if cl_options %{/clang:-fno-inline-functions%} %else %{-fno-inline-functions%}
@@ -12,10 +12,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
@@ -24,8 +20,8 @@ int main() {
 
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>()
-            << ", driver=" << D.get_info<info::device::driver_version>()
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>()
+            << ", driver=" << D.get_info<sycl::info::device::driver_version>()
             << std::endl;
 
   constexpr int Size = VL * 2;

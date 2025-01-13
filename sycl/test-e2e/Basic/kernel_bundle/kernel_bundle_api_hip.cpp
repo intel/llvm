@@ -3,7 +3,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <vector>

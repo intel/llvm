@@ -1,6 +1,13 @@
 // RUN: %{build} -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: hip
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16505
+
+// Test flakily fails on PVC.
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16401
+
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,7 +18,6 @@
 #include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 
 struct IdxID1 {
   int x;

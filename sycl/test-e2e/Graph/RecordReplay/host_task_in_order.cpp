@@ -12,6 +12,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/properties/all_properties.hpp>
+
 int main() {
   queue Queue{property::queue::in_order{}};
 

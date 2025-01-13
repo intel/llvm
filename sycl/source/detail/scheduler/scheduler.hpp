@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include <detail/cg.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
 #include <detail/sycl_mem_obj_i.hpp>
-#include <sycl/detail/cg.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -190,8 +190,6 @@ using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 using QueueIdT = std::hash<std::shared_ptr<detail::queue_impl>>::result_type;
 using CommandPtr = std::unique_ptr<Command>;
-using FusionList = std::unique_ptr<KernelFusionCommand>;
-using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 
 /// Memory Object Record
 ///
@@ -204,7 +202,6 @@ struct MemObjRecord {
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
         MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
-
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
@@ -217,8 +214,8 @@ struct MemObjRecord {
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
 
-  // The mode this object can be accessed with from the host context.
-  // Valid only if the current context is host.
+  // The mode this object can be accessed from the host (host_accessor).
+  // Valid only if the current usage is on host.
   access::mode MHostAccess = access::mode::read_write;
 
   // The flag indicates that the content of the memory object was/will be
@@ -372,15 +369,16 @@ public:
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
   /// \param Queue Queue that is registering the command-group.
+  /// \param EventNeeded Specifies whether an event is explicitly required.
   /// \param CommandBuffer Optional command buffer to enqueue to instead of
   /// directly to the queue.
   /// \param Dependencies Optional list of dependency
   /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion.
-  EventImplPtr
-  addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
+  EventImplPtr addCG(
+      std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+      bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -450,26 +448,14 @@ public:
   /// \return true if an instance of the scheduler object exists.
   static bool isInstanceAlive();
 
-  QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
-
-  const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
-
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
-  void startFusion(QueueImplPtr Queue);
+  ur_kernel_handle_t completeSpecConstMaterialization(
+      QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
+      const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
 
-  void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
-
-  void cancelFusion(QueueImplPtr Queue);
-
-  EventImplPtr completeFusion(QueueImplPtr Queue, const property_list &);
-
-  bool isInFusionMode(QueueIdT Queue);
-
-  Scheduler();
-  ~Scheduler();
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
@@ -521,33 +507,9 @@ protected:
 #endif // _WIN32
     return Lock;
   }
-
-  /// Provides exclusive access to std::shared_timed_mutex object with deadlock
-  /// avoidance to the Fusion map
-  WriteLockT acquireFusionWriteLock() {
-#ifdef _WIN32
-    WriteLockT Lock(MFusionMapLock, std::defer_lock);
-    while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
-      // Without yield while loop acts like endless while loop and occupies the
-      // whole CPU when multiple command groups are created in multiple host
-      // threads
-      std::this_thread::yield();
-    }
-#else
-    WriteLockT Lock(MFusionMapLock);
-    // It is a deadlock on UNIX in implementation of lock and lock_shared, if
-    // try_lock in the loop above will be executed, so using a single lock here
-#endif // _WIN32
-    return Lock;
-  }
-
   /// Provides shared access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
-
-  /// Provides shared access to std::shared_timed_mutex object with deadlock
-  /// avoidance to the Fusion map
-  ReadLockT acquireFusionReadLock() { return ReadLockT{MFusionMapLock}; }
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
@@ -564,14 +526,6 @@ protected:
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
-
-  // POD struct to convey some additional information from GraphBuilder::addCG
-  // to the Scheduler to support kernel fusion.
-  struct GraphBuildResult {
-    Command *NewCmd;
-    EventImplPtr NewEvent;
-    bool ShouldEnqueue;
-  };
 
   /// Assign \p Src's auxiliary resources to \p Dst.
   void takeAuxiliaryResources(const EventImplPtr &Dst, const EventImplPtr &Src);
@@ -600,18 +554,18 @@ protected:
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult addCG(
-        std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        std::vector<Command *> &ToEnqueue,
-        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
+    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
+                   const QueueImplPtr &Queue, std::vector<Command *> &ToEnqueue,
+                   bool EventNeeded,
+                   ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+                   const std::vector<ur_exp_command_buffer_sync_point_t>
+                       &Dependencies = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
     ///
     /// \return a command that represents command group execution.
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                             const QueueImplPtr &HostQueue,
                              std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
@@ -649,8 +603,7 @@ protected:
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                          const Requirement *Req,
-                                          std::vector<Command *> &ToEnqueue);
+                                          const Requirement *Req);
 
     /// Decrements leaf counters for all leaves of the record.
     void decrementLeafCountersForRecord(MemObjRecord *Record);
@@ -683,20 +636,6 @@ protected:
     Command *connectDepEvent(Command *const Cmd, const EventImplPtr &DepEvent,
                              const DepDesc &Dep,
                              std::vector<Command *> &ToCleanUp);
-
-    void startFusion(QueueImplPtr Queue);
-
-    /// Clean up the internal fusion commands held for the given queue.
-    /// @param Queue the queue for which to remove the fusion commands.
-    void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
-
-    void cancelFusion(QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
-
-    EventImplPtr completeFusion(QueueImplPtr Queue,
-                                std::vector<Command *> &ToEnqueue,
-                                const property_list &);
-
-    bool isInFusionMode(QueueIdT queue);
 
     /// Adds a command buffer update operation to the execution graph. This is
     /// required when buffers/accessors are updated to ensure that the memory
@@ -749,16 +688,8 @@ protected:
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
-                              const QueueImplPtr &Queue,
                               Command::BlockReason Reason,
-                              std::vector<Command *> &ToEnqueue,
-                              const bool AddDepsToLeaves = true);
-
-    void createGraphForCommand(Command *NewCmd, CG &CG, bool isInteropTask,
-                               std::vector<Requirement *> &Reqs,
-                               const std::vector<detail::EventImplPtr> &Events,
-                               QueueImplPtr Queue,
-                               std::vector<Command *> &ToEnqueue);
+                              std::vector<Command *> &ToEnqueue);
 
   protected:
     /// Finds a command dependency corresponding to the record.
@@ -785,21 +716,11 @@ protected:
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
-    FusionMap::iterator findFusionList(QueueIdT Id) {
-      return MFusionMap.find(Id);
-    }
-
-    void removeNodeFromGraph(Command *Node, std::vector<Command *> &ToEnqueue);
-
     /// Used to track commands that need to be visited during graph
     /// traversal.
     std::queue<Command *> MCmdsToVisit;
     /// Used to track commands that have been visited during graph traversal.
     std::vector<Command *> MVisitedCmds;
-
-    /// Used to track queues that are in fusion mode and the
-    /// command-groups/kernels submitted for fusion.
-    FusionMap MFusionMap;
 
     /// Prints contents of graph to text file in DOT format
     ///
@@ -813,8 +734,6 @@ protected:
       AfterAddCopyBack,
       BeforeAddHostAcc,
       AfterAddHostAcc,
-      AfterFusionComplete,
-      AfterFusionCancel,
       Size
     };
     std::array<bool, PrintOptions::Size> MPrintOptionsArray{false};
@@ -954,7 +873,6 @@ protected:
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
-  RWLockT MFusionMapLock;
 
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
@@ -966,18 +884,11 @@ protected:
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
 
-  QueueImplPtr DefaultHostQueue;
-
   friend class Command;
   friend class DispatchHostTask;
   friend class queue_impl;
   friend class event_impl;
   friend class ::MockScheduler;
-
-private:
-  static void printFusionWarning(const std::string &Message);
-
-  static KernelFusionCommand *isPartOfActiveFusion(Command *Cmd);
 };
 
 } // namespace detail

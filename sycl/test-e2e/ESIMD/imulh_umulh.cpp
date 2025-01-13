@@ -15,10 +15,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 namespace iesimd = sycl::ext::intel::experimental::esimd;
@@ -159,7 +155,7 @@ template <int N, bool AIsVector, bool BIsVector> bool tests(sycl::queue Q) {
 int main() {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>() << "\n";
 
   constexpr bool AIsVector = true;
   constexpr bool BIsVector = true;

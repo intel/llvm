@@ -2,7 +2,6 @@
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 
 using namespace sycl;
 

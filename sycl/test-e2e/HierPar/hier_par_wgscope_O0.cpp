@@ -5,11 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// Test hangs on AMD with https://github.com/intel/llvm/pull/8412
-// UNSUPPORTED: hip_amd
-
-// RUN: %{build} -O0 -o %t.out
+// RUN: %{build} %O0 -o %t.out
 
 // RUN: %{run} %t.out
 

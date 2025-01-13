@@ -11,6 +11,7 @@
 
 #include <cassert>
 #include <sycl/detail/core.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 
@@ -92,7 +93,7 @@ int main() {
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c.x();
-          B[4] = c.y();
+          B[3] = c.y();
         });
       });
     }
@@ -116,7 +117,7 @@ int main() {
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c.x();
-          B[4] = c.y();
+          B[3] = c.y();
         });
       });
     }
@@ -140,7 +141,7 @@ int main() {
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c.x();
-          B[4] = c.y();
+          B[3] = c.y();
         });
       });
     }

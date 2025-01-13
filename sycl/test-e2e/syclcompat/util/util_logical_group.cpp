@@ -31,7 +31,7 @@
 // ===----------------------------------------------------------------------===//
 
 // REQUIRES: sg-32
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <cstdio>
@@ -68,7 +68,7 @@ void test_logical_group() {
   result_device = sycl::malloc_device<unsigned int>(4, q_ct1);
   q_ct1.parallel_for(
       sycl::nd_range<3>(sycl::range<3>(1, 1, 52), sycl::range<3>(1, 1, 52)),
-      [=](sycl::nd_item<3> item_ct1) [[intel::reqd_sub_group_size(32)]] {
+      [=](sycl::nd_item<3> item_ct1) [[sycl::reqd_sub_group_size(32)]] {
         kernel(result_device, item_ct1);
       });
   q_ct1.memcpy(result_host, result_device, sizeof(unsigned int) * 4).wait();

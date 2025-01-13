@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Test currently timeouts on Windows Level Zero and OpenCL
-// UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
 //
@@ -14,11 +12,6 @@
 // within other functions.
 
 #include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
 
 class KernelID;
 

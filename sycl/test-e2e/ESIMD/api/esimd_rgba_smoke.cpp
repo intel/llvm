@@ -12,11 +12,6 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-
 #ifdef USE_64_BIT_OFFSET
 typedef uint64_t Toffset;
 #else

@@ -1,7 +1,7 @@
 // This test checks the output for the clang-offload-wrapper for the Native CPU
 // target:
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu %s -o %t.bc
-// RUN: sycl-post-link -emit-param-info -symbols -emit-exported-symbols -O2 -spec-const=native -device-globals -o %t.table %t.bc
+// RUN: sycl-post-link -properties -emit-param-info -symbols -emit-exported-symbols -O2 -spec-const=native -device-globals -o %t.table %t.bc
 // RUN: clang-offload-wrapper -o=%t_wrap.bc -host=x86_64-unknown-linux-gnu -target=native_cpu -kind=sycl -batch %t.table
 // RUN: llvm-dis %t_wrap.bc -o - | FileCheck %s
 

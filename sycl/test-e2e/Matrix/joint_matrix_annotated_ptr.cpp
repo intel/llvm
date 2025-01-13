@@ -5,14 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
+// UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
 #include "common.hpp"
 
-#define SG_SZ 16
 constexpr size_t TN = 16;
 
 #include "joint_matrix_annotated_ptr_impl.hpp"

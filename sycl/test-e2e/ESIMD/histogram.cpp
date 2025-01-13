@@ -11,10 +11,9 @@
 
 #include "esimd_test_utils.hpp"
 
+#include <sycl/accessor_image.hpp>
+
 #include <array>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -128,8 +127,8 @@ int main(int argc, char *argv[]) {
   histogram_CPU(width, height, srcY, cpuHistogram);
 
   sycl::image<2> Img(srcY, image_channel_order::rgba,
-                     image_channel_type::unsigned_int32,
-                     range<2>{width / sizeof(uint4), height});
+                     image_channel_type::unsigned_int8,
+                     range<2>{width / sizeof(uchar4), height});
 
   // Start Timer
   esimd_test::Timer timer;

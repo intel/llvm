@@ -19,12 +19,12 @@ public:
 
     // Set up a Module with a dummy function operation inside.
     // Set the insertion point in the function entry block.
-    mlir::ModuleOp mod = builder->create<mlir::ModuleOp>(loc);
+    moduleOp = builder->create<mlir::ModuleOp>(loc);
+    builder->setInsertionPointToStart(moduleOp->getBody());
     mlir::func::FuncOp func =
-        mlir::func::FuncOp::create(loc, "fortran_variable_tests",
+        builder->create<mlir::func::FuncOp>(loc, "fortran_variable_tests",
             builder->getFunctionType(std::nullopt, std::nullopt));
     auto *entryBlock = func.addEntryBlock();
-    mod.push_back(mod);
     builder->setInsertionPointToStart(entryBlock);
   }
 
@@ -40,6 +40,7 @@ public:
   }
   mlir::MLIRContext context;
   std::unique_ptr<mlir::OpBuilder> builder;
+  mlir::OwningOpRef<mlir::ModuleOp> moduleOp;
 };
 
 TEST_F(FortranVariableTest, SimpleScalar) {
@@ -51,7 +52,7 @@ TEST_F(FortranVariableTest, SimpleScalar) {
       /*shape=*/mlir::Value{}, /*typeParams=*/std::nullopt,
       /*dummy_scope=*/nullptr, name,
       /*fortran_attrs=*/fir::FortranVariableFlagsAttr{},
-      /*cuda_attr=*/fir::CUDADataAttributeAttr{});
+      /*data_attr=*/cuf::DataAttributeAttr{});
 
   fir::FortranVariableOpInterface fortranVariable = declare;
   EXPECT_FALSE(fortranVariable.isArray());
@@ -77,7 +78,7 @@ TEST_F(FortranVariableTest, CharacterScalar) {
   auto declare = builder->create<fir::DeclareOp>(loc, addr.getType(), addr,
       /*shape=*/mlir::Value{}, typeParams, /*dummy_scope=*/nullptr, name,
       /*fortran_attrs=*/fir::FortranVariableFlagsAttr{},
-      /*cuda_attr=*/fir::CUDADataAttributeAttr{});
+      /*data_attr=*/cuf::DataAttributeAttr{});
 
   fir::FortranVariableOpInterface fortranVariable = declare;
   EXPECT_FALSE(fortranVariable.isArray());
@@ -108,7 +109,7 @@ TEST_F(FortranVariableTest, SimpleArray) {
   auto declare = builder->create<fir::DeclareOp>(loc, addr.getType(), addr,
       shape, /*typeParams*/ std::nullopt, /*dummy_scope=*/nullptr, name,
       /*fortran_attrs=*/fir::FortranVariableFlagsAttr{},
-      /*cuda_attr=*/fir::CUDADataAttributeAttr{});
+      /*data_attr=*/cuf::DataAttributeAttr{});
 
   fir::FortranVariableOpInterface fortranVariable = declare;
   EXPECT_TRUE(fortranVariable.isArray());
@@ -139,7 +140,7 @@ TEST_F(FortranVariableTest, CharacterArray) {
   auto declare = builder->create<fir::DeclareOp>(loc, addr.getType(), addr,
       shape, typeParams, /*dummy_scope=*/nullptr, name,
       /*fortran_attrs=*/fir::FortranVariableFlagsAttr{},
-      /*cuda_attr=*/fir::CUDADataAttributeAttr{});
+      /*data_attr=*/cuf::DataAttributeAttr{});
 
   fir::FortranVariableOpInterface fortranVariable = declare;
   EXPECT_TRUE(fortranVariable.isArray());

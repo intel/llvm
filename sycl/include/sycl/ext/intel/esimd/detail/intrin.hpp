@@ -13,6 +13,13 @@
 
 /// @cond ESIMD_DETAIL
 
+/// **************************** WARNING ************************************
+/// When declaring new SPIR-V intrinsics (functions starting with __spirv),
+/// it is imperitive to exactly follow the pattern of the existing SPIR-V
+/// intrinsics. If not followed, the declaration may conflict with
+/// the Clang-generated functions and cause compilation errors.
+/// **************************** WARNING ************************************
+
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>

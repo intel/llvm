@@ -1,15 +1,3 @@
-##===----------------------------------------------------------------------===##
-#
-# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-# See https://llvm.org/LICENSE.txt for license information.
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-#
-##===----------------------------------------------------------------------===##
-#
-# Build plugins for the user system if available.
-#
-##===----------------------------------------------------------------------===##
-
 # Common interface to handle creating a plugin library.
 set(common_dir ${CMAKE_CURRENT_SOURCE_DIR}/common)
 add_subdirectory(common)
@@ -24,6 +12,7 @@ function(add_target_library target_name lib_name)
       CodeGen
       Core
       Extensions
+      FrontendOffloading
       InstCombine
       Instrumentation
       IPO
@@ -32,6 +21,7 @@ function(add_target_library target_name lib_name)
       MC
       Object
       Passes
+      ProfileData
       Remarks
       ScalarOpts
       Support
@@ -50,7 +40,7 @@ function(add_target_library target_name lib_name)
                         PluginCommon ${OPENMP_PTHREAD_LIB})
 
   target_compile_definitions(${target_name} PRIVATE TARGET_NAME=${lib_name})
-  target_compile_definitions(${target_name} PRIVATE 
+  target_compile_definitions(${target_name} PRIVATE
                              DEBUG_PREFIX="TARGET ${lib_name} RTL")
   set_target_properties(${target_name} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endfunction()

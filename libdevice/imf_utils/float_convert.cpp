@@ -7,9 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../device_imf.hpp"
+#include "../device.h"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "../device_imf.hpp"
 
 static inline int __float2int_rd(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)

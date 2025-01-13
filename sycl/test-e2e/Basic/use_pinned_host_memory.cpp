@@ -1,6 +1,6 @@
 // REQUIRES: cpu
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
@@ -31,10 +31,11 @@ int main() {
         {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
     // Expected that exception is thrown
     return 1;
-  } catch (sycl::invalid_object_error &E) {
-    if (std::string(E.what()).find(
+  } catch (sycl::exception &E) {
+    if (E.code() != sycl::errc::invalid ||
+        std::string(E.what()).find(
             "The use_pinned_host_memory cannot be used with host pointer") ==
-        std::string::npos) {
+            std::string::npos) {
       return 1;
     }
 
@@ -42,6 +43,5 @@ int main() {
   }
 }
 
-// CHECK:---> piMemBufferCreate
-// CHECK-NEXT: {{.*}} : {{.*}}
-// CHECK-NEXT: {{.*}} : 17
+// CHECK: <--- urMemBufferCreate
+// CHECK-SAME: UR_MEM_FLAG_ALLOC_HOST_POINTER

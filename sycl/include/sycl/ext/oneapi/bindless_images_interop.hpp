@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for pi_uint64
+#include <ur_api.h>
 
 #include <stddef.h> // for size_t
 
@@ -16,16 +16,31 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-/// Opaque interop memory handle type
-struct interop_mem_handle {
-  using raw_handle_type = pi_uint64;
+// Types of external memory handles
+enum class external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+};
+
+// Types of external semaphore handles
+enum class external_semaphore_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_fence = 2,
+};
+
+/// Opaque external memory handle type
+struct external_mem {
+  using raw_handle_type = ur_exp_external_mem_handle_t;
   raw_handle_type raw_handle;
 };
 
-/// Opaque interop semaphore handle type
-struct interop_semaphore_handle {
-  using raw_handle_type = pi_uint64;
+/// Imported opaque external semaphore
+struct external_semaphore {
+  using raw_handle_type = ur_exp_external_semaphore_handle_t;
   raw_handle_type raw_handle;
+  external_semaphore_handle_type handle_type;
 };
 
 // External resource file descriptor type
@@ -46,30 +61,14 @@ struct resource_win32_name {
 /// Opaque external memory descriptor type
 template <typename ResourceType> struct external_mem_descriptor {
   ResourceType external_resource;
+  external_mem_handle_type handle_type;
   size_t size_in_bytes;
 };
 
 // Opaque external semaphore descriptor type
 template <typename ResourceType> struct external_semaphore_descriptor {
   ResourceType external_resource;
-};
-
-/// EVERYTHING BELOW IS DEPRECATED
-
-/// External memory file descriptor type
-struct external_mem_fd {
-  int file_descriptor;
-};
-
-/// Windows external memory type
-struct external_mem_win32 {
-  void *handle;
-  const void *name;
-};
-
-/// External semaphore file descriptor type
-struct external_semaphore_fd {
-  int file_descriptor;
+  external_semaphore_handle_type handle_type;
 };
 
 } // namespace ext::oneapi::experimental

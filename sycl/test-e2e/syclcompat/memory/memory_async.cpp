@@ -30,27 +30,26 @@
 //
 // ===---------------------------------------------------------------------===//
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
+// RUN: %{build} -DSYCLCOMPAT_USM_LEVEL_NONE -o %t.out
+// RUN: %{run} %t.out
 // Tests for the sycl::events returned from syclcompat::*Async API calls
 
 #include <stdio.h>
-
 #include <sycl/detail/core.hpp>
-
 #include <syclcompat/memory.hpp>
-
 #include "memory_fixt.hpp"
 
-// free_async is a host task, so we are really testing the event dependency here
+// enqueue_free is just a host task, so we are really testing the event
+// dependency here
 void test_free_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
   float *d_D = (float *)syclcompat::malloc(sizeof(float));
   sycl::event kernel_ev = atest.launch_kernel();
-  sycl::event free_ev = syclcompat::free_async({d_D}, {kernel_ev});
+  sycl::event free_ev = syclcompat::enqueue_free({d_D}, {kernel_ev});
 
   atest.check_events(kernel_ev, free_ev);
 }
@@ -190,6 +189,11 @@ void test_combine_events() {
 }
 
 int main() {
+#ifdef SYCLCOMPAT_USM_LEVEL_NONE
+  std::cout << "Running SYCLCOMPAT_USM_LEVEL_NONE tests" << std::endl;
+#else
+  std::cout << "Running USM tests" << std::endl;
+#endif
   test_free_async();
 
   test_memcpy_async1();

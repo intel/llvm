@@ -10,11 +10,12 @@
 // The test is to check that there are no leaks reported with the embedded
 // UR_L0_LEAKS_DEBUG=1 ( %{l0_leak_check} )  testing capability.
 // In addition to general leak checking, especially for discard_events, the test
-// checks that piKernelRelease to be executed for each kernel call, and
+// checks that urKernelRelease to be executed for each kernel call, and
 // EventRelease for events, that are used for dependencies between
 // command-lists.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 int main(int argc, char *argv[]) {
   assert(argc == 2 && "Invalid number of arguments");
   std::string use_queue_finish(argv[1]);

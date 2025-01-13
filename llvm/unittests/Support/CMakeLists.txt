@@ -44,6 +44,7 @@ add_llvm_unittest(SupportTests
   FileOutputBufferTest.cpp
   FormatVariadicTest.cpp
   FSUniqueIDTest.cpp
+  GenericDomTreeTest.cpp
   GlobPatternTest.cpp
   HashBuilderTest.cpp
   IndexedAccessorTest.cpp
@@ -60,6 +61,7 @@ add_llvm_unittest(SupportTests
   MemoryBufferRefTest.cpp
   MemoryBufferTest.cpp
   MemoryTest.cpp
+  ModRefTest.cpp
   NativeFormatTests.cpp
   OptimizedStructLayoutTest.cpp
   ParallelTest.cpp
@@ -77,6 +79,7 @@ add_llvm_unittest(SupportTests
   ScopedPrinterTest.cpp
   SHA256.cpp
   SignalsTest.cpp
+  SipHashTest.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
   SuffixTreeTest.cpp

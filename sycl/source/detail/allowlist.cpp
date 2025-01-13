@@ -10,7 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_info.hpp>
-#include <sycl/backend.hpp>
+#include <sycl/backend_types.hpp>
 
 #include <algorithm>
 #include <regex>
@@ -77,7 +77,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                           "details, please refer to "
                           "https://github.com/intel/llvm/blob/sycl/sycl/"
                           "doc/EnvironmentVariables.md " +
-                              codeToString(PI_ERROR_INVALID_VALUE));
+                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
 
   const std::string &DeprecatedKeyNameDeviceName = DeviceNameKeyName;
   const std::string &DeprecatedKeyNamePlatformName = PlatformNameKeyName;
@@ -102,7 +102,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
           "refer to "
           "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
           "EnvironmentVariables.md " +
-              codeToString(PI_ERROR_INVALID_VALUE));
+              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
     }
 
     if (Key == DeprecatedKeyNameDeviceName) {
@@ -158,7 +158,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                       "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
                       "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
                       "EnvironmentVariables.md " +
-                      codeToString(PI_ERROR_INVALID_VALUE));
+                      codeToString(UR_RESULT_ERROR_INVALID_VALUE));
           }
         };
 
@@ -180,7 +180,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                     "details, please refer to "
                     "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
                     "EnvironmentVariables.md " +
-                    codeToString(PI_ERROR_INVALID_VALUE));
+                    codeToString(UR_RESULT_ERROR_INVALID_VALUE));
           }
         }
       }
@@ -197,7 +197,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
               "Key " + Key +
                   " of SYCL_DEVICE_ALLOWLIST should have "
                   "value which starts with " +
-                  Prefix + " " + detail::codeToString(PI_ERROR_INVALID_VALUE));
+                  Prefix + " " +
+                  detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
         }
         // cut off prefix from the value
         ValueStart += Prefix.length();
@@ -217,7 +218,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                     " of SYCL_DEVICE_ALLOWLIST should have "
                     "value which ends with " +
                     Postfix + " " +
-                    detail::codeToString(PI_ERROR_INVALID_VALUE));
+                    detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
         }
         size_t NextExpectedDelimiterPos = ValueEnd + Postfix.length();
         // if it is not the end of the string, check that symbol next to a
@@ -233,7 +234,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                   AllowListRaw[NextExpectedDelimiterPos] +
                   ". Should be either " + DelimiterBtwItemsInDeviceDesc +
                   " or " + DelimiterBtwDeviceDescs +
-                  codeToString(PI_ERROR_INVALID_VALUE));
+                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
 
         if (AllowListRaw[NextExpectedDelimiterPos] == DelimiterBtwDeviceDescs)
           ShouldAllocateNewDeviceDescMap = true;
@@ -253,7 +254,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                             "Re-definition of key " + Key +
                                 " is not allowed in "
                                 "SYCL_DEVICE_ALLOWLIST " +
-                                codeToString(PI_ERROR_INVALID_VALUE));
+                                codeToString(UR_RESULT_ERROR_INVALID_VALUE));
 
     KeyStart = ValueEnd;
     if (KeyStart != std::string::npos)
@@ -343,9 +344,9 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
   return ShouldDeviceBeAllowed;
 }
 
-void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
-                    sycl::detail::pi::PiPlatform PiPlatform,
-                    const PluginPtr &Plugin) {
+void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
+                    ur_platform_handle_t UrPlatform,
+                    const AdapterPtr &Adapter) {
 
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
@@ -354,7 +355,7 @@ void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
 
   // Get platform's backend and put it to DeviceDesc
   DeviceDescT DeviceDesc;
-  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(PiPlatform, Plugin);
+  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
   backend Backend = PlatformImpl->getBackend();
 
   for (const auto &SyclBe : getSyclBeMap()) {
@@ -366,21 +367,37 @@ void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
   // get PlatformVersion value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformVersionKeyName,
                      sycl::detail::get_platform_info<info::platform::version>(
-                         PiPlatform, Plugin));
+                         UrPlatform, Adapter));
   // get PlatformName value and put it to DeviceDesc
   DeviceDesc.emplace(PlatformNameKeyName,
                      sycl::detail::get_platform_info<info::platform::name>(
-                         PiPlatform, Plugin));
+                         UrPlatform, Adapter));
 
   int InsertIDx = 0;
-  for (sycl::detail::pi::PiDevice Device : PiDevices) {
+  for (ur_device_handle_t Device : UrDevices) {
     auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
-    sycl::detail::pi::PiDeviceType PiDevType;
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
-        Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
-        &PiDevType, nullptr);
-    sycl::info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
+    ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
+    Adapter->call<UrApiKind::urDeviceGetInfo>(
+        Device, UR_DEVICE_INFO_TYPE, sizeof(UrDevType), &UrDevType, nullptr);
+    // TODO need mechanism to do these casts, there's a bunch of this sort of
+    // thing
+    sycl::info::device_type DeviceType = info::device_type::all;
+    switch (UrDevType) {
+    default:
+    case UR_DEVICE_TYPE_ALL:
+      DeviceType = info::device_type::all;
+      break;
+    case UR_DEVICE_TYPE_GPU:
+      DeviceType = info::device_type::gpu;
+      break;
+    case UR_DEVICE_TYPE_CPU:
+      DeviceType = info::device_type::cpu;
+      break;
+    case UR_DEVICE_TYPE_FPGA:
+      DeviceType = info::device_type::accelerator;
+      break;
+    }
     for (const auto &SyclDeviceType :
          getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
       if (SyclDeviceType.second == DeviceType) {
@@ -407,10 +424,10 @@ void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
 
     // check if we can allow device with such device description DeviceDesc
     if (deviceIsAllowed(DeviceDesc, AllowListParsed)) {
-      PiDevices[InsertIDx++] = Device;
+      UrDevices[InsertIDx++] = Device;
     }
   }
-  PiDevices.resize(InsertIDx);
+  UrDevices.resize(InsertIDx);
 }
 
 } // namespace detail

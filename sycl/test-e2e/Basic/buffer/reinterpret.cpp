@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 //
 // XFAIL: level_zero&&gpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14430
 
 //==---------- reinterpret.cpp --- SYCL buffer reinterpret basic test ------==//
 //
@@ -101,12 +102,18 @@ int main() {
     }
   }
 
-  try {
-    sycl::buffer<float, 1> buf_fl(r1d);
-    auto buf_d = buf_1d.reinterpret<double>(r2d);
-  } catch (sycl::invalid_object_error e) {
-    std::cout << "Expected exception has been caught: " << e.what()
-              << std::endl;
+  {
+    bool gotException = false;
+    try {
+      sycl::buffer<float, 1> buf_fl(r1d);
+      auto buf_d = buf_1d.reinterpret<double>(r2d);
+    } catch (sycl::exception e) {
+      assert(e.code() == sycl::errc::invalid);
+      std::cout << "Expected exception has been caught: " << e.what()
+                << std::endl;
+      gotException = true;
+    }
+    assert(gotException);
   }
 
   // subbuffer reinterpret

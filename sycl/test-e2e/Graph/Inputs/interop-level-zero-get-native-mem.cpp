@@ -1,6 +1,6 @@
 // Tests interop with host_task in graph
 // This test was taken from
-// `sycl/test-e2e/Plugin/interop-level-zero-get-native-mem.cpp` This test has
+// `sycl/test-e2e/Adapter/interop-level-zero-get-native-mem.cpp` This test has
 // been simplified to only work with signle device.
 
 #include "../graph_common.hpp"
@@ -8,6 +8,8 @@
 #include <level_zero/ze_api.h>
 // SYCL
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
+
+#include <sycl/interop_handle.hpp>
 
 bool is_discrete(const device &Device) {
   auto ZeDevice = get_native<backend::ext_oneapi_level_zero>(Device);

@@ -6,14 +6,14 @@
 //
 // The test still fails after GPU driver update on Linux. Temporary marking it
 // as expected to fail, whilst it is being investigated, see intel/llvm#11359
-// FIXME: remove that XFAIL
-// XFAIL: linux
+// XFAIL: linux && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11359
+//
+// Hanging on gen12, remove when internal tracker fixed
+// UNSUPPORTED: gpu-intel-gen12
+//
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

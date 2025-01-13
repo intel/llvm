@@ -4,6 +4,7 @@
 // This test is needed since we need to make sure that there no
 // "multiple definitions" linker errors when a function appears
 // both in the host and in the device module.
+
 #include <sycl/sycl.hpp>
 
 void increase(int *data, sycl::id<1> id, int val) { data[id] = data[id] + val; }

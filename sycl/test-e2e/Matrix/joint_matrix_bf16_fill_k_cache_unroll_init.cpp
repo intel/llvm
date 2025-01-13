@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix, gpu
+// REQUIRES: aspect-ext_intel_matrix, gpu
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t_gpu.out -DINIT_LIST -DMANUAL_UNROLL
+// RUN: %{build} -mllvm -inline-threshold=2000 %fp-model-precise -o %t_gpu.out -DINIT_LIST -DMANUAL_UNROLL -DVNNI
 // RUN: %{run} %t_gpu.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,
@@ -15,9 +15,4 @@
 // -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "common.hpp"
-#include <cstddef>
-
-#define SG_SZ 16
-constexpr size_t TN = 16;
-
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

@@ -1,7 +1,11 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=incorrect-sub-group-size -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
+#include <sycl/sub_group.hpp>
+
+#include <numeric>
 
 using namespace sycl;
 namespace sycl_exp = sycl::ext::oneapi::experimental;
@@ -34,7 +38,7 @@ template <int SG_SIZE> void test(queue &q) {
 
     cgh.parallel_for(
         nd_range<1>{wg_size, wg_size},
-        [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(SG_SIZE)]] {
+        [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(SG_SIZE)]] {
           auto gid = ndi.get_global_id(0);
           auto sg = ndi.get_sub_group();
           auto offset =

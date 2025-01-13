@@ -89,6 +89,10 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
   if (OpCode == internal::OpTypeJointMatrixINTELv2)
     OpCode = internal::OpTypeJointMatrixINTEL;
 
+  // OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4
+  if (OpCode == OpAtomicCompareExchangeWeak)
+    OpCode = OpAtomicCompareExchange;
+
   OpToFactoryMapTy::const_iterator Loc = OpToFactoryMap.find(OpCode);
   if (Loc != OpToFactoryMap.end())
     return Loc->second();
@@ -386,6 +390,16 @@ void SPIRVEntry::takeAnnotations(SPIRVForward *E) {
     static_cast<SPIRVFunction *>(this)->takeExecutionModes(E);
 }
 
+void SPIRVEntry::replaceTargetIdInDecorates(SPIRVId Id) {
+  for (auto It = Decorates.begin(), E = Decorates.end(); It != E; ++It)
+    const_cast<SPIRVDecorate *>(It->second)->setTargetId(Id);
+  for (auto It = DecorateIds.begin(), E = DecorateIds.end(); It != E; ++It)
+    const_cast<SPIRVDecorateId *>(It->second)->setTargetId(Id);
+  for (auto It = MemberDecorates.begin(), E = MemberDecorates.end(); It != E;
+       ++It)
+    const_cast<SPIRVMemberDecorate *>(It->second)->setTargetId(Id);
+}
+
 // Check if an entry has Kind of decoration and get the literal of the
 // first decoration of such kind at Index.
 bool SPIRVEntry::hasDecorate(Decoration Kind, size_t Index,
@@ -549,7 +563,8 @@ SPIRVEntry::getDecorationIds(Decoration Kind) const {
 }
 
 bool SPIRVEntry::hasLinkageType() const {
-  return OpCode == OpFunction || OpCode == OpVariable;
+  return OpCode == OpFunction || OpCode == OpVariable ||
+         OpCode == OpUntypedVariableKHR;
 }
 
 bool SPIRVEntry::isExtInst(const SPIRVExtInstSetKind InstSet) const {
@@ -641,7 +656,9 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   getDecoder(I) >> Target >> ExecMode;
   switch (static_cast<uint32_t>(ExecMode)) {
   case ExecutionModeLocalSize:
+  case ExecutionModeLocalSizeId:
   case ExecutionModeLocalSizeHint:
+  case ExecutionModeLocalSizeHintId:
   case ExecutionModeMaxWorkgroupSizeINTEL:
     WordLiterals.resize(3);
     break;
@@ -660,6 +677,8 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeSharedLocalMemorySizeINTEL:
   case ExecutionModeNamedBarrierCountINTEL:
   case ExecutionModeSubgroupSize:
+  case ExecutionModeSubgroupsPerWorkgroup:
+  case ExecutionModeSubgroupsPerWorkgroupId:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
   case ExecutionModeSchedulerTargetFmaxMhzINTEL:

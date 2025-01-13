@@ -10,8 +10,7 @@
 
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -41,14 +40,17 @@ static void unset_env(const char *name) {
 
 bool HasITTEnabled = false;
 
-static pi_result
-redefinedProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
-                                          size_t spec_size,
-                                          const void *spec_value) {
-  if (spec_id == sycl::detail::ITTSpecConstId)
-    HasITTEnabled = true;
+static ur_result_t redefinedProgramSetSpecializationConstants(void *pParams) {
+  auto params =
+      *static_cast<ur_program_set_specialization_constants_params_t *>(pParams);
+  for (uint32_t SpecConstIndex = 0; SpecConstIndex < *params.pcount;
+       SpecConstIndex++) {
+    if ((*params.ppSpecConstants)[SpecConstIndex].id ==
+        sycl::detail::ITTSpecConstId)
+      HasITTEnabled = true;
+  }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 static void reset() {
@@ -62,11 +64,11 @@ TEST(ITTNotify, UseKernelBundle) {
 
   reset();
 
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<
-      sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
-      redefinedProgramSetSpecializationConstant);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback(
+      "urProgramSetSpecializationConstants",
+      &redefinedProgramSetSpecializationConstants);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -90,11 +92,11 @@ TEST(ITTNotify, VarNotSet) {
 
   reset();
 
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<
-      sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
-      redefinedProgramSetSpecializationConstant);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback(
+      "urProgramSetSpecializationConstants",
+      &redefinedProgramSetSpecializationConstants);
 
   const sycl::device Dev = Plt.get_devices()[0];
 

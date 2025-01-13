@@ -30,13 +30,13 @@
 //===---------------------------------------------------------------===//
 
 // REQUIRES: aspect-fp64
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <complex>
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 #include "../common.hpp"
@@ -45,6 +45,15 @@ template <typename T> bool check(T x, float *e) {
   float precision = ERROR_TOLERANCE;
   if ((x.x() - e[0] < precision) && (x.x() - e[0] > -precision) &&
       (x.y() - e[1] < precision) && (x.y() - e[1] > -precision)) {
+    return true;
+  }
+  return false;
+}
+
+template <typename T> bool check(sycl::marray<T, 2> x, float *e) {
+  float precision = ERROR_TOLERANCE;
+  if ((x[0] - e[0] < precision) && (x[0] - e[0] > -precision) &&
+      (x[1] - e[1] < precision) && (x[1] - e[1] > -precision)) {
     return true;
   }
   return false;
@@ -206,10 +215,10 @@ void kernel_mul_add(int *result) {
   m_f2 = sycl::marray<float, 2>(-3.6, 4.5);
   m_f3 = sycl::marray<float, 2>(1.0, -1.0);
 
-  auto a3 = syclcompat::cmul_add(d1, d2, d3);
+  auto a3 = syclcompat::cmul_add(m_d1, m_d2, m_d3);
   r = r && check(a3, expect);
 
-  auto a4 = syclcompat::cmul_add(f1, f2, f3);
+  auto a4 = syclcompat::cmul_add(m_f1, m_f2, m_f3);
   r = r && check(a4, expect + 2);
 
   *result = r;

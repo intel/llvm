@@ -23,21 +23,21 @@ jobs:
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: ext_oneapi_hip:gpu
+            target_devices: hip:gpu
 
           - name: Intel L0 GPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu
-            reset_gpu: true
+            target_devices: level_zero:gpu
+            reset_intel_gpu: true
 
           - name: Intel OCL GPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: opencl:gpu
-            reset_gpu: true
+            reset_intel_gpu: true
 
           - name: OCL CPU
             runner: '["Linux", "x86-cpu"]'
@@ -49,7 +49,7 @@ jobs:
             runner: '["Linux", "cuda"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_cuda:gpu
+            target_devices: cuda:gpu
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -57,7 +57,7 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      reset_gpu: ${{ matrix.reset_gpu }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       env: ${{ inputs.env }}
       ref: ${{ github.sha }}
       merge_ref: ''
@@ -79,7 +79,7 @@ jobs:
       runner: '["aws-cuda_${{ github.run_id }}-${{ github.run_attempt }}"]'
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-      target_devices: ext_oneapi_cuda:gpu
+      target_devices: cuda:gpu
       env: ${{ inputs.env }}
       ref: ${{ github.sha }}
       merge_ref: ''

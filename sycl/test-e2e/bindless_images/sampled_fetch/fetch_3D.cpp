@@ -1,4 +1,3 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_3d
 
@@ -6,7 +5,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 class kernel_sampled_fetch;
 
@@ -38,8 +38,7 @@ int main() {
 
   try {
     // Extension: image descriptor
-    syclexp::image_descriptor desc({width, height, depth},
-                                   sycl::image_channel_order::r,
+    syclexp::image_descriptor desc({width, height, depth}, 1,
                                    sycl::image_channel_type::fp32);
 
     syclexp::bindless_image_sampler samp(

@@ -1,4 +1,4 @@
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 // Temporarily disabled because the test is out of time
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

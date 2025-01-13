@@ -3,7 +3,8 @@
 
 // This test finds a known kernel and runs it.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 

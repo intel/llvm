@@ -12,18 +12,28 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/PassManagerImpl.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -42,6 +52,11 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"),
+    cl::cat(getModuleSplitCategory()), cl::init(false)};
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
@@ -99,7 +114,8 @@ bool isGenericBuiltin(StringRef FName) {
 }
 
 bool isKernel(const Function &F) {
-  return F.getCallingConv() == CallingConv::SPIR_KERNEL;
+  return F.getCallingConv() == CallingConv::SPIR_KERNEL ||
+         F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
 }
 
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
@@ -122,11 +138,10 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
            !isGenericBuiltin(F.getName());
   }
 
-  return false;
-}
-
-bool isESIMDFunction(const Function &F) {
-  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+  // Even if we are emitting only kernels as entry points, virtual functions
+  // should still be treated as entry points, because they are going to be
+  // outlined into separate device images and linked in later.
+  return F.hasFnAttribute("indirectly-callable");
 }
 
 // Represents "dependency" or "use" graph of global objects (functions and
@@ -172,8 +187,10 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph
     for (const auto &F : M.functions()) {
+      if (canBeImportedFunction(F))
+        continue;
+
       // case (1), see comment above the class definition
       for (const Value *U : F.users())
         addUserToGraphRecursively(cast<const User>(U), &F);
@@ -429,6 +446,28 @@ private:
 namespace llvm {
 namespace module_split {
 
+std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
+  static const StringMap<IRSplitMode> Values = {{"kernel", SPLIT_PER_KERNEL},
+                                                {"source", SPLIT_PER_TU},
+                                                {"auto", SPLIT_AUTO},
+                                                {"none", SPLIT_NONE}};
+
+  auto It = Values.find(S);
+  if (It == Values.end())
+    return std::nullopt;
+
+  return It->second;
+}
+
+bool isESIMDFunction(const Function &F) {
+  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+}
+
+cl::OptionCategory &getModuleSplitCategory() {
+  static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
+  return ModuleSplitCategory;
+}
+
 Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   const Module &M = getInputModule();
   // Early exit if there is only one group
@@ -623,13 +662,71 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
+// Predicate for Internalize pass. The pass is very aggressive and essentially
+// tries to internalize absolutely everything. This function serves as "input
+// from a linker" that tells the pass what must be preserved in order to make
+// the transformation safe.
+static bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV)) {
+    // When dynamic linking is supported, we internalize everything (except
+    // kernels which are the entry points from host code to device code) that
+    // cannot be imported which also means that there is no point of having it
+    // visible outside of the current module.
+    if (AllowDeviceImageDependencies)
+      return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
+             canBeImportedFunction(*F);
+
+    // Otherwise, we are being even more aggressive: SYCL modules are expected
+    // to be self-contained, meaning that they have no external dependencies.
+    // Therefore, we can internalize every function that is not an entry point.
+    // One exception here is virtual functions: when they are in use, modules
+    // are not self-contained anymore and some device images has to be linked
+    // at runtime to resolve all symbols.
+    // Functions marked with referenced-indirectly attribute is another
+    // exception: that attribute was originally introduced for function pointers
+    // and even though its main usage was deprecated and dropped, it is still
+    // used in invoke_simd (but that use needs to be revisited).
+    return F->hasFnAttribute("sycl-entry-point") ||
+           F->hasFnAttribute("indirectly-callable") ||
+           F->hasFnAttribute("referenced-indirectly");
+  }
+
+  // Otherwise, we don't have enough information about a global and picking a
+  // safe side saying that all other globals must be preserved (we should have
+  // cleaned up unused globals during dependency graph analysis already).
+  return true;
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
+  // Any definitions of virtual functions should be removed and turned into
+  // declarations, they are supposed to be provided by a different module.
+  if (!EntryPoints.Props.HasVirtualFunctionDefinitions) {
+    for (Function &F : *M)
+      if (F.hasFnAttribute("indirectly-callable")) {
+        F.deleteBody();
+        if (F.hasComdat())
+          F.setComdat(nullptr);
+      }
+  } else {
+    // Otherwise externalize them so they are not dropped by GlobalDCE
+    for (Function &F : *M)
+      if (F.hasFnAttribute("indirectly-callable"))
+        F.setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
+  }
+
+  // Callback for internalize can't be a lambda with captures, so we propagate
+  // necessary information through the module itself.
+  if (!AllowDeviceImageDependencies)
+    for (Function *F : EntryPoints.Functions)
+      F->addFnAttr("sycl-entry-point");
+
   ModuleAnalysisManager MAM;
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
+  MPM.addPass(InternalizePass(mustPreserveGV));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
@@ -702,6 +799,23 @@ void ModuleDesc::dump() const {
 }
 #endif // NDEBUG
 
+void ModuleDesc::saveSplitInformationAsMetadata() {
+  // Add metadata to the module so we can identify what kind of SYCL/ESIMD split
+  // later.
+  auto *SplitMD = M->getOrInsertNamedMetadata(SYCL_ESIMD_SPLIT_MD_NAME);
+  auto *SplitMDOp = MDNode::get(
+      M->getContext(), ConstantAsMetadata::get(ConstantInt::get(
+                           Type::getInt8Ty(M->getContext()),
+                           static_cast<uint8_t>(EntryPoints.Props.HasESIMD))));
+  SplitMD->addOperand(SplitMDOp);
+
+  // Add metadata to the module so we can identify it as the default value spec
+  // constants split later.
+  if (isSpecConstantDefault())
+    M->getOrInsertNamedMetadata(
+        SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
+}
+
 void EntryPointGroup::saveNames(std::vector<std::string> &Dest) const {
   Dest.reserve(Dest.size() + Functions.size());
   std::transform(Functions.begin(), Functions.end(),
@@ -731,6 +845,14 @@ void EntryPointGroup::rebuild(const Module &M) {
   for (const Function &F : M.functions())
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
       Functions.insert(const_cast<Function *>(&F));
+}
+
+std::string ModuleDesc::makeSymbolTable() const {
+  std::string ST;
+  for (const Function *F : EntryPoints.Functions)
+    ST += (Twine(F->getName()) + "\n").str();
+
+  return ST;
 }
 
 namespace {
@@ -800,6 +922,36 @@ public:
   // converted into strings listed in a metadata to a resulting identifier.
   void registerListOfIntegersInMetadataSortedRule(StringRef MetadataName) {
     Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
+  }
+
+  // Creates a rule, which adds a list of sorted dash-separated integers from
+  // converted into strings listed in a metadata to a resulting identifier.
+  // The form of the metadata is expected to be a metadata node, with its
+  // operands being either an integer or another metadata node with the
+  // form of {!"<aspect_name>", iN <aspect_value>}.
+  void registerAspectListRule(StringRef MetadataName) {
+    registerRule([MetadataName](Function *F) {
+      SmallString<128> Result;
+      if (MDNode *UsedAspects = F->getMetadata(MetadataName)) {
+        SmallVector<std::uint64_t, 8> Values;
+        for (const MDOperand &MDOp : UsedAspects->operands()) {
+          if (auto MDN = dyn_cast<MDNode>(MDOp)) {
+            assert(MDN->getNumOperands() == 2);
+            Values.push_back(mdconst::extract<ConstantInt>(MDN->getOperand(1))
+                                 ->getZExtValue());
+          } else if (auto C = mdconst::dyn_extract<ConstantInt>(MDOp)) {
+            Values.push_back(C->getZExtValue());
+          }
+        }
+
+        llvm::sort(Values);
+
+        for (std::uint64_t V : Values)
+          Result += ("-" + Twine(V)).str();
+      }
+
+      return std::string(Result);
+    });
   }
 
 private:
@@ -975,13 +1127,25 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     Categorizer.registerSimpleStringAttributeRule(
         sycl::utils::ATTR_SYCL_MODULE_ID);
 
+    // This attribute marks virtual functions and effectively dictates how they
+    // should be groupped together. By design we won't split those groups of
+    // virtual functions further even if functions from the same group use
+    // different optional features and therefore this rule is put here.
+    // Strictly speaking, we don't even care about module-id splitting for
+    // those, but to avoid that we need to refactor the whole categorizer.
+    // However, this is good enough as it is for an initial version.
+    // TODO: for AOT use case we shouldn't be outlining those and instead should
+    // only select those functions which are compatible with the target device
+    Categorizer.registerSimpleStringAttributeRule("indirectly-callable");
+
     // Optional features
     // Note: Add more rules at the end of the list to avoid chaning orders of
     // output files in existing tests.
     Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
     Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
-    Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
+    Categorizer.registerAspectListRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+    Categorizer.registerListOfIntegersInMetadataRule("work_group_num_dim");
     Categorizer.registerListOfIntegersInMetadataRule(
         "intel_reqd_sub_group_size");
     Categorizer.registerSimpleStringAttributeRule(
@@ -1013,8 +1177,19 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     Groups.reserve(EntryPointsMap.size());
     // Start with properties of a source module
     EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
-    for (auto &[Key, EntryPoints] : EntryPointsMap)
-      Groups.emplace_back(Key, std::move(EntryPoints), MDProps);
+    for (auto &[Key, EntryPoints] : EntryPointsMap) {
+      bool HasVirtualFunctions = false;
+      for (auto *F : EntryPoints) {
+        if (F->hasFnAttribute("indirectly-callable")) {
+          HasVirtualFunctions = true;
+          break;
+        }
+      }
+
+      auto PropsCopy = MDProps;
+      PropsCopy.HasVirtualFunctionDefinitions = HasVirtualFunctions;
+      Groups.emplace_back(Key, std::move(EntryPoints), PropsCopy);
+    }
   }
 
   bool DoSplit = (Mode != SPLIT_NONE &&
@@ -1084,8 +1259,8 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   if (EntryPointGroups.size() == 1) {
-    Result.emplace_back(std::move(MD.releaseModulePtr()),
-                        std::move(EntryPointGroups[0]), MD.Props);
+    Result.emplace_back(MD.releaseModulePtr(), std::move(EntryPointGroups[0]),
+                        MD.Props);
     return Result;
   }
 
@@ -1094,8 +1269,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
-      Result.emplace_back(
-          std::move(extractESIMDSubModule(MD, std::move(Group), CG)));
+      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
@@ -1103,13 +1277,161 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // modules are expected to be linked back together after ESIMD functions
       // were processed and therefore it is fine to return an "incomplete"
       // module here.
-      Result.emplace_back(std::move(extractCallGraph(
+      Result.emplace_back(extractCallGraph(
           MD, std::move(Group), CG,
-          [=](const Function *F) -> bool { return !isESIMDFunction(*F); })));
+          [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
 
   return Result;
+}
+
+static Error saveModuleIRInFile(Module &M, StringRef FilePath,
+                                bool OutputAssembly) {
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(FilePath, FD))
+    return errorCodeToError(EC);
+
+  raw_fd_ostream OS(FD, true);
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  if (OutputAssembly)
+    MPM.addPass(PrintModulePass(OS));
+  else
+    MPM.addPass(BitcodeWriterPass(OS));
+
+  MPM.run(M, MAM);
+  return Error::success();
+}
+
+static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                            bool OutputAssembly) {
+  SplitModule SM;
+  Prefix += OutputAssembly ? ".ll" : ".bc";
+  MD.saveSplitInformationAsMetadata();
+  Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
+  if (E)
+    return E;
+
+  SM.ModuleFilePath = Prefix;
+  SM.Symbols = MD.makeSymbolTable();
+  return SM;
+}
+
+Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
+  auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
+
+  if (!EntriesMBOrErr)
+    return createFileError(File, EntriesMBOrErr.getError());
+
+  line_iterator LI(**EntriesMBOrErr);
+  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+    return createStringError(inconvertibleErrorCode(),
+                             "invalid SYCL Table file.");
+
+  ++LI;
+  std::vector<module_split::SplitModule> Modules;
+  while (!LI.is_at_eof()) {
+    StringRef Line = *LI;
+    if (Line.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL table row.");
+
+    SmallVector<StringRef, 3> Parts;
+    Line.split(Parts, "|");
+    if (Parts.size() != 3)
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto [IRFilePath, PropertyFilePath, SymbolsFilePath] =
+        std::tie(Parts[0], Parts[1], Parts[2]);
+    if (PropertyFilePath.empty() || SymbolsFilePath.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto MBOrErr = MemoryBuffer::getFile(PropertyFilePath);
+    if (!MBOrErr)
+      return createFileError(PropertyFilePath, MBOrErr.getError());
+
+    auto &MB = **MBOrErr;
+    auto PropSetOrErr = llvm::util::PropertySetRegistry::read(&MB);
+    if (!PropSetOrErr)
+      return PropSetOrErr.takeError();
+
+    llvm::util::PropertySetRegistry Properties = std::move(**PropSetOrErr);
+    MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
+    if (!MBOrErr)
+      return createFileError(SymbolsFilePath, MBOrErr.getError());
+
+    auto &MB2 = *MBOrErr;
+    std::string Symbols =
+        std::string(MB2->getBufferStart(), MB2->getBufferEnd());
+    Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
+    ++LI;
+  }
+
+  return Modules;
+}
+
+Expected<std::vector<SplitModule>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
+  ModuleDesc MD = std::move(M); // makeModuleDesc() ?
+  // FIXME: false arguments are temporary for now.
+  auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
+                                        /*IROutputOnly=*/false,
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false);
+
+  size_t ID = 0;
+  std::vector<SplitModule> OutputImages;
+  while (Splitter->hasMoreSplits()) {
+    ModuleDesc MD2 = Splitter->nextSplit();
+    MD2.fixupLinkageOfDirectInvokeSimdTargets();
+
+    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
+    auto SplittedImageOrErr =
+        saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
+    if (!SplittedImageOrErr)
+      return SplittedImageOrErr.takeError();
+
+    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
+    ++ID;
+  }
+
+  return OutputImages;
+}
+
+bool canBeImportedFunction(const Function &F) {
+  // It may be theoretically possible to determine what is importable
+  // based solely on function F, but the "SYCL/imported symbols"
+  // property list MUST NOT have any imported symbols that are not supplied
+  // the exported symbols from another device image.  This will lead to a
+  // runtime crash "No device image found for external symbol". Generating
+  // precise "SYCL/imported symbols" can be difficult because there exist
+  // functions that may look like they can be imported, but are supplied outside
+  // of user device code (e.g. _Z38__spirv_JointMatrixWorkItemLength...) In
+  // order to be safe and not require perfect name analysis just start with this
+  // simple check.
+  if (!AllowDeviceImageDependencies)
+    return false;
+
+  // SYCL_EXTERNAL property is not recorded for a declaration
+  // in a header file.  Thus SYCL IR that is a declaration
+  // will be considered as SYCL_EXTERNAL for the purposes of
+  // this function.
+  if (F.isIntrinsic() || F.getName().starts_with("__") ||
+      isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName()) ||
+      (!F.isDeclaration() && !llvm::sycl::utils::isSYCLExternalFunction(&F)))
+    return false;
+
+  bool ReturnValue = true;
+  if (char *NameStr = itaniumDemangle(F.getName())) {
+    StringRef DemangledName(NameStr);
+    if (DemangledName.starts_with("__"))
+      ReturnValue = false;
+    free(NameStr);
+  }
+  return ReturnValue;
 }
 
 } // namespace module_split

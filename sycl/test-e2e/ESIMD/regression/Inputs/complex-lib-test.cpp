@@ -1,5 +1,5 @@
 #include <cstdio>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 sycl::event iota(size_t n, sycl::buffer<int, 1> &d, sycl::queue &Q);
 sycl::event add(size_t n, sycl::buffer<int, 1> &buf_a,

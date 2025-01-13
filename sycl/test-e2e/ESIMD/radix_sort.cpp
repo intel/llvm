@@ -12,11 +12,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <algorithm>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #define LOG2_ELEMENTS 20
 
 // the number of bits necessary for representing the radix R
@@ -593,7 +588,8 @@ int main(int argc, char *argv[]) {
           property::queue::in_order());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto ctxt = q.get_context();
 
   // allocate and initialized input

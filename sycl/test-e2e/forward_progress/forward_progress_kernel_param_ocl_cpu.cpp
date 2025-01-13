@@ -11,8 +11,9 @@
 // guarantees, then we verify that an exception is thrown as written in the spec
 // of the forward progress extension.
 
+#include <sycl/detail/core.hpp>
+
 #include <cassert>
-#include <sycl/sycl.hpp>
 using namespace sycl::ext::oneapi::experimental;
 
 // Primary template

@@ -48,7 +48,7 @@ int main() {
 // CHECK: %[[Arg_ref:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg_Obj to ptr addrspace(4)
 //
 // Initialization.
-// CHECK: %[[GEP:[a-zA-Z0-9_.]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) %[[K_as_cast]], i32 0, i32 0
+// CHECK: %[[GEP:[a-zA-Z0-9_.]+]] = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %[[K_as_cast]], i32 0, i32 0
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[GEP]], ptr addrspace(4) align 8 %[[Arg_ref]], i64 16, i1 false)
 //
 // Kernel body call.
@@ -64,7 +64,7 @@ int main() {
 // CHECK: %[[NNSArg_ref:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg_NNSObj to ptr addrspace(4)
 //
 // Initialization.
-// CHECK: %[[NNSGEP:[a-zA-Z0-9_.]+]] = getelementptr inbounds %class.anon.2, ptr addrspace(4) %[[NNSK_as_cast]], i32 0, i32 0
+// CHECK: %[[NNSGEP:[a-zA-Z0-9_.]+]] = getelementptr inbounds nuw %class.anon.2, ptr addrspace(4) %[[NNSK_as_cast]], i32 0, i32 0
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[NNSGEP]], ptr addrspace(4) align 8 %[[NNSArg_ref]], i64 16, i1 false)
 //
 // Kernel body call.

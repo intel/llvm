@@ -1,5 +1,5 @@
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 static constexpr const int VL = 4;
 

@@ -1,6 +1,6 @@
 // This test ensures that this_id returns the correct value
 // even when a kernel is wrapped in a range rounding kernel.
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=16:32:0 \
 // RUN:     SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 \
 // RUN: %{run} %t.out | FileCheck %s

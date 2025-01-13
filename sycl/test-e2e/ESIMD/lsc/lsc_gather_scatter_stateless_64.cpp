@@ -5,13 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //=----------------------------------------------------------------------=//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out -fsycl-esimd-force-stateless-mem
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -31,7 +31,8 @@ int main() {
   queue q;
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   try {
     q.submit([&](handler &cgh) {
        auto PA = bufa.get_access<access::mode::read_write>(cgh);

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -14,13 +14,7 @@
 // then VNNI transform. This is currently only available on AMX
 
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-5768
 
 #include "common.hpp"
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
-#define SG_SZ 16
-constexpr size_t TN = 16;
-
 #include "joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"

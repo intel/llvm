@@ -236,27 +236,6 @@ inline constexpr wait_request_key::value_t<false>
 
 // Type trait specializations
 namespace sycl::ext::oneapi::experimental {
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::conduit_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::register_map_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::stable_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::buffer_location_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::awidth_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::dwidth_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::read_write_mode_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::latency_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::maxburst_key> : std::true_type {};
-template<> struct is_property_key<
-  sycl::ext::intel::experimental::wait_request_key> : std::true_type {};
-
 template <typename T, typename PropertyListT>
 struct is_property_key_of<
   sycl::ext::intel::experimental::conduit_key,

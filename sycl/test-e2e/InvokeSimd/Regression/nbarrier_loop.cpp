@@ -1,5 +1,5 @@
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 //
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
@@ -14,14 +14,11 @@
  * data to surface.
  */
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
-
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>
@@ -53,7 +50,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
   // 2 named barriers, id 0 reserved for unnamed
   constexpr unsigned bnum = 3;
 
-  experimental_esimd::named_barrier_init<bnum>();
+  esimd::named_barrier_init<bnum>();
 
   // 2 producers on first iteration, 1 producer on second
   unsigned int indexes[2][2] = {{1, 2}, {3, 3}}; // local ids of producers
@@ -101,13 +98,13 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
       experimental_esimd::lsc_slm_block_store<int, VL>(slm_off, init);
     }
 
-    __ESIMD_ENS::named_barrier_signal(b, flag, producers, consumers);
+    __ESIMD_NS::named_barrier_signal(b, flag, producers, consumers);
 
     if (is_consumer)
-      __ESIMD_ENS::named_barrier_wait(b);
+      __ESIMD_NS::named_barrier_wait(b);
   }
 
-  experimental_esimd::lsc_fence();
+  esimd::fence();
 
   // Copying SLM content to buffer.
   if (local_id == 0) {
@@ -167,7 +164,7 @@ int main() {
       cgh.parallel_for<KernelID>(
           nd_range<1>(GlobalRange, LocalRange),
           // This test requires an explicit specification of the subgroup size
-          [=](nd_item<1> item) [[intel::reqd_sub_group_size(VL)]] {
+          [=](nd_item<1> item) [[sycl::reqd_sub_group_size(VL)]] {
             sycl::group<1> g = item.get_group();
             sycl::sub_group sg = item.get_sub_group();
 

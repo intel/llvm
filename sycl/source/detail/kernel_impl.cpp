@@ -9,7 +9,6 @@
 #include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
-#include <detail/program_impl.hpp>
 
 #include <memory>
 
@@ -17,67 +16,52 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr Context,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : kernel_impl(Kernel, Context,
-                  std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true, KernelBundleImpl, ArgMask) {
+    : MKernel(Kernel), MContext(Context),
+      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
+                                                                      Context)),
+      MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
+  ur_context_handle_t UrContext = nullptr;
+  // Using the adapter from the passed ContextImpl
+  getAdapter()->call<UrApiKind::urKernelGetInfo>(
+      MKernel, UR_KERNEL_INFO_CONTEXT, sizeof(UrContext), &UrContext, nullptr);
+  if (Context->getHandleRef() != UrContext)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_kernel");
+
   // Enable USM indirect access for interoperability kernels.
-  // Some PI Plugins (like OpenCL) require this call to enable USM
-  // For others, PI will turn this into a NOP.
-  if (Context->getPlatformImpl()->supports_usm())
-    getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
-        MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
-
-  // This constructor is only called in the interoperability kernel constructor.
-  MIsInterop = true;
+  // Some UR Adapters (like OpenCL) require this call to enable USM
+  // For others, UR will turn this into a NOP.
+  if (Context->getPlatformImpl()->supports_usm()) {
+    bool EnableAccess = true;
+    getAdapter()->call<UrApiKind::urKernelSetExecInfo>(
+        MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
+        nullptr, &EnableAccess);
+  }
 }
 
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr ContextImpl, ProgramImplPtr ProgramImpl,
-                         bool IsCreatedFromSource,
-                         KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(ContextImpl),
-      MProgram(ProgramImpl->getHandleRef()),
-      MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MKernelArgMaskPtr{ArgMask} {
-
-  sycl::detail::pi::PiContext Context = nullptr;
-  // Using the plugin from the passed ContextImpl
-  getPlugin()->call<PiApiKind::piKernelGetInfo>(
-      MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
-  if (ContextImpl->getHandleRef() != Context)
-    throw sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_kernel",
-        PI_ERROR_INVALID_CONTEXT);
-
-  MIsInterop = ProgramImpl->isInterop();
-}
-
-kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
-                         ContextImplPtr ContextImpl,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask, PiProgram ProgramPI,
-                         std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(ProgramPI),
+                         const KernelArgMask *ArgMask,
+                         ur_program_handle_t Program, std::mutex *CacheMutex)
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
   MIsInterop = MKernelBundleImpl->isInterop();
 }
 
-kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
-    : MContext(Context), MProgram(ProgramImpl->getHandleRef()) {}
-
 kernel_impl::~kernel_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  if (!is_host()) {
-    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
+  try {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    getAdapter()->call<UrApiKind::urKernelRelease>(MKernel);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
 }
 

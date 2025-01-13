@@ -1,7 +1,7 @@
 ; This test ensures that sycl-post-link doesn't crash when kernel parameter
 ; optimization info metadata is empty
 ;
-; RUN: sycl-post-link -emit-param-info -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties -emit-param-info -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.prop
 ;
 ; CHECK: [SYCL/kernel param opt]

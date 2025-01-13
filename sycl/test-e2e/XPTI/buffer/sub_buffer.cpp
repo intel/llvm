@@ -24,7 +24,7 @@ int main() {
                                    sycl::range<1>{32}};
 
     Queue.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:34
       auto Accessor1 = SubBuffer.get_access<sycl::access::mode::write>(cgh);
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID2:.*]]
@@ -33,8 +33,8 @@ int main() {
             Accessor1[WIid] = static_cast<int>(WIid.get(0));
           });
     });
-    // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2018|1024|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:22
-    auto Accessor1 = Buffer1.get_access<sycl::access::mode::read>();
+    // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2018|1024|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:25
+    sycl::host_accessor Accessor1(Buffer1, sycl::read_only);
     for (size_t I = 32; I < 64; ++I) {
       if (Accessor1[I] != I - 32) {
         std::cout << "The result is incorrect for element: " << I

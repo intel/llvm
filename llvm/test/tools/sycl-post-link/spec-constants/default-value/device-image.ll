@@ -2,7 +2,7 @@
 ; It checks scalar, sret and "return by value" versions of SpecConstant functions.
 ; Also test checks generated symbols.
 
-; RUN: sycl-post-link -split=auto -spec-const=native -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -properties -split=auto -spec-const=native -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file %t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file %t_0.prop -check-prefix=CHECK-PROP0
 ; RUN: FileCheck %s -input-file %t_1.prop -check-prefix=CHECK-PROP1
@@ -10,7 +10,7 @@
 ; RUN: FileCheck %s -input-file %t_1.ll -check-prefix=CHECK-IR1 --implicit-check-not "SpecConstant"
 ; RUN: FileCheck %s -input-file %t_0.sym -check-prefix=CHECK-SYM0
 ; RUN: FileCheck %s -input-file %t_1.sym -check-prefix=CHECK-SYM1
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -split=auto -spec-const=native -symbols -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst -split=auto -spec-const=native -symbols -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
 ; CHECK-TABLE: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
 ; CHECK-TABLE: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
@@ -19,9 +19,9 @@
 
 ; CHECK-PROP1: specConstsReplacedWithDefault=1|1
 
-; CHECK-IR0: call i32 @_Z20__spirv_SpecConstantii
-; CHECK-IR0: call %struct.B @_Z29__spirv_SpecConstantCompositeiii_Rstruct.B
-; CHECK-IR0: call %struct.A @_Z29__spirv_SpecConstantCompositeistruct.B_Rstruct.A
+; CHECK-IR0: call spir_func i32 @_Z20__spirv_SpecConstantii
+; CHECK-IR0: call spir_func %struct.B @_Z29__spirv_SpecConstantCompositeiii_Rstruct.B
+; CHECK-IR0: call spir_func %struct.A @_Z29__spirv_SpecConstantCompositeistruct.B_Rstruct.A
 
 ; CHECK-IR1: store %struct.A { i32 3, %struct.B { i32 3, i32 2, i32 1 } }, ptr addrspace(4) %a.ascast.i, align 4
 

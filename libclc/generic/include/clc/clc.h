@@ -1,3 +1,6 @@
+#ifndef __CLC_CLC_H__
+#define __CLC_CLC_H__
+
 #ifndef cl_clang_storage_class_specifiers
 #error Implementation requires cl_clang_storage_class_specifiers extension!
 #endif
@@ -18,15 +21,23 @@
     (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
      defined(__opencl_c_generic_address_space))
 #define _CLC_GENERIC_AS_SUPPORTED 1
+// Note that we hard-code the assumption that a non-distinct address space means
+// that the target maps the generic address space to the private address space.
+#ifdef __CLC_DISTINCT_GENERIC_ADDRSPACE__
+#define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 1
+#else
+#define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 0
+#endif
 #else
 #define _CLC_GENERIC_AS_SUPPORTED 0
+#define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 0
 #endif
 
 /* Function Attributes */
-#include <func.h>
+#include <clc/clcfunc.h>
 
 /* 6.1 Supported Data Types */
-#include <types.h>
+#include <clc/clctypes.h>
 
 /* 6.2.3 Explicit Conversions */
 #include <clc/convert.h>
@@ -296,3 +307,5 @@
 #include <clc/image/image.h>
 
 #pragma OPENCL EXTENSION all : disable
+
+#endif // __CLC_CLC_H__

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.20.0)
+set(LLVM_SUBPROJECT_TITLE "Flang")
 
 if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
   set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
@@ -65,6 +66,13 @@ if (MSVC AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
   if (IS_DIRECTORY "${LIBDIR}")
     link_libraries(${CLANG_RT_BUILTINS_LIBRARY})
   endif()
+
+  if (MSVC_VERSION EQUAL 1942)
+    message(FATAL_ERROR "Flang cannot be built with clang and the MSVC 17.12 "
+            "toolchain version. Please upgrade to 17.13 or later, or switch "
+            "to the 17.10 LTSC release. "
+            "See https://github.com/microsoft/STL/issues/4959 for more details.")
+  endif()
 endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -116,7 +124,6 @@ if (FLANG_STANDALONE_BUILD)
     set(USE_NO_MAYBE_UNINITIALIZED 1)
   endif()
 
-  include(CMakeParseArguments)
   include(AddLLVM)
   include(HandleLLVMOptions)
   include(VersionFromVCS)
@@ -336,7 +343,7 @@ endif()
 
 if (FLANG_RUNTIME_F128_MATH_LIB)
   add_compile_definitions(
-    -DFLANG_RUNTIME_F128_MATH_LIB="${FLANG_RUNTIME_F128_MATH_LIB}"
+    FLANG_RUNTIME_F128_MATH_LIB="${FLANG_RUNTIME_F128_MATH_LIB}"
     )
 endif()
 
@@ -444,7 +451,6 @@ if (APPLE)
   endif()
 endif()
 
-include(CMakeParseArguments)
 include(AddFlang)
 
 if (FLANG_INCLUDE_TESTS)
@@ -460,6 +466,13 @@ option(FLANG_BUILD_TOOLS
 if (FLANG_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()
+
+option(FLANG_CUF_RUNTIME
+  "Compile CUDA Fortran runtime sources" OFF)
+if (FLANG_CUF_RUNTIME)
+  find_package(CUDAToolkit REQUIRED)
+endif()
+
 add_subdirectory(runtime)
 
 if (LLVM_INCLUDE_EXAMPLES)
@@ -481,7 +494,7 @@ endif()
 
 # Custom target to install Flang libraries.
 add_custom_target(flang-libraries)
-set_target_properties(flang-libraries PROPERTIES FOLDER "Misc")
+set_target_properties(flang-libraries PROPERTIES FOLDER "Flang/Meta")
 
 if (NOT LLVM_ENABLE_IDE)
   add_llvm_install_targets(install-flang-libraries
@@ -537,3 +550,4 @@ get_clang_resource_dir(HEADER_INSTALL_DIR SUBDIR include)
 install(
   FILES include/flang/ISO_Fortran_binding.h
   DESTINATION ${HEADER_INSTALL_DIR} )
+

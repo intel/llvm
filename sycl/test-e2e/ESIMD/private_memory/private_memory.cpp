@@ -5,19 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu-intel-pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -I%S/.. -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // The test verifies that basic ESIMD API works properly with
 // private memory allocated on stack.
 
-#include "esimd_test_utils.hpp"
+#include "../esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -68,7 +67,7 @@ ESIMD_NOINLINE bool test(queue Q, int PrivateArrayLen) {
            for (int I = 0; I < ArrayLen; I++) {
              simd<int, 1> IV(static_cast<int>(Id) * PrivateArrayLen + I);
              simd<T, 1> TV = IV;
-             TV.template copy_to(PrivateArray + I);
+             TV.copy_to(PrivateArray + I);
            }
 
            simd<T, PrivateArrayLenConst> BigVec(PrivateArray);
@@ -151,8 +150,8 @@ template <typename T> bool tests(queue Q) {
 
 int main() {
   queue Q;
-  std::cout << "Running on " << Q.get_device().get_info<info::device::name>()
-            << "\n";
+  std::cout << "Running on "
+            << Q.get_device().get_info<sycl::info::device::name>() << "\n";
 
   bool Passed = true;
   Passed &= tests<int8_t>(Q);

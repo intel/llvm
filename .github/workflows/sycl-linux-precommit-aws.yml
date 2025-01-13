@@ -1,5 +1,7 @@
 name: E2E on AWS CUDA
 run-name: E2E on AWS CUDA - ${{ github.event.workflow_run.display_title }}
+# Note: This workflow is currently disabled in the Github Actions UI because
+# we run CUDA testing on the self-hosted runners.
 # We have to keep pre-commit AWS CUDA testing in a separate workflow because we
 # need access to AWS secret and that isn't available on pull_request jobs for
 # PRs from forks. And github's "require approval for all outside collaborators"
@@ -19,7 +21,7 @@ permissions:
 
 jobs:
   create-check:
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     permissions:
       checks: write
       statuses: write
@@ -66,7 +68,7 @@ jobs:
       runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
-      target_devices: ext_oneapi_cuda:gpu
+      target_devices: cuda:gpu
       # No idea why but that seems to work and be in sync with the main
       # pre-commit workflow.
       ref: ${{ github.event.workflow_run.referenced_workflows[0].sha }}
@@ -79,7 +81,7 @@ jobs:
   update-check:
     needs: [create-check, e2e-cuda]
     if: always()
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     permissions:
       checks: write
       statuses: write

@@ -1,4 +1,5 @@
-#include <sycl/sycl.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cmath>
 

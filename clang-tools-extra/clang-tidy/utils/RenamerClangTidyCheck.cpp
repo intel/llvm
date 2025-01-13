@@ -123,6 +123,9 @@ static const NamedDecl *getFailureForNamedDecl(const NamedDecl *ND) {
   if (const auto *Method = dyn_cast<CXXMethodDecl>(ND)) {
     if (const CXXMethodDecl *Overridden = getOverrideMethod(Method))
       Canonical = cast<NamedDecl>(Overridden->getCanonicalDecl());
+    else if (const FunctionTemplateDecl *Primary = Method->getPrimaryTemplate())
+      if (const FunctionDecl *TemplatedDecl = Primary->getTemplatedDecl())
+        Canonical = cast<NamedDecl>(TemplatedDecl->getCanonicalDecl());
 
     if (Canonical != ND)
       return Canonical;
@@ -394,7 +397,7 @@ RenamerClangTidyCheck::RenamerClangTidyCheck(StringRef CheckName,
                                              ClangTidyContext *Context)
     : ClangTidyCheck(CheckName, Context),
       AggressiveDependentMemberLookup(
-          Options.getLocalOrGlobal("AggressiveDependentMemberLookup", false)) {}
+          Options.get("AggressiveDependentMemberLookup", false)) {}
 RenamerClangTidyCheck::~RenamerClangTidyCheck() = default;
 
 void RenamerClangTidyCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {

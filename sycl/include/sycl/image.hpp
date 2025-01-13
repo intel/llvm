@@ -12,7 +12,6 @@
 #include <sycl/aliases.hpp>                           // for cl_float, cl_half
 #include <sycl/backend_types.hpp>                     // for backend, backe...
 #include <sycl/buffer.hpp>                            // for range
-#include <sycl/context.hpp>                           // for context
 #include <sycl/detail/aligned_allocator.hpp>          // for aligned_allocator
 #include <sycl/detail/backend_traits.hpp>             // for InteropFeature...
 #include <sycl/detail/common.hpp>                     // for convertToArrayOfN
@@ -20,17 +19,16 @@
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for pi_native_handle
 #include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
-#include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/event.hpp>                             // for event
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
-#include <sycl/types.hpp>                             // for vec
+#include <sycl/vector.hpp>                            // for vec
+#include <ur_api.h>                                   // for ur_native_hand...
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -44,6 +42,7 @@ inline namespace _V1 {
 
 // forward declarations
 class handler;
+class context;
 
 template <int D, typename A> class image;
 
@@ -112,15 +111,12 @@ namespace detail {
 
 class image_impl;
 
-// validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
-template <typename T>
-using is_validImageDataT = typename detail::is_contained<
-    T, type_list<vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
-                 vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>>::type;
-
+// Valid image DataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename DataT>
-using EnableIfImgAccDataT =
-    typename std::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
+using EnableIfImgAccDataT = typename std::enable_if_t<
+    check_type_in_v<DataT, vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
+                    vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>,
+    DataT>;
 
 inline image_channel_type FormatChannelType(image_format Format) {
   switch (Format) {
@@ -247,16 +243,20 @@ protected:
               uint8_t Dimensions);
 #endif
 
-  image_plain(pi_native_handle MemObject, const context &SyclContext,
+  image_plain(ur_native_handle_t MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions, image_channel_order Order,
               image_channel_type Type, bool OwnNativeHandle,
               range<3> Range3WithOnes);
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   range<3> get_range() const;
 
@@ -301,6 +301,8 @@ protected:
   void unsampledImageDestructorNotification(void *UserObj);
 
   std::shared_ptr<detail::image_impl> impl;
+
+  const property_list &getPropList() const;
 };
 
 // Common base class for image implementations
@@ -666,7 +668,7 @@ public:
   }
 
 private:
-  image(pi_native_handle MemObject, const context &SyclContext,
+  image(ur_native_handle_t MemObject, const context &SyclContext,
         event AvailableEvent, image_channel_order Order,
         image_channel_type Type, bool OwnNativeHandle, range<Dimensions> Range)
       : common_base(MemObject, SyclContext, AvailableEvent,
@@ -710,7 +712,8 @@ private:
              const context &TargetContext, event AvailableEvent);
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPlaceholder,
@@ -954,7 +957,12 @@ public:
   unsampled_image &operator=(unsampled_image &&rhs) = default;
 
   ~unsampled_image() {
-    common_base::unsampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::unsampledImageDestructorNotification(
+          (void *)this->impl.get());
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~unsampled_image", e);
+    }
   }
 
   bool operator==(const unsampled_image &rhs) const {
@@ -991,7 +999,8 @@ public:
 
 private:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1095,7 +1104,11 @@ public:
   sampled_image &operator=(sampled_image &&rhs) = default;
 
   ~sampled_image() {
-    common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sampled_image", e);
+    }
   }
 
   bool operator==(const sampled_image &rhs) const {
@@ -1122,7 +1135,8 @@ public:
 
 private:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

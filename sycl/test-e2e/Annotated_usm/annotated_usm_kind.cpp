@@ -4,12 +4,14 @@
 // This e2e test checks the usm kind of the pointer returned by annotated USM
 // allocation
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_host.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
 
 #include <complex>
 #include <numeric>
-
-// clang-format on
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::intel::experimental;

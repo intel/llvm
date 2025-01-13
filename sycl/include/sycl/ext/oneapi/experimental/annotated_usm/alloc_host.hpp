@@ -46,7 +46,7 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t numBytes,
                              const context &syclContext,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   auto tmp = aligned_alloc_annotated(alignment, numBytes, {}, syclContext,
                                      sycl::usm::alloc::host, propList);
   return annotated_ptr<void, propertyListB>(tmp.get());
@@ -60,7 +60,7 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t count,
                              const context &syclContext,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   auto tmp = aligned_alloc_annotated<T>(alignment, count, {}, syclContext,
                                         sycl::usm::alloc::host, propList);
   return annotated_ptr<T, propertyListB>(tmp.get());
@@ -74,7 +74,7 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t numBytes,
                              const queue &syclQueue,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated(alignment, numBytes,
                                       syclQueue.get_context(), propList);
 }
@@ -87,7 +87,7 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t count,
                              const queue &syclQueue,
-                             const propertyListA &propList = properties{}) {
+                             const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated<T>(alignment, count,
                                          syclQueue.get_context(), propList);
 }
@@ -106,7 +106,7 @@ std::enable_if_t<
     CheckHostPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
 malloc_host_annotated(size_t numBytes, const context &syclContext,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated(0, numBytes, syclContext, propList);
 }
 
@@ -117,7 +117,7 @@ std::enable_if_t<
     CheckHostPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 malloc_host_annotated(size_t count, const context &syclContext,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_host_annotated<T>(0, count, syclContext, propList);
 }
 
@@ -128,7 +128,7 @@ std::enable_if_t<
     CheckHostPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
 malloc_host_annotated(size_t numBytes, const queue &syclQueue,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return malloc_host_annotated(numBytes, syclQueue.get_context(), propList);
 }
 
@@ -139,7 +139,7 @@ std::enable_if_t<
     CheckHostPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 malloc_host_annotated(size_t count, const queue &syclQueue,
-                      const propertyListA &propList = properties{}) {
+                      const propertyListA &propList = propertyListA{}) {
   return malloc_host_annotated<T>(count, syclQueue.get_context(), propList);
 }
 

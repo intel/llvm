@@ -10,8 +10,6 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/Kernels/kernels.spv %S/Kernels/kernels_fp16.spv %S/Kernels/kernels_fp64.spv
-// TODO: Remove XFAIL after fixing https://github.com/intel/llvm/issues/13397
-// XFAIL: cpu
 
 // Test case for the sycl_ext_oneapi_kernel_compiler_spirv extension. This test
 // loads pre-compiled kernels from a SPIR-V file and runs them.
@@ -20,7 +18,9 @@
 #include <cassert>
 #include <fstream>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 
 sycl::kernel_bundle<sycl::bundle_state::executable>
 loadKernelsFromFile(sycl::queue &q, std::string file_name) {
@@ -174,9 +174,7 @@ void testKernelsFromSpvFile(std::string kernels_file,
         return bundle.ext_oneapi_get_kernel(name);
       };
 
-  sycl::device d;
-  sycl::context ctx{d};
-  sycl::queue q{ctx, d};
+  sycl::queue q;
   auto bundle = loadKernelsFromFile(q, kernels_file);
 
   // Test simple kernel.

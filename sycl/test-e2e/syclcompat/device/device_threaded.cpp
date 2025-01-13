@@ -29,9 +29,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: linux
-
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -lpthread %s -o %t.out
+// RUN: %{build} %threads_lib -o %t.out
 // RUN: %{run} %t.out
 
 #include <syclcompat/device.hpp>

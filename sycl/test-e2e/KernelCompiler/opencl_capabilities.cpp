@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: ocloc && (opencl || level_zero)
-// UNSUPPORTED: accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -25,7 +24,9 @@
 // so long as ocloc is installed and should be able to
 // successfully run and pass these tests.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi::experimental;
 using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;

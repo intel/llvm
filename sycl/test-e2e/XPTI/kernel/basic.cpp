@@ -11,7 +11,9 @@
 
 #else
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl::access;
 constexpr sycl::specialization_id<int> int_id(42);
@@ -55,7 +57,7 @@ int main() {
   auto PtrShared = sycl::malloc_shared<int>(8, Queue);
   Queue
       .submit([&](sycl::handler &cgh) {
-        // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID1:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:19
+        // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID1:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:23
         auto A1 = Buf.get_access<mode::read_write>(cgh);
         // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID2:.*]]|2016|1026|{{.*}}.cpp:[[# @LINE + 1]]:38
         sycl::local_accessor<int, 1> A2(Range, cgh);
@@ -76,19 +78,19 @@ int main() {
       })
       .wait();
 
-  // CHECK: Wait begin|{{.*}}.cpp:[[# @LINE + 2]]:3
-  // CHECK: Wait end|{{.*}}.cpp:[[# @LINE + 1]]:3
+  // CHECK: Wait begin|{{.*}}.cpp:[[# @LINE + 2]]:9
+  // CHECK: Wait end|{{.*}}.cpp:[[# @LINE + 1]]:9
   Queue.wait();
 
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:15
-  { auto HA = Buf.get_access<mode::read>(); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:25
+  { sycl::host_accessor HA(Buf, sycl::read_only); }
 
   Queue.submit([&](sycl::handler &cgh) {
-    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:16
+    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:20
     auto Acc = Buf.get_access<mode::read_write>(cgh);
     Functor1 F(Val, Acc);
-    // CHECK-OPT: Node create|{{.*}}Functor1|{{.*}}.cpp:[[# @LINE - 4 ]]:3|{1, 1, 1}, {0, 0, 0}, {0, 0, 0}, 3
-    // CHECK-NOOPT: Node create|{{.*}}Functor1|{{.*}}.cpp:[[# @LINE - 5 ]]:3|{1, 1, 1}, {0, 0, 0}, {0, 0, 0}, 5
+    // CHECK-OPT: Node create|{{.*}}Functor1|{{.*}}.cpp:[[# @LINE - 4 ]]:9|{1, 1, 1}, {0, 0, 0}, {0, 0, 0}, 3
+    // CHECK-NOOPT: Node create|{{.*}}Functor1|{{.*}}.cpp:[[# @LINE - 5 ]]:9|{1, 1, 1}, {0, 0, 0}, {0, 0, 0}, 5
     cgh.single_task(F);
     // CHECK-OPT: arg0 : {1, {{[0-9,a-f,x]+}}, 2, 0}
     // CHECK-OPT: arg1 : {0, [[ACCID4]], 4062, 1}
@@ -96,11 +98,11 @@ int main() {
   });
 
   Queue.submit([&](sycl::handler &cgh) {
-    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:16
+    // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:20
     auto Acc = Buf.get_access<mode::read_write>(cgh);
     Functor2 F(Val, Acc);
-    // CHECK-OPT: Node create|{{.*}}Functor2|{{.*}}.cpp:[[# @LINE - 4 ]]:3|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 3
-    // CHECK-NOOPT: Node create|{{.*}}Functor2|{{.*}}.cpp:[[# @LINE - 5 ]]:3|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 5
+    // CHECK-OPT: Node create|{{.*}}Functor2|{{.*}}.cpp:[[# @LINE - 4 ]]:9|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 3
+    // CHECK-NOOPT: Node create|{{.*}}Functor2|{{.*}}.cpp:[[# @LINE - 5 ]]:9|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 5
     cgh.parallel_for(Range, F);
     // CHECK-OPT: arg0 : {1, {{[0-9,a-f,x]+}}, 2, 0}
     // CHECK-OPT: arg1 : {0, [[ACCID5]], 4062, 1}

@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
   }
 
   if (myfloat != 5.0f) {
-    printf("FAILED\nmyfloat = %d\n", myfloat);
+    std::cout << "FAILED\nmyfloat = " << myfloat << std::endl;
     return 1;
   }
   return 0;

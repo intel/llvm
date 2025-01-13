@@ -1,6 +1,5 @@
-// REQUIRES: accelerator
-// RUN: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{build} -fsyntax-only -o %t.out
+// TODO: launch the test if the feature is supported.
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -114,7 +113,7 @@ int test_io_bl_pipe(sycl::queue Queue) {
 }
 
 int main() {
-  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector{}};
+  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector_v};
 
   if (!Queue.get_device()
            .get_info<sycl::info::device::kernel_kernel_pipe_support>()) {

@@ -70,7 +70,7 @@ void instantiate() {
 // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
 // attribute, check to see if values of reqd_work_group_size arguments are
 // equal or less than values coming from max_work_group_size attribute.
-[[sycl::reqd_work_group_size(64, 64, 64)]] // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(64, 64, 64)]] // expected-note {{conflicting attribute is here}} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 [[intel::max_work_group_size(64, 16, 64)]] // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 void
 f9() {}
@@ -78,7 +78,7 @@ f9() {}
 [[intel::max_work_group_size(4, 4, 4)]] void f10();
 [[sycl::reqd_work_group_size(2, 2, 2)]] void f10(); // OK
 
-[[sycl::reqd_work_group_size(2, 2, 2)]] [[intel::max_work_group_size(4, 4, 4)]] void f11() {} // OK
+[[sycl::reqd_work_group_size(2, 2, 2)]] [[intel::max_work_group_size(4, 4, 4)]] void f11() {} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 
 [[sycl::reqd_work_group_size(64, 64, 64)]] void f12(); // expected-note {{conflicting attribute is here}}
 [[intel::max_work_group_size(16, 16, 16)]] void f12(); // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
@@ -91,14 +91,14 @@ f13() {}
 [[sycl::reqd_work_group_size(64, 64, 64)]] void f14(); // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
 
 [[cl::reqd_work_group_size(1, 2, 3)]] // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
-		                      // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+		                      // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 [[intel::max_work_group_size(1, 2, 3)]] void
 f15() {} // OK
 
 [[intel::max_work_group_size(2, 3, 7)]] void f16(); // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(7, 3, 2)]] void f16(); // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
 
-[[intel::max_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f17(){}; // OK
+[[intel::max_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f17(){}; // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 
 [[sycl::reqd_work_group_size(16)]]            // expected-note {{conflicting attribute is here}}
 [[intel::max_work_group_size(16, 1, 1)]] void // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}

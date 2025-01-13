@@ -1,6 +1,7 @@
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 
 #include <cmath>
 #include <vector>
@@ -15,8 +16,7 @@ constexpr float bf16_eps = 0.00390625;
 float make_fp32(uint16_t x) {
   uint32_t y = x;
   y = y << 16;
-  auto res = reinterpret_cast<float *>(&y);
-  return *res;
+  return sycl::bit_cast<float>(y);
 }
 
 bool check(float a, float b) {
@@ -24,217 +24,6 @@ bool check(float a, float b) {
 }
 
 bool check(bool a, bool b) { return (a != b); }
-
-#define TEST_BUILTIN_1_SCAL_IMPL(NAME)                                         \
-  {                                                                            \
-    buffer<float> a_buf(&a[0], N);                                             \
-    buffer<int> err_buf(&err, 1);                                              \
-    q.submit([&](handler &cgh) {                                               \
-      accessor<float, 1, access::mode::read_write, target::device> A(a_buf,    \
-                                                                     cgh);     \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.parallel_for(N, [=](id<1> index) {                                   \
-        float ABF16 = float{bfloat16{A[index]}};                               \
-        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]}),   \
-                  sycl::NAME(ABF16))) {                                        \
-          ERR[0] = 1;                                                          \
-        }                                                                      \
-      });                                                                      \
-    });                                                                        \
-  }                                                                            \
-  assert(err == 0);
-
-#define TEST_BUILTIN_1_ARR_IMPL(NAME, SZ, RETTY)                               \
-  {                                                                            \
-    buffer<float, 2> a_buf{range<2>{N / SZ, SZ}};                              \
-    buffer<int> err_buf(&err, 1);                                              \
-    q.submit([&](handler &cgh) {                                               \
-      accessor<float, 2, access::mode::read_write, target::device> A(a_buf,    \
-                                                                     cgh);     \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.parallel_for(N / SZ, [=](id<1> index) {                              \
-        marray<bfloat16, SZ> arg;                                              \
-        for (int i = 0; i < SZ; i++) {                                         \
-          arg[i] = A[index][i];                                                \
-        }                                                                      \
-        marray<RETTY, SZ> res = NAME(arg);                                     \
-        for (int i = 0; i < SZ; i++) {                                         \
-          float ABF16 = float{bfloat16{A[index][i]}};                          \
-          if (check(res[i], sycl::NAME(ABF16))) {                              \
-            ERR[0] = 1;                                                        \
-          }                                                                    \
-        }                                                                      \
-      });                                                                      \
-    });                                                                        \
-  }                                                                            \
-  assert(err == 0);
-
-#define TEST_BUILTIN_1(NAME, RETTY)                                            \
-  TEST_BUILTIN_1_SCAL_IMPL(NAME)                                               \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 1, RETTY)                                      \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 2, RETTY)                                      \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 3, RETTY)                                      \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 4, RETTY)                                      \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 5, RETTY)
-
-#define TEST_BUILTIN_2_SCAL_IMPL(NAME)                                         \
-  {                                                                            \
-    buffer<float> a_buf(&a[0], N);                                             \
-    buffer<float> b_buf(&b[0], N);                                             \
-    buffer<int> err_buf(&err, 1);                                              \
-    q.submit([&](handler &cgh) {                                               \
-      accessor<float, 1, access::mode::read_write, target::device> A(a_buf,    \
-                                                                     cgh);     \
-      accessor<float, 1, access::mode::read_write, target::device> B(b_buf,    \
-                                                                     cgh);     \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.parallel_for(N, [=](id<1> index) {                                   \
-        float ABF16 = float{bfloat16{A[index]}};                               \
-        float BBF16 = float{bfloat16{B[index]}};                               \
-        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]},    \
-                                                        bfloat16{B[index]}),   \
-                  sycl::NAME(ABF16, BBF16))) {                                 \
-          ERR[0] = 1;                                                          \
-        }                                                                      \
-      });                                                                      \
-    });                                                                        \
-  }                                                                            \
-  assert(err == 0);
-
-#define TEST_BUILTIN_2_ARR_IMPL(NAME, SZ)                                      \
-  {                                                                            \
-    buffer<float, 2> a_buf{range<2>{N / SZ, SZ}};                              \
-    buffer<float, 2> b_buf{range<2>{N / SZ, SZ}};                              \
-    buffer<int> err_buf(&err, 1);                                              \
-    q.submit([&](handler &cgh) {                                               \
-      accessor<float, 2, access::mode::read_write, target::device> A(a_buf,    \
-                                                                     cgh);     \
-      accessor<float, 2, access::mode::read_write, target::device> B(b_buf,    \
-                                                                     cgh);     \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.parallel_for(N / SZ, [=](id<1> index) {                              \
-        marray<bfloat16, SZ> arg0, arg1;                                       \
-        for (int i = 0; i < SZ; i++) {                                         \
-          arg0[i] = A[index][i];                                               \
-          arg1[i] = B[index][i];                                               \
-        }                                                                      \
-        marray<bfloat16, SZ> res =                                             \
-            sycl::ext::oneapi::experimental::NAME(arg0, arg1);                 \
-        for (int i = 0; i < SZ; i++) {                                         \
-          float ABF16 = float{bfloat16{A[index][i]}};                          \
-          float BBF16 = float{bfloat16{B[index][i]}};                          \
-          if (check(res[i], sycl::NAME(ABF16, BBF16))) {                       \
-            ERR[0] = 1;                                                        \
-          }                                                                    \
-        }                                                                      \
-      });                                                                      \
-    });                                                                        \
-  }                                                                            \
-  assert(err == 0);
-
-#define TEST_BUILTIN_2(NAME)                                                   \
-  TEST_BUILTIN_2_SCAL_IMPL(NAME)                                               \
-  TEST_BUILTIN_2_ARR_IMPL(NAME, 1)                                             \
-  TEST_BUILTIN_2_ARR_IMPL(NAME, 2)                                             \
-  TEST_BUILTIN_2_ARR_IMPL(NAME, 3)                                             \
-  TEST_BUILTIN_2_ARR_IMPL(NAME, 4)                                             \
-  TEST_BUILTIN_2_ARR_IMPL(NAME, 5)
-
-#define TEST_BUILTIN_3_SCAL_IMPL(NAME)                                         \
-  {                                                                            \
-    buffer<float> a_buf(&a[0], N);                                             \
-    buffer<float> b_buf(&b[0], N);                                             \
-    buffer<float> c_buf(&c[0], N);                                             \
-    buffer<int> err_buf(&err, 1);                                              \
-    q.submit([&](handler &cgh) {                                               \
-      accessor<float, 1, access::mode::read_write, target::device> A(a_buf,    \
-                                                                     cgh);     \
-      accessor<float, 1, access::mode::read_write, target::device> B(b_buf,    \
-                                                                     cgh);     \
-      accessor<float, 1, access::mode::read_write, target::device> C(c_buf,    \
-                                                                     cgh);     \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.parallel_for(N, [=](id<1> index) {                                   \
-        float ABF16 = float{bfloat16{A[index]}};                               \
-        float BBF16 = float{bfloat16{B[index]}};                               \
-        float CBF16 = float{bfloat16{C[index]}};                               \
-        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]},    \
-                                                        bfloat16{B[index]},    \
-                                                        bfloat16{C[index]}),   \
-                  sycl::NAME(ABF16, BBF16, CBF16))) {                          \
-          ERR[0] = 1;                                                          \
-        }                                                                      \
-      });                                                                      \
-    });                                                                        \
-  }                                                                            \
-  assert(err == 0);
-
-#define TEST_BUILTIN_3_ARR_IMPL(NAME, SZ)                                      \
-  {                                                                            \
-    buffer<float, 2> a_buf{range<2>{N / SZ, SZ}};                              \
-    buffer<float, 2> b_buf{range<2>{N / SZ, SZ}};                              \
-    buffer<float, 2> c_buf{range<2>{N / SZ, SZ}};                              \
-    buffer<int> err_buf(&err, 1);                                              \
-    q.submit([&](handler &cgh) {                                               \
-      accessor<float, 2, access::mode::read_write, target::device> A(a_buf,    \
-                                                                     cgh);     \
-      accessor<float, 2, access::mode::read_write, target::device> B(b_buf,    \
-                                                                     cgh);     \
-      accessor<float, 2, access::mode::read_write, target::device> C(c_buf,    \
-                                                                     cgh);     \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      cgh.parallel_for(N / SZ, [=](id<1> index) {                              \
-        marray<bfloat16, SZ> arg0, arg1, arg2;                                 \
-        for (int i = 0; i < SZ; i++) {                                         \
-          arg0[i] = A[index][i];                                               \
-          arg1[i] = B[index][i];                                               \
-          arg2[i] = C[index][i];                                               \
-        }                                                                      \
-        marray<bfloat16, SZ> res =                                             \
-            sycl::ext::oneapi::experimental::NAME(arg0, arg1, arg2);           \
-        for (int i = 0; i < SZ; i++) {                                         \
-          float ABF16 = float{bfloat16{A[index][i]}};                          \
-          float BBF16 = float{bfloat16{B[index][i]}};                          \
-          float CBF16 = float{bfloat16{C[index][i]}};                          \
-          if (check(res[i], sycl::NAME(ABF16, BBF16, CBF16))) {                \
-            ERR[0] = 1;                                                        \
-          }                                                                    \
-        }                                                                      \
-      });                                                                      \
-    });                                                                        \
-  }                                                                            \
-  assert(err == 0);
-
-#define TEST_BUILTIN_3(NAME)                                                   \
-  TEST_BUILTIN_3_SCAL_IMPL(NAME)                                               \
-  TEST_BUILTIN_3_ARR_IMPL(NAME, 1)                                             \
-  TEST_BUILTIN_3_ARR_IMPL(NAME, 2)                                             \
-  TEST_BUILTIN_3_ARR_IMPL(NAME, 3)                                             \
-  TEST_BUILTIN_3_ARR_IMPL(NAME, 4)                                             \
-  TEST_BUILTIN_3_ARR_IMPL(NAME, 5)
-
-#define TEST_BUILTIN_2_NAN(NAME)                                               \
-  {                                                                            \
-    buffer<int> err_buf(&err, 1);                                              \
-    buffer<float> nan_buf(&check_nan, 1);                                      \
-    q.submit([&](handler &cgh) {                                               \
-      accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
-      accessor<float, 1, access::mode::write, target::device> checkNAN(        \
-          nan_buf, cgh);                                                       \
-      cgh.single_task([=]() {                                                  \
-        checkNAN[0] = sycl::ext::oneapi::experimental::NAME(bfloat16{NAN},     \
-                                                            bfloat16{NAN});    \
-        if ((sycl::ext::oneapi::experimental::NAME(bfloat16{2},                \
-                                                   bfloat16{NAN}) != 2) ||     \
-            (sycl::ext::oneapi::experimental::NAME(bfloat16{NAN},              \
-                                                   bfloat16{2}) != 2)) {       \
-          ERR[0] = 1;                                                          \
-        }                                                                      \
-      });                                                                      \
-    });                                                                        \
-  }                                                                            \
-  assert(err == 0);                                                            \
-  assert(std::isnan(check_nan));
 
 void test() {
   queue q;
@@ -248,18 +37,136 @@ void test() {
     c[i] = (float)(3 * i);
   }
 
-  TEST_BUILTIN_1(fabs, bfloat16);
-  TEST_BUILTIN_2(fmin);
-  TEST_BUILTIN_2(fmax);
-  TEST_BUILTIN_3(fma);
+  auto test = [&](auto ExpFunc, auto RefFunc, auto NumOperands) {
+    static_assert(NumOperands >= 1 && NumOperands <= 3);
+    {
+      buffer<float> a_buf(&a[0], N);
+      buffer<float> b_buf(&b[0], N);
+      buffer<float> c_buf(&c[0], N);
+      buffer<int> err_buf(&err, 1);
+      q.submit([&](handler &cgh) {
+        accessor A(a_buf, cgh);
+        accessor B(b_buf, cgh);
+        accessor C(c_buf, cgh);
+        accessor ERR(err_buf, cgh);
+        cgh.parallel_for(N, [=](id<1> index) {
+          auto ExpArg = [&](auto acc) { return bfloat16{acc[index]}; };
+          auto RefArg = [&](auto acc) { return float{bfloat16{acc[index]}}; };
 
-  float check_nan = 0;
-  TEST_BUILTIN_2_NAN(fmin);
-  TEST_BUILTIN_2_NAN(fmax);
+          bool failure = false;
+          if constexpr (NumOperands == 1) {
+            failure |= check(ExpFunc(ExpArg(A)), RefFunc(RefArg(A)));
+          } else if constexpr (NumOperands == 2) {
+            failure |= check(ExpFunc(ExpArg(A), ExpArg(B)),
+                             RefFunc(RefArg(A), RefArg(B)));
+          } else if constexpr (NumOperands == 3) {
+            failure |= check(ExpFunc(ExpArg(A), ExpArg(B), ExpArg(C)),
+                             RefFunc(RefArg(A), RefArg(B), RefArg(C)));
+          }
+
+          if (failure)
+            ERR[0] = 1;
+        });
+      });
+    }
+    assert(err == 0);
+
+    sycl::detail::loop<5>([&](auto SZ_MINUS_ONE) {
+      constexpr int SZ = SZ_MINUS_ONE + 1;
+      {
+        buffer<float, 2> a_buf{&a[0], range<2>{N / SZ, SZ}};
+        buffer<float, 2> b_buf{&b[0], range<2>{N / SZ, SZ}};
+        buffer<float, 2> c_buf{&c[0], range<2>{N / SZ, SZ}};
+        buffer<int> err_buf(&err, 1);
+        q.submit([&](handler &cgh) {
+          accessor A(a_buf, cgh);
+          accessor B(b_buf, cgh);
+          accessor C(c_buf, cgh);
+          accessor ERR(err_buf, cgh);
+          cgh.parallel_for(N / SZ, [=](id<1> index) {
+            marray<bfloat16, SZ> arg0, arg1, arg2;
+            for (int i = 0; i < SZ; i++) {
+              arg0[i] = A[index][i];
+              arg1[i] = B[index][i];
+              arg2[i] = C[index][i];
+            }
+            auto res = [&]() {
+              if constexpr (NumOperands == 1) {
+                return ExpFunc(arg0);
+              } else if constexpr (NumOperands == 2) {
+                return ExpFunc(arg0, arg1);
+              } else if constexpr (NumOperands == 3) {
+                return ExpFunc(arg0, arg1, arg2);
+              }
+            }();
+
+            bool failure = false;
+            for (int i = 0; i < SZ; ++i) {
+              auto RefArg = [&](auto acc) {
+                return float{bfloat16{acc[index][i]}};
+              };
+              if constexpr (NumOperands == 1) {
+                failure |= check(res[i], RefFunc(RefArg(A)));
+              } else if constexpr (NumOperands == 2) {
+                failure |= check(res[i], RefFunc(RefArg(A), RefArg(B)));
+              } else if constexpr (NumOperands == 3) {
+                failure |=
+                    check(res[i], RefFunc(RefArg(A), RefArg(B), RefArg(C)));
+              }
+            }
+            if (failure)
+              ERR[0] = 1;
+          });
+        });
+      }
+      assert(err == 0);
+    });
+  };
+
+#define TEST(NAME, NUM_OPERANDS)                                               \
+  test(                                                                        \
+      [](auto... args) {                                                       \
+        return sycl::ext::oneapi::experimental::NAME(args...);                 \
+      },                                                                       \
+      [](auto... args) { return sycl::NAME(args...); },                        \
+      std::integral_constant<int, NUM_OPERANDS>{})
+
+  TEST(fabs, 1);
+
+  TEST(fmin, 2);
+  TEST(fmax, 2);
+  TEST(fma, 3);
+
+  auto test_nan = [&](auto ExpFunc) {
+    float check_nan = 0;
+    {
+      buffer<int> err_buf(&err, 1);
+      buffer<float> nan_buf(&check_nan, 1);
+      q.submit([&](handler &cgh) {
+        accessor ERR(err_buf, cgh);
+        accessor checkNAN(nan_buf, cgh);
+        cgh.single_task([=]() {
+          checkNAN[0] = ExpFunc(bfloat16{NAN}, bfloat16{NAN});
+          if ((ExpFunc(bfloat16{2}, bfloat16{NAN}) != 2) ||
+              (ExpFunc(bfloat16{NAN}, bfloat16{2}) != 2)) {
+            ERR[0] = 1;
+          }
+        });
+      });
+    }
+    assert(err == 0);
+    assert(std::isnan(check_nan));
+  };
+  test_nan([](auto... args) {
+    return sycl::ext::oneapi::experimental::fmin(args...);
+  });
+  test_nan([](auto... args) {
+    return sycl::ext::oneapi::experimental::fmax(args...);
+  });
 
   // Insert NAN value in a to test isnan
   a[0] = a[N - 1] = NAN;
-  TEST_BUILTIN_1(isnan, bool);
+  TEST(isnan, 1);
 
   // Orignal input 'a[0...N-1]' are in range [-0.5, 0.5),
   // need to update it for generic math testing.
@@ -269,25 +176,26 @@ void test() {
     if ((i & 0x1) == 0x1)
       a[i] = -a[i];
   }
-  TEST_BUILTIN_1(cos, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(sin, sycl::ext::oneapi::bfloat16);
+  TEST(cos, 1);
+  TEST(sin, 1);
 
   // ceil, floor, trunc, exp, exp2, exp10, rint testing
-  TEST_BUILTIN_1(ceil, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(floor, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(trunc, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(exp, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(exp10, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(exp2, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(rint, sycl::ext::oneapi::bfloat16);
+  TEST(ceil, 1);
+  TEST(floor, 1);
+  TEST(trunc, 1);
+  TEST(exp, 1);
+  TEST(exp10, 1);
+  TEST(exp2, 1);
+  TEST(rint, 1);
 
   // log, log2, log10, sqrt, rsqrt testing, the input
   // must be positive.
   for (int i = 0; i < N; ++i)
     a[i] = a[i] + 8.5;
-  TEST_BUILTIN_1(sqrt, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(rsqrt, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(log, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(log2, sycl::ext::oneapi::bfloat16);
-  TEST_BUILTIN_1(log10, sycl::ext::oneapi::bfloat16);
+
+  TEST(sqrt, 1);
+  TEST(rsqrt, 1);
+  TEST(log, 1);
+  TEST(log2, 1);
+  TEST(log10, 1);
 }

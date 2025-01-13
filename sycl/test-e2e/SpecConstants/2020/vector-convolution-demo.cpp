@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: accelerator
-
 // This test checks the spenario of using specialization constants with an
 // 'array of array' as well as a 'stuct with an array of array' types for
 // vector convolution as it is described in chapter 4.9.5. Specialization
@@ -11,6 +9,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include <array>

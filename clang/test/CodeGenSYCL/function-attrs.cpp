@@ -5,7 +5,7 @@
 int foo();
 
 // CHECK-LABEL: define linkonce_odr spir_func void @_Z3barv(
-// CHECK-SAME: ) #[[ATTR2:[0-9]+]] !srcloc !5 {
+// CHECK-SAME: ) #[[ATTR2:[0-9]+]] !srcloc ![[MD1:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[A:%.*]] = alloca i32, align 4
 // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
@@ -18,7 +18,7 @@ void bar() {
 }
 
 // CHECK-LABEL: define linkonce_odr spir_func noundef i32 @_Z3foov(
-// CHECK-SAME: ) #[[ATTR2]] !srcloc !6 {
+// CHECK-SAME: ) #[[ATTR2]] !srcloc ![[MD2:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[RETVAL:%.*]] = alloca i32, align 4
 // CHECK-NEXT:    [[RETVAL_ASCAST:%.*]] = addrspacecast ptr [[RETVAL]] to ptr addrspace(4)
@@ -43,11 +43,11 @@ int main() {
 // CHECK: attributes #2 = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // CHECK: attributes #3 = { convergent nounwind }
 //.
-// CHECK: !0 = !{i32 1, !"wchar_size", i32 4}
-// CHECK: !1 = !{i32 1, i32 2}
-// CHECK: !2 = !{i32 4, i32 100000}
-// CHECK: !3 = !{i32 {{.*}}}
-// CHECK: !4 = !{}
-// CHECK: !5 = !{i32 {{.*}}}
-// CHECK: !6 = !{i32 {{.*}}}
+// CHECK: !{{[0-9]+}} = !{i32 1, !"wchar_size", i32 4}
+// CHECK: !{{[0-9]+}} = !{i32 1, i32 2}
+// CHECK: !{{[0-9]+}} = !{i32 4, i32 100000}
+// CHECK: !{{[0-9]+}} = !{i32 {{.*}}}
+// CHECK: !{{[0-9]+}} = !{}
+// CHECK: ![[MD1]] = !{i32 {{.*}}}
+// CHECK: ![[MD2]] = !{i32 {{.*}}}
 //.

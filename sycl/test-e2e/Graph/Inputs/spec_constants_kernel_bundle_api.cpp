@@ -6,6 +6,8 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/specialization_id.hpp>
+
 constexpr sycl::specialization_id<int> IntId(2);
 constexpr sycl::specialization_id<float> FloatId(3.14f);
 

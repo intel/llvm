@@ -6,11 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-
 #include "../../esimd_test_utils.hpp"
 #include "common.hpp"
 
@@ -150,7 +145,14 @@ template <typename T> bool test_lsc_block_load() {
             << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
 
   bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+  if constexpr (sizeof(T) * 64 < 256)
+    Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+  else {
+#ifdef USE_PVC
+    Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+#endif
+  }
+
   Passed &= test<T, 32, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
   Passed &= test<T, 16, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 2, 2);
   Passed &= test<T, 8, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 2, 8);
@@ -159,6 +161,7 @@ template <typename T> bool test_lsc_block_load() {
     Passed &= test<T, 2, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
     Passed &= test<T, 1, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 3, 5);
+#ifdef USE_PVC
   if constexpr (sizeof(T) <= 4) {
     Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
                    __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
@@ -177,8 +180,15 @@ template <typename T> bool test_lsc_block_load() {
                      __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
     }
   }
+#endif
 
-  Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 1, 4);
+  if constexpr (sizeof(T) * 64 < 256)
+    Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 1, 4);
+  else {
+#ifdef USE_PVC
+    Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 1, 4);
+#endif
+  }
   Passed &= test<T, 32, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 2, 2);
   Passed &= test<T, 16, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 4, 4);
   Passed &= test<T, 8, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 2, 8);
@@ -187,6 +197,7 @@ template <typename T> bool test_lsc_block_load() {
     Passed &= test<T, 2, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
     Passed &= test<T, 1, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 3, 5);
+#ifdef USE_PVC
   // Only 512-bits maximum can be loaded at once (i.e. 4*128 bytes).
   if constexpr (sizeof(T) <= 4)
     Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
@@ -197,7 +208,7 @@ template <typename T> bool test_lsc_block_load() {
   if constexpr (sizeof(T) == 1)
     Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, CheckMerge,
                    __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-
+#endif
   return Passed;
 }
 
@@ -214,7 +225,13 @@ std::enable_if_t<!IsGatherLikePrefetch, bool> test_lsc_prefetch() {
             << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
 
   bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
+  if constexpr (sizeof(T) * 64 < 256)
+    Passed &= test<T, 64, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
+  else {
+#ifdef USE_PVC
+    Passed &= test<T, 64, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
+#endif
+  }
   Passed &= test<T, 32, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
   Passed &= test<T, 16, DS, L1H, L2H, DoPrefetch>(Q, 2, 2);
   Passed &= test<T, 8, DS, L1H, L2H, DoPrefetch>(Q, 2, 8);

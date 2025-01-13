@@ -9,10 +9,6 @@
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
   check_mul<class MulA, int>(Queue);
   check_mul<class MulB, unsigned int>(Queue);
   check_mul<class MulC, long>(Queue);

@@ -12,13 +12,11 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/EvaluatedExprVisitor.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DelayedDiagnostic.h"
-#include "clang/Sema/Lookup.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/ScopeInfo.h"
-#include "clang/Sema/SemaInternal.h"
-#include "llvm/ADT/StringExtras.h"
+#include "clang/Sema/SemaSYCL.h"
 #include <optional>
 
 using namespace clang;
@@ -97,7 +95,7 @@ Sema::BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelMaxConcurrencyAttr(Sema &S, Stmt *St,
                                                const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelMaxConcurrencyAttr(A, E);
@@ -126,7 +124,7 @@ Sema::BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelInitiationIntervalAttr(Sema &S, Stmt *St,
                                                    const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelInitiationIntervalAttr(A, E);
@@ -154,7 +152,7 @@ Sema::BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelMaxInterleavingAttr(Sema &S, Stmt *St,
                                                 const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelMaxInterleavingAttr(A, E);
@@ -183,7 +181,7 @@ Sema::BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelLoopCoalesceAttr(Sema &S, Stmt *St,
                                              const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.isArgExpr(0) ? A.getArgAsExpr(0) : nullptr;
   return S.BuildSYCLIntelLoopCoalesceAttr(A, E);
@@ -212,7 +210,7 @@ Sema::BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelSpeculatedIterationsAttr(Sema &S, Stmt *St,
                                                      const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelSpeculatedIterationsAttr(A, E);
@@ -220,7 +218,7 @@ static Attr *handleSYCLIntelSpeculatedIterationsAttr(Sema &S, Stmt *St,
 
 static Attr *handleSYCLIntelDisableLoopPipeliningAttr(Sema &S, Stmt *,
                                                       const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
   return new (S.Context) SYCLIntelDisableLoopPipeliningAttr(S.Context, A);
 }
 
@@ -384,7 +382,7 @@ CheckRedundantSYCLIntelIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 static Attr *handleIntelIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
   unsigned NumArgs = A.getNumArgs();
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   return S.BuildSYCLIntelIVDepAttr(
       A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,
@@ -444,7 +442,7 @@ Sema::BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E) {
 
 static Attr *handleSYCLIntelLoopCountAttr(Sema &S, Stmt *St,
                                           const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelLoopCountAttr(A, E);
@@ -478,7 +476,7 @@ Sema::BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
 
 static Attr * handleSYCLIntelMaxReinvocationDelayAttr(Sema &S, Stmt *St,
                                                       const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelMaxReinvocationDelayAttr(A, E);
@@ -632,7 +630,6 @@ public:
 
 static Attr *handleNoMergeAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                SourceRange Range) {
-  NoMergeAttr NMA(S.Context, A);
   CallExprFinder CEF(S, St);
 
   if (!CEF.foundCallExpr() && !CEF.foundAsmStmt()) {
@@ -642,6 +639,19 @@ static Attr *handleNoMergeAttr(Sema &S, Stmt *St, const ParsedAttr &A,
   }
 
   return ::new (S.Context) NoMergeAttr(S.Context, A);
+}
+
+static Attr *handleNoConvergentAttr(Sema &S, Stmt *St, const ParsedAttr &A,
+                                    SourceRange Range) {
+  CallExprFinder CEF(S, St);
+
+  if (!CEF.foundCallExpr() && !CEF.foundAsmStmt()) {
+    S.Diag(St->getBeginLoc(), diag::warn_attribute_ignored_no_calls_in_stmt)
+        << A;
+    return nullptr;
+  }
+
+  return ::new (S.Context) NoConvergentAttr(S.Context, A);
 }
 
 template <typename OtherAttr, int DiagIdx>
@@ -700,7 +710,7 @@ bool Sema::CheckAlwaysInlineAttr(const Stmt *OrigSt, const Stmt *CurSt,
 static Attr *handleNoInlineAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange Range) {
   NoInlineAttr NIA(S.Context, A);
-  if (!NIA.isClangNoInline()) {
+  if (!NIA.isStmtNoInline()) {
     S.Diag(St->getBeginLoc(), diag::warn_function_attribute_ignored_in_stmt)
         << "[[clang::noinline]]";
     return nullptr;
@@ -1025,7 +1035,6 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
       S.Diag((*LastFoundItr)->getLocation(), diag::err_loop_attr_conflict)
           << *FirstItr;
       S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
-      return;
     }
   }
 }
@@ -1128,6 +1137,32 @@ static Attr *handleLoopUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
   llvm_unreachable("Unknown loop unroll hint");
 }
 
+static Attr *handleHLSLLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
+                                    SourceRange Range) {
+
+  if (A.getSemanticSpelling() == HLSLLoopHintAttr::Spelling::Microsoft_loop &&
+      !A.checkAtMostNumArgs(S, 0))
+    return nullptr;
+
+  unsigned UnrollFactor = 0;
+  if (A.getNumArgs() == 1) {
+    Expr *E = A.getArgAsExpr(0);
+
+    if (S.CheckLoopHintExpr(E, St->getBeginLoc(),
+                            /*AllowZero=*/false))
+      return nullptr;
+
+    std::optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.Context);
+    // CheckLoopHintExpr handles non int const cases
+    assert(ArgVal != std::nullopt && "ArgVal should be an integer constant.");
+    int Val = ArgVal->getSExtValue();
+    // CheckLoopHintExpr handles negative and zero cases
+    assert(Val > 0 && "Val should be a positive integer greater than zero.");
+    UnrollFactor = static_cast<unsigned>(Val);
+  }
+  return ::new (S.Context) HLSLLoopHintAttr(S.Context, A, UnrollFactor);
+}
+
 static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
                                   SourceRange Range) {
   if (A.isInvalid() || A.getKind() == ParsedAttr::IgnoredAttribute)
@@ -1178,6 +1213,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleSYCLIntelSpeculatedIterationsAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelLoopCount:
     return handleSYCLIntelLoopCountAttr(S, St, A);
+  case ParsedAttr::AT_HLSLLoopHint:
+    return handleHLSLLoopHintAttr(S, St, A, Range);
   case ParsedAttr::AT_OpenCLUnrollHint:
   case ParsedAttr::AT_LoopUnrollHint:
     return handleLoopUnrollHint(S, St, A, Range);
@@ -1203,7 +1240,15 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleCodeAlignAttr(S, St, A);
   case ParsedAttr::AT_MSConstexpr:
     return handleMSConstexprAttr(S, St, A, Range);
+  case ParsedAttr::AT_NoConvergent:
+    return handleNoConvergentAttr(S, St, A, Range);
+  case ParsedAttr::AT_Annotate:
+    return S.CreateAnnotationAttr(A);
   default:
+    if (Attr *AT = nullptr; A.getInfo().handleStmtAttribute(S, St, A, AT) !=
+                            ParsedAttrInfo::NotHandled) {
+      return AT;
+    }
     // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
     // declaration attribute is not written on a statement, but this code is
     // needed for attributes in Attr.td that do not list any subjects.
@@ -1244,7 +1289,8 @@ bool Sema::CheckRebuiltStmtAttributes(ArrayRef<const Attr *> Attrs) {
 ExprResult Sema::ActOnCXXAssumeAttr(Stmt *St, const ParsedAttr &A,
                                     SourceRange Range) {
   if (A.getNumArgs() != 1 || !A.getArgAsExpr(0)) {
-    Diag(A.getLoc(), diag::err_assume_attr_args) << A.getAttrName() << Range;
+    Diag(A.getLoc(), diag::err_attribute_wrong_number_arguments)
+        << A.getAttrName() << 1 << Range;
     return ExprError();
   }
 
@@ -1261,7 +1307,8 @@ ExprResult Sema::ActOnCXXAssumeAttr(Stmt *St, const ParsedAttr &A,
     Assumption = Res.get();
   }
 
-  if (!getLangOpts().CPlusPlus23)
+  if (!getLangOpts().CPlusPlus23 &&
+      A.getSyntax() == AttributeCommonInfo::AS_CXX11)
     Diag(A.getLoc(), diag::ext_cxx23_attr) << A << Range;
 
   return Assumption;

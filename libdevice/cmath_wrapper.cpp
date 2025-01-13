@@ -8,7 +8,8 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 DEVICE_EXTERN_C_INLINE
 int abs(int x) { return __devicelib_abs(x); }
@@ -21,6 +22,35 @@ long long int llabs(long long int x) { return __devicelib_llabs(x); }
 
 DEVICE_EXTERN_C_INLINE
 float fabsf(float x) { return __devicelib_fabsf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float ceilf(float x) { return __devicelib_ceilf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float copysignf(float x, float y) { return __devicelib_copysignf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float cospif(float x) { return __devicelib_cospif(x); }
+
+extern "C" SYCL_EXTERNAL float __devicelib_fmaxf(float, float);
+DEVICE_EXTERN_C_INLINE
+float fmaxf(float x, float y) { return __devicelib_fmaxf(x, y); }
+
+extern "C" SYCL_EXTERNAL float __devicelib_fminf(float, float);
+DEVICE_EXTERN_C_INLINE
+float fminf(float x, float y) { return __devicelib_fminf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float truncf(float x) { return __devicelib_truncf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float sinpif(float x) { return __devicelib_sinpif(x); }
+
+DEVICE_EXTERN_C_INLINE
+float rsqrtf(float x) { return __devicelib_rsqrtf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float exp10f(float x) { return __devicelib_exp10f(x); }
 
 DEVICE_EXTERN_C_INLINE
 div_t div(int x, int y) { return __devicelib_div(x, y); }
@@ -39,6 +69,9 @@ float floorf(float x) { return __devicelib_floorf(x); }
 
 DEVICE_EXTERN_C_INLINE
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }
+
+DEVICE_EXTERN_C_INLINE
+float scalblnf(float x, long int n) { return __devicelib_scalblnf(x, n); }
 
 DEVICE_EXTERN_C_INLINE
 float logf(float x) { return __devicelib_logf(x); }
@@ -167,4 +200,14 @@ DEVICE_EXTERN_C_INLINE
 float rintf(float x) { return __nv_rintf(x); }
 #endif // __NVPTX__
 
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__
+#ifdef __AMDGCN__
+extern "C" SYCL_EXTERNAL float __ocml_nearbyint_f32(float);
+DEVICE_EXTERN_C_INLINE
+float nearbyintf(float x) { return __ocml_nearbyint_f32(x); }
+
+extern "C" SYCL_EXTERNAL float __ocml_rint_f32(float);
+DEVICE_EXTERN_C_INLINE
+float rintf(float x) { return __ocml_rint_f32(x); }
+#endif // __AMDGCN__
+
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

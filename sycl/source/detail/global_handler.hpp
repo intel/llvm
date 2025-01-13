@@ -22,14 +22,14 @@ class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class plugin;
+class Adapter;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using PluginPtr = std::shared_ptr<plugin>;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -68,14 +68,16 @@ public:
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<PluginPtr> &getPlugins();
+  std::vector<AdapterPtr> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerDefaultContextReleaseHandler();
+  static void registerEarlyShutdownHandler();
 
-  void unloadPlugins();
+  bool isOkToDefer() const;
+  void endDeferredRelease();
+  void unloadAdapters();
   void releaseDefaultContexts();
   void drainThreadPool();
   void prepareSchedulerToRelease(bool Blocking);
@@ -91,7 +93,11 @@ private:
   void *GSYCLCallEvent = nullptr;
 #endif
 
-  friend void shutdown();
+  bool OkToDefer = true;
+
+  friend void shutdown_win();
+  friend void shutdown_early();
+  friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;
@@ -118,7 +124,7 @@ private:
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<PluginPtr>> MPlugins;
+  InstWithLock<std::vector<AdapterPtr>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution

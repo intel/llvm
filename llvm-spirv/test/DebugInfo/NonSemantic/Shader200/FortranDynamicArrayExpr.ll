@@ -30,7 +30,7 @@
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgArrayId:]] [[#Import]] DebugTypeArrayDynamic [[#ArrayBasicT]] [[#DbgExprLocation]] [[#DbgExprAssociated]] [[#DbgInfoNone]] [[#DbgInfoNone]] [[#DbgSubRangeId]]
 
 ; CHECK-LLVM: %[[#Array:]] = alloca
-; CHECK-LLVM: call void @llvm.dbg.value(metadata ptr %[[#Array]], metadata ![[#DbgLVar:]]
+; CHECK-LLVM: #dbg_value(ptr %[[#Array]], ![[#DbgLVar:]]
 ; CHECK-LLVM: ![[#DbgLVar]] = !DILocalVariable(name: "pint", scope: ![[#]], file: ![[#]], line: [[#]], type: ![[#DbgLVarT:]])
 ; CHECK-LLVM: ![[#DbgLVarT]] = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: ![[#DbgArrayT:]], size: 64)
 ; CHECK-LLVM: ![[#DbgArrayT]] = !DICompositeType(tag: DW_TAG_array_type, baseType: ![[#DbgArrayBaseT:]], size: 32, elements: ![[#Elements:]], dataLocation: !DIExpression(DW_OP_push_object_address, DW_OP_deref), associated: !DIExpression(DW_OP_push_object_address, DW_OP_deref, DW_OP_constu, 0, DW_OP_or))

@@ -7,7 +7,7 @@ apt update && apt install -yqq \
       ccache \
       git \
       python3 \
-      python3-distutils \
+      python3-psutil \
       python-is-python3 \
       python3-pip \
       zstd \
@@ -23,7 +23,6 @@ apt update && apt install -yqq \
       unzip \
       jq \
       curl \
-      libhwloc-dev
-
-pip3 install psutil
+      libhwloc-dev \
+      libzstd-dev
 

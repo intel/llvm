@@ -5,19 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// XFAIL: igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16388
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "../esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

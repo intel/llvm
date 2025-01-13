@@ -118,6 +118,41 @@ end
   procedure interface.  This compiler accepts it, since there is otherwise
   no way to declare an interoperable dummy procedure with an arbitrary
   interface like `void (*)()`.
+* `PURE` functions are allowed to have dummy arguments that are
+  neither `INTENT(IN)` nor `VALUE`, similar to `PURE` subroutines,
+  with a warning.
+  This enables atomic memory operations to be naturally represented
+  as `PURE` functions, which allows their use in parallel constructs
+  and `DO CONCURRENT`.
+* A non-definable actual argument, including the case of a vector
+  subscript, may be associated with an `ASYNCHRONOUS` or `VOLATILE`
+  dummy argument, F'2023 15.5.2.5 p31 notwithstanding.
+  The effects of these attributes are scoped over the lifetime of
+  the procedure reference, and they can by added by internal subprograms
+  and `BLOCK` constructs within the procedure.
+  Further, a dummy argument can acquire the `ASYNCHRONOUS` attribute
+  implicitly simply appearing in an asynchronous data transfer statement,
+  without the attribute being visible in the procedure's explicit
+  interface.
+* When the name of an extended derived type's base type is the
+  result of `USE` association with renaming, the name of the extended
+  derived type's parent component is the new name by which the base
+  is known in the scope of the extended derived type, not the original.
+  This interpretation has usability advantages and is what six other
+  Fortran compilers do, but is not conforming now that J3 approved an
+  "interp" in June 2024 to the contrary.
+* Arm has processors that allow a user to control what happens when an
+  arithmetic exception is signaled, as well as processors that do not
+  have this capability. An Arm executable will run on either type of
+  processor, so it is effectively unknown at compile time whether or
+  not this support will be available at runtime. The standard requires
+  that a call to intrinsic module procedure `IEEE_SUPPORT_HALTING` with
+  a constant argument has a compile time constant result in `constant
+  expression` and `specification expression` contexts. In compilations
+  where this information is not known at compile time, f18 generates code
+  to determine the absence or presence of this capability at runtime.
+  A call to `IEEE_SUPPORT_HALTING` in contexts that the standard requires
+  to be constant will generate a compilation error.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -223,6 +258,10 @@ end
 * When a dummy argument is `POINTER` or `ALLOCATABLE` and is `INTENT(IN)`, we
   relax enforcement of some requirements on actual arguments that must otherwise
   hold true for definable arguments.
+* We allow a limited polymorphic `POINTER` or `ALLOCATABLE` actual argument
+  to be associated with a compatible monomorphic dummy argument, as
+  our implementation, like others, supports a reallocation that would
+  change the dynamic type
 * Assignment of `LOGICAL` to `INTEGER` and vice versa (but not other types) is
   allowed.  The values are normalized to canonical `.TRUE.`/`.FALSE.`.
   The values are also normalized for assignments of `LOGICAL(KIND=K1)` to
@@ -352,6 +391,21 @@ end
 * A derived type that meets (most of) the requirements of an interoperable
   derived type can be used as such where an interoperable type is
   required, with warnings, even if it lacks the BIND(C) attribute.
+* A "mult-operand" in an expression can be preceded by a unary
+  `+` or `-` operator.
+* `BIND(C, NAME="...", CDEFINED)` signifies that the storage for an
+  interoperable variable will be allocated outside of Fortran,
+  probably by a C or C++ external definition.
+* An automatic data object may be declared in the specification part
+  of the main program.
+* A local data object may appear in a specification expression, even
+  when it is not a dummy argument or in COMMON, so long as it is
+  has the SAVE attribute and was initialized.
+* `PRINT namelistname` is accepted and interpreted as
+  `WRITE(*,NML=namelistname)`, a near-universal extension.
+* A character length specifier in a component or entity declaration
+  is accepted before an array specification (`ch*3(2)`) as well
+  as afterwards.
 
 ### Extensions supported when enabled by options
 
@@ -378,6 +432,7 @@ end
   [-fimplicit-none-type-never]
 * Old-style `PARAMETER pi=3.14` statement without parentheses
   [-falternative-parameter-statement]
+* `UNSIGNED` type (-funsigned)
 
 ### Extensions and legacy features deliberately not supported
 
@@ -473,10 +528,7 @@ end
   f18 supports them with a portability warning.
 * f18 does not enforce a blanket prohibition against generic
   interfaces containing a mixture of functions and subroutines.
-  Apart from some contexts in which the standard requires all of
-  a particular generic interface to have only all functions or
-  all subroutines as its specific procedures, we allow both to
-  appear, unlike several other Fortran compilers.
+  We allow both to appear, unlike several other Fortran compilers.
   This is especially desirable when two generics of the same
   name are combined due to USE association and the mixture may
   be inadvertent.
@@ -745,6 +797,12 @@ end
 character j
 print *, [(j,j=1,10)]
 ```
+
+* The Fortran standard doesn't mention integer overflow explicitly. In many cases,
+  however, integer overflow makes programs non-conforming.
+  F18 follows other widely-used Fortran compilers. Specifically, f18 assumes
+  integer overflow never occurs in address calculations and increment of
+  do-variable unless the option `-fwrapv` is enabled.
 
 ## De Facto Standard Features
 

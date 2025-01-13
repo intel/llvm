@@ -40,6 +40,10 @@ private:
                                 const InputInfoList &Inputs,
                                 const InputInfo &Output,
                                 const llvm::opt::ArgList &Args) const;
+  void constructLinkAndEmitSpirvCommand(Compilation &C, const JobAction &JA,
+                                        const InputInfoList &Inputs,
+                                        const InputInfo &Output,
+                                        const llvm::opt::ArgList &Args) const;
 };
 
 class LLVM_LIBRARY_VISIBILITY SYCLLinker : public Linker {
@@ -105,6 +109,8 @@ public:
   const ToolChain &HostTC;
   void checkTargetID(const llvm::opt::ArgList &DriverArgs) const override;
   Tool *SelectTool(const JobAction &JA) const override;
+
+  SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildLinker() const override;

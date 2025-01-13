@@ -10,12 +10,42 @@
 end program
 
 ! ALL: Pass statistics report
+! ALL: Fortran::lower::VerifierPass
+
+! ALL: Pass statistics report
 
 ! ALL: Fortran::lower::VerifierPass
 ! O2-NEXT: Canonicalizer
-! O2-NEXT: 'func.func' Pipeline
+! ALL:     Pipeline Collection : ['fir.global', 'func.func', 'omp.declare_reduction', 'omp.private']
+! ALL-NEXT:'fir.global' Pipeline
 ! O2-NEXT:   SimplifyHLFIRIntrinsics
 ! ALL:       InlineElementals
+! ALL-NEXT:'func.func' Pipeline
+! O2-NEXT:   SimplifyHLFIRIntrinsics
+! ALL:       InlineElementals
+! ALL-NEXT:'omp.declare_reduction' Pipeline
+! O2-NEXT:   SimplifyHLFIRIntrinsics
+! ALL:       InlineElementals
+! ALL-NEXT:'omp.private' Pipeline
+! O2-NEXT:   SimplifyHLFIRIntrinsics
+! ALL:       InlineElementals
+! O2-NEXT: Canonicalizer
+! O2-NEXT: CSE
+! O2-NEXT: (S) {{.*}} num-cse'd
+! O2-NEXT: (S) {{.*}} num-dce'd
+! O2-NEXT: Pipeline Collection : ['fir.global', 'func.func', 'omp.declare_reduction', 'omp.private']
+! O2-NEXT: 'fir.global' Pipeline
+! O2-NEXT:   OptimizedBufferization
+! O2-NEXT:   InlineHLFIRAssign
+! O2-NEXT: 'func.func' Pipeline
+! O2-NEXT:   OptimizedBufferization
+! O2-NEXT:   InlineHLFIRAssign
+! O2-NEXT: 'omp.declare_reduction' Pipeline
+! O2-NEXT:   OptimizedBufferization
+! O2-NEXT:   InlineHLFIRAssign
+! O2-NEXT: 'omp.private' Pipeline
+! O2-NEXT:   OptimizedBufferization
+! O2-NEXT:   InlineHLFIRAssign
 ! ALL: LowerHLFIROrderedAssignments
 ! ALL-NEXT: LowerHLFIRIntrinsics
 ! ALL-NEXT: BufferizeHLFIR
@@ -57,16 +87,21 @@ end program
 ! ALL-NEXT:   (S) 0 num-dce'd - Number of operations DCE'd
 
 ! ALL-NEXT: PolymorphicOpConversion
+! ALL-NEXT: AssumedRankOpConversion
 ! O2-NEXT:  AddAliasTags
 
 ! ALL-NEXT: Pipeline Collection : ['fir.global', 'func.func', 'omp.declare_reduction', 'omp.private']
 ! ALL-NEXT:    'fir.global' Pipeline
+! ALL-NEXT:      StackReclaim
 ! ALL-NEXT:      CFGConversion
 ! ALL-NEXT:    'func.func' Pipeline
+! ALL-NEXT:      StackReclaim
 ! ALL-NEXT:      CFGConversion
 ! ALL-NEXT:   'omp.declare_reduction' Pipeline
+! ALL-NEXT:      StackReclaim
 ! ALL-NEXT:      CFGConversion
 ! ALL-NEXT:   'omp.private' Pipeline
+! ALL-NEXT:      StackReclaim
 ! ALL-NEXT:      CFGConversion
 
 ! ALL-NEXT: SCFToControlFlow
@@ -77,11 +112,17 @@ end program
 ! ALL-NEXT:   (S) 0 num-dce'd - Number of operations DCE'd
 ! ALL-NEXT: BoxedProcedurePass
 
-! ALL-NEXT: Pipeline Collection : ['fir.global', 'func.func', 'omp.declare_reduction', 'omp.private']
+! ALL-NEXT: Pipeline Collection : ['fir.global', 'func.func', 'gpu.module', 'omp.declare_reduction', 'omp.private']
 ! ALL-NEXT:   'fir.global' Pipeline
 ! ALL-NEXT:    AbstractResultOpt
 ! ALL-NEXT:  'func.func' Pipeline
 ! ALL-NEXT:    AbstractResultOpt
+! ALL-NEXT:  'gpu.module' Pipeline
+! ALL-NEXT:   Pipeline Collection : ['func.func', 'gpu.func'] 
+! ALL-NEXT:   'func.func' Pipeline 
+! ALL-NEXT:   AbstractResultOpt
+! ALL-NEXT:   'gpu.func' Pipeline 
+! ALL-NEXT:   AbstractResultOpt
 ! ALL-NEXT:  'omp.declare_reduction' Pipeline
 ! ALL-NEXT:    AbstractResultOpt
 ! ALL-NEXT:  'omp.private' Pipeline
@@ -89,7 +130,10 @@ end program
 
 ! ALL-NEXT: CodeGenRewrite
 ! ALL-NEXT:   (S) 0 num-dce'd - Number of operations eliminated
-! ALL-NEXT: TargetRewrite
 ! ALL-NEXT: ExternalNameConversion
+! ALL-NEXT: TargetRewrite
+! ALL-NEXT: CompilerGeneratedNamesConversion
+! ALL-NEXT:  'func.func' Pipeline
+! ALL-NEXT:   FunctionAttr
 ! ALL-NEXT: FIRToLLVMLowering
 ! ALL-NOT: LLVMIRLoweringPass

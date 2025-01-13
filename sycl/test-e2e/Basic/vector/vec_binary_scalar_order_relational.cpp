@@ -1,9 +1,5 @@
-// REQUIRES: preview-breaking-changes-supported
-// RUN: %{build} -fpreview-breaking-changes -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// This test currently fails on AMD HIP due to an unresolved memcmp function.
-// XFAIL: hip_amd
 
 // Checks scalar/vec relational operator ordering.
 
@@ -33,12 +29,8 @@ int main() {
   // Check all operators without requirements.
   CHECK_SIZES_AND_OPS(Q, Failures, float);
   CHECK_SIZES_AND_OPS(Q, Failures, int8_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, int16_t);
   CHECK_SIZES_AND_OPS(Q, Failures, int32_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, int64_t);
   CHECK_SIZES_AND_OPS(Q, Failures, uint8_t);
   CHECK_SIZES_AND_OPS(Q, Failures, uint16_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, uint32_t);
-  CHECK_SIZES_AND_OPS(Q, Failures, uint64_t);
   return Failures;
 }

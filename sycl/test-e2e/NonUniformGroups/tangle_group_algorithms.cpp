@@ -1,14 +1,21 @@
 // RUN: %{build} -fno-sycl-early-optimizations -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: gpu
+// RUN: %if any-device-is-cpu && opencl-aot %{ %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s %}
+// RUN: %if cpu %{ %{run} %t.x86.out %}
+//
+// REQUIRES: build-and-run-mode
+// REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_tangle_group
 // UNSUPPORTED: cuda || windows
 // Tangle groups exhibit unpredictable behavior on Windows.
 // The test is disabled while we investigate the root cause.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 

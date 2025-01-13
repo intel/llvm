@@ -3,7 +3,9 @@
 
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <vector>
 
 using namespace sycl;

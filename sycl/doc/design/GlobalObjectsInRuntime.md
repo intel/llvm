@@ -89,16 +89,30 @@ are not wrapped with `GlobalHandler`.
 `GlobalHandler` or consider using `sycl::detail::SpinLock`, which has trivial
 constructor and destructor.
 
-## Plugins
+## Adapters
 
-Plugin lifetime is managed by utilizing piPluginInit() and piTearDown().
-GlobalHandler::shutdown() will tear down all registered globals before SYCL RT
-library is unloaded. It will invoke piTearDown() and unload() for each
-plugin. piTearDown() is going to perform any necessary tear-down process at the
-plugin PI level. These two APIs allow on-demand plugin lifetime management. SYCL
-RT can control the beginning and the end of the plugin. 
+Adapter lifetime is managed in two ways: on a per-adapter basis with
+`urAdapterGet`/`urAdapterRelease`, and on a global basis with
+`urLoaderInit`/`urLoaderTearDown`. A call to `urAdapterRelease` will make any
+subsequent use of the adapter in question invalid, but it **does not** call the
+`dlclose` equivalent on the adapter library. A call to `urLoaderTearDown` once
+all initialized adapters have been released will unload all the adapter
+libraries at once.
 
-![](images/plugin-lifetime.jpg)
+`GlobalHandler::unloadPlugins` calls both of these APIs in sequence in a pattern
+something like this (pseudo code):
+
+```
+for (adapter in initializedAdapters) {
+  urAdapterRelease(adapter);
+}
+urLoaderTearDown();
+```
+
+Which in turn is called by either `shutdown_late()` or `shutdown_win()`
+depending on platform.
+
+![](images/adapter-lifetime.jpg)
 
 ## Low-level runtimes
 

@@ -1,6 +1,6 @@
 // REQUIRES: level_zero
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
 // RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
 // RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=LEAK

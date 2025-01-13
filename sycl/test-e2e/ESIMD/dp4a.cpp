@@ -6,15 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 // TODO enable on Windows
-// REQUIRES: linux && gpu-intel-dg1
+// REQUIRES: linux && arch-intel_gpu_dg1
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -73,7 +69,7 @@ int main(void) {
     e.wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    return e.code().value();
   }
 
   int err_cnt = 0;

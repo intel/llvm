@@ -10,10 +10,8 @@
 #include <random>
 #include <sycl/usm.hpp>
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
 constexpr size_t TM = 8;
+constexpr size_t TN = 16;
 constexpr size_t TK = 16;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
@@ -27,12 +25,15 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B);
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
+  size_t sg_size = get_sg_size<class mult>(q);
 
   q.submit([&](handler &cgh) {
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
+     cgh.parallel_for<class mult>(
+         nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            auto pA =
                address_space_cast<sycl::access::address_space::global_space,
@@ -60,14 +61,15 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            joint_matrix_fill(sg, sub_c, 1);
            for (int k = 0; k < K; k += TK) {
-             joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
-             joint_matrix_load(sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN,
+             joint_matrix_load(sg, sub_a, pA + k * M + sg_startx * TM, M);
+             joint_matrix_load(sg, sub_b, pB + k * N + sg_starty / sg_size * TN,
                                N);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(
-               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
-               layout::col_major);
+           joint_matrix_store(sg, sub_c,
+                              pC + (sg_startx * TM) +
+                                  (sg_starty / sg_size * TN) * M,
+                              M, layout::col_major);
          }); // parallel for
    }).wait();
 }
@@ -76,23 +78,28 @@ int main() {
   static constexpr size_t MATRIX_M = 1024;
   static constexpr size_t MATRIX_N = 1024;
   static constexpr size_t MATRIX_K = 1024;
-  queue q;
-  bfloat16 *A = malloc_shared<bfloat16>(MATRIX_M * MATRIX_K, q);
-  bfloat16 *B = malloc_shared<bfloat16>(MATRIX_K * MATRIX_N, q);
-  float *C = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
-  float *D = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
 
-  matrix_rand(MATRIX_M, MATRIX_K, A, (bfloat16)5);
+  queue q;
+  bfloat16 *A = malloc_shared<bfloat16>(MATRIX_K * MATRIX_M, q);
+  bfloat16 *B = malloc_shared<bfloat16>(MATRIX_K * MATRIX_N, q);
+  float *C = malloc_shared<float>(MATRIX_N * MATRIX_M, q);
+  float *D = malloc_shared<float>(MATRIX_N * MATRIX_M, q);
+
+  matrix_rand(MATRIX_K, MATRIX_M, A, (bfloat16)5);
   matrix_rand(MATRIX_K, MATRIX_N, B, (bfloat16)5);
-  matrix_fill(MATRIX_M, MATRIX_N, C, (float)1.0);
-  matrix_fill(MATRIX_M, MATRIX_N, D, (float)1.0);
+  matrix_fill(MATRIX_N, MATRIX_M, D, (float)1.0);
 
   matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K, MATRIX_N,
                   MATRIX_M, MATRIX_N>(C, A, B, q);
   matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K,
-                      true /*transposed c*/);
+                      /*transposed c*/ true, /*colmajor a*/ true);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, C, D);
+  bool res = matrix_compare(MATRIX_N, MATRIX_M, C, D);
+
+  sycl::free(A, q);
+  sycl::free(B, q);
+  sycl::free(C, q);
+  sycl::free(D, q);
 
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;

@@ -3,7 +3,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: ze_debug
 //==------- non-uniform-wk-gp-test.cpp -------==//
 // This is a diagnostic test which verifies that
 // for loops with non-uniform work groups size
@@ -11,7 +10,7 @@
 //==------------------------------------------==//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -25,18 +24,16 @@ int test() {
   try {
     const int N = 1;
     q.submit([&](handler &cgh) {
-      sycl::stream kernelout(108 * 64 + 128, 64, cgh);
       cgh.parallel_for<class test_kernel>(
           nd_range<3>(range<3>{1, 1, N}, range<3>{1, 1, 16}),
-          [=](nd_item<3> itm) {
-            kernelout << "Coordinates: " << itm.get_global_id() << sycl::endl;
-          });
+          [=](nd_item<3> itm) {});
     });
     std::cout << "Test failed: no exception thrown." << std::endl;
-  } catch (sycl::runtime_error &E) {
-    if (std::string(E.what()).find(
+  } catch (exception &E) {
+    if (E.code() == errc::nd_range &&
+        std::string(E.what()).find(
             "Non-uniform work-groups are not supported by the target device") !=
-        std::string::npos) {
+            std::string::npos) {
       std::cout << E.what() << std::endl;
       std::cout << "Test passed: caught the expected error." << std::endl;
       res = 0;

@@ -1,11 +1,12 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <numeric>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -51,8 +52,7 @@ bool check_test(const std::vector<float> &out,
   return validated;
 }
 
-template <sycl::image_channel_order channelOrder,
-          sycl::image_channel_type channelType, int dim,
+template <int channelNum, sycl::image_channel_type channelType, int dim,
           syclexp::image_type type = syclexp::image_type::standard>
 bool run_copy_test_with(sycl::device &dev, sycl::queue &q,
                         sycl::range<dim> dims) {
@@ -67,10 +67,10 @@ bool run_copy_test_with(sycl::device &dev, sycl::queue &q,
   syclexp::image_descriptor desc;
 
   if constexpr (type == syclexp::image_type::standard) {
-    desc = syclexp::image_descriptor(dims, channelOrder, channelType);
+    desc = syclexp::image_descriptor(dims, channelNum, channelType);
   } else {
     desc = syclexp::image_descriptor(
-        {dims[0], dim > 2 ? dims[1] : 0}, channelOrder, channelType,
+        {dims[0], dim > 2 ? dims[1] : 0}, channelNum, channelType,
         syclexp::image_type::array, 1, dim > 2 ? dims[2] : dims[1]);
   }
 
@@ -86,26 +86,21 @@ int main() {
   auto ctxt = q.get_context();
 
   // Standard images copies
-  bool validated = run_copy_test_with<sycl::image_channel_order::r,
-                                      sycl::image_channel_type::fp32, 2>(
+  bool validated = run_copy_test_with<1, sycl::image_channel_type::fp32, 2>(
       dev, q, {2048, 2048});
 
-  validated &=
-      run_copy_test_with<sycl::image_channel_order::r,
-                         sycl::image_channel_type::fp32, 1>(dev, q, {512 * 4});
+  validated &= run_copy_test_with<1, sycl::image_channel_type::fp32, 1>(
+      dev, q, {512 * 4});
 
-  validated &= run_copy_test_with<sycl::image_channel_order::r,
-                                  sycl::image_channel_type::fp32, 3>(
+  validated &= run_copy_test_with<1, sycl::image_channel_type::fp32, 3>(
       dev, q, {256, 256, 4});
 
   // Layered images copies
   validated &=
-      run_copy_test_with<sycl::image_channel_order::r,
-                         sycl::image_channel_type::fp32, 2,
+      run_copy_test_with<1, sycl::image_channel_type::fp32, 2,
                          syclexp::image_type::array>(dev, q, {956, 38});
   validated &=
-      run_copy_test_with<sycl::image_channel_order::r,
-                         sycl::image_channel_type::fp32, 3,
+      run_copy_test_with<1, sycl::image_channel_type::fp32, 3,
                          syclexp::image_type::array>(dev, q, {256, 256, 4});
 
   if (!validated) {

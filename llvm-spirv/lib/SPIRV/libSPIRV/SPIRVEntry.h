@@ -339,7 +339,10 @@ public:
   bool isUndef() const { return OpCode == OpUndef; }
   bool isControlBarrier() const { return OpCode == OpControlBarrier; }
   bool isMemoryBarrier() const { return OpCode == OpMemoryBarrier; }
-  bool isVariable() const { return OpCode == OpVariable; }
+  bool isVariable() const {
+    return OpCode == OpVariable || OpCode == OpUntypedVariableKHR;
+  }
+  bool isUntypedVariable() const { return OpCode == OpUntypedVariableKHR; }
   bool isEndOfBlock() const;
   virtual bool isInst() const { return false; }
   virtual bool isOperandLiteral(unsigned Index) const {
@@ -371,6 +374,7 @@ public:
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);
   void takeMemberDecorates(SPIRVEntry *);
+  void replaceTargetIdInDecorates(SPIRVId);
 
   /// After a SPIRV entry is created during reading SPIRV binary by default
   /// constructor, this function is called to allow the SPIRV entry to resize
@@ -803,6 +807,12 @@ public:
       return nullptr;
     return Loc->second;
   }
+  SPIRVExecutionModeId *getExecutionModeId(SPIRVExecutionModeKind EMK) const {
+    auto Loc = ExecModes.find(EMK);
+    if (Loc == ExecModes.end())
+      return nullptr;
+    return static_cast<SPIRVExecutionModeId *>(Loc->second);
+  }
   SPIRVExecutionModeRange
   getExecutionModeRange(SPIRVExecutionModeKind EMK) const {
     return ExecModes.equal_range(EMK);
@@ -1053,8 +1063,6 @@ _SPIRV_OP(ImageDrefGather)
 _SPIRV_OP(QuantizeToF16)
 _SPIRV_OP(ArrayLength)
 _SPIRV_OP(OuterProduct)
-_SPIRV_OP(SMulExtended)
-_SPIRV_OP(UMulExtended)
 _SPIRV_OP(DPdx)
 _SPIRV_OP(DPdy)
 _SPIRV_OP(Fwidth)
@@ -1087,7 +1095,6 @@ _SPIRV_OP(NamedBarrierInitialize)
 _SPIRV_OP(MemoryNamedBarrier)
 _SPIRV_OP(GetKernelMaxNumSubgroups)
 _SPIRV_OP(GetKernelLocalSizeForSubgroupCount)
-_SPIRV_OP(SizeOf)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

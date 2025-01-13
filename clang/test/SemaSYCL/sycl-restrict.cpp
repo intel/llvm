@@ -1,14 +1,14 @@
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -Wno-return-type -verify     \
-// RUN:  -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN:  -fsyntax-only -std=c++17 %s
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -fno-sycl-allow-func-ptr     \
-// RUN:  -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only      \
+// RUN:  -Wno-return-type -verify -fsyntax-only      \
 // RUN:  -std=c++17 %s
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -DALLOW_FP=1                 \
 // RUN:  -fsycl-allow-func-ptr -Wno-return-type -verify                    \
-// RUN:  -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN:  -fsyntax-only -std=c++17 %s
 
 namespace std {
 class type_info;
@@ -103,10 +103,6 @@ __attribute__((sycl_kernel)) void kernel1(const L &l) {
 }
 } // namespace Check_RTTI_Restriction
 
-typedef struct Base {
-  virtual void f() const {}
-} b_type;
-
 typedef struct A {
   static int stat_member;
   const static int const_stat_member;
@@ -116,8 +112,6 @@ typedef struct A {
     return stat_member; // expected-error {{SYCL kernel cannot use a non-const static data variable}}
   }
 } a_type;
-
-b_type b;
 
 using myFuncDef = int(int, int);
 
@@ -225,8 +219,7 @@ void usage(myFuncDef functionPtr) {
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
   if ((*functionPtr)(1, 2))
-    // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
-    b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
+    /* no-op */;
 
   Check_RTTI_Restriction::kernel1<class kernel_name>([]() { //#call_rtti_kernel
     Check_RTTI_Restriction::A *a;

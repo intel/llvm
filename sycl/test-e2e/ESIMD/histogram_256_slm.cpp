@@ -10,10 +10,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 static constexpr int NUM_BINS = 256;
 static constexpr int SLM_SIZE = (NUM_BINS * 4);
 static constexpr int BLOCK_WIDTH = 32;

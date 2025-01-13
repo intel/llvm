@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -o %t1.out -DEXP
-// RUN: %{run} %t1.out
+
 //
 // Test checks support of named barrier in ESIMD kernel.
 // Basic case with 1 work-group and 16 threads: 4 producer and 12 consumer.
@@ -18,17 +17,9 @@
 // Producers store data to SLM, then all threads read SLM and store data to
 // surface.
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../esimd_test_utils.hpp"
 
-#ifdef EXP
-#define NS __ESIMD_ENS
-#else
 #define NS __ESIMD_NS
-#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

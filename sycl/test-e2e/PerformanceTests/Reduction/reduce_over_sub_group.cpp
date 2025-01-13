@@ -1,8 +1,10 @@
 // XFAIL: native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16415
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
 

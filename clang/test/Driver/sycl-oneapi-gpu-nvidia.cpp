@@ -28,10 +28,13 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_89 -DMAC_STR=SM_89
 // RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90 -DMAC_STR=SM_90
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_90a -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90a -DMAC_STR=SM_90A
 // MACRO_NVIDIA: clang{{.*}}  "-fsycl-is-host"
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
 // MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
 // DEVICE_NVIDIA: llvm-foreach{{.*}} "--gpu-name" "[[DEV_STR]]"
+
 
 /// test for invalid nvidia arch
 // RUN: not %clangxx -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
@@ -39,6 +42,25 @@
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_NVIDIA_INPUT
 // BAD_NVIDIA_INPUT: error: SYCL target is invalid: 'nvidia_gpu_bad'
+
+// Check if the partial SYCL triple for NVidia GPUs translate to the full string.
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvptx64 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=NVIDIA-TRIPLE
+// NVIDIA-TRIPLE: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
+
+// Check if SYCL triples with 'Environment' component are rejected for NVidia GPUs.
+// RUN: not %clangxx -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'nvptx64-nvidia-cuda-sycl'
+
+// Check for invalid SYCL triple for NVidia GPUs.
+// RUN: not %clangxx -c -fsycl -fsycl-targets=nvptx-nvidia-cuda -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx-nvidia-cuda -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'nvptx-nvidia-cuda'
 
 /// Test for proper creation of fat object
 // RUN: %clangxx -c -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
@@ -65,22 +87,22 @@
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_CHECK_PHASES
 // NVIDIA_CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
-// NVIDIA_CHECK_PHASES: 1: append-footer, {0}, c++, (host-sycl)
-// NVIDIA_CHECK_PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// NVIDIA_CHECK_PHASES: 3: input, "[[INPUT]]", c++, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 5: compiler, {4}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {5}, c++-cpp-output
-// NVIDIA_CHECK_PHASES: 7: compiler, {6}, ir, (host-sycl)
-// NVIDIA_CHECK_PHASES: 8: backend, {7}, assembler, (host-sycl)
-// NVIDIA_CHECK_PHASES: 9: assembler, {8}, object, (host-sycl)
-// NVIDIA_CHECK_PHASES: 10: linker, {5}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 11: sycl-post-link, {10}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 12: file-table-tform, {11}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 13: backend, {12}, assembler, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 14: assembler, {13}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 15: linker, {13, 14}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 16: foreach, {12, 15}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 17: file-table-tform, {11, 16}, tempfiletable, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 18: clang-offload-wrapper, {17}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 19: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {18}, object
-// NVIDIA_CHECK_PHASES: 20: linker, {9, 19}, image, (host-sycl)
+// NVIDIA_CHECK_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// NVIDIA_CHECK_PHASES: 2: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 4: compiler, {3}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {4}, c++-cpp-output
+// NVIDIA_CHECK_PHASES: 6: compiler, {5}, ir, (host-sycl)
+// NVIDIA_CHECK_PHASES: 7: backend, {6}, assembler, (host-sycl)
+// NVIDIA_CHECK_PHASES: 8: assembler, {7}, object, (host-sycl)
+// NVIDIA_CHECK_PHASES: 9: linker, {4}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 10: sycl-post-link, {9}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 11: file-table-tform, {10}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 12: backend, {11}, assembler, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 13: assembler, {12}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 14: linker, {12, 13}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 15: foreach, {11, 14}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 16: file-table-tform, {10, 15}, tempfiletable, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 17: clang-offload-wrapper, {16}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 18: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {17}, object
+// NVIDIA_CHECK_PHASES: 19: linker, {8, 18}, image, (host-sycl)

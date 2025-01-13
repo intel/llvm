@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
@@ -39,14 +39,10 @@ public:
 template <sycl::backend Backend>
 class BufferDestructionCheckCommon : public ::testing::Test {
 public:
-  BufferDestructionCheckCommon() : Mock(Backend), Plt(Mock.getPlatform()) {}
+  BufferDestructionCheckCommon() : Mock(), Plt(sycl::platform()) {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host()) {
-      std::cout << "Not run due to host-only environment\n";
-      GTEST_SKIP();
-    }
     MockSchedulerPtr = new MockScheduler();
     sycl::detail::GlobalHandler::instance().attachScheduler(
         dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
@@ -58,9 +54,8 @@ protected:
   template <typename Buffer>
   MockCmdWithReleaseTracking *addCommandToBuffer(Buffer &Buf, sycl::queue &Q) {
     sycl::detail::Requirement MockReq = getMockRequirement(Buf);
-    std::vector<sycl::detail::Command *> AuxCmds;
     sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-        sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+        sycl::detail::getSyclObjImpl(Q), &MockReq);
     MockCmdWithReleaseTracking *MockCmd = new MockCmdWithReleaseTracking(
         sycl::detail::getSyclObjImpl(Q), MockReq);
     std::vector<sycl::detail::Command *> ToEnqueue;
@@ -72,7 +67,7 @@ protected:
   }
 
 protected:
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<Backend> Mock;
   sycl::platform Plt;
   MockScheduler *MockSchedulerPtr;
 };

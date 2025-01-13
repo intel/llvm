@@ -10,6 +10,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+
 // This test checks extended math operations. Combinations of
 // - argument type - half, float
 // - math function - sin, cos, ..., div_ieee, pow
@@ -18,11 +20,8 @@
 #include "esimd_test_utils.hpp"
 
 #include <sycl/builtins_esimd.hpp>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <cmath>
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel;
@@ -463,6 +462,13 @@ template <class T, int N> bool testESIMDRSqrt(queue &Q) {
   Pass &= test<T, N, MathOp::rsqrt, ESIMDf>(Q, "rsqrt", InitWide<T>{});
   return Pass;
 }
+template <class T, int N> bool testESIMDInv(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD inv, T=" << typeid(T).name() << ", N = " << N
+            << "...\n";
+  Pass &= test<T, N, MathOp::inv, ESIMDf>(Q, "inv", InitWide<T>{});
+  return Pass;
+}
 
 template <class T, int N> bool testESIMDDivIEEE(queue &Q) {
   bool Pass = true;
@@ -506,6 +512,7 @@ int main(void) {
   if (Dev.has(sycl::aspect::fp64)) {
     Pass &= testESIMDSqrt<double, 32>(Q);
     Pass &= testESIMDRSqrt<double, 32>(Q);
+    Pass &= testESIMDInv<double, 32>(Q);
   }
 #ifdef TEST_IEEE_DIV_REM
   Pass &= testESIMDSqrtIEEE<float, 16>(Q);

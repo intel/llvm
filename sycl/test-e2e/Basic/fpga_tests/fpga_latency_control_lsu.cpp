@@ -67,7 +67,7 @@ int test_latency_control(queue Queue) {
 }
 
 int main() {
-  queue Queue{ext::intel::fpga_emulator_selector{}};
+  queue Queue{ext::intel::fpga_emulator_selector_v};
 
   return test_latency_control(Queue);
 }

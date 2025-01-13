@@ -1,6 +1,9 @@
 // UNSUPPORTED: hip
 // REQUIRES: aspect-ext_intel_legacy_image
 //
+// XFAIL: linux && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15812
+//
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out image
@@ -14,7 +17,11 @@
 #include "../helpers.hpp" // for printableVec
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 static constexpr size_t BUFFER_SIZE = 1024;

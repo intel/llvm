@@ -22,12 +22,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-class __SYCL_EXPORT stream_impl {
+class stream_impl {
 public:
-  // TODO: This constructor is unused.
-  // To be removed when API/ABI changes are allowed.
-  stream_impl(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
-
   stream_impl(size_t BufferSize, size_t MaxStatementSize,
               const property_list &PropList);
 
@@ -41,35 +37,13 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
-  // Initialize flush buffers on host.
-  void initStreamHost(QueueImplPtr Queue);
-
-  // Enqueue task to copy stream buffer to the host and print the contents
-  // The host task event is then registered for post processing in the
-  // LeadEvent as well as in queue LeadEvent associated with.
-  void flush(const EventImplPtr &LeadEvent);
-
-  // Enqueue task to copy stream buffer to the host and print the contents
-  // Remove during next ABI breaking window
-  void flush();
-
   size_t size() const noexcept;
 
   size_t get_work_item_buffer_size() const;
 
-  // TODO: Unusued. Remove when ABI-break is allowed.
-  size_t get_size() const;
+  void generateFlushCommand(handler &cgh);
 
-  // TODO: Unusued. Remove when ABI-break is allowed.
-  size_t get_max_statement_size() const;
-
-  template <typename propertyT> bool has_property() const noexcept {
-    return PropList_.has_property<propertyT>();
-  }
-
-  template <typename propertyT> propertyT get_property() const {
-    return PropList_.get_property<propertyT>();
-  }
+  const property_list &getPropList() const { return PropList_; }
 
 private:
   // Size of the stream buffer
@@ -93,6 +67,8 @@ private:
   // Additinonal memory is allocated in the beginning of the stream buffer for
   // 2 variables: offset in the stream buffer and offset in the flush buffer.
   static const size_t OffsetSize = 2 * sizeof(unsigned);
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

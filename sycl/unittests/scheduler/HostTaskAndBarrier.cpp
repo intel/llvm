@@ -9,9 +9,11 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
+
+#include <detail/global_handler.hpp>
 
 #include <vector>
 
@@ -28,6 +30,9 @@ public:
   TestQueueImpl(ContextImplPtr SyclContext, DeviceImplPtr Dev)
       : sycl::detail::queue_impl(Dev, SyclContext,
                                  SyclContext->get_async_handler(), {}) {}
+  using sycl::detail::queue_impl::MDefaultGraphDeps;
+  using sycl::detail::queue_impl::MExtGraphDeps;
+  using sycl::detail::queue_impl::MMutex;
 };
 
 enum TestCGType { KERNEL_TASK, HOST_TASK, BARRIER };
@@ -35,7 +40,7 @@ enum TestCGType { KERNEL_TASK, HOST_TASK, BARRIER };
 class BarrierHandlingWithHostTask : public ::testing::Test {
 protected:
   void SetUp() {
-    sycl::platform Plt = Mock.getPlatform();
+    sycl::platform Plt = sycl::platform();
 
     sycl::context SyclContext(Plt);
     sycl::device SyclDev =
@@ -58,16 +63,16 @@ protected:
           [&](handler &CGH) {
             CGH.host_task(BlockHostTask ? CustomHostLambda : [] {});
           },
-          QueueDevImpl, nullptr, {});
+          QueueDevImpl, nullptr, {}, true);
     } else if (Type == TestCGType::KERNEL_TASK) {
       return QueueDevImpl->submit(
           [&](handler &CGH) { CGH.single_task<TestKernel<>>([] {}); },
-          QueueDevImpl, nullptr, {});
+          QueueDevImpl, nullptr, {}, true);
     } else // (Type == TestCGType::BARRIER)
     {
       return QueueDevImpl->submit(
           [&](handler &CGH) { CGH.ext_oneapi_barrier(); }, QueueDevImpl,
-          nullptr, {});
+          nullptr, {}, true);
     }
   }
 
@@ -75,10 +80,50 @@ protected:
   InsertBarrierWithWaitList(const std::vector<sycl::event> &WaitList) {
     return QueueDevImpl->submit(
         [&](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); }, QueueDevImpl,
-        nullptr, {});
+        nullptr, {}, true);
   }
 
-  sycl::unittest::PiMock Mock;
+  void BuildAndCheckInnerQueueState(std::vector<EventImplPtr> &Events) {
+    {
+      std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
+    }
+
+    sycl::event BlockedHostTask = AddTask(TestCGType::HOST_TASK);
+    EventImplPtr BlockedHostTaskImpl =
+        sycl::detail::getSyclObjImpl(BlockedHostTask);
+    Events.push_back(BlockedHostTaskImpl);
+    {
+      std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+      ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+                BlockedHostTaskImpl);
+    }
+
+    sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
+    EventImplPtr BarrierEventImpl = sycl::detail::getSyclObjImpl(BarrierEvent);
+    {
+      std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, BarrierEventImpl);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
+    }
+    Events.push_back(BarrierEventImpl);
+
+    sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
+    EventImplPtr KernelEventImpl = sycl::detail::getSyclObjImpl(KernelEvent);
+    {
+      std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, BarrierEventImpl);
+      ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+                KernelEventImpl);
+    }
+    Events.push_back(KernelEventImpl);
+  }
+
+  sycl::unittest::UrMock<> Mock;
   sycl::unittest::ScopedEnvVar DisabledCleanup{
       DisableCleanupName, "1",
       sycl::detail::SYCLConfig<
@@ -151,7 +196,8 @@ TEST_F(BarrierHandlingWithHostTask, BarrierHostTaskKernel) {
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
   EventImplPtr HostTaskEventImpl = sycl::detail::getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
-  ASSERT_EQ(HostTaskWaitList.size(), 0u);
+  ASSERT_EQ(HostTaskWaitList.size(), 1u);
+  EXPECT_EQ(HostTaskWaitList[0], BarrierEventImpl);
   EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
@@ -180,7 +226,8 @@ TEST_F(BarrierHandlingWithHostTask, BarrierKernelHostTask) {
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
   EventImplPtr HostTaskEventImpl = sycl::detail::getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
-  ASSERT_EQ(HostTaskWaitList.size(), 0u);
+  ASSERT_EQ(HostTaskWaitList.size(), 1u);
+  EXPECT_EQ(HostTaskWaitList[0], BarrierEventImpl);
   EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
 
   MainLock.unlock();
@@ -227,7 +274,8 @@ TEST_F(BarrierHandlingWithHostTask, KernelBarrierHostTask) {
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
   EventImplPtr HostTaskEventImpl = sycl::detail::getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
-  ASSERT_EQ(HostTaskWaitList.size(), 0u);
+  ASSERT_EQ(HostTaskWaitList.size(), 1u);
+  EXPECT_EQ(HostTaskWaitList[0], BarrierEventImpl);
   EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
 
   MainLock.unlock();
@@ -256,7 +304,9 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
   auto BarrierWaitList = BarrierEventImpl->getWaitList();
   // Events to wait by barrier are stored in a separated vector. Here we are
   // interested in implicit deps only.
-  ASSERT_EQ(BarrierWaitList.size(), 0u);
+  // Host task in barrier wait list could not be handled by backend so it is
+  // added by RT to dependency list to initiate deps tracking by scheduler.
+  ASSERT_EQ(BarrierWaitList.size(), 1u);
   EXPECT_EQ(BarrierEventImpl->isEnqueued(), true);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
@@ -267,6 +317,90 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
 
   MainLock.unlock();
   QueueDevImpl->wait();
+}
+
+TEST_F(BarrierHandlingWithHostTask,
+       QueueInnerCleanupOnHostTaskCompletionNotBlocked) {
+  // Checks that host task immediately cleans queue fields up if queue mutex is
+  // not locked.
+  std::vector<EventImplPtr> SubmittedCmdEvents;
+  BuildAndCheckInnerQueueState(SubmittedCmdEvents);
+
+  MainLock.unlock();
+  QueueDevImpl->wait();
+  // Make sure that all host task related stuff is done.
+  detail::GlobalHandler::instance().drainThreadPool();
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
+  }
+}
+
+TEST_F(BarrierHandlingWithHostTask,
+       QueueInnerCleanupOnHostTaskCompletionBlocked) {
+  // Checks that host task postpones cleaning of queue fields if queue mutex is
+  // locked. Applicable for graph execution (waits for host task in submit call,
+  // if thread is busy with other host task trying to cleanup resources - we
+  // could get dead lock) and also better utilizes host task thread.
+  std::vector<EventImplPtr> SubmittedCmdEvents;
+  BuildAndCheckInnerQueueState(SubmittedCmdEvents);
+
+  {
+    // Block queue fields update.
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    MainLock.unlock();
+    detail::GlobalHandler::instance().drainThreadPool();
+  }
+  // Queue mutex was locked and host task was not able to do cleanup.
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier,
+              SubmittedCmdEvents[1]);
+    ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+              SubmittedCmdEvents[2]);
+  }
+  // Wait or new submission will do cleanup. Checks wait.
+  QueueDevImpl->wait();
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
+  }
+}
+
+TEST_F(BarrierHandlingWithHostTask,
+       QueueInnerCleanupOnHostTaskCompletionBlocked2) {
+  // Checks that host task postpones cleaning of queue fields if queue mutex is
+  // locked. Applicable for graph execution (waits for host task in submit call,
+  // if thread is busy with other host task trying to cleanup resources - we
+  // could get dead lock) and also better utilizes host task thread.
+  std::vector<EventImplPtr> SubmittedCmdEvents;
+  BuildAndCheckInnerQueueState(SubmittedCmdEvents);
+
+  {
+    // Block queue fields update.
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    MainLock.unlock();
+    detail::GlobalHandler::instance().drainThreadPool();
+  }
+  // Queue mutex was locked and host task was not able to do cleanup.
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier,
+              SubmittedCmdEvents[1]);
+    ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+              SubmittedCmdEvents[2]);
+  }
+  // Wait or new submission will do cleanup. Checks new submission.
+  std::ignore = AddTask(TestCGType::KERNEL_TASK);
+  {
+    std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
+  }
 }
 
 } // namespace

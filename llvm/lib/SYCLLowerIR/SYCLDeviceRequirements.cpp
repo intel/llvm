@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -36,17 +37,26 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
 }
 
 SYCLDeviceRequirements
-llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
+llvm::computeDeviceRequirements(const Module &M,
+                                const SetVector<Function *> &EntryPoints) {
   SYCLDeviceRequirements Reqs;
   // Process all functions in the module
-  for (const Function &F : MD.getModule()) {
+  for (const Function &F : M) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-        auto Val = ExtractSignedIntegerFromMDNodeOperand(MDN, I);
+        StringRef AspectName = "";
+        int64_t AspectValue;
+        if (auto Pair = dyn_cast<MDNode>(MDN->getOperand(I))) {
+          assert(Pair->getNumOperands() == 2);
+          AspectName = ExtractStringFromMDNodeOperand(Pair, 0);
+          AspectValue = ExtractSignedIntegerFromMDNodeOperand(Pair, 1);
+        } else {
+          AspectValue = ExtractSignedIntegerFromMDNodeOperand(MDN, I);
+        }
         // Don't put internal aspects (with negative integer value) into the
         // requirements, they are used only for device image splitting.
-        if (Val >= 0)
-          Reqs.Aspects.insert(Val);
+        if (AspectValue >= 0)
+          Reqs.Aspects.insert({AspectName, uint32_t(AspectValue)});
       }
     }
 
@@ -55,6 +65,12 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
         auto Val = ExtractUnsignedIntegerFromMDNodeOperand(MDN, I);
         Reqs.FixedTarget.insert(Val);
       }
+    }
+
+    if (auto *MDN = F.getMetadata("work_group_num_dim")) {
+      uint32_t WGND = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
+      if (!Reqs.ReqdWorkGroupSize.has_value())
+        Reqs.WorkGroupNumDim = WGND;
     }
 
     if (auto *MDN = F.getMetadata("reqd_work_group_size")) {
@@ -80,7 +96,7 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   }
 
   // Process just the entry points in the module
-  for (const Function *F : MD.entries()) {
+  for (const Function *F : EntryPoints) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       // There should only be at most one function with
       // intel_reqd_sub_group_size metadata when considering the entry
@@ -99,6 +115,7 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
         assert(*Reqs.SubGroupSize == static_cast<uint32_t>(MDValue));
     }
   }
+
   return Reqs;
 }
 
@@ -108,8 +125,11 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   // For all properties except for "aspects", we'll only add the
   // value to the map if the corresponding value from
   // SYCLDeviceRequirements has a value/is non-empty.
-  Requirements["aspects"] =
-      std::vector<uint32_t>(Aspects.begin(), Aspects.end());
+  std::vector<uint32_t> AspectValues;
+  AspectValues.reserve(Aspects.size());
+  for (const auto &Aspect : Aspects)
+    AspectValues.push_back(Aspect.Value);
+  Requirements["aspects"] = std::move(AspectValues);
 
   if (!FixedTarget.empty())
     Requirements["fixed_target"] =
@@ -122,7 +142,8 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   // reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
   // window, this can be changed back to reqd_work_group_size.
   if (ReqdWorkGroupSize.has_value())
-    Requirements["reqd_work_group_size_uint64_t"] = *ReqdWorkGroupSize;
+    Requirements[util::PropertySetRegistry::PROPERTY_REQD_WORK_GROUP_SIZE] =
+        *ReqdWorkGroupSize;
 
   if (JointMatrix.has_value())
     Requirements["joint_matrix"] = *JointMatrix;
@@ -132,6 +153,9 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
 
   if (SubGroupSize.has_value())
     Requirements["reqd_sub_group_size"] = *SubGroupSize;
+
+  if (WorkGroupNumDim.has_value())
+    Requirements["work_group_num_dim"] = *WorkGroupNumDim;
 
   return Requirements;
 }

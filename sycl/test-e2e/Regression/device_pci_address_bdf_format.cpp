@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
         continue;
 
       std::string PCIAddress =
-          dev.get_info<info::device::ext_intel_pci_address>();
+          dev.get_info<ext::intel::info::device::pci_address>();
       std::cout << "PCI address = " << PCIAddress << std::endl;
       assert(std::regex_match(PCIAddress, ExpectedBDFFormat));
     }

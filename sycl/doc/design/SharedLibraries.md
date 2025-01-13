@@ -148,12 +148,37 @@ For this purpose DPC++ front-end generates `module-id` attribute on each
 
 ### sycl-post-link changes
 
-In order to support dynamic linking of device code, `sycl-post-link` performs
-2 main tasks:
+When device code splitting is performed during a typical compilation of a SYCL offloading program,
+all dependent device code is brought into a split image in order to construct a complete image.
+When device code splitting is performed during the compilation flow to generate a dynamic library,
+construction of a complete device image is not possible since the dynamic library may rely on
+functions that are not defined in the library. Thus, when supporting dynamic linking a dependency
+to a `canBeImportedFunction` will not cause the dependent function to be added to the image.
 
-- Supplies device images containing exports with an information about exported
-  symbols
-- Supplies device images with an information about imported symbols
+`canBeImportedFunction` is a boolean function accepting a Function input and returns true
+if the Function "can be imported".  A `canBeImportedFunction` is:
+
+  1. Not an intrinsic
+  2. Name does not start with "__"
+  3. Is not a SPIRV, SYCL, or ESIMD builtin function
+  4. Demangled name does not start with "__"
+  5. Must be a `SYCL_EXTERNAL` function
+
+More information about `SYCL_EXTERNAL` can be found in:
+https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:syclexternal
+
+In order to support dynamic linking of device code, `sycl-post-link` has
+the following modifications:
+
+- Device images that have a dependency to a `canBeImportedFunction` do not include the
+  function.  Instead the dependency is recorded in the imported symbols property list.
+- An image that provides a `canBeImportedFunction` has the symbol recorded in the exported
+  symbols property list.
+- All functions symbols that are not `canBeImportedFunction` and are not kernels are internalized.
+  Note that kernel functions should not be included in `canBeImportedFunction` since kernels
+  are only callable by host code, and thus would never need to be imported into a device image.
+
+
 
 In addition, `SYCL_EXTERNAL` functions as well as kernels are considered as entry
 points during device code split.
@@ -231,11 +256,11 @@ mechanism.
 Each device image is supplied with an array of property sets:
 
 ```C++
-struct pi_device_binary_struct {
+struct sycl_device_binary_struct {
 ...
   // Array of property sets
-  pi_device_binary_property_set PropertySetsBegin;
-  pi_device_binary_property_set PropertySetsEnd;
+  sycl_device_binary_property_set PropertySetsBegin;
+  sycl_device_binary_property_set PropertySetsEnd;
 };
 ```
 
@@ -243,10 +268,10 @@ Each property set is represented by the following struct:
 
 ```C++
 // Named array of properties.
-struct _pi_device_binary_property_set_struct {
+struct _sycl_device_binary_property_set_struct {
   char *Name;                                // the name
-  pi_device_binary_property PropertiesBegin; // array start
-  pi_device_binary_property PropertiesEnd;   // array end
+  sycl_device_binary_property PropertiesBegin; // array start
+  sycl_device_binary_property PropertiesEnd;   // array end
 };
 ```
 
@@ -254,10 +279,10 @@ It contains name of property set and array of properties. Each property is
 represented by the following struct:
 
 ```C++
-struct _pi_device_binary_property_struct {
+struct _sycl_device_binary_property_struct {
   char *Name;       // null-terminated property name
   void *ValAddr;    // address of property value
-  uint32_t Type;    // _pi_property_type
+  uint32_t Type;    // _sycl_property_type
   uint64_t ValSize; // size of property value in bytes
 };
 ```
@@ -273,39 +298,42 @@ corresponding set has the name `SYCL/exported symbols`.
 
 DPC++ RT performs *device images collection* task by grouping all device
 images required to execute a kernel based on the list of exports/imports, creates
-programs using collected images and links them together using PI API.
+programs using collected images and links them together using UR API.
 Resulting program is then added to the cache to avoid repetition of symbol
 resolution, compilation, and linking processes for any future attempts to invoke
 kernels defined by this program.
 
-#### DPC++ runtime plugin interface (PI) changes
+#### DPC++ Unified Runtime changes
 
 During *device images collection* process RT considers modules as available for
 linking using information about ability of chosen device backend to compile
 and link programs created from particular device image format. The information
 about ability to compile and link particular format of device code is provided
-by PI plugin implementation for concrete backend. For this purpose
-`piDeviceGetInfo` API is used. For each device image format supported by DPC++
-RT PI device extension is defined. Each extension is a string that can be
-returned by `piDeviceGetInfo` call with query `PI_DEVICE_INFO_EXTENSIONS`.
-Mapping of extension strings and formats that can be linked:
-| Device image format | Extension string | Meaning |
+by UR adapter implementation for concrete backend. For this purpose the
+`urDeviceSelectBinary` API is used. Each device image format supported by DPC++
+RT has a UR equivalent. To check if a backend is capable of linking a given
+device image, a `ur_device_binary_t` struct is prepared with the appropriate UR
+format string. Passing the struct to `urDeviceSelectBinary` will result in a
+success code if the adapter supports the binary, or
+`UR_RESULT_ERROR_INVALID_BINARY` otherwise. Mapping of extension strings and
+formats that can be linked:
+| Device image format | UR equivalent | Meaning |
 |---------------------|------------------|---------|
-| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64` | "pi_ext_spirv64_linking" | Linking of SPIR-V 64-bit programs is supported|
-| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64` | "pi_ext_spirv64_x86_64_linking" | Linking of 64-bit programs that were AOT compiled for CPU device is supported|
-| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN` | "pi_ext_spirv64_gen_linking" | Linking of 64-bit programs that were AOT compiled for GPU device is supported|
-| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA` | "pi_ext_spirv64_fpga_linking" | Linking of 64-bit programs that were AOT compiled for FPGA device is supported|
+| `__SYCL_DEVICE_BINARY_TARGET_SPIRV64` | "UR_DEVICE_BINARY_TARGET_SPIRV64" | Linking of SPIR-V 64-bit programs is supported|
+| `__SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64` | "UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64" | Linking of 64-bit programs that were AOT compiled for CPU device is supported|
+| `__SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN` | "UR_DEVICE_BINARY_TARGET_SPIRV64_GEN" | Linking of 64-bit programs that were AOT compiled for GPU device is supported|
+| `__SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA` | "UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA" | Linking of 64-bit programs that were AOT compiled for FPGA device is supported|
 
-To link several device images together `piProgramLink` API will be used.
-Depending on concrete plugin implementation and set of device image formats that
-can be linked at run-time, `piProgramLink` API may receive programs made from
+To link several device images together `urProgramLink` API will be used.
+Depending on concrete adapter implementation and set of device image formats that
+can be linked at run-time, `urProgramLink` API may receive programs made from
 device images in different formats as inputs (including SPIR-V and native code).
 
 ##### Support of runtime linking in backends
 
 - The initial implementation will support dynamic linking of device code in SPIR-V
   format on OpenCL backend:
-  - OpenCL plugin will use the existing OpenCL `clLinkProgram()` API to online
+  - OpenCL adapter will use the existing OpenCL `clLinkProgram()` API to online
   link the SPIR-V modules together.
   - A new Level Zero API to online link programs on SPIR-V level is required for
   better performance.

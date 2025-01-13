@@ -4,11 +4,8 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-#include <vector>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
 using namespace sycl;
 

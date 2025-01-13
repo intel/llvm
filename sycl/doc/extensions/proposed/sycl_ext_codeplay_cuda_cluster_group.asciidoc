@@ -1,0 +1,420 @@
+= sycl_ext_codeplay_cuda_cluster_group
+
+:source-highlighter: coderay 
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks] 
+
+Copyright (C) 2024-2024 Codeplay Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
+The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+Other company and product names may be trademarks of the respective companies
+with which they are associated and can be claimed as the property of others.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Contributors
+Atharva Dubey, Codeplay +
+Gordon Brown, Codeplay 
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision. 
+
+This extensions also depends on the following other sycl extensions: 
+
+* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+          sycl_ext_oneapi_enqueue_functions]
+* link:../experimental/sycl/sycl_ext_oneapi_properties.asciidoc[
+    sycl_ext_oneapi_properties
+]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Glossary
+
+* Compute Capability: Abbreviated as "cc", a number assigned to each generation
+of NVIDIA's GPUs conveying the feature set associated with that number.
+
+
+
+== Overview
+
+CUDA compute capability (cc) 9.0 (sm_90 and above) devices introduces a new level in the
+thread hierarchy, called as thread block clusters, in CUDA terminology. A thread
+block cluster, is a collection of thread blocks (a work-group in SYCL
+terminology) that run concurrently. The work-groups which make up a cluster 
+have the ability to access one another's local memory, and can be synchronized. 
+This has various applications, convolutions, GEMMs and FFTs to name a few.
+
+This proposal introduces a SYCL API to expose these capabilities, and defines a 
+mechanism to launch a kernel with clusters enabled, access the cluster's various
+ranges and id's from the device code, atomics at the cluster level as well as 
+synchronize the cluster. This proposal also introduces a device aspect to check 
+if the SYCL device supports a cluster launch, and a device query to obtain the 
+maximum supported cluster size.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_CODEPLAY_CUDA_CLUSTER_GROUP` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not version-ed, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_codeplay_cuda_cluster_group
+}
+}
+----
+
+A device requires the `ext_codeplay_cuda_cluster_group` aspect to
+support launching a kernel with the `cluster_size` property defined in the
+following section.
+
+
+=== Launching a kernel with a `cluster_group`
+
+Because of the special scheduling guarantees associated with a cluster launch,
+the backend must know which kernel would be using this feature. Thus, this 
+proposal introduces a new launch property called as `cluster_size` that will
+contain the cluster size as a number of work-groups.
+ 
+[source,c++]
+----
+namespace sycl::ext::codeplay::experimental::cuda {
+/**
+* Dim Dimensionality of the launch
+* size sycl::range specifying the number of work-groups in the cluster
+  in each dimension.
+*/
+template <int Dim>
+struct cluster_size {
+  cluster_size(const sycl::range<Dim>& size);
+  sycl::range<Dim> get_cluster_size();
+  ...
+};
+using cluster_size_key = cluster_size;
+} // namespace sycl::ext::codeplay::experimental::cuda
+----
+
+The property list can the be constructed as follows - 
+
+[source,c++]
+----
+properties  cluster_launch_property{cluster_size({1, 2, 1})};
+----
+
+[_Note:_ the total number of work-groups in the kernel must be a multiple of
+the cluster size in each dimension. _{endnote}_]
+
+The launch functions introduced in `sycl_ext_oneapi_enqueue_functions` can then
+be used to launch the kernel with the `cluster_size` property.
+
+
+=== Querying Maximum Cluster Size
+
+To query the maximum supported cluster size, this proposal adds a new device
+query, `max_cluster_group_size`, which returns the maximum possible number of 
+work-groups present inside the cluster.
+
+[source, c++]
+----
+size_t max_cluster_size = 
+  device.get_info<
+    ext::codeplay::experimental::cuda::info::device::max_cluster_group_size>();
+----
+[%header,cols="10,5,5"]
+|===
+|Device descriptor
+|Return Type
+|Description
+
+|`ext::codeplay::experimental::cuda::info::device::max_cluster_group_size`
+|size_t
+|Returns the maximum possible number of work-groups that can constitute a 
+cluster-group
+|===
+
+
+=== Accessing the Cluster Group From Device Code
+
+Building upon the group hierarchy in SYCL, this proposal adds another level
+above group (for work-groups), to be called as `cluster-group`, which 
+represents a collection of work-groups and will be accessible via the `nd_item`
+class, via a member function to be introduced called `ext_codeplay_cuda_get_cluster_group()`.
+
+
+[%header,cols="10,5"]
+|===
+|Method
+|Description
+
+|`cluster_group<Dim> nd_item::ext_codeplay_cuda_get_cluster_group()`
+|Returns the constituent `cluster_group` in the kernel, representing this
+`cluster_group` object's overall position in the `nd_range`
+|===
+
+
+The `cluster_group` class will contain the following member functions, to access
+the various ids of the work-item and work-groups.
+
+[source,c++]
+----
+    template<int Dim>
+    class cluster_group {
+    public:
+        using id_type = id<Dim>;
+        using range_type = range<Dim>;
+        using linear_id_type = size_t;
+
+        linear_id_type get_group_linear_id() const;
+
+        linear_id_type get_local_linear_id() const;
+
+        range_type get_group_range() const;
+
+        id_type get_group_id() const;
+
+        id_type get_local_id() const;
+
+        range_type get_local_range() const;
+
+        linear_id_type get_local_linear_range() const;
+
+        linear_id_type get_group_linear_range() const;
+
+        bool leader() const;
+
+        static constexpr memory_scope fence_scope = 
+                memory_scope::ext_codeplay_cuda_cluster_group;
+    }
+----
+
+
+[%header,cols="5,5"]
+|===
+|Method
+|Description
+
+|`linear_id get_group_linear_id() const`
+|Returns the linearized id of the calling work-group within the cluster.
+
+|`linear_id get_local_linear_id() const`
+|Returns the linearized index of the calling work-item within the cluster.
+
+|`range_type get_group_range() const`
+|Returns the number of work-groups in each dimension within the cluster.
+
+|`id_type get_group_id() const`
+|Returns the id of the calling work-group along each dimension within the cluster.
+
+|`id_type get_local_id() const`;
+|Returns the id of calling work-item along each dimension within the cluster.
+
+|`range_type get_local_range() const`;
+|Returns the number of work-items along each dimension within the cluster.
+
+|`linear_id_type get_local_linear_range() const`;
+|Returns a linearized version of the `range_type` returned by  `get_local_range`
+
+|`linear_id_type get_group_linear_range() const`;
+|Returns a linearized version of the `range_type` returned by  `get_group_range`
+
+|`bool leader() const`;
+|Returns true for exactly one work-item in the cluster, if the calling work-item
+is the leader of the cluster group. The leader is guaranteed to be the work-item
+for which `get_local_linear_id` return 0.
+|===
+
+
+== Accessing another work-group's local memory
+
+Work-groups within the cluster have the ability to access another work-group's 
+local memory. Typically addresses which reside in the local memory of a 
+work-group can only be accessed by the work-items of that work-group. 
+Therefore, to access another work-group's local memory, the address needs to be
+mapped such that the address in another work-group is accessible within the 
+calling work-item. Further, to access another work-group's local memory,
+all the work-groups within the cluster must exist and the work-groups should
+not cease to exist before all the memory operations are completed. This can be 
+ensured by synchronizing all the work-items within the cluster before and after
+the local memory operations, using `group_barrier`.
+
+A member function of the `cluster_group` class; 
+`map_cluster_local_pointer` will perform the mapping and return a pointer 
+which can then be dereferenced by the calling work-item. 
+
+
+[%header,cols="10,5"]
+|===
+|Method
+|Description
+
+|T*  map_cluster_local_pointer(T* addr, size_t group_id)
+|Accepts the equivalent address to the memory location relative to the calling 
+work-item which is to be mapped from the local memory of the work-group, as 
+specified by `group_id`, denoting the linear group id within the cluster
+|===
+
+Conversely, `get_cluster_group_linear_id_for_local_pointer` will return the 
+linearized id of the work-group a mapped local memory address belongs to.
+
+[%header,cols="10,5"]
+|===
+|Method
+|Description
+
+|size_t  get_cluster_group_linear_id_for_local_pointer(T* addr)
+|Accepts a pointer pointing to a valid local memory space, and the returns the 
+linearized id of the work-group in the cluster that address belongs to. 
+|===
+
+
+== Cluster Memory Fence Scope and Barrier
+
+Work-items in a work-group can access a local memory address from another
+work-group in the cluster-group, which has been mapped as described above. To
+facilitate this, a new memory scope is introduced to the `memory_scope` class;
+`ext_codeplay_cuda_cluster_group` which indicates a memory ordering
+constraint that applies to all work-items in the same cluster-group. This memory
+scope can be used with `atomic_ref` and other SYCL APIs that use
+`memory_scope`.
+
+[source, c++]
+----
+namespace sycl {
+
+  enum class memory_scope {
+  ...
+  ext_codeplay_cuda_cluster_group,
+  ...
+  };
+
+  namespace ext::codeplay::experimental::cuda {
+    inline constexpr auto memory_scope_cluster_group
+      = memory_scope::ext_codeplay_cuda_cluster_group;
+  } // namespace ext::codeplay::experimental::cuda
+} // namespace sycl
+----
+
+
+To coordinate all work-items in the cluster group, `sycl::group_barrier` can be 
+used, accepting the `cluster_group` class.
+
+
+== Example
+
+This section adds a representative example of how to launch a kernel with 
+the cluster-range specified and accessing various id's within the kernel - 
+
+[source,c++]
+----
+sycl::event launch_kernel_with_cluster() {
+  namespace syclcp = sycl::ext::codeplay::experimental;
+  namespace syclex = sycl::ext::oneapi::experimental;
+
+  sycl::queue q;
+
+  sycl::nd_range<3> ndRange({4096, 4096, 32}, {32, 32, 1});
+  syclex::properties props(syclcp::cuda::cluster_size({4, 4, 1}));
+  syclex::launch_config config(ndRange, props);
+
+  return syclex::submit_with_event(q, [&](sycl::handler& cgh){
+      syclex::nd_launch(cgh, config, [=](sycl::nd_item<3> it) {
+        auto cg = it.ext_codeplay_cuda_get_cluster_group();
+        auto cgId = cg.get_group_id();
+        ...
+      });
+  })
+}
+----
+
+
+== Known Issues
+
+. Forward Progress Guarantees
++ 
+--
+*UNRESOLVED* This Specification does not discuss the forward progress guarantees of the 
+   cluster_group. 
+--
+
+. Differentiating between decorated and generic address spaces
++
+--
+*UNRESOLVED* The functions `map_cluster_local_pointer` and 
+`get_cluster_group_linear_id_for_local_pointer` do not differentiate between
+generic and local memory address spaces, which might not be the most efficient.
+--
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Authors|Changes
+|4|2024-06-26|Atharva Dubey, Jack Kirk|Added device query and aspects, 
+                  review comments and additional cluster group member functions
+|2|2024-05-09|Atharva Dubey|Using enqueue functions to launch with properties
+|1|2024-04-29|Atharva Dubey|Initial public working draft
+|========================================

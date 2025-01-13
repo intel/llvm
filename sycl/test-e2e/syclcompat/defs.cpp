@@ -20,13 +20,13 @@
  *     Syclcompat macros tests
  **************************************************************************/
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <cassert>
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/defs.hpp>
 
@@ -54,16 +54,26 @@ void test_check_error() {
     throw std::runtime_error("Expected invalid exception in test_check_error");
   };
 
-  assert(syclcompat::error_code::SUCCESS == SYCLCOMPAT_CHECK_ERROR());
-  assert(syclcompat::error_code::BACKEND_ERROR ==
+  assert(syclcompat::error_code::success == SYCLCOMPAT_CHECK_ERROR());
+  assert(syclcompat::error_code::backend_error ==
          SYCLCOMPAT_CHECK_ERROR(sycl_error_throw()));
-  assert(syclcompat::error_code::DEFAULT_ERROR ==
+  assert(syclcompat::error_code::default_error ==
          SYCLCOMPAT_CHECK_ERROR(runtime_error_throw()));
+}
+
+void test_version() {
+  // Check the composition of the version int
+  assert(SYCLCOMPAT_MAKE_VERSION(1, 1, 1) == 1001001);
+  assert(SYCLCOMPAT_MAKE_VERSION(9, 0, 0) == 9000000);
+
+  // Check some inequalities
+  assert(SYCLCOMPAT_MAKE_VERSION(0, 1, 1) > SYCLCOMPAT_MAKE_VERSION(0, 1, 0));
+  assert(SYCLCOMPAT_MAKE_VERSION(1, 0, 0) > SYCLCOMPAT_MAKE_VERSION(0, 9, 0));
 }
 
 int main() {
   test_align();
   test_check_error();
-
+  test_version();
   return 0;
 }

@@ -5,10 +5,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 //
-// RUN: %{build} -fsycl-device-code-split=per_kernel -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_var.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -Wno-#warnings -o %t_var.out
 // RUN: %{run} %t_var.out | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include <cstdint>
 #include <iostream>

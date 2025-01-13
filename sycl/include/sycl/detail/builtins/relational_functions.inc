@@ -48,8 +48,7 @@ auto builtin_device_rel_impl(FuncTy F, const Ts &...xs) {
     // arguments' element type).
     auto ret = F(builtins::convert_arg(xs)...);
     vec<signed char, num_elements<T>::value> tmp{ret};
-    using res_elem_type =
-        make_type_t<get_elem_type_t<T>, type_list<int16_t, int32_t, int64_t>>;
+    using res_elem_type = fixed_width_signed<sizeof(get_elem_type_t<T>)>;
     static_assert(is_scalar_arithmetic_v<res_elem_type>);
     return tmp.template convert<res_elem_type>();
   } else if constexpr (std::is_same_v<T, half>) {
@@ -134,8 +133,7 @@ DEVICE_IMPL_TEMPLATE(
     THREE_ARGS, bitselect, builtin_enable_bitselect_t, [](auto... xs) {
       using ret_ty =
           detail::builtin_enable_bitselect_t<THREE_ARGS_TEMPLATE_TYPE>;
-      using detail::builtins::convert_result;
-      return convert_result<ret_ty>(__spirv_ocl_bitselect(xs...));
+      return bit_cast<ret_ty>(__spirv_ocl_bitselect(xs...));
     })
 #else
 HOST_IMPL_TEMPLATE(THREE_ARGS, bitselect, builtin_enable_bitselect_t, rel,

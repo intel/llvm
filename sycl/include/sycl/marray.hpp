@@ -48,6 +48,12 @@ template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
 /// \ingroup sycl_api
 template <typename Type, std::size_t NumElements> class marray {
   using DataT = Type;
+  static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>> &&
+                    std::is_default_constructible_v<DataT> &&
+                    std::is_copy_constructible_v<DataT> &&
+                    std::is_copy_assignable_v<DataT> &&
+                    std::is_destructible_v<DataT>,
+                "DataT must be a NumericType");
 
 public:
   using value_type = Type;

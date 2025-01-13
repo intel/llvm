@@ -9,6 +9,15 @@
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx702 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx702 -DMAC_STR=GFX702
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx703 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx703 -DMAC_STR=GFX703
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx704 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx704 -DMAC_STR=GFX704
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx705 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx705 -DMAC_STR=GFX705
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx801 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx801 -DMAC_STR=GFX801
@@ -127,6 +136,27 @@
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
 // BAD_AMD_INPUT: error: SYCL target is invalid: 'amd_gpu_bad'
 
+// Check the SYCL triple for AMD GPUs.
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa -### \
+// RUN: -Xsycl-target-backend --offload-arch=gfx908 \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=AMD-TRIPLE
+// AMD-TRIPLE: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
+
+// Check if SYCL triples with 'Environment' component are rejected for AMD GPUs.
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
+  // RUN: FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'amdgcn-amd-amdhsa-sycl'
+
+// Check for invalid SYCL triple for AMD GPUs.
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'amdgcn{{.*}}'
+
 /// Test for proper creation of fat object
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx700 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc \
@@ -152,25 +182,23 @@
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_CHECK_PHASES
 // AMD_CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
-// AMD_CHECK_PHASES: 1: append-footer, {0}, c++, (host-sycl)
-// AMD_CHECK_PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// AMD_CHECK_PHASES: 3: input, "[[INPUT]]", c++, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 5: compiler, {4}, ir, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {5}, c++-cpp-output
-// AMD_CHECK_PHASES: 7: compiler, {6}, ir, (host-sycl)
-// AMD_CHECK_PHASES: 8: backend, {7}, assembler, (host-sycl)
-// AMD_CHECK_PHASES: 9: assembler, {8}, object, (host-sycl)
-// AMD_CHECK_PHASES: 10: linker, {5}, ir, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 11: sycl-post-link, {10}, ir, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 12: file-table-tform, {11}, ir, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 13: backend, {12}, assembler, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 14: assembler, {13}, object, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 15: linker, {14}, image, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 16: linker, {15}, hip-fatbin, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 17: foreach, {12, 16}, hip-fatbin, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 18: file-table-tform, {11, 17}, tempfiletable, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 20: offload, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {19}, object
-// AMD_CHECK_PHASES: 21: linker, {9, 20}, image, (host-sycl)
-
+// AMD_CHECK_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// AMD_CHECK_PHASES: 2: input, "[[INPUT]]", c++, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 4: compiler, {3}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {4}, c++-cpp-output
+// AMD_CHECK_PHASES: 6: compiler, {5}, ir, (host-sycl)
+// AMD_CHECK_PHASES: 7: backend, {6}, assembler, (host-sycl)
+// AMD_CHECK_PHASES: 8: assembler, {7}, object, (host-sycl)
+// AMD_CHECK_PHASES: 9: linker, {4}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 10: sycl-post-link, {9}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 11: file-table-tform, {10}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 12: backend, {11}, assembler, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 13: assembler, {12}, object, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 14: linker, {13}, image, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 15: linker, {14}, hip-fatbin, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 16: foreach, {11, 15}, hip-fatbin, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 17: file-table-tform, {10, 16}, tempfiletable, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 18: clang-offload-wrapper, {17}, object, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 19: offload, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {18}, object
+// AMD_CHECK_PHASES: 20: linker, {8, 19}, image, (host-sycl)

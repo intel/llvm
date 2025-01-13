@@ -2,7 +2,7 @@
 ; property - it should include only kernels that call assertions in their call
 ; graph.
 
-; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=PRESENCE-CHECK
 ; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=ABSENCE-CHECK
 

@@ -26,6 +26,7 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/TargetParser/Host.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -63,6 +64,26 @@ static void PrintVersion(raw_ostream &OS) {
   OS << clang::getClangToolFullVersion("clang-offload-packager") << '\n';
 }
 
+// For any response file arguments (those starting with '@'), expand them into
+// the contents of the response file, deliminated by commas.
+static StringRef expandResponseFileImageArguments(StringRef Arg,
+                                                  StringSaver &Saver) {
+  std::string FileStr = Arg.str();
+  SmallVector<const char *, 0> ExpandedFiles{FileStr.c_str()};
+  cl::ExpandResponseFiles(Saver,
+                          Triple(sys::getProcessTriple()).isOSWindows()
+                              ? cl::TokenizeWindowsCommandLine
+                              : cl::TokenizeGNUCommandLine,
+                          ExpandedFiles);
+  std::string NewValue;
+  for (size_t FileIdx = 0; FileIdx < ExpandedFiles.size(); FileIdx++) {
+    NewValue += ExpandedFiles[FileIdx];
+    if (FileIdx != ExpandedFiles.size() - 1)
+      NewValue += ',';
+  }
+  return Saver.save(NewValue);
+}
+
 // Get a map containing all the arguments for the image. Repeated arguments will
 // be placed in a comma separated list.
 static DenseMap<StringRef, StringRef> getImageArguments(StringRef Image,
@@ -70,6 +91,8 @@ static DenseMap<StringRef, StringRef> getImageArguments(StringRef Image,
   DenseMap<StringRef, StringRef> Args;
   for (StringRef Arg : llvm::split(Image, ",")) {
     auto [Key, Value] = Arg.split("=");
+    if (Key == "file" && Value[0] == '@')
+      Value = expandResponseFileImageArguments(Value, Saver);
     if (Args.count(Key))
       Args[Key] = Saver.save(Args[Key] + "," + Value);
     else

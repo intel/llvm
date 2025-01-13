@@ -130,10 +130,6 @@ enum class lsc_subopcode : uint8_t {
   read_state_info = 0x1e,
   fence = 0x1f,
 };
-// The regexp for ESIMD intrinsics:
-// /^_Z(\d+)__esimd_\w+/
-static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
-static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
 struct ESIMDIntrinDesc {
@@ -592,6 +588,21 @@ public:
          {"lsc.xatomic.stateless",
           {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
            c8(0), a(1), a(2), a(3), c32(0), u(-1)}}},
+        {"lsc_load2d_descriptor",
+         {"lsc.load.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_load2d_descriptor_transpose",
+         {"lsc.load.2d.ugm.desc.transpose",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_load2d_descriptor_transform",
+         {"lsc.load.2d.ugm.desc.vnni",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_prefetch_descriptor",
+         {"lsc.prefetch.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_store_descriptor",
+         {"lsc.store.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
         {"lsc_fence", {"lsc.fence", {ai1(0), t8(0), t8(1), t8(2)}}},
         {"sat", {"sat", {a(0)}}},
         {"fptoui_sat", {"fptoui.sat", {a(0)}}},
@@ -908,9 +919,6 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
     case 0x14:
       Suff = ".fsub";
       break;
-    case 0xff:
-      Suff = ".predec";
-      break;
     default:
       llvm_unreachable("unknown atomic OP");
     };
@@ -1044,10 +1052,7 @@ static void translateScatterStore(CallInst &CI, bool IsSLM) {
 // 2) there are multiple such calls reachable from a kernel
 // 3) when a call in external function linked by the Back-End
 
-// This function sets/updates VCNamedBarrierCount attribute to the kernels
-// calling this intrinsic initializing the number of named barriers.
-static void translateNbarrierInit(CallInst &CI) {
-  auto F = CI.getFunction();
+static uint64_t getNbarrierArgValue(CallInst &CI) {
   auto *ArgV = CI.getArgOperand(0);
   llvm::esimd::assert_and_diag(
       isa<ConstantInt>(ArgV), __FILE__,
@@ -1055,11 +1060,91 @@ static void translateNbarrierInit(CallInst &CI) {
 
   auto NewVal = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
   assert(NewVal != 0 && "zero named barrier count being requested");
-  esimd::UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
-      *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
-  // TODO: Keep track of traversed functions to avoid repeating traversals
-  // over same function.
-  sycl::utils::traverseCallgraphUp(F, SetMaxNBarrierCnt);
+  return NewVal;
+}
+
+static void translateNBarrierAllocations(Module &M) {
+  std::function<bool(const Instruction *, const Function *)> FunctionFilter =
+      [](const Instruction *, const Function *) { return true; };
+  // Translate named_barrier_init first to populate the metadata
+  for (auto &F : M) {
+    if (!llvm::esimd::isNbarrierInit(F))
+      continue;
+    for (User *U : F.users()) {
+      auto *FCall = dyn_cast<CallInst>(U);
+      if (FCall && FCall->getCalledFunction() == &F) {
+        uint64_t BarrierCount = getNbarrierArgValue(*FCall);
+
+        Function *GenF = FCall->getFunction();
+        esimd::UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
+            M, genx::KernelMDOp::NBarrierCnt, BarrierCount};
+        // TODO: Keep track of traversed functions to avoid repeating traversals
+        // over same function.
+        SmallPtrSet<Function *, 32> Visited;
+        sycl::utils::traverseCallgraphUp(GenF, SetMaxNBarrierCnt, Visited, true,
+                                         FunctionFilter);
+      }
+    }
+  }
+
+  // Build kernel function to metadata node mapping to simplify processing.
+  DenseMap<const Function *, MDNode *> Kernel2NBarrierMD;
+  llvm::NamedMDNode *GenXKernelMD =
+      M.getNamedMetadata(esimd::GENX_KERNEL_METADATA);
+  llvm::esimd::assert_and_diag(GenXKernelMD, "invalid genx.kernels metadata");
+
+  for (MDNode *Node : GenXKernelMD->operands()) {
+    if (Node->getNumOperands() <= genx::KernelMDOp::NBarrierCnt) {
+      continue;
+    }
+
+    Function *Kernel = dyn_cast<Function>(
+        esimd::getValue(Node->getOperand(genx::KernelMDOp::FunctionRef)));
+    Kernel2NBarrierMD[Kernel] = Node;
+  }
+
+  for (auto &F : M) {
+    if (!llvm::esimd::isNbarrierAllocate(F))
+      continue;
+    for (User *U : F.users()) {
+      auto *FCall = dyn_cast<CallInst>(U);
+      if (FCall && FCall->getCalledFunction() == &F) {
+        uint64_t BarrierCount = getNbarrierArgValue(*FCall);
+        Function *GenF = FCall->getFunction();
+        uint64_t LastBarrierId = 0;
+        // Get current named barrier count for the kernel which calls
+        // named_barrier_allocate to calculate the barrier Id to be used after
+        // allocation.
+        SmallPtrSet<Function *, 32> Visited;
+        sycl::utils::traverseCallgraphUp(
+            GenF,
+            [&](Function *GraphNode) {
+              auto KernelNodeIterator = Kernel2NBarrierMD.find(GraphNode);
+              if (KernelNodeIterator != Kernel2NBarrierMD.end()) {
+                llvm::Value *NamedBarrierCount = getValue(
+                    (*KernelNodeIterator)
+                        .second->getOperand(genx::KernelMDOp::NBarrierCnt));
+                LastBarrierId =
+                    cast<llvm::ConstantInt>(NamedBarrierCount)->getZExtValue();
+              }
+            },
+            Visited, true, FunctionFilter);
+        auto LastBarrierIdValue =
+            llvm::ConstantInt::get(FCall->getType(), LastBarrierId);
+        // replace the use
+        FCall->replaceAllUsesWith(LastBarrierIdValue);
+        esimd::UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
+            M, genx::KernelMDOp::NBarrierCnt, BarrierCount + LastBarrierId};
+        // TODO: Keep track of traversed functions to avoid repeating traversals
+        // over same function.
+        {
+          SmallPtrSet<Function *, 32> Visited;
+          sycl::utils::traverseCallgraphUp(GenF, SetMaxNBarrierCnt, Visited,
+                                           true, FunctionFilter);
+        }
+      }
+    }
+  }
 }
 
 static void translatePackMask(CallInst &CI) {
@@ -1071,9 +1156,9 @@ static void translatePackMask(CallInst &CI) {
   IRBuilder<> Builder(&CI);
   llvm::LLVMContext &Context = CI.getContext();
   // TODO CM_COMPAT
-  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated as
-  // 'false' there. ESIMD adopts C++ semantics, where any non-zero is 'true'.
-  // For CM this ICmpInst should be replaced with truncation to i1.
+  // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated
+  // as 'false' there. ESIMD adopts C++ semantics, where any non-zero is
+  // 'true'. For CM this ICmpInst should be replaced with truncation to i1.
   Result = Builder.CreateICmp(ICmpInst::ICMP_NE, Result, Zero);
   Result = Builder.CreateBitCast(Result, llvm::Type::getIntNTy(Context, N));
 
@@ -1143,10 +1228,10 @@ static bool translateFMADD(CallInst &CI) {
   return true;
 }
 
-// Newly created GenX intrinsic might have different return type than expected.
-// This helper function creates cast operation from GenX intrinsic return type
-// to currently expected. Returns pointer to created cast instruction if it
-// was created, otherwise returns NewI.
+// Newly created GenX intrinsic might have different return type than
+// expected. This helper function creates cast operation from GenX intrinsic
+// return type to currently expected. Returns pointer to created cast
+// instruction if it was created, otherwise returns NewI.
 static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
                                         Type *UseType = nullptr) {
   Type *NITy = NewI->getType();
@@ -1160,21 +1245,6 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
   return NewI;
 }
 
-// Translates the following intrinsics:
-//   %res = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
-//   %res = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
-// To
-//   %mul = fmul <type> %a, <type> %b
-//   %res = fadd <type> %mul, <type> %c
-// TODO: Remove when newer GPU driver is used in CI.
-void translateFmuladd(CallInst *CI) {
-  assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
-  IRBuilder<> Bld(CI);
-  auto *Mul = Bld.CreateFMul(CI->getOperand(0), CI->getOperand(1));
-  auto *Res = Bld.CreateFAdd(Mul, CI->getOperand(2));
-  CI->replaceAllUsesWith(Res);
-}
-
 // Translates an LLVM intrinsic to a form, digestable by the BE.
 bool translateLLVMIntrinsic(CallInst *CI) {
   Function *F = CI->getCalledFunction();
@@ -1186,9 +1256,6 @@ bool translateLLVMIntrinsic(CallInst *CI) {
     // no translation - it will be simply removed.
     // TODO: make use of 'assume' info in the BE
     break;
-  case Intrinsic::fmuladd:
-    translateFmuladd(CI);
-    break;
   default:
     return false; // "intrinsic wasn't translated, keep the original call"
   }
@@ -1196,8 +1263,8 @@ bool translateLLVMIntrinsic(CallInst *CI) {
 }
 
 /// Replaces the load \p LI of SPIRV global with a compile time known constant
-/// when possible. The replaced instructions are stored into the given container
-/// \p InstsToErase.
+/// when possible. The replaced instructions are stored into the given
+/// container \p InstsToErase.
 static void
 translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
                          SmallVectorImpl<Instruction *> &InstsToErase) {
@@ -1212,6 +1279,20 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
     InstsToErase.push_back(LI);
+  }
+}
+
+static void translateGlobalUse(Value *Use, StringRef SpirvGlobalName,
+                               SmallVectorImpl<Instruction *> &InstsToErase) {
+  LoadInst *LI = dyn_cast<LoadInst>(Use);
+  ConstantExpr *CE = dyn_cast<ConstantExpr>(Use);
+  GetElementPtrConstantExpr *GEPCE = dyn_cast<GetElementPtrConstantExpr>(Use);
+  if (LI != nullptr) {
+    translateSpirvGlobalUses(LI, SpirvGlobalName, InstsToErase);
+  } else if (CE != nullptr || GEPCE != nullptr) {
+    for (User *U : (CE == nullptr ? GEPCE : CE)->users()) {
+      translateGlobalUse(U, SpirvGlobalName, InstsToErase);
+    }
   }
 }
 
@@ -1296,8 +1377,8 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
 // This is used for lowering devicelib functions.
 // The function
 // 1. Generates spirv function definition
-// 2. Converts passed by reference argument of devicelib function into passed by
-// value argument of spirv functions
+// 2. Converts passed by reference argument of devicelib function into passed
+// by value argument of spirv functions
 // 3. Assigns proper attributes to generated function
 static Function *
 createDeviceLibESIMDDeclaration(const ESIMDIntrinDesc &Desc,
@@ -1355,7 +1436,8 @@ static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
 // __esimd_flat_read<int, 16>(
 //     sycl::_V1::ext::intel::experimental::esimd::__vector_type<unsigned long
 //     long, 16>::type,
-//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int, 16>::type)
+//     sycl::_V1::ext::intel::experimental::esimd::__vector_type<int,
+//     16>::type)
 //
 // ### Itanium-mangled name:
 //
@@ -1710,8 +1792,8 @@ void lowerGlobalStores(Module &M, const SmallPtrSetImpl<Type *> &GVTS) {
 // New IR:
 // ======
 //
-// @0 = dso_local global <16 x i32> zeroinitializer, align 64 #0 <-- New Global
-// Variable
+// @0 = dso_local global <16 x i32> zeroinitializer, align 64 #0 <-- New
+// Global Variable
 //
 // % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
 //        <16 x i32> addrspace(4) * getelementptr(
@@ -2015,6 +2097,18 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
     MPM.run(M, MAM);
   }
 
+  SmallVector<Instruction *, 8> ToErase;
+  constexpr size_t PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
+  for (GlobalVariable &Global : M.globals()) {
+    if (!Global.getName().starts_with(SPIRV_INTRIN_PREF))
+      continue;
+
+    for (User *U : Global.users())
+      translateGlobalUse(U, Global.getName().drop_front(PrefLen), ToErase);
+  }
+  for (auto *CI : ToErase)
+    CI->eraseFromParent();
+
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
   // uses the generated metadata:
@@ -2022,6 +2116,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
   lowerGlobalStores(M, GVTS);
   lowerGlobalsToVector(M);
+  // Translate named barrier allocations. This function needs to be run after
+  // generateKernelMetadata, as it uses the generated metadata.
+  translateNBarrierAllocations(M);
   for (auto &F : M.functions()) {
     AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
@@ -2077,12 +2174,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
       StringRef Name = Callee->getName();
 
-      // See if the Name represents an ESIMD intrinsic and demangle only if it
-      // does.
-      if (!Name.consume_front(ESIMD_INTRIN_PREF0) && !isDevicelibFunction(Name))
+      if (!isDevicelibFunction(Name))
+        Name = stripMangling(Name);
+
+      if (Name.empty())
         continue;
-      // now skip the digits
-      Name = Name.drop_while([](char C) { return std::isdigit(C); });
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
@@ -2120,8 +2216,9 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         continue;
       }
 
-      if (Name.starts_with("__esimd_nbarrier_init")) {
-        translateNbarrierInit(*CI);
+      // Remove the functions as the calls has been translated at this point.
+      if (Name.starts_with("__esimd_nbarrier_init") ||
+          Name.starts_with("__esimd_named_barrier_allocate")) {
         ToErase.push_back(CI);
         continue;
       }
@@ -2164,37 +2261,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         continue;
       // this is ESIMD intrinsic - record for later translation
       ESIMDIntrCalls.push_back(CI);
-    }
-
-    // Translate loads from SPIRV builtin globals into GenX intrinsics
-    auto *LI = dyn_cast<LoadInst>(&I);
-    if (LI) {
-      Value *LoadPtrOp = LI->getPointerOperand();
-      Value *SpirvGlobal = nullptr;
-      // Look through constant expressions to find SPIRV builtin globals
-      // It may come with or without cast.
-      auto *CE = dyn_cast<ConstantExpr>(LoadPtrOp);
-      auto *GEPCE = dyn_cast<GetElementPtrConstantExpr>(LoadPtrOp);
-      if (GEPCE) {
-        SpirvGlobal = GEPCE->getOperand(0);
-      } else if (CE) {
-        assert(CE->isCast() && "ConstExpr should be a cast");
-        SpirvGlobal = CE->getOperand(0);
-      } else {
-        SpirvGlobal = LoadPtrOp;
-      }
-
-      if (!isa<GlobalVariable>(SpirvGlobal) ||
-          !SpirvGlobal->getName().starts_with(SPIRV_INTRIN_PREF))
-        continue;
-
-      auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
-
-      // Translate all uses of the load instruction from SPIRV builtin global.
-      // Replaces the original global load and it is uses and stores the old
-      // instructions to ToErase.
-      translateSpirvGlobalUses(LI, SpirvGlobal->getName().drop_front(PrefLen),
-                               ToErase);
     }
   }
   // Now demangle and translate found ESIMD intrinsic calls

@@ -67,6 +67,8 @@ class PreprocessorOptions {
 public:
   std::vector<std::pair<std::string, bool/*isUndef*/>> Macros;
   std::vector<std::string> Includes;
+  std::string IncludeFooter;
+  std::string IncludeHeader;
   std::vector<std::string> MacroIncludes;
 
   /// Perform extra checks when loading PCM files for mutable file systems.
@@ -169,6 +171,9 @@ public:
   /// on the system (the first part of each pair) and gives them the contents
   /// of the specified memory buffer (the second part of each pair).
   std::vector<std::pair<std::string, llvm::MemoryBuffer *>> RemappedFileBuffers;
+
+  /// User specified embed entries.
+  std::vector<std::string> EmbedEntries;
 
   /// Whether the compiler instance should retain (i.e., not free)
   /// the buffers associated with remapped files.

@@ -105,6 +105,8 @@ class BumpPointerAllocator {
 public:
   BumpPointerAllocator()
       : BlockList(new(InitialBuffer) BlockMeta{nullptr, 0}) {}
+  BumpPointerAllocator(const BumpPointerAllocator &) = delete;
+  BumpPointerAllocator &operator=(const BumpPointerAllocator &) = delete;
 
   void *allocate(size_t N) {
     N = (N + 15u) & ~15u;
@@ -396,7 +398,8 @@ private:
           *AST, FDSpecialization->getDeclContext(), SourceLocation(),
           SourceLocation(), 0, TemplateIndex, &II, /* Typename */ true,
           /*ParameterPack*/ false);
-      TTPD->setDefaultArgument(AST->getTrivialTypeSourceInfo(TemplateArgQT));
+      TTPD->setDefaultArgument(*AST,
+        TemplateArgumentLoc());
 
       TemplateNamedDecls.emplace_back(TTPD);
       auto TA = TemplateArgument(TemplateArgQT);

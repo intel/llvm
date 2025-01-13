@@ -1,5 +1,5 @@
 // FIXME: Investigate OS-agnostic failures
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -14,7 +14,8 @@
 //
 //===------------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include <cassert>
 #include <iostream>

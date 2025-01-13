@@ -29,17 +29,17 @@ class ThreadPool {
   std::queue<std::function<void()>> MJobQueue;
   std::mutex MJobQueueMutex;
   std::condition_variable MDoSmthOrStop;
-  std::atomic_bool MStop;
+  bool MStop = false;
   std::atomic_uint MJobsInPool;
 
   void worker() {
     GlobalHandler::instance().registerSchedulerUsage(/*ModifyCounter*/ false);
     std::unique_lock<std::mutex> Lock(MJobQueueMutex);
     while (true) {
-      MDoSmthOrStop.wait(
-          Lock, [this]() { return !MJobQueue.empty() || MStop.load(); });
+      MDoSmthOrStop.wait(Lock,
+                         [this]() { return !MJobQueue.empty() || MStop; });
 
-      if (MStop.load())
+      if (MStop)
         break;
 
       std::function<void()> Job = std::move(MJobQueue.front());
@@ -57,7 +57,6 @@ class ThreadPool {
   void start() {
     MLaunchedThreads.reserve(MThreadCount);
 
-    MStop.store(false);
     MJobsInPool.store(0);
 
     for (size_t Idx = 0; Idx < MThreadCount; ++Idx)
@@ -74,10 +73,19 @@ public:
     start();
   }
 
-  ~ThreadPool() { finishAndWait(); }
+  ~ThreadPool() {
+    try {
+      finishAndWait();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
+    }
+  }
 
   void finishAndWait() {
-    MStop.store(true);
+    {
+      std::lock_guard<std::mutex> Lock(MJobQueueMutex);
+      MStop = true;
+    }
 
     MDoSmthOrStop.notify_all();
 

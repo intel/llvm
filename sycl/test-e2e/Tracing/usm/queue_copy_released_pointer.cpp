@@ -1,10 +1,11 @@
 // UNSUPPORTED: windows || hip_amd
 // RUN: %{build} -o %t.out
-// RUN: not env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
+// RUN: not --crash env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
 
 // Test parameter analysis of USM function
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   sycl::queue Q;

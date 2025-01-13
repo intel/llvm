@@ -177,9 +177,6 @@ struct nd_range_kernel_key {
 template<int Dims>
 inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 
-template<>
-struct is_property_key<nd_range_kernel_key> : std::true_type {};
-
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -218,9 +215,6 @@ struct single_task_kernel_key {
 };
 
 inline constexpr single_task_kernel_key::value_t single_task_kernel;
-
-template<>
-struct is_property_key<single_task_kernel_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -328,7 +322,6 @@ Otherwise `value` is `false`.
 
 The helper trait `is_kernel_v` provides the value of `value`.
 |====
-
 
 === New kernel bundle member functions
 
@@ -493,6 +486,117 @@ returns the `kernel` object representing that kernel.
 _Throws_: An `exception` with the error code `errc::invalid` if the kernel with
 address `Func` does not reside in this kernel bundle.
 |====
+
+=== New free functions to query kernel information descriptors
+
+This extension adds the following new free functions, which allow an application
+to query the kernel information descriptors for a free function kernel without
+first creating a kernel bundle.
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, typename Param>
+typename Param::return_type get_kernel_info(const context& ctxt);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+Available only if `Param` is an information descriptor for the `kernel` class,
+which can be used by the `kernel::get_info()` overload.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>();
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, typename Param>
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+Available only if `Param` is an information descriptor for the `kernel` class,
+which can be used by the `kernel::get_info(const device&)` overload.
+
+_Preconditions:_ The device `dev` must be one of the devices contained by `ctxt`
+or must be a descendent device of some device in `ctxt`.
+The kernel `Func` must be compatible with the device `dev` as defined by
+`is_compatible`.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename Func, typename Param>
+typename Param::return_type get_kernel_info(const queue& q);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+Available only if `Param` is an information descriptor for the `kernel` class,
+which can be used by the `kernel::get_info(const device&)` overload.
+
+_Preconditions:_ The kernel `Func` must be compatible with the device associated
+with `q` as defined by `is_compatible`.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+sycl::context ctxt = q.get_context();
+sycl::device dev = q.get_device();
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
 
 === Behavior with kernel bundle functions in the core SYCL specification
 
@@ -705,12 +809,12 @@ static constexpr size_t WGSIZE = 16;
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void iota(float start, float *ptr) {
   // Get the ID of this kernel iteration.
-  size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+  size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
 
   ptr[id] = start + static_cast<float>(id);
 }
 
-void main() {
+int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
 
@@ -771,6 +875,71 @@ int main() {
   sycl::kernel_id ping_int = syclexp::get_kernel_id<(void(*)(int))ping>();
 }
 ```
+
+
+[[level-zero-and-opencl-compatibility]]
+== {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
+
+The contents of this section are non-normative and apply only to the {dpcpp}
+implementation.
+Kernels written using the free function kernel syntax can be submitted to a
+device by using the Level Zero or OpenCL backends, without going through the
+SYCL host runtime APIs.
+
+The interface to the kernel in the native device code module is only guaranteed
+when the kernel adheres to the following restrictions:
+
+* The kernel is written in the free function kernel syntax;
+* The kernel function is declared as `extern "C"`;
+* Each formal argument to the kernel is either a {cpp} trivially copyable type
+  or the `work_group_memory` type (see
+  link:../proposed/sycl_ext_oneapi_work_group_memory.asciidoc[
+  sycl_ext_oneapi_work_group_memory]); and
+* The translation unit containing the kernel is compiled with the
+  `-fno-sycl-dead-args-optimization` option.
+
+In order to invoke a kernel using Level Zero or OpenCL, the application must
+first obtain the raw backend content of the device image that contains the
+kernel.
+One way to do this is by using
+link:../proposed/sycl_ext_oneapi_device_image_backend_content.asciidoc[
+sycl_ext_oneapi_device_image_backend_content].
+It is also possible to compile the application in AOT mode via the
+`-fsycl-targets` compiler option and then extract the device image's backend
+content from the executable file.
+
+Both Level Zero and OpenCL identify a kernel via a _name_ string.
+(See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)
+When a kernel is defined according to the restrictions above, the _name_ is
+guaranteed to be the same as the name of the kernel's function in the {cpp}
+source code but with "++__sycl_kernel_++" prefixed.
+For example, if the function name is "foo", the kernel's name in the native
+device code module is "++__sycl_kernel_foo++".
+
+Both Level Zero and OpenCL set kernel argument values using three pieces of
+information:
+
+* The index of the argument;
+* The size (in bytes) of the value; and
+* A pointer to the start of the value.
+
+(See `zeKernelSetArgumentValue` and `clSetKernelArg` in their respective
+specifications.)
+
+When a kernel is defined according to the restrictions above, the argument
+indices are the same as the positions of the formal kernel arguments in the
+{cpp} source code.
+The first argument has index 0, the next has index 1, etc.
+
+If an argument has a trivially copyable type, the size must be the size of that
+type, and the pointer must point to a memory region that has the same size and
+representation as that trivially copyable type.
+
+If an argument has the type `work_group_memory`, the size must be the size (in
+bytes) of the device local memory that is represented by the
+`work_group_memory` argument.
+The pointer passed to  `zeKernelSetArgumentValue` or `clSetKernelArg` must be
+NULL in this case.
 
 
 == Implementation notes
@@ -907,6 +1076,13 @@ int main() {
 ```
 +
 Where `kfp` would have some nicer name.
++
+With either form above, it seems like we have enough type information for the
+header to check that the types of the actual kernel arguments are implicitly
+convertible to the types of the formal kernel parameters, and we can raise a
+compile-time error if they are not.
+In addition, the header can perform any necessary implicit conversions when
+setting the kernel argument values.
 
 * We are debating whether we should allow a free function kernel to be defined
   with an initial "iteration index" parameter such as:

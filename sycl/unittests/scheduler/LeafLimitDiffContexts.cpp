@@ -10,8 +10,8 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -36,8 +36,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
       DisableCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
 
-  // Ensure the mock plugin has been initialized prior to selecting a device.
-  unittest::PiMock::EnsureMockPluginInitialized();
+  // Ensure the mock adapter has been initialized prior to selecting a device.
+  sycl::unittest::UrMock<> Mock;
 
   device Device;
   struct QueueRelatedObjects {
@@ -52,16 +52,16 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
           AllocaCmd(nullptr) {}
 
     void InitializeUtils(detail::Requirement &MockReq, MockScheduler &MS) {
-      std::vector<detail::Command *> ToEnqueue;
-      Rec = MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Queue), &MockReq,
-                                       ToEnqueue);
+
+      Rec = MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Queue), &MockReq);
       // Creating Alloca on both - device and host contexts (will be created in
       // real case in insertMemMove for example) It is done to avoid extra
       // AllocCmd insertion during ConnectCmd insertion
+      std::vector<detail::Command *> ToEnqueue;
       AllocaCmd = MS.getOrCreateAllocaForReq(
           Rec, &MockReq, detail::getSyclObjImpl(Queue), ToEnqueue);
-      std::ignore = MS.getOrCreateAllocaForReq(
-          Rec, &MockReq, MS.getDefaultHostQueue(), ToEnqueue);
+      std::ignore =
+          MS.getOrCreateAllocaForReq(Rec, &MockReq, nullptr, ToEnqueue);
       DepCmd =
           std::make_unique<MockCommand>(detail::getSyclObjImpl(Queue), MockReq);
     }

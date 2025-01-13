@@ -17,6 +17,7 @@
 
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/CodeGen/MachinePassManager.h"
+#include "llvm/CodeGen/RegAllocCommon.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/Error.h"
@@ -24,8 +25,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/Inliner.h"
 #include "llvm/Transforms/IPO/ModuleInliner.h"
-#include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -248,8 +249,9 @@ public:
   /// optimization and code generation without any link-time optimization. It
   /// typically correspond to frontend "-O[123]" options for optimization
   /// levels \c O1, \c O2 and \c O3 resp.
-  ModulePassManager buildPerModuleDefaultPipeline(OptimizationLevel Level,
-                                                  bool LTOPreLink = false);
+  ModulePassManager buildPerModuleDefaultPipeline(
+      OptimizationLevel Level,
+      ThinOrFullLTOPhase Phase = ThinOrFullLTOPhase::None);
 
   /// Build a fat object default optimization pipeline.
   ///
@@ -299,8 +301,9 @@ public:
   /// Build an O0 pipeline with the minimal semantically required passes.
   ///
   /// This should only be used for non-LTO and LTO pre-link pipelines.
-  ModulePassManager buildO0DefaultPipeline(OptimizationLevel Level,
-                                           bool LTOPreLink = false);
+  ModulePassManager
+  buildO0DefaultPipeline(OptimizationLevel Level,
+                         ThinOrFullLTOPhase Phase = ThinOrFullLTOPhase::None);
 
   /// Constructs a optimization pipeline of a SYCL framework part of code
   /// and appends it to the given MPM.
@@ -396,6 +399,10 @@ public:
   /// returns false.
   Error parseAAPipeline(AAManager &AA, StringRef PipelineText);
 
+  /// Parse RegAllocFilterName to get RegAllocFilterFunc.
+  std::optional<RegAllocFilterFunc>
+  parseRegAllocFilter(StringRef RegAllocFilterName);
+
   /// Print pass names.
   void printPassNames(raw_ostream &OS);
 
@@ -481,7 +488,8 @@ public:
   /// This extension point allows adding optimization right after passes that do
   /// basic simplification of the input IR.
   void registerPipelineEarlySimplificationEPCallback(
-      const std::function<void(ModulePassManager &, OptimizationLevel)> &C) {
+      const std::function<void(ModulePassManager &, OptimizationLevel,
+                               ThinOrFullLTOPhase)> &C) {
     PipelineEarlySimplificationEPCallbacks.push_back(C);
   }
 
@@ -490,7 +498,8 @@ public:
   /// This extension point allows adding optimizations before the function
   /// optimization pipeline.
   void registerOptimizerEarlyEPCallback(
-      const std::function<void(ModulePassManager &, OptimizationLevel)> &C) {
+      const std::function<void(ModulePassManager &, OptimizationLevel,
+                               ThinOrFullLTOPhase Phase)> &C) {
     OptimizerEarlyEPCallbacks.push_back(C);
   }
 
@@ -499,7 +508,8 @@ public:
   /// This extension point allows adding optimizations at the very end of the
   /// function optimization pipeline.
   void registerOptimizerLastEPCallback(
-      const std::function<void(ModulePassManager &, OptimizationLevel)> &C) {
+      const std::function<void(ModulePassManager &, OptimizationLevel,
+                               ThinOrFullLTOPhase)> &C) {
     OptimizerLastEPCallbacks.push_back(C);
   }
 
@@ -584,6 +594,14 @@ public:
   }
   /// @}}
 
+  /// Register callbacks to parse target specific filter field if regalloc pass
+  /// needs it. E.g. AMDGPU requires regalloc passes can handle sgpr and vgpr
+  /// separately.
+  void registerRegClassFilterParsingCallback(
+      const std::function<RegAllocFilterFunc(StringRef)> &C) {
+    RegClassFilterParsingCallbacks.push_back(C);
+  }
+
   /// Register a callback for a top-level pipeline entry.
   ///
   /// If the PassManager type is not given at the top level of the pipeline
@@ -622,9 +640,11 @@ public:
   void invokeVectorizerStartEPCallbacks(FunctionPassManager &FPM,
                                         OptimizationLevel Level);
   void invokeOptimizerEarlyEPCallbacks(ModulePassManager &MPM,
-                                       OptimizationLevel Level);
+                                       OptimizationLevel Level,
+                                       ThinOrFullLTOPhase Phase);
   void invokeOptimizerLastEPCallbacks(ModulePassManager &MPM,
-                                      OptimizationLevel Level);
+                                      OptimizationLevel Level,
+                                      ThinOrFullLTOPhase Phase);
   void invokeFullLinkTimeOptimizationEarlyEPCallbacks(ModulePassManager &MPM,
                                                       OptimizationLevel Level);
   void invokeFullLinkTimeOptimizationLastEPCallbacks(ModulePassManager &MPM,
@@ -632,7 +652,8 @@ public:
   void invokePipelineStartEPCallbacks(ModulePassManager &MPM,
                                       OptimizationLevel Level);
   void invokePipelineEarlySimplificationEPCallbacks(ModulePassManager &MPM,
-                                                    OptimizationLevel Level);
+                                                    OptimizationLevel Level,
+                                                    ThinOrFullLTOPhase Phase);
 
   static bool checkParametrizedPassName(StringRef Name, StringRef PassName) {
     if (!Name.consume_front(PassName))
@@ -731,6 +752,7 @@ private:
                          bool AtomicCounterUpdate, std::string ProfileFile,
                          std::string ProfileRemappingFile,
                          IntrusiveRefCntPtr<vfs::FileSystem> FS);
+  void addPostPGOLoopRotation(ModulePassManager &MPM, OptimizationLevel Level);
 
   // Extension Point callbacks
   SmallVector<std::function<void(FunctionPassManager &, OptimizationLevel)>, 2>
@@ -746,9 +768,13 @@ private:
   SmallVector<std::function<void(FunctionPassManager &, OptimizationLevel)>, 2>
       VectorizerStartEPCallbacks;
   // Module callbacks
-  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
+  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel,
+                                 ThinOrFullLTOPhase)>,
+              2>
       OptimizerEarlyEPCallbacks;
-  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
+  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel,
+                                 ThinOrFullLTOPhase)>,
+              2>
       OptimizerLastEPCallbacks;
   SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
       FullLinkTimeOptimizationEarlyEPCallbacks;
@@ -756,7 +782,9 @@ private:
       FullLinkTimeOptimizationLastEPCallbacks;
   SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
       PipelineStartEPCallbacks;
-  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
+  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel,
+                                 ThinOrFullLTOPhase)>,
+              2>
       PipelineEarlySimplificationEPCallbacks;
 
   SmallVector<std::function<void(ModuleAnalysisManager &)>, 2>
@@ -799,6 +827,9 @@ private:
                                  ArrayRef<PipelineElement>)>,
               2>
       MachineFunctionPipelineParsingCallbacks;
+  // Callbacks to parse `filter` parameter in register allocation passes
+  SmallVector<std::function<RegAllocFilterFunc(StringRef)>, 2>
+      RegClassFilterParsingCallbacks;
 };
 
 /// This utility template takes care of adding require<> and invalidate<>
@@ -934,6 +965,10 @@ public:
     return Result();
   }
 };
+
+/// Common option used by multiple tools to print pipeline passes
+extern cl::opt<bool> PrintPipelinePasses;
+
 }
 
 #endif

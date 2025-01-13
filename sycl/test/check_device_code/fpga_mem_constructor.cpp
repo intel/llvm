@@ -29,14 +29,7 @@ public:
 
 // CHECK: call {{.*}}sqrt
 
-int main() {
-  queue Q;
-  int f = 5;
-
-  Q.single_task([=]() {
-    intel::fpga_mem<foo> mem{42};
-
-    volatile int ReadVal = mem.get().secret;
-  });
-  return 0;
+SYCL_EXTERNAL void fpga_mem_constructor() {
+  intel::fpga_mem<foo> mem{42};
+  volatile int ReadVal = mem.get().secret;
 }

@@ -1,15 +1,15 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -O0 < %t.ll | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -O0 < %t.ll | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -O0 < %t.ll | FileCheck %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

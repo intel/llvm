@@ -40,6 +40,7 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * amdgcn-amd-amdhsa - generate code ahead of time for HIP target;
     * native_cpu - allows to run SYCL applications with no need of an 
     additional backend (note that this feature is WIP and experimental, and 
     currently overrides all the other specified SYCL targets when enabled.)
@@ -47,6 +48,8 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
+    * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
+    * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
     * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
     * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture
@@ -91,9 +94,13 @@ and not recommended to use in production environment.
     * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
     * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
     * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
+    * nvidia_gpu_sm_90a - NVIDIA Hopper architecture (with wgmma and setmaxnreg instructions)
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx703 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx704 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx705 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
@@ -103,13 +110,13 @@ and not recommended to use in production environment.
     * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (CDNA1) architecture
     * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (CDNA2) architecture
     * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (CDNA3) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -134,9 +141,8 @@ and not recommended to use in production environment.
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
-    SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1 [DEPRECATED]
-    * 2020 - SYCL 2020
+    SYCL language standard to compile for. Currently the possible value is:
+    * 2020 - for SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
     It is under development and not recommended to use in production
@@ -147,7 +153,7 @@ and not recommended to use in production environment.
 
     Enables/Disables unnamed SYCL lambda kernels support.
     The default value depends on the SYCL language standard: it is enabled
-    by default for SYCL 2020, and disabled for SYCL 1.2.1.
+    by default for SYCL 2020.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -195,6 +201,19 @@ and not recommended to use in production environment.
     which may or may not perform additional inlining.
     Default value is 225.
 
+**`--offload-compress`**
+
+    Enables device image compression for SYCL offloading. Device images
+    are compressed using `zstd` compression algorithm and only if their size
+    exceeds 512 bytes.
+    Default value is false.
+
+**`--offload-compression-level=<int>`**
+
+    `zstd` compression level used to compress device images when `--offload-
+    compress` is enabled.
+    The default value is 10.
+
 ## Target toolchain options
 
 **`-Xsycl-target-backend=<T> "options"`**
@@ -227,44 +246,6 @@ and not recommended to use in production environment.
     Link device object modules and wrap those into a host-compatible object
     module that can be linked later by any standard host linker into the final
     fat binary.
-
-**`-fsycl-link-targets=<T1,...,Tn>`** [DEPRECATED]
-
-    Specify comma-separated list of triples SYCL offloading targets to produce
-    linked device images. Used in a link step to link device code for given
-    targets and output multiple linked device code images, whose names consist
-    of the common prefix taken from the -o option and the triple string.
-    Does not produce fat binary and must be used together with -fsycl.
-
-**`-fsycl-add-targets=<T1:file1...Tn:filen>`** [DEPRECATED]
-
-    Add arbitrary device images to the fat binary being linked
-
-    Specify comma-separated list of triple and device binary image file name
-    pairs to add to the final SYCL binary. Tells clang to include given set of
-    device binaries into the fat SYCL binary when linking; the option value is
-    a set of pairs triple,filename - filename is treated as the device binary
-    image for the target triple it is paired with, and offload bundler is
-    invoked to do the actual bundling.
-
-**`-foffload-static-lib=<lib>`** [DEPRECATED]
-
-    Link with fat static library.
-
-    Link with <lib>, which is a fat static archive containing fat objects which
-    correspond to the target device. When linking clang will extract the device
-    code from the objects contained in the library and link it with other
-    device objects coming from the individual fat objects passed on the command
-    line.
-    NOTE:  Any libraries that are passed on the command line which are not
-    specified with `-foffload-static-lib` are treated as host libraries and are
-    only used during the final host link.
-
-**`-foffload-whole-static-lib=<lib>`** [DEPRECATED]
-
-    Similar to `-foffload-static-lib` but uses the whole archive when
-    performing the device code extraction.  This is helpful when creating
-    shared objects from fat static archives.
 
 **`-fsycl-device-code-split=<mode>`**
 
@@ -321,16 +302,6 @@ and not recommended to use in production environment.
     device libraries for VTune(R). This provides annotations to intercept
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
-
-**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
-
-    Place device code later in the linked binary in order to avoid precluding
-    32-bit PC relative relocations between surrounding ELF sections when device
-    code is larger than 2GiB. This is disabled by default.
-
-    Deprecated in favor of `-f[no-]link-huge-device-code`.
-
-    NOTE: This option is currently only supported on Linux.
 
 **`-fsycl-force-target=<T>`**
 

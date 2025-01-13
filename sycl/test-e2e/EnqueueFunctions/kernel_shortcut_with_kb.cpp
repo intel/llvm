@@ -1,4 +1,4 @@
-// REQUIRES: usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -21,8 +21,8 @@ constexpr size_t N = 1024;
 int main() {
   sycl::queue Q;
 
-  if (!oneapiext::is_source_kernel_bundle_supported(
-          Q.get_backend(), oneapiext::source_language::opencl)) {
+  if (!Q.get_device().ext_oneapi_can_compile(
+          oneapiext::source_language::opencl)) {
     std::cout
         << "Backend does not support OpenCL C source kernel bundle extension: "
         << Q.get_backend() << std::endl;
@@ -94,18 +94,16 @@ int main() {
     Failed += Check(Memory, 48, I, "3D nd_launch shortcut");
 
   // 1D parallel_for shortcut with launch config
-  oneapiext::parallel_for(
-      Q, oneapiext::launch_config<sycl::range<1>>{sycl::range<1>{N}}, Kernel1D,
-      49, Memory);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{sycl::range<1>{N}},
+                          Kernel1D, 49, Memory);
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed +=
         Check(Memory, 49, I, "1D parallel_for shortcut with launch config");
 
   // 2D parallel_for shortcut with launch config
-  oneapiext::parallel_for(
-      Q, oneapiext::launch_config<sycl::range<2>>{sycl::range<2>{8, N / 8}},
-      Kernel2D, 50, Memory);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{sycl::range<2>{8, N / 8}},
+                          Kernel2D, 50, Memory);
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed +=
@@ -113,39 +111,36 @@ int main() {
 
   // 3D parallel_for shortcut with launch config
   oneapiext::parallel_for(
-      Q, oneapiext::launch_config<sycl::range<3>>{sycl::range<3>{8, 8, N / 64}},
-      Kernel3D, 51, Memory);
+      Q, oneapiext::launch_config{sycl::range<3>{8, 8, N / 64}}, Kernel3D, 51,
+      Memory);
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed +=
         Check(Memory, 51, I, "3D parallel_for shortcut with launch config");
 
   // 1D nd_launch shortcut with launch config
-  oneapiext::nd_launch(
-      Q,
-      oneapiext::launch_config<sycl::nd_range<1>>{
-          sycl::nd_range<1>{sycl::range<1>{N}, sycl::range{8}}},
-      Kernel1D, 52, Memory);
+  oneapiext::nd_launch(Q,
+                       oneapiext::launch_config{sycl::nd_range<1>{
+                           sycl::range<1>{N}, sycl::range{8}}},
+                       Kernel1D, 52, Memory);
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 52, I, "1D nd_launch shortcut with launch config");
 
   // 2D nd_launch shortcut with launch config
-  oneapiext::nd_launch(
-      Q,
-      oneapiext::launch_config<sycl::nd_range<2>>{
-          sycl::nd_range<2>{sycl::range<2>{8, N / 8}, sycl::range{8, 8}}},
-      Kernel2D, 53, Memory);
+  oneapiext::nd_launch(Q,
+                       oneapiext::launch_config{sycl::nd_range<2>{
+                           sycl::range<2>{8, N / 8}, sycl::range{8, 8}}},
+                       Kernel2D, 53, Memory);
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 53, I, "2D nd_launch shortcut with launch config");
 
   // 3D nd_launch shortcut with launch config
-  oneapiext::nd_launch(
-      Q,
-      oneapiext::launch_config<sycl::nd_range<3>>{sycl::nd_range<3>{
-          sycl::range<3>{8, 8, N / 64}, sycl::range{8, 8, 8}}},
-      Kernel3D, 54, Memory);
+  oneapiext::nd_launch(Q,
+                       oneapiext::launch_config{sycl::nd_range<3>{
+                           sycl::range<3>{8, 8, N / 64}, sycl::range{8, 8, 8}}},
+                       Kernel3D, 54, Memory);
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 54, I, "3D nd_launch shortcut with launch config");

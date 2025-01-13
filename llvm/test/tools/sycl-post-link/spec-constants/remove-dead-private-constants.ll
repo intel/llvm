@@ -1,10 +1,10 @@
 ; Test checks the content of simple generated device image.
 ; It checks for removal of unused private constants.
 
-; RUN: sycl-post-link -split=auto -spec-const=native -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -properties -split=auto -spec-const=native -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file %t_0.ll -check-prefix=CHECK-IR0
 ; RUN: FileCheck %s -input-file %t_1.ll -check-prefix=CHECK-IR1
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -split=auto -spec-const=native -symbols -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst -split=auto -spec-const=native -symbols -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
 ; CHECK-IR0-NOT: @__usid_str = private
 ; CHECK-IR1-NOT: @__usid_str = private

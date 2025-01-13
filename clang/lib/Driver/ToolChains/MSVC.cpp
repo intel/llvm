@@ -126,6 +126,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   else if (TC.getTriple().isWindowsArm64EC())
     CmdArgs.push_back("-machine:arm64ec");
 
+  if (const Arg *A = Args.getLastArg(options::OPT_fveclib)) {
+    StringRef V = A->getValue();
+    if (V == "ArmPL")
+      CmdArgs.push_back(Args.MakeArgString("--dependent-lib=amath"));
+  }
+
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
@@ -150,13 +156,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
-
-  for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-defaultlib:") + A->getValue()));
-  for (const auto *A : Args.filtered(options::OPT_foffload_whole_static_lib_EQ))
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-wholearchive:") + A->getValue()));
 
   // Suppress multiple section warning LNK4078
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
@@ -206,7 +205,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           Args.MakeArgString(std::string("-libpath:") + WindowsSdkLibPath));
   }
 
-  if (C.getDriver().IsFlangMode()) {
+  if (!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_L))
+    for (const auto &LibPath : Args.getAllArgValues(options::OPT_L))
+      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
+
+  if (C.getDriver().IsFlangMode() &&
+      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
     addFortranRuntimeLibraryPath(TC, Args, CmdArgs);
     addFortranRuntimeLibs(TC, Args, CmdArgs);
 
@@ -225,10 +229,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   auto CRTPath = TC.getCompilerRTPath();
   if (TC.getVFS().exists(CRTPath))
     CmdArgs.push_back(Args.MakeArgString("-libpath:" + CRTPath));
-
-  if (!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_L))
-    for (const auto &LibPath : Args.getAllArgValues(options::OPT_L))
-      CmdArgs.push_back(Args.MakeArgString("-libpath:" + LibPath));
 
   CmdArgs.push_back("-nologo");
 
@@ -273,10 +273,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (TC.getSanitizerArgs(Args).needsAsanRt()) {
     CmdArgs.push_back(Args.MakeArgString("-debug"));
     CmdArgs.push_back(Args.MakeArgString("-incremental:no"));
-    if (TC.getSanitizerArgs(Args).needsSharedRt() ||
-        Args.hasArg(options::OPT__SLASH_MD, options::OPT__SLASH_MDd)) {
-      for (const auto &Lib : {"asan_dynamic", "asan_dynamic_runtime_thunk"})
-        CmdArgs.push_back(TC.getCompilerRTArgString(Args, Lib));
+    CmdArgs.push_back(TC.getCompilerRTArgString(Args, "asan_dynamic"));
+    auto defines = Args.getAllArgValues(options::OPT_D);
+    if (Args.hasArg(options::OPT__SLASH_MD, options::OPT__SLASH_MDd) ||
+        find(begin(defines), end(defines), "_DLL") != end(defines)) {
       // Make sure the dynamic runtime thunk is not optimized out at link time
       // to ensure proper SEH handling.
       CmdArgs.push_back(Args.MakeArgString(
@@ -285,19 +285,15 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
               : "-include:__asan_seh_interceptor"));
       // Make sure the linker consider all object files from the dynamic runtime
       // thunk.
-      CmdArgs.push_back(Args.MakeArgString(std::string("-wholearchive:") +
+      CmdArgs.push_back(Args.MakeArgString(
+          std::string("-wholearchive:") +
           TC.getCompilerRT(Args, "asan_dynamic_runtime_thunk")));
-    } else if (DLL) {
-      CmdArgs.push_back(TC.getCompilerRTArgString(Args, "asan_dll_thunk"));
     } else {
-      for (const auto &Lib : {"asan", "asan_cxx"}) {
-        CmdArgs.push_back(TC.getCompilerRTArgString(Args, Lib));
-        // Make sure the linker consider all object files from the static lib.
-        // This is necessary because instrumented dlls need access to all the
-        // interface exported by the static lib in the main executable.
-        CmdArgs.push_back(Args.MakeArgString(std::string("-wholearchive:") +
-            TC.getCompilerRT(Args, Lib)));
-      }
+      // Make sure the linker consider all object files from the static runtime
+      // thunk.
+      CmdArgs.push_back(Args.MakeArgString(
+          std::string("-wholearchive:") +
+          TC.getCompilerRT(Args, "asan_static_runtime_thunk")));
     }
   }
 
@@ -514,7 +510,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
     : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args),
-      RocmInstallation(D, Triple, Args) {
+      RocmInstallation(D, Triple, Args), SYCLInstallation(D) {
   getProgramPaths().push_back(getDriver().Dir);
 
   std::optional<llvm::StringRef> VCToolsDir, VCToolsVersion;
@@ -591,6 +587,11 @@ void MSVCToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                       ArgStringList &CC1Args) const {
   RocmInstallation->AddHIPIncludeArgs(DriverArgs, CC1Args);
+}
+
+void MSVCToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+                                       ArgStringList &CC1Args) const {
+  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 void MSVCToolChain::AddHIPRuntimeLibArgs(const ArgList &Args,
@@ -949,7 +950,7 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
           DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "s");
         } else if (OptChar == '2' || OptChar == 'x') {
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
-          DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "2");
+          DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "3");
         } else if (OptChar == '3') {
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_fbuiltin));
           DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "3");
@@ -971,6 +972,7 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_finline_hint_functions));
           break;
         case '2':
+        case '3':
           DAL.AddFlagArg(A, Opts.getOption(options::OPT_finline_functions));
           break;
         }
@@ -992,7 +994,7 @@ static void TranslateOptArg(Arg *A, llvm::opt::DerivedArgList &DAL,
       DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "s");
       break;
     case 't':
-      DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "2");
+      DAL.AddJoinedArg(A, Opts.getOption(options::OPT_O), "3");
       break;
     case 'y': {
       bool OmitFramePointer = true;
