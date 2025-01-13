@@ -32,10 +32,10 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # tag v0.10.0
     # Tagger: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-    # Date:   Mon Dec 9 17:01:43 2024 +0100
-    set(UMF_TAG v0.10.0)
+    # Date:   Fri Jan 10 13:30:49 2025 +0100
+    # 0.10.1 release
+    set(UMF_TAG v0.10.1)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
