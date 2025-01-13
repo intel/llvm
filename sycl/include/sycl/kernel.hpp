@@ -137,8 +137,11 @@ public:
             int = detail::emit_get_backend_info_error<kernel, Param>()
 #endif
             >
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
