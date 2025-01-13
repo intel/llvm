@@ -692,6 +692,25 @@ private:
     return "_Z" + std::to_string(Name.length()) + Name;
   }
 
+  bool is_valid_device(const device &DeviceCand) {
+    // Check if the device is in this bundle's list of devices.
+    if (std::count(MDevices.begin(), MDevices.end(), DeviceCand)) {
+      return true;
+    }
+
+    // Otherwise, if the device candidate is a sub-device it is also valid if
+    // its parent is valid.
+    if (!getSyclObjImpl(DeviceCand)->isRootDevice()) {
+      try {
+        return is_valid_device(
+            DeviceCand.get_info<info::device::parent_device>());
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in is_valid_device", e);
+      }
+    }
+    return false;
+  }
+
   const DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name,
                                                       const device &Dev) {
     if (Language != syclex::source_language::sycl_jit || Prefix.empty()) {
@@ -779,11 +798,7 @@ public:
 
   bool ext_oneapi_has_device_global(const std::string &Name,
                                     const device &Dev) {
-    if (!std::any_of(
-            MDevices.begin(), MDevices.end(),
-            [&Dev](const device &DevCand) { return Dev == DevCand; })) {
-      // TODO: device_image::has_kernel(id, device) checks the  device if the
-      //       given device is a sub-device.
+    if (!is_valid_device(Dev)) {
       return false;
     }
 
