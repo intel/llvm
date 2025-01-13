@@ -278,6 +278,8 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
             const auto &GVInfo = GVInfos[i];
             UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
                                                             GVInfo.Size, 0));
+            ContextInfo->MaxAllocatedSize =
+                std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
         }
     }
 
