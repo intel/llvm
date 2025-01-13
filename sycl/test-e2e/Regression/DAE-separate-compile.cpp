@@ -11,7 +11,6 @@
 // Failing on HIP AMD, enable after fixed
 // UNSUPPORTED: hip
 
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
