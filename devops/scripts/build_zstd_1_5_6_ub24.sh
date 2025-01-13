@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Script to build and install zstd 1.5.6 on Ubuntu 24, with -fPIC flag.
+# The default installation of zstd on Ubuntu 24 does not have -fPIC flag
+# enabled, which is required for building DPC++ in shared libraries mode.
+
 # Function to check if the OS is Ubuntu 24
 check_os() {
     . /etc/os-release
@@ -30,7 +34,8 @@ uninstall_libzstd_dev() {
     fi
 }
 
-# Function to build and run a simple test program
+# Function to build a shared library by linking zstd static lib.
+# This is used to verify that zstd is built correctly, with -fPIC flag.
 build_test_program() {
     cat <<EOF > test_zstd.c
       #include <zstd.h>
@@ -73,21 +78,19 @@ ZSTD_URL="https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd
 mkdir -p zstd_build
 cd zstd_build
 
-# Download the source code
+# Download and extract zstd source code
 wget $ZSTD_URL
-
-# Extract the tarball
 tar -xzf zstd-$ZSTD_VERSION.tar.gz
 cd zstd-$ZSTD_VERSION
 
-# Build zstd with -fPIC flag for both static and dynamic libraries
-CFLAGS="-fPIC" make
+# Build zstd with -fPIC flag.
+CFLAGS="-fPIC" CXXFLAGS="-fPIC" make
 if [ $? -ne 0 ]; then
     echo "Error: make failed."
     exit 1
 fi
 
-# Optionally, install zstd
+# Install zstd.
 if [ "$USE_SUDO" = true ]; then
     sudo make install
 else
