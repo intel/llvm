@@ -8,7 +8,7 @@ add_ur_library(test_collector SHARED
 )
 
 target_include_directories(test_collector PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/include
 )
 
 target_link_libraries(test_collector PRIVATE ${TARGET_XPTI})
