@@ -13,7 +13,7 @@ import os
 import re
 
 
-def get_triple(test, backend):
+def get_triple(backend):
     if backend == "cuda":
         return "nvptx64-nvidia-cuda"
     if backend == "hip":
@@ -168,17 +168,25 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             for sycl_device in devices_for_test:
                 (backend, _) = sycl_device.split(":")
-                triples.add(get_triple(test, backend))
+                triples.add(get_triple(backend))
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
+
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
-        # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
-        # -that new tests by default would runnable there (unless they have
-        # -other restrictions).
+
+        sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
+        if get_triple("hip") in triples:
+            sycl_target_opts += (
+                " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(
+                    test.config.amd_arch
+                )
+            )
+        substitutions.append(("%{sycl_target_opts}", sycl_target_opts))
+
         substitutions.append(
             (
                 "%{build}",
-                "%clangxx -fsycl -fsycl-targets=%{sycl_triple} %verbose_print %s",
+                "%clangxx -fsycl %{sycl_target_opts} %verbose_print %s",
             )
         )
         if platform.system() == "Windows":
