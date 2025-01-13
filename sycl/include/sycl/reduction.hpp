@@ -389,7 +389,7 @@ public:
   static constexpr bool has_identity = true;
 
   ReductionIdentityContainer(const T &) {}
-  ReductionIdentityContainer() {}
+  ReductionIdentityContainer() = default;
 
   /// Returns the statically known identity value.
   static constexpr T getIdentity() {
@@ -406,6 +406,10 @@ public:
   static constexpr bool has_identity = true;
 
   ReductionIdentityContainer(const T &Identity) : MIdentity(Identity) {}
+
+  // Make it trivially copyable (need at least on of the special member
+  // functions):
+  ReductionIdentityContainer(const ReductionIdentityContainer &) = default;
 
   /// Returns the identity value given by user.
   T getIdentity() const { return MIdentity; }
@@ -2333,6 +2337,10 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
     using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
                                          reduction::strategy::multi,
                                          decltype(KernelTag)>;
+
+    static_assert(is_device_copyable_v<decltype(IdentitiesTuple)>);
+    static_assert(is_device_copyable_v<decltype(BOPsTuple)>);
+    static_assert(is_device_copyable_v<decltype(InitToIdentityProps)>);
 
     CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
       // We can deduce IsOneWG from the tag type.
