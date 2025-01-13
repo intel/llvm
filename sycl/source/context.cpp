@@ -99,8 +99,11 @@ context::get_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 template <typename Param>
+__SYCL_DEPRECATED(
+    "Use sycl::ext::oneapi::experimental::single_task (provided in the "
+    "sycl_ext_oneapi_enqueue_functions extension) instead.")
 typename detail::is_backend_info_desc<Param>::return_type
-context::get_backend_info() const {
+    context::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
 
