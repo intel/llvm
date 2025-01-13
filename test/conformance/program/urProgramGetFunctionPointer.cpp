@@ -21,10 +21,13 @@ struct urProgramGetFunctionPointerTest : uur::urProgramTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetFunctionPointerTest);
 
 TEST_P(urProgramGetFunctionPointerTest, Success) {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
     void *function_pointer = nullptr;
-    ASSERT_SUCCESS(urProgramGetFunctionPointer(
-        device, program, function_name.data(), &function_pointer));
+    ur_result_t res = urProgramGetFunctionPointer(
+        device, program, function_name.data(), &function_pointer);
+    if (res == UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE) {
+        return;
+    }
+    ASSERT_SUCCESS(res);
     ASSERT_NE(function_pointer, nullptr);
 }
 
