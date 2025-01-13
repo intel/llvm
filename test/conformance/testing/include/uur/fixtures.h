@@ -358,44 +358,6 @@ template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
   ur_sampler_desc_t sampler_desc;
 };
 
-template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
-  void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
-    ur_bool_t imageSupported = false;
-    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
-                                   sizeof(ur_bool_t), &imageSupported,
-                                   nullptr));
-    if (!imageSupported) {
-      GTEST_SKIP();
-    }
-    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-        urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE, &format, &desc,
-                         nullptr, &image));
-    ASSERT_NE(nullptr, image);
-  }
-
-  void TearDown() override {
-    if (image) {
-      EXPECT_SUCCESS(urMemRelease(image));
-    }
-    UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
-  }
-  ur_mem_handle_t image = nullptr;
-  ur_image_format_t format = {UR_IMAGE_CHANNEL_ORDER_RGBA,
-                              UR_IMAGE_CHANNEL_TYPE_FLOAT};
-  ur_image_desc_t desc = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
-                          nullptr,                      // pNext
-                          UR_MEM_TYPE_IMAGE1D,          // mem object type
-                          1024,                         // image width
-                          1,                            // image height
-                          1,                            // image depth
-                          1,                            // array size
-                          0,                            // row pitch
-                          0,                            // slice pitch
-                          0,                            // mip levels
-                          0};                           // num samples
-};
-
 struct urQueueTest : urContextTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());

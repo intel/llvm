@@ -5,93 +5,235 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
-#include <uur/known_failure.h>
+#include <uur/optional_queries.h>
 
-struct urMemImageGetInfoTest : uur::urMemImageTestWithParam<ur_image_info_t> {
-  void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-    UUR_RETURN_ON_FATAL_FAILURE(
-        uur::urMemImageTestWithParam<ur_image_info_t>::SetUp());
-  }
-};
+using urMemImageGetInfoTest = uur::urMemImageTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageGetInfoTest);
 
-static std::unordered_map<ur_image_info_t, size_t> image_info_size_map = {
-    {UR_IMAGE_INFO_FORMAT, sizeof(ur_image_format_t)},
-    {UR_IMAGE_INFO_ELEMENT_SIZE, sizeof(size_t)},
-    {UR_IMAGE_INFO_ROW_PITCH, sizeof(size_t)},
-    {UR_IMAGE_INFO_SLICE_PITCH, sizeof(size_t)},
-    {UR_IMAGE_INFO_WIDTH, sizeof(size_t)},
-    {UR_IMAGE_INFO_HEIGHT, sizeof(size_t)},
-    {UR_IMAGE_INFO_DEPTH, sizeof(size_t)},
-};
+bool operator==(ur_image_format_t lhs, ur_image_format_t rhs) {
+  return lhs.channelOrder == rhs.channelOrder &&
+         lhs.channelType == rhs.channelType;
+}
 
-UUR_DEVICE_TEST_SUITE_P(
-    urMemImageGetInfoTest,
-    ::testing::Values(UR_IMAGE_INFO_FORMAT, UR_IMAGE_INFO_ELEMENT_SIZE,
-                      UR_IMAGE_INFO_ROW_PITCH, UR_IMAGE_INFO_SLICE_PITCH,
-                      UR_IMAGE_INFO_WIDTH, UR_IMAGE_INFO_HEIGHT,
-                      UR_IMAGE_INFO_DEPTH),
-    uur::deviceTestWithParamPrinter<ur_image_info_t>);
-
-TEST_P(urMemImageGetInfoTest, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  // This fail is specific to the "Multi device testing" ci job.
+TEST_P(urMemImageGetInfoTest, SuccessFormat) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  ur_image_info_t info = getParam();
-  size_t size = 0;
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_FORMAT;
+
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urMemImageGetInfo(image, info, 0, nullptr, &size), info);
-  ASSERT_NE(size, 0);
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(ur_image_format_t), property_size);
 
-  if (const auto expected_size = image_info_size_map.find(info);
-      expected_size != image_info_size_map.end()) {
-    ASSERT_EQ(expected_size->second, size);
-  } else {
-    FAIL() << "Missing info value in image info size map";
-  }
+  ur_image_format_t property_value = {UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32,
+                                      UR_IMAGE_CHANNEL_TYPE_FORCE_UINT32};
 
-  std::vector<uint8_t> info_data(size);
-  ASSERT_SUCCESS(
-      urMemImageGetInfo(image, info, size, info_data.data(), nullptr));
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_TRUE(property_value == image_format);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessElementSize) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_ELEMENT_SIZE;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(size_t), property_size);
+
+  size_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_NE(property_value, 999);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessRowPitch) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_ROW_PITCH;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(size_t), property_size);
+
+  size_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_TRUE(property_value == image_desc.rowPitch ||
+              property_value == (4 * sizeof(uint8_t)) * image_desc.width);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessSlicePitch) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_SLICE_PITCH;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(size_t), property_size);
+
+  size_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_EQ(property_value, image_desc.slicePitch);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessWidth) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_WIDTH;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(size_t), property_size);
+
+  size_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_EQ(property_value, image_desc.width);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessHeight) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_HEIGHT;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(size_t), property_size);
+
+  size_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_EQ(property_value, image_desc.height);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessDepth) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_DEPTH;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(size_t), property_size);
+
+  size_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_TRUE(property_value == image_desc.depth || property_value == 0);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessArraySize) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_ARRAY_SIZE;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(size_t), property_size);
+
+  size_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_TRUE(property_value == image_desc.depth || property_value == 0);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessNumMipMaps) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_NUM_MIP_LEVELS;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(uint32_t), property_size);
+
+  uint32_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_EQ(property_value, image_desc.numMipLevel);
+}
+
+TEST_P(urMemImageGetInfoTest, SuccessNumSamples) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+  size_t property_size = 0;
+  ur_image_info_t property_name = UR_IMAGE_INFO_NUM_SAMPLES;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(sizeof(uint32_t), property_size);
+
+  uint32_t property_value = 999;
+  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
+                                   &property_value, nullptr));
+
+  ASSERT_EQ(property_value, image_desc.numSamples);
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidNullHandleImage) {
-  size_t info_size = 0;
+  size_t property_size = 0;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urMemImageGetInfo(nullptr, UR_IMAGE_INFO_FORMAT,
-                                     sizeof(size_t), &info_size, nullptr));
+                                     sizeof(size_t), &property_size, nullptr));
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidEnumerationImageInfoType) {
-  size_t info_size = 0;
+  size_t property_size = 0;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                    urMemImageGetInfo(image, UR_IMAGE_INFO_FORCE_UINT32,
-                                     sizeof(size_t), &info_size, nullptr));
+                                     sizeof(size_t), &property_size, nullptr));
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidSizeZero) {
-  size_t info_size = 0;
-  ASSERT_EQ_RESULT(
-      urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT, 0, &info_size, nullptr),
-      UR_RESULT_ERROR_INVALID_SIZE);
+  size_t property_size = 0;
+  ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT, 0,
+                                     &property_size, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidSizeSmall) {
   // This fail is specific to the "Multi device testing" ci job.
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  int info_size = 0;
+  int property_size = 0;
   ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
-                                     sizeof(info_size) - 1, &info_size,
+                                     sizeof(property_size) - 1, &property_size,
                                      nullptr),
                    UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidNullPointerParamValue) {
-  size_t info_size = 0;
+  size_t property_size = 0;
   ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
-                                     sizeof(info_size), nullptr, nullptr),
+                                     sizeof(property_size), nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
