@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 // clang-format off
-// UNSUPPORTED: (opencl && cpu)
+// UNSUPPORTED: opencl
 // UNSUPPORTED-TRACKER: https://github.com/oneapi-src/unified-runtime/issues/2440
 // clang-format on
 

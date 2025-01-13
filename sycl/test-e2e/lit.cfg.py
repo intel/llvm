@@ -328,8 +328,22 @@ if sp[0] == 0:
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+# -shared is invalid for icx on Windows, use /LD instead.
+dll_opt = "/LD" if cl_options else "-shared"
+
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    [
+        config.dpcpp_compiler,
+        "-fsycl",
+        "--offload-compress",
+        dll_opt,
+        fPIC_opt,
+        "-x",
+        "c++",
+        "-",
+        "-o",
+        "-",
+    ],
     stdin=subprocess.PIPE,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
