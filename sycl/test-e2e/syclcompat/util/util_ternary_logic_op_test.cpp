@@ -7,6 +7,11 @@
 //
 // ===--------------------------------------------------------------------===//
 
+// This file is modified from the code migrated by SYCLomatic.
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
