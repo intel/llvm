@@ -415,6 +415,11 @@ option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
 
+# Ensure that HIP platform is uppercase, to match buildbot's output.
+if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+endif()
+
 add_subdirectory(tools)
 
 if (WIN32)
@@ -518,7 +523,7 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  if(NOT TARGET lld)
+  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
     message(FATAL_ERROR
       "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
