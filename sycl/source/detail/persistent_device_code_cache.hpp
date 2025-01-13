@@ -214,7 +214,7 @@ public:
     if (traceEnabled) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
-      std::cerr << "[Persistent Cache]: " << msg << path << std::endl;
+      std::cerr << "[Persistent Cache]: " << msg << outputPath << std::endl;
     }
   }
   static void trace_KernelCompiler(const std::string &msg,
@@ -224,7 +224,7 @@ public:
     if (traceEnabled) {
       auto outputPath = path;
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
-      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << path
+      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << outputPath
                 << std::endl;
     }
   }
