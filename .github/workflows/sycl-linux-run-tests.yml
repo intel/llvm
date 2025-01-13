@@ -86,6 +86,9 @@ on:
       reset_intel_gpu:
         type: string
         required: False
+      is_icx:
+        type: string
+        default: 'false'
       install_igc_driver:
         type: string
         required: False
@@ -244,7 +247,11 @@ jobs:
             sudo apt-get install -yqq libllvm14 || true;
         fi
         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+    - name: Setup oneAPI env
+      if: ${{ inputs.is_icx == 'true' }}
+      uses: ./devops/actions/setup_linux_oneapi_env
     - name: Source OneAPI TBB vars.sh
+      if: ${{ inputs.is_icx == 'false' }}
       shell: bash
       run: |
         # https://github.com/actions/runner/issues/1964 prevents us from using
@@ -346,11 +353,19 @@ jobs:
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
       run: |
+        # When building with oneAPI, the oneAPI libsycl is found before the newly compiled one and the search order
+        # can't be changed by environment variables, so just rename it temporarily.
+        if [ ${{ inputs.is_icx }} == 'true' ]; then
+          sudo mv /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.bak
+        fi
         ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
         exit_code=$?
         cat e2e.log
         if [ $exit_code -ne 0 ]; then
           awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        if [ ${{ inputs.is_icx }} == 'true' ]; then
+          sudo mv /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so.bak /opt/intel/oneapi/compiler/2025.0/lib/libsycl.so
         fi
         exit $exit_code
     - name: Build SYCL CTS tests
