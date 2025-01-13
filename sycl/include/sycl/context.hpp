@@ -182,8 +182,11 @@ public:
             int = detail::emit_get_backend_info_error<context, Param>()
 #endif
             >
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   context(const context &rhs) = default;
 
