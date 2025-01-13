@@ -113,6 +113,7 @@ SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg, int v,
 using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
                                  access::placeholder::false_t>::iterator;
 
+//
 // CHECK-LABEL: @_ZN7blocked18test_accessor_iterERN4sycl3_V19sub_groupEiRNS1_6detail17accessor_iteratorIiLi1EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15:![0-9]+]]

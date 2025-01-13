@@ -287,6 +287,7 @@ bool SYCL_Compilation_Available() {
 
 #if SYCL_EXT_JIT_ENABLE
 #include "../jit_compiler.hpp"
+#include <atomic>
 #endif
 
 namespace sycl {
@@ -302,15 +303,20 @@ bool SYCL_JIT_Compilation_Available() {
 #endif
 }
 
-sycl_device_binaries SYCL_JIT_to_SPIRV(
+std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
     [[maybe_unused]] const std::string &SYCLSource,
     [[maybe_unused]] include_pairs_t IncludePairs,
     [[maybe_unused]] const std::vector<std::string> &UserArgs,
     [[maybe_unused]] std::string *LogPtr,
     [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
 #if SYCL_EXT_JIT_ENABLE
-  return sycl::detail::jit_compiler::get_instance().compileSYCL(
-      "rtc", SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
+  static std::atomic_uintptr_t CompilationCounter;
+  std::string CompilationID = "rtc_" + std::to_string(CompilationCounter++);
+  sycl_device_binaries Binaries =
+      sycl::detail::jit_compiler::get_instance().compileSYCL(
+          CompilationID, SYCLSource, IncludePairs, UserArgs, LogPtr,
+          RegisteredKernelNames);
+  return std::make_pair(Binaries, std::move(CompilationID));
 #else
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler via sycl-jit is not available");
