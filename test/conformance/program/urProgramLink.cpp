@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urProgramLinkTest : uur::urProgramTest {
     void SetUp() override {
@@ -29,12 +30,15 @@ struct urProgramLinkTest : uur::urProgramTest {
 
     ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramLinkTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramLinkTest);
 
 struct urProgramLinkErrorTest : uur::urQueueTest {
     const std::string linker_error_program_name = "linker_error";
 
     void SetUp() override {
+        // We haven't got device code tests working on native cpu yet.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
         // TODO: This should use a query for urProgramCreateWithIL support or
         // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
@@ -53,7 +57,7 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
         std::shared_ptr<std::vector<char>> il_binary{};
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(
-                linker_error_program_name, il_binary));
+                linker_error_program_name, platform, il_binary));
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             platform, context, device, *il_binary, nullptr, &program));
         ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
@@ -69,9 +73,12 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
     ur_program_handle_t program = nullptr;
     ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramLinkErrorTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramLinkErrorTest);
 
 TEST_P(urProgramLinkTest, Success) {
+    // This entry point isn't implemented for HIP.
+    UUR_KNOWN_FAILURE_ON(uur::HIP{});
+
     ASSERT_SUCCESS(
         urProgramLink(context, 1, &program, nullptr, &linked_program));
     ur_program_binary_type_t binary_type = UR_PROGRAM_BINARY_TYPE_NONE;

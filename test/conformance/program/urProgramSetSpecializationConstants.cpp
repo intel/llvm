@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urProgramSetSpecializationConstantsTest : uur::urKernelExecutionTest {
     void SetUp() override {
@@ -16,7 +17,7 @@ struct urProgramSetSpecializationConstantsTest : uur::urKernelExecutionTest {
     ur_specialization_constant_info_t info = {0, sizeof(spec_value),
                                               &spec_value};
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramSetSpecializationConstantsTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramSetSpecializationConstantsTest);
 
 struct urProgramSetMultipleSpecializationConstantsTest
     : uur::urKernelExecutionTest {
@@ -26,10 +27,12 @@ struct urProgramSetMultipleSpecializationConstantsTest
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
     }
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(
     urProgramSetMultipleSpecializationConstantsTest);
 
 TEST_P(urProgramSetSpecializationConstantsTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     ASSERT_SUCCESS(urProgramSetSpecializationConstants(program, 1, &info));
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
     auto entry_points =
@@ -44,6 +47,8 @@ TEST_P(urProgramSetSpecializationConstantsTest, Success) {
 }
 
 TEST_P(urProgramSetSpecializationConstantsTest, UseDefaultValue) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     ur_platform_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(ur_platform_backend_t), &backend,
@@ -67,6 +72,8 @@ TEST_P(urProgramSetSpecializationConstantsTest, UseDefaultValue) {
 }
 
 TEST_P(urProgramSetMultipleSpecializationConstantsTest, MultipleCalls) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     uint32_t a = 100;
     uint64_t b = 200;
     bool c = false;
@@ -98,6 +105,8 @@ TEST_P(urProgramSetMultipleSpecializationConstantsTest, MultipleCalls) {
 }
 
 TEST_P(urProgramSetMultipleSpecializationConstantsTest, SingleCall) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     uint32_t a = 200;
     uint64_t b = 300;
     bool c = true;
@@ -143,6 +152,9 @@ TEST_P(urProgramSetSpecializationConstantsTest, InvalidSizeCount) {
 }
 
 TEST_P(urProgramSetSpecializationConstantsTest, InvalidValueSize) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
+                         uur::LevelZeroV2{});
+
     ur_specialization_constant_info_t bad_info = {0, 0x1000, &spec_value};
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_VALUE,
@@ -150,6 +162,9 @@ TEST_P(urProgramSetSpecializationConstantsTest, InvalidValueSize) {
 }
 
 TEST_P(urProgramSetSpecializationConstantsTest, InvalidValueId) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
+                         uur::LevelZeroV2{});
+
     ur_specialization_constant_info_t bad_info = {999, sizeof(spec_value),
                                                   &spec_value};
     ASSERT_EQ_RESULT(
@@ -158,6 +173,9 @@ TEST_P(urProgramSetSpecializationConstantsTest, InvalidValueId) {
 }
 
 TEST_P(urProgramSetSpecializationConstantsTest, InvalidValuePtr) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
+                         uur::LevelZeroV2{});
+
     ur_specialization_constant_info_t bad_info = {0, sizeof(spec_value),
                                                   nullptr};
     ASSERT_EQ_RESULT(

@@ -7,6 +7,7 @@
 #include <thread>
 #include <type_traits>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 // WARNING  - This is the precision that is used in the OpenCL-CTS.
 //          - We might need to modify this value per-adapter.
@@ -26,87 +27,89 @@ T absolute_difference(T a, T b) {
     return std::max(a, b) - std::min(a, b);
 }
 
-using urDeviceGetGlobalTimestampTest = uur::urAllDevicesTest;
+using urDeviceGetGlobalTimestampTest = uur::urDeviceTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceGetGlobalTimestampTest);
 
-TEST_F(urDeviceGetGlobalTimestampTest, Success) {
-    for (auto device : devices) {
-        uint64_t device_time = 0;
-        uint64_t host_time = 0;
-        ASSERT_SUCCESS(
-            urDeviceGetGlobalTimestamps(device, &device_time, &host_time));
-        ASSERT_NE(device_time, 0);
-        ASSERT_NE(host_time, 0);
-    }
+TEST_P(urDeviceGetGlobalTimestampTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+
+    uint64_t device_time = 0;
+    uint64_t host_time = 0;
+    ASSERT_SUCCESS(
+        urDeviceGetGlobalTimestamps(device, &device_time, &host_time));
+    ASSERT_NE(device_time, 0);
+    ASSERT_NE(host_time, 0);
 }
 
-TEST_F(urDeviceGetGlobalTimestampTest, SuccessHostTimer) {
-    for (auto device : devices) {
-        uint64_t host_time = 0;
-        ASSERT_SUCCESS(
-            urDeviceGetGlobalTimestamps(device, nullptr, &host_time));
-        ASSERT_NE(host_time, 0);
-    }
+TEST_P(urDeviceGetGlobalTimestampTest, SuccessHostTimer) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+
+    uint64_t host_time = 0;
+    ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, &host_time));
+    ASSERT_NE(host_time, 0);
 }
 
-TEST_F(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
-    for (auto device : devices) {
-        ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, nullptr));
-    }
+TEST_P(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+
+    ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, nullptr));
 }
 
-TEST_F(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
-    for (auto device : devices) {
-        // get the timer resolution of the device
-        size_t deviceTimerResolutionNanoSecs = 0;
-        ASSERT_SUCCESS(uur::GetDeviceProfilingTimerResolution(
-            device, deviceTimerResolutionNanoSecs));
-        size_t delayAmountNanoSecs =
-            delayTimerMultiplier * deviceTimerResolutionNanoSecs;
+TEST_P(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
+                         uur::LevelZeroV2{}, uur::NativeCPU{},
+                         uur::OpenCL{"Intel(R) FPGA"},
+                         uur::OpenCL{"Intel(R) UHD Graphics 770"});
 
-        uint64_t deviceStartTime = 0, deviceEndTime = 0;
-        uint64_t hostStartTime = 0, hostEndTime = 0;
-        uint64_t hostOnlyStartTime = 0, hostOnlyEndTime = 0;
+    // get the timer resolution of the device
+    size_t deviceTimerResolutionNanoSecs = 0;
+    ASSERT_SUCCESS(uur::GetDeviceProfilingTimerResolution(
+        device, deviceTimerResolutionNanoSecs));
+    size_t delayAmountNanoSecs =
+        delayTimerMultiplier * deviceTimerResolutionNanoSecs;
 
-        ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, &deviceStartTime,
-                                                   &hostStartTime));
-        ASSERT_SUCCESS(
-            urDeviceGetGlobalTimestamps(device, nullptr, &hostOnlyStartTime));
-        ASSERT_NE(deviceStartTime, 0);
-        ASSERT_NE(hostStartTime, 0);
-        ASSERT_NE(hostOnlyStartTime, 0);
-        ASSERT_GE(hostOnlyStartTime, hostStartTime);
+    uint64_t deviceStartTime = 0, deviceEndTime = 0;
+    uint64_t hostStartTime = 0, hostEndTime = 0;
+    uint64_t hostOnlyStartTime = 0, hostOnlyEndTime = 0;
 
-        // wait for timers to increment
-        std::this_thread::sleep_for(
-            std::chrono::nanoseconds(delayAmountNanoSecs));
+    ASSERT_SUCCESS(
+        urDeviceGetGlobalTimestamps(device, &deviceStartTime, &hostStartTime));
+    ASSERT_SUCCESS(
+        urDeviceGetGlobalTimestamps(device, nullptr, &hostOnlyStartTime));
+    ASSERT_NE(deviceStartTime, 0);
+    ASSERT_NE(hostStartTime, 0);
+    ASSERT_NE(hostOnlyStartTime, 0);
+    ASSERT_GE(hostOnlyStartTime, hostStartTime);
 
-        ASSERT_SUCCESS(
-            urDeviceGetGlobalTimestamps(device, &deviceEndTime, &hostEndTime));
-        ASSERT_SUCCESS(
-            urDeviceGetGlobalTimestamps(device, nullptr, &hostOnlyEndTime));
-        ASSERT_NE(deviceEndTime, 0);
-        ASSERT_NE(hostEndTime, 0);
-        ASSERT_NE(hostOnlyEndTime, 0);
-        ASSERT_GE(hostOnlyEndTime, hostEndTime);
+    // wait for timers to increment
+    std::this_thread::sleep_for(std::chrono::nanoseconds(delayAmountNanoSecs));
 
-        // check that the timers have advanced
-        ASSERT_GT(deviceEndTime, deviceStartTime);
-        ASSERT_GT(hostEndTime, hostStartTime);
-        ASSERT_GT(hostOnlyEndTime, hostOnlyStartTime);
+    ASSERT_SUCCESS(
+        urDeviceGetGlobalTimestamps(device, &deviceEndTime, &hostEndTime));
+    ASSERT_SUCCESS(
+        urDeviceGetGlobalTimestamps(device, nullptr, &hostOnlyEndTime));
+    ASSERT_NE(deviceEndTime, 0);
+    ASSERT_NE(hostEndTime, 0);
+    ASSERT_NE(hostOnlyEndTime, 0);
+    ASSERT_GE(hostOnlyEndTime, hostEndTime);
 
-        // assert that the host/devices times are synchronized to some accuracy
-        const uint64_t deviceTimeDiff = deviceEndTime - deviceStartTime;
-        const uint64_t hostTimeDiff = hostEndTime - hostStartTime;
-        const uint64_t observedDiff =
-            absolute_difference(deviceTimeDiff, hostTimeDiff);
-        const uint64_t allowedDiff = static_cast<uint64_t>(
-            std::min(deviceTimeDiff, hostTimeDiff) * allowedTimerError);
+    // check that the timers have advanced
+    ASSERT_GT(deviceEndTime, deviceStartTime);
+    ASSERT_GT(hostEndTime, hostStartTime);
+    ASSERT_GT(hostOnlyEndTime, hostOnlyStartTime);
 
-        ASSERT_LE(observedDiff, allowedDiff);
-    }
+    // assert that the host/devices times are synchronized to some accuracy
+    const uint64_t deviceTimeDiff = deviceEndTime - deviceStartTime;
+    const uint64_t hostTimeDiff = hostEndTime - hostStartTime;
+    const uint64_t observedDiff =
+        absolute_difference(deviceTimeDiff, hostTimeDiff);
+    const uint64_t allowedDiff = static_cast<uint64_t>(
+        std::min(deviceTimeDiff, hostTimeDiff) * allowedTimerError);
+
+    ASSERT_LE(observedDiff, allowedDiff);
 }
 
-TEST_F(urDeviceGetGlobalTimestampTest, InvalidNullHandleDevice) {
+TEST_P(urDeviceGetGlobalTimestampTest, InvalidNullHandleDevice) {
     uint64_t device_time = 0;
     uint64_t host_time = 0;
     ASSERT_EQ_RESULT(

@@ -6,9 +6,13 @@
 #include "fixtures.h"
 #include <chrono>
 #include <thread>
+#include <uur/known_failure.h>
 
 struct QueueBufferTestWithParam : uur::IntegrationQueueTestWithParam {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                             uur::NativeCPU{});
+
         program_name = "cpy_and_mult";
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::IntegrationQueueTestWithParam::SetUp());
@@ -31,10 +35,11 @@ struct QueueBufferTestWithParam : uur::IntegrationQueueTestWithParam {
     ur_mem_handle_t Buffer2 = nullptr;
 };
 
-UUR_TEST_SUITE_P(QueueBufferTestWithParam,
-                 testing::Values(0, /* In-Order */
-                                 UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-                 uur::IntegrationQueueTestWithParam::paramPrinter);
+UUR_DEVICE_TEST_SUITE_P(
+    QueueBufferTestWithParam,
+    testing::Values(0, /* In-Order */
+                    UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
+    uur::IntegrationQueueTestWithParam::paramPrinter);
 
 /* Submits multiple kernels that interact with each other by accessing and
  * writing to the same buffers.

@@ -1,7 +1,0 @@
-urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_QUEUED
-urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_SUBMIT
-urEventGetProfilingInfoWithTimingComparisonTest.Success/*
-urEventSetCallbackTest.Success/*
-urEventSetCallbackTest.ValidateParameters/*
-urEventSetCallbackTest.AllStates/*
-urEventSetCallbackTest.EventAlreadyCompleted/*

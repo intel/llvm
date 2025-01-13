@@ -4,11 +4,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urUSMFreeTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_device_usm_access_capability_flags_t deviceUSMSupport = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
     if (!deviceUSMSupport) {
@@ -33,6 +36,8 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
     ASSERT_SUCCESS(urEventRelease(event));
 }
 TEST_P(urUSMFreeTest, SuccessHostAlloc) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, hostUSMSupport));
     if (!hostUSMSupport) {
@@ -57,6 +62,8 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
 }
 
 TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_device_usm_access_capability_flags_t shared_usm_cross = 0;
     ur_device_usm_access_capability_flags_t shared_usm_single = 0;
 
@@ -110,7 +117,7 @@ struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
     uint32_t data = 42;
     size_t wg_offset = 0;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urUSMFreeDuringExecutionTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMFreeDuringExecutionTest);
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
     ur_device_usm_access_capability_flags_t host_usm_flags = 0;

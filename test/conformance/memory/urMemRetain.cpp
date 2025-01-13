@@ -3,11 +3,14 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urMemRetainTest = uur::urMemBufferTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemRetainTest);
 
 TEST_P(urMemRetainTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ASSERT_SUCCESS(urMemRetain(buffer));
     ASSERT_SUCCESS(urMemRelease(buffer));
 }
@@ -17,6 +20,8 @@ TEST_P(urMemRetainTest, InvalidNullHandleMem) {
 }
 
 TEST_P(urMemRetainTest, CheckReferenceCount) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     uint32_t referenceCount = 0;
     ASSERT_SUCCESS(urMemGetInfo(buffer, UR_MEM_INFO_REFERENCE_COUNT,
                                 sizeof(referenceCount), &referenceCount,

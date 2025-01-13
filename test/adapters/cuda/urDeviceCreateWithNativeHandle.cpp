@@ -5,9 +5,10 @@
 
 #include "fixtures.h"
 
-using urCudaDeviceCreateWithNativeHandle = uur::urSelectedPlatformTest;
+using urCudaDeviceCreateWithNativeHandle = uur::urPlatformTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urCudaDeviceCreateWithNativeHandle);
 
-TEST_F(urCudaDeviceCreateWithNativeHandle, Success) {
+TEST_P(urCudaDeviceCreateWithNativeHandle, Success) {
     // get a device from cuda
     int nCudaDevices;
     ASSERT_SUCCESS_CUDA(cuDeviceGetCount(&nCudaDevices));
@@ -16,7 +17,12 @@ TEST_F(urCudaDeviceCreateWithNativeHandle, Success) {
     ASSERT_SUCCESS_CUDA(cuDeviceGet(&cudaDevice, 0));
 
     ur_native_handle_t nativeCuda = static_cast<ur_native_handle_t>(cudaDevice);
-    ur_device_handle_t urDevice;
+
+    ur_adapter_handle_t adapter = nullptr;
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
+                                     sizeof(adapter), &adapter, nullptr));
+
+    ur_device_handle_t urDevice = nullptr;
     ASSERT_SUCCESS(urDeviceCreateWithNativeHandle(nativeCuda, adapter, nullptr,
                                                   &urDevice));
 }

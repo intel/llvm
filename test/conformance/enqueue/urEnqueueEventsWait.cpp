@@ -2,7 +2,9 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urEnqueueEventsWaitTest : uur::urMultiQueueTest {
     void SetUp() override {
@@ -37,6 +39,8 @@ struct urEnqueueEventsWaitTest : uur::urMultiQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitTest);
 
 TEST_P(urEnqueueEventsWaitTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+
     ur_event_handle_t event1 = nullptr;
     ur_event_handle_t waitEvent = nullptr;
     ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue1, src_buffer, dst_buffer, 0, 0,
@@ -72,6 +76,8 @@ TEST_P(urEnqueueEventsWaitTest, InvalidNullHandleQueue) {
 }
 
 TEST_P(urEnqueueEventsWaitTest, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ASSERT_EQ_RESULT(urEnqueueEventsWait(queue1, 1, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 

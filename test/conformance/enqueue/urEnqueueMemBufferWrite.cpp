@@ -4,11 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urEnqueueMemBufferWriteTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueMemBufferWriteTestWithParam,
     ::testing::ValuesIn(uur::mem_buffer_test_parameters),
     uur::printMemBufferTestString<urEnqueueMemBufferWriteTestWithParam>);
@@ -55,6 +56,8 @@ TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidNullPointerSrc) {
 }
 
 TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> input(count, 42);
     ASSERT_EQ_RESULT(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                              input.data(), 1, nullptr, nullptr),
@@ -78,6 +81,8 @@ TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemBufferWriteTestWithParam, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> output(count, 42);
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueMemBufferWrite(queue, buffer, true, 1, size,

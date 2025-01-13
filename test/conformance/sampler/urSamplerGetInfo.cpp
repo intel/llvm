@@ -4,11 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urSamplerGetInfoTest = uur::urSamplerTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerGetInfoTest);
 
 TEST_P(urSamplerGetInfoTest, SuccessReferenceCount) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
     size_t size = 0;
     auto infoType = UR_SAMPLER_INFO_REFERENCE_COUNT;
     ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
@@ -22,6 +24,7 @@ TEST_P(urSamplerGetInfoTest, SuccessReferenceCount) {
 }
 
 TEST_P(urSamplerGetInfoTest, SuccessContext) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
     size_t size = 0;
     auto infoType = UR_SAMPLER_INFO_CONTEXT;
     ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
@@ -35,6 +38,7 @@ TEST_P(urSamplerGetInfoTest, SuccessContext) {
 }
 
 TEST_P(urSamplerGetInfoTest, SuccessNormalizedCoords) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
     size_t size = 0;
     auto infoType = UR_SAMPLER_INFO_NORMALIZED_COORDS;
     ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
@@ -42,6 +46,7 @@ TEST_P(urSamplerGetInfoTest, SuccessNormalizedCoords) {
 }
 
 TEST_P(urSamplerGetInfoTest, SuccessAddressingMode) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
     size_t size = 0;
     auto infoType = UR_SAMPLER_INFO_ADDRESSING_MODE;
     ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
@@ -57,6 +62,7 @@ TEST_P(urSamplerGetInfoTest, SuccessAddressingMode) {
 }
 
 TEST_P(urSamplerGetInfoTest, SuccessFilterMode) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
     size_t size = 0;
     auto infoType = UR_SAMPLER_INFO_FILTER_MODE;
     ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
@@ -106,7 +112,9 @@ TEST_P(urSamplerGetInfoTest, InvalidSizePropSizeZero) {
 }
 
 TEST_P(urSamplerGetInfoTest, InvalidSizePropSizeSmall) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
     ur_sampler_addressing_mode_t mode = UR_SAMPLER_ADDRESSING_MODE_NONE;
+
     ASSERT_EQ_RESULT(urSamplerGetInfo(sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
                                       sizeof(mode) - 1, &mode, nullptr),
                      UR_RESULT_ERROR_INVALID_SIZE);

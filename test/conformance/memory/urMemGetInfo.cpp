@@ -5,11 +5,13 @@
 #include <array>
 #include <map>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urMemGetInfoTest = uur::urMemBufferTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemGetInfoTest);
 
 TEST_P(urMemGetInfoTest, SuccessSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
     ur_mem_info_t info_type = UR_MEM_INFO_SIZE;
     size_t size = 0;
 
@@ -24,6 +26,7 @@ TEST_P(urMemGetInfoTest, SuccessSize) {
 }
 
 TEST_P(urMemGetInfoTest, SuccessContext) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
     ur_mem_info_t info_type = UR_MEM_INFO_CONTEXT;
     size_t size = 0;
 
@@ -38,6 +41,7 @@ TEST_P(urMemGetInfoTest, SuccessContext) {
 }
 
 TEST_P(urMemGetInfoTest, SuccessReferenceCount) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
     ur_mem_info_t info_type = UR_MEM_INFO_REFERENCE_COUNT;
     size_t size = 0;
 
@@ -73,6 +77,8 @@ TEST_P(urMemGetInfoTest, InvalidSizeZero) {
 }
 
 TEST_P(urMemGetInfoTest, InvalidSizeSmall) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     size_t mem_size = 0;
     ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE,
                                   sizeof(mem_size) - 1, &mem_size, nullptr),
@@ -92,10 +98,16 @@ TEST_P(urMemGetInfoTest, InvalidNullPointerPropSizeRet) {
         UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-using urMemGetInfoImageTest = uur::urMemImageTest;
+struct urMemGetInfoImageTest : uur::urMemImageTest {
+    void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+        uur::urMemImageTest::SetUp();
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemGetInfoImageTest);
 
 TEST_P(urMemGetInfoImageTest, SuccessSize) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::OpenCL{"UHD Graphics"});
     ur_mem_info_t info_type = UR_MEM_INFO_SIZE;
     size_t size = 0;
 

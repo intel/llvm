@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urEnqueueMemImageCopyTest
     : public uur::urQueueTestWithParam<ur_mem_type_t> {
@@ -11,6 +12,8 @@ struct urEnqueueMemImageCopyTest
         uint32_t data[4];
     };
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
         ur_bool_t imageSupported;
@@ -108,7 +111,7 @@ template <typename T>
 inline std::string printImageCopyTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
     // ParamType will be std::tuple<ur_device_handle_t, ur_mem_type_t>
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     const auto image_type = std::get<1>(info.param);
@@ -118,12 +121,15 @@ inline std::string printImageCopyTestString(
     return platform_device_name + "__" + test_name;
 }
 
-UUR_TEST_SUITE_P(urEnqueueMemImageCopyTest,
-                 testing::ValuesIn({UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE2D,
-                                    UR_MEM_TYPE_IMAGE3D}),
-                 printImageCopyTestString<urEnqueueMemImageCopyTest>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueMemImageCopyTest,
+                        testing::ValuesIn({UR_MEM_TYPE_IMAGE1D,
+                                           UR_MEM_TYPE_IMAGE2D,
+                                           UR_MEM_TYPE_IMAGE3D}),
+                        printImageCopyTestString<urEnqueueMemImageCopyTest>);
 
 TEST_P(urEnqueueMemImageCopyTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                          {0, 0, 0}, size, 0, nullptr, nullptr));
     std::vector<rgba_pixel> output(buffSize, {1, 1, 1, 1});
@@ -134,6 +140,8 @@ TEST_P(urEnqueueMemImageCopyTest, Success) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopy) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                          {0, 0, 0}, partialRegion, 0, nullptr,
                                          nullptr));
@@ -158,6 +166,8 @@ TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopy) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopyWithSrcOffset) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage,
                                          partialRegionOffset, {0, 0, 0},
                                          partialRegion, 0, nullptr, nullptr));
@@ -182,6 +192,8 @@ TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopyWithSrcOffset) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, SuccessPartialCopyWithDstOffset) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                          partialRegionOffset, partialRegion, 0,
                                          nullptr, nullptr));
@@ -253,6 +265,8 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueMemImageCopy(queue, srcImage, dstImage, {1, 0, 0},
                                            {0, 0, 0}, size, 0, nullptr,
@@ -265,8 +279,9 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {
 
 using urEnqueueMemImageCopyMultiDeviceTest =
     uur::urMultiDeviceMemImageWriteTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemImageCopyMultiDeviceTest);
 
-TEST_F(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
+TEST_P(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
     ur_mem_handle_t dstImage1D = nullptr;
     ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &format,
                                     &desc1D, nullptr, &dstImage1D));

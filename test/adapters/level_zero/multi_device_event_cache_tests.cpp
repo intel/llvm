@@ -3,12 +3,8 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "ur_print.hpp"
 #include "uur/fixtures.h"
 #include "uur/raii.h"
-
-#include <map>
-#include <string>
 
 #include "ze_tracer_common.hpp"
 
@@ -27,7 +23,9 @@ static std::shared_ptr<_zel_tracer_handle_t> tracer = [] {
 }();
 
 using urMultiQueueMultiDeviceEventCacheTest = uur::urAllDevicesTest;
-TEST_F(urMultiQueueMultiDeviceEventCacheTest,
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiQueueMultiDeviceEventCacheTest);
+
+TEST_P(urMultiQueueMultiDeviceEventCacheTest,
        GivenMultiSubDeviceWithQueuePerSubDeviceThenEventIsSharedBetweenQueues) {
     uint32_t max_sub_devices = 0;
     ASSERT_SUCCESS(
@@ -83,7 +81,7 @@ TEST_F(urMultiQueueMultiDeviceEventCacheTest,
     ASSERT_SUCCESS(urQueueRelease(queue1));
 }
 
-TEST_F(urMultiQueueMultiDeviceEventCacheTest,
+TEST_P(urMultiQueueMultiDeviceEventCacheTest,
        GivenMultiDeviceWithQueuePerDeviceThenMultiDeviceEventIsCreated) {
     if (devices.size() < 2) {
         GTEST_SKIP();

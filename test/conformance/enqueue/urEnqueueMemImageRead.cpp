@@ -3,8 +3,14 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
-using urEnqueueMemImageReadTest = uur::urMemImageQueueTest;
+struct urEnqueueMemImageReadTest : uur::urMemImageQueueTest {
+    void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urMemImageQueueTest::SetUp());
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueMemImageReadTest);
 
 // Note that for each test, we multiply the size in pixels by 4 to account for
@@ -80,6 +86,8 @@ TEST_P(urEnqueueMemImageReadTest, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemImageReadTest, InvalidOrigin1D) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     std::vector<uint32_t> output(width * 4, 42);
     ur_rect_offset_t bad_origin{1, 0, 0};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -89,6 +97,8 @@ TEST_P(urEnqueueMemImageReadTest, InvalidOrigin1D) {
 }
 
 TEST_P(urEnqueueMemImageReadTest, InvalidOrigin2D) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     std::vector<uint32_t> output(width * height * 4, 42);
     ur_rect_offset_t bad_origin{0, 1, 0};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -98,6 +108,8 @@ TEST_P(urEnqueueMemImageReadTest, InvalidOrigin2D) {
 }
 
 TEST_P(urEnqueueMemImageReadTest, InvalidOrigin3D) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     std::vector<uint32_t> output(width * height * depth * 4, 42);
     ur_rect_offset_t bad_origin{0, 0, 1};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -107,6 +119,8 @@ TEST_P(urEnqueueMemImageReadTest, InvalidOrigin3D) {
 }
 
 TEST_P(urEnqueueMemImageReadTest, InvalidRegion1D) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     std::vector<uint32_t> output(width * 4, 42);
     ur_rect_region_t bad_region{width + 1, 1, 1};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -116,6 +130,8 @@ TEST_P(urEnqueueMemImageReadTest, InvalidRegion1D) {
 }
 
 TEST_P(urEnqueueMemImageReadTest, InvalidRegion2D) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     std::vector<uint32_t> output(width * height * 4, 42);
     ur_rect_region_t bad_region{width, height + 1, 1};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -125,6 +141,8 @@ TEST_P(urEnqueueMemImageReadTest, InvalidRegion2D) {
 }
 
 TEST_P(urEnqueueMemImageReadTest, InvalidRegion3D) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     std::vector<uint32_t> output(width * height * depth * 4, 42);
     ur_rect_region_t bad_region{width, height, depth + 1};
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
@@ -135,8 +153,9 @@ TEST_P(urEnqueueMemImageReadTest, InvalidRegion3D) {
 
 using urEnqueueMemImageReadMultiDeviceTest =
     uur::urMultiDeviceMemImageWriteTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemImageReadMultiDeviceTest);
 
-TEST_F(urEnqueueMemImageReadMultiDeviceTest, WriteReadDifferentQueues) {
+TEST_P(urEnqueueMemImageReadMultiDeviceTest, WriteReadDifferentQueues) {
     // The remaining queues do blocking reads from the image1D/2D/3D. Since the
     // queues target different devices this checks that any devices memory has
     // been synchronized.

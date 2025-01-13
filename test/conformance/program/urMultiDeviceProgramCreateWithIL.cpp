@@ -8,9 +8,10 @@
 #include <uur/raii.h>
 
 using urMultiDeviceProgramTest = uur::urMultiDeviceProgramTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceProgramTest);
 
 // Test binary sizes and binaries obtained from urProgramGetInfo when program is built for a subset of devices in the context.
-TEST_F(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfo) {
+TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfo) {
     // Run test only for level zero backend which supports urProgramBuildExp.
     ur_platform_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,

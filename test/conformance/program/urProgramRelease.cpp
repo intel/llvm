@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urProgramReleaseTest = uur::urProgramTest;
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramReleaseTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramReleaseTest);
 
 TEST_P(urProgramReleaseTest, Success) {
     ASSERT_SUCCESS(urProgramRetain(program));

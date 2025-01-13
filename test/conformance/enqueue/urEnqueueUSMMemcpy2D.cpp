@@ -4,7 +4,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "helpers.h"
+
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using TestParametersMemcpy2D =
     std::tuple<uur::TestParameters2D, ur_usm_type_t, ur_usm_type_t>;
@@ -12,6 +14,8 @@ using TestParametersMemcpy2D =
 struct urEnqueueUSMMemcpy2DTestWithParam
     : uur::urQueueTestWithParam<TestParametersMemcpy2D> {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urQueueTestWithParam<TestParametersMemcpy2D>::SetUp());
 
@@ -108,7 +112,7 @@ static std::vector<uur::TestParameters2D> test_sizes{
     /* Height == 1 && Pitch == width + 1 */
     {234, 233, 1}};
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueUSMMemcpy2DTestWithParam,
     ::testing::Combine(::testing::ValuesIn(test_sizes),
                        ::testing::Values(ur_usm_type_t::UR_USM_TYPE_DEVICE,
@@ -142,12 +146,13 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
 }
 
 using urEnqueueUSMMemcpy2DNegativeTest = urEnqueueUSMMemcpy2DTestWithParam;
-UUR_TEST_SUITE_P(urEnqueueUSMMemcpy2DNegativeTest,
-                 ::testing::Values(TestParametersMemcpy2D{
-                     {1, 1, 1},
-                     ur_usm_type_t::UR_USM_TYPE_DEVICE,
-                     ur_usm_type_t::UR_USM_TYPE_DEVICE}),
-                 uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
+UUR_DEVICE_TEST_SUITE_P(
+    urEnqueueUSMMemcpy2DNegativeTest,
+    ::testing::Values(TestParametersMemcpy2D{
+        {1, 1, 1},
+        ur_usm_type_t::UR_USM_TYPE_DEVICE,
+        ur_usm_type_t::UR_USM_TYPE_DEVICE}),
+    uur::print2DTestString<urEnqueueUSMMemcpy2DTestWithParam>);
 
 TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidNullHandleQueue) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

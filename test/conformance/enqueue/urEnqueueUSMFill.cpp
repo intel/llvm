@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct testParametersFill {
     size_t size;
@@ -13,7 +14,7 @@ struct testParametersFill {
 template <typename T>
 inline std::string
 printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -90,10 +91,12 @@ static std::vector<testParametersFill> test_cases{
     {256, 16},
     {256, 32}};
 
-UUR_TEST_SUITE_P(urEnqueueUSMFillTestWithParam, testing::ValuesIn(test_cases),
-                 printFillTestString<urEnqueueUSMFillTestWithParam>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMFillTestWithParam,
+                        testing::ValuesIn(test_cases),
+                        printFillTestString<urEnqueueUSMFillTestWithParam>);
 
 TEST_P(urEnqueueUSMFillTestWithParam, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
     ur_event_handle_t event = nullptr;
 
@@ -113,6 +116,8 @@ TEST_P(urEnqueueUSMFillTestWithParam, Success) {
 
 struct urEnqueueUSMFillNegativeTest : uur::urQueueTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
         ur_device_usm_access_capability_flags_t device_usm = 0;

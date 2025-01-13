@@ -36,13 +36,4 @@ std::string platformTestWithParamPrinter(
 } // namespace platform
 } // namespace uur
 
-#define UUR_PLATFORM_TEST_SUITE_P(FIXTURE, VALUES, TYPE)                       \
-    INSTANTIATE_TEST_SUITE_P(                                                  \
-        , FIXTURE,                                                             \
-        testing::Combine(                                                      \
-            ::testing::ValuesIn(                                               \
-                uur::PlatformEnvironment::instance->all_platforms),            \
-            VALUES),                                                           \
-        uur::platform::platformTestWithParamPrinter<TYPE>)
-
 #endif // UR_CONFORMANCE_PLATFORM_FIXTURES_H_INCLUDED

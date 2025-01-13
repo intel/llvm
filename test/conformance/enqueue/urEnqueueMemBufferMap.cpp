@@ -4,16 +4,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urEnqueueMemBufferMapTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueMemBufferMapTestWithParam,
     ::testing::ValuesIn(uur::mem_buffer_test_parameters),
     uur::printMemBufferTestString<urEnqueueMemBufferMapTestWithParam>);
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessRead) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{"Data Center GPU Max"});
+
     const std::vector<uint32_t> input(count, 42);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
@@ -37,12 +40,18 @@ using urEnqueueMemBufferMapTestWithWriteFlagParam =
     uur::urMemBufferQueueTestWithParam<
         uur::mem_buffer_map_write_test_parameters_t>;
 
-UUR_TEST_SUITE_P(urEnqueueMemBufferMapTestWithWriteFlagParam,
-                 ::testing::ValuesIn(map_write_test_parameters),
-                 uur::printMemBufferMapWriteTestString<
-                     urEnqueueMemBufferMapTestWithWriteFlagParam>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueMemBufferMapTestWithWriteFlagParam,
+                        ::testing::ValuesIn(map_write_test_parameters),
+                        uur::printMemBufferMapWriteTestString<
+                            urEnqueueMemBufferMapTestWithWriteFlagParam>);
 
 TEST_P(urEnqueueMemBufferMapTestWithWriteFlagParam, SuccessWrite) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
+    if (getParam().map_flag == UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
+        UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+    }
+
     const std::vector<uint32_t> input(count, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
@@ -64,6 +73,8 @@ TEST_P(urEnqueueMemBufferMapTestWithWriteFlagParam, SuccessWrite) {
 }
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessOffset) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     const std::vector<uint32_t> input(count, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
@@ -93,6 +104,8 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessOffset) {
 }
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessPartialMap) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     const std::vector<uint32_t> input(count, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
@@ -145,6 +158,8 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, SuccesPinnedRead) {
 }
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, SuccesPinnedWrite) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     const size_t memSize = sizeof(int);
     const int value = 30;
 
@@ -172,6 +187,8 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, SuccesPinnedWrite) {
 }
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessMultiMaps) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     const std::vector<uint32_t> input(count, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
@@ -245,6 +262,8 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidNullPointerRetMap) {
 }
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     void *map;
     ASSERT_EQ_RESULT(urEnqueueMemBufferMap(queue, buffer, true,
                                            UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
@@ -270,6 +289,8 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     void *map = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueMemBufferMap(queue, buffer, true, 0, 1, size, 0,
@@ -278,8 +299,11 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidSize) {
 
 using urEnqueueMemBufferMapMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemBufferMapMultiDeviceTest);
 
-TEST_F(urEnqueueMemBufferMapMultiDeviceTest, WriteMapDifferentQueues) {
+TEST_P(urEnqueueMemBufferMapMultiDeviceTest, WriteMapDifferentQueues) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     // First queue does a blocking write of 42 into the buffer.
     std::vector<uint32_t> input(count, 42);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queues[0], buffer, true, 0, size,

@@ -4,11 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "uur/fixtures.h"
-#include "uur/raii.h"
 
 using urP2PTest = uur::urAllDevicesTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urP2PTest);
 
-TEST_F(urP2PTest, Success) {
+TEST_P(urP2PTest, Success) {
 
     if (devices.size() < 2) {
         GTEST_SKIP();

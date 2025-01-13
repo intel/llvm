@@ -7,7 +7,9 @@
 #define UR_CONFORMANCE_COMMAND_BUFFER_FIXTURES_H_INCLUDED
 
 #include <array>
+
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 namespace uur {
 namespace command_buffer {
@@ -52,6 +54,8 @@ static void checkCommandBufferUpdateSupport(
 
 struct urCommandBufferExpTest : uur::urContextTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
 
         UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -73,6 +77,8 @@ struct urCommandBufferExpTest : uur::urContextTest {
 template <class T>
 struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
 
         UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
@@ -93,6 +99,8 @@ struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
 
 struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
         UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -113,6 +121,8 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
         UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -148,6 +158,8 @@ struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
 
 struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
         ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
@@ -244,8 +256,8 @@ struct TestKernel {
         ASSERT_SUCCESS(urPlatformGetInfo(Platform, UR_PLATFORM_INFO_BACKEND,
                                          sizeof(Backend), &Backend, nullptr));
 
-        ASSERT_NO_FATAL_FAILURE(
-            uur::KernelsEnvironment::instance->LoadSource(Name, ILBinary));
+        ASSERT_NO_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+            Name, Platform, ILBinary));
 
         const ur_program_properties_t Properties = {
             UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,

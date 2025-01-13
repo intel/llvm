@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urProgramGetNativeHandleTest = uur::urProgramTest;
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetNativeHandleTest);
 
 TEST_P(urProgramGetNativeHandleTest, Success) {
     ur_platform_backend_t backend;

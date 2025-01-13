@@ -4,11 +4,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urSamplerReleaseTest = uur::urSamplerTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerReleaseTest);
 
 TEST_P(urSamplerReleaseTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
     ASSERT_SUCCESS(urSamplerRetain(sampler));
 
     uint32_t prevRefCount = 0;
