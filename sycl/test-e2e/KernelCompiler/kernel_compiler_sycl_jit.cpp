@@ -67,7 +67,16 @@ syclex::device_global<int32_t> DG;
 
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (syclex::single_task_kernel)) void ff_dg_adder(int val) {
-  DG = DG + val;
+  DG += val;
+}
+
+syclex::device_global<int64_t, decltype(syclex::properties(syclex::device_image_scope))> DG_DIS;
+
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclex::single_task_kernel)) void ff_swap(int64_t *val) {
+  int64_t tmp = DG_DIS;
+  DG_DIS = *val;
+  *val = tmp;
 }
 
 )===";
@@ -250,14 +259,6 @@ int test_device_global() {
     return -1;
   }
 
-  auto modifyDG = [&q](sycl::kernel &k, int val) {
-    q.submit([&](sycl::handler &CGH) {
-      CGH.set_arg(0, val);
-      CGH.single_task(k);
-    });
-    q.wait();
-  };
-
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, DGSource);
 
@@ -290,7 +291,12 @@ int test_device_global() {
   checkVal(123);
 
   // Run a kernel using it.
-  modifyDG(addK, -17);
+  val = -17;
+  q.submit([&](sycl::handler &CGH) {
+    CGH.set_arg(0, val);
+    CGH.single_task(addK);
+  });
+  q.wait();
   checkVal(123 - 17);
 
   // Test that each bundle has its distinct set of globals.
@@ -300,6 +306,26 @@ int test_device_global() {
 
   dgAddr = kbExe1.ext_oneapi_get_device_global_address("DG", d);
   checkVal(123 - 17);
+
+  // Test global with `device_image_scope`. We currently cannot read/write these
+  // from the host, but they should work device-only.
+  auto swapK = kbExe2.ext_oneapi_get_kernel("ff_swap");
+  int64_t *valBuf = sycl::malloc_shared<int64_t>(1, q);
+  *valBuf = -1;
+  auto doSwap = [&]() {
+    q.submit([&](sycl::handler &CGH) {
+      CGH.set_arg(0, valBuf);
+      CGH.single_task(swapK);
+    });
+    q.wait();
+  };
+
+  doSwap();
+  assert(*valBuf == 0);
+  doSwap();
+  assert(*valBuf == -1);
+
+  sycl::free(valBuf, q);
 
   return 0;
 }
