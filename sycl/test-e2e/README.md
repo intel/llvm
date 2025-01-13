@@ -256,12 +256,6 @@ place. No new tests should use these features:
 * **gpu-intel-pvc** - Intel GPU PVC availability;
 * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
 
-### Use the LLVM SPIR-V Backend to generate SPIR-V code
-
-It's possible to use the LLVM SPIR-V Backend instead of llvm-spirv tool to
-convert LLVM IR to SPIR-V. This feature must be set manually by passing the
-`spirv-backend` argument to `llvm-lit`.
-
 ### llvm-lit parameters
 
 Following options can be passed to llvm-lit tool through --param option to
