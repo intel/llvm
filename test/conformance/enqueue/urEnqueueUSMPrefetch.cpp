@@ -4,15 +4,35 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
-using urEnqueueUSMPrefetchWithParamTest =
-    uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t>;
+struct urEnqueueUSMPrefetchWithParamTest
+    : uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t> {
+    void SetUp() override {
+        // The setup for the parent fixture does a urQueueFlush, which isn't
+        // supported by native cpu.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+        uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t>::SetUp();
+    }
+};
 
-UUR_TEST_SUITE_P(urEnqueueUSMPrefetchWithParamTest,
-                 ::testing::Values(UR_USM_MIGRATION_FLAG_DEFAULT),
-                 uur::deviceTestWithParamPrinter<ur_usm_migration_flag_t>);
+UUR_DEVICE_TEST_SUITE_P(
+    urEnqueueUSMPrefetchWithParamTest,
+    ::testing::Values(UR_USM_MIGRATION_FLAG_DEFAULT),
+    uur::deviceTestWithParamPrinter<ur_usm_migration_flag_t>);
 
 TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
+    UUR_KNOWN_FAILURE_ON(
+        // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a
+        // warning about the hint being unsupported. The same applies for
+        // subsequent fails in this file.
+        // TODO: codify this in the spec and account for it in the CTS.
+        uur::HIP{}, uur::CUDA{},
+        // The setup for the parent fixture does a urQueueFlush, which isn't
+        // supported by native cpu. Again same goes for subsequent fails in
+        // this file.
+        uur::NativeCPU{});
+
     ur_event_handle_t prefetch_event = nullptr;
     ASSERT_SUCCESS(urEnqueueUSMPrefetch(queue, ptr, allocation_size, getParam(),
                                         0, nullptr, &prefetch_event));
@@ -32,6 +52,7 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
  * executing.
  */
 TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
+    UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{}, uur::NativeCPU{});
 
     ur_queue_handle_t fill_queue;
     ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &fill_queue));
@@ -71,7 +92,14 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
     ASSERT_SUCCESS(urUSMFree(context, fill_ptr));
 }
 
-using urEnqueueUSMPrefetchTest = uur::urUSMDeviceAllocTest;
+struct urEnqueueUSMPrefetchTest : uur::urUSMDeviceAllocTest {
+    void SetUp() override {
+        // The setup for the parent fixture does a urQueueFlush, which isn't
+        // supported by native cpu.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urUSMDeviceAllocTest::SetUp());
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMPrefetchTest);
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidNullHandleQueue) {
@@ -103,6 +131,9 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidSizeZero) {
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidSizeTooLarge) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                         uur::NativeCPU{});
+
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueUSMPrefetch(queue, ptr, allocation_size * 2,
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 0,

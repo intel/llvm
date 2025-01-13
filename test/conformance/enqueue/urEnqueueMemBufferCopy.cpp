@@ -5,6 +5,7 @@
 
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
     void SetUp() override {
@@ -38,11 +39,13 @@ struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
 
 static std::vector<size_t> test_parameters{1024, 2500, 4096, 6000};
 
-UUR_TEST_SUITE_P(urEnqueueMemBufferCopyTestWithParam,
-                 ::testing::ValuesIn(test_parameters),
-                 uur::deviceTestWithParamPrinter<size_t>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueMemBufferCopyTestWithParam,
+                        ::testing::ValuesIn(test_parameters),
+                        uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urEnqueueMemBufferCopyTestWithParam, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
                                           size, 0, nullptr, nullptr));
     std::vector<uint32_t> output(count, 1);
@@ -70,6 +73,8 @@ TEST_P(urEnqueueMemBufferCopyTestWithParam, InvalidNullHandleBufferDst) {
 }
 
 TEST_P(urEnqueueMemBufferCopyTestWithParam, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ASSERT_EQ_RESULT(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
                                             size, 1, nullptr, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
@@ -90,6 +95,8 @@ TEST_P(urEnqueueMemBufferCopyTestWithParam, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemBufferCopyTestWithParam, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 1, 0,
                                             size, 0, nullptr, nullptr));
@@ -100,8 +107,9 @@ TEST_P(urEnqueueMemBufferCopyTestWithParam, InvalidSize) {
 
 using urEnqueueMemBufferCopyMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemBufferCopyMultiDeviceTest);
 
-TEST_F(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
+TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
     // First queue does a fill.
     const uint32_t input = 42;
     ASSERT_SUCCESS(urEnqueueMemBufferFill(queues[0], buffer, &input,

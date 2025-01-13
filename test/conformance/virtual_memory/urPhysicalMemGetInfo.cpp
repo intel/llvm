@@ -3,11 +3,14 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urPhysicalMemGetInfoTest = uur::urPhysicalMemTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urPhysicalMemGetInfoTest);
 
 TEST_P(urPhysicalMemGetInfoTest, Context) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     size_t info_size = 0;
 
     ASSERT_SUCCESS(urPhysicalMemGetInfo(
@@ -23,6 +26,8 @@ TEST_P(urPhysicalMemGetInfoTest, Context) {
 }
 
 TEST_P(urPhysicalMemGetInfoTest, Device) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     size_t info_size = 0;
 
     ASSERT_SUCCESS(urPhysicalMemGetInfo(
@@ -38,6 +43,8 @@ TEST_P(urPhysicalMemGetInfoTest, Device) {
 }
 
 TEST_P(urPhysicalMemGetInfoTest, Size) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     size_t info_size = 0;
 
     ASSERT_SUCCESS(urPhysicalMemGetInfo(physical_mem, UR_PHYSICAL_MEM_INFO_SIZE,
@@ -52,6 +59,7 @@ TEST_P(urPhysicalMemGetInfoTest, Size) {
 }
 
 TEST_P(urPhysicalMemGetInfoTest, Properties) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
     size_t info_size = 0;
 
     ASSERT_SUCCESS(urPhysicalMemGetInfo(

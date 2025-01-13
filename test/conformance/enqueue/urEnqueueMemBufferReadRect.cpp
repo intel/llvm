@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
 #include <numeric>
+#include <uur/known_failure.h>
 
 // Choose parameters so that we get good coverage and catch some edge cases.
 static std::vector<uur::test_parameters_t> generateParameterizations() {
@@ -71,12 +72,14 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 struct urEnqueueMemBufferReadRectTestWithParam
     : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueMemBufferReadRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
     uur::printRectTestString<urEnqueueMemBufferReadRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferReadRectTestWithParam, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
     // Unpack the parameters.
     const auto buffer_size = getParam().src_size;
     const auto host_size = getParam().dst_size;
@@ -158,6 +161,8 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPointerDst) {
 }
 
 TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> dst(count);
     ur_rect_region_t region{size, 1, 1};
     ur_rect_offset_t buffer_offset{0, 0, 0};
@@ -189,8 +194,10 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
 
 using urEnqueueMemBufferReadRectMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(
+    urEnqueueMemBufferReadRectMultiDeviceTest);
 
-TEST_F(urEnqueueMemBufferReadRectMultiDeviceTest,
+TEST_P(urEnqueueMemBufferReadRectMultiDeviceTest,
        WriteRectReadDifferentQueues) {
     // First queue does a blocking write of 42 into the buffer.
     // Then a rectangular write the buffer as 1024x1x1 1D.
@@ -215,6 +222,8 @@ TEST_F(urEnqueueMemBufferReadRectMultiDeviceTest,
 }
 
 TEST_P(urEnqueueMemBufferReadRectTest, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     std::vector<uint32_t> dst(count);
     // out-of-bounds access with potential overflow
     ur_rect_region_t region{size, 1, 1};

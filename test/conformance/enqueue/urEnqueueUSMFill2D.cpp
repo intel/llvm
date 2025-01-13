@@ -4,7 +4,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <random>
+
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct testParametersFill2D {
     size_t pitch;
@@ -16,7 +18,7 @@ struct testParametersFill2D {
 template <typename T>
 inline std::string printFill2DTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -127,8 +129,9 @@ static std::vector<testParametersFill2D> test_cases{
     /* Height != power_of_2 && width == power_of_2 && pattern_size == 128 */
     {1024, 256, 35, 128}};
 
-UUR_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam, testing::ValuesIn(test_cases),
-                 printFill2DTestString<urEnqueueUSMFill2DTestWithParam>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam,
+                        testing::ValuesIn(test_cases),
+                        printFill2DTestString<urEnqueueUSMFill2DTestWithParam>);
 
 TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
 
@@ -151,6 +154,8 @@ TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
 
 struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
         ur_device_usm_access_capability_flags_t device_usm = 0;
@@ -243,6 +248,8 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidSize) {
 }
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, OutOfBounds) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
     size_t out_of_bounds = pitch * height + 1;
 
     /* Interpret memory as having just one row */

@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/known_failure.h"
 
 using urEventGetInfoTest = uur::event::urEventTest;
 
@@ -36,6 +37,8 @@ TEST_P(urEventGetInfoTest, SuccessContext) {
 }
 
 TEST_P(urEventGetInfoTest, SuccessCommandType) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ur_event_info_t info_type = UR_EVENT_INFO_COMMAND_TYPE;
     size_t size = 0;
 

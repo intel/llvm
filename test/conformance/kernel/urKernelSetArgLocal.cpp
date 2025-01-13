@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urKernelSetArgLocalTest : uur::urKernelTest {
     void SetUp() {
@@ -13,7 +14,7 @@ struct urKernelSetArgLocalTest : uur::urKernelTest {
     }
     size_t local_mem_size = 4 * sizeof(uint32_t);
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgLocalTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgLocalTest);
 
 TEST_P(urKernelSetArgLocalTest, Success) {
     ASSERT_SUCCESS(urKernelSetArgLocal(kernel, 1, local_mem_size, nullptr));
@@ -25,6 +26,8 @@ TEST_P(urKernelSetArgLocalTest, InvalidNullHandleKernel) {
 }
 
 TEST_P(urKernelSetArgLocalTest, InvalidKernelArgumentIndex) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     uint32_t num_kernel_args = 0;
     ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
                                    sizeof(num_kernel_args), &num_kernel_args,
@@ -143,7 +146,7 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
     static constexpr uint64_t hip_local_offset = 0;
     ur_platform_backend_t backend{};
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgLocalMultiTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgLocalMultiTest);
 
 TEST_P(urKernelSetArgLocalMultiTest, Basic) {
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,

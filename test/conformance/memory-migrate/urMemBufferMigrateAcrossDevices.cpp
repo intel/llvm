@@ -63,7 +63,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
 
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name,
-                                                          il_binary));
+                                                          platform, il_binary));
 
         programs = std::vector<ur_program_handle_t>(num_devices);
         kernels = std::vector<ur_kernel_handle_t>(num_devices);

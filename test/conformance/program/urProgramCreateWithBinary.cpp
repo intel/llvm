@@ -35,7 +35,7 @@ struct urProgramCreateWithBinaryTest : uur::urProgramTest {
     std::vector<uint8_t> binary;
     ur_program_handle_t binary_program = nullptr;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithBinaryTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramCreateWithBinaryTest);
 
 TEST_P(urProgramCreateWithBinaryTest, Success) {
     auto size = binary.size();

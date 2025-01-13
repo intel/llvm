@@ -71,31 +71,20 @@ TEST_P(urDeviceGetTest, InvalidNullPointerDevices) {
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, nullptr, nullptr));
 }
 
-struct urDeviceGetTestWithDeviceTypeParam
-    : uur::urAllDevicesTest,
-      ::testing::WithParamInterface<ur_device_type_t> {
+using urDeviceGetTestWithDeviceTypeParam =
+    uur::urPlatformTestWithParam<ur_device_type_t>;
 
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTest::SetUp());
-    }
-};
-
-INSTANTIATE_TEST_SUITE_P(
-    , urDeviceGetTestWithDeviceTypeParam,
+UUR_PLATFORM_TEST_SUITE_P(
+    urDeviceGetTestWithDeviceTypeParam,
     ::testing::Values(UR_DEVICE_TYPE_DEFAULT, UR_DEVICE_TYPE_GPU,
                       UR_DEVICE_TYPE_CPU, UR_DEVICE_TYPE_FPGA,
                       UR_DEVICE_TYPE_MCA, UR_DEVICE_TYPE_VPU),
-    [](const ::testing::TestParamInfo<ur_device_type_t> &info) {
-        std::stringstream ss;
-        ss << info.param;
-        return ss.str();
-    });
+    uur::platformTestWithParamPrinter<ur_device_type_t>);
 
 TEST_P(urDeviceGetTestWithDeviceTypeParam, Success) {
-    ur_device_type_t device_type = GetParam();
+    ur_device_type_t device_type = getParam();
     uint32_t count = 0;
     ASSERT_SUCCESS(urDeviceGet(platform, device_type, 0, nullptr, &count));
-    ASSERT_GE(devices.size(), count);
 
     if (count > 0) {
         std::vector<ur_device_handle_t> devices(count);

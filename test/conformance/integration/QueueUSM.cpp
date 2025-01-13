@@ -6,9 +6,13 @@
 #include "fixtures.h"
 #include <chrono>
 #include <thread>
+#include <uur/known_failure.h>
 
 struct QueueUSMTestWithParam : uur::IntegrationQueueTestWithParam {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                             uur::NativeCPU{});
+
         program_name = "cpy_and_mult_usm";
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::IntegrationQueueTestWithParam::SetUp());
@@ -30,8 +34,12 @@ struct QueueUSMTestWithParam : uur::IntegrationQueueTestWithParam {
     }
 
     void TearDown() override {
-        ASSERT_SUCCESS(urUSMFree(context, DeviceMem1));
-        ASSERT_SUCCESS(urUSMFree(context, DeviceMem2));
+        if (DeviceMem1) {
+            ASSERT_SUCCESS(urUSMFree(context, DeviceMem1));
+        }
+        if (DeviceMem2) {
+            ASSERT_SUCCESS(urUSMFree(context, DeviceMem2));
+        }
         uur::IntegrationQueueTestWithParam::TearDown();
     }
 
@@ -50,10 +58,11 @@ struct QueueUSMTestWithParam : uur::IntegrationQueueTestWithParam {
     void *DeviceMem2 = nullptr;
 };
 
-UUR_TEST_SUITE_P(QueueUSMTestWithParam,
-                 testing::Values(0, /* In-Order */
-                                 UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-                 uur::IntegrationQueueTestWithParam::paramPrinter);
+UUR_DEVICE_TEST_SUITE_P(
+    QueueUSMTestWithParam,
+    testing::Values(0, /* In-Order */
+                    UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
+    uur::IntegrationQueueTestWithParam::paramPrinter);
 
 /* Submits multiple kernels that interact with each other by accessing and
  * writing to the same USM memory locations.

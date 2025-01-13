@@ -167,7 +167,7 @@ TEST_P(urEventCacheTest, eventsReuseWithVisibleEventAndWait) {
 template <typename T>
 inline std::string
 printFlags(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     auto flags = combineFlags(std::get<1>(info.param));
@@ -181,7 +181,7 @@ printFlags(const testing::TestParamInfo<typename T::ParamType> &info) {
     return platform_device_name + "__" + str;
 }
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEventCacheTest,
     ::testing::Combine(
         testing::Values(0, UR_QUEUE_FLAG_DISCARD_EVENTS),

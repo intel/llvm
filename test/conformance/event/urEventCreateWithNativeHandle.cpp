@@ -4,12 +4,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/known_failure.h"
 #include "uur/raii.h"
 
 using urEventCreateWithNativeHandleTest = uur::event::urEventTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventCreateWithNativeHandleTest);
 
 TEST_P(urEventCreateWithNativeHandleTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ur_native_handle_t native_event = 0;
 
     UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(

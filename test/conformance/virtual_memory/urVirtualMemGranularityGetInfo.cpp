@@ -7,6 +7,8 @@
 struct urVirtualMemGranularityGetInfoTest
     : uur::urContextTestWithParam<ur_virtual_mem_granularity_info_t> {
     void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(
             urContextTestWithParam<ur_virtual_mem_granularity_info_t>::SetUp());
         ur_bool_t virtual_memory_support = false;
@@ -19,7 +21,7 @@ struct urVirtualMemGranularityGetInfoTest
     }
 };
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urVirtualMemGranularityGetInfoTest,
     ::testing::Values(UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
                       UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED),

@@ -68,10 +68,13 @@ static std::vector<testParametersFill> test_cases{
     {256, 16},
     {256, 32}};
 
-UUR_TEST_SUITE_P(urEnqueueMemBufferFillTest, testing::ValuesIn(test_cases),
-                 uur::printFillTestString<urEnqueueMemBufferFillTest>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueMemBufferFillTest,
+                        testing::ValuesIn(test_cases),
+                        uur::printFillTestString<urEnqueueMemBufferFillTest>);
 
 TEST_P(urEnqueueMemBufferFillTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, buffer, pattern.data(),
                                           pattern_size, 0, size, 0, nullptr,
                                           nullptr));
@@ -81,6 +84,8 @@ TEST_P(urEnqueueMemBufferFillTest, Success) {
     verifyData(output, size);
 }
 TEST_P(urEnqueueMemBufferFillTest, SuccessPartialFill) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     if (size == 1) {
         // Can't partially fill one byte
         GTEST_SKIP();
@@ -106,6 +111,8 @@ TEST_P(urEnqueueMemBufferFillTest, SuccessPartialFill) {
 }
 
 TEST_P(urEnqueueMemBufferFillTest, SuccessOffset) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     if (size == 1) {
         // No room for an offset
         GTEST_SKIP();
@@ -163,6 +170,8 @@ TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidNullHandlePointerPattern) {
 }
 
 TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     const uint32_t pattern = 0xdeadbeef;
     ASSERT_EQ_RESULT(urEnqueueMemBufferFill(queue, buffer, &pattern,
                                             sizeof(uint32_t), 0, size, 1,
@@ -196,8 +205,9 @@ TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidSize) {
 
 using urEnqueueMemBufferFillMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemBufferFillMultiDeviceTest);
 
-TEST_F(urEnqueueMemBufferFillMultiDeviceTest, FillReadDifferentQueues) {
+TEST_P(urEnqueueMemBufferFillMultiDeviceTest, FillReadDifferentQueues) {
     // First queue does a fill.
     const uint32_t input = 42;
     ASSERT_SUCCESS(urEnqueueMemBufferFill(queues[0], buffer, &input,

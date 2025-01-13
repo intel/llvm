@@ -2,14 +2,15 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-#include "fixtures.h"
+
+#include <uur/fixtures.h>
 
 using urPlatformGetBackendOptionTest =
-    uur::platform::urPlatformTestWithParam<std::string>;
+    uur::urPlatformTestWithParam<std::string>;
 
 UUR_PLATFORM_TEST_SUITE_P(urPlatformGetBackendOptionTest,
                           ::testing::Values("-O0", "-O1", "-O2", "-O3"),
-                          std::string);
+                          uur::platformTestWithParamPrinter<std::string>);
 
 TEST_P(urPlatformGetBackendOptionTest, Success) {
     const char *platformOption = nullptr;

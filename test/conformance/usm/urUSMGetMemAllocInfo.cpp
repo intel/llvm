@@ -4,23 +4,28 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urUSMGetMemAllocInfoTest
     : uur::urUSMDeviceAllocTestWithParam<ur_usm_alloc_info_t> {
     void SetUp() override {
+        // The setup for the parent fixture does a urQueueFlush, which isn't
+        // supported by native cpu.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
         use_pool = getParam() == UR_USM_ALLOC_INFO_POOL;
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urUSMDeviceAllocTestWithParam<ur_usm_alloc_info_t>::SetUp());
     }
 };
 
-UUR_TEST_SUITE_P(urUSMGetMemAllocInfoTest,
-                 ::testing::Values(UR_USM_ALLOC_INFO_TYPE,
-                                   UR_USM_ALLOC_INFO_BASE_PTR,
-                                   UR_USM_ALLOC_INFO_SIZE,
-                                   UR_USM_ALLOC_INFO_DEVICE,
-                                   UR_USM_ALLOC_INFO_POOL),
-                 uur::deviceTestWithParamPrinter<ur_usm_alloc_info_t>);
+UUR_DEVICE_TEST_SUITE_P(urUSMGetMemAllocInfoTest,
+                        ::testing::Values(UR_USM_ALLOC_INFO_TYPE,
+                                          UR_USM_ALLOC_INFO_BASE_PTR,
+                                          UR_USM_ALLOC_INFO_SIZE,
+                                          UR_USM_ALLOC_INFO_DEVICE,
+                                          UR_USM_ALLOC_INFO_POOL),
+                        uur::deviceTestWithParamPrinter<ur_usm_alloc_info_t>);
 
 static std::unordered_map<ur_usm_alloc_info_t, size_t> usm_info_size_map = {
     {UR_USM_ALLOC_INFO_TYPE, sizeof(ur_usm_type_t)},
@@ -33,6 +38,15 @@ static std::unordered_map<ur_usm_alloc_info_t, size_t> usm_info_size_map = {
 TEST_P(urUSMGetMemAllocInfoTest, Success) {
     size_t size = 0;
     auto alloc_info = getParam();
+
+    if (alloc_info == UR_USM_ALLOC_INFO_POOL) {
+        UUR_KNOWN_FAILURE_ON(uur::OpenCL{}, uur::LevelZeroV2{});
+    }
+
+    if (alloc_info == UR_USM_ALLOC_INFO_BASE_PTR) {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+    }
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urUSMGetMemAllocInfo(context, ptr, alloc_info, 0, nullptr, &size),
         alloc_info);
@@ -80,10 +94,19 @@ TEST_P(urUSMGetMemAllocInfoTest, Success) {
     }
 }
 
-using urUSMGetMemAllocInfoNegativeTest = uur::urUSMDeviceAllocTest;
+struct urUSMGetMemAllocInfoNegativeTest : uur::urUSMDeviceAllocTest {
+    void SetUp() override {
+        // The setup for the parent fixture does a urQueueFlush, which isn't
+        // supported by native cpu.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urUSMDeviceAllocTest::SetUp());
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMGetMemAllocInfoNegativeTest);
 
 TEST_P(urUSMGetMemAllocInfoNegativeTest, InvalidNullHandleContext) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urUSMGetMemAllocInfo(nullptr, ptr, UR_USM_ALLOC_INFO_TYPE,
@@ -92,6 +115,8 @@ TEST_P(urUSMGetMemAllocInfoNegativeTest, InvalidNullHandleContext) {
 }
 
 TEST_P(urUSMGetMemAllocInfoNegativeTest, InvalidNullPointerMem) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_POINTER,
@@ -100,6 +125,8 @@ TEST_P(urUSMGetMemAllocInfoNegativeTest, InvalidNullPointerMem) {
 }
 
 TEST_P(urUSMGetMemAllocInfoNegativeTest, InvalidEnumeration) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_ENUMERATION,
@@ -108,6 +135,8 @@ TEST_P(urUSMGetMemAllocInfoNegativeTest, InvalidEnumeration) {
 }
 
 TEST_P(urUSMGetMemAllocInfoNegativeTest, InvalidValuePropSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_usm_type_t USMType;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urUSMGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_TYPE,

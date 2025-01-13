@@ -16,7 +16,7 @@ template <typename T>
 inline std::string printUSMAllocTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
     // ParamType will be std::tuple<ur_device_handle_t, USMDeviceAllocParams>
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     const auto &usmDeviceAllocParams = std::get<1>(info.param);

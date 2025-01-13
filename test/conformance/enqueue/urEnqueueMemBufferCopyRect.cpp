@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
+#include "uur/known_failure.h"
 #include <numeric>
 
 static std::vector<uur::test_parameters_t> generateParameterizations() {
@@ -45,22 +46,22 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
                      256, 256, 256, 512);
     // Tests that a 8x8x8 region can be read from a 8x8x8 device buffer at
     // offset {0,0,0} to a 8x8x8 host buffer at offset {0,0,0}.
-    PARAMETERIZATION(copy_3d, 512, 512, (ur_rect_offset_t{0, 0, 0}),
+    PARAMETERIZATION(copy_3D, 512, 512, (ur_rect_offset_t{0, 0, 0}),
                      (ur_rect_offset_t{0, 0, 0}), (ur_rect_region_t{8, 8, 8}),
                      8, 64, 8, 64);
     // Tests that a 4x3x2 region can be read from a 8x8x8 device buffer at
     // offset {1,2,3} to a 8x8x8 host buffer at offset {4,1,3}.
-    PARAMETERIZATION(copy_3d_with_offsets, 512, 512,
+    PARAMETERIZATION(copy_3D_with_offsets, 512, 512,
                      (ur_rect_offset_t{1, 2, 3}), (ur_rect_offset_t{4, 1, 3}),
                      (ur_rect_region_t{4, 3, 2}), 8, 64, 8, 64);
     // Tests that a 4x16x2 region can be read from a 8x32x1 device buffer at
     // offset {1,2,0} to a 8x32x4 host buffer at offset {4,1,3}.
-    PARAMETERIZATION(copy_2d_3d, 256, 1024, (ur_rect_offset_t{1, 2, 0}),
+    PARAMETERIZATION(copy_2D_3D, 256, 1024, (ur_rect_offset_t{1, 2, 0}),
                      (ur_rect_offset_t{4, 1, 3}), (ur_rect_region_t{4, 16, 1}),
                      8, 256, 8, 256);
     // Tests that a 1x4x1 region can be read from a 8x16x4 device buffer at
     // offset {7,3,3} to a 2x8x1 host buffer at offset {1,3,0}.
-    PARAMETERIZATION(copy_3d_2d, 512, 16, (ur_rect_offset_t{7, 3, 3}),
+    PARAMETERIZATION(copy_3D_2D, 512, 16, (ur_rect_offset_t{7, 3, 3}),
                      (ur_rect_offset_t{1, 3, 0}), (ur_rect_region_t{1, 4, 1}),
                      8, 128, 2, 16);
 #undef PARAMETERIZATION
@@ -70,12 +71,23 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 struct urEnqueueMemBufferCopyRectTestWithParam
     : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueMemBufferCopyRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
     uur::printRectTestString<urEnqueueMemBufferCopyRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferCopyRectTestWithParam, Success) {
+    const auto name = getParam().name;
+    if (name.find("copy_row_2D") != std::string::npos) {
+        UUR_KNOWN_FAILURE_ON(uur::HIP{});
+    }
+
+    if (name.find("copy_3D_2D") != std::string::npos) {
+        UUR_KNOWN_FAILURE_ON(uur::HIP{});
+    }
+
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
     // Unpack the parameters.
     const auto src_buffer_size = getParam().src_size;
     const auto dst_buffer_size = getParam().dst_size;
@@ -202,6 +214,8 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleBufferDst) {
 }
 
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_rect_region_t src_region{size, 1, 1};
     ur_rect_offset_t src_origin{0, 0, 0};
     ur_rect_offset_t dst_origin{0, 0, 0};
@@ -232,8 +246,10 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
 
 using urEnqueueMemBufferCopyRectMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(
+    urEnqueueMemBufferCopyRectMultiDeviceTest);
 
-TEST_F(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
+TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
     // First queue does a fill.
     const uint32_t input = 42;
     ASSERT_SUCCESS(urEnqueueMemBufferFill(queues[0], buffer, &input,
@@ -272,6 +288,8 @@ TEST_F(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
 }
 
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     // out-of-bounds access with potential overflow
     ur_rect_region_t src_region{size, 1, 1};
     ur_rect_offset_t src_origin{std::numeric_limits<uint64_t>::max(), 1, 1};

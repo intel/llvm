@@ -8,9 +8,9 @@
 namespace uur {
 template <>
 std::string deviceTestWithParamPrinter<BoolTestParam>(
-    const ::testing::TestParamInfo<
-        std::tuple<ur_device_handle_t, BoolTestParam>> &info) {
-    auto device = std::get<0>(info.param);
+    const ::testing::TestParamInfo<std::tuple<DeviceTuple, BoolTestParam>>
+        &info) {
+    auto device = std::get<0>(info.param).device;
     auto param = std::get<1>(info.param);
 
     std::stringstream ss;
@@ -19,10 +19,22 @@ std::string deviceTestWithParamPrinter<BoolTestParam>(
 }
 
 template <>
+std::string platformTestWithParamPrinter<BoolTestParam>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_platform_handle_t, BoolTestParam>> &info) {
+    auto platform = std::get<0>(info.param);
+    auto param = std::get<1>(info.param);
+
+    std::stringstream ss;
+    ss << param.name << (param.value ? "Enabled" : "Disabled");
+    return uur::GetPlatformNameWithID(platform) + "__" + ss.str();
+}
+
+template <>
 std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
     const ::testing::TestParamInfo<
-        std::tuple<ur_device_handle_t, uur::SamplerCreateParamT>> &info) {
-    auto device = std::get<0>(info.param);
+        std::tuple<DeviceTuple, uur::SamplerCreateParamT>> &info) {
+    auto device = std::get<0>(info.param).device;
     auto param = std::get<1>(info.param);
 
     const auto normalized = std::get<0>(param);
@@ -42,9 +54,9 @@ std::string deviceTestWithParamPrinter<SamplerCreateParamT>(
 
 template <>
 std::string deviceTestWithParamPrinter<ur_image_format_t>(
-    const ::testing::TestParamInfo<
-        std::tuple<ur_device_handle_t, ur_image_format_t>> &info) {
-    auto device = std::get<0>(info.param);
+    const ::testing::TestParamInfo<std::tuple<DeviceTuple, ur_image_format_t>>
+        &info) {
+    auto device = std::get<0>(info.param).device;
     auto param = std::get<1>(info.param);
     auto ChannelOrder = param.channelOrder;
     auto ChannelType = param.channelType;

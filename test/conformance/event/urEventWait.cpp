@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urEventWaitTest : uur::urQueueTest {
     void SetUp() override {
@@ -42,6 +43,8 @@ struct urEventWaitTest : uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventWaitTest);
 
 TEST_P(urEventWaitTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_event_handle_t event1 = nullptr;
     ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
                                           size, 0, nullptr, &event1));

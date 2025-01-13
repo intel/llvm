@@ -5,6 +5,7 @@
 
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urUSMSharedAllocTest
     : uur::urQueueTestWithParam<uur::USMDeviceAllocParams> {
@@ -50,7 +51,7 @@ struct urUSMSharedAllocTest
 // The 0 value parameters are not relevant for urUSMSharedAllocTest tests, they
 // are used below in urUSMSharedAllocAlignmentTest for allocation size and
 // alignment values
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urUSMSharedAllocTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
@@ -140,6 +141,8 @@ TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{});
+
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_USM_SIZE,
         urUSMSharedAlloc(context, device, nullptr, pool, -1, &ptr));
@@ -156,7 +159,7 @@ TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {
 
 using urUSMSharedAllocAlignmentTest = urUSMSharedAllocTest;
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urUSMSharedAllocAlignmentTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),

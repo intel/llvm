@@ -3,11 +3,14 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 using urQueueGetInfoTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoTest);
 
 TEST_P(urQueueGetInfoTest, Context) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     size_t size = 0;
     auto infoType = UR_QUEUE_INFO_CONTEXT;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -22,6 +25,8 @@ TEST_P(urQueueGetInfoTest, Context) {
 }
 
 TEST_P(urQueueGetInfoTest, Device) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     size_t size = 0;
     auto infoType = UR_QUEUE_INFO_DEVICE;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -36,6 +41,8 @@ TEST_P(urQueueGetInfoTest, Device) {
 }
 
 TEST_P(urQueueGetInfoTest, Flags) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     size_t size = 0;
     auto infoType = UR_QUEUE_INFO_FLAGS;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -50,6 +57,8 @@ TEST_P(urQueueGetInfoTest, Flags) {
 }
 
 TEST_P(urQueueGetInfoTest, ReferenceCount) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     size_t size = 0;
     auto infoType = UR_QUEUE_INFO_REFERENCE_COUNT;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -64,6 +73,8 @@ TEST_P(urQueueGetInfoTest, ReferenceCount) {
 }
 
 TEST_P(urQueueGetInfoTest, EmptyQueue) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     size_t size = 0;
     auto infoType = UR_QUEUE_INFO_EMPTY;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -95,6 +106,8 @@ TEST_P(urQueueGetInfoTest, InvalidSizeZero) {
 }
 
 TEST_P(urQueueGetInfoTest, InvalidSizeSmall) {
+    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
     ur_context_handle_t context = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urQueueGetInfo(queue, UR_QUEUE_INFO_CONTEXT,
@@ -117,6 +130,7 @@ TEST_P(urQueueGetInfoTest, InvalidNullPointerPropSizeRet) {
 
 struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
     void SetUp() {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
         urQueueGetInfoTest::SetUp();
         ur_queue_flags_t deviceQueueCapabilities = 0;
         ASSERT_SUCCESS(
@@ -147,7 +161,6 @@ struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoDeviceQueueTestWithInfoParam);
 
 TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, DeviceDefault) {
-
     size_t size = 0;
     auto infoType = UR_QUEUE_INFO_DEVICE_DEFAULT;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -162,7 +175,6 @@ TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, DeviceDefault) {
 }
 
 TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, Size) {
-
     size_t size = 0;
     auto infoType = UR_QUEUE_INFO_SIZE;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(

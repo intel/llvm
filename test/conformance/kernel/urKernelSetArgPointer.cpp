@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 struct urKernelSetArgPointerTest : uur::urKernelExecutionTest {
     void SetUp() {
@@ -29,7 +30,7 @@ struct urKernelSetArgPointerTest : uur::urKernelExecutionTest {
     size_t allocation_size = array_size * sizeof(uint32_t);
     uint32_t data = 42;
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgPointerTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgPointerTest);
 
 TEST_P(urKernelSetArgPointerTest, SuccessHost) {
     ur_device_usm_access_capability_flags_t host_usm_flags = 0;
@@ -130,11 +131,11 @@ struct urKernelSetArgPointerNegativeTest : urKernelSetArgPointerTest {
 
     void SetUp() {
         UUR_RETURN_ON_FATAL_FAILURE(urKernelSetArgPointerTest::SetUp());
-        SetUpAllocation();
+        UUR_RETURN_ON_FATAL_FAILURE(SetUpAllocation());
         ASSERT_NE(allocation, nullptr);
     }
 };
-UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgPointerNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgPointerNegativeTest);
 
 TEST_P(urKernelSetArgPointerNegativeTest, InvalidNullHandleKernel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
@@ -142,6 +143,8 @@ TEST_P(urKernelSetArgPointerNegativeTest, InvalidNullHandleKernel) {
 }
 
 TEST_P(urKernelSetArgPointerNegativeTest, InvalidKernelArgumentIndex) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     uint32_t num_kernel_args = 0;
     ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
                                    sizeof(num_kernel_args), &num_kernel_args,

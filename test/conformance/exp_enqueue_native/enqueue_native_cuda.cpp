@@ -5,13 +5,24 @@
 
 #include <cuda.h>
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 #include <vector>
 
 using T = uint32_t;
 
 struct urCudaEnqueueNativeCommandTest : uur::urQueueTest {
     void SetUp() {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+
+        ur_bool_t native_enqueue_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
+            sizeof(native_enqueue_support), &native_enqueue_support, nullptr));
+        if (!native_enqueue_support) {
+            GTEST_SKIP();
+        }
 
         host_vec = std::vector<T>(global_size, 0);
         ASSERT_EQ(host_vec.size(), global_size);

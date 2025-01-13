@@ -4,14 +4,29 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
-using urEnqueueUSMAdviseWithParamTest =
-    uur::urUSMDeviceAllocTestWithParam<ur_usm_advice_flag_t>;
-UUR_TEST_SUITE_P(urEnqueueUSMAdviseWithParamTest,
-                 ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
-                 uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
+struct urEnqueueUSMAdviseWithParamTest
+    : uur::urUSMDeviceAllocTestWithParam<ur_usm_advice_flag_t> {
+    void SetUp() override {
+        // The setup for the parent fixture does a urQueueFlush, which isn't
+        // supported by native cpu.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urUSMDeviceAllocTestWithParam<ur_usm_advice_flag_t>::SetUp());
+    }
+};
+UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMAdviseWithParamTest,
+                        ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
+                        uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
 
 TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
+    // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning
+    // about the hint being unsupported.
+    // TODO: codify this in the spec and account for it in the CTS.
+    UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
+
     ur_event_handle_t advise_event = nullptr;
     ASSERT_SUCCESS(urEnqueueUSMAdvise(queue, ptr, allocation_size, getParam(),
                                       &advise_event));
@@ -28,10 +43,20 @@ TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
     ASSERT_SUCCESS(urEventRelease(advise_event));
 }
 
-using urEnqueueUSMAdviseTest = uur::urUSMDeviceAllocTest;
+struct urEnqueueUSMAdviseTest : uur::urUSMDeviceAllocTest {
+    void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+        uur::urUSMDeviceAllocTest::SetUp();
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMAdviseTest);
 
 TEST_P(urEnqueueUSMAdviseTest, MultipleParamsSuccess) {
+    // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning
+    // about the hint being unsupported.
+    // TODO: codify this in the spec and account for it in the CTS.
+    UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
+
     ASSERT_SUCCESS(urEnqueueUSMAdvise(queue, ptr, allocation_size,
                                       UR_USM_ADVICE_FLAG_SET_READ_MOSTLY |
                                           UR_USM_ADVICE_FLAG_BIAS_CACHED,
@@ -64,6 +89,8 @@ TEST_P(urEnqueueUSMAdviseTest, InvalidSizeZero) {
 }
 
 TEST_P(urEnqueueUSMAdviseTest, InvalidSizeTooLarge) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urEnqueueUSMAdvise(queue, ptr, allocation_size * 2,
                                         UR_USM_ADVICE_FLAG_DEFAULT, nullptr));

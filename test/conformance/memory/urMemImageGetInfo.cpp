@@ -2,9 +2,17 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-#include <uur/fixtures.h>
 
-using urMemImageGetInfoTest = uur::urMemImageTestWithParam<ur_image_info_t>;
+#include <uur/fixtures.h>
+#include <uur/known_failure.h>
+
+struct urMemImageGetInfoTest : uur::urMemImageTestWithParam<ur_image_info_t> {
+    void SetUp() override {
+        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urMemImageTestWithParam<ur_image_info_t>::SetUp());
+    }
+};
 
 static std::unordered_map<ur_image_info_t, size_t> image_info_size_map = {
     {UR_IMAGE_INFO_FORMAT, sizeof(ur_image_format_t)},
@@ -16,16 +24,19 @@ static std::unordered_map<ur_image_info_t, size_t> image_info_size_map = {
     {UR_IMAGE_INFO_DEPTH, sizeof(size_t)},
 };
 
-UUR_TEST_SUITE_P(urMemImageGetInfoTest,
-                 ::testing::Values(UR_IMAGE_INFO_FORMAT,
-                                   UR_IMAGE_INFO_ELEMENT_SIZE,
-                                   UR_IMAGE_INFO_ROW_PITCH,
-                                   UR_IMAGE_INFO_SLICE_PITCH,
-                                   UR_IMAGE_INFO_WIDTH, UR_IMAGE_INFO_HEIGHT,
-                                   UR_IMAGE_INFO_DEPTH),
-                 uur::deviceTestWithParamPrinter<ur_image_info_t>);
+UUR_DEVICE_TEST_SUITE_P(
+    urMemImageGetInfoTest,
+    ::testing::Values(UR_IMAGE_INFO_FORMAT, UR_IMAGE_INFO_ELEMENT_SIZE,
+                      UR_IMAGE_INFO_ROW_PITCH, UR_IMAGE_INFO_SLICE_PITCH,
+                      UR_IMAGE_INFO_WIDTH, UR_IMAGE_INFO_HEIGHT,
+                      UR_IMAGE_INFO_DEPTH),
+    uur::deviceTestWithParamPrinter<ur_image_info_t>);
 
 TEST_P(urMemImageGetInfoTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::HIP{});
+    // This fail is specific to the "Multi device testing" ci job.
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     ur_image_info_t info = getParam();
     size_t size = 0;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -66,6 +77,9 @@ TEST_P(urMemImageGetInfoTest, InvalidSizeZero) {
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidSizeSmall) {
+    // This fail is specific to the "Multi device testing" ci job.
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+
     int info_size = 0;
     ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
                                        sizeof(info_size) - 1, &info_size,

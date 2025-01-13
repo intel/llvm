@@ -14,33 +14,16 @@ function(add_test_adapter name adapter backend)
     set(TEST_NAME ${name}-${adapter})
 
     set(TEST_COMMAND
-        "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --backend=${backend} --devices_count=${UR_TEST_DEVICES_COUNT} --platforms_count=${UR_TEST_PLATFORMS_COUNT}"
+        "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --gtest_filter=*${backend}*"
     )
-    set(MATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}.match")
 
     function(do_add_test tname env)
-        if(${UR_CONFORMANCE_ENABLE_MATCH_FILES} AND EXISTS ${MATCH_FILE})
-            add_test(NAME ${tname}
-                COMMAND ${Python3_EXECUTABLE} ${UR_CONFORMANCE_TEST_DIR}/cts_exe.py
-                    --failslist ${MATCH_FILE}
-                    --test_command ${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME}
-                    --
-                    --backend=${backend}
-                    --devices_count=${UR_TEST_DEVICES_COUNT}
-                    --platforms_count=${UR_TEST_PLATFORMS_COUNT}
-                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-            )
-        else()
-            separate_arguments(TEST_COMMAND)
-            add_test(NAME ${tname}
-                COMMAND ${TEST_COMMAND}
-                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-            )
-        endif()
+        separate_arguments(TEST_COMMAND)
+        add_test(NAME ${tname}
+            COMMAND ${TEST_COMMAND}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
 
-        if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
-            list(APPEND env GTEST_COLOR=yes)
-        endif()
         set_tests_properties(${tname} PROPERTIES
             ENVIRONMENT "${env}"
             LABELS "conformance;${adapter}")
@@ -67,6 +50,10 @@ function(add_conformance_test name)
         GTest::gtest_main
         unit_tests_helpers)
 
+    if(UR_USE_CFI)
+        target_compile_definitions(${TEST_TARGET_NAME} PRIVATE UR_USE_CFI)
+    endif()
+
     if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_cuda CUDA)
     endif()
@@ -74,13 +61,13 @@ function(add_conformance_test name)
         add_test_adapter(${name} adapter_hip HIP)
     endif()
     if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
-        add_test_adapter(${name} adapter_level_zero LEVEL_ZERO)
+        add_test_adapter(${name} adapter_level_zero Level_Zero)
     endif()
     if(UR_BUILD_ADAPTER_L0_V2)
-        add_test_adapter(${name} adapter_level_zero_v2 LEVEL_ZERO)
+        add_test_adapter(${name} adapter_level_zero_v2 Level_Zero)
     endif()
     if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
-        add_test_adapter(${name} adapter_opencl OPENCL)
+        add_test_adapter(${name} adapter_opencl OpenCL)
     endif()
     if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_native_cpu NATIVE_CPU)

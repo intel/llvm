@@ -10,9 +10,9 @@ int main(int argc, char **argv) {
     auto *environment =
         new uur::KernelsEnvironment(argc, argv, KERNELS_DEFAULT_DIR);
 #elif DEVICES_ENVIRONMENT
-    auto *environment = new uur::DevicesEnvironment(argc, argv);
+    auto *environment = new uur::DevicesEnvironment();
 #elif PLATFORM_ENVIRONMENT
-    auto *environment = new uur::PlatformEnvironment(argc, argv);
+    auto *environment = new uur::PlatformEnvironment();
 #else
     auto *environment = new uur::AdapterEnvironment();
 #endif

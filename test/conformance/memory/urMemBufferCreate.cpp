@@ -10,12 +10,12 @@ using urMemBufferCreateTestWithFlagsParam =
     uur::urContextTestWithParam<ur_mem_flag_t>;
 
 using urMemBufferCreateWithFlagsTest = urMemBufferCreateTestWithFlagsParam;
-UUR_TEST_SUITE_P(urMemBufferCreateWithFlagsTest,
-                 ::testing::Values(UR_MEM_FLAG_READ_WRITE,
-                                   UR_MEM_FLAG_WRITE_ONLY,
-                                   UR_MEM_FLAG_READ_ONLY,
-                                   UR_MEM_FLAG_ALLOC_HOST_POINTER),
-                 uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
+UUR_DEVICE_TEST_SUITE_P(urMemBufferCreateWithFlagsTest,
+                        ::testing::Values(UR_MEM_FLAG_READ_WRITE,
+                                          UR_MEM_FLAG_WRITE_ONLY,
+                                          UR_MEM_FLAG_READ_ONLY,
+                                          UR_MEM_FLAG_ALLOC_HOST_POINTER),
+                        uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
 TEST_P(urMemBufferCreateWithFlagsTest, Success) {
     uur::raii::Mem buffer = nullptr;
@@ -87,10 +87,10 @@ TEST_P(urMemBufferCreateTest, InvalidHostPtrValidHost) {
 
 using urMemBufferCreateWithHostPtrFlagsTest =
     urMemBufferCreateTestWithFlagsParam;
-UUR_TEST_SUITE_P(urMemBufferCreateWithHostPtrFlagsTest,
-                 ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
-                                   UR_MEM_FLAG_USE_HOST_POINTER),
-                 uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
+UUR_DEVICE_TEST_SUITE_P(urMemBufferCreateWithHostPtrFlagsTest,
+                        ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
+                                          UR_MEM_FLAG_USE_HOST_POINTER),
+                        uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
 TEST_P(urMemBufferCreateWithHostPtrFlagsTest, SUCCESS) {
     uur::raii::Mem host_ptr_buffer = nullptr;
