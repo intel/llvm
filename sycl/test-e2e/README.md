@@ -184,12 +184,6 @@ at the full path specified by this variable.
 
 ***CUDA_LIBS_DIR*** - path to CUDA libraries.
 
-***HIP_PLATFORM*** - platform selection for HIP targeted devices.
-Defaults to AMD if no value is given. Supported values are:
-
-* **AMD**    - for HIP to target AMD GPUs
-* **NVIDIA** - for HIP to target NVIDIA GPUs
-
 ***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
 may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
 parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line

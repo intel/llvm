@@ -17,10 +17,7 @@ def get_triple(test, backend):
     if backend == "cuda":
         return "nvptx64-nvidia-cuda"
     if backend == "hip":
-        if test.config.hip_platform == "NVIDIA":
-            return "nvptx64-nvidia-cuda"
-        else:
-            return "amdgcn-amd-amdhsa"
+        return "amdgcn-amd-amdhsa"
     if backend == "native_cpu":
         return "native_cpu"
     return "spir64"
