@@ -10,7 +10,7 @@ add_ur_library(${TARGET_NAME} SHARED
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/include
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE ${TARGET_XPTI})
