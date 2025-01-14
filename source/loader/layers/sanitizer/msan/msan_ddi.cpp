@@ -105,7 +105,7 @@ ur_result_t urUSMDeviceAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMHostAlloc
-__urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
+ur_result_t UR_APICALL urUSMHostAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_usm_desc_t
         *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
@@ -123,7 +123,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMSharedAlloc
-__urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
+ur_result_t UR_APICALL urUSMSharedAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_usm_desc_t *
@@ -142,7 +142,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMFree
-__urdlllocal ur_result_t UR_APICALL urUSMFree(
+ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to USM memory object
 ) {
