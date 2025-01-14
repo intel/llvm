@@ -449,12 +449,13 @@ class __SYCL_EXPORT dynamic_parameter_base {
 public:
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
-          Graph);
+          Graph,
+      const property_list &PropList);
 
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
-      size_t ParamSize, const void *Data);
+      size_t ParamSize, const void *Data, const property_list &PropList);
 
 protected:
   void updateValue(const void *NewValue, size_t Size);
@@ -518,9 +519,8 @@ public:
   dynamic_local_accessor(command_graph<graph_state::modifiable> Graph,
                          range<Dimensions> AllocationSize,
                          const property_list &PropList = {})
-      : detail::dynamic_parameter_base(Graph), AllocationSize(AllocationSize) {
-    (void)PropList;
-  }
+      : detail::dynamic_parameter_base(Graph, PropList),
+        AllocationSize(AllocationSize) {}
 
   void update(range<Dimensions> NewAllocationSize) {
     detail::dynamic_parameter_base::updateLocalAccessor(

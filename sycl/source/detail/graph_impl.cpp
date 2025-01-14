@@ -1894,15 +1894,19 @@ void executable_command_graph::update(const std::vector<node> &Nodes) {
 }
 
 dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph, size_t ParamSize,
-    const void *Data)
+    command_graph<graph_state::modifiable> Graph, const property_list &PropList)
     : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {}
+          sycl::detail::getSyclObjImpl(Graph))) {
+  checkGraphPropertiesAndThrow(PropList);
+}
 
 dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph)
+    command_graph<graph_state::modifiable> Graph, size_t ParamSize,
+    const void *Data, const property_list &PropList)
     : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph))) {}
+          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {
+  checkGraphPropertiesAndThrow(PropList);
+}
 
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
@@ -1919,7 +1923,7 @@ void dynamic_parameter_base::updateAccessor(
 }
 
 sycl::detail::LocalAccessorImplPtr
-dynamic_parameter_base::getLocalAccessor(handler *Handler) {
+dynamic_parameter_base::getLocalAccessor(handler *Handler) const {
   return impl->getLocalAccessor(Handler);
 }
 
@@ -1988,7 +1992,7 @@ void dynamic_parameter_impl::updateAccessor(
 }
 
 sycl::detail::LocalAccessorImplPtr
-dynamic_parameter_impl::getLocalAccessor(handler *Handler) {
+dynamic_parameter_impl::getLocalAccessor(handler *Handler) const {
   auto HandlerImpl = sycl::detail::getSyclObjImpl(*Handler);
   auto FindLocalAcc = MHandlerToLocalAccMap.find(HandlerImpl);
 

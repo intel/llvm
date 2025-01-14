@@ -1850,21 +1850,21 @@ public:
 
   // set_arg for graph dynamic_parameters
   template <typename T>
-  void set_arg(int argIndex,
-               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
-    setArgHelper(argIndex, dynamicParam);
+  void set_arg(int ArgIndex,
+               ext::oneapi::experimental::dynamic_parameter<T> &DynamicParam) {
+    setArgHelper(ArgIndex, DynamicParam);
   }
 
   template <typename DataT, int Dims>
-  void set_arg(int argIndex,
+  void set_arg(int ArgIndex,
                ext::oneapi::experimental::dynamic_local_accessor<DataT, Dims>
                    &DynamicLocalAccessor) {
-    setArgHelper(argIndex, DynamicLocalAccessor);
+    setArgHelper(ArgIndex, DynamicLocalAccessor);
   }
 
   // set_arg for the raw_kernel_arg extension type.
-  void set_arg(int argIndex, ext::oneapi::experimental::raw_kernel_arg &&Arg) {
-    setArgHelper(argIndex, std::move(Arg));
+  void set_arg(int ArgIndex, ext::oneapi::experimental::raw_kernel_arg &&Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
   }
 
   /// Sets arguments for OpenCL interoperability kernels.
