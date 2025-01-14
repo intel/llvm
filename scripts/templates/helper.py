@@ -1130,7 +1130,7 @@ def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
         for key, values in item.items():
             key = subt(namespace, tags, key, False, cpp)
             for val in values:
-                code = re.match(r"^\`(.*)\`$", val)
+                code = re.match(r"^\`([^`]*)\`$", val)
                 if code:
                     if key not in checks:
                         checks[key] = []
