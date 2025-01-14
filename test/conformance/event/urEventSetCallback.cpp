@@ -41,7 +41,7 @@ TEST_P(urEventSetCallbackTest, Success) {
  */
 TEST_P(urEventSetCallbackTest, ValidateParameters) {
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
-                         uur::LevelZeroV2{}, uur::OpenCL{}, uur::NativeCPU{});
+                         uur::LevelZeroV2{}, uur::NativeCPU{});
 
     struct CallbackParameters {
         ur_event_handle_t event;
