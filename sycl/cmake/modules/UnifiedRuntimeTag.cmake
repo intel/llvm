@@ -1,7 +1,7 @@
-# commit c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787
-# Merge: e6d4355f 778085f7
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 13 10:41:50 2025 +0000
-#     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
-#     Parameterize CTS tests across all available adapters and devices.
-set(UNIFIED_RUNTIME_TAG c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787)
+# commit 02c82d46fa60cde828ce94e82f7c0d8cc322ce18
+# Merge: ad88f0a1 73711674
+# Author: Piotr Balcer <piotr.balcer@intel.com>
+# Date:   Tue Jan 14 14:20:51 2025 +0100
+#     Merge pull request #2558 from EuphoricThinking/benchmark_patch_parameter_for_tests
+#     Add a benchmark scripts parameter for faster testing
+set(UNIFIED_RUNTIME_TAG 02c82d46fa60cde828ce94e82f7c0d8cc322ce18)
