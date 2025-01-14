@@ -12,6 +12,7 @@
 
 #include "common.hpp"
 #include "platform.hpp"
+#include "usm.hpp"
 
 #if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
 #ifndef NOMINMAX
@@ -322,14 +323,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     return ReturnValue(ur_device_affinity_domain_flags_t{0});
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
-    size_t Global = hDevice->mem_size;
-
-    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
-
-    auto MaxAlloc = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
-                             32u * 1024u * 1024u);
-
-    return ReturnValue(uint64_t{MaxAlloc});
+    return ReturnValue(
+        uint64_t{native_cpu::detail::maxUSMAllocationSize(hDevice)});
   }
   case UR_DEVICE_INFO_EXECUTION_CAPABILITIES:
     // TODO : CHECK

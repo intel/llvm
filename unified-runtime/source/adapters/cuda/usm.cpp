@@ -63,6 +63,10 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                 (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  if (size > hDevice->getMaxAllocSize()) {
+    return UR_RESULT_ERROR_INVALID_USM_SIZE;
+  }
+
   if (!hPool) {
     return USMDeviceAllocImpl(ppMem, hContext, hDevice, /* flags */ 0, size,
                               alignment);
@@ -87,6 +91,10 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(!pUSMDesc ||
                 (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
+
+  if (size > hDevice->getMaxAllocSize()) {
+    return UR_RESULT_ERROR_INVALID_USM_SIZE;
+  }
 
   if (!hPool) {
     return USMSharedAllocImpl(ppMem, hContext, hDevice, /*host flags*/ 0,

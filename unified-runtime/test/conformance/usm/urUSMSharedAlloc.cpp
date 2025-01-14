@@ -124,16 +124,18 @@ TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
-  void *ptr = nullptr;
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
-                   urUSMSharedAlloc(context, device, nullptr, pool, 0, &ptr));
+  size_t max_size;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE,
+                                 sizeof(max_size), &max_size, nullptr));
+  if (max_size == std::numeric_limits<size_t>::max()) {
+    GTEST_SKIP() << "Device has no max allocation size";
+  }
 
-  // TODO: Producing error X from case "size is greater than
-  // UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE" is currently unreliable due to
-  // implementation issues for UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE
-  // https://github.com/oneapi-src/unified-runtime/issues/2665
+  ASSERT_EQ_RESULT(
+      UR_RESULT_ERROR_INVALID_USM_SIZE,
+      urUSMSharedAlloc(context, device, nullptr, pool, max_size + 1, &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidValue) {

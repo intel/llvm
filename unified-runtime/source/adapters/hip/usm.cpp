@@ -49,6 +49,10 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(checkUSMAlignment(alignment, pUSMDesc),
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  if (size > maxUSMAllocationSize(hDevice)) {
+    return UR_RESULT_ERROR_INVALID_USM_SIZE;
+  }
+
   if (!hPool) {
     return USMDeviceAllocImpl(ppMem, hContext, hDevice, /* flags */ 0, size,
                               alignment);
@@ -65,6 +69,10 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   uint32_t alignment;
   UR_ASSERT(checkUSMAlignment(alignment, pUSMDesc),
             UR_RESULT_ERROR_INVALID_VALUE);
+
+  if (size > maxUSMAllocationSize(hDevice)) {
+    return UR_RESULT_ERROR_INVALID_USM_SIZE;
+  }
 
   if (!hPool) {
     return USMSharedAllocImpl(ppMem, hContext, hDevice, /*host flags*/ 0,
@@ -455,6 +463,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   }
+}
+
+uint64_t maxUSMAllocationSize(const ur_device_handle_t &Device) {
+  // Max size of memory object allocation in bytes.
+  // The minimum value is max(min(1024 × 1024 ×
+  // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
+  // 32 × 1024 × 1024) for devices that are not of type
+  // CL_DEVICE_TYPE_CUSTOM.
+  size_t Global = 0;
+  detail::ur::assertion(hipDeviceTotalMem(&Global, Device->get()) ==
+                        hipSuccess);
+
+  auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
+
+  auto MaxAlloc = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
+                           32u * 1024u * 1024u);
+
+  return MaxAlloc;
 }
 
 bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc) {

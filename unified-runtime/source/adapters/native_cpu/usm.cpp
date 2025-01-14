@@ -13,6 +13,7 @@
 
 #include "common.hpp"
 #include "context.hpp"
+#include "usm.hpp"
 #include <cstdlib>
 
 namespace umf {
@@ -27,7 +28,8 @@ static ur_result_t alloc_helper(ur_context_handle_t hContext,
   auto alignment = (pUSMDesc && pUSMDesc->align) ? pUSMDesc->align : 1u;
   UR_ASSERT(isPowerOf2(alignment), UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT);
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  // TODO: Check Max size when UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE is implemented
+  // TODO: Check Max size for host allocations when
+  // UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE is implemented
   UR_ASSERT(size > 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
 
   auto *ptr = hContext->add_alloc(alignment, type, size, nullptr);
@@ -49,8 +51,9 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
                  size_t size, void **ppMem) {
-  std::ignore = hDevice;
   std::ignore = pool;
+  UR_ASSERT(size < native_cpu::detail::maxUSMAllocationSize(hDevice),
+            UR_RESULT_ERROR_INVALID_USM_SIZE);
 
   return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_DEVICE);
 }
@@ -59,8 +62,9 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
                  size_t size, void **ppMem) {
-  std::ignore = hDevice;
   std::ignore = pool;
+  UR_ASSERT(size < native_cpu::detail::maxUSMAllocationSize(hDevice),
+            UR_RESULT_ERROR_INVALID_USM_SIZE);
 
   return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_SHARED);
 }
@@ -154,4 +158,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
   std::ignore = Context;
   std::ignore = HostPtr;
   DIE_NO_IMPLEMENTATION;
+}
+
+uint64_t maxUSMAllocationSize(const ur_device_handle_t &Device) {
+  size_t Global = Device->mem_size;
+
+  auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
+
+  return std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
+                  32u * 1024u * 1024u);
 }
