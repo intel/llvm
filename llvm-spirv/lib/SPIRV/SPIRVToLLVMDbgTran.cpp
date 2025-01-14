@@ -421,7 +421,7 @@ SPIRVToLLVMDbgTran::transTypeArrayNonSemantic(const SPIRVExtInst *DebugInst) {
   if (DebugInst->getExtOp() == SPIRVDebug::TypeArray) {
     for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
       auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
-      if (auto *Count = SR->getCount().get<ConstantInt *>())
+      if (auto *Count = cast<ConstantInt *>(SR->getCount()))
         TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
       Subscripts.push_back(SR);
     }
@@ -444,7 +444,7 @@ SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
   SmallVector<llvm::Metadata *, 8> Subscripts;
   for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
     auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
-    if (auto *Count = SR->getCount().get<ConstantInt *>())
+    if (auto *Count = cast<ConstantInt *>(SR->getCount()))
       TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
     Subscripts.push_back(SR);
   }
@@ -1607,10 +1607,10 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
       if (M->IsNewDbgInfoFormat) {
-        cast<DbgVariableRecord>(DbgValIntr.get<DbgRecord *>())
+        cast<DbgVariableRecord>(cast<DbgRecord *>(DbgValIntr))
             ->setRawLocation(AL);
       } else {
-        cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
+        cast<DbgVariableIntrinsic>(cast<Instruction *>(DbgValIntr))
             ->setRawLocation(AL);
       }
     }
