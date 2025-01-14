@@ -118,8 +118,8 @@ jobs:
     if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
+      ref: sycl-rel-6_0_0
       merge_ref: ''
-      build_ref: sycl-rel-6_0_0
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
@@ -138,8 +138,8 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
+      ref: sycl-rel-6_0_0
       merge_ref: ''
-      build_ref: sycl-rel-6_0_0
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
