@@ -211,7 +211,11 @@ inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
 inline uint32_t ternary_logic_op(uint32_t a, uint32_t b, uint32_t c,
                                  uint8_t lut) {
   uint32_t result = 0;
-
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  asm volatile("lop3.b32 %0, %1, %2, %3, %4;"
+               : "=r"(result)
+               : "r"(a), "r"(b), "r"(c), "n"(lut));
+#else
   switch (lut) {
   case 0x0:
     result = 0;
@@ -295,7 +299,7 @@ inline uint32_t ternary_logic_op(uint32_t a, uint32_t b, uint32_t c,
     break;
   }
   }
-
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return result;
 }
 
