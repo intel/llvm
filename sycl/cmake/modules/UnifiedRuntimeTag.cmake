@@ -1,7 +1,7 @@
-# commit 3472b5bda88fc06560561d7538a9c21d02f749e7
-# Merge: 33c94851 da04d138
+# commit c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787
+# Merge: e6d4355f 778085f7
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Jan 7 10:40:35 2025 +0000
-#     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
-#     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
-set(UNIFIED_RUNTIME_TAG da04d13807044aaf17615b66577fb0e832011ab1)
+# Date:   Mon Jan 13 10:41:50 2025 +0000
+#     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
+#     Parameterize CTS tests across all available adapters and devices.
+set(UNIFIED_RUNTIME_TAG c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787)

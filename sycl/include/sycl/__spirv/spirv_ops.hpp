@@ -15,6 +15,7 @@
 #include <stddef.h> // for size_t
 #include <stdint.h> // for uint32_t
 #include <type_traits>
+#include <utility> // for pair
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1132,6 +1133,13 @@ extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
 
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL std::pair<__ocl_vec_t<T, N>, __ocl_vec_t<T, N>>
+__spirv_IAddCarry(__ocl_vec_t<T, N> src0, __ocl_vec_t<T, N> src1);
+
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL std::pair<__ocl_vec_t<T, N>, __ocl_vec_t<T, N>>
+__spirv_ISubBorrow(__ocl_vec_t<T, N> src0, __ocl_vec_t<T, N> src1);
 template <typename RetT, typename... ArgsT>
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
 __spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,

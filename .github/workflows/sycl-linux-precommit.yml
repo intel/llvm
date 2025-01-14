@@ -21,6 +21,7 @@ on:
     - '.github/workflows/sycl-windows-*.yml'
     - '.github/workflows/sycl-macos-*.yml'
     - '.github/workflows/sycl-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
@@ -157,13 +158,13 @@ jobs:
           - name: E2E tests on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             extra_lit_opts: -j 50
           - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             use_igc_dev: true
             extra_lit_opts: -j 50

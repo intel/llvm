@@ -266,17 +266,18 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     return errorTo<RTCResult>(PostLinkResultOrError.takeError(),
                               "Post-link phase failed");
   }
-  RTCBundleInfo BundleInfo;
-  std::tie(BundleInfo, Module) = std::move(*PostLinkResultOrError);
+  auto [BundleInfo, Modules] = std::move(*PostLinkResultOrError);
 
-  auto BinaryInfoOrError =
-      translation::KernelTranslator::translateBundleToSPIRV(
-          *Module, JITContext::getInstance());
-  if (!BinaryInfoOrError) {
-    return errorTo<RTCResult>(BinaryInfoOrError.takeError(),
-                              "SPIR-V translation failed");
+  for (auto [DevImgInfo, Module] : llvm::zip_equal(BundleInfo, Modules)) {
+    auto BinaryInfoOrError =
+        translation::KernelTranslator::translateDevImgToSPIRV(
+            *Module, JITContext::getInstance());
+    if (!BinaryInfoOrError) {
+      return errorTo<RTCResult>(BinaryInfoOrError.takeError(),
+                                "SPIR-V translation failed");
+    }
+    DevImgInfo.BinaryInfo = std::move(*BinaryInfoOrError);
   }
-  BundleInfo.BinaryInfo = std::move(*BinaryInfoOrError);
 
   return RTCResult{std::move(BundleInfo), BuildLog.c_str()};
 }

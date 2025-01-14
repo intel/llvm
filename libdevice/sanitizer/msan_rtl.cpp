@@ -139,10 +139,11 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
 inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
-    if (as != ADDRESS_SPACE_GLOBAL)
-      return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-          ->CleanShadow;
   }
+
+  if (as != ADDRESS_SPACE_GLOBAL || !(addr & 0xFF00000000000000))
+    return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+        ->CleanShadow;
 
   // Device USM only
   auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
@@ -195,11 +196,6 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
 
   if (!__MsanLaunchInfo.get())
     return shadow_ptr;
-
-  if (UNLIKELY(!__MsanLaunchInfo)) {
-    __spirv_ocl_printf(__msan_print_warning_nolaunchinfo);
-    return shadow_ptr;
-  }
 
   auto launch_info = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_launchinfo, (void *)launch_info,

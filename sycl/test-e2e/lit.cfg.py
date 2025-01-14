@@ -328,8 +328,22 @@ if sp[0] == 0:
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+# -shared is invalid for icx on Windows, use /LD instead.
+dll_opt = "/LD" if cl_options else "-shared"
+
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    [
+        config.dpcpp_compiler,
+        "-fsycl",
+        "--offload-compress",
+        dll_opt,
+        fPIC_opt,
+        "-x",
+        "c++",
+        "-",
+        "-o",
+        "-",
+    ],
     stdin=subprocess.PIPE,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
@@ -509,18 +523,6 @@ for d in config.sycl_devices:
     be, dev = d.split(":")
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
-
-# If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
-supported_hip_platforms = ["AMD", "NVIDIA"]
-if config.hip_platform == "":
-    config.hip_platform = "AMD"
-if config.hip_platform not in supported_hip_platforms:
-    lit_config.error(
-        "Unknown HIP platform '"
-        + config.hip_platform
-        + "' supported platforms are "
-        + ", ".join(supported_hip_platforms)
-    )
 
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
@@ -836,7 +838,7 @@ for sycl_device in config.sycl_devices:
     # Use short names for LIT rules.
     features.add(be)
 
-    if be == "hip" and config.hip_platform == "AMD":
+    if be == "hip":
         if not config.amd_arch:
             # Guaranteed to be a single element in the set
             arch = [x for x in architecture_feature][0]
@@ -847,15 +849,12 @@ for sycl_device in config.sycl_devices:
                 )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
         llvm_config.with_system_environment("ROCM_PATH")
-        config.available_features.add("hip_amd")
         arch_flag = (
             "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
         )
         config.substitutions.append(
             ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
         )
-    elif be == "hip" and config.hip_platform == "NVIDIA":
-        config.available_features.add("hip_nvidia")
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
