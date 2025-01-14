@@ -773,6 +773,8 @@ static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
     return true;
   if (G->getName().starts_with("__spirv_BuiltIn"))
     return true;
+  if (G->getName().starts_with("__usid_str"))
+    return true;
   if (G->getAddressSpace() == kSpirOffloadLocalAS ||
       G->getAddressSpace() == kSpirOffloadConstantAS)
     return true;
