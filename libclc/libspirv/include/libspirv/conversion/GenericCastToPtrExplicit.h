@@ -7,12 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #define GenericCastToPtrExplicit_To(ADDRSPACE, NAME)                           \
-  _CLC_DECL _CLC_OVERLOAD ADDRSPACE void                                       \
-      *__spirv_GenericCastToPtrExplicit_To##NAME(generic void *, int);         \
-  _CLC_DECL _CLC_OVERLOAD ADDRSPACE const void                                 \
-      *__spirv_GenericCastToPtrExplicit_To##NAME(generic const void *, int);   \
-  _CLC_DECL _CLC_OVERLOAD ADDRSPACE volatile void *                            \
-      __spirv_GenericCastToPtrExplicit_To##NAME(generic volatile void *, int); \
+  _CLC_DECL _CLC_OVERLOAD                                                      \
+      ADDRSPACE void *__spirv_GenericCastToPtrExplicit_To##NAME(               \
+          generic void *, int);                                                \
+  _CLC_DECL _CLC_OVERLOAD                                                      \
+      ADDRSPACE const void *__spirv_GenericCastToPtrExplicit_To##NAME(         \
+          generic const void *, int);                                          \
+  _CLC_DECL _CLC_OVERLOAD                                                      \
+      ADDRSPACE volatile void *__spirv_GenericCastToPtrExplicit_To##NAME(      \
+          generic volatile void *, int);                                       \
   _CLC_DECL _CLC_OVERLOAD ADDRSPACE const volatile void *                      \
       __spirv_GenericCastToPtrExplicit_To##NAME(generic const volatile void *, \
                                                 int)
