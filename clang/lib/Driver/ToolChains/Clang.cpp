@@ -5885,7 +5885,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     bool HasFPGA = false;
     for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
       llvm::Triple SYCLTriple = TI->second->getTriple();
-      if (SYCLTriple.isNVPTX() && IsSYCLCUDACompat && !IsSYCLOffloadDevice) {
+      if (SYCLTriple.isNVPTX() && IsSYCLCUDACompat && !IsSYCLDevice) {
         CmdArgs.push_back("-aux-triple");
         CmdArgs.push_back(Args.MakeArgString(SYCLTriple.normalize()));
         // We need to figure out which CUDA version we're compiling for, as that
