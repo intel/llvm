@@ -176,11 +176,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
         if get_triple("hip") in triples:
-            sycl_target_opts += (
+            hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(
                     test.config.amd_arch
                 )
             )
+            sycl_target_opts += hip_arch_opts
+            substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
         substitutions.append(("%{sycl_target_opts}", sycl_target_opts))
 
         substitutions.append(
