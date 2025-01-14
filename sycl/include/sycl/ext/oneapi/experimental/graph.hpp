@@ -466,7 +466,7 @@ protected:
 
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
-  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler *Handler);
+  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler *Handler) const;
 
   void
   registerLocalAccessor(sycl::detail::LocalAccessorBaseHost *LocalAccBaseHost,

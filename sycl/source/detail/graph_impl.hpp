@@ -1492,7 +1492,7 @@ public:
   /// @return returns the impl object for the local accessor that is associated
   /// with this handler. Or nullptr if no local accessor has been registered
   /// for this handler.
-  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler *Handler);
+  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler *Handler) const;
 
   /// Associates a local accessor with this dynamic local accessor for a
   /// specific handler.
