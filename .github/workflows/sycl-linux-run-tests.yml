@@ -361,7 +361,9 @@ jobs:
         cts_exclude_filter=""
         # If CTS_TESTS_TO_BUILD is null - use filter
         if [ -z "$CTS_TESTS_TO_BUILD" ]; then
-          if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
+          if [ "${{ contains(inputs.cts_testing_mode, 'build-only')  }}" = "true" ]; then
+            cts_exclude_filter=$PWD/devops/cts_exclude_filter_all
+          elif [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
             cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
           elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
             cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
