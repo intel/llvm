@@ -36,7 +36,7 @@ const char *getArchName(const device &Device) {
   return "unknown";
 }
 
-// Checks if a container contains a specific element
+// Checks if a container contains a specific element.
 template <typename Container, typename T>
 bool contains(const Container &C, const T &Elem) {
   return std::find(C.begin(), C.end(), Elem) != C.end();
