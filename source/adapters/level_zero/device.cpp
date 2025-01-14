@@ -63,22 +63,21 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
 namespace ur::level_zero {
 
 ur_result_t urDeviceGet(
-    ur_platform_handle_t Platform, ///< [in] handle of the platform instance
-    ur_device_type_t DeviceType,   ///< [in] the type of the devices.
-    uint32_t NumEntries, ///< [in] the number of devices to be added to
-                         ///< phDevices. If phDevices in not NULL then
-                         ///< NumEntries should be greater than zero, otherwise
-                         ///< ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
-    ur_device_handle_t
-        *Devices, ///< [out][optional][range(0, NumEntries)] array of handle of
-                  ///< devices. If NumEntries is less than the number of devices
-                  ///< available, then platform shall only retrieve that number
-                  ///< of devices.
-    uint32_t *NumDevices ///< [out][optional] pointer to the number of devices.
-                         ///< pNumDevices will be updated with the total number
-                         ///< of devices available.
-
-) {
+    /// [in] handle of the platform instance
+    ur_platform_handle_t Platform,
+    /// [in] the type of the devices.
+    ur_device_type_t DeviceType,
+    /// [in] the number of devices to be added to phDevices. If phDevices in not
+    /// NULL then NumEntries should be greater than zero, otherwise
+    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    uint32_t NumEntries,
+    /// [out][optional][range(0, NumEntries)] array of handle of devices. If
+    /// NumEntries is less than the number of devices available, then
+    /// platform shall only retrieve that number of devices.
+    ur_device_handle_t *Devices,
+    /// [out][optional] pointer to the number of devices. pNumDevices will be
+    /// updated with the total number of devices available.
+    uint32_t *NumDevices) {
 
   auto Res = Platform->populateDeviceCacheIfNeeded();
   if (Res != UR_RESULT_SUCCESS) {
@@ -190,17 +189,20 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
 }
 
 ur_result_t urDeviceGetInfo(
-    ur_device_handle_t Device,  ///< [in] handle of the device instance
-    ur_device_info_t ParamName, ///< [in] type of the info to retrieve
-    size_t propSize,  ///< [in] the number of bytes pointed to by ParamValue.
-    void *ParamValue, ///< [out][optional] array of bytes holding the info.
-                      ///< If propSize is not equal to or greater than the real
-                      ///< number of bytes needed to return the info then the
-                      ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                      ///< pDeviceInfo is not used.
-    size_t *pSize ///< [out][optional] pointer to the actual size in bytes of
-                  ///< the queried infoType.
-) {
+    /// [in] handle of the device instance
+    ur_device_handle_t Device,
+    /// [in] type of the info to retrieve
+    ur_device_info_t ParamName,
+    /// [in] the number of bytes pointed to by ParamValue.
+    size_t propSize,
+    /// [out][optional] array of bytes holding the info. If propSize is not
+    /// equal to or greater than the real number of bytes needed to return the
+    /// info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pDeviceInfo is not used.
+    void *ParamValue,
+    /// [out][optional] pointer to the actual size in bytes of the queried
+    /// infoType.
+    size_t *pSize) {
   UrReturnHelper ReturnValue(propSize, ParamValue, pSize);
 
   ze_device_handle_t ZeDevice = Device->ZeDevice;
@@ -1205,19 +1207,19 @@ bool CopyEngineRequested(const ur_device_handle_t &Device) {
 }
 
 ur_result_t urDevicePartition(
-    ur_device_handle_t Device, ///< [in] handle of the device to partition.
-    const ur_device_partition_properties_t
-        *Properties,     ///< [in] Device partition properties.
-    uint32_t NumDevices, ///< [in] the number of sub-devices.
-    ur_device_handle_t
-        *OutDevices, ///< [out][optional][range(0, NumDevices)] array of handle
-                     ///< of devices. If NumDevices is less than the number of
-                     ///< sub-devices available, then the function shall only
-                     ///< retrieve that number of sub-devices.
-    uint32_t *NumDevicesRet ///< [out][optional] pointer to the number of
-                            ///< sub-devices the device can be partitioned into
-                            ///< according to the partitioning property.
-) {
+    /// [in] handle of the device to partition.
+    ur_device_handle_t Device,
+    /// [in] Device partition properties.
+    const ur_device_partition_properties_t *Properties,
+    /// [in] the number of sub-devices.
+    uint32_t NumDevices,
+    /// [out][optional][range(0, NumDevices)] array of handle of devices. If
+    /// NumDevices is less than the number of sub-devices available, then
+    /// the function shall only retrieve that number of sub-devices.
+    ur_device_handle_t *OutDevices,
+    /// [out][optional] pointer to the number of sub-devices the device can be
+    /// partitioned into according to the partitioning property.
+    uint32_t *NumDevicesRet) {
   // Other partitioning ways are not supported by Level Zero
   UR_ASSERT(Properties->PropCount == 1, UR_RESULT_ERROR_INVALID_VALUE);
   if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
@@ -1298,18 +1300,17 @@ ur_result_t urDevicePartition(
 }
 
 ur_result_t urDeviceSelectBinary(
-    ur_device_handle_t
-        Device, ///< [in] handle of the device to select binary for.
-    const ur_device_binary_t
-        *Binaries,        ///< [in] the array of binaries to select from.
-    uint32_t NumBinaries, ///< [in] the number of binaries passed in ppBinaries.
-                          ///< Must greater than or equal to zero otherwise
-                          ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
-    uint32_t
-        *SelectedBinary ///< [out] the index of the selected binary in the input
-                        ///< array of binaries. If a suitable binary was not
-                        ///< found the function returns ${X}_INVALID_BINARY.
-) {
+    /// [in] handle of the device to select binary for.
+    ur_device_handle_t Device,
+    /// [in] the array of binaries to select from.
+    const ur_device_binary_t *Binaries,
+    /// [in] the number of binaries passed in ppBinaries. Must greater than or
+    /// equal to zero otherwise ::UR_RESULT_ERROR_INVALID_VALUE is returned.
+    uint32_t NumBinaries,
+    /// [out] the index of the selected binary in the input array of
+    /// binaries. If a suitable binary was not found the function returns
+    /// ${X}_INVALID_BINARY.
+    uint32_t *SelectedBinary) {
   std::ignore = Device;
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
@@ -1353,24 +1354,23 @@ ur_result_t urDeviceSelectBinary(
 }
 
 ur_result_t urDeviceGetNativeHandle(
-    ur_device_handle_t Device, ///< [in] handle of the device.
-    ur_native_handle_t
-        *NativeDevice ///< [out] a pointer to the native handle of the device.
-) {
+    /// [in] handle of the device.
+    ur_device_handle_t Device,
+    /// [out] a pointer to the native handle of the device.
+    ur_native_handle_t *NativeDevice) {
   *NativeDevice = reinterpret_cast<ur_native_handle_t>(Device->ZeDevice);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urDeviceCreateWithNativeHandle(
-    ur_native_handle_t NativeDevice, ///< [in] the native handle of the device.
-    [[maybe_unused]] ur_adapter_handle_t
-        Adapter, ///< [in] handle of the platform instance
-    [[maybe_unused]] const ur_device_native_properties_t
-        *Properties, ///< [in][optional] pointer to native device properties
-                     ///< struct.
-    ur_device_handle_t
-        *Device ///< [out] pointer to the handle of the device object created.
-) {
+    /// [in] the native handle of the device.
+    ur_native_handle_t NativeDevice,
+    /// [in] handle of the platform instance
+    [[maybe_unused]] ur_adapter_handle_t Adapter,
+    /// [in][optional] pointer to native device properties struct.
+    [[maybe_unused]] const ur_device_native_properties_t *Properties,
+    /// [out] pointer to the handle of the device object created.
+    ur_device_handle_t *Device) {
   auto ZeDevice = ur_cast<ze_device_handle_t>(NativeDevice);
 
   // The SYCL spec requires that the set of devices must remain fixed for the
@@ -1396,14 +1396,14 @@ ur_result_t urDeviceCreateWithNativeHandle(
 }
 
 ur_result_t urDeviceGetGlobalTimestamps(
-    ur_device_handle_t Device, ///< [in] handle of the device instance
-    uint64_t *DeviceTimestamp, ///< [out][optional] pointer to the Device's
-                               ///< global timestamp that correlates with the
-                               ///< Host's global timestamp value
-    uint64_t *HostTimestamp    ///< [out][optional] pointer to the Host's global
-                               ///< timestamp that correlates with the Device's
-                               ///< global timestamp value
-) {
+    /// [in] handle of the device instance
+    ur_device_handle_t Device,
+    /// [out][optional] pointer to the Device's global timestamp that correlates
+    /// with the Host's global timestamp value
+    uint64_t *DeviceTimestamp,
+    /// [out][optional] pointer to the Host's global timestamp that correlates
+    /// with the Device's global timestamp value
+    uint64_t *HostTimestamp) {
   const uint64_t &ZeTimerResolution =
       Device->ZeDeviceProperties->timerResolution;
   const uint64_t TimestampMaxCount = Device->getTimestampMask();

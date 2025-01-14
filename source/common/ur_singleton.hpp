@@ -32,9 +32,10 @@ protected:
   using ptr_t = std::unique_ptr<singleton_t>;
   using map_t = std::unordered_map<key_t, entry_t>;
 
-  std::mutex mut; ///< lock for thread-safety
-  map_t map;      ///< single instance of singleton for each unique key
-
+  /// lock for thread-safety
+  std::mutex mut;
+  /// single instance of singleton for each unique key
+  map_t map;
   //////////////////////////////////////////////////////////////////////////
   /// extract the key from parameter list and if necessary, convert type
   template <typename... Ts>
