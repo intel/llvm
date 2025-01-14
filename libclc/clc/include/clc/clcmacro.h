@@ -231,6 +231,10 @@
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG1_TYPE x) { return BUILTIN(x); } \
   _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, RET_TYPE, FUNCTION, ARG1_TYPE)
 
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
 #define _CLC_DEFINE_UNARY_BUILTIN_FP16(FUNCTION)                               \
   _CLC_DEF _CLC_OVERLOAD half FUNCTION(half x) {                               \
     return (half)FUNCTION((float)x);                                           \
@@ -242,5 +246,14 @@
     return (half)FUNCTION((float)x, (float)y);                                 \
   }                                                                            \
   _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, FUNCTION, half, half)
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : disable
+
+#else
+
+#define _CLC_DEFINE_UNARY_BUILTIN_FP16(FUNCTION)
+#define _CLC_DEFINE_BINARY_BUILTIN_FP16(FUNCTION)
+
+#endif
 
 #endif // __CLC_CLCMACRO_H__

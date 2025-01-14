@@ -29,6 +29,10 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif // cl_khr_fp64
 
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif // cl_khr_fp16
+
 _CLC_OVERLOAD _CLC_DEF float log2(float x) {
     return __spirv_ocl_log2(x);
 }
