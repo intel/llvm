@@ -23,7 +23,7 @@ add_library(${PROJECT_NAME}::common ALIAS ur_common)
 
 target_include_directories(ur_common PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 
 message(STATUS "Download Unified Memory Framework from github.com")
