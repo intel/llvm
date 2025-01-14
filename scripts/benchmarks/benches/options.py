@@ -26,6 +26,7 @@ class Options:
     # these two should probably be merged into one setting
     stddev_threshold: float = 0.02
     epsilon: float = 0.02
+    iterations_stddev: int = 5
 
 options = Options()
 
