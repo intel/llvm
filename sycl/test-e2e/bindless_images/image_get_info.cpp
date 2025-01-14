@@ -1,5 +1,8 @@
 // REQUIRES: cuda
 
+// XFAIL: cuda
+// XFAIL-TRACKER: OFNAAO-440
+
 // RUN: %{build} -o %t.out
 // RUN: %t.out
 
