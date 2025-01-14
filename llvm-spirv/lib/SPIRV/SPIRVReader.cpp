@@ -3317,6 +3317,25 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
     return Loc->second;
 
   auto IsKernel = isKernel(BF);
+
+  if (IsKernel) {
+    // search for a previous function with the same name
+    // upgrade it to a kernel and drop this if it's found
+    for (auto &I : FuncMap) {
+      auto BFName = I.getFirst()->getName();
+      if (BF->getName() == BFName) {
+        auto *F = I.getSecond();
+        F->setCallingConv(CallingConv::SPIR_KERNEL);
+        F->setLinkage(GlobalValue::ExternalLinkage);
+        F->setDSOLocal(false);
+        F = cast<Function>(mapValue(BF, F));
+        mapFunction(BF, F);
+        transFunctionAttrs(BF, F);
+        return F;
+      }
+    }
+  }
+
   auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
   FunctionType *FT = cast<FunctionType>(transType(BF->getFunctionType()));
   std::string FuncName = BF->getName();
@@ -3360,56 +3379,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
 
   F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
                              : CallingConv::SPIR_FUNC);
-  if (BF->hasDecorate(DecorationReferencedIndirectlyINTEL))
-    F->addFnAttr("referenced-indirectly");
-  if (isFuncNoUnwind())
-    F->addFnAttr(Attribute::NoUnwind);
-  foreachFuncCtlMask(BF, [&](Attribute::AttrKind Attr) { F->addFnAttr(Attr); });
-
-  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
-       ++I) {
-    auto BA = BF->getArgument(I->getArgNo());
-    mapValue(BA, &(*I));
-    setName(&(*I), BA);
-    AttributeMask IllegalAttrs =
-        AttributeFuncs::typeIncompatible(I->getType(), I->getAttributes());
-    BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
-      // Skip this function parameter attribute as it will translated among
-      // OpenCL metadata
-      if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
-        return;
-      Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
-      if (IllegalAttrs.contains(LLVMKind))
-        return;
-      Type *AttrTy = nullptr;
-      switch (LLVMKind) {
-      case Attribute::AttrKind::ByVal:
-      case Attribute::AttrKind::StructRet:
-        AttrTy = transType(BA->getType()->getPointerElementType());
-        break;
-      default:
-        break; // do nothing
-      }
-      // Make sure to use a correct constructor for a typed/typeless attribute
-      auto A = AttrTy ? Attribute::get(*Context, LLVMKind, AttrTy)
-                      : Attribute::get(*Context, LLVMKind);
-      I->addAttr(A);
-    });
-
-    AttrBuilder Builder(*Context);
-    SPIRVWord MaxOffset = 0;
-    if (BA->hasDecorate(DecorationMaxByteOffset, 0, &MaxOffset))
-      Builder.addDereferenceableAttr(MaxOffset);
-    SPIRVWord AlignmentBytes = 0;
-    if (BA->hasDecorate(DecorationAlignment, 0, &AlignmentBytes))
-      Builder.addAlignmentAttr(AlignmentBytes);
-    I->addAttrs(Builder);
-  }
-  BF->foreachReturnValueAttr([&](SPIRVFuncParamAttrKind Kind) {
-    if (Kind == FunctionParameterAttributeNoWrite)
-      return;
-    F->addRetAttr(SPIRSPIRVFuncParamAttrMap::rmap(Kind));
-  });
+  transFunctionAttrs(BF, F);
 
   // Creating all basic blocks before creating instructions.
   for (size_t I = 0, E = BF->getNumBasicBlock(); I != E; ++I) {
