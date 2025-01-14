@@ -160,7 +160,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            for _ in range(5):
+            for _ in range(options.iterations_stddev):
                 run_iterations(benchmark, merged_env_vars, options.iterations, intermediate_results)
                 valid, processed = process_results(intermediate_results, benchmark.stddev_threshold())
                 if valid:
@@ -252,6 +252,12 @@ if __name__ == "__main__":
     parser.add_argument("--output-html", help='Create HTML output', action="store_true", default=False)
     parser.add_argument("--output-markdown", help='Create Markdown output', action="store_true", default=True)
     parser.add_argument("--dry-run", help='Do not run any actual benchmarks', action="store_true", default=False)
+    parser.add_argument(
+    "--iterations-stddev",
+    type=int,
+    help="Max number of iterations of the loop calculating stddev after completed benchmark runs",
+    default=options.iterations_stddev,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -272,6 +278,7 @@ if __name__ == "__main__":
     options.output_markdown = args.output_markdown
     options.dry_run = args.dry_run
     options.umf = args.umf
+    options.iterations_stddev = args.iterations_stddev
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
