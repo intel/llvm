@@ -52,7 +52,7 @@ void tempfoo3() {
 namespace N {
 [[__sycl_detail__::__registered_kernels__(
   {"foo", foo},
-  {"iota", (void(*)(int, int *))iota},
+  {"iota", (((void(*)(int, int *))(void *)(((iota)))))},
   {"decl temp", tempfoo<int>},
   {"inst temp", tempfoo2<int>},
   {"decl spec", tempfoo2<float>},

@@ -3208,8 +3208,7 @@ void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
       FD = SemaRef.ResolveSingleFunctionTemplateSpecialization(ULE, true);
       Loc = ULE->getExprLoc();
     } else {
-      if (isa<CastExpr>(SecondE))
-        SecondE = cast<CastExpr>(SecondE)->getSubExpr()->IgnoreParenImpCasts();
+      SecondE = SecondE->IgnoreParenCasts();
       if (auto *DRE = dyn_cast<DeclRefExpr>(SecondE))
         FD = dyn_cast<FunctionDecl>(DRE->getDecl());
       Loc = SecondE->getExprLoc();
