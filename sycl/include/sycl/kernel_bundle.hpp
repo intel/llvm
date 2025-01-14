@@ -37,6 +37,7 @@
 #include <utility>     // for move
 #include <variant>     // for hash
 #include <vector>      // for vector
+#include <span>        // for span
 
 namespace sycl {
 inline namespace _V1 {
@@ -117,6 +118,12 @@ public:
 protected:
   detail::DeviceImageImplPtr impl;
 
+  backend get_backend() const;
+
+  const std::byte *get_BinaryStart() const;
+
+  const std::byte *get_BinaryEnd() const;
+
   template <class Obj>
   friend const decltype(Obj::impl) &
   detail::getSyclObjImpl(const Obj &SyclObject);
@@ -144,6 +151,26 @@ public:
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
     return device_image_plain::has_kernel(KernelID, Dev);
   }
+
+  backend ext_oneapi_get_backend() const noexcept {
+    return device_image_plain::get_backend();
+  }
+
+  template <sycl::bundle_state T = State,
+            typename = std::enable_if_t<T == bundle_state::executable>>
+  std::vector<std::byte> ext_oneapi_get_backend_content() const {
+    return std::vector(device_image_plain::get_BinaryStart(),
+                       device_image_plain::get_BinaryEnd());
+  }
+
+#ifdef __cpp_lib_span
+  template <sycl::bundle_state T = State,
+            typename = std::enable_if_t<T == bundle_state::executable>>
+  std::span<std::byte> ext_oneapi_get_content_backend_view() const {
+    return std::span(device_image_plain::get_BinaryStart(),
+                     device_image_plain::get_BinaryEnd());
+  }
+#endif
 
 private:
   device_image(detail::DeviceImageImplPtr Impl)

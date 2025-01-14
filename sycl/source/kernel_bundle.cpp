@@ -45,6 +45,20 @@ ur_native_handle_t device_image_plain::getNative() const {
   return impl->getNative();
 }
 
+backend device_image_plain::get_backend() const {
+  return impl->get_context().get_backend();
+}
+
+const std::byte *device_image_plain::get_BinaryStart() const {
+  return reinterpret_cast<const std::byte *>(
+      impl->get_bin_image_ref()->getRawData().BinaryStart);
+}
+
+const std::byte *device_image_plain::get_BinaryEnd() const {
+  return reinterpret_cast<const std::byte *>(
+      impl->get_bin_image_ref()->getRawData().BinaryEnd);
+}
+
 ////////////////////////////
 ///// kernel_bundle_plain
 ///////////////////////////
