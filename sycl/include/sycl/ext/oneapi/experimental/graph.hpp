@@ -17,7 +17,7 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
 #endif
-#include <sycl/device.hpp>                     // for device
+#include <sycl/device.hpp> // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
@@ -447,7 +447,6 @@ protected:
 namespace detail {
 class __SYCL_EXPORT dynamic_parameter_base {
 public:
-
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph);
@@ -467,9 +466,11 @@ protected:
 
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
-  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler* Handler);
+  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler *Handler);
 
-  void registerLocalAccessor(sycl::detail::LocalAccessorBaseHost* LocalAccBaseHost, handler* Handler);
+  void
+  registerLocalAccessor(sycl::detail::LocalAccessorBaseHost *LocalAccBaseHost,
+                        handler *Handler);
 
   void updateLocalAccessor(range<3> NewAllocationSize);
 
@@ -530,14 +531,17 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     ::sycl::detail::LocalAccessorImplPtr BaseLocalAcc = getLocalAccessor(&CGH);
     if (BaseLocalAcc) {
-      return sycl::detail::createSyclObjFromImpl<local_accessor<DataT, Dimensions>>(BaseLocalAcc);
+      return sycl::detail::createSyclObjFromImpl<
+          local_accessor<DataT, Dimensions>>(BaseLocalAcc);
     } else {
       local_accessor<DataT, Dimensions> LocalAccessor(AllocationSize, CGH);
       registerLocalAccessor(
-          static_cast<sycl::detail::LocalAccessorBaseHost *>(&LocalAccessor), &CGH);
+          static_cast<sycl::detail::LocalAccessorBaseHost *>(&LocalAccessor),
+          &CGH);
       return LocalAccessor;
     }
 #else
+    (void)CGH;
     return local_accessor<DataT, Dimensions>();
 #endif
   };
