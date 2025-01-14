@@ -19,6 +19,8 @@ on:
         type: string
         required: False
       build_ref:
+        description: |
+          Commit to use for cached_checkout if non-empty.
         type: string
         required: false
       merge_ref:
