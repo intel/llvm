@@ -11,7 +11,7 @@ $_ZN4sycl3_V16detail26joint_matrix_layout_to_spvENS0_3ext6oneapi12experimental6m
 
 ; CHECK: define weak_odr dso_local spir_kernel void @test
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: %{{.*}} = call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 16, 16, 2) @_Z32__spirv_CooperativeMatrixLoadKHR
+; CHECK-NEXT: %{{.*}} = call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 16, 16, 2) @_Z32__spirv_CooperativeMatrixLoadKHR{{.*}}(ptr addrspace(1){{.*}}, i32 noundef 0, i64 noundef{{.*}}
 ; CHECK-NEXT: ret void
 
 define weak_odr dso_local spir_kernel void @test(ptr addrspace(1) %matrix, i64 noundef %stride) {

@@ -13,8 +13,8 @@
 
 #include <queue>
 
-#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 
 using namespace llvm;
 
@@ -22,7 +22,9 @@ namespace {
 
 static constexpr char ACCESS_CHAIN[] = "_Z19__spirv_AccessChain";
 static constexpr char MATRIX_TYPE[] = "spirv.CooperativeMatrixKHR";
-static constexpr char MATRIX_LAYOUT[] = "_ZN4sycl3_V16detail26joint_matrix_layout_to_spvENS0_3ext6oneapi12experimental6matrix6layoutE";
+static constexpr char MATRIX_LAYOUT[] =
+    "_ZN4sycl3_V16detail26joint_matrix_layout_to_spvENS0_"
+    "3ext6oneapi12experimental6matrix6layoutE";
 
 Type *getInnermostType(Type *Ty) {
   while (auto *ArrayTy = dyn_cast<ArrayType>(Ty))
