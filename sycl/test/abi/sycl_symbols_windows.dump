@@ -3844,6 +3844,10 @@
 ?ext_oneapi_fill2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
 ?ext_oneapi_get_composite_devices@platform@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
+?ext_oneapi_get_device_global_address@kernel_bundle_plain@detail@_V1@sycl@@AEAAPEAXVstring_view@234@AEBVdevice@34@@Z
+?ext_oneapi_get_device_global_address@kernel_bundle_plain@detail@_V1@sycl@@QEAAPEAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBVdevice@34@@Z
+?ext_oneapi_get_device_global_size@kernel_bundle_plain@detail@_V1@sycl@@AEAA_KVstring_view@234@AEBVdevice@34@@Z
+?ext_oneapi_get_device_global_size@kernel_bundle_plain@detail@_V1@sycl@@QEAA_KAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBVdevice@34@@Z
 ?ext_oneapi_get_graph@queue@_V1@sycl@@QEBA?AV?$command_graph@$0A@@experimental@oneapi@ext@23@XZ
 ?ext_oneapi_get_kernel@kernel_bundle_plain@detail@_V1@sycl@@AEAA?AVkernel@34@Vstring_view@234@@Z
 ?ext_oneapi_get_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA?AVkernel@34@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
@@ -3853,6 +3857,8 @@
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@V423@AEBUcode_location@detail@23@@Z
+?ext_oneapi_has_device_global@kernel_bundle_plain@detail@_V1@sycl@@AEAA_NVstring_view@234@AEBVdevice@34@@Z
+?ext_oneapi_has_device_global@kernel_bundle_plain@detail@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBVdevice@34@@Z
 ?ext_oneapi_has_kernel@kernel_bundle_plain@detail@_V1@sycl@@AEAA_NVstring_view@234@@Z
 ?ext_oneapi_has_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?ext_oneapi_memcpy2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
