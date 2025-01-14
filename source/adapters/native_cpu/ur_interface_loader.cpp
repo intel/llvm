@@ -374,10 +374,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_virtual_mem_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_virtual_mem_dditable_t *pDdiTable) {
   auto retVal = validateProcInputs(version, pDdiTable);
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;

@@ -350,14 +350,16 @@ ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
 namespace ur::level_zero {
 
 ur_result_t urQueueGetInfo(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
-    ur_queue_info_t ParamName, ///< [in] name of the queue property to query
-    size_t ParamValueSize, ///< [in] size in bytes of the queue property value
-                           ///< provided
-    void *ParamValue,      ///< [out] value of the queue property
-    size_t *ParamValueSizeRet ///< [out] size in bytes returned in queue
-                              ///< property value
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] name of the queue property to query
+    ur_queue_info_t ParamName,
+    /// [in] size in bytes of the queue property value provided
+    size_t ParamValueSize,
+    /// [out] value of the queue property
+    void *ParamValue,
+    /// [out] size in bytes returned in queue property value
+    size_t *ParamValueSizeRet) {
   std::shared_lock<ur_shared_mutex> Lock(Queue->Mutex);
   UrReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // TODO: consider support for queue properties and size
@@ -474,17 +476,18 @@ static bool doEagerInit = [] {
 }();
 
 ur_result_t urQueueCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_device_handle_t Device,   ///< [in] handle of the device object
-    const ur_queue_properties_t
-        *Props, ///< [in] specifies a list of queue properties and their
-                ///< corresponding values. Each property name is immediately
-                ///< followed by the corresponding desired value. The list is
-                ///< terminated with a 0. If a property value is not specified,
-                ///< then its default value will be used.
-    ur_queue_handle_t
-        *Queue ///< [out] pointer to handle of queue object created
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] handle of the device object
+    ur_device_handle_t Device,
+    /// [in] specifies a list of queue properties and their corresponding
+    /// values. Each property name is immediately followed by the
+    /// corresponding desired value. The list is terminated with a 0. If a
+    /// property value is not specified, then its default value will be
+    /// used.
+    const ur_queue_properties_t *Props,
+    /// [out] pointer to handle of queue object created
+    ur_queue_handle_t *Queue) {
   ur_queue_flags_t Flags{};
   if (Props) {
     Flags = Props->flags;
@@ -583,8 +586,8 @@ ur_result_t urQueueCreate(
 }
 
 ur_result_t urQueueRetain(
-    ur_queue_handle_t Queue ///< [in] handle of the queue object to get access
-) {
+    /// [in] handle of the queue object to get access
+    ur_queue_handle_t Queue) {
   {
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
     Queue->RefCountExternal++;
@@ -594,8 +597,8 @@ ur_result_t urQueueRetain(
 }
 
 ur_result_t urQueueRelease(
-    ur_queue_handle_t Queue ///< [in] handle of the queue object to release
-) {
+    /// [in] handle of the queue object to release
+    ur_queue_handle_t Queue) {
   std::vector<ur_event_handle_t> EventListToCleanup;
   {
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
@@ -698,11 +701,10 @@ ur_result_t urQueueRelease(
 }
 
 ur_result_t urQueueGetNativeHandle(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue.
-    ur_queue_native_desc_t *Desc,
-    ur_native_handle_t
-        *NativeQueue ///< [out] a pointer to the native handle of the queue.
-) {
+    /// [in] handle of the queue.
+    ur_queue_handle_t Queue, ur_queue_native_desc_t *Desc,
+    /// [out] a pointer to the native handle of the queue.
+    ur_native_handle_t *NativeQueue) {
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -735,13 +737,16 @@ ur_result_t urQueueGetNativeHandle(
 }
 
 ur_result_t urQueueCreateWithNativeHandle(
-    ur_native_handle_t NativeQueue, ///< [in] the native handle of the queue.
-    ur_context_handle_t Context,    ///< [in] handle of the context object
-    ur_device_handle_t Device,      ///
-    const ur_queue_native_properties_t *NativeProperties, ///
-    ur_queue_handle_t
-        *RetQueue ///< [out] pointer to the handle of the queue object created.
-) {
+    /// [in] the native handle of the queue.
+    ur_native_handle_t NativeQueue,
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    ur_device_handle_t Device, ///
+    const ur_queue_native_properties_t
+        *NativeProperties, ///
+                           /// [out] pointer to the handle of the queue object
+                           /// created.
+    ur_queue_handle_t *RetQueue) {
   bool OwnNativeHandle = false;
   ur_queue_flags_t Flags{};
   int32_t NativeHandleDesc{};
@@ -827,8 +832,8 @@ ur_result_t urQueueCreateWithNativeHandle(
 }
 
 ur_result_t urQueueFinish(
-    ur_queue_handle_t Queue ///< [in] handle of the queue to be finished.
-) {
+    /// [in] handle of the queue to be finished.
+    ur_queue_handle_t Queue) {
   if (Queue->UsingImmCmdLists) {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
@@ -894,8 +899,8 @@ ur_result_t urQueueFinish(
 }
 
 ur_result_t urQueueFlush(
-    ur_queue_handle_t Queue ///< [in] handle of the queue to be flushed.
-) {
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t Queue) {
   std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
   return Queue->executeAllOpenCommandLists();
 }

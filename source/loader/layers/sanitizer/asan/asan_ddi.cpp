@@ -56,18 +56,16 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
 __urdlllocal ur_result_t UR_APICALL urAdapterGet(
-    uint32_t
-        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
-    ///< If phAdapters is not NULL, then NumEntries should be greater than
-    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
-    ///< will be returned.
-    ur_adapter_handle_t *phAdapters, ///< [out][optional][range(0, NumEntries)]
-                                     ///< array of handle of adapters.
-    ///< If NumEntries is less than the number of adapters available, then
-    ///< ::urAdapterGet shall only retrieve that number of platforms.
-    uint32_t *pNumAdapters ///< [out][optional] returns the total number of
-                           ///< adapters available.
-) {
+    /// [in] the number of adapters to be added to phAdapters. If phAdapters
+    /// is not NULL, then NumEntries should be greater than zero, otherwise
+    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    uint32_t NumEntries,
+    /// [out][optional][range(0, NumEntries)] array of handle of adapters. If
+    /// NumEntries is less than the number of adapters available, then
+    /// ::urAdapterGet shall only retrieve that number of platforms.
+    ur_adapter_handle_t *phAdapters,
+    /// [out][optional] returns the total number of adapters available.
+    uint32_t *pNumAdapters) {
   auto pfnAdapterGet = getContext()->urDdiTable.Global.pfnAdapterGet;
 
   if (nullptr == pfnAdapterGet) {
@@ -88,15 +86,16 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMHostAlloc
 __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    const ur_usm_desc_t
-        *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t pool, ///< [in][optional] Pointer to a pool created
-                               ///< using urUSMPoolCreate
-    size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
-    void **ppMem ///< [out] pointer to USM host memory object
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t *pUSMDesc,
+    /// [in][optional] Pointer to a pool created using urUSMPoolCreate
+    ur_usm_pool_handle_t pool,
+    /// [in] size in bytes of the USM memory object to be allocated
+    size_t size,
+    /// [out] pointer to USM host memory object
+    void **ppMem) {
   auto pfnHostAlloc = getContext()->urDdiTable.USM.pfnHostAlloc;
 
   if (nullptr == pfnHostAlloc) {
@@ -112,16 +111,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMDeviceAlloc
 __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    const ur_usm_desc_t
-        *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t pool, ///< [in][optional] Pointer to a pool created
-                               ///< using urUSMPoolCreate
-    size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
-    void **ppMem ///< [out] pointer to USM device memory object
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t *pUSMDesc,
+    /// [in][optional] Pointer to a pool created using urUSMPoolCreate
+    ur_usm_pool_handle_t pool,
+    /// [in] size in bytes of the USM memory object to be allocated
+    size_t size,
+    /// [out] pointer to USM device memory object
+    void **ppMem) {
   auto pfnDeviceAlloc = getContext()->urDdiTable.USM.pfnDeviceAlloc;
 
   if (nullptr == pfnDeviceAlloc) {
@@ -137,16 +138,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMSharedAlloc
 __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
-    ur_context_handle_t hContext,  ///< [in] handle of the context object
-    ur_device_handle_t hDevice,    ///< [in] handle of the device object
-    const ur_usm_desc_t *pUSMDesc, ///< [in][optional] Pointer to USM memory
-                                   ///< allocation descriptor.
-    ur_usm_pool_handle_t pool,     ///< [in][optional] Pointer to a pool created
-                                   ///< using urUSMPoolCreate
-    size_t
-        size, ///< [in] size in bytes of the USM memory object to be allocated
-    void **ppMem ///< [out] pointer to USM shared memory object
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][optional] Pointer to USM memory allocation descriptor.
+    const ur_usm_desc_t *pUSMDesc,
+    /// [in][optional] Pointer to a pool created using urUSMPoolCreate
+    ur_usm_pool_handle_t pool,
+    /// [in] size in bytes of the USM memory object to be allocated
+    size_t size,
+    /// [out] pointer to USM shared memory object
+    void **ppMem) {
   auto pfnSharedAlloc = getContext()->urDdiTable.USM.pfnSharedAlloc;
 
   if (nullptr == pfnSharedAlloc) {
@@ -162,9 +165,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMFree
 __urdlllocal ur_result_t UR_APICALL urUSMFree(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pMem                    ///< [in] pointer to USM memory object
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to USM memory object
+    void *pMem) {
   auto pfnFree = getContext()->urDdiTable.USM.pfnFree;
 
   if (nullptr == pfnFree) {
@@ -179,14 +183,16 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithIL
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
-    ur_context_handle_t hContext, ///< [in] handle of the context instance
-    const void *pIL,              ///< [in] pointer to IL binary.
-    size_t length,                ///< [in] length of `pIL` in bytes.
-    const ur_program_properties_t *
-        pProperties, ///< [in][optional] pointer to program creation properties.
-    ur_program_handle_t
-        *phProgram ///< [out] pointer to handle of program object created.
-) {
+    /// [in] handle of the context instance
+    ur_context_handle_t hContext,
+    /// [in] pointer to IL binary.
+    const void *pIL,
+    /// [in] length of `pIL` in bytes.
+    size_t length,
+    /// [in][optional] pointer to program creation properties.
+    const ur_program_properties_t *pProperties,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
   auto pfnProgramCreateWithIL =
       getContext()->urDdiTable.Program.pfnCreateWithIL;
 
@@ -206,22 +212,23 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithBinary
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ///< [in] handle of the context instance
-    uint32_t numDevices,          ///< [in] number of devices
-    ur_device_handle_t
-        *phDevices, ///< [in][range(0, numDevices)] a pointer to a list of
-                    ///< device handles. The binaries are loaded for devices
-                    ///< specified in this list.
-    size_t *pLengths, ///< [in][range(0, numDevices)] array of sizes of program
-                      ///< binaries specified by `pBinaries` (in bytes).
-    const uint8_t *
-        *ppBinaries, ///< [in][range(0, numDevices)] pointer to program binaries
-                     ///< to be loaded for devices specified by `phDevices`.
-    const ur_program_properties_t *
-        pProperties, ///< [in][optional] pointer to program creation properties.
-    ur_program_handle_t
-        *phProgram ///< [out] pointer to handle of Program object created.
-) {
+    /// [in] handle of the context instance
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] a pointer to a list of device handles.
+    /// The binaries are loaded for devices specified in this list.
+    ur_device_handle_t *phDevices,
+    /// [in][range(0, numDevices)] array of sizes of program binaries specified
+    /// by `pBinaries` (in bytes).
+    size_t *pLengths,
+    /// [in][range(0, numDevices)] pointer to program binaries to be loaded
+    /// for devices specified by `phDevices`.
+    const uint8_t **ppBinaries,
+    /// [in][optional] pointer to program creation properties.
+    const ur_program_properties_t *pProperties,
+    /// [out] pointer to handle of Program object created.
+    ur_program_handle_t *phProgram) {
   auto pfnProgramCreateWithBinary =
       getContext()->urDdiTable.Program.pfnCreateWithBinary;
 
@@ -241,15 +248,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
-    ur_native_handle_t
-        hNativeProgram, ///< [in][nocheck] the native handle of the program.
-    ur_context_handle_t hContext, ///< [in] handle of the context instance
-    const ur_program_native_properties_t
-        *pProperties, ///< [in][optional] pointer to native program properties
-                      ///< struct.
-    ur_program_handle_t *phProgram ///< [out] pointer to the handle of the
-                                   ///< program object created.
-) {
+    /// [in][nocheck] the native handle of the program.
+    ur_native_handle_t hNativeProgram,
+    /// [in] handle of the context instance
+    ur_context_handle_t hContext,
+    /// [in][optional] pointer to native program properties struct.
+    const ur_program_native_properties_t *pProperties,
+    /// [out] pointer to the handle of the program object created.
+    ur_program_handle_t *phProgram) {
   auto pfnProgramCreateWithNativeHandle =
       getContext()->urDdiTable.Program.pfnCreateWithNativeHandle;
 
@@ -270,8 +276,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 /// @brief Intercept function for urProgramRetain
 __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     ur_program_handle_t
-        hProgram ///< [in][retain] handle for the Program to retain
-) {
+        /// [in][retain] handle for the Program to retain
+        hProgram) {
   auto pfnRetain = getContext()->urDdiTable.Program.pfnRetain;
 
   if (nullptr == pfnRetain) {
@@ -293,10 +299,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuild
 __urdlllocal ur_result_t UR_APICALL urProgramBuild(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_program_handle_t hProgram, ///< [in] handle of the program object
-    const char *pOptions          ///< [in] string of build options
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the program object
+    ur_program_handle_t hProgram,
+    /// [in] string of build options
+    const char *pOptions) {
   auto pfnProgramBuild = getContext()->urDdiTable.Program.pfnBuild;
 
   if (nullptr == pfnProgramBuild) {
@@ -315,13 +323,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
-    ur_program_handle_t hProgram,  ///< [in] Handle of the program to build.
-    uint32_t numDevices,           ///< [in] number of devices
-    ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to
-                                   ///< array of device handles
-    const char *pOptions           ///< [in][optional] pointer to build options
-                                   ///< null-terminated string.
-) {
+    /// [in] Handle of the program to build.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) {
   auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
 
   if (nullptr == pfnBuildExp) {
@@ -339,15 +348,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramLink
 __urdlllocal ur_result_t UR_APICALL urProgramLink(
-    ur_context_handle_t hContext, ///< [in] handle of the context instance.
-    uint32_t count, ///< [in] number of program handles in `phPrograms`.
-    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to
-                                           ///< array of program handles.
-    const char *pOptions, ///< [in][optional] pointer to linker options
-                          ///< null-terminated string.
-    ur_program_handle_t
-        *phProgram ///< [out] pointer to handle of program object created.
-) {
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
   auto pfnProgramLink = getContext()->urDdiTable.Program.pfnLink;
 
   if (nullptr == pfnProgramLink) {
@@ -367,18 +377,20 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramLinkExp
 ur_result_t UR_APICALL urProgramLinkExp(
-    ur_context_handle_t hContext,  ///< [in] handle of the context instance.
-    uint32_t numDevices,           ///< [in] number of devices
-    ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to
-                                   ///< array of device handles
-    uint32_t count, ///< [in] number of program handles in `phPrograms`.
-    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to
-                                           ///< array of program handles.
-    const char *pOptions, ///< [in][optional] pointer to linker options
-                          ///< null-terminated string.
-    ur_program_handle_t
-        *phProgram ///< [out] pointer to handle of program object created.
-) {
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
   auto pfnProgramLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
 
   if (nullptr == pfnProgramLinkExp) {
@@ -399,9 +411,8 @@ ur_result_t UR_APICALL urProgramLinkExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramRelease
 ur_result_t UR_APICALL urProgramRelease(
-    ur_program_handle_t
-        hProgram ///< [in][release] handle for the Program to release
-) {
+    /// [in][release] handle for the Program to release
+    ur_program_handle_t hProgram) {
   auto pfnProgramRelease = getContext()->urDdiTable.Program.pfnRelease;
 
   if (nullptr == pfnProgramRelease) {
@@ -424,34 +435,35 @@ ur_result_t UR_APICALL urProgramRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueKernelLaunch
 __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t workDim, ///< [in] number of dimensions, from 1 to 3, to specify
-                      ///< the global and work-group work-items
-    const size_t *pGlobalWorkOffset, ///< [in] pointer to an array of workDim
-                                     ///< unsigned values that specify the
-    ///< offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkSize, ///< [in] pointer to an array of workDim
-                                   ///< unsigned values that specify the
-    ///< number of global work-items in workDim that will execute the kernel
-    ///< function
-    const size_t *pLocalWorkSize, ///< [in][optional] pointer to an array of
-                                  ///< workDim unsigned values that
-    ///< specify the number of local work-items forming a work-group that will
-    ///< execute the kernel function.
-    ///< If nullptr, the runtime implementation will choose the work-group
-    ///< size.
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
-    ur_event_handle_t
-        *phEvent ///< [out][optional] return an event object that identifies
-                 ///< this particular kernel execution instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function. If nullptr, the runtime implementation will
+    /// choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *phEvent) {
   auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
 
   if (nullptr == pfnKernelLaunch) {
@@ -487,14 +499,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextCreate
 __urdlllocal ur_result_t UR_APICALL urContextCreate(
-    uint32_t numDevices, ///< [in] the number of devices given in phDevices
-    const ur_device_handle_t
-        *phDevices, ///< [in][range(0, numDevices)] array of handle of devices.
-    const ur_context_properties_t *
-        pProperties, ///< [in][optional] pointer to context creation properties.
-    ur_context_handle_t
-        *phContext ///< [out] pointer to handle of context object created
-) {
+    /// [in] the number of devices given in phDevices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] array of handle of devices.
+    const ur_device_handle_t *phDevices,
+    /// [in][optional] pointer to context creation properties.
+    const ur_context_properties_t *pProperties,
+    /// [out] pointer to handle of context object created
+    ur_context_handle_t *phContext) {
   auto pfnCreate = getContext()->urDdiTable.Context.pfnCreate;
 
   if (nullptr == pfnCreate) {
@@ -515,19 +527,17 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext, ///< [in][nocheck] the native handle of
-                                       ///< the getContext()->
-    ur_adapter_handle_t hAdapter,
-    uint32_t numDevices, ///< [in] number of devices associated with the context
-    const ur_device_handle_t
-        *phDevices, ///< [in][range(0, numDevices)] list of devices associated
-                    ///< with the context
-    const ur_context_native_properties_t
-        *pProperties, ///< [in][optional] pointer to native context properties
-                      ///< struct
-    ur_context_handle_t *phContext ///< [out] pointer to the handle of the
-                                   ///< context object created.
-) {
+    /// [in][nocheck] the native handle of the getContext()->
+    ur_native_handle_t hNativeContext, ur_adapter_handle_t hAdapter,
+    /// [in] number of devices associated with the context
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] list of devices associated with the
+    /// context
+    const ur_device_handle_t *phDevices,
+    /// [in][optional] pointer to native context properties struct
+    const ur_context_native_properties_t *pProperties,
+    /// [out] pointer to the handle of the context object created.
+    ur_context_handle_t *phContext) {
   auto pfnCreateWithNativeHandle =
       getContext()->urDdiTable.Context.pfnCreateWithNativeHandle;
 
@@ -550,9 +560,8 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRetain
 __urdlllocal ur_result_t UR_APICALL urContextRetain(
-    ur_context_handle_t
-        hContext ///< [in] handle of the context to get a reference of.
-) {
+    /// [in] handle of the context to get a reference of.
+    ur_context_handle_t hContext) {
   auto pfnRetain = getContext()->urDdiTable.Context.pfnRetain;
 
   if (nullptr == pfnRetain) {
@@ -573,8 +582,8 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRelease
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
-    ur_context_handle_t hContext ///< [in] handle of the context to release.
-) {
+    /// [in] handle of the context to release.
+    ur_context_handle_t hContext) {
   auto pfnRelease = getContext()->urDdiTable.Context.pfnRelease;
 
   if (nullptr == pfnRelease) {
@@ -597,14 +606,16 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemBufferCreate
 __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_mem_flags_t flags, ///< [in] allocation and usage information flags
-    size_t size, ///< [in] size in bytes of the memory object to be allocated
-    const ur_buffer_properties_t
-        *pProperties, ///< [in][optional] pointer to buffer creation properties
-    ur_mem_handle_t
-        *phBuffer ///< [out] pointer to handle of the memory buffer created
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] allocation and usage information flags
+    ur_mem_flags_t flags,
+    /// [in] size in bytes of the memory object to be allocated
+    size_t size,
+    /// [in][optional] pointer to buffer creation properties
+    const ur_buffer_properties_t *pProperties,
+    /// [out] pointer to handle of the memory buffer created
+    ur_mem_handle_t *phBuffer) {
   auto pfnBufferCreate = getContext()->urDdiTable.Mem.pfnBufferCreate;
 
   if (nullptr == pfnBufferCreate) {
@@ -649,19 +660,20 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemGetInfo
 __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
-    ur_mem_handle_t
-        hMemory,            ///< [in] handle to the memory object being queried.
-    ur_mem_info_t propName, ///< [in] type of the info to retrieve.
-    size_t propSize,  ///< [in] the number of bytes of memory pointed to by
-                      ///< pPropValue.
-    void *pPropValue, ///< [out][optional][typename(propName, propSize)] array
-                      ///< of bytes holding the info.
-    ///< If propSize is less than the real number of bytes needed to return
-    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    ///< pPropValue is not used.
-    size_t *pPropSizeRet ///< [out][optional] pointer to the actual size in
-                         ///< bytes of the queried propName.
-) {
+    /// [in] handle to the memory object being queried.
+    ur_mem_handle_t hMemory,
+    /// [in] type of the info to retrieve.
+    ur_mem_info_t propName,
+    /// [in] the number of bytes of memory pointed to by pPropValue.
+    size_t propSize,
+    /// [out][optional][typename(propName, propSize)] array of bytes holding the
+    /// info. If propSize is less than the real number of bytes needed to return
+    /// the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of the queried
+    /// propName.
+    size_t *pPropSizeRet) {
   auto pfnGetInfo = getContext()->urDdiTable.Mem.pfnGetInfo;
 
   if (nullptr == pfnGetInfo) {
@@ -693,8 +705,8 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRetain
 __urdlllocal ur_result_t UR_APICALL urMemRetain(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to get access
-) {
+    /// [in] handle of the memory object to get access
+    ur_mem_handle_t hMem) {
   auto pfnRetain = getContext()->urDdiTable.Mem.pfnRetain;
 
   if (nullptr == pfnRetain) {
@@ -715,8 +727,8 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemRelease
 __urdlllocal ur_result_t UR_APICALL urMemRelease(
-    ur_mem_handle_t hMem ///< [in] handle of the memory object to release
-) {
+    /// [in] handle of the memory object to release
+    ur_mem_handle_t hMem) {
   auto pfnRelease = getContext()->urDdiTable.Mem.pfnRelease;
 
   if (nullptr == pfnRelease) {
@@ -741,15 +753,17 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemBufferPartition
 __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
-    ur_mem_handle_t
-        hBuffer,          ///< [in] handle of the buffer object to allocate from
-    ur_mem_flags_t flags, ///< [in] allocation and usage information flags
-    ur_buffer_create_type_t bufferCreateType, ///< [in] buffer creation type
-    const ur_buffer_region_t
-        *pRegion, ///< [in] pointer to buffer create region information
-    ur_mem_handle_t
-        *phMem ///< [out] pointer to the handle of sub buffer created
-) {
+
+    /// [in] handle of the buffer object to allocate from
+    ur_mem_handle_t hBuffer,
+    /// [in] allocation and usage information flags
+    ur_mem_flags_t flags,
+    /// [in] buffer creation type
+    ur_buffer_create_type_t bufferCreateType,
+    /// [in] pointer to buffer create region information
+    const ur_buffer_region_t *pRegion,
+    /// [out] pointer to the handle of sub buffer created
+    ur_mem_handle_t *phMem) {
   auto pfnBufferPartition = getContext()->urDdiTable.Mem.pfnBufferPartition;
 
   if (nullptr == pfnBufferPartition) {
@@ -777,11 +791,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemGetNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
-    ur_mem_handle_t hMem, ///< [in] handle of the mem.
-    ur_device_handle_t hDevice,
-    ur_native_handle_t
-        *phNativeMem ///< [out] a pointer to the native handle of the mem.
-) {
+    /// [in] handle of the mem.
+    ur_mem_handle_t hMem, ur_device_handle_t hDevice,
+    /// [out] a pointer to the native handle of the mem.
+    ur_native_handle_t *phNativeMem) {
   auto pfnGetNativeHandle = getContext()->urDdiTable.Mem.pfnGetNativeHandle;
 
   if (nullptr == pfnGetNativeHandle) {
@@ -804,23 +817,28 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferRead
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_mem_handle_t
-        hBuffer, ///< [in][bounds(offset, size)] handle of the buffer object
-    bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
-    size_t offset,     ///< [in] offset in bytes in the buffer object
-    size_t size,       ///< [in] size in bytes of data being read
-    void *pDst, ///< [in] pointer to host memory where data is to be read into
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][bounds(offset, size)] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingRead,
+    /// [in] offset in bytes in the buffer object
+    size_t offset,
+    /// [in] size in bytes of data being read
+    size_t size,
+    /// [in] pointer to host memory where data is to be read into
+    void *pDst,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemBufferRead = getContext()->urDdiTable.Enqueue.pfnMemBufferRead;
 
   if (nullptr == pfnMemBufferRead) {
@@ -847,25 +865,28 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferWrite
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_mem_handle_t
-        hBuffer, ///< [in][bounds(offset, size)] handle of the buffer object
-    bool
-        blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
-    size_t offset,     ///< [in] offset in bytes in the buffer object
-    size_t size,       ///< [in] size in bytes of data being written
-    const void
-        *pSrc, ///< [in] pointer to host memory where data is to be written from
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][bounds(offset, size)] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingWrite,
+    /// [in] offset in bytes in the buffer object
+    size_t offset,
+    /// [in] size in bytes of data being written
+    size_t size,
+    /// [in] pointer to host memory where data is to be written from
+    const void *pSrc,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemBufferWrite = getContext()->urDdiTable.Enqueue.pfnMemBufferWrite;
 
   if (nullptr == pfnMemBufferWrite) {
@@ -893,33 +914,40 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferReadRect
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,  ///< [in][bounds(bufferOrigin, region)] handle of
-                              ///< the buffer object
-    bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOrigin, ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOrigin,   ///< [in] 3D offset in the host region
-    ur_rect_region_t
-        region, ///< [in] 3D rectangular region descriptor: width, height, depth
-    size_t bufferRowPitch,   ///< [in] length of each row in bytes in the buffer
-                             ///< object
-    size_t bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                             ///< buffer object being read
-    size_t hostRowPitch,     ///< [in] length of each row in bytes in the host
-                         ///< memory region pointed by dst
-    size_t hostSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                           ///< host memory region pointed by dst
-    void *pDst, ///< [in] pointer to host memory where data is to be read into
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][bounds(bufferOrigin, region)] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingRead,
+    /// [in] 3D offset in the buffer
+    ur_rect_offset_t bufferOrigin,
+    /// [in] 3D offset in the host region
+    ur_rect_offset_t hostOrigin,
+    /// [in] 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t region,
+    /// [in] length of each row in bytes in the buffer object
+    size_t bufferRowPitch,
+    /// [in] length of each 2D slice in bytes in the buffer object being read
+    size_t bufferSlicePitch,
+    /// [in] length of each row in bytes in the host memory region pointed by
+    /// dst
+    size_t hostRowPitch,
+    /// [in] length of each 2D slice in bytes in the host memory region pointed
+    /// by dst
+    size_t hostSlicePitch,
+    /// [in] pointer to host memory where data is to be read into
+    void *pDst,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemBufferReadRect =
       getContext()->urDdiTable.Enqueue.pfnMemBufferReadRect;
 
@@ -951,35 +979,40 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferWriteRect
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer,  ///< [in][bounds(bufferOrigin, region)] handle of
-                              ///< the buffer object
-    bool
-        blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOrigin, ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOrigin,   ///< [in] 3D offset in the host region
-    ur_rect_region_t
-        region, ///< [in] 3D rectangular region descriptor: width, height, depth
-    size_t bufferRowPitch,   ///< [in] length of each row in bytes in the buffer
-                             ///< object
-    size_t bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                             ///< buffer object being written
-    size_t hostRowPitch, ///< [in] length of each row in bytes in the host
-                         ///< memory region pointed by src
-    size_t hostSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                           ///< host memory region pointed by src
-    void
-        *pSrc, ///< [in] pointer to host memory where data is to be written from
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< points to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][bounds(bufferOrigin, region)] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingWrite,
+    /// [in] 3D offset in the buffer
+    ur_rect_offset_t bufferOrigin,
+    /// [in] 3D offset in the host region
+    ur_rect_offset_t hostOrigin,
+    /// [in] 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t region,
+    /// [in] length of each row in bytes in the buffer object
+    size_t bufferRowPitch,
+    /// [in] length of each 2D slice in bytes in the buffer object being written
+    size_t bufferSlicePitch,
+    /// [in] length of each row in bytes in the host memory region pointed by
+    /// src
+    size_t hostRowPitch,
+    /// [in] length of each 2D slice in bytes in the host memory region pointed
+    /// by src
+    size_t hostSlicePitch,
+    /// [in] pointer to host memory where data is to be written from
+    void *pSrc,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] points to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemBufferWriteRect =
       getContext()->urDdiTable.Enqueue.pfnMemBufferWriteRect;
 
@@ -1011,24 +1044,28 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferCopy
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
-    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
-    ur_mem_handle_t hBufferSrc, ///< [in][bounds(srcOffset, size)] handle of the
-                                ///< src buffer object
-    ur_mem_handle_t hBufferDst, ///< [in][bounds(dstOffset, size)] handle of the
-                                ///< dest buffer object
-    size_t srcOffset, ///< [in] offset into hBufferSrc to begin copying from
-    size_t dstOffset, ///< [in] offset info hBufferDst to begin copying into
-    size_t size,      ///< [in] size in bytes of data being copied
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][bounds(srcOffset, size)] handle of the src buffer object
+    ur_mem_handle_t hBufferSrc,
+    /// [in][bounds(dstOffset, size)] handle of the dest buffer object
+    ur_mem_handle_t hBufferDst,
+    /// [in] offset into hBufferSrc to begin copying from
+    size_t srcOffset,
+    /// [in] offset info hBufferDst to begin copying into
+    size_t dstOffset,
+    /// [in] size in bytes of data being copied
+    size_t size,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemBufferCopy = getContext()->urDdiTable.Enqueue.pfnMemBufferCopy;
 
   if (nullptr == pfnMemBufferCopy) {
@@ -1066,33 +1103,36 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferCopyRect
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
-    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
-    ur_mem_handle_t hBufferSrc, ///< [in][bounds(srcOrigin, region)] handle of
-                                ///< the source buffer object
-    ur_mem_handle_t hBufferDst, ///< [in][bounds(dstOrigin, region)] handle of
-                                ///< the dest buffer object
-    ur_rect_offset_t srcOrigin, ///< [in] 3D offset in the source buffer
-    ur_rect_offset_t dstOrigin, ///< [in] 3D offset in the destination buffer
-    ur_rect_region_t region, ///< [in] source 3D rectangular region descriptor:
-                             ///< width, height, depth
-    size_t srcRowPitch,      ///< [in] length of each row in bytes in the source
-                             ///< buffer object
-    size_t srcSlicePitch,    ///< [in] length of each 2D slice in bytes in the
-                             ///< source buffer object
-    size_t dstRowPitch, ///< [in] length of each row in bytes in the destination
-                        ///< buffer object
-    size_t dstSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                          ///< destination buffer object
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][bounds(srcOrigin, region)] handle of the source buffer object
+    ur_mem_handle_t hBufferSrc,
+    /// [in][bounds(dstOrigin, region)] handle of the dest buffer object
+    ur_mem_handle_t hBufferDst,
+    /// [in] 3D offset in the source buffer
+    ur_rect_offset_t srcOrigin,
+    /// [in] 3D offset in the destination buffer
+    ur_rect_offset_t dstOrigin,
+    /// [in] source 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t region,
+    /// [in] length of each row in bytes in the source buffer object
+    size_t srcRowPitch,
+    /// [in] length of each 2D slice in bytes in the source buffer object
+    size_t srcSlicePitch,
+    /// [in] length of each row in bytes in the destination buffer object
+    size_t dstRowPitch,
+    /// [in] length of each 2D slice in bytes in the destination buffer object
+    size_t dstSlicePitch,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemBufferCopyRect =
       getContext()->urDdiTable.Enqueue.pfnMemBufferCopyRect;
 
@@ -1133,23 +1173,29 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferFill
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
     ur_mem_handle_t
-        hBuffer, ///< [in][bounds(offset, size)] handle of the buffer object
-    const void *pPattern, ///< [in] pointer to the fill pattern
-    size_t patternSize,   ///< [in] size in bytes of the pattern
-    size_t offset,        ///< [in] offset into the buffer
-    size_t size, ///< [in] fill size in bytes, must be a multiple of patternSize
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+        /// [in][bounds(offset, size)] handle of the buffer object
+        hBuffer,
+    /// [in] pointer to the fill pattern
+    const void *pPattern,
+    /// [in] size in bytes of the pattern
+    size_t patternSize,
+    /// [in] offset into the buffer
+    size_t offset,
+    /// [in] fill size in bytes, must be a multiple of patternSize
+    size_t size,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemBufferFill = getContext()->urDdiTable.Enqueue.pfnMemBufferFill;
 
   if (nullptr == pfnMemBufferFill) {
@@ -1177,26 +1223,31 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemBufferMap
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
     ur_mem_handle_t
-        hBuffer, ///< [in][bounds(offset, size)] handle of the buffer object
-    bool blockingMap, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_map_flags_t mapFlags, ///< [in] flags for read, write, readwrite mapping
-    size_t offset, ///< [in] offset in bytes of the buffer region being mapped
-    size_t size,   ///< [in] size in bytes of the buffer region being mapped
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t
-        *phEvent, ///< [out][optional] return an event object that identifies
-                  ///< this particular command instance.
-    void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
-                    ///< numEventsInWaitList?
-) {
+        /// [in][bounds(offset, size)] handle of the buffer object
+        hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingMap,
+    /// [in] flags for read, write, readwrite mapping
+    ur_map_flags_t mapFlags,
+    /// [in] offset in bytes of the buffer region being mapped
+    size_t offset,
+    /// [in] size in bytes of the buffer region being mapped
+    size_t size,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *phEvent,
+    /// [out] return mapped pointer. TODO: move it before numEventsInWaitList?
+    void **ppRetMap) {
   auto pfnMemBufferMap = getContext()->urDdiTable.Enqueue.pfnMemBufferMap;
 
   if (nullptr == pfnMemBufferMap) {
@@ -1268,20 +1319,22 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueMemUnmap
 __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
-    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_mem_handle_t
-        hMem,         ///< [in] handle of the memory (buffer or image) object
-    void *pMappedPtr, ///< [in] mapped host address
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of
-    ///< events that must be complete before this command can be executed.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
-    ///< command does not wait on any event to complete.
-    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
-                               ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the memory (buffer or image) object
+    ur_mem_handle_t hMem,
+    /// [in] mapped host address
+    void *pMappedPtr,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *phEvent) {
   auto pfnMemUnmap = getContext()->urDdiTable.Enqueue.pfnMemUnmap;
 
   if (nullptr == pfnMemUnmap) {
@@ -1325,8 +1378,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 __urdlllocal ur_result_t UR_APICALL urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
-) {
+    /// [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel) {
   auto pfnRetain = getContext()->urDdiTable.Kernel.pfnRetain;
 
   if (nullptr == pfnRetain) {
@@ -1346,8 +1399,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRelease
 __urdlllocal ur_result_t urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
-) {
+    /// [in] handle for the Kernel to release
+    ur_kernel_handle_t hKernel) {
   auto pfnRelease = getContext()->urDdiTable.Kernel.pfnRelease;
 
   if (nullptr == pfnRelease) {
@@ -1368,14 +1421,16 @@ __urdlllocal ur_result_t urKernelRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgValue
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    size_t argSize,    ///< [in] size of argument type
-    const ur_kernel_arg_value_properties_t
-        *pProperties, ///< [in][optional] pointer to value properties.
-    const void
-        *pArgValue ///< [in] argument value represented as matching arg type.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of argument type
+    size_t argSize,
+    /// [in][optional] pointer to value properties.
+    const ur_kernel_arg_value_properties_t *pProperties,
+    /// [in] argument value represented as matching arg type.
+    const void *pArgValue) {
   auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
 
   if (nullptr == pfnSetArgValue) {
@@ -1401,12 +1456,14 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgMemObj
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    const ur_kernel_arg_mem_obj_properties_t
-        *pProperties, ///< [in][optional] pointer to Memory object properties.
-    ur_mem_handle_t hArgValue ///< [in][optional] handle of Memory object.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to Memory object properties.
+    const ur_kernel_arg_mem_obj_properties_t *pProperties,
+    /// [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue) {
   auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
 
   if (nullptr == pfnSetArgMemObj) {
@@ -1430,13 +1487,14 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgLocal
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    size_t argSize,    ///< [in] size of the local buffer to be allocated by the
-                       ///< runtime
-    const ur_kernel_arg_local_properties_t
-        *pProperties ///< [in][optional] pointer to local buffer properties.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) {
   auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
 
   if (nullptr == pfnSetArgLocal) {
@@ -1464,14 +1522,15 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgPointer
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    const ur_kernel_arg_pointer_properties_t
-        *pProperties,     ///< [in][optional] pointer to USM pointer properties.
-    const void *pArgValue ///< [in][optional] Pointer obtained by USM allocation
-                          ///< or virtual memory
-    ///< mapping operation. If null then argument value is considered null.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to USM pointer properties.
+    const ur_kernel_arg_pointer_properties_t *pProperties,
+    /// [in][optional] Pointer obtained by USM allocation or virtual memory
+    /// mapping operation. If null then argument value is considered null.
+    const void *pArgValue) {
   auto pfnSetArgPointer = getContext()->urDdiTable.Kernel.pfnSetArgPointer;
 
   if (nullptr == pfnSetArgPointer) {
@@ -1498,18 +1557,20 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceGetInfo
 __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
-    ur_device_handle_t hDevice, ///< [in] handle of the device instance
-    ur_device_info_t propName,  ///< [in] type of the info to retrieve
-    size_t propSize,  ///< [in] the number of bytes pointed to by pPropValue.
-    void *pPropValue, ///< [out][optional][typename(propName, propSize)] array
-                      ///< of bytes holding the info.
-    ///< If propSize is not equal to or greater than the real number of bytes
-    ///< needed to return the info
-    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    ///< pPropValue is not used.
-    size_t *pPropSizeRet ///< [out][optional] pointer to the actual size in
-                         ///< bytes of the queried propName.
-) {
+    /// [in] handle of the device instance
+    ur_device_handle_t hDevice,
+    /// [in] type of the info to retrieve
+    ur_device_info_t propName,
+    /// [in] the number of bytes pointed to by pPropValue.
+    size_t propSize,
+    /// [out][optional][typename(propName, propSize)] array of bytes holding the
+    /// info. If propSize is not equal to or greater than the real number of
+    /// bytes needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE
+    /// error is returned and pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of the queried
+    /// propName.
+    size_t *pPropSizeRet) {
   auto pfnGetInfo = getContext()->urDdiTable.Device.pfnGetInfo;
 
   if (nullptr == pfnGetInfo) {
@@ -1550,10 +1611,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_global_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_global_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1580,10 +1641,10 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_context_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_context_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1615,10 +1676,10 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_program_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_program_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1652,10 +1713,10 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_kernel_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_kernel_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1687,10 +1748,10 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_mem_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_mem_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1723,10 +1784,10 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_program_exp_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_program_exp_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1754,10 +1815,10 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_enqueue_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_enqueue_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1800,10 +1861,10 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_usm_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_usm_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1834,10 +1895,10 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_device_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1893,10 +1954,10 @@ using VirtualMemoryNotSupported =
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_command_buffer_exp_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_command_buffer_exp_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
@@ -1953,10 +2014,10 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_virtual_mem_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_virtual_mem_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }

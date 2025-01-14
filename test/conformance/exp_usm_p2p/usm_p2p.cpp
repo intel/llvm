@@ -35,10 +35,11 @@ TEST_P(urP2PTest, Success) {
 
   int value;
   ASSERT_SUCCESS(urUsmP2PPeerAccessGetInfoExp(
-      devices[0], ///< [in] handle of the command device object
-      devices[1], ///< [in] handle of the peer device object
-      UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED, sizeof(int), &value,
-      &returned_size));
+      /// [in] handle of the command device object
+      devices[0],
+      /// [in] handle of the peer device object
+      devices[1], UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED, sizeof(int),
+      &value, &returned_size));
   // Note that whilst it is not currently specified to be a requirement in the
   // specification, currently all supported backends return value = 1 for the
   // UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED query when the query is true
