@@ -68,6 +68,8 @@ struct ur_kernel_handle_t_ {
     args_size_t ParamSizes;
     /// Byte offset into /p Storage allocation for each parameter.
     args_index_t Indices;
+    /// Position in the Storage array where the next argument should added.
+    size_t InsertPos = 0;
     /// Aligned size in bytes for each local memory parameter after padding has
     /// been added. Zero if the argument at the index isn't a local memory
     /// argument.
@@ -101,6 +103,7 @@ struct ur_kernel_handle_t_ {
     /// Implicit offset argument is kept at the back of the indices collection.
     void addArg(size_t Index, size_t Size, const void *Arg,
                 size_t LocalSize = 0) {
+      // Expand storage to accommodate this Index if needed.
       if (Index + 2 > Indices.size()) {
         // Move implicit offset argument index with the end
         Indices.resize(Index + 2, Indices.back());
@@ -109,14 +112,21 @@ struct ur_kernel_handle_t_ {
         AlignedLocalMemSize.resize(Index + 1);
         OriginalLocalMemSize.resize(Index + 1);
       }
-      ParamSizes[Index] = Size;
-      // calculate the insertion point on the array
-      size_t InsertPos = std::accumulate(std::begin(ParamSizes),
-                                         std::begin(ParamSizes) + Index, 0);
-      // Update the stored value for the argument
-      std::memcpy(&Storage[InsertPos], Arg, Size);
-      Indices[Index] = &Storage[InsertPos];
-      AlignedLocalMemSize[Index] = LocalSize;
+
+      // Copy new argument to storage if it hasn't been added before.
+      if (ParamSizes[Index] == 0) {
+        ParamSizes[Index] = Size;
+        std::memcpy(&Storage[InsertPos], Arg, Size);
+        Indices[Index] = &Storage[InsertPos];
+        AlignedLocalMemSize[Index] = LocalSize;
+        InsertPos += Size;
+      }
+      // Otherwise, update the existing argument.
+      else {
+        std::memcpy(Indices[Index], Arg, Size);
+        AlignedLocalMemSize[Index] = LocalSize;
+        assert(Size == ParamSizes[Index]);
+      }
     }
 
     /// Returns the padded size and offset of a local memory argument.
@@ -177,10 +187,7 @@ struct ur_kernel_handle_t_ {
         AlignedLocalMemSize[SuccIndex] = SuccAlignedLocalSize;
 
         // Store new offset into local data
-        const size_t InsertPos =
-            std::accumulate(std::begin(ParamSizes),
-                            std::begin(ParamSizes) + SuccIndex, size_t{0});
-        std::memcpy(&Storage[InsertPos], &SuccAlignedLocalOffset,
+        std::memcpy(Indices[SuccIndex], &SuccAlignedLocalOffset,
                     sizeof(size_t));
       }
     }

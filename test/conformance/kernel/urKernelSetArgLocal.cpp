@@ -237,3 +237,102 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
 
   Validate(output, X, Y, A, global_size, new_local_size);
 }
+
+// Tests that adding arguments out of order (e.g. index 1 before index 0) works.
+struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
+    void SetUp() override {
+        program_name = "saxpy_usm_local_mem";
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+
+        // HIP has extra args for local memory so we define an offset for arg indices here for updating
+        hip_arg_offset = backend == UR_PLATFORM_BACKEND_HIP ? 3 : 0;
+        ur_device_usm_access_capability_flags_t shared_usm_flags;
+        ASSERT_SUCCESS(
+            uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
+        if (!(shared_usm_flags & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)) {
+            GTEST_SKIP() << "Shared USM is not supported.";
+        }
+
+        const size_t allocation_size =
+            sizeof(uint32_t) * global_size * local_size;
+        for (auto &shared_ptr : shared_ptrs) {
+            ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                            allocation_size, &shared_ptr));
+            ASSERT_NE(shared_ptr, nullptr);
+
+            std::vector<uint8_t> pattern(allocation_size);
+            uur::generateMemFillPattern(pattern);
+            std::memcpy(shared_ptr, pattern.data(), allocation_size);
+        }
+
+        std::array<size_t, 12> index_order{};
+        if (backend != UR_PLATFORM_BACKEND_HIP) {
+            index_order = {3, 2, 4, 5, 1, 0};
+        } else {
+            index_order = {9, 8, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3};
+        }
+        size_t current_index = 0;
+
+        // Index 3 is A
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, index_order[current_index++],
+                                           sizeof(A), nullptr, &A));
+        // Index 2 is output
+        ASSERT_SUCCESS(urKernelSetArgPointer(
+            kernel, index_order[current_index++], nullptr, shared_ptrs[0]));
+
+        // Index 4 is X
+        ASSERT_SUCCESS(urKernelSetArgPointer(
+            kernel, index_order[current_index++], nullptr, shared_ptrs[1]));
+        // Index 5 is Y
+        ASSERT_SUCCESS(urKernelSetArgPointer(
+            kernel, index_order[current_index++], nullptr, shared_ptrs[2]));
+
+        // Index 1 is local_mem_b arg
+        ASSERT_SUCCESS(urKernelSetArgLocal(kernel, index_order[current_index++],
+                                           local_mem_b_size, nullptr));
+        if (backend == UR_PLATFORM_BACKEND_HIP) {
+            ASSERT_SUCCESS(urKernelSetArgValue(
+                kernel, index_order[current_index++], sizeof(hip_local_offset),
+                nullptr, &hip_local_offset));
+            ASSERT_SUCCESS(urKernelSetArgValue(
+                kernel, index_order[current_index++], sizeof(hip_local_offset),
+                nullptr, &hip_local_offset));
+            ASSERT_SUCCESS(urKernelSetArgValue(
+                kernel, index_order[current_index++], sizeof(hip_local_offset),
+                nullptr, &hip_local_offset));
+        }
+
+        // Index 0 is local_mem_a arg
+        ASSERT_SUCCESS(urKernelSetArgLocal(kernel, index_order[current_index++],
+                                           local_mem_a_size, nullptr));
+
+        // Hip has extra args for local mem at index 1-3
+        if (backend == UR_PLATFORM_BACKEND_HIP) {
+            ASSERT_SUCCESS(urKernelSetArgValue(
+                kernel, index_order[current_index++], sizeof(hip_local_offset),
+                nullptr, &hip_local_offset));
+            ASSERT_SUCCESS(urKernelSetArgValue(
+                kernel, index_order[current_index++], sizeof(hip_local_offset),
+                nullptr, &hip_local_offset));
+            ASSERT_SUCCESS(urKernelSetArgValue(
+                kernel, index_order[current_index++], sizeof(hip_local_offset),
+                nullptr, &hip_local_offset));
+        }
+    }
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgLocalOutOfOrder);
+TEST_P(urKernelSetArgLocalOutOfOrder, Success) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                         &global_offset, &global_size,
+                                         &local_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    uint32_t *output = (uint32_t *)shared_ptrs[0];
+    uint32_t *X = (uint32_t *)shared_ptrs[1];
+    uint32_t *Y = (uint32_t *)shared_ptrs[2];
+    Validate(output, X, Y, A, global_size, local_size);
+}
