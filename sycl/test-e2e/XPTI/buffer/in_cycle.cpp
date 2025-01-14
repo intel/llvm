@@ -45,11 +45,11 @@ bool func(sycl::queue &Queue, int depth = 0) {
   }
 
   if (depth > 0)
-    MismatchFound &= func(Queue, depth - 1);
+    MismatchFound |= func(Queue, depth - 1);
   return MismatchFound;
 }
 int main() {
-  int MismatchFound = 0;
+  bool MismatchFound = false;
   // Create a SYCL queue.
   sycl::queue Queue{};
 
