@@ -57,9 +57,10 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemGetInfo(
-    ur_physical_mem_handle_t hPhysicalMem, ur_physical_mem_info_t propName,
-    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
+                                 ur_physical_mem_info_t propName,
+                                 size_t propSize, void *pPropValue,
+                                 size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
