@@ -1,7 +1,7 @@
-# commit 9e48f543b8dd39d45563169433bb529583625dfe
-# Merge: 6a3fece6 1a1108b3
+# commit 6d4eec8cdcfe8a5d359ed05092797c429c2ca878
+# Merge: 40d28e7bd84a 800b452d67c5
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Jan 15 14:33:29 2025 +0000
-#     Merge pull request #2540 from martygrant/martin/program-info-unswitch
-#     Move urProgramGetInfo success test from a switch to individual tests.
-set(UNIFIED_RUNTIME_TAG 9e48f543b8dd39d45563169433bb529583625dfe)
+# Date:   Thu Dec 12 16:00:13 2024 +0000
+#     Merge pull request #2272 from martygrant/martin/virtual-memory-cts-spec-gap
+#     Improvements to align CTS and Spec for Virtual Memory
+set(UNIFIED_RUNTIME_TAG bf6b6f9df5cd7c1e3dda4af8e4b3546c7109f24f)
