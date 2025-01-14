@@ -23,16 +23,15 @@ namespace {
 
 #define HANDLE_WRAPPER_TYPE(handle, destroy)                                   \
   ze_handle_wrapper<handle, destroy##_wrapped<handle>>
+} // namespace
+
+namespace v2 {
 
 DECLARE_DESTROY_FUNCTION(zeKernelDestroy);
 DECLARE_DESTROY_FUNCTION(zeEventDestroy);
 DECLARE_DESTROY_FUNCTION(zeEventPoolDestroy);
 DECLARE_DESTROY_FUNCTION(zeContextDestroy);
 DECLARE_DESTROY_FUNCTION(zeCommandListDestroy);
-} // namespace
-
-namespace v2 {
-
 namespace raii {
 
 template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT)>
