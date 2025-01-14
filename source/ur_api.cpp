@@ -1946,10 +1946,10 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
 ///         + If ::UR_DEVICE_INFO_USM_HOST_SUPPORT is false.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`
-///         + If `align` is greater that the size of the largest data type supported by `hDevice`.
+///         + If `align` is greater that the size of the largest data type supported by any device in `hContext`.
 ///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
 ///         + `size == 0`
-///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE for any device in `hContext`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
