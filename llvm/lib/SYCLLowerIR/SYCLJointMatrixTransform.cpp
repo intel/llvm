@@ -11,10 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <queue>
-
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+#include "llvm/IR/IRBuilder.h"
 
 using namespace llvm;
 
@@ -203,7 +201,7 @@ bool transformAccessChain(Function *F) {
 // code is stable, as user's code doesn't affect it.
 bool propagateConstexprLayout(Function *F) {
   bool ModuleChanged = false;
-  std::queue<Instruction *> ToErase;
+  llvm::SmallVector<Instruction *, 4> ToErase;
   for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
     User *U = *I++;
     auto *CI = dyn_cast<CallInst>(U);
@@ -225,25 +223,25 @@ bool propagateConstexprLayout(Function *F) {
       ConstLayout = dyn_cast<ConstantInt>(SI->getValueOperand());
       if (ConstLayout) {
         CI->replaceAllUsesWith(ConstLayout);
-        ToErase.push(CI);
-        ToErase.push(SI);
+        ToErase.push_back(CI);
+        ToErase.push_back(SI);
         ModuleChanged = true;
       }
     }
     if (ModuleChanged) {
-      ToErase.push(Op);
-      ToErase.push(Ptr);
+      ToErase.push_back(Op);
+      ToErase.push_back(Ptr);
       if (auto *Cast = dyn_cast<AddrSpaceCastInst>(Ptr)) {
         auto *OrigPtr = Cast->getPointerOperand();
-        if (auto *AI = dyn_cast<AllocaInst>(OrigPtr))
-          ToErase.push(AI);
+        if (auto *AI = dyn_cast<AllocaInst>(OrigPtr)) {
+          ToErase.push_back(AI);
+        }
       }
     }
-    while (!ToErase.empty()) {
-      ToErase.front()->dropAllReferences();
-      ToErase.front()->eraseFromParent();
-      ToErase.pop();
-    }
+  }
+  for (Instruction *II : ToErase) {
+    II->dropAllReferences();
+    II->eraseFromParent();
   }
   return ModuleChanged;
 }
@@ -252,14 +250,22 @@ bool propagateConstexprLayout(Function *F) {
 PreservedAnalyses
 SYCLJointMatrixTransformPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
+  llvm::SmallVector<Function *, 1> ToErase;
   for (Function &F : M) {
-    if (F.getName() == MATRIX_LAYOUT)
-      ModuleChanged |= propagateConstexprLayout(&F);
-    if (!F.isDeclaration())
-      continue;
+    if (!F.isDeclaration()) {
+      if (F.getName() == MATRIX_LAYOUT) {
+        ModuleChanged |= propagateConstexprLayout(&F);
+        ToErase.push_back(&F);
+      } else
+        continue;
+    }
     if (F.getName().starts_with(ACCESS_CHAIN))
       ModuleChanged |= transformAccessChain(&F);
   }
+
+  for (auto *F : ToErase)
+    if (F->users().empty())
+      F->eraseFromParent();
 
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
