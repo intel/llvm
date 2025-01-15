@@ -1,7 +1,8 @@
 // Copyright (C) 2024 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
-// LLVM-exception
+// Exceptions. See LICENSE.TXT
+//
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UUR_USM_HELPERS_H_INCLUDED
 #define UUR_USM_HELPERS_H_INCLUDED
