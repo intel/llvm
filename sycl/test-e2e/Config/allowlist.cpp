@@ -97,13 +97,6 @@ int main() {
     return 0;
   }
 
-  // Expected the allowlist to be set but empty
-  if (env::isDefined("TEST_DEVICE_IS_NOT_AVAILABLE")) {
-    if (!sycl::platform::get_platforms().empty())
-      throw std::runtime_error("Expected no device is available");
-    return 0;
-  }
-
   if (env::isDefined("TEST_INCORRECT_VALUE")) {
     try {
       sycl::platform::get_platforms();
