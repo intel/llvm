@@ -6,47 +6,80 @@
 #include "uur/known_failure.h"
 #include <uur/fixtures.h>
 
-struct urProgramGetBuildInfoTest
-    : uur::urProgramTestWithParam<ur_program_build_info_t> {
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(
-            urProgramTestWithParam<ur_program_build_info_t>::SetUp());
-        ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
-    }
-};
-
-UUR_DEVICE_TEST_SUITE_P(
-    urProgramGetBuildInfoTest,
-    ::testing::Values(UR_PROGRAM_BUILD_INFO_STATUS,
-                      UR_PROGRAM_BUILD_INFO_OPTIONS, UR_PROGRAM_BUILD_INFO_LOG,
-                      UR_PROGRAM_BUILD_INFO_BINARY_TYPE),
-    uur::deviceTestWithParamPrinter<ur_program_build_info_t>);
-
-struct urProgramGetBuildInfoSingleTest : uur::urProgramTest {
+struct urProgramGetBuildInfoTest : uur::urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
     }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetBuildInfoSingleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetBuildInfoTest);
 
-TEST_P(urProgramGetBuildInfoTest, Success) {
-    auto property_name = getParam();
+TEST_P(urProgramGetBuildInfoTest, SuccessStatus) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
-    if (property_name == UR_PROGRAM_BUILD_INFO_STATUS) {
-        UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-    }
+    size_t size = 0;
+    auto info_type = UR_PROGRAM_BUILD_INFO_STATUS;
+    ASSERT_SUCCESS(
+        urProgramGetBuildInfo(program, device, info_type, 0, nullptr, &size));
+    ASSERT_EQ(sizeof(ur_program_build_status_t), size);
 
-    size_t property_size = 0;
-    std::vector<char> property_value;
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urProgramGetBuildInfo(program, device, property_name, 0, nullptr,
-                              &property_size),
-        property_name);
-    property_value.resize(property_size);
-    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, property_name,
-                                         property_size, property_value.data(),
-                                         nullptr));
+    ur_program_build_status_t returned_status =
+        UR_PROGRAM_BUILD_STATUS_FORCE_UINT32;
+    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, info_type, size,
+                                         &returned_status, nullptr));
+
+    ASSERT_GE(returned_status, UR_PROGRAM_BUILD_STATUS_NONE);
+    ASSERT_LE(returned_status, UR_PROGRAM_BUILD_STATUS_IN_PROGRESS);
+}
+
+TEST_P(urProgramGetBuildInfoTest, SuccessOptions) {
+    size_t size = 0;
+    auto info_type = UR_PROGRAM_BUILD_INFO_OPTIONS;
+    ASSERT_SUCCESS(
+        urProgramGetBuildInfo(program, device, info_type, 0, nullptr, &size));
+    ASSERT_GT(size, 0);
+
+    std::vector<char> returned_options(size);
+    returned_options[size - 1] = 'x';
+    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, info_type, size,
+                                         returned_options.data(), nullptr));
+
+    ASSERT_EQ(size, returned_options.size());
+    ASSERT_EQ(returned_options[size - 1], '\0');
+}
+
+TEST_P(urProgramGetBuildInfoTest, SuccessLog) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
+    size_t size = 0;
+    auto info_type = UR_PROGRAM_BUILD_INFO_LOG;
+    ASSERT_SUCCESS(
+        urProgramGetBuildInfo(program, device, info_type, 0, nullptr, &size));
+    ASSERT_GT(size, 0);
+
+    std::vector<char> returned_log(size);
+    returned_log[size - 1] = 'x';
+    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, info_type, size,
+                                         returned_log.data(), nullptr));
+
+    ASSERT_EQ(size, returned_log.size());
+    ASSERT_EQ(returned_log[size - 1], '\0');
+}
+
+TEST_P(urProgramGetBuildInfoTest, SuccessBinaryType) {
+    size_t size = 0;
+    auto info_type = UR_PROGRAM_BUILD_INFO_BINARY_TYPE;
+    ASSERT_SUCCESS(
+        urProgramGetBuildInfo(program, device, info_type, 0, nullptr, &size));
+    ASSERT_EQ(sizeof(ur_program_binary_type_t), size);
+
+    ur_program_binary_type_t returned_binary_type =
+        UR_PROGRAM_BINARY_TYPE_FORCE_UINT32;
+    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, info_type, size,
+                                         &returned_binary_type, nullptr));
+
+    ASSERT_GE(returned_binary_type, UR_PROGRAM_BINARY_TYPE_NONE);
+    ASSERT_LE(returned_binary_type, UR_PROGRAM_BINARY_TYPE_EXECUTABLE);
 }
 
 TEST_P(urProgramGetBuildInfoTest, InvalidNullHandleProgram) {
@@ -75,23 +108,4 @@ TEST_P(urProgramGetBuildInfoTest, InvalidEnumeration) {
                      urProgramGetBuildInfo(program, device,
                                            UR_PROGRAM_BUILD_INFO_FORCE_UINT32,
                                            0, nullptr, &propSizeOut));
-}
-
-TEST_P(urProgramGetBuildInfoSingleTest, LogIsNullTerminated) {
-    // This is a flaky fail.
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
-    size_t logSize;
-    std::vector<char> log;
-
-    ASSERT_SUCCESS(urProgramGetBuildInfo(
-        program, device, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &logSize));
-    // The size should always include the null terminator.
-    ASSERT_GT(logSize, 0);
-    log.resize(logSize);
-    log[logSize - 1] = 'x';
-    ASSERT_SUCCESS(urProgramGetBuildInfo(program, device,
-                                         UR_PROGRAM_BUILD_INFO_LOG, logSize,
-                                         log.data(), nullptr));
-    ASSERT_EQ(log[logSize - 1], '\0');
 }
