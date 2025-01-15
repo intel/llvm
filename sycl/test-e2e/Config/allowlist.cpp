@@ -1,11 +1,10 @@
-// REQUIRES: cpu
 // RUN: %{build} -o %t.out
 //
 // RUN: env PRINT_DEVICE_INFO=1 %{run-unfiltered-devices} %t.out > %t1.conf
 // RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 //
 // RUN: env PRINT_PLATFORM_INFO=1 %{run-unfiltered-devices} %t.out > %t2.conf
-// RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t2.conf %{run-unfiltered-devices} %t.out
+// RUN: env TEST_PLATFORM_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t2.conf %{run-unfiltered-devices} %t.out
 //
 // RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOWLIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" %{run-unfiltered-devices} %t.out
 // RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" %{run-unfiltered-devices} %t.out
@@ -46,7 +45,7 @@ int main() {
 
       return 0;
     }
-    throw std::runtime_error("No device is found");
+    throw std::runtime_error("No platform is found");
   }
 
   // Expected that the allowlist filter is not set
@@ -87,26 +86,35 @@ int main() {
     return 0;
   }
 
+  // Expected the allowlist to be set with the "PRINT_PLATFORM_INFO" run result
+  if (env::isDefined("TEST_PLATFORM_AVAILABLE")) {
+    auto Platforms = sycl::platform::get_platforms();
+    if (Platforms.empty())
+      throw std::runtime_error("No platform is found");
+    else if (Platforms.size() != 1)
+      throw std::runtime_error("Expected only one platform.");
+
+    return 0;
+  }
+
+  // Expected the allowlist to be set but empty
+  if (env::isDefined("TEST_DEVICE_IS_NOT_AVAILABLE")) {
+    if (!sycl::platform::get_platforms().empty())
+      throw std::runtime_error("Expected no device is available");
+    return 0;
+  }
+
   if (env::isDefined("TEST_INCORRECT_VALUE")) {
     try {
       sycl::platform::get_platforms();
     } catch (sycl::exception &E) {
-      // Workaround to make CI pass.
-      // TODO: after the submission of PR intel/llvm:3826, create PR to
-      // intel/llvm-test-suite with removal of 1st parameter of the vector,
-      // and transformation of std::vector<std::string> to std::string
-      const std::vector<std::string> ExpectedMsgs{
-          "Unrecognized key in device allowlist",
+      const std::string ExpectedMsg{
           "Unrecognized key in SYCL_DEVICE_ALLOWLIST"};
       const std::string GotMessage(E.what());
-      bool CorrectMsg = false;
-      for (const auto &ExpectedMsg : ExpectedMsgs) {
-        if (GotMessage.find(ExpectedMsg) != std::string::npos) {
-          CorrectMsg = true;
-          break;
-        }
+      if (GotMessage.find(ExpectedMsg) != std::string::npos) {
+        return 0;
       }
-      return CorrectMsg ? 0 : 1;
+      return 1;
     }
   }
 
