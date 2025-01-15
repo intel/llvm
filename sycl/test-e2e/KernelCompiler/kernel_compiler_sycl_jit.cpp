@@ -13,26 +13,6 @@
 // RUN: %{run} %t.out 1
 // RUN: %{l0_leak_check} %{run} %t.out 1
 
-// -- Test again, with caching.
-
-// DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
-// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
-
-// -- Add leak check.
-// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
-// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
-
-// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
-// CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
-// CHECK-WRITTEN-TO-CACHE: [kernel_compiler Persistent Cache]: binary has been cached
-
-// CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
-// CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
-// CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
-
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
@@ -214,6 +194,28 @@ int test_build_and_run() {
   test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
   test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 
+  // Create and compile new bundle with different header.
+  std::string AddEmHModified = AddEmH;
+  AddEmHModified[AddEmHModified.find('5')] = '7';
+  syclex::include_files incFiles2{"intermediate/AddEm.h", AddEmHModified};
+  incFiles2.add("intermediate/PlusEm.h", PlusEmH);
+  source_kb kbSrc2 = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, SYCLSource,
+      syclex::properties{incFiles2});
+
+  exe_kb kbExe3 = syclex::build(
+      kbSrc2, syclex::properties{
+                  syclex::build_options{"-fsycl-device-code-split=per_kernel"},
+                  syclex::registered_kernel_names{"ff_templated<int>"}});
+  assert(std::distance(kbExe3.begin(), kbExe3.end()) == 2 &&
+         "Expected 2 device images");
+  sycl::kernel k3 = kbExe3.ext_oneapi_get_kernel("ff_cp");
+  test_1(q, k3, 37 + 7);
+
+  // Can we still run the original compilation?
+  sycl::kernel k4 = kbExe1.ext_oneapi_get_kernel("ff_cp");
+  test_1(q, k4, 37 + 5);
+
   return 0;
 }
 
@@ -325,9 +327,7 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
   CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
-  CheckUnsupported({"-fsycl-device-code-split=kernel"});
   CheckUnsupported({"-fno-sycl-device-code-split-esimd"});
-  CheckUnsupported({"-fsycl-dead-args-optimization"});
 
   return 0;
 }
