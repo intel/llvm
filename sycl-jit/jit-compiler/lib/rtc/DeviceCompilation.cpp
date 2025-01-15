@@ -33,6 +33,7 @@
 #include <llvm/SYCLLowerIR/ModuleSplitter.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
 #include <llvm/Support/PropertySetIO.h>
+#include <llvm/Support/TimeProfiler.h>
 
 #include <algorithm>
 #include <array>
@@ -225,6 +226,8 @@ public:
 Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
     InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     const InputArgList &UserArgList, std::string &BuildLog) {
+  TimeTraceScope TTS{"compileDeviceCode"};
+
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
     return createStringError("Could not locate DPCPP root directory");
@@ -382,6 +385,7 @@ static bool getDeviceLibraries(const ArgList &Args,
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList,
                                         std::string &BuildLog) {
+  TimeTraceScope TTS{"linkDeviceLibraries"};
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
     return createStringError("Could not locate DPCPP root directory");
@@ -461,6 +465,8 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   // This is a simplified version of `processInputModule` in
   // `llvm/tools/sycl-post-link.cpp`. Assertions/TODOs point to functionality
   // left out of the algorithm for now.
+
+  TimeTraceScope TTS{"performPostLink"};
 
   const auto SplitMode = getDeviceCodeSplitMode(UserArgList);
 

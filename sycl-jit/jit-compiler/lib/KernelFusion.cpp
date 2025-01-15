@@ -17,7 +17,12 @@
 #include "rtc/DeviceCompilation.h"
 #include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
+
 #include <llvm/Support/Error.h>
+#include <llvm/Support/TimeProfiler.h>
+
+#include <clang/Driver/Options.h>
+
 #include <sstream>
 
 using namespace jit_compiler;
@@ -244,6 +249,15 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
+  llvm::StringRef TraceFileName;
+  if (auto *Arg =
+          UserArgList.getLastArg(clang::driver::options::OPT_ftime_trace_EQ)) {
+    TraceFileName = Arg->getValue();
+    llvm::timeTraceProfilerInitialize(
+        /*TimeTraceGranularity=*/100, /*ProcName=*/"clang",
+        /*TimeTraceVerbose=*/false);
+  }
+
   std::string BuildLog;
 
   auto ModuleOrErr =
@@ -277,6 +291,15 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                                 "SPIR-V translation failed");
     }
     DevImgInfo.BinaryInfo = std::move(*BinaryInfoOrError);
+  }
+
+  if (llvm::timeTraceProfilerEnabled()) {
+    auto Error = llvm::timeTraceProfilerWrite(
+        TraceFileName, /*FallbackFileName=*/"trace.json");
+    llvm::timeTraceProfilerCleanup();
+    if (Error) {
+      return errorTo<RTCResult>(std::move(Error), "Trace file writing failed");
+    }
   }
 
   return RTCResult{std::move(BundleInfo), BuildLog.c_str()};
