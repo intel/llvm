@@ -80,14 +80,15 @@ int main() {
   // Expected the allowlist to be set with the "PRINT_DEVICE_INFO" run result
   if (env::isDefined("TEST_DEVICE_AVAILABLE")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
-      if (auto Devices = Platform.get_devices()) {
-        if (!(Devices.size() == 1 || isIdenticalDevices(Devices)))
-          throw std::runtime_error("Expected only one device.");
+      auto Devices = Platform.get_devices();
+      if (Devices.empty())
+        throw std::runtime_error("No device is found");
 
-        return 0;
-      }
+      if (!(Devices.size() == 1 || isIdenticalDevices(Devices)))
+        throw std::runtime_error("Expected only one device.");
+
+      return 0;
     }
-    throw std::runtime_error("No device is found");
   }
 
   // Expected the allowlist to be set but empty
