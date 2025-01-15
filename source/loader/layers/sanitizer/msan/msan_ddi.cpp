@@ -99,13 +99,50 @@ ur_result_t urUSMDeviceAlloc(
 ) {
     getContext()->logger.debug("==== urUSMDeviceAlloc");
 
-    return getMsanInterceptor()->allocateMemory(hContext, hDevice, pUSMDesc,
-                                                pool, size, ppMem);
+    return getMsanInterceptor()->allocateMemory(
+        hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAlloc
+ur_result_t UR_APICALL urUSMHostAlloc(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    const ur_usm_desc_t
+        *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
+    ur_usm_pool_handle_t
+        pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t
+        size, ///< [in] size in bytes of the USM memory object to be allocated
+    void **ppMem ///< [out] pointer to USM host memory object
+) {
+    getContext()->logger.debug("==== urUSMHostAlloc");
+
+    return getMsanInterceptor()->allocateMemory(
+        hContext, nullptr, pUSMDesc, pool, size, AllocType::HOST_USM, ppMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMSharedAlloc
+ur_result_t UR_APICALL urUSMSharedAlloc(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    const ur_usm_desc_t *
+        pUSMDesc, ///< [in][optional] Pointer to USM memory allocation descriptor.
+    ur_usm_pool_handle_t
+        pool, ///< [in][optional] Pointer to a pool created using urUSMPoolCreate
+    size_t
+        size, ///< [in] size in bytes of the USM memory object to be allocated
+    void **ppMem ///< [out] pointer to USM shared memory object
+) {
+    getContext()->logger.debug("==== urUSMSharedAlloc");
+
+    return getMsanInterceptor()->allocateMemory(
+        hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMFree
-__urdlllocal ur_result_t UR_APICALL urUSMFree(
+ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     void *pMem                    ///< [in] pointer to USM memory object
 ) {
@@ -1748,6 +1785,8 @@ ur_result_t urGetUSMProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::msan::urUSMDeviceAlloc;
+    pDdiTable->pfnHostAlloc = ur_sanitizer_layer::msan::urUSMHostAlloc;
+    pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::msan::urUSMSharedAlloc;
     pDdiTable->pfnFree = ur_sanitizer_layer::msan::urUSMFree;
 
     return result;
