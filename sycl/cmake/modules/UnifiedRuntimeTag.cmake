@@ -1,9 +1,7 @@
-# commit ad88f0a1e3a22807866af4f6dad53e8986733abb
-# Merge: 68aed2d5 599a28e1
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 14 10:28:07 2025 +0000
-
-#    Merge pull request #2527 from RossBrunton/ross/wrapper
-#    
-#    Wrap urEventSetCallback when ran through loader
-set(UNIFIED_RUNTIME_TAG ad88f0a1e3a22807866af4f6dad53e8986733abb)
+# commit afbb289aa8d4f3b27b1536ba33ca618b0aba65c7
+# Merge: ef70004f d7c33f88
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 15 11:54:25 2025 +0000
+#     Merge pull request #2520 from zhaomaosu/fix-buffer-shadow
+#     [DevMSAN] Propagate shadow memory in buffer related APIs
+set(UNIFIED_RUNTIME_TAG afbb289aa8d4f3b27b1536ba33ca618b0aba65c7)
