@@ -1,7 +1,7 @@
-# commit ad288bb36c45e24a35a75c665d382ce18935fcf7
-# Merge: db491abc6aba f8b04f4216e8
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Jan 3 10:08:59 2025 +0000
-#     Merge pull request #2502 from ldrumm/luke/tensormap-version
-#     CUTensorMap is only in CUDA v12
-set(UNIFIED_RUNTIME_TAG fix-buffer-shadow)
+# commit afbb289aa8d4f3b27b1536ba33ca618b0aba65c7
+# Merge: ef70004f d7c33f88
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 15 11:54:25 2025 +0000
+#     Merge pull request #2520 from zhaomaosu/fix-buffer-shadow
+#     [DevMSAN] Propagate shadow memory in buffer related APIs
+set(UNIFIED_RUNTIME_TAG afbb289aa8d4f3b27b1536ba33ca618b0aba65c7)
