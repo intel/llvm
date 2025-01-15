@@ -1,7 +1,7 @@
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 // Print test names and pass status
 // #define VERBOSE_LV1
@@ -284,7 +284,8 @@ bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
   // normalized and unnormalized coords.
   sycl::addressing_mode addrModes[4] = {
       sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
-      sycl::addressing_mode::clamp_to_edge, sycl::addressing_mode::clamp};
+      sycl::addressing_mode::clamp_to_edge,
+      sycl::addressing_mode::ext_oneapi_clamp_to_border};
 
   sycl::filtering_mode filtModes[2] = {sycl::filtering_mode::nearest,
                                        sycl::filtering_mode::linear};
@@ -440,7 +441,8 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
   // normalized and unnormalized coords.
   sycl::addressing_mode addrModes[4] = {
       sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
-      sycl::addressing_mode::clamp_to_edge, sycl::addressing_mode::clamp};
+      sycl::addressing_mode::clamp_to_edge,
+      sycl::addressing_mode::ext_oneapi_clamp_to_border};
 
   sycl::filtering_mode filtModes[2] = {sycl::filtering_mode::nearest,
                                        sycl::filtering_mode::linear};
@@ -634,11 +636,13 @@ bool runAll(sycl::range<NDims> dims, sycl::range<NDims> localSize, float offset,
 
 int main() {
 
-  unsigned int seed = 0;
+  const unsigned int seed = 0;
+  const float offset = 20.0;
+
   std::cout << "Running 1D Sampled Image Tests!\n";
-  bool result1D = runAll<1>({256}, {32}, 20, seed);
+  bool result1D = runAll<1>({128}, {32}, offset, seed);
   std::cout << "Running 2D Sampled Image Tests!\n";
-  bool result2D = runAll<2>({256, 256}, {32, 32}, 20, seed);
+  bool result2D = runAll<2>({16, 16}, {8, 8}, offset, seed);
 
   if (result1D && result2D) {
     std::cout << "All tests passed!\n";

@@ -204,9 +204,11 @@ otherwise it is 0.
 |Returns the maximum number of work-groups, when the kernel is submitted to the
 specified queue with the specified work-group size and the specified amount of
 dynamic work-group local memory (in bytes), accounting for any kernel
-properties or features. If the kernel can be submitted to the specified queue
-without an error, the minimum value returned by this query is 1, otherwise it
-is 0.
+properties or features. If the specified work-group size is 0, which is
+invalid, then the implementation will throw a synchronous exception with the
+`errc::invalid` error code. If the kernel can be submitted to the specified
+queue without an error, the minimum value returned by this query is 1,
+otherwise it is 0.
 
 |===
 

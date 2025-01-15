@@ -68,6 +68,7 @@ public:
   std::vector<std::pair<std::string, bool/*isUndef*/>> Macros;
   std::vector<std::string> Includes;
   std::string IncludeFooter;
+  std::string IncludeHeader;
   std::vector<std::string> MacroIncludes;
 
   /// Perform extra checks when loading PCM files for mutable file systems.
@@ -212,10 +213,6 @@ public:
   /// If set, the UNIX timestamp specified by SOURCE_DATE_EPOCH.
   std::optional<uint64_t> SourceDateEpoch;
 
-  /// If set, the preprocessor reports an error when processing #pragma mc_func
-  /// on AIX.
-  bool ErrorOnPragmaMcfuncOnAIX = true;
-
 public:
   PreprocessorOptions() : PrecompiledPreambleBytes(0, false) {}
 
@@ -253,7 +250,6 @@ public:
     PrecompiledPreambleBytes.first = 0;
     PrecompiledPreambleBytes.second = false;
     RetainExcludedConditionalBlocks = false;
-    ErrorOnPragmaMcfuncOnAIX = true;
   }
 };
 

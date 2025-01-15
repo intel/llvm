@@ -32,7 +32,7 @@
 ; CHECK: @var_bitand = addrspace(1) global i32 52
 ; CHECK: @var_vecshuf = addrspace(1) global <2 x i32> <i32 4, i32 53>
 ; CHECK: @var_compext = addrspace(1) global i32 53
-; CHECK: @var_compins = addrspace(1) global <2 x i32> <i32 53, i32 53>
+; CHECK: @var_compins = addrspace(1) global <2 x i32> splat (i32 53)
 ; CHECK: @var_logor = addrspace(1) global i1 true
 ; CHECK: @var_logand = addrspace(1) global i1 false
 ; CHECK: @var_lognot = addrspace(1) global i1 false

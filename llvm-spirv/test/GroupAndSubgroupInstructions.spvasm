@@ -57,8 +57,10 @@
 ;   sub_group_non_uniform_scan_exclusive_logical_xor(x);
 ;   sub_group_rotate(c, x);
 ; }
+
+; REQUIRES: spirv-dis
 ; clang -cc1 -O2 -triple spir -cl-std=cl2.0 -finclude-default-header -cl-ext=+all source.cl -emit-llvm-bc -o tmp.bc
-; llvm-spirv tmp.bc --spirv-ext=+all -o tmp.spv
+; llvm-spirv tmp.bc --spirv-ext=+all,-SPV_KHR_untyped_pointers -o tmp.spv
 ; spirv-dis tmp.spv -o llvm-spirv/test/GroupAndSubgroupInstructions.spvasm
 
 ; REQUIRES: spirv-as
@@ -76,7 +78,7 @@
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
 
-; RUN: llvm-spirv %t.bc --spirv-ext=+all -o %t.rev.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_KHR_untyped_pointers -o %t.rev.spv
 ; RUN: spirv-val %t.rev.spv
 
 

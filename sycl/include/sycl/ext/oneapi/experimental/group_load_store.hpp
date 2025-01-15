@@ -156,7 +156,7 @@ struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
   using BlockInfoTy = BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>;
   static_assert(BlockInfoTy::has_builtin);
 
-  using block_type = detail::cl_unsigned<BlockInfoTy::block_size>;
+  using block_type = detail::fixed_width_unsigned<BlockInfoTy::block_size>;
 
   using block_pointer_elem_type = std::conditional_t<
       std::is_const_v<std::remove_reference_t<
@@ -217,11 +217,10 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
     if constexpr (AS == access::address_space::global_space) {
       return is_aligned ? reinterpret_cast<block_pointer_type>(iter) : nullptr;
     } else if constexpr (AS == access::address_space::generic_space) {
-      return is_aligned
-                 ? reinterpret_cast<block_pointer_type>(
-                       __SYCL_GenericCastToPtrExplicit_ToGlobal<value_type>(
-                           iter))
-                 : nullptr;
+      return is_aligned ? reinterpret_cast<block_pointer_type>(
+                              detail::dynamic_address_cast<
+                                  access::address_space::global_space>(iter))
+                        : nullptr;
     } else {
       return nullptr;
     }
@@ -234,7 +233,8 @@ template <typename Group, typename InputIteratorT, typename OutputT,
           std::size_t ElementsPerWorkItem,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
-                 detail::is_generic_group_v<Group>>
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
 group_load(Group g, InputIteratorT in_ptr,
            span<OutputT, ElementsPerWorkItem> out, Properties props = {}) {
   constexpr bool blocked = detail::isBlocked(props);
@@ -306,7 +306,8 @@ template <typename Group, typename InputT, std::size_t ElementsPerWorkItem,
           typename OutputIteratorT,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
-                 detail::is_generic_group_v<Group>>
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
 group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
             OutputIteratorT out_ptr, Properties props = {}) {
   constexpr bool blocked = detail::isBlocked(props);
@@ -353,7 +354,8 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
 template <typename Group, typename InputIteratorT, typename OutputT,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
-                 detail::is_generic_group_v<Group>>
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
 group_load(Group g, InputIteratorT in_ptr, OutputT &out,
            Properties properties = {}) {
   group_load(g, in_ptr, span<OutputT, 1>(&out, 1), properties);
@@ -363,7 +365,8 @@ group_load(Group g, InputIteratorT in_ptr, OutputT &out,
 template <typename Group, typename InputT, typename OutputIteratorT,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
-                 detail::is_generic_group_v<Group>>
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
 group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
             Properties properties = {}) {
   group_store(g, span<const InputT, 1>(&in, 1), out_ptr, properties);
@@ -373,7 +376,8 @@ group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
 template <typename Group, typename InputIteratorT, typename OutputT, int N,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
-                 detail::is_generic_group_v<Group>>
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
 group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
            Properties properties = {}) {
   group_load(g, in_ptr, span<OutputT, N>(&out[0], N), properties);
@@ -383,7 +387,8 @@ group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
 template <typename Group, typename InputT, int N, typename OutputIteratorT,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
-                 detail::is_generic_group_v<Group>>
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
 group_store(Group g, const sycl::vec<InputT, N> &in, OutputIteratorT out_ptr,
             Properties properties = {}) {
   group_store(g, span<const InputT, N>(&in[0], N), out_ptr, properties);

@@ -22,7 +22,7 @@ int main() {
 
   // CHECK: define {{.*}}spir_kernel void @_ZTSZ4test9enum_typeE15kernel_function(i32 noundef %_arg_val)
 
-  // CHECK: getelementptr inbounds %class.anon, ptr addrspace(4)
+  // CHECK: getelementptr inbounds nuw %class.anon, ptr addrspace(4)
   // CHECK: call spir_func void @_ZZ4test9enum_typeENKUlvE_clEv(ptr addrspace(4) {{[^,]*}} %{{.+}})
 
   test( enum_type::B );

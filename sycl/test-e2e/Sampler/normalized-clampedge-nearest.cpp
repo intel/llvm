@@ -5,6 +5,7 @@
 // Missing __spirv_ImageWrite, __spirv_SampledImage,
 // __spirv_ImageSampleExplicitLod on AMD
 // XFAIL: hip_amd
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14732
 
 /*
     This file sets up an image, initializes it with data,

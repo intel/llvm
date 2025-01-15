@@ -9,7 +9,7 @@
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-ext_intel_matrix, gpu
 
-// RUN: %{build} -o %t_gpu_vnni.out -ffp-model=precise -DSLM -DVNNI
+// RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DSLM -DVNNI
 // RUN: %{run} %t_gpu_vnni.out
 
 // TODO: add row major compilation and run once Sub-group size 32

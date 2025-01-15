@@ -232,6 +232,8 @@ public:
 
   // device_global initializes underlying T with the args argument
 #if __cpp_consteval
+  // Available only if sizeof...(Args) > 1 or the one argument in args is not a
+  // device_global.
   template <typename... Args>
   consteval explicit device_global(Args&&... args);
 #else
@@ -244,7 +246,14 @@ public:
   device_global() = default;
 #endif // __cpp_consteval
 
-  device_global(const device_global &) = delete;
+  // Available if PropertyListT::has_property<device_image_scope_key>() is false.
+  constexpr device_global(const device_global &other);
+
+  // Available if PropertyListT::has_property<device_image_scope_key>() is false
+  // and OtherT is convertible to T.
+  template <typename OtherT, typename OtherProps>
+  constexpr device_global(const device_global<OtherT, OtherProps> &other);
+
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
@@ -318,11 +327,41 @@ template <typename... Args>
 consteval explicit device_global(Args&&... args);
 ----
 |
+Available only if sizeof...(Args) != 1 or the one argument in args is not a device_global.
+
 Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
 
 The object of type `T` is initialized from the `args` parameter pack using list initialization as defined in the {cpp} specification.
 
 `T` must be trivially destructible.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+constexpr device_global(const device_global &other);
+----
+|
+Available if `PropertyListT::has_property<device_image_scope_key>() == false`.
+
+Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
+
+The storage on each device for `T` is initialized with a copy of the initial value of `other`. The behavior is undefined if `other` has been written to prior to a call to this constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename OtherT, typename OtherProps>
+constexpr device_global(const device_global<OtherT, OtherProps> &other);
+----
+|
+Available if `PropertyListT::has_property<device_image_scope_key>() == false` and
+`std::is_convertible_v<OtherT, T> == true`;
+
+Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
+
+The storage on each device for `T` is initialized with a copy of the initial value of `other`. The behavior is undefined if `other` has been written to prior to a call to this constructor.
 
 // --- ROW BREAK ---
 a|
@@ -648,11 +687,6 @@ template <bool Enable>
 inline constexpr implement_in_csr_key::value_t<Enable> implement_in_csr;
 inline constexpr implement_in_csr_key::value_t<true> implement_in_csr_on;
 inline constexpr implement_in_csr_key::value_t<false> implement_in_csr_off;
-
-template <> struct is_property_key<device_image_scope_key> : std::true_type {};
-template <> struct is_property_key<host_access_key> : std::true_type {};
-template <> struct is_property_key<init_mode_key> : std::true_type {};
-template <> struct is_property_key<implement_in_csr_key> : std::true_type {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<device_image_scope_key, device_global<T, PropertyListT>>

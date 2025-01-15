@@ -1,7 +1,6 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <libspirv/spirv.h>
 
 #define SIGN(TYPE, F) \
 _CLC_DEF _CLC_OVERLOAD TYPE sign(TYPE x) { \

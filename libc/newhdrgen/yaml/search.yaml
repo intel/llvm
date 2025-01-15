@@ -4,11 +4,12 @@ types:
   - type_name: struct_hsearch_data
   - type_name: ENTRY
   - type_name: ACTION
+  - type_name: __lsearchcompare_t
 enums: []
 objects: []
 functions:
   - name: hcreate
-    standards: 
+    standards:
       - POSIX
     return_type: int
     arguments:
@@ -19,8 +20,18 @@ functions:
     arguments:
       - type: size_t
       - type: struct hsearch_data *
+  - name: hdestroy
+    standards: GNUExtensions
+    return_type: void
+    arguments: []
+  - name: hdestroy_r
+    standards:
+      - POSIX
+    return_type: void
+    arguments:
+      - type: struct hsearch_data *
   - name: hsearch
-    standards: 
+    standards:
       - POSIX
     return_type: ENTRY *
     arguments:
@@ -34,26 +45,26 @@ functions:
       - type: ACTION
       - type: ENTRY * *
       - type: struct hsearch_data *
-  - name: hdestroy
-    standards: GNUExtensions 
-    return_type: void
-    arguments: []
-  - name: hdestroy_r
-    standards: 
-      - POSIX
-    return_type: void
-    arguments:
-      - type: struct hsearch_data *
   - name: insque
-    standards: 
+    standards:
       - POSIX
     return_type: void
     arguments:
       - type: void *
       - type: void *
   - name: remque
-    standards: 
+    standards:
       - POSIX
     return_type: void
     arguments:
       - type: void *
+  - name: lfind
+    standards:
+      - POSIX
+    return_type: void *
+    arguments:
+      - type: const void *
+      - type: const void *
+      - type: size_t *
+      - type: size_t
+      - type: __lsearchcompare_t

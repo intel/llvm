@@ -221,8 +221,7 @@ protected:
 
   /// Executes the given \p Executable and returns the stdout.
   llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
-  executeToolChainProgram(StringRef Executable,
-                          unsigned SecondsToWait = 0) const;
+  executeToolChainProgram(StringRef Executable) const;
 
   void setTripleEnvironment(llvm::Triple::EnvironmentType Env);
 
@@ -781,6 +780,10 @@ public:
   /// Add arguments to use system-specific HIP includes.
   virtual void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                                  llvm::opt::ArgStringList &CC1Args) const;
+
+  /// Add arguments to use system-specific SYCL includes.
+  virtual void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                                  llvm::opt::ArgStringList &CC1Args) const;
 
   /// Add arguments to use MCU GCC toolchain includes.
   virtual void AddIAMCUIncludeArgs(const llvm::opt::ArgList &DriverArgs,

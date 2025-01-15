@@ -13,8 +13,8 @@
 #ifndef LLVM_CLANG_SEMA_SEMASYCL_H
 #define LLVM_CLANG_SEMA_SEMASYCL_H
 
+#include "clang/AST/ASTFwd.h"
 #include "clang/AST/Attr.h"
-#include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/SourceLocation.h"
@@ -62,7 +62,8 @@ public:
     kind_pointer,
     kind_specialization_constants_buffer,
     kind_stream,
-    kind_last = kind_stream
+    kind_work_group_memory,
+    kind_last = kind_work_group_memory
   };
 
 public:
@@ -259,11 +260,14 @@ private:
   // useful notes that shows where the kernel was called.
   bool DiagnosingSYCLKernel = false;
 
+  llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
+
 public:
   SemaSYCL(Sema &S);
 
   void CheckSYCLKernelCall(FunctionDecl *CallerFunc,
                            ArrayRef<const Expr *> Args);
+  void CheckSYCLScopeAttr(CXXRecordDecl *Decl);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as device code".
@@ -299,6 +303,10 @@ public:
 
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
+
+  void addSYCLKernelFunction(const FunctionDecl *FD) {
+    SYCLKernelFunctions.insert(FD);
+  }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
@@ -374,6 +382,8 @@ public:
                                    const FunctionDecl *Callee,
                                    SourceLocation Loc,
                                    DeviceDiagnosticReason Reason);
+
+  void performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD);
 
   /// Tells whether given variable is a SYCL explicit SIMD extension's "private
   /// global" variable - global variable in the private address space.
@@ -469,6 +479,7 @@ public:
                                                   const ParsedAttr &AL);
   void handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Decl *D,
                                                      const ParsedAttr &AL);
+  void handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL);
 
   void checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
 
@@ -643,6 +654,7 @@ public:
                                 Expr **Exprs, unsigned Size);
   void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E);
+  void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
 };
 
 } // namespace clang

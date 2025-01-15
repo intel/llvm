@@ -97,7 +97,8 @@ SYCLCreateNVVMAnnotationsPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
     constexpr static std::pair<const char *, const char *>
         SingleValAnnotations[] = {{"min_work_groups_per_cu", "minctasm"},
-                                  {"max_work_groups_per_mp", "maxclusterrank"}};
+                                  {"max_work_groups_per_mp", "maxclusterrank"},
+                                  {"max_linear_work_group_size", "maxntidx"}};
 
     for (auto &[MDName, AnnotationName] : SingleValAnnotations) {
       if (MDNode *Node = F.getMetadata(MDName)) {

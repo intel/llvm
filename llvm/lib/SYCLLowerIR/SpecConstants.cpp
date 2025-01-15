@@ -29,6 +29,21 @@
 
 using namespace llvm;
 
+static cl::opt<SpecConstantsPass::HandlingMode> SpecConstantMode(
+    "spec-constant-mode", cl::Optional, cl::Hidden,
+    cl::desc("Specialization constant handling mode"),
+    cl::init(SpecConstantsPass::HandlingMode::emulation),
+    cl::values(
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::default_values, "default_values",
+            "Specialization constant uses are replaced by default values"),
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::emulation, "emulation",
+            "Specialization constant intrinsic is replaced by run-time buffer"),
+        clEnumValN(SpecConstantsPass::HandlingMode::native, "native",
+                   "Specialization constant intrinsic is lowered to SPIR-V "
+                   "intrinsic")));
+
 namespace {
 
 // __sycl* intrinsic names are Itanium ABI-mangled; this is common prefix for
@@ -47,6 +62,9 @@ constexpr char SPIRV_GET_SPEC_CONST_VAL[] = "__spirv_SpecConstant";
 constexpr char SPIRV_GET_SPEC_CONST_COMPOSITE[] =
     "__spirv_SpecConstantComposite";
 
+// Name of the metadata which holds a list of all specialization constants (with
+// associated information) encountered in the module
+constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 // Name of the metadata which holds a default value list of all specialization
 // constants encountered in the module
 constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
@@ -472,6 +490,7 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   std::string FunctionName = mangleFuncItanium(BaseFunctionName, FT);
   Module *M = InsertBefore->getFunction()->getParent();
+  bool IsSPIROrSPIRV = llvm::Triple(M->getTargetTriple()).isSPIROrSPIRV();
 
   if (RetTy->isIntegerTy(1)) {
     assert(ArgTys.size() == 2 && "Expected a scalar spec constant");
@@ -497,6 +516,11 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
 
       auto *Call =
           CallInst::Create(NewFT, NewFC.getCallee(), Args, "", InsertBefore);
+      if (IsSPIROrSPIRV) {
+        cast<Function>(NewFC.getCallee())
+            ->setCallingConv(CallingConv::SPIR_FUNC);
+        Call->setCallingConv(CallingConv::SPIR_FUNC);
+      }
       return CastInst::CreateTruncOrBitCast(Call, RetTy, "tobool",
                                             InsertBefore);
     }
@@ -517,7 +541,12 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   // types? Is it necessary?
 
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
-  return CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  if (IsSPIROrSPIRV) {
+    cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
+    Call->setCallingConv(CallingConv::SPIR_FUNC);
+  }
+  return Call;
 }
 
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
@@ -813,6 +842,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
 
+  if (SpecConstantMode.getNumOccurrences() > 0)
+    Mode = SpecConstantMode;
+
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
   // intrinsic to find its calls and lower them depending on the HandlingMode.
@@ -948,8 +980,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             updatePaddingInLastMDNode(Ctx, SCMetadata, Padding);
           }
 
+          auto *DefValTy = DefaultValue->getType();
           SCMetadata[SymID] = generateSpecConstantMetadata(
-              M, SymID, SCTy, NextID, /* is native spec constant */ false);
+              M, SymID, DefValTy, NextID, /* is native spec constant */ false);
 
           ++NextID.ID;
           NextOffset += Size;
@@ -1025,9 +1058,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   for (const auto &P : DefaultsMetadata)
     MDDefaults->addOperand(P);
-
-  if (Mode == HandlingMode::default_values)
-    M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

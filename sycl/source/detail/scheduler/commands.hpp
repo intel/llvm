@@ -240,11 +240,16 @@ public:
   /// in order queue
   std::vector<ur_event_handle_t>
   getUrEvents(const std::vector<EventImplPtr> &EventImpls) const;
+
+  static std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<EventImplPtr> &EventImpls,
+              const QueueImplPtr &CommandQueue, bool IsHostTaskCommand);
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
   std::vector<ur_event_handle_t>
-  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
+  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
+                      bool HasEventMode) const;
 
   bool isHostTask() const;
 
@@ -623,7 +628,7 @@ void enqueueImpKernel(
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch,
+    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
     const RTDeviceBinaryImage *BinImage = nullptr);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
@@ -680,8 +685,9 @@ private:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
-    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc,
+    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
@@ -737,7 +743,7 @@ ur_result_t enqueueImpCommandBufferKernel(
 // Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
 // extension.
 void SetArgBasedOnType(
-    const detail::PluginPtr &Plugin, ur_kernel_handle_t Kernel,
+    const detail::AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);

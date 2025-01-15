@@ -436,7 +436,7 @@ struct payload_t {
   /// Kernel/lambda/function address
   const void *code_ptr_va = nullptr;
   /// Internal bookkeeping slot - do not change.
-  uint64_t internal;
+  uint64_t internal = 0;
   /// Flags indicating whether string name, codepointer, source file and hash
   /// values are available
   uint64_t flags = 0;

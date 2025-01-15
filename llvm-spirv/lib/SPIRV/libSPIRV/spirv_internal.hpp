@@ -101,8 +101,6 @@ enum InternalDecoration {
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
-  IDecFuncParamKindINTEL = 9624,
-  IDecFuncParamDescINTEL = 9625
 };
 
 enum InternalCapability {
@@ -283,10 +281,6 @@ constexpr Decoration DecorationImplementInCSRINTEL =
     static_cast<Decoration>(IDecImplementInCSRINTEL);
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
-constexpr Decoration DecorationFuncParamKindINTEL =
-    static_cast<Decoration>(IDecFuncParamKindINTEL);
-constexpr Decoration DecorationFuncParamDescINTEL =
-    static_cast<Decoration>(IDecFuncParamDescINTEL);
 
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);

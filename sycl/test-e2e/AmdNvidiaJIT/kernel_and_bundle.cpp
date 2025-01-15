@@ -1,5 +1,6 @@
 // UNSUPPORTED: windows
 // REQUIRES: cuda || hip
+// REQUIRES: build-and-run-mode
 
 // This test relies on debug output from a pass, make sure that the compiler
 // can generate it.
@@ -14,6 +15,7 @@
 // that otherwise does not get run.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 constexpr size_t Size = 16;

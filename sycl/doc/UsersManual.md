@@ -40,6 +40,7 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * amdgcn-amd-amdhsa - generate code ahead of time for HIP target;
     * native_cpu - allows to run SYCL applications with no need of an 
     additional backend (note that this feature is WIP and experimental, and 
     currently overrides all the other specified SYCL targets when enabled.)
@@ -47,6 +48,8 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
+    * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
+    * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
     * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
     * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture
@@ -95,6 +98,9 @@ and not recommended to use in production environment.
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx703 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx704 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx705 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
@@ -104,13 +110,13 @@ and not recommended to use in production environment.
     * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (CDNA1) architecture
     * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (CDNA2) architecture
     * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (CDNA3) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -194,6 +200,19 @@ and not recommended to use in production environment.
     specific compilers (e.g. OpenCL/Level Zero/Nvidia/AMD target compilers)
     which may or may not perform additional inlining.
     Default value is 225.
+
+**`--offload-compress`**
+
+    Enables device image compression for SYCL offloading. Device images
+    are compressed using `zstd` compression algorithm and only if their size
+    exceeds 512 bytes.
+    Default value is false.
+
+**`--offload-compression-level=<int>`**
+
+    `zstd` compression level used to compress device images when `--offload-
+    compress` is enabled.
+    The default value is 10.
 
 ## Target toolchain options
 

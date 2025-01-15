@@ -43,6 +43,7 @@ enum LanguageID : uint16_t {
   OCL_DSE = 0x400,           // builtin requires OpenCL device side enqueue.
   ALL_OCL_LANGUAGES = 0x800, // builtin for OCL languages.
   HLSL_LANG = 0x1000,        // builtin requires HLSL.
+  SYCL_LANG = 0x2000,        // builtin requires SYCL.
   ALL_LANGUAGES = C_LANG | CXX_LANG | OBJC_LANG, // builtin for all languages.
   ALL_GNU_LANGUAGES = ALL_LANGUAGES | GNU_LANG,  // builtin requires GNU mode.
   ALL_MS_LANGUAGES = ALL_LANGUAGES | MS_LANG     // builtin requires MS mode.
@@ -309,7 +310,10 @@ enum BuiltinTemplateKind : int {
   BTK__make_integer_seq,
 
   /// This names the __type_pack_element BuiltinTemplateDecl.
-  BTK__type_pack_element
+  BTK__type_pack_element,
+
+  /// This names the __builtin_common_type BuiltinTemplateDecl.
+  BTK__builtin_common_type,
 };
 
 } // end namespace clang

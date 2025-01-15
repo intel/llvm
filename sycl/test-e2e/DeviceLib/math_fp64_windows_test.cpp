@@ -1,11 +1,14 @@
-// UNSUPPORTED: windows
-// Disabled on windows due to bug VS 2019 missing math builtins
+// REQUIRES: aspect-fp64, windows
+// REQUIRES: build-and-run-mode
 
-// REQUIRES: aspect-fp64
-// REQUIRES: (cpu || accelerator) && windows
-// RUN: %{build} -c -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-cmath-fp64.o -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
+
+// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t.out
+// RUN: %if !gpu %{ %{run} %t.out %}
+
 #include "math_utils.hpp"
 #include <iostream>
 #include <math.h>
@@ -15,11 +18,11 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 41
+#define TEST_NUM 38
 
-double ref_val[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0,   1,   1,   0.5, 0, 2, 0, 0,
-                            1, 0, 2, 0, 0, 0, 0,   0,   1,   0,   1, 2, 0, 1,
-                            2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN, 1, 2, 0};
+double ref_val[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0, 1, 1,   0.5, 0,   2,  0,
+                            0, 1, 0, 2, 0, 0, 0, 0, 0,   1,   0,   1,  2,
+                            0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
 
 double refIptr = 1;
 
@@ -38,13 +41,13 @@ void device_math_test(s::queue &deviceQueue) {
   int quo = -1;
 
   // Varaible enm stores the enum value retured by MSVC function
-  short enm[2] = {10, 10};
+  short enm = 10;
   {
     s::buffer<double, 1> buffer1(result, numOfItems);
     s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
     s::buffer<double, 1> buffer3(&iptr, s::range<1>{1});
     s::buffer<int, 1> buffer4(&quo, s::range<1>{1});
-    s::buffer<short, 1> buffer5(enm, s::range<1>{2});
+    s::buffer<short, 1> buffer5(&enm, s::range<1>{1});
     deviceQueue.submit([&](sycl::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
       auto exp_access = buffer2.template get_access<sycl_write>(cgh);
@@ -92,12 +95,7 @@ void device_math_test(s::queue &deviceQueue) {
         double a = NAN;
         res_access[i++] = tgamma(a);
         res_access[i++] = lgamma(a);
-        enm_access[0] = _Dtest(&a);
-        a = 0.0;
-        enm_access[1] = _Exp(&a, 1.0, 0);
-        res_access[i++] = a;
-        res_access[i++] = _Cosh(0.0, 2.0);
-        res_access[i++] = _Sinh(0.0, 1.0);
+        enm_access[0] = _dtest(&a);
       });
     });
   }
@@ -117,10 +115,7 @@ void device_math_test(s::queue &deviceQueue) {
   assert(quo == 0);
 
   // Test enum value returned by _Dtest
-  assert(enm[0] == _NANCODE);
-
-  // Test enum value returned by _Exp
-  assert(enm[1] == _FINITE);
+  assert(enm == _NANCODE);
 }
 
 int main() {

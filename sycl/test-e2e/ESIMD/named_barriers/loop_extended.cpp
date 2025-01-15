@@ -11,8 +11,8 @@
 // RUN: %{run} %t.out
 
 // Disabled on PVC due to flaky failures.
-// https://github.com/intel/llvm/issues/14826
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14826
 
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2

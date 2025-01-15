@@ -112,7 +112,7 @@ to generate test cases, ensuring that specializations exist for all aspects:
 
 ```c++
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                          \
-  constexpr bool CheckAnyDeviceHas##ASPECT = any_devices_has_v<aspect::ASPECT>;    \
+  constexpr bool CheckAnyDeviceHas##ASPECT = any_device_has_v<aspect::ASPECT>;     \
   constexpr bool CheckAllDevicesHave##ASPECT = all_devices_have_v<aspect::ASPECT>;
 
 #include <sycl/info/aspects.def>

@@ -32,10 +32,10 @@ int main() {
     // CHECK: store i32 1, ptr addrspace(4) %b
     foo(local_value);
     // Local variables and constexprs captured by lambda
-    // CHECK:  [[GEP:%[a-z_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) %{{.*}}, i32 0, i32 0
+    // CHECK:  [[GEP:%[a-z_]+]] = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %{{.*}}, i32 0, i32 0
     // CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable(4) [[GEP]])
     int some_device_local_var = some_local_var;
-    // CHECK:  [[GEP1:%[a-z_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) %{{.*}}, i32 0, i32 1
+    // CHECK:  [[GEP1:%[a-z_]+]] = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %{{.*}}, i32 0, i32 1
     // CHECK:  [[LOAD1:%[0-9]+]] = load i32, ptr addrspace(4) [[GEP1]]
     // CHECK:  store i32 [[LOAD1]], ptr addrspace(4) %some_device_local_var
   });

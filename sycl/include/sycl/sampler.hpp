@@ -25,7 +25,8 @@ enum class addressing_mode : unsigned int {
   repeat = 0x1133,          // Value of CL_ADDRESS_REPEAT
   clamp_to_edge = 0x1131,   // Value of CL_ADDRESS_CLAMP_TO_EDGE
   clamp = 0x1132,           // Value of CL_ADDRESS_CLAMP
-  none = 0x1130             // Value of CL_ADDRESS_NONE
+  ext_oneapi_clamp_to_border = clamp,
+  none = 0x1130 // Value of CL_ADDRESS_NONE
 };
 
 enum class filtering_mode : unsigned int {

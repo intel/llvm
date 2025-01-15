@@ -1,7 +1,7 @@
 // UNSUPPORTED: cuda || hip
 // Test with `--offload-new-driver`
 // RUN: %clangxx -fsycl -fsycl-device-obj=spirv --offload-new-driver -c -o %t.o %s
-// RUN: %clangxx -fsycl --offload-new-driver -o %t.out %t.o
+// RUN: %clangxx -fsycl --offload-new-driver -Wno-unused-command-line-argument -o %t.out %t.o
 // RUN: %{run} %t.out
 
 // This test verifies SPIR-V based fat objects.

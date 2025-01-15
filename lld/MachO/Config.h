@@ -68,6 +68,7 @@ enum class ICFLevel {
   unknown,
   none,
   safe,
+  safe_thunks,
   all,
 };
 
@@ -163,7 +164,9 @@ struct Configuration {
   llvm::StringRef finalOutput;
 
   llvm::StringRef installName;
+  llvm::StringRef clientName;
   llvm::StringRef mapFile;
+  llvm::StringRef ltoNewPmPasses;
   llvm::StringRef ltoObjPath;
   llvm::StringRef thinLTOJobs;
   llvm::StringRef umbrella;
@@ -209,6 +212,7 @@ struct Configuration {
   std::vector<SectionAlign> sectionAlignments;
   std::vector<SegmentProtection> segmentProtections;
   bool ltoDebugPassManager = false;
+  llvm::StringRef codegenDataGeneratePath;
   bool csProfileGenerate = false;
   llvm::StringRef csProfilePath;
   bool pgoWarnMismatch;
@@ -218,6 +222,7 @@ struct Configuration {
   llvm::StringRef printSymbolOrder;
 
   llvm::StringRef irpgoProfileSortProfilePath;
+  bool compressionSortStartupFunctions = false;
   bool functionOrderForCompression = false;
   bool dataOrderForCompression = false;
   bool verboseBpSectionOrderer = false;
@@ -235,6 +240,7 @@ struct Configuration {
   SymtabPresence localSymbolsPresence = SymtabPresence::All;
   SymbolPatterns localSymbolPatterns;
   llvm::SmallVector<llvm::StringRef, 0> mllvmOpts;
+  llvm::SmallVector<llvm::StringRef, 0> passPlugins;
 
   bool zeroModTime = true;
   bool generateUuid = true;

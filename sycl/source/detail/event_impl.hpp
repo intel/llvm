@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/plugin.hpp>
+#include <detail/adapter.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -27,7 +27,7 @@ class graph_impl;
 }
 class context;
 namespace detail {
-class plugin;
+class Adapter;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
@@ -58,12 +58,12 @@ public:
     SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
   }
 
-  /// Constructs an event instance from a plug-in event handle.
+  /// Constructs an event instance from a UR event handle.
   ///
-  /// The SyclContext must match the plug-in context associated with the
-  /// ClEvent.
+  /// The SyclContext must match the UR context associated with the
+  /// ur_event_handle_t.
   ///
-  /// \param Event is a valid instance of plug-in event.
+  /// \param Event is a valid instance of UR event.
   /// \param SyclContext is an instance of SYCL context.
   event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
@@ -137,9 +137,9 @@ public:
   /// \return a shared pointer to a valid context_impl.
   const ContextImplPtr &getContextImpl();
 
-  /// \return the Plugin associated with the context of this event.
+  /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const PluginPtr &getPlugin();
+  const AdapterPtr &getAdapter();
 
   /// Associate event with the context.
   ///
@@ -151,6 +151,9 @@ public:
 
   /// Clear the event state
   void setStateIncomplete();
+
+  /// Set state as discarded.
+  void setStateDiscarded() { MState = HES_Discarded; }
 
   /// Returns command that is associated with the event.
   ///
@@ -328,6 +331,13 @@ public:
   void markAsProfilingTagEvent() { MProfilingTagEvent = true; }
 
   bool isProfilingTagEvent() const noexcept { return MProfilingTagEvent; }
+
+  // Check if this event is an interoperability event.
+  bool isInterop() const noexcept {
+    // As an indication of interoperability event, we use the absence of the
+    // queue and command, as well as the fact that it is not in enqueued state.
+    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
+  }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and

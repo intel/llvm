@@ -37,6 +37,8 @@ class OptionCategory;
 
 namespace module_split {
 
+constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-esimd-split-status";
+
 extern cl::OptionCategory &getModuleSplitCategory();
 
 enum IRSplitMode {
@@ -220,6 +222,8 @@ public:
       Reqs = computeDeviceRequirements(getModule(), entries());
     return *Reqs;
   }
+
+  void saveSplitInformationAsMetadata();
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;

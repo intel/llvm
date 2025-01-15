@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
 

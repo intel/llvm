@@ -71,12 +71,11 @@ void checkKernel(const Function *F, const CallGraphTy &CG) {
 void computeFunctionToKernelsMappingImpl(Function *Kernel, const Function *F,
                                          const CallGraphTy &CG,
                                          FuncToFuncMapTy &Mapping) {
+  Mapping[F].insert(Kernel);
   CallGraphTy::const_iterator It = CG.find(F);
   // It could be that the function itself is a leaf and doesn't call anything
   if (It == CG.end())
     return;
-
-  Mapping[F].insert(Kernel);
 
   const SmallPtrSet<Value *, 8> &Callees = It->getSecond();
   for (const Value *V : Callees)
@@ -84,24 +83,11 @@ void computeFunctionToKernelsMappingImpl(Function *Kernel, const Function *F,
       computeFunctionToKernelsMappingImpl(Kernel, Callee, CG, Mapping);
 }
 
+// Compute a map from functions used by a kernel to that kernel.
+// For simplicity we also consider a kernel to be using itself.
 void computeFunctionToKernelsMapping(Function *Kernel, const CallGraphTy &CG,
                                      FuncToFuncMapTy &Mapping) {
-  // For simplicity we also consider a kernel to be using itself
-  Mapping[Kernel].insert(Kernel);
-
-  CallGraphTy::const_iterator It = CG.find(Kernel);
-  // It could be that the kernel doesn't call anything
-  if (It == CG.end())
-    return;
-
-  const SmallPtrSet<Value *, 8> &Callees = It->getSecond();
-  for (const Value *V : Callees) {
-    auto *Callee = dyn_cast<Function>(V);
-    if (!Callee)
-      continue;
-    Mapping[Callee].insert(Kernel);
-    computeFunctionToKernelsMappingImpl(Kernel, Callee, CG, Mapping);
-  }
+  computeFunctionToKernelsMappingImpl(Kernel, Kernel, CG, Mapping);
 }
 
 void collectVTablesThatUseFunction(

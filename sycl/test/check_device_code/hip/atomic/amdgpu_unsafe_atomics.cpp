@@ -26,16 +26,14 @@ SYCL_EXTERNAL void fpAtomicFunc(float *f, double *d) {
       .fetch_add(1.0f);
   // CHECK: void{{.*}}fpAtomicFunc
   // CHECK-SAFE: atomicrmw volatile fadd
-  // CHECK-SAFE-NOT: llvm.amdgcn.global.atomic.fadd.f32
-  // CHECK-UNSAFE-FP: llvm.amdgcn.global.atomic.fadd.f32
-  // CHECK-UNSAFE-FP-NOT: atomicrmw volatile fadd
+  // CHECK-SAFE-NOT: amdgpu.ignore.denormal.mode
+  // CHECK-UNSAFE-FP: atomicrmw volatile fadd {{.*}}!amdgpu.no.fine.grained.memory{{.*}}!amdgpu.ignore.denormal.mode
   sycl::atomic_ref<double, sycl::memory_order_relaxed,
                    sycl::memory_scope_device,
                    sycl::access::address_space::global_space>(*d)
       .fetch_add(1.0);
   // CHECK-SAFE: cmpxchg
   // CHECK-SAFE-NOT: llvm.amdgcn.global.atomic.fadd.f64
-  // CHECK-UNSAFE-FP: llvm.amdgcn.global.atomic.fadd.f64
-  // CHECK-UNSAFE-FP-NOT: cmpxchg
+  // CHECK-UNSAFE-FP: atomicrmw volatile fadd {{.*}}!amdgpu.no.fine.grained.memory
   // CHECK: __CLANG_OFFLOAD_BUNDLE____END__ sycl-amdgcn-amd-amdhsa-
 }

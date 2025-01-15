@@ -60,9 +60,15 @@ struct basic_string {
   _Type& insert(size_type pos, const C* s);
   _Type& insert(size_type pos, const C* s, size_type n);
 
+  _Type substr(size_type pos = 0, size_type count = npos) const;
+
   constexpr bool starts_with(std::basic_string_view<C, T> sv) const noexcept;
   constexpr bool starts_with(C ch) const noexcept;
   constexpr bool starts_with(const C* s) const;
+
+  constexpr bool ends_with(std::basic_string_view<C, T> sv) const noexcept;
+  constexpr bool ends_with(C ch) const noexcept;
+  constexpr bool ends_with(const C* s) const;
 
   _Type& operator[](size_type);
   const _Type& operator[](size_type) const;
@@ -107,6 +113,10 @@ struct basic_string_view {
   constexpr bool starts_with(basic_string_view sv) const noexcept;
   constexpr bool starts_with(C ch) const noexcept;
   constexpr bool starts_with(const C* s) const;
+
+  constexpr bool ends_with(basic_string_view sv) const noexcept;
+  constexpr bool ends_with(C ch) const noexcept;
+  constexpr bool ends_with(const C* s) const;
 
   constexpr int compare(basic_string_view sv) const noexcept;
 

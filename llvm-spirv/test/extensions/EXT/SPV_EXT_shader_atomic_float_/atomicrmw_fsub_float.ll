@@ -9,7 +9,7 @@
 ; CHECK-SPIRV-DAG: Extension "SPV_EXT_shader_atomic_float_add"
 ; CHECK-SPIRV-DAG: Capability AtomicFloat32AddEXT
 ; CHECK-SPIRV: TypeInt [[Int:[0-9]+]] 32 0
-; CHECK-SPIRV-DAG: Constant [[Int]] [[Scope_Device:[0-9]+]] 1 {{$}}
+; CHECK-SPIRV-DAG: Constant [[Int]] [[Scope_CrossDevice:[0-9]+]] 0 {{$}}
 ; CHECK-SPIRV-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
 ; CHECK-SPIRV: TypeFloat [[Float:[0-9]+]] 32
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[FPPointer:[0-9]+]]
@@ -25,7 +25,7 @@ define dso_local spir_func void @test_atomicrmw_fadd() local_unnamed_addr #0 {
 entry:
  %0 = atomicrmw fsub ptr addrspace(1) @f, float 42.000000e+00 seq_cst
 ; CHECK-SPIRV: FNegate [[Float]] [[NegateValue:[0-9]+]] [[FPValue]]
-; CHECK-SPIRV: AtomicFAddEXT [[Float]] {{[0-9]+}} [[FPPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[NegateValue]]
+; CHECK-SPIRV: AtomicFAddEXT [[Float]] {{[0-9]+}} [[FPPointer]] [[Scope_CrossDevice]] [[MemSem_SequentiallyConsistent]] [[NegateValue]]
 ; CHECK-LLVM: [[FNegateLLVM:%[0-9]+]] = fneg float 4.200000e+01
 ; CHECK-LLVM: call spir_func float {{.*}}atomic_add{{.*}}(ptr addrspace(1) @f, float [[FNegateLLVM]])
   ret void

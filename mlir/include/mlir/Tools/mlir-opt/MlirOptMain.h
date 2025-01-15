@@ -119,6 +119,13 @@ public:
     return success();
   }
 
+  /// List the registered passes and return.
+  MlirOptMainConfig &listPasses(bool list) {
+    listPassesFlag = list;
+    return *this;
+  }
+  bool shouldListPasses() const { return listPassesFlag; }
+
   /// Enable running the reproducer information stored in resources (if
   /// present).
   MlirOptMainConfig &runReproducer(bool enableReproducer) {
@@ -176,6 +183,13 @@ public:
   }
   bool shouldVerifyPasses() const { return verifyPassesFlag; }
 
+  /// Set whether to run the verifier on parsing.
+  MlirOptMainConfig &verifyOnParsing(bool verify) {
+    disableVerifierOnParsingFlag = !verify;
+    return *this;
+  }
+  bool shouldVerifyOnParsing() const { return !disableVerifierOnParsingFlag; }
+
   /// Set whether to run the verifier after each transformation pass.
   MlirOptMainConfig &verifyRoundtrip(bool verify) {
     verifyRoundtripFlag = verify;
@@ -219,6 +233,9 @@ protected:
   /// The callback to populate the pass manager.
   std::function<LogicalResult(PassManager &)> passPipelineCallback;
 
+  /// List the registered passes and return.
+  bool listPassesFlag = false;
+
   /// Enable running the reproducer.
   bool runReproducerFlag = false;
 
@@ -241,6 +258,9 @@ protected:
 
   /// Run the verifier after each transformation pass.
   bool verifyPassesFlag = true;
+
+  /// Disable the verifier on parsing.
+  bool disableVerifierOnParsingFlag = false;
 
   /// Verify that the input IR round-trips perfectly.
   bool verifyRoundtripFlag = false;

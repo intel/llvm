@@ -1,5 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit, cm-compiler
-
+// XFAIL: gpu && !(arch-intel_gpu_pvc && igc-dev)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16406
 // RUN: %{build} -Wno-error=deprecated-declarations -DRUN_KERNELS %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
@@ -7,8 +8,8 @@
 // All Level-Zero specific code is kept here and the common part that can be
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
-#include <sycl/ext/intel/experimental/online_compiler.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 #include <vector>
 
@@ -20,6 +21,10 @@
 using byte = unsigned char;
 
 #ifdef RUN_KERNELS
+bool testSupported(sycl::queue &Queue) {
+  return Queue.get_backend() == sycl::backend::ext_oneapi_level_zero;
+}
+
 sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
                                  const std::vector<byte> &IL) {
 

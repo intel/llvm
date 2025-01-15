@@ -47,14 +47,14 @@
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -fPIE %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
-// CHECK_SHARED: llc{{.*}} "-relocation-model=pic"
+// CHECK_SHARED: clang{{.*}} "-c"{{.*}} "-fPIC"
 
-/// check for code-model settings for llc device wrap compilation
+/// check for code-model settings for clang device wrap compilation
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -mcmodel=large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=large %s
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -mcmodel=medium %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=medium %s
-// CHECK_CODE_MODEL: llc{{.*}} "--code-model=[[ARG]]"
+// CHECK_CODE_MODEL: clang{{.*}} "-c"{{.*}} "-mcmodel=[[ARG]]"
 
 /// -S -emit-llvm should generate textual IR for device.
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -S -emit-llvm %s 2>&1 \
@@ -174,19 +174,19 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_PASS: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-remove-unused-external-funcs %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 
-/// Check selective passing of -support-dynamic-linking to sycl-post-link tool
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_NO_PASS %s
-// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
-// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
-// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_NO_PASS %s
+/// Check selective passing of -allow-device-image-dependencies to sycl-post-link tool
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
 
-// CHECK_SYCL_POST_LINK_SADD_PASS: sycl-post-link{{.*}}support-dynamic-linking
-// CHECK_SYCL_POST_LINK_SADD_NO_PASS-NOT: sycl-post-link{{.*}}support-dynamic-linking
+// CHECK_SYCL_POST_LINK_ADID_PASS: sycl-post-link{{.*}}allow-device-image-dependencies
+// CHECK_SYCL_POST_LINK_ADID_NO_PASS-NOT: sycl-post-link{{.*}}allow-device-image-dependencies
 
 /// Check for correct handling of -fsycl-fp64-conv-emu option for different targets
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_WARNING %s

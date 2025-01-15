@@ -14,9 +14,7 @@
 //   verbose (enabled with --verbose).
 //
 // In verbose mode it also prints, which devices would be chosen by various SYCL
-// device selectors. If the system has unsupported platforms (for instance
-// CUDA's OpenCL) those will also be listed in verbose mode, under "Unsupported
-// Platforms".
+// device selectors.
 //
 #include <sycl/sycl.hpp>
 
@@ -79,7 +77,7 @@ const char *getArchName(const device &Device) {
   case syclex::architecture::ARCH:                                             \
     return #ARCH;
 #define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
-#include <sycl/ext/oneapi/experimental/architectures.def>
+#include <sycl/ext/oneapi/experimental/device_architecture.def>
 #undef __SYCL_ARCHITECTURE
 #undef __SYCL_ARCHITECTURE_ALIAS
   }
@@ -124,8 +122,7 @@ std::array<int, 2> GetNumberOfSubAndSubSubDevices(const device &Device) {
 }
 
 static void printDeviceInfo(const device &Device, bool Verbose,
-                            const std::string &Prepend,
-                            bool IsUnsupported = false) {
+                            const std::string &Prepend) {
   auto DeviceVersion = Device.get_info<info::device::version>();
   auto DeviceName = Device.get_info<info::device::name>();
   auto DeviceVendor = Device.get_info<info::device::vendor>();
@@ -151,6 +148,15 @@ static void printDeviceInfo(const device &Device, bool Verbose,
       std::cout << std::endl;
     }
 
+    // Get and print device ID, if it is available.
+    if (Device.has(aspect::ext_intel_device_id)) {
+      auto DeviceID =
+          Device.get_info<sycl::ext::intel::info::device::device_id>();
+      std::cout << Prepend << "DeviceID          : " << DeviceID << std::endl;
+    } else {
+      std::cout << Prepend << "DeviceID          : " << "UNKNOWN" << std::endl;
+    }
+
     // Print sub and sub-sub devices.
     {
       auto DevCount = GetNumberOfSubAndSubSubDevices(Device);
@@ -160,23 +166,19 @@ static void printDeviceInfo(const device &Device, bool Verbose,
                 << std::endl;
     }
 
-    // We don't expect to find info on aspects, device's sub-group size or
-    // architecture on non supported devices.
-    if (!IsUnsupported) {
-      std::cout << Prepend << "Aspects           :";
+    std::cout << Prepend << "Aspects           :";
 #define __SYCL_ASPECT(ASPECT, ID)                                              \
   if (Device.has(aspect::ASPECT))                                              \
     std::cout << " " << #ASPECT;
 #include <sycl/info/aspects.def>
-      std::cout << std::endl;
-      auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
-      std::cout << Prepend << "info::device::sub_group_sizes:";
-      for (auto size : sg_sizes)
-        std::cout << " " << size;
-      std::cout << std::endl;
-      std::cout << Prepend << "Architecture: " << getArchName(Device)
-                << std::endl;
-    }
+    std::cout << std::endl;
+    auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
+    std::cout << Prepend << "info::device::sub_group_sizes:";
+    for (auto size : sg_sizes)
+      std::cout << " " << size;
+    std::cout << std::endl;
+    std::cout << Prepend << "Architecture: " << getArchName(Device)
+              << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;
@@ -208,11 +210,8 @@ static int printUsageAndExit() {
             << std::endl;
   std::cout << "\n Options:" << std::endl;
   std::cout
-      << "\t --verbose "
-      << "\t Verbosely prints all the discovered platforms. "
-      << "It also lists the device chosen by various SYCL device "
-         "selectors. If the system contains unsupported platforms, those will "
-         "also be listed in verbose mode, under \"Unsupported Platforms\"."
+      << "\t --verbose " << "\t Verbosely prints all the discovered platforms. "
+      << "It also lists the device chosen by various SYCL device selectors."
       << std::endl;
   std::cout
       << "\t --ignore-device-selectors "
@@ -327,38 +326,6 @@ static int unsetFilterEnvVarsAndFork() {
 }
 #endif
 
-// NOTE: This function can update DeviceNums.
-static void printVerbosePlatformInfo(const std::vector<platform> &Platforms,
-                                     std::map<backend, size_t> &DeviceNums,
-                                     const bool SuppressNumberPrinting,
-                                     bool IsUnsupported = false) {
-  uint32_t PlatformNum = 0;
-  if (!SuppressNumberPrinting)
-    DeviceNums.clear();
-  for (const auto &Platform : Platforms) {
-    backend Backend = Platform.get_backend();
-    ++PlatformNum;
-    auto PlatformVersion = Platform.get_info<info::platform::version>();
-    auto PlatformName = Platform.get_info<info::platform::name>();
-    auto PlatformVendor = Platform.get_info<info::platform::vendor>();
-    std::cout << "Platform [#" << PlatformNum << "]:" << std::endl;
-    std::cout << "    Version  : " << PlatformVersion << std::endl;
-    std::cout << "    Name     : " << PlatformName << std::endl;
-    std::cout << "    Vendor   : " << PlatformVendor << std::endl;
-
-    const auto &Devices = Platform.get_devices();
-    std::cout << "    Devices  : " << Devices.size() << std::endl;
-    for (const auto &Device : Devices) {
-      if (!SuppressNumberPrinting) {
-        std::cout << "        Device [#" << DeviceNums[Backend]
-                  << "]:" << std::endl;
-        ++DeviceNums[Backend];
-      }
-      printDeviceInfo(Device, true, "        ", IsUnsupported);
-    }
-  }
-}
-
 int main(int argc, char **argv) {
 
   if (argc == 1) {
@@ -409,7 +376,7 @@ int main(int argc, char **argv) {
       // the device counting done here should have the same result as the
       // counting done by SYCL itself. But technically, it is not the same
       // method, as SYCL keeps a table of platforms:start_dev_index in each
-      // plugin.
+      // adapter.
 
       for (const auto &Device : Devices) {
         std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
@@ -428,14 +395,31 @@ int main(int argc, char **argv) {
 
     if (verbose) {
       std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
-      printVerbosePlatformInfo(Platforms, DeviceNums, SuppressNumberPrinting);
+      uint32_t PlatformNum = 0;
+      if (!SuppressNumberPrinting)
+        DeviceNums.clear();
+      for (const auto &Platform : Platforms) {
+        backend Backend = Platform.get_backend();
+        ++PlatformNum;
+        auto PlatformVersion = Platform.get_info<info::platform::version>();
+        auto PlatformName = Platform.get_info<info::platform::name>();
+        auto PlatformVendor = Platform.get_info<info::platform::vendor>();
+        std::cout << "Platform [#" << PlatformNum << "]:" << std::endl;
+        std::cout << "    Version  : " << PlatformVersion << std::endl;
+        std::cout << "    Name     : " << PlatformName << std::endl;
+        std::cout << "    Vendor   : " << PlatformVendor << std::endl;
 
-      const auto &UnsupportedPlatforms = platform::get_unsupported_platforms();
-      std::cout << "\nUnsupported Platforms: " << UnsupportedPlatforms.size()
-                << std::endl;
-      printVerbosePlatformInfo(UnsupportedPlatforms, DeviceNums,
-                               SuppressNumberPrinting, true);
-      std::cout << std::endl;
+        const auto &Devices = Platform.get_devices();
+        std::cout << "    Devices  : " << Devices.size() << std::endl;
+        for (const auto &Device : Devices) {
+          if (!SuppressNumberPrinting) {
+            std::cout << "        Device [#" << DeviceNums[Backend]
+                      << "]:" << std::endl;
+            ++DeviceNums[Backend];
+          }
+          printDeviceInfo(Device, true, "        ");
+        }
+      }
     } else {
       return EXIT_SUCCESS;
     }

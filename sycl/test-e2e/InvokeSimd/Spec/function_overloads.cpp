@@ -24,6 +24,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #include <functional>
@@ -36,7 +37,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(VL)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;
@@ -115,9 +116,8 @@ int main(void) {
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(
-                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vc;
+            float va, vc;
+            group_load(sg, PA.get_multi_ptr<access::decorated::yes>() + offset, va);
 
             // Invoke SIMD function:
             if constexpr (scale_scalar)
@@ -129,8 +129,8 @@ int main(void) {
                   simd<float, VL>, simd<float, VL>)>(sg, SIMD_CALLEE_scale, va,
                                                      n);
 
-            sg.store(PC.get_multi_ptr<access::decorated::yes>().get() + offset,
-                     vc);
+            group_store(sg, vc,
+                        PC.get_multi_ptr<access::decorated::yes>() + offset);
           });
     });
     e.wait();

@@ -22,16 +22,44 @@ namespace {
 static constexpr char ACCESS_CHAIN[] = "_Z19__spirv_AccessChain";
 static constexpr char MATRIX_TYPE[] = "spirv.CooperativeMatrixKHR";
 
-// This routine extracts spirv.CooperativeMatrixKHR target extension type
-// from sycl::joint_matrix class object if it's used in __spirv_AccessChain
-// function call. It's necessary because otherwise OpAccessChain indices would
-// be wrong.
+// This function finds all calls to __spirv_AccessChain function and transforms
+// its users and operands to make LLVM IR more SPIR-V friendly.
 bool transformAccessChain(Function *F) {
   bool ModuleChanged = false;
-  for (auto I : F->users()) {
-    auto *CI = dyn_cast<CallInst>(I);
+  for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
+    User *U = *I++;
+    auto *CI = dyn_cast<CallInst>(U);
     if (!CI)
       continue;
+
+    // This is a W/A for bfloat16 and tf32 types - they are represented in SYCL
+    // as structures with int16/float storages. It means, that in LLVM IR
+    // user of CallInst to __spirv_AccessChain function would be not load/store
+    // instruction, but a zero GEP. This zero GEP is no-op, but can confuse a
+    // SPIR-V consumer, so lets remove it here.
+    auto *Unique = CI->getUniqueUndroppableUser();
+    if (auto *GEP = dyn_cast_or_null<GetElementPtrInst>(Unique)) {
+      if (GEP->hasAllZeroIndices()) {
+        GEP->replaceAllUsesWith(CI);
+        GEP->dropAllReferences();
+        GEP->eraseFromParent();
+      }
+    }
+
+    // It can happen that the optimizer can remove duplicated or dead uses
+    // of CallInst to __spirv_AccessChain function. But it can't remove
+    // __spirv_AccessChain call itself as it's a call to external function.
+    // Lets clean such calls.
+    if (CI->getNumUses() == 0) {
+      CI->dropAllReferences();
+      CI->eraseFromParent();
+      continue;
+    }
+
+    // This routine extracts spirv.CooperativeMatrixKHR target extension type
+    // from sycl::joint_matrix class object if it's used in __spirv_AccessChain
+    // function call. It's necessary because otherwise OpAccessChain indices
+    // would be wrong.
     Instruction *Ptr =
         dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
     if (!Ptr || !isa<AllocaInst>(Ptr))
