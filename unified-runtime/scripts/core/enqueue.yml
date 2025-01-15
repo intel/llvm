@@ -16,6 +16,9 @@ type: function
 desc: "Enqueue a command to execute a kernel"
 class: $xEnqueue
 name: KernelLaunch
+details:
+  - "Adapters may perform validation on the number of arguments set to the kernel, but are not required to do so and may
+    return `$X_RESULT_SUCCESS` even for invalid invocations."
 ordinal: "0"
 analogue:
     - "**clEnqueueNDRangeKernel**"
@@ -65,8 +68,8 @@ returns:
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGS
-        - "The kernel argument values have not been specified."
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGS:
+        - "The kernel argument values have not been specified and the adapter is able to detect this."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
