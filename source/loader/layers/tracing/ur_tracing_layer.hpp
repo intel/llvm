@@ -3,8 +3,9 @@
  * Copyright (C) 2023 Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
- * LLVM-exception
+ * Exceptions. See LICENSE.TXT
+ *
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_tracing_layer.h
  *
