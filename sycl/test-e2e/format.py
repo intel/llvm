@@ -183,7 +183,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
-        elif (
+        if (
             get_triple("spir64") in triples
             and "spirv-backend" in test.config.available_features
         ):
