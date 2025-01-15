@@ -17,6 +17,15 @@
 #include <string>
 #include <sycl/detail/core.hpp>
 
+static bool isIdenticalDevices(std::vector<sycl::devices> Devices) {
+  return std::all_of(Devices.cbegin(), Devices.cend(), [](sycl::device &Dev) {
+    return (Dev.get_info<sycl::info::device::name>() ==
+            Devices.at(0).get_info<sycl::info::device::name>()) &&
+           (Dev.get_info<sycl::info::device::driver_version>() ==
+            Devices.at(0).get_info<sycl::info::device::driver_version>())
+  });
+}
+
 static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character
   std::replace_if(
@@ -71,10 +80,12 @@ int main() {
   // Expected the allowlist to be set with the "PRINT_DEVICE_INFO" run result
   if (env::isDefined("TEST_DEVICE_AVAILABLE")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
-      if (Platform.get_devices().size() != 1)
-        throw std::runtime_error("Expected only one device.");
+      if (auto Devices = Platform.get_devices()) {
+        if (!(Devices.size() == 1 || isIdenticalDevices(Devices)))
+          throw std::runtime_error("Expected only one device.");
 
-      return 0;
+        return 0;
+      }
     }
     throw std::runtime_error("No device is found");
   }
