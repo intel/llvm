@@ -14,7 +14,6 @@
 //          - Currently we are saying the error between host/device
 //          - timers is 0.5%
 constexpr double allowedTimerError = 0.005;
-constexpr size_t delayTimerMultiplier = 100;
 
 /// @brief Return the absolute difference between two numeric values.
 /// @tparam T An numeric type.
@@ -56,17 +55,8 @@ TEST_P(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
 }
 
 TEST_P(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
-                         uur::LevelZeroV2{}, uur::NativeCPU{},
-                         uur::OpenCL{"Intel(R) FPGA"},
-                         uur::OpenCL{"Intel(R) UHD Graphics 770"});
-
-    // get the timer resolution of the device
-    size_t deviceTimerResolutionNanoSecs = 0;
-    ASSERT_SUCCESS(uur::GetDeviceProfilingTimerResolution(
-        device, deviceTimerResolutionNanoSecs));
-    size_t delayAmountNanoSecs =
-        delayTimerMultiplier * deviceTimerResolutionNanoSecs;
+    // Returns `UR_RESULT_ERROR_INVALID_OPERATION`
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
 
     uint64_t deviceStartTime = 0, deviceEndTime = 0;
     uint64_t hostStartTime = 0, hostEndTime = 0;
@@ -82,7 +72,7 @@ TEST_P(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
     ASSERT_GE(hostOnlyStartTime, hostStartTime);
 
     // wait for timers to increment
-    std::this_thread::sleep_for(std::chrono::nanoseconds(delayAmountNanoSecs));
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
 
     ASSERT_SUCCESS(
         urDeviceGetGlobalTimestamps(device, &deviceEndTime, &hostEndTime));
