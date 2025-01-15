@@ -306,14 +306,18 @@ T shift_sub_group_right(sycl::sub_group g, T x, unsigned int delta,
 template <typename T>
 T permute_sub_group_by_xor(sycl::sub_group g, T x, unsigned int mask,
                            int logical_sub_group_size = 32) {
-  unsigned int id = g.get_local_linear_id();
-  unsigned int start_index =
-      id / logical_sub_group_size * logical_sub_group_size;
-  unsigned int target_offset = (id % logical_sub_group_size) ^ mask;
-  return sycl::select_from_group(g, x,
-                                 target_offset < logical_sub_group_size
-                                     ? start_index + target_offset
-                                     : id);
+  if (logical_sub_group_size == 32) {
+    return permute_group_by_xor(g, x, mask);
+  } else {
+    unsigned int id = g.get_local_linear_id();
+    unsigned int start_index =
+        id / logical_sub_group_size * logical_sub_group_size;
+    unsigned int target_offset = (id % logical_sub_group_size) ^ mask;
+    return sycl::select_from_group(g, x,
+                                   target_offset < logical_sub_group_size
+                                       ? start_index + target_offset
+                                       : id);
+  }
 }
 
 namespace experimental {
