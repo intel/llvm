@@ -48,22 +48,67 @@ ur_result_t EnqueueMemCopyRectHelper(
     char *DstOrigin = pDst + DstOffset.x + DstRowPitch * DstOffset.y +
                       DstSlicePitch * DstOffset.z;
 
+    const bool IsDstDeviceUSM = getMsanInterceptor()
+                                    ->findAllocInfoByAddress((uptr)DstOrigin)
+                                    .has_value();
+    const bool IsSrcDeviceUSM = getMsanInterceptor()
+                                    ->findAllocInfoByAddress((uptr)SrcOrigin)
+                                    .has_value();
+
+    ur_device_handle_t Device = GetDevice(Queue);
+    std::shared_ptr<DeviceInfo> DeviceInfo =
+        getMsanInterceptor()->getDeviceInfo(Device);
     std::vector<ur_event_handle_t> Events;
-    Events.reserve(Region.depth);
+
     // For now, USM doesn't support 3D memory copy operation, so we can only
     // loop call 2D memory copy function to implement it.
     for (size_t i = 0; i < Region.depth; i++) {
         ur_event_handle_t NewEvent{};
         UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D(
-            Queue, Blocking, DstOrigin + (i * DstSlicePitch), DstRowPitch,
+            Queue, false, DstOrigin + (i * DstSlicePitch), DstRowPitch,
             SrcOrigin + (i * SrcSlicePitch), SrcRowPitch, Region.width,
             Region.height, NumEventsInWaitList, EventWaitList, &NewEvent));
-
         Events.push_back(NewEvent);
+
+        // Update shadow memory
+        if (IsDstDeviceUSM && IsSrcDeviceUSM) {
+            NewEvent = nullptr;
+            uptr DstShadowAddr = DeviceInfo->Shadow->MemToShadow(
+                (uptr)DstOrigin + (i * DstSlicePitch));
+            uptr SrcShadowAddr = DeviceInfo->Shadow->MemToShadow(
+                (uptr)SrcOrigin + (i * SrcSlicePitch));
+            UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D(
+                Queue, false, (void *)DstShadowAddr, DstRowPitch,
+                (void *)SrcShadowAddr, SrcRowPitch, Region.width, Region.height,
+                NumEventsInWaitList, EventWaitList, &NewEvent));
+            Events.push_back(NewEvent);
+        } else if (IsDstDeviceUSM && !IsSrcDeviceUSM) {
+            uptr DstShadowAddr = DeviceInfo->Shadow->MemToShadow(
+                (uptr)DstOrigin + (i * DstSlicePitch));
+            const char Val = 0;
+            // opencl & l0 adapter doesn't implement urEnqueueUSMFill2D, so
+            // emulate the operation with urEnqueueUSMFill.
+            for (size_t HeightIndex = 0; HeightIndex < Region.height;
+                 HeightIndex++) {
+                NewEvent = nullptr;
+                UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+                    Queue, (void *)(DstShadowAddr + HeightIndex * DstRowPitch),
+                    1, &Val, Region.width, NumEventsInWaitList, EventWaitList,
+                    &NewEvent));
+                Events.push_back(NewEvent);
+            }
+        }
     }
 
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        Queue, Events.size(), Events.data(), Event));
+    if (Blocking) {
+        UR_CALL(
+            getContext()->urDdiTable.Event.pfnWait(Events.size(), &Events[0]));
+    }
+
+    if (Event) {
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+            Queue, Events.size(), &Events[0], Event));
+    }
 
     return UR_RESULT_SUCCESS;
 }
@@ -112,6 +157,12 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
                     Size, HostPtr, this);
                 return URes;
             }
+
+            // Update shadow memory
+            std::shared_ptr<DeviceInfo> DeviceInfo =
+                getMsanInterceptor()->getDeviceInfo(Device);
+            UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
+                Queue, (uptr)Allocation, Size, 0));
         }
     }
 

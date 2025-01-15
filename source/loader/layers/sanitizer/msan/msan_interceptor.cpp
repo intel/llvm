@@ -75,6 +75,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
         m_AllocationMap.emplace(AI->AllocBegin, AI);
     }
 
+    // Update shadow memory
     ManagedQueue Queue(Context, Device);
     DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
                                             AI->AllocSize, 0xff);
