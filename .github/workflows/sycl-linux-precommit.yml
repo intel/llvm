@@ -35,25 +35,25 @@ concurrency:
 permissions: read-all
 
 jobs:
-#  detect_changes:
-#    uses: ./.github/workflows/sycl-detect-changes.yml
-#
-#  build:
-#    needs: [detect_changes]
-#    if: always() && success()
-#    uses: ./.github/workflows/sycl-linux-build.yml
-#    with:
-#      build_ref: ${{ github.sha }}
-#      merge_ref: ''
-#      build_cache_root: "/__w/"
-#      build_artifact_suffix: "default"
-#      build_cache_suffix: "default"
-#      # Docker image has last nightly pre-installed and added to the PATH
-#      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
-#      cc: clang
-#      cxx: clang++
-#      changes: ${{ needs.detect_changes.outputs.filters }}
-#
+  detect_changes:
+    uses: ./.github/workflows/sycl-detect-changes.yml
+ 
+  build:
+    needs: [detect_changes]
+    if: always() && success()
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_ref: ${{ github.sha }}
+      merge_ref: ''
+      build_cache_root: "/__w/"
+      build_artifact_suffix: "default"
+      build_cache_suffix: "default"
+      # Docker image has last nightly pre-installed and added to the PATH
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+      cc: clang
+      cxx: clang++
+      changes: ${{ needs.detect_changes.outputs.filters }}
+
 #  determine_arc_tests:
 #    name: Decide which Arc tests to run
 #    needs: [build, detect_changes]
