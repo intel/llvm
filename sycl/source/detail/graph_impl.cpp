@@ -1902,11 +1902,9 @@ dynamic_parameter_base::dynamic_parameter_base(
 
 dynamic_parameter_base::dynamic_parameter_base(
     command_graph<graph_state::modifiable> Graph, size_t ParamSize,
-    const void *Data, const property_list &PropList)
+    const void *Data)
     : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {
-  checkGraphPropertiesAndThrow(PropList);
-}
+          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {}
 
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);

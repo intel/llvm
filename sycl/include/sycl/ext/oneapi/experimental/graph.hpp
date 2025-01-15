@@ -450,12 +450,12 @@ public:
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
-      const property_list &PropList = {});
+      const property_list &PropList);
 
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
-      size_t ParamSize, const void *Data, const property_list &PropList = {});
+      size_t ParamSize, const void *Data);
 
 protected:
   void updateValue(const void *NewValue, size_t Size);
