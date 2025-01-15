@@ -183,7 +183,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
-        elif get_triple("spir64") in triples and "spirv-backend" in test.config.available_features:
+        elif (
+            get_triple("spir64") in triples
+            and "spirv-backend" in test.config.available_features
+        ):
             sycl_target_opts += " -fsycl-use-spirv-backend-for-spirv-gen"
         substitutions.append(("%{sycl_target_opts}", sycl_target_opts))
 
