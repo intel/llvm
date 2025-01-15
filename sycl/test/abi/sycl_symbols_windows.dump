@@ -335,7 +335,7 @@
 ?updateLocalAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXV?$range@$02@67@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@AEBVproperty_list@56@@Z
 ?registerLocalAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEAVLocalAccessorBaseHost@267@PEAVhandler@67@@Z
-??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBXAEBVproperty_list@56@@Z
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBX@Z
 ?getLocalAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEBA?AV?$shared_ptr@VLocalAccessorImplHost@detail@_V1@sycl@@@std@@PEAVhandler@67@@Z
 ?get_active_index@dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ??4dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV012345@$$QEAV012345@@Z
