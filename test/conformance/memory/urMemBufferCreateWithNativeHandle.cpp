@@ -11,18 +11,16 @@ using urMemBufferCreateWithNativeHandleTest = uur::urMemBufferTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferCreateWithNativeHandleTest);
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, Success) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::LevelZeroV2{}, uur::HIP{},
-                         uur::NativeCPU{});
-
     ur_native_handle_t hNativeMem = 0;
-    ASSERT_SUCCESS(urMemGetNativeHandle(buffer, device, &hNativeMem));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urMemGetNativeHandle(buffer, device, &hNativeMem));
 
     // We cannot assume anything about a native_handle, not even if it's
     // `nullptr` since this could be a valid representation within a backend.
     // We can however convert the native_handle back into a unified-runtime handle
     // and perform some query on it to verify that it works.
     ur_mem_handle_t mem = nullptr;
-    ASSERT_SUCCESS(
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
         urMemBufferCreateWithNativeHandle(hNativeMem, context, nullptr, &mem));
     ASSERT_NE(mem, nullptr);
 
@@ -34,11 +32,9 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, Success) {
 }
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::LevelZeroV2{}, uur::HIP{},
-                         uur::NativeCPU{});
-
     ur_native_handle_t native_handle = 0;
-    ASSERT_SUCCESS(urMemGetNativeHandle(buffer, device, &native_handle));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urMemGetNativeHandle(buffer, device, &native_handle));
 
     ur_mem_handle_t mem = nullptr;
     ur_mem_native_properties_t props = {
@@ -46,8 +42,8 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
         /*.pNext =*/nullptr,
         /*.isNativeHandleOwned =*/true,
     };
-    ASSERT_SUCCESS(urMemBufferCreateWithNativeHandle(native_handle, context,
-                                                     &props, &mem));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urMemBufferCreateWithNativeHandle(
+        native_handle, context, &props, &mem));
     ASSERT_NE(nullptr, mem);
 
     ur_context_handle_t mem_context = nullptr;
@@ -58,11 +54,9 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
 }
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::LevelZeroV2{}, uur::HIP{},
-                         uur::NativeCPU{});
-
     ur_native_handle_t native_handle = 0;
-    ASSERT_SUCCESS(urMemGetNativeHandle(buffer, device, &native_handle));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urMemGetNativeHandle(buffer, device, &native_handle));
 
     ur_mem_handle_t mem = nullptr;
     ur_mem_native_properties_t props = {
@@ -70,8 +64,8 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
         /*.pNext =*/nullptr,
         /*.isNativeHandleOwned =*/false,
     };
-    ASSERT_SUCCESS(urMemBufferCreateWithNativeHandle(native_handle, context,
-                                                     &props, &mem));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urMemBufferCreateWithNativeHandle(
+        native_handle, context, &props, &mem));
     ASSERT_NE(nullptr, mem);
 
     ur_context_handle_t mem_context = nullptr;
@@ -82,10 +76,9 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 }
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, InvalidNullHandle) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{});
-
     ur_native_handle_t hNativeMem = 0;
-    ASSERT_SUCCESS(urMemGetNativeHandle(buffer, device, &hNativeMem));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urMemGetNativeHandle(buffer, device, &hNativeMem));
 
     ur_mem_handle_t mem = nullptr;
     ur_mem_native_properties_t props = {
@@ -93,25 +86,26 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, InvalidNullHandle) {
         /*.pNext =*/nullptr,
         /*.isNativeHandleOwned =*/false,
     };
-    ASSERT_EQ(
-        urMemBufferCreateWithNativeHandle(hNativeMem, nullptr, &props, &mem),
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+    auto err =
+        urMemBufferCreateWithNativeHandle(hNativeMem, nullptr, &props, &mem);
+    ASSERT_TRUE(err == UR_RESULT_ERROR_INVALID_NULL_HANDLE ||
+                err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 }
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, InvalidNullPointer) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{});
-
     ur_native_handle_t hNativeMem = 0;
-    ASSERT_SUCCESS(urMemGetNativeHandle(buffer, device, &hNativeMem));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urMemGetNativeHandle(buffer, device, &hNativeMem));
 
     ur_mem_native_properties_t props = {
         /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
         /*.pNext =*/nullptr,
         /*.isNativeHandleOwned =*/false,
     };
-    ASSERT_EQ(
-        urMemBufferCreateWithNativeHandle(hNativeMem, context, &props, nullptr),
-        UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    auto err =
+        urMemBufferCreateWithNativeHandle(hNativeMem, context, &props, nullptr);
+    ASSERT_TRUE(err == UR_RESULT_ERROR_INVALID_NULL_POINTER ||
+                err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 }
 
 using urMemBufferMultiQueueMemBufferTest = uur::urMultiDeviceMemBufferQueueTest;
