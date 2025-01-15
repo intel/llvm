@@ -1,7 +1,9 @@
-# commit c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787
-# Merge: e6d4355f 778085f7
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 13 10:41:50 2025 +0000
-#     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
-#     Parameterize CTS tests across all available adapters and devices.
-set(UNIFIED_RUNTIME_TAG c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787)
+# commit ad88f0a1e3a22807866af4f6dad53e8986733abb
+# Merge: 68aed2d5 599a28e1
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 14 10:28:07 2025 +0000
+
+#    Merge pull request #2527 from RossBrunton/ross/wrapper
+#    
+#    Wrap urEventSetCallback when ran through loader
+set(UNIFIED_RUNTIME_TAG ad88f0a1e3a22807866af4f6dad53e8986733abb)
