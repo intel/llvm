@@ -139,10 +139,11 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
 inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
-    if (as != ADDRESS_SPACE_GLOBAL)
-      return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-          ->CleanShadow;
   }
+
+  if (as != ADDRESS_SPACE_GLOBAL || !(addr & 0xFF00000000000000))
+    return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+        ->CleanShadow;
 
   // Device USM only
   auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
@@ -196,11 +197,6 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   if (!__MsanLaunchInfo.get())
     return shadow_ptr;
 
-  if (UNLIKELY(!__MsanLaunchInfo)) {
-    __spirv_ocl_printf(__msan_print_warning_nolaunchinfo);
-    return shadow_ptr;
-  }
-
   auto launch_info = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_launchinfo, (void *)launch_info,
                                 launch_info->GlobalShadowOffset));
@@ -221,18 +217,82 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
 }
 
 #define MSAN_MEMSET(as)                                                        \
-  DEVICE_EXTERN_C_NOINLINE void __msan_memset_p##as(                           \
+  DEVICE_EXTERN_C_NOINLINE                                                     \
+  __attribute__((address_space(as))) void *__msan_memset_p##as(                \
       __attribute__((address_space(as))) char *dest, int val, size_t size) {   \
     uptr shadow = __msan_get_shadow((uptr)dest, as);                           \
     for (size_t i = 0; i < size; i++) {                                        \
       dest[i] = val;                                                           \
       ((__SYCL_GLOBAL__ char *)shadow)[i] = 0;                                 \
     }                                                                          \
+    return dest;                                                               \
   }
 
 MSAN_MEMSET(0)
 MSAN_MEMSET(1)
 MSAN_MEMSET(3)
 MSAN_MEMSET(4)
+
+#define MSAN_MEMMOVE_BASE(dst_as, src_as)                                      \
+  DEVICE_EXTERN_C_NOINLINE __attribute__((address_space(dst_as))) void         \
+      *__msan_memmove_p##dst_as##_p##src_as(                                   \
+          __attribute__((address_space(dst_as))) char *dest,                   \
+          __attribute__((address_space(src_as))) char *src, size_t size) {     \
+    uptr dest_shadow = __msan_get_shadow((uptr)dest, dst_as);                  \
+    uptr src_shadow = __msan_get_shadow((uptr)src, src_as);                    \
+    if ((uptr)dest > (uptr)src) {                                              \
+      for (size_t i = size - 1; i < size; i--) {                               \
+        dest[i] = src[i];                                                      \
+        ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                             \
+            ((__SYCL_GLOBAL__ char *)src_shadow)[i];                           \
+      }                                                                        \
+    } else {                                                                   \
+      for (size_t i = 0; i < size; i++) {                                      \
+        dest[i] = src[i];                                                      \
+        ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                             \
+            ((__SYCL_GLOBAL__ char *)src_shadow)[i];                           \
+      }                                                                        \
+    }                                                                          \
+    return dest;                                                               \
+  }
+
+#define MSAN_MEMMOVE(dst_as)                                                   \
+  MSAN_MEMMOVE_BASE(dst_as, 0)                                                 \
+  MSAN_MEMMOVE_BASE(dst_as, 1)                                                 \
+  MSAN_MEMMOVE_BASE(dst_as, 2)                                                 \
+  MSAN_MEMMOVE_BASE(dst_as, 3)                                                 \
+  MSAN_MEMMOVE_BASE(dst_as, 4)
+
+MSAN_MEMMOVE(0)
+MSAN_MEMMOVE(1)
+MSAN_MEMMOVE(3)
+MSAN_MEMMOVE(4)
+
+#define MSAN_MEMCPY_BASE(dst_as, src_as)                                       \
+  DEVICE_EXTERN_C_NOINLINE __attribute__((address_space(dst_as))) void         \
+      *__msan_memcpy_p##dst_as##_p##src_as(                                    \
+          __attribute__((address_space(dst_as))) char *dest,                   \
+          __attribute__((address_space(src_as))) char *src, size_t size) {     \
+    uptr dest_shadow = __msan_get_shadow((uptr)dest, dst_as);                  \
+    uptr src_shadow = __msan_get_shadow((uptr)src, src_as);                    \
+    for (size_t i = 0; i < size; i++) {                                        \
+      dest[i] = src[i];                                                        \
+      ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                               \
+          ((__SYCL_GLOBAL__ char *)src_shadow)[i];                             \
+    }                                                                          \
+    return dest;                                                               \
+  }
+
+#define MSAN_MEMCPY(dst_as)                                                    \
+  MSAN_MEMCPY_BASE(dst_as, 0)                                                  \
+  MSAN_MEMCPY_BASE(dst_as, 1)                                                  \
+  MSAN_MEMCPY_BASE(dst_as, 2)                                                  \
+  MSAN_MEMCPY_BASE(dst_as, 3)                                                  \
+  MSAN_MEMCPY_BASE(dst_as, 4)
+
+MSAN_MEMCPY(0)
+MSAN_MEMCPY(1)
+MSAN_MEMCPY(3)
+MSAN_MEMCPY(4)
 
 #endif // __SPIR__ || __SPIRV__

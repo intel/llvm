@@ -1,7 +1,7 @@
-# commit 533ab9b08dfbf061585eb3487aed94ca45d0b331
-# Merge: e7366f94 3eeb2a17
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 6 15:24:08 2025 +0000
-#     Merge pull request #2513 from AllanZyne/review/yang/fix_msan_usm
-#     [DeviceMSAN] Fix "urEnqueueUSM" APIs
-set(UNIFIED_RUNTIME_TAG 533ab9b08dfbf061585eb3487aed94ca45d0b331)
+# commit 9e48f543b8dd39d45563169433bb529583625dfe
+# Merge: 6a3fece6 1a1108b3
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Wed Jan 15 14:33:29 2025 +0000
+#     Merge pull request #2540 from martygrant/martin/program-info-unswitch
+#     Move urProgramGetInfo success test from a switch to individual tests.
+set(UNIFIED_RUNTIME_TAG 9e48f543b8dd39d45563169433bb529583625dfe)

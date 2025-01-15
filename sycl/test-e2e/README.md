@@ -67,7 +67,7 @@ is substituted with just `[Optional run_launcher if that is configured]`.
 Another little nuance is `%{sycl_triple}` substitution. It is constructed by
 concatenating triples for all the devices from `sycl_devices` supported by a
 given test. After that there is also a convenient `%{build}` substitution that
-is equivalent to `%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s`.
+is equivalent to `%clangxx -fsycl %{sycl_target_opts} %s`.
 
 ## Prerequisites
 
@@ -184,12 +184,6 @@ at the full path specified by this variable.
 
 ***CUDA_LIBS_DIR*** - path to CUDA libraries.
 
-***HIP_PLATFORM*** - platform selection for HIP targeted devices.
-Defaults to AMD if no value is given. Supported values are:
-
-* **AMD**    - for HIP to target AMD GPUs
-* **NVIDIA** - for HIP to target NVIDIA GPUs
-
 ***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
 may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
 parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
@@ -239,6 +233,12 @@ environment:
 * **arch-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
   of a device (e.g. `arch-intel_gpu_pvc`, the name matches what you can pass
   into `-fsycl-targets` compiler flag);
+* **gpu-intel-dg2**  - Intel GPU DG2 availability; Automatically set if device
+  architecture belongs to DG2 family;
+* **gpu-intel-gen11**  - Intel GPU Gen11 availability; Automatically set if device
+  architecture belongs to Gen11 family;
+* **gpu-intel-gen12**  - Intel GPU Gen12 availability; Automatically set if device
+  architecture belongs to Gen12 family;
 
 #### Manually-set features
 
@@ -247,16 +247,8 @@ section below). All these features are related to HW detection and they should
 be considered deprecated, because we have HW auto-detection functionality in
 place. No new tests should use these features:
 
-* **gpu-intel-gen11** - Intel GPU Gen11 availability;
-* **gpu-intel-gen12** - Intel GPU Gen12 availability;
-* **gpu-intel-dg2** - Intel GPU DG2 availability;
 * **gpu-intel-pvc** - Intel GPU PVC availability;
 * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
-
-Note: some of those features describing whole GPU families and auto-detection of
-HW does not provide this functionality at the moment. As an improvement, we
-could add those features even with auto-detection, because the only alternative
-at the moment is to explicitly list every architecture from a family.
 
 ### llvm-lit parameters
 

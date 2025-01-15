@@ -176,6 +176,31 @@ if lit_config.params.get("gpu-intel-pvc-vg", False):
 if lit_config.params.get("igc-dev", False):
     config.available_features.add("igc-dev")
 
+# Map between device family and architecture types.
+device_family_arch_map = {
+    # <Family name> : Set of architectures types (and aliases)
+    # DG2
+    "gpu-intel-dg2": {
+        "intel_gpu_acm_g12",
+        "intel_gpu_dg2_g12",
+        "intel_gpu_acm_g11",
+        "intel_gpu_dg2_g11",
+        "intel_gpu_acm_g10",
+        "intel_gpu_dg2_g10",
+    },
+    # Gen12
+    "gpu-intel-gen12": {"intel_gpu_tgllp", "intel_gpu_tgl"},
+    # Gen11
+    "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
+}
+
+
+def get_device_family_from_arch(arch):
+    for device_family, arch_set in device_family_arch_map.items():
+        if arch in arch_set:
+            return device_family
+    return None
+
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
@@ -303,8 +328,22 @@ if sp[0] == 0:
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+# -shared is invalid for icx on Windows, use /LD instead.
+dll_opt = "/LD" if cl_options else "-shared"
+
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    [
+        config.dpcpp_compiler,
+        "-fsycl",
+        "--offload-compress",
+        dll_opt,
+        fPIC_opt,
+        "-x",
+        "c++",
+        "-",
+        "-o",
+        "-",
+    ],
     stdin=subprocess.PIPE,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
@@ -485,18 +524,6 @@ for d in config.sycl_devices:
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
 
-# If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
-supported_hip_platforms = ["AMD", "NVIDIA"]
-if config.hip_platform == "":
-    config.hip_platform = "AMD"
-if config.hip_platform not in supported_hip_platforms:
-    lit_config.error(
-        "Unknown HIP platform '"
-        + config.hip_platform
-        + "' supported platforms are "
-        + ", ".join(supported_hip_platforms)
-    )
-
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
         if platform.system() == "Windows":
@@ -658,8 +685,6 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
-# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
-arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
@@ -773,17 +798,34 @@ for sycl_device in config.sycl_devices:
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
     architecture_feature = set("arch-" + s for s in architectures)
+    # Add device family features like intel-gpu-gen12, intel-gpu-dg2 based on
+    # the architecture reported by sycl-ls.
+    device_family = set(
+        get_device_family_from_arch(arch)
+        for arch in architectures
+        if get_device_family_from_arch(arch) is not None
+    )
+
+    # Print the detected GPU family name.
+    if len(device_family) > 0:
+        lit_config.note(
+            "Detected GPU family for {}: {}".format(
+                sycl_device, ", ".join(device_family)
+            )
+        )
+
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
+    features.update(device_family)
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
 
-    if be == "hip" and config.hip_platform == "AMD":
+    if be == "hip":
         if not config.amd_arch:
             # Guaranteed to be a single element in the set
             arch = [x for x in architecture_feature][0]
@@ -794,15 +836,9 @@ for sycl_device in config.sycl_devices:
                 )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
         llvm_config.with_system_environment("ROCM_PATH")
-        config.available_features.add("hip_amd")
-        arch_flag = (
-            "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
-        )
         config.substitutions.append(
             ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
         )
-    elif be == "hip" and config.hip_platform == "NVIDIA":
-        config.available_features.add("hip_nvidia")
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
@@ -815,10 +851,7 @@ if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clang", " true "))
 else:
     config.substitutions.append(
-        (
-            "%clangxx",
-            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
-        )
+        ("%clangxx", " " + config.dpcpp_compiler + " " + config.cxx_flags)
     )
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
