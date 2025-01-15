@@ -200,7 +200,6 @@ bool transformAccessChain(Function *F) {
 // This function also cleans up code, that becomes dead. Pattern of the dead
 // code is stable, as user's code doesn't affect it.
 bool propagateConstexprLayout(Function *F) {
-  bool ModuleChanged = false;
   llvm::SmallVector<Instruction *, 4> ToErase;
   for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
     User *U = *I++;
@@ -225,10 +224,9 @@ bool propagateConstexprLayout(Function *F) {
         CI->replaceAllUsesWith(ConstLayout);
         ToErase.push_back(CI);
         ToErase.push_back(SI);
-        ModuleChanged = true;
       }
     }
-    if (ModuleChanged) {
+    if (!ToErase.empty()) {
       ToErase.push_back(Op);
       ToErase.push_back(Ptr);
       if (auto *Cast = dyn_cast<AddrSpaceCastInst>(Ptr)) {
@@ -243,7 +241,7 @@ bool propagateConstexprLayout(Function *F) {
     II->dropAllReferences();
     II->eraseFromParent();
   }
-  return ModuleChanged;
+  return !ToErase.empty();
 }
 } // namespace
 
