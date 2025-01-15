@@ -450,12 +450,12 @@ public:
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
-      const property_list &PropList);
+      const property_list &PropList = {});
 
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
-      size_t ParamSize, const void *Data, const property_list &PropList);
+      size_t ParamSize, const void *Data, const property_list &PropList = {});
 
 protected:
   void updateValue(const void *NewValue, size_t Size);
@@ -499,7 +499,7 @@ public:
   /// @param Param A reference value for this parameter used for CTAD.
   dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
                     const ValueT &Param)
-      : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param, {}) {}
+      : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param) {}
 
   /// Updates this dynamic parameter and all registered nodes with a new value.
   /// @param NewValue The new value for the parameter.
