@@ -194,7 +194,7 @@ if config.host_os not in [
     config.unsupported = True
 
 config.substitutions.append(
-    ("%shared_lib_flag", "-dynamiclib" if (config.host_os == "Darwin") else "-shared")
+    ("%shared_lib_flag", "-dynamiclib" if (config.host_os == "Darwin") else "-shared -fPIE") # INTEL
 )
 
 if config.host_os in ["AIX"]:
