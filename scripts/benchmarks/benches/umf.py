@@ -37,6 +37,7 @@ class UMFSuite(Suite):
         
         benches = [
             GBench(self),
+            GBenchUmfProxy(self),
         ]
 
         return benches
@@ -159,3 +160,54 @@ class GBench(ComputeUMFBenchmark):
                 raise ValueError(f"Error parsing output: {e}")
 
         return results
+
+
+class GBenchPreloaded(GBench):
+    def __init__(self, bench, lib_to_be_replaced, replacing_lib):
+        super().__init__(bench)
+
+        self.lib_to_be_replaced = lib_to_be_replaced
+        self.replacing_lib = replacing_lib 
+
+    def bin_args(self):
+        full_args = super().bin_args()
+        full_args.append(f"--benchmark_filter={self.lib_to_be_replaced}")
+
+        return full_args
+
+    def get_preloaded_name(self, pool_name) -> str:
+        new_pool_name = pool_name.replace(self.lib_to_be_replaced, self.replacing_lib)
+
+        return new_pool_name
+
+    def parse_output(self, output):
+        csv_file = io.StringIO(output)
+        reader = csv.reader(csv_file)
+
+        data_row = next(reader, None)
+        if data_row is None:
+            raise ValueError("Benchmark output does not contain data.")
+
+        results = []
+        for row in reader:
+            try:
+                full_name = row[self.col_name]
+                pool, config = self.get_pool_and_config(full_name)
+                mean = self.get_mean(row)
+                updated_pool = self.get_preloaded_name(pool)
+                updated_config = self.get_preloaded_name(config)
+
+                results.append((updated_config, updated_pool, mean))
+            except KeyError as e:
+                raise ValueError(f"Error parsing output: {e}")
+
+        return results
+    
+
+class GBenchUmfProxy(GBenchPreloaded):
+    def __init__(self, bench):
+        super().__init__(bench, lib_to_be_replaced="glibc", replacing_lib="umfProxy")
+
+    def extra_env_vars(self) -> dict:
+        umf_proxy_path = os.path.join(options.umf, "lib", "libumf_proxy.so")
+        return {"LD_PRELOAD": umf_proxy_path}
