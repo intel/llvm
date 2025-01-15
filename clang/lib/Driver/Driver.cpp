@@ -3079,8 +3079,8 @@ enum {
 static unsigned PrintActions1(const Compilation &C, Action *A,
                               std::map<Action *, unsigned> &Ids,
                               Twine Indent = {}, int Kind = TopLevelAction) {
-  if (Ids.count(A)) // A was already visited.
-    return Ids[A];
+  if (auto It = Ids.find(A); It != Ids.end()) // A was already visited.
+    return It->second;
 
   std::string str;
   llvm::raw_string_ostream os(str);
@@ -10148,6 +10148,11 @@ std::string Driver::GetFilePath(StringRef Name, const ToolChain &TC) const {
   if (auto P = SearchPaths(TC.getFilePaths()))
     return *P;
 
+  SmallString<128> R2(ResourceDir);
+  llvm::sys::path::append(R2, "..", "..", Name);
+  if (llvm::sys::fs::exists(Twine(R2)))
+    return std::string(R2);
+
   return std::string(Name);
 }
 
@@ -10246,9 +10251,24 @@ std::string Driver::GetStdModuleManifestPath(const Compilation &C,
     return evaluate("libc++.a").value_or(error);
   }
 
-  case ToolChain::CST_Libstdcxx:
-    // libstdc++ does not provide Standard library modules yet.
-    return error;
+  case ToolChain::CST_Libstdcxx: {
+    auto evaluate = [&](const char *library) -> std::optional<std::string> {
+      std::string lib = GetFilePath(library, TC);
+
+      SmallString<128> path(lib.begin(), lib.end());
+      llvm::sys::path::remove_filename(path);
+      llvm::sys::path::append(path, "libstdc++.modules.json");
+      if (TC.getVFS().exists(path))
+        return static_cast<std::string>(path);
+
+      return {};
+    };
+
+    if (std::optional<std::string> result = evaluate("libstdc++.so"); result)
+      return *result;
+
+    return evaluate("libstdc++.a").value_or(error);
+  }
   }
 
   return error;
