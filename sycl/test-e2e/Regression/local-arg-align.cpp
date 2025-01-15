@@ -2,9 +2,6 @@
 //
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: true
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10682
-
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
