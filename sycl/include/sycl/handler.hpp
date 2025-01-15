@@ -162,6 +162,38 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
+class type_erased_cgfo_ty {
+  // From SYCL 2020,  command group function object:
+  // A type which is callable with operator() that takes a reference to a
+  // command group handler, that defines a command group which can be submitted
+  // by a queue. The function object can be a named type, lambda function or
+  // std::function.
+  //
+  // TODO: Is that true?
+  // As such, we know that it can't be a [member] function pointer.
+  template <typename T> struct invoker {
+    static void call(void *object, handler &cgh) {
+      (*static_cast<T *>(object))(cgh);
+    }
+  };
+  void *object;
+  using invoker_ty = void (*)(void *, handler &);
+  const invoker_ty invoker_f;
+
+public:
+  template <class T>
+  type_erased_cgfo_ty(T &f)
+      : object(static_cast<void *>(&f)), invoker_f(&invoker<T>::call) {}
+  ~type_erased_cgfo_ty() = default;
+
+  type_erased_cgfo_ty(const type_erased_cgfo_ty &) = delete;
+  type_erased_cgfo_ty(type_erased_cgfo_ty &&) = delete;
+  type_erased_cgfo_ty &operator=(const type_erased_cgfo_ty &) = delete;
+  type_erased_cgfo_ty &operator=(type_erased_cgfo_ty &&) = delete;
+
+  void operator()(sycl::handler &cgh) const { invoker_f(object, cgh); }
+};
+
 class kernel_bundle_impl;
 class work_group_memory_impl;
 class handler_impl;
