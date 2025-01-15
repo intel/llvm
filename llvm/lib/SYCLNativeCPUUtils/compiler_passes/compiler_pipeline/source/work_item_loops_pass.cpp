@@ -1024,7 +1024,9 @@ struct ScheduleGenerator {
                       mainPreheaderBB = nullptr;
                       mainExitBB = block;
                       nextSubgroupIV = ivs1[0];
-                      nextScanIV = ivs1[1];
+                      if (isScan) {
+                        nextScanIV = ivs1[1];
+                      }
                     }
                   } else {
                     mainPreheaderBB = BasicBlock::Create(
