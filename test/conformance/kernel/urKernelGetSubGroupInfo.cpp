@@ -21,46 +21,12 @@ struct urKernelGetSubGroupInfoFixedSubGroupSizeTest : uur::urKernelTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(
     urKernelGetSubGroupInfoFixedSubGroupSizeTest);
 
-struct urKernelGetSubGroupInfoTest : uur::urKernelTest {
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
-    }
-};
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetSubGroupInfoTest);
-
-TEST_P(urKernelGetSubGroupInfoTest, MaxSubGroupSize) {
-    auto property_name = UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE;
+TEST_P(urKernelGetSubGroupInfoFixedSubGroupSizeTest,
+       SuccessCompileNumSubGroups) {
+    ur_kernel_sub_group_info_t property_name =
+        UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS;
     size_t property_size = 0;
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urKernelGetSubGroupInfo(kernel, device, property_name, 0, nullptr,
-                                &property_size),
-        property_name);
-    ASSERT_EQ(property_size, sizeof(uint32_t));
 
-    std::vector<char> property_value(property_size);
-    ASSERT_SUCCESS(urKernelGetSubGroupInfo(kernel, device, property_name,
-                                           property_size, property_value.data(),
-                                           nullptr));
-}
-
-TEST_P(urKernelGetSubGroupInfoTest, MaxNumSubGroups) {
-    auto property_name = UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS;
-    size_t property_size = 0;
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urKernelGetSubGroupInfo(kernel, device, property_name, 0, nullptr,
-                                &property_size),
-        property_name);
-    ASSERT_EQ(property_size, sizeof(uint32_t));
-
-    std::vector<char> property_value(property_size);
-    ASSERT_SUCCESS(urKernelGetSubGroupInfo(kernel, device, property_name,
-                                           property_size, property_value.data(),
-                                           nullptr));
-}
-
-TEST_P(urKernelGetSubGroupInfoFixedSubGroupSizeTest, CompileNumSubGroups) {
-    auto property_name = UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS;
-    size_t property_size = 0;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urKernelGetSubGroupInfo(kernel, device, property_name, 0, nullptr,
                                 &property_size),
@@ -74,9 +40,18 @@ TEST_P(urKernelGetSubGroupInfoFixedSubGroupSizeTest, CompileNumSubGroups) {
     ASSERT_EQ(property_value, num_sub_groups);
 }
 
-TEST_P(urKernelGetSubGroupInfoTest, SubGroupSizeIntel) {
-    auto property_name = UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL;
+struct urKernelGetSubGroupInfoTest : uur::urKernelTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
+    }
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetSubGroupInfoTest);
+
+TEST_P(urKernelGetSubGroupInfoTest, SuccessMaxSubGroupSize) {
+    ur_kernel_sub_group_info_t property_name =
+        UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE;
     size_t property_size = 0;
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
         urKernelGetSubGroupInfo(kernel, device, property_name, 0, nullptr,
                                 &property_size),
@@ -87,6 +62,49 @@ TEST_P(urKernelGetSubGroupInfoTest, SubGroupSizeIntel) {
     ASSERT_SUCCESS(urKernelGetSubGroupInfo(kernel, device, property_name,
                                            property_size, property_value.data(),
                                            nullptr));
+}
+
+TEST_P(urKernelGetSubGroupInfoTest, SuccessMaxNumSubGroups) {
+    ur_kernel_sub_group_info_t property_name =
+        UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS;
+    size_t property_size = 0;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetSubGroupInfo(kernel, device, property_name, 0, nullptr,
+                                &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(uint32_t));
+
+    std::vector<char> property_value(property_size);
+    ASSERT_SUCCESS(urKernelGetSubGroupInfo(kernel, device, property_name,
+                                           property_size, property_value.data(),
+                                           nullptr));
+}
+
+TEST_P(urKernelGetSubGroupInfoTest, SuccessSubGroupSizeIntel) {
+    ur_kernel_sub_group_info_t property_name =
+        UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL;
+    size_t property_size = 0;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetSubGroupInfo(kernel, device, property_name, 0, nullptr,
+                                &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(uint32_t));
+
+    std::vector<char> property_value(property_size);
+    ASSERT_SUCCESS(urKernelGetSubGroupInfo(kernel, device, property_name,
+                                           property_size, property_value.data(),
+                                           nullptr));
+}
+
+TEST_P(urKernelGetSubGroupInfoTest, SuccessCompileNumSubgroupsIsZero) {
+    // Returns 0 by default when there is no specific information
+    size_t subgroups = 1;
+    ASSERT_SUCCESS(urKernelGetSubGroupInfo(
+        kernel, device, UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS,
+        sizeof(subgroups), &subgroups, nullptr));
+    ASSERT_EQ(subgroups, 0);
 }
 
 TEST_P(urKernelGetSubGroupInfoTest, InvalidNullHandleKernel) {
@@ -113,13 +131,4 @@ TEST_P(urKernelGetSubGroupInfoTest, InvalidEnumeration) {
                      urKernelGetSubGroupInfo(
                          kernel, device, UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32,
                          0, nullptr, &bad_enum_length));
-}
-
-TEST_P(urKernelGetSubGroupInfoTest, CompileNumSubgroupsIsZero) {
-    // Returns 0 by default when there is no specific information
-    size_t subgroups = 1;
-    ASSERT_SUCCESS(urKernelGetSubGroupInfo(
-        kernel, device, UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS,
-        sizeof(subgroups), &subgroups, nullptr));
-    ASSERT_EQ(subgroups, 0);
 }
