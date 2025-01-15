@@ -66,7 +66,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     ur_program_handle_t Program =
         detail::ProgramManager::getInstance().createURProgram(
-            **DeviceImage, Context, {Device});
+            **DeviceImage, Context, {std::move(Device)});
     return {*DeviceImage, Program};
   }
 

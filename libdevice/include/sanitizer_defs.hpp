@@ -44,7 +44,7 @@ enum ADDRESS_SPACE : uint32_t {
 
 #else // __SYCL_DEVICE_ONLY__
 
-#define __USE_SPIR_BUILTIN__
+#define __USE_SPIR_BUILTIN__ 0
 
 #endif // __SYCL_DEVICE_ONLY__
 

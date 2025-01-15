@@ -161,7 +161,6 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.ref || github.sha }}
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
