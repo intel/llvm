@@ -67,7 +67,7 @@ is substituted with just `[Optional run_launcher if that is configured]`.
 Another little nuance is `%{sycl_triple}` substitution. It is constructed by
 concatenating triples for all the devices from `sycl_devices` supported by a
 given test. After that there is also a convenient `%{build}` substitution that
-is equivalent to `%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s`.
+is equivalent to `%clangxx -fsycl %{sycl_target_opts} %s`.
 
 ## Prerequisites
 
