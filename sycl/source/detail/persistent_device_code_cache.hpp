@@ -208,17 +208,25 @@ public:
                                       const ur_program_handle_t &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
-  static void trace(const std::string &msg) {
+  static void trace(const std::string &msg, const std::string &path = "") {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
-    if (traceEnabled)
-      std::cerr << "[Persistent Cache]: " << msg << std::endl;
+    if (traceEnabled) {
+      auto outputPath = path;
+      std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
+      std::cerr << "[Persistent Cache]: " << msg << outputPath << std::endl;
+    }
   }
-  static void trace_KernelCompiler(const std::string &msg) {
+  static void trace_KernelCompiler(const std::string &msg,
+                                   const std::string &path = "") {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler();
-    if (traceEnabled)
-      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << std::endl;
+    if (traceEnabled) {
+      auto outputPath = path;
+      std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
+      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << outputPath
+                << std::endl;
+    }
   }
 
 private:

@@ -3,6 +3,7 @@ atomic/loadstore_helpers_release.ll
 atomic/loadstore_helpers_acquire.ll
 atomic/loadstore_helpers_seq_cst.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
+conversion/GenericCastToPtrExplicit.cl
 integer/mul24.cl
 integer/mul_hi.cl
 math/acos.cl
@@ -13,7 +14,7 @@ math/atan.cl
 math/atan2.cl
 math/atanh.cl
 math/cbrt.cl
-math/ceil.cl
+math/clc_fabs.cl
 math/copysign.cl
 math/cos.cl
 math/cosh.cl
@@ -24,9 +25,7 @@ math/exp.cl
 math/exp10.cl
 math/exp2.cl
 math/expm1.cl
-math/fabs.cl
 math/fdim.cl
-math/floor.cl
 math/fma.cl
 math/fma_relu.cl
 math/fmax.cl
@@ -71,7 +70,6 @@ math/sqrt.cl
 math/tan.cl
 math/tanh.cl
 math/tgamma.cl
-math/trunc.cl
 relational/isfinite.cl
 relational/isinf.cl
 relational/isnan.cl
@@ -87,10 +85,8 @@ workitem/get_local_id.cl
 workitem/get_local_size.cl
 workitem/get_max_sub_group_size.cl
 workitem/get_num_groups.cl
-workitem/get_num_sub_groups.cl
 workitem/get_sub_group_id.cl
 workitem/get_sub_group_local_id.cl
-workitem/get_sub_group_size.cl
 images/image_helpers.ll
 images/image.cl
 group/collectives_helpers.ll

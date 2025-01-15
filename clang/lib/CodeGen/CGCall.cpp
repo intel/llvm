@@ -1323,10 +1323,10 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
       }
       if (ScalableDstTy->getElementType() == FixedSrcTy->getElementType()) {
         auto *Load = CGF.Builder.CreateLoad(Src);
-        auto *UndefVec = llvm::UndefValue::get(ScalableDstTy);
+        auto *PoisonVec = llvm::PoisonValue::get(ScalableDstTy);
         auto *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
         llvm::Value *Result = CGF.Builder.CreateInsertVector(
-            ScalableDstTy, UndefVec, Load, Zero, "cast.scalable");
+            ScalableDstTy, PoisonVec, Load, Zero, "cast.scalable");
         if (ScalableDstTy != Ty)
           Result = CGF.Builder.CreateBitCast(Result, Ty);
         return Result;
@@ -3352,22 +3352,6 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
       llvm::StructType *STy =
           dyn_cast<llvm::StructType>(ArgI.getCoerceToType());
-      if (ArgI.isDirect() && !ArgI.getCanBeFlattened() && STy &&
-          STy->getNumElements() > 1) {
-        [[maybe_unused]] llvm::TypeSize StructSize =
-            CGM.getDataLayout().getTypeAllocSize(STy);
-        [[maybe_unused]] llvm::TypeSize PtrElementSize =
-            CGM.getDataLayout().getTypeAllocSize(ConvertTypeForMem(Ty));
-        if (STy->containsHomogeneousScalableVectorTypes()) {
-          assert(StructSize == PtrElementSize &&
-                 "Only allow non-fractional movement of structure with"
-                 "homogeneous scalable vector type");
-
-          ArgVals.push_back(ParamValue::forDirect(AI));
-          break;
-        }
-      }
-
       Address Alloca = CreateMemTemp(Ty, getContext().getDeclAlign(Arg),
                                      Arg->getName());
 
@@ -4495,7 +4479,7 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
       llvm::PHINode *phiToUse = CGF.Builder.CreatePHI(valueToUse->getType(), 2,
                                                       "icr.to-use");
       phiToUse->addIncoming(valueToUse, copyBB);
-      phiToUse->addIncoming(llvm::UndefValue::get(valueToUse->getType()),
+      phiToUse->addIncoming(llvm::PoisonValue::get(valueToUse->getType()),
                             originBB);
       valueToUse = phiToUse;
     }
@@ -4645,7 +4629,7 @@ void CodeGenFunction::EmitCallArgs(
       ArgTypes.assign(MD->param_type_begin() + ParamsToSkip,
                       MD->param_type_end());
     } else {
-      const auto *FPT = Prototype.P.get<const FunctionProtoType *>();
+      const auto *FPT = cast<const FunctionProtoType *>(Prototype.P);
       IsVariadic = FPT->isVariadic();
       ExplicitCC = FPT->getExtInfo().getCC();
       ArgTypes.assign(FPT->param_type_begin() + ParamsToSkip,
@@ -4841,14 +4825,16 @@ void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
     return emitWritebackArg(*this, args, CRE);
   }
 
-  assert(type->isReferenceType() == E->isGLValue() &&
-         "reference binding to unmaterialized r-value!");
-
   // Add writeback for HLSLOutParamExpr.
+  // Needs to be before the assert below because HLSLOutArgExpr is an LValue
+  // and is not a reference.
   if (const HLSLOutArgExpr *OE = dyn_cast<HLSLOutArgExpr>(E)) {
     EmitHLSLOutArgExpr(OE, args, type);
     return;
   }
+
+  assert(type->isReferenceType() == E->isGLValue() &&
+         "reference binding to unmaterialized r-value!");
 
   if (E->isGLValue()) {
     assert(E->getObjectKind() == OK_Ordinary);
@@ -5437,6 +5423,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           IRCallArgs[FirstIRArg] = Val;
           break;
         }
+      } else if (I->getType()->isArrayParameterType()) {
+        // Don't produce a temporary for ArrayParameterType arguments.
+        // ArrayParameterType arguments are only created from
+        // HLSL_ArrayRValue casts and HLSLOutArgExpr expressions, both
+        // of which create temporaries already. This allows us to just use the
+        // scalar for the decayed array pointer as the argument directly.
+        IRCallArgs[FirstIRArg] = I->getKnownRValue().getScalarVal();
+        break;
       }
 
       // For non-aggregate args and aggregate args meeting conditions above
@@ -5525,21 +5519,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
       llvm::StructType *STy =
           dyn_cast<llvm::StructType>(ArgInfo.getCoerceToType());
-      if (STy && ArgInfo.isDirect() && !ArgInfo.getCanBeFlattened()) {
-        llvm::Type *SrcTy = ConvertTypeForMem(I->Ty);
-        [[maybe_unused]] llvm::TypeSize SrcTypeSize =
-            CGM.getDataLayout().getTypeAllocSize(SrcTy);
-        [[maybe_unused]] llvm::TypeSize DstTypeSize =
-            CGM.getDataLayout().getTypeAllocSize(STy);
-        if (STy->containsHomogeneousScalableVectorTypes()) {
-          assert(SrcTypeSize == DstTypeSize &&
-                 "Only allow non-fractional movement of structure with "
-                 "homogeneous scalable vector type");
-
-          IRCallArgs[FirstIRArg] = I->getKnownRValue().getScalarVal();
-          break;
-        }
-      }
 
       // FIXME: Avoid the conversion through memory if possible.
       Address Src = Address::invalid();

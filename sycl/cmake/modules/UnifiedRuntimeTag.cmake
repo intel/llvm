@@ -1,7 +1,7 @@
-# commit ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c
-# Merge: bb64b3e9f6d3 4a89e1c69a65
+# commit 9e48f543b8dd39d45563169433bb529583625dfe
+# Merge: 6a3fece6 1a1108b3
 # Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Thu Dec 19 11:26:01 2024 +0000
-#     Merge pull request #2277 from igchor/cooperative_fix
-#     [Spec] fix urKernelSuggestMaxCooperativeGroupCountExp
-set(UNIFIED_RUNTIME_TAG ea0f3a1f5f15f9af7bf40bd13669afeb9ada569c)
+# Date:   Wed Jan 15 14:33:29 2025 +0000
+#     Merge pull request #2540 from martygrant/martin/program-info-unswitch
+#     Move urProgramGetInfo success test from a switch to individual tests.
+set(UNIFIED_RUNTIME_TAG 9e48f543b8dd39d45563169433bb529583625dfe)

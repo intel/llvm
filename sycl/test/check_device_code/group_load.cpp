@@ -89,8 +89,8 @@ using accessor_iter_t = accessor<int, 1, access_mode::read, target::device,
 // CHECK-LABEL: @_ZN7blocked18test_accessor_iterERN4sycl3_V19sub_groupERNS1_6detail17accessor_iteratorIKiLi1EEERi(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15:![0-9]+]]
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[ITER]], i64 8
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA17:![0-9]+]]
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[ITER]], i64 8
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA18:![0-9]+]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
 // CHECK-NEXT:    [[CONV3_I_I_I:%.*]] = sext i32 [[TMP0]] to i64
@@ -110,8 +110,8 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg,
 // CHECK-LABEL: @_ZN7blocked34test_accessor_iter_force_optimizedERN4sycl3_V19sub_groupERNS1_6detail17accessor_iteratorIKiLi1EEERi(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15]]
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[ITER]], i64 8
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA17]]
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[ITER]], i64 8
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA18]]
 // CHECK-NEXT:    [[ADD_PTR_I_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP1_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP1_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = icmp ne ptr addrspace(4) [[ADD_PTR_I_I_I_I]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I_I]])
@@ -154,8 +154,8 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
 // CHECK-NEXT:    [[IDXPROM_I_I_I:%.*]] = sext i32 [[TMP1]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I_I]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i8, ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 1, !tbaa [[TBAA21:![0-9]+]]
-// CHECK-NEXT:    store i8 [[TMP2]], ptr addrspace(4) [[OUT:%.*]], align 1, !tbaa [[TBAA21]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i8, ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 1, !tbaa [[TBAA22:![0-9]+]]
+// CHECK-NEXT:    store i8 [[TMP2]], ptr addrspace(4) [[OUT:%.*]], align 1, !tbaa [[TBAA22]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1CCNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT2_EEVE4TYPEESP_SN_RSO_SQ__EXIT:%.*]]
 // CHECK:       if.end.i.i:
@@ -175,7 +175,7 @@ SYCL_EXTERNAL void test_runtime_align_check(sycl::sub_group &sg,
 
 // CHECK-LABEL: @_ZN7blocked16test_four_shortsERN4sycl3_V19sub_groupEPU3AS1sNS1_4spanIsLm4EEE(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA24:![0-9]+]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
@@ -185,7 +185,7 @@ SYCL_EXTERNAL void test_runtime_align_check(sycl::sub_group &sg,
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT_I]], label [[IF_END_I:%.*]], label [[IF_THEN_I:%.*]]
 // CHECK:       if.then.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META23:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META26:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I_I:%.*]] = shl i32 [[TMP3]], 2
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
@@ -197,11 +197,11 @@ SYCL_EXTERNAL void test_runtime_align_check(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ADD_I_I_I:%.*]] = or disjoint i32 [[MUL_I_I_I]], [[I_0_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I_I:%.*]] = sext i32 [[ADD_I_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA26:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA29:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA26]]
+// CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA29]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP28:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP31:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1ssLm4ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_SP_NS0_4spanISQ_XT2_EEESS_.exit.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1SSLM4ENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESP_SN_NS0_4SPANISO_XT2_EEESQ__EXIT:%.*]]
@@ -225,7 +225,7 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg,
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META31:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META34:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I_I:%.*]] = mul i32 [[TMP2]], 3
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
@@ -241,7 +241,7 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP34:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP37:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1iiLm3ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void
@@ -258,7 +258,7 @@ SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg,
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META36:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META39:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I_I:%.*]] = shl i32 [[TMP2]], 2
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
@@ -274,7 +274,7 @@ SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP39:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP42:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1iiLm4ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void
@@ -291,7 +291,7 @@ SYCL_EXTERNAL void test_four_ints(sycl::sub_group &sg, plain_global_ptr<int> p,
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META41:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META44:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I_I:%.*]] = mul i32 [[TMP2]], 7
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
@@ -307,7 +307,7 @@ SYCL_EXTERNAL void test_four_ints(sycl::sub_group &sg, plain_global_ptr<int> p,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP44:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP47:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1iiLm7ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void
@@ -328,8 +328,8 @@ namespace striped {
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META46:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META49:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META49:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META52:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
@@ -345,7 +345,7 @@ namespace striped {
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP52:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP55:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1iiLm2ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESN_SL_NS0_4spanISM_XT2_EEESO_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void
@@ -393,13 +393,13 @@ using accessor_iter_t = accessor<int, 1, access_mode::read, target::device,
 // CHECK-LABEL: @_ZN7striped18test_accessor_iterERN4sycl3_V19sub_groupERNS1_6detail17accessor_iteratorIKiLi1EEENS1_4spanIiLm2EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15]]
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[ITER]], i64 8
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA17]]
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[ITER]], i64 8
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA18]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META56:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META59:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META59:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META62:![0-9]+]]
 // CHECK-NEXT:    [[TMP4:%.*]] = getelementptr i32, ptr addrspace(4) [[AGG_TMP1_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP1_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
@@ -416,7 +416,7 @@ using accessor_iter_t = accessor<int, 1, access_mode::read, target::device,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP62:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP65:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupENS0_6detail17accessor_iteratorIKiLi1EEEiLm2ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSD_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void
@@ -430,8 +430,8 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg,
 // CHECK-LABEL: @_ZN7striped34test_accessor_iter_force_optimizedERN4sycl3_V19sub_groupERNS1_6detail17accessor_iteratorIKiLi1EEENS1_4spanIiLm2EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15]]
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[ITER]], i64 8
-// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA17]]
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[ITER]], i64 8
+// CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr addrspace(4) [[AGG_TMP1_SROA_2_0_ITER_SROA_IDX]], align 8, !tbaa [[TBAA18]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP1_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP1_SROA_2_0_COPYLOAD]]
@@ -442,8 +442,8 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg,
 // CHECK-NEXT:    br i1 [[TOBOOL_NOT_I]], label [[IF_THEN_I:%.*]], label [[IF_END_I:%.*]]
 // CHECK:       if.then.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META64:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META67:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META67:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META70:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_THEN_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -459,7 +459,7 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP70:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP73:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupENS0_6detail17accessor_iteratorIKiLi1EEEiLm2ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSD_INS3_21contiguous_memory_keyEJEEENSD_INS3_14full_group_keyEJEEENSD_INSB_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeEST_SR_NS0_4spanISS_XT2_EEESU_.exit.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPENS0_6DETAIL17ACCESSOR_ITERATORIKILI1EEEILM2ENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSD_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSD_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESR_SP_NS0_4SPANISQ_XT2_EEESS__EXIT:%.*]]
@@ -479,7 +479,7 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 
 // CHECK-LABEL: @_ZN7striped24test_runtime_align_checkERN4sycl3_V19sub_groupEPU3AS1cNS1_4spanIcLm2EEE(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA75:![0-9]+]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
@@ -489,8 +489,8 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT_I]], label [[IF_END_I:%.*]], label [[IF_THEN_I:%.*]]
 // CHECK:       if.then.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META72:![0-9]+]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META75:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META77:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META80:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_THEN_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -502,11 +502,11 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ADD_I_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I_I:%.*]] = sext i32 [[ADD_I_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load i8, ptr addrspace(1) [[ARRAYIDX_I_I]], align 1, !tbaa [[TBAA21]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i8, ptr addrspace(1) [[ARRAYIDX_I_I]], align 1, !tbaa [[TBAA22]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    store i8 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 1, !tbaa [[TBAA21]]
+// CHECK-NEXT:    store i8 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 1, !tbaa [[TBAA22]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP78:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP83:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1ccLm2ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_SP_NS0_4spanISQ_XT2_EEESS_.exit.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1CCLM2ENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESP_SN_NS0_4SPANISO_XT2_EEESQ__EXIT:%.*]]
@@ -527,7 +527,7 @@ SYCL_EXTERNAL void test_runtime_align_check(sycl::sub_group &sg,
 
 // CHECK-LABEL: @_ZN7striped16test_four_shortsERN4sycl3_V19sub_groupEPU3AS1sNS1_4spanIsLm4EEE(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA24]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
@@ -537,8 +537,8 @@ SYCL_EXTERNAL void test_runtime_align_check(sycl::sub_group &sg,
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT_I]], label [[IF_END_I:%.*]], label [[IF_THEN_I:%.*]]
 // CHECK:       if.then.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META80:![0-9]+]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META83:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META85:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META88:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_THEN_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -550,11 +550,11 @@ SYCL_EXTERNAL void test_runtime_align_check(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ADD_I_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I_I:%.*]] = sext i32 [[ADD_I_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA26]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA29]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA26]]
+// CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA29]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP86:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP91:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1ssLm4ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_SP_NS0_4spanISQ_XT2_EEESS_.exit.i:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1SSLM4ENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESP_SN_NS0_4SPANISO_XT2_EEESQ__EXIT:%.*]]
@@ -573,13 +573,59 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg,
   group_load(sg, p, out, opt_striped{});
 }
 
+// CHECK-LABEL: @_ZN7striped19test_sixteen_shortsERN4sycl3_V19sub_groupEPU3AS1sNS1_4spanIsLm16EEE(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA24]]
+// CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
+// CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
+// CHECK-NEXT:    [[TMP2:%.*]] = ptrtoint ptr addrspace(1) [[P]] to i64
+// CHECK-NEXT:    [[REM_I_I:%.*]] = and i64 [[TMP2]], 3
+// CHECK-NEXT:    [[CMP1_I_NOT_I:%.*]] = icmp eq i64 [[REM_I_I]], 0
+// CHECK-NEXT:    br i1 [[CMP1_I_NOT_I]], label [[IF_END_I:%.*]], label [[IF_THEN_I:%.*]]
+// CHECK:       if.then.i:
+// CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META93:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META96:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_THEN_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I14_I:%.*]] = icmp samesign ult i32 [[I_0_I_I]], 16
+// CHECK-NEXT:    br i1 [[CMP_I14_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1SSLM16ENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESR_SP_NS0_4SPANISQ_XT2_EEESS__EXIT_I:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[MUL_I_I_I:%.*]] = mul i32 [[TMP4]], [[I_0_I_I]]
+// CHECK-NEXT:    [[ADD_I_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I_I]]
+// CHECK-NEXT:    [[IDXPROM_I_I:%.*]] = sext i32 [[ADD_I_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA29]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
+// CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA29]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP99:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1ssLm16ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_SP_NS0_4spanISQ_XT2_EEESS_.exit.i:
+// CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1SSLM16ENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESP_SN_NS0_4SPANISO_XT2_EEESQ__EXIT:%.*]]
+// CHECK:       if.end.i:
+// CHECK-NEXT:    [[CALL4_I:%.*]] = tail call spir_func noundef <16 x i16> @_Z30__spirv_SubgroupBlockReadINTELIDv16_tET_PU3AS1Kt(ptr addrspace(1) noundef nonnull [[P]]) #[[ATTR4]]
+// CHECK-NEXT:    store <16 x i16> [[CALL4_I]], ptr addrspace(4) [[TMP1]], align 2
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL10GROUP_LOADINS0_9SUB_GROUPEPU3AS1SSLM16ENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE17VERIFY_LOAD_TYPESIT0_T1_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESP_SN_NS0_4SPANISO_XT2_EEESQ__EXIT]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1ssLm16ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
+// CHECK-NEXT:    ret void
+//
+SYCL_EXTERNAL void test_sixteen_shorts(sycl::sub_group &sg,
+                                       plain_global_ptr<short> p,
+                                       span<short, 16> out) {
+  group_load(sg, p, out, opt_striped{});
+}
+
 // CHECK-LABEL: @_ZN7striped21test_non_power_of_twoERN4sycl3_V19sub_groupEPU3AS1iNS1_4spanIiLm3EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META88:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META91:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META93:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META96:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -595,7 +641,7 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP94:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP99:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1iiLm3ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void
@@ -612,8 +658,8 @@ SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg,
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META96:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META99:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META101:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META104:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -629,7 +675,7 @@ SYCL_EXTERNAL void test_non_power_of_two(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP102:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP107:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1iiLm16ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void
@@ -647,8 +693,8 @@ SYCL_EXTERNAL void test_sixteen_ints(sycl::sub_group &sg,
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUT:%.*]], align 8, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META104:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META107:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META109:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META112:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -664,7 +710,7 @@ SYCL_EXTERNAL void test_sixteen_ints(sycl::sub_group &sg,
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP110:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP115:![0-9]+]]
 // CHECK:       _ZN4sycl3_V13ext6oneapi12experimental10group_loadINS0_9sub_groupEPU3AS1iiLm11ENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE17verify_load_typesIT0_T1_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_SN_NS0_4spanISO_XT2_EEESQ_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR4]]
 // CHECK-NEXT:    ret void

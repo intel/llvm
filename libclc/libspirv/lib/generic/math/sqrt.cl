@@ -12,4 +12,4 @@
 
 #define __CLC_BUILTIN __clc_sqrt
 #define __CLC_FUNCTION __spirv_ocl_sqrt
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin_scalarize.inc>
