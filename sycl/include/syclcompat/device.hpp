@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <set>
@@ -444,7 +445,7 @@ public:
     return get_device_info().get_local_mem_size();
   }
 
-  int get_max_pitch() const { return INT_MAX; }
+  int get_max_pitch() const { return std::numeric_limits<int>::max(); }
 
   int get_async_engine_count() const { return 0; }
 
