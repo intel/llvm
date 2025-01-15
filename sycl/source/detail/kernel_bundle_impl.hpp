@@ -818,7 +818,7 @@ public:
 
     // TODO: Is this the right approach? Should we just pass the queue as an
     //       argument?
-    queue InitQueue{Dev};
+    queue InitQueue{MContext, Dev};
     auto &USMMem =
         Entry->getOrAllocateDeviceGlobalUSM(getSyclObjImpl(InitQueue));
     InitQueue.wait_and_throw();
