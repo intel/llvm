@@ -109,9 +109,6 @@ jobs:
   build:
     name: Build + LIT
     runs-on: [Linux, build]
-    defaults:
-      run:
-         shell: bash
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
@@ -162,7 +159,6 @@ jobs:
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
-        ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
         mkdir -p $CCACHE_DIR
@@ -170,7 +166,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults $ARGS \
+          --ci-defaults ${{ inputs.build_configure_extra_args }} \
           --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
@@ -182,9 +178,6 @@ jobs:
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
-        if [[ ${{ inputs.cc }} == 'icx' ]] || [[ ${{ inputs.cxx }} == 'icpx' ]]; then
-          export LIT_FILTER="SYCL"
-        fi
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
@@ -197,9 +190,6 @@ jobs:
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-        if [[ ${{ inputs.cc }} == 'icx' ]] || [[ ${{ inputs.cxx }} == 'icpx' ]]; then
-           export LIT_XFAIL="regression/host_tanpi_double_accuracy.cpp"
-        fi
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
