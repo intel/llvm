@@ -31,16 +31,22 @@ using __nativecpu_state = native_cpu::state;
 
 #define OCL_LOCAL __attribute__((opencl_local))
 #define OCL_GLOBAL __attribute__((opencl_global))
+#define OCL_PRIVATE __attribute__((opencl_private))
 
-DEVICE_EXTERNAL OCL_LOCAL void *
-__spirv_GenericCastToPtrExplicit_ToLocal(void *p, int) {
-  return (OCL_LOCAL void *)p;
+#define DefGenericCastToPtrExplImpl(sfx, asp, cv)\
+DEVICE_EXTERNAL cv asp void *\
+__spirv_GenericCastToPtrExplicit_##sfx(cv void *p ,int) {\
+  return (cv asp void *)p;\
 }
 
-DEVICE_EXTERNAL OCL_GLOBAL void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(void *p, int) {
-  return (OCL_GLOBAL void *)p;
-}
+#define DefGenericCastToPtrExpl(sfx, asp)\
+  DefGenericCastToPtrExplImpl(sfx, asp, )\
+  DefGenericCastToPtrExplImpl(sfx, asp, const)\
+  DefGenericCastToPtrExplImpl(sfx, asp, const volatile)
+
+DefGenericCastToPtrExpl(ToPrivate, OCL_PRIVATE)
+DefGenericCastToPtrExpl(ToLocal, OCL_LOCAL)
+DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL)
 
 DEVICE_EXTERN_C void __mux_work_group_barrier(uint32_t id, uint32_t scope,
                                               uint32_t semantics);
