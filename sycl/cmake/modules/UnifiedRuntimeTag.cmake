@@ -1,7 +1,7 @@
-# commit bbe28e9712bae50a779b7e10c937345badd97619
-# Merge: 738c3194e8b0 f0d0f7cdbcad
-# Author: Skrobot, Daniel <daniel.skrobot@intel.com>
-# Date:   Tue Jan 14 17:10:34 2025 +0100
+# commit 3e3282c01f3703b76a107ed34593ba46c4444298
+Merge: 2e7eb6ad bfc0676a
+Author: Daniel Skrobot <daniel.skrobot@intel.com>
+Date:   Thu Jan 16 18:00:16 2025 +0100
 
-#    Addition of num_compute_units query for device info
-set(UNIFIED_RUNTIME_TAG bbe28e9712bae50a779b7e10c937345badd97619)
+    Addition of num_compute_units query
+set(UNIFIED_RUNTIME_TAG 3e3282c01f3703b76a107ed34593ba46c4444298)
