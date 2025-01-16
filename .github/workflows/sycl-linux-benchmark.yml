@@ -137,8 +137,8 @@ jobs:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
-    permissions:
-      contents: write
+    # permissions:
+    #   contents: write
     steps:
     - name: Reset GPU
       if: env.RESET_GPU == 'true'
