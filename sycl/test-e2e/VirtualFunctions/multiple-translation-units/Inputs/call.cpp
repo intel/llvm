@@ -7,8 +7,8 @@ template <typename T1, typename T2> struct KernelFunctor {
       : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
 
   void operator()() const {
-    auto *Ptr = mDeviceStorage->getAs<BaseIncrement>();
-    Ptr->increment(mDataAcc.get_multi_ptr<sycl::access::decorated::no>().get());
+    auto *Ptr = mDeviceStorage->template getAs<BaseIncrement>();
+    Ptr->increment(mDataAcc.template get_multi_ptr<sycl::access::decorated::no>().get());
   }
   auto get(oneapi::properties_tag) const {
     return oneapi::properties{oneapi::assume_indirect_calls};
