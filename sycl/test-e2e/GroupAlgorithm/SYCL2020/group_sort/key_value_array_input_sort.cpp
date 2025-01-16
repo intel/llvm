@@ -1,4 +1,5 @@
 // REQUIRES: sg-8
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 

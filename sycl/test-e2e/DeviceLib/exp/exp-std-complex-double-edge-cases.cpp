@@ -2,7 +2,7 @@
 // in SYCL kernels.
 //
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: hip || cuda
+// UNSUPPORTED: amdgcn-amd-amdhsa || nvptx64-nvidia-cuda
 // UNSUPPORTED-INTENDED: This test is intended for backends with SPIR-V support.
 //
 // RUN: %{build} -o %t.out

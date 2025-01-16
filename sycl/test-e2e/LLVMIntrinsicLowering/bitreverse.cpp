@@ -1,6 +1,6 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv.
 
-// UNSUPPORTED: hip || cuda
+// UNSUPPORTED: amdgcn-amd-amdhsa || nvptx64-nvidia-cuda
 
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir

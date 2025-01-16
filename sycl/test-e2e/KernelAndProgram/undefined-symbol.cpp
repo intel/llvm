@@ -1,5 +1,5 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

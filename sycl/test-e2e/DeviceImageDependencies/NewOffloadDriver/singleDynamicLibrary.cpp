@@ -1,7 +1,7 @@
 // Test -fsycl-allow-device-image-dependencies with a single dynamic library on
 // Windows and Linux.
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 // RUN: %clangxx --offload-new-driver -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs \

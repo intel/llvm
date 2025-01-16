@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 //
 // Separate kernel sources and host code sources
 // RUN: %{build} -fsycl-device-obj=spirv -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL

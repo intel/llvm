@@ -5,6 +5,7 @@
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" %t-nvptx64-spir64.out
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="cuda:*"   %t-nvptx64-spir64.out
 
+// FIXME: This requires statement is broken
 // REQUIRES: opencl, cuda
 // REQUIRES: build-and-run-mode
 

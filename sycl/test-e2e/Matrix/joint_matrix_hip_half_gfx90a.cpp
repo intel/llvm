@@ -11,7 +11,6 @@
 
 // REQUIRES: arch-amd_gpu_gfx90a
 // REQUIRES: aspect-fp16
-// REQUIRES: build-and-run-mode
 
 #include "joint_matrix_hip_apply.hpp"
 #include "joint_matrix_hip_copy.hpp"

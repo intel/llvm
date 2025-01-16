@@ -1,6 +1,5 @@
 // UNSUPPORTED: windows
-// REQUIRES: cuda || hip
-// REQUIRES: build-and-run-mode
+// REQUIRES: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 
 // This test relies on debug output from a pass, make sure that the compiler
 // can generate it.

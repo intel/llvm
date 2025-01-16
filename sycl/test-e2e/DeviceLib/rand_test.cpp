@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>

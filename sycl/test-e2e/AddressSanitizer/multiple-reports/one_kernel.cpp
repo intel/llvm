@@ -1,4 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
+// UNSUPPORTED: amdgcn-amd-amdhsa
 // RUN: %{build} %device_asan_flags -Xarch_device -fsanitize-recover=address -O2 -g -o %t
 // RUN: %{run} %t 2>&1 | FileCheck %s
 

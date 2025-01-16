@@ -1,5 +1,5 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

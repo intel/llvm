@@ -1,6 +1,6 @@
 // Test -fsycl-allow-device-image-dependencies with objects.
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 
 // RUN: %clangxx -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
 // RUN: %clangxx -fsycl %S/Inputs/b.cpp -I %S/Inputs -c -o %t_b.o

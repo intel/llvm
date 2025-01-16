@@ -1,4 +1,4 @@
-// UNSUPPORTED: hip
+// UNSUPPORTED: amdgcn-amd-amdhsa
 // REQUIRES: aspect-ext_intel_legacy_image
 //
 // XFAIL: linux && gpu-intel-dg2

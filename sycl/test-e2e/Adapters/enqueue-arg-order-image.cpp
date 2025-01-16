@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
+// UNSUPPORTED: amdgcn-amd-amdhsa
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0

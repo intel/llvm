@@ -9,6 +9,7 @@
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 30049, win: 101.4943
+// REQUIRES: spir64
 
 // XFAIL: !igc-dev && run-mode
 // XFAIL-TRACKER: GSD-6376

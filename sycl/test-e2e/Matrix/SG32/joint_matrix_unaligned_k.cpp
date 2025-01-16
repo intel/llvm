@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
+// REQUIRES: spir64
 
 // UNSUPPORTED: gpu-intel-dg2, cpu
 

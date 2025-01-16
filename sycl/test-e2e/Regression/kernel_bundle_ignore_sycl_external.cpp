@@ -1,9 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: cuda
+// XFAIL: nvptx64-nvidia-cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
-// UNSUPPORTED: hip
+// UNSUPPORTED: amdgcn-amd-amdhsa
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

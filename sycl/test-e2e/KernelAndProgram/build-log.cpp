@@ -1,5 +1,5 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 // TODO: rewrite this into a unit-test
 
 // RUN: %{build} -DGPU -o %t_gpu.out

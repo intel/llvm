@@ -1,4 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
+// UNSUPPORTED: amdgcn-amd-amdhsa
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: %force_device_asan_rt UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:5 UR_LOG_SANITIZER=level:info %{run} %t 2>&1 | FileCheck %s
 

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
+// REQUIRES: spir64
 
 // UNSUPPORTED: gpu-intel-dg2, cpu
 

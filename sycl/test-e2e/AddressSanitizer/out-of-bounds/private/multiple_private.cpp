@@ -1,4 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
+// UNSUPPORTED: amdgcn-amd-amdhsa
 // RUN: %{build} -Wno-error=array-bounds %device_asan_flags -DVAR=1 -O2 -g -o %t1
 // RUN: %{run} not %t1 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR1 %s
 // RUN: %{build} -Wno-error=array-bounds %device_asan_flags -DVAR=2 -O2 -g -o %t2

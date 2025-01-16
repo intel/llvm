@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
+// REQUIRES: spir64
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

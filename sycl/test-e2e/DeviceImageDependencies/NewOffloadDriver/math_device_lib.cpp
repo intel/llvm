@@ -1,5 +1,5 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: hip || cuda
+// UNSUPPORTED: amdgcn-amd-amdhsa || nvptx64-nvidia-cuda
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}

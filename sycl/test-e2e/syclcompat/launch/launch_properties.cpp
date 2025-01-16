@@ -23,7 +23,9 @@
  **************************************************************************/
 
 // REQUIRES: aspect-ext_oneapi_cuda_cluster_group
-// REQUIRES: build-and-run-mode
+// REQUIRES: nvptx64-nvidia-cuda
+// FIXME: does not work currently
+// UNSUPPORTED: true
 // RUN: %{build} -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 

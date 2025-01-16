@@ -3,7 +3,7 @@
 // RUN: %{build} -DSOURCE2 --offload-new-driver -c -o %t2.o
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t1.o %t2.o -o %t.exe
 // RUN: %{run} %t.exe
-// XFAIL: cuda
+// XFAIL: nvptx64-nvidia-cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
 
 #ifdef SOURCE1

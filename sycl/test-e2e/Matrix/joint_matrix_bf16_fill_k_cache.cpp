@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
+// REQUIRES: spir64
 
 // RUN: %{build} -o %t_vnni.out -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out

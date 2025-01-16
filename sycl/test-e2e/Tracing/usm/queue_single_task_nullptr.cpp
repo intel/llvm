@@ -1,4 +1,4 @@
-// UNSUPPORTED: windows || hip
+// UNSUPPORTED: windows || amdgcn-amd-amdhsa
 // RUN: %{build} -o %t.out
 // RUN: not --crash env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
 

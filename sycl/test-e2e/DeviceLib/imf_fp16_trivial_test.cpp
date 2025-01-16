@@ -8,7 +8,7 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl  %t1.o %t2.o  -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: nvptx64-nvidia-cuda, amdgcn-amd-amdhsa
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

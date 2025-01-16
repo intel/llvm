@@ -9,6 +9,7 @@
 // VNNI transform is not supported yet by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES-INTEL-DRIVER: lin: 30049
+// REQUIRES: spir64
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

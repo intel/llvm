@@ -4,7 +4,7 @@
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
 // RUN: %{run} %t2.out
 //
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
 
 // All __imf_* bf16 functions are implemented via fp32 emulation, so we don't
 // need to check whether underlying device supports bf16 or not.

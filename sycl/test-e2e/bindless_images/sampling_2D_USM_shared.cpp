@@ -1,4 +1,4 @@
-// REQUIRES: cuda
+// REQUIRES: nvptx64-nvidia-cuda
 // REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
 
 // RUN: %{build} -o %t.out

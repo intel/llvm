@@ -1,4 +1,4 @@
-// UNSUPPORTED: hip
+// UNSUPPORTED: amdgcn-amd-amdhsa
 // HIP doesn't support printf.
 // CUDA doesn't support vector format specifiers ("%v").
 //

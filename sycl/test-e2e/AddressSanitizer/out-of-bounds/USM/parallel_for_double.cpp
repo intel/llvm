@@ -1,4 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero), aspect-fp64
+// UNSUPPORTED: amdgcn-amd-amdhsa
 // RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O0 -g -o %t1.out
 // RUN: %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
 // RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O1 -g -o %t2.out
