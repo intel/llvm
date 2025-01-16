@@ -119,8 +119,7 @@ on:
         options:
           - 3
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   build:

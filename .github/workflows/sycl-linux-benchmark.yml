@@ -118,8 +118,7 @@ jobs:
   check_build:
     name: Build (if no sycl artifact provided)
     uses: ./.github/workflows/sycl-linux-build.yml
-    permissions:
-      contents: read
+    permissions: read-all
     with:
       build_ref: ${{ github.sha }}
       merge_ref: ''
