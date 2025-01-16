@@ -4506,19 +4506,19 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
 
     [[maybe_unused]] auto context = getContext();
 
-    // Replace the callback with a wrapper function that gives the callback the loader event rather than a
-    // backend-specific event
-    auto wrapper_data =
-        new event_callback_wrapper_data_t{pfnNotify, hEvent, pUserData};
-    pUserData = wrapper_data;
-    pfnNotify = event_callback_wrapper;
-
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_event_object_t *>(hEvent)->dditable;
     auto pfnSetCallback = dditable->ur.Event.pfnSetCallback;
     if (nullptr == pfnSetCallback) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
+
+    // Replace the callback with a wrapper function that gives the callback the loader event rather than a
+    // backend-specific event
+    auto *wrapper_data =
+        new event_callback_wrapper_data_t{pfnNotify, hEvent, pUserData};
+    pUserData = wrapper_data;
+    pfnNotify = event_callback_wrapper;
 
     // convert loader handle to platform handle
     hEvent = reinterpret_cast<ur_event_object_t *>(hEvent)->handle;

@@ -65,15 +65,6 @@ namespace ur_loader
     %>${th.get_initial_null_set(obj)}
 
         [[maybe_unused]] auto context = getContext();
-        %if func_basename == "EventSetCallback":
-
-        // Replace the callback with a wrapper function that gives the callback the loader event rather than a
-        // backend-specific event
-        auto wrapper_data =
-            new event_callback_wrapper_data_t{pfnNotify, hEvent, pUserData};
-        pUserData = wrapper_data;
-        pfnNotify = event_callback_wrapper;
-        %endif
         %if func_basename == "AdapterGet":
         
         size_t adapterIndex = 0;
@@ -165,6 +156,16 @@ namespace ur_loader
         <%break%>
         %endif
         %endfor
+        %if func_basename == "EventSetCallback":
+
+        // Replace the callback with a wrapper function that gives the callback the loader event rather than a
+        // backend-specific event
+        auto *wrapper_data =
+            new event_callback_wrapper_data_t{pfnNotify, hEvent, pUserData};
+        pUserData = wrapper_data;
+        pfnNotify = event_callback_wrapper;
+
+        %endif
         %for i, item in enumerate(th.get_loader_prologue(n, tags, obj, meta)):
         %if 'range' in item:
         <%
