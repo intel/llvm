@@ -31,6 +31,15 @@ endif()
 # materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
 
+# TODO-UPSTREAM temp workaround to fix cuda adapter build
+if (NOT XPTI_INCLUDES)
+  set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
+endif()
+
+if (NOT XPTI_PROXY_SRC)
+  set(XPTI_PROXY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(AddSYCL)
