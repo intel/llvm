@@ -1,6 +1,6 @@
 // REQUIRES: arch-intel_gpu_pvc, ocloc
 
-// XFAIL: arch-intel_gpu_pvc && !spirv-backend
+// XFAIL: arch-intel_gpu_pvc && opencl && igc-dev && !spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc %s -o %t.out

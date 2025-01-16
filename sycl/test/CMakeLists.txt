@@ -68,10 +68,10 @@ add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
 set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 
 set(TRIPLES "spir64-unknown-unknown")
-if (SYCL_BUILD_BACKEND_CUDA OR (SYCL_BUILD_BACKEND_HIP AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA"))
+if (SYCL_BUILD_BACKEND_CUDA)
   set(TRIPLES "${TRIPLES},nvptx64-nvidia-cuda")
 endif()
-if ((SYCL_BUILD_BACKEND_HIP AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD"))
+if (SYCL_BUILD_BACKEND_HIP)
   set(TRIPLES "${TRIPLES},amdgcn-amd-amdhsa")
 endif()
 

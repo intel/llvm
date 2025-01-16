@@ -23,11 +23,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2)
+// UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2 || arch-intel_gpu_pvc)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15275
-
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
 // Flaky pass/fail behaviour.
 // UNSUPPORTED: spirv-backend

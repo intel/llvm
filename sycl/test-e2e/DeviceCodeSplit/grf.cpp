@@ -14,7 +14,7 @@
 //   compiler option
 
 // REQUIRES: arch-intel_gpu_pvc
-// XFAIL: arch-intel_gpu_pvc
+// XFAIL: arch-intel_gpu_pvc && opencl
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
 // Flaky pass/fail behaviour.

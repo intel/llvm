@@ -1,7 +1,7 @@
-# commit 19182934ba5b15ebf26ae9ec7c06df1b9269725a
-# Merge: 3e62cc91 9c2b0400
-# Author: Isaac Ault <isaac.ault@codeplay.com>
-# Date:   Wed Jan 8 22:24:12 2025 +0000
-#     Merge pull request #2444 from isaacault/kernel-cts
-#     Reduce gap between Kernel CTS and Specification.
-set(UNIFIED_RUNTIME_TAG 19182934ba5b15ebf26ae9ec7c06df1b9269725a)
+# commit 9e48f543b8dd39d45563169433bb529583625dfe
+# Merge: 6a3fece6 1a1108b3
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Wed Jan 15 14:33:29 2025 +0000
+#     Merge pull request #2540 from martygrant/martin/program-info-unswitch
+#     Move urProgramGetInfo success test from a switch to individual tests.
+set(UNIFIED_RUNTIME_TAG 9e48f543b8dd39d45563169433bb529583625dfe)
