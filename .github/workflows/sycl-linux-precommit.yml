@@ -256,8 +256,7 @@ jobs:
 
   benchmark:
     needs: [build, detect_changes]
-    permissions:
-      contents: write
+    permissions: read-all
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
