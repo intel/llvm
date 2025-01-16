@@ -68,7 +68,7 @@ convertMatrixUseStringToEnum(const char *UseString) {
   return std::nullopt;
 }
 
-constexpr __spv::MatrixLayout joint_matrix_layout_to_spv(
+extern "C" constexpr __spv::MatrixLayout joint_matrix_layout_to_spv(
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
   switch (Layout) {
   case sycl::ext::oneapi::experimental::matrix::layout::row_major:

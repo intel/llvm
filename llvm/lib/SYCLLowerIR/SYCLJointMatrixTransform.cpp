@@ -20,9 +20,7 @@ namespace {
 
 static constexpr char ACCESS_CHAIN[] = "_Z19__spirv_AccessChain";
 static constexpr char MATRIX_TYPE[] = "spirv.CooperativeMatrixKHR";
-static constexpr char MATRIX_LAYOUT[] =
-    "_ZN4sycl3_V16detail26joint_matrix_layout_to_spvENS0_"
-    "3ext6oneapi12experimental6matrix6layoutE";
+static constexpr char MATRIX_LAYOUT[] = "joint_matrix_layout_to_spv";
 
 Type *getInnermostType(Type *Ty) {
   while (auto *ArrayTy = dyn_cast<ArrayType>(Ty))
@@ -226,7 +224,7 @@ bool propagateConstexprLayout(Function *F) {
         ToErase.push_back(SI);
       }
     }
-    if (!ToErase.empty()) {
+    if (ConstLayout) {
       ToErase.push_back(Op);
       ToErase.push_back(Ptr);
       if (auto *Cast = dyn_cast<AddrSpaceCastInst>(Ptr)) {
@@ -238,6 +236,8 @@ bool propagateConstexprLayout(Function *F) {
     }
   }
   for (Instruction *II : ToErase) {
+    if (!II)
+      continue;
     II->dropAllReferences();
     II->eraseFromParent();
   }
