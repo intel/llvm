@@ -4,6 +4,9 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+//
+// sycl_ext_oneapi_work_group_static is not supported on AMD
+// UNSUPPORTED: hip
 
 // Tests using sycl_ext_oneapi_work_group_static in a graph node with dynamic
 // cgf and dynamic parameter
