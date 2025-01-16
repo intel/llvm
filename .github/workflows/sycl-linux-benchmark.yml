@@ -269,5 +269,5 @@ jobs:
   test_aggregate:
     name: Testing sycl-benchmark-aggregate.yml (DELETE AFTER)
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
-    permissions:
-      contents: write
+    #permissions:
+    #  contents: write

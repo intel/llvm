@@ -21,8 +21,8 @@ permissions:
 jobs:
   aggregate:
     name: Aggregate average value for all metrics (median)
-    permissions:
-      contents: write  # for Git to git push
+    # permissions:
+    #   contents: write  # for Git to git push
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
     steps:
