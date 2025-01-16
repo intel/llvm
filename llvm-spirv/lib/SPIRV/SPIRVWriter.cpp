@@ -906,13 +906,19 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       static_cast<SPIRVFunction *>(mapValue(F, BM->addFunction(BFT)));
   BF->setFunctionControlMask(transFunctionControlMask(F));
   if (F->hasName()) {
-    if (isUniformGroupOperation(F))
-      BM->getErrorLog().checkError(
-          BM->isAllowedToUseExtension(
-              ExtensionID::SPV_KHR_uniform_group_instructions),
-          SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
-
-    BM->setName(BF, F->getName().str());
+    if (isKernel(F)) {
+      /* strip the prefix as the runtime will be looking for this name */
+      std::string Prefix = kSPIRVName::EntrypointPrefix;
+      std::string Name = F->getName().str();
+      BM->setName(BF, Name.substr(Prefix.size()));
+    } else {
+      if (isUniformGroupOperation(F))
+        BM->getErrorLog().checkError(
+            BM->isAllowedToUseExtension(
+                ExtensionID::SPV_KHR_uniform_group_instructions),
+            SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
+      BM->setName(BF, F->getName().str());
+    }
   }
   if (!isKernel(F) && F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
@@ -5911,7 +5917,7 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
 
   if (isKernel(I)) {
     auto Interface = collectEntryPointInterfaces(BF, I);
-    BM->addEntryPoint(ExecutionModelKernel, BF->getId(), I->getName().str(),
+    BM->addEntryPoint(ExecutionModelKernel, BF->getId(), BF->getName(),
                       Interface);
   }
 }
@@ -6278,8 +6284,9 @@ bool LLVMToSPIRVBase::transMetadata() {
 // Work around to translate kernel_arg_type and kernel_arg_type_qual metadata
 static void transKernelArgTypeMD(SPIRVModule *BM, Function *F, MDNode *MD,
                                  std::string MDName) {
-  std::string KernelArgTypesMDStr =
-      std::string(MDName) + "." + F->getName().str() + ".";
+  std::string Prefix = kSPIRVName::EntrypointPrefix;
+  std::string Name = F->getName().str().substr(Prefix.size());
+  std::string KernelArgTypesMDStr = std::string(MDName) + "." + Name + ".";
   for (const auto &TyOp : MD->operands())
     KernelArgTypesMDStr += cast<MDString>(TyOp)->getString().str() + ",";
   BM->getString(KernelArgTypesMDStr);
