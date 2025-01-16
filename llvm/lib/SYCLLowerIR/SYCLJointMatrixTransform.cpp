@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+
 #include "llvm/IR/IRBuilder.h"
-//#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 using namespace llvm;
 
