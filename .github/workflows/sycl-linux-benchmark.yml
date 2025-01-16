@@ -111,8 +111,7 @@ on:
         default: false
         required: false
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   check_build:
