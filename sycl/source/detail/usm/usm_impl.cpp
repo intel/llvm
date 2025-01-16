@@ -26,6 +26,7 @@ namespace {
 void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
                        const sycl::property_list &PropList,
                        const sycl::detail::code_location &CodeLoc) {
+  std::ignore = CodeLoc;
   const auto &devices = Ctxt.get_devices();
   if (!std::any_of(devices.begin(), devices.end(), [&](const auto &device) {
         return device.has(sycl::aspect::usm_host_allocations);
@@ -188,6 +189,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind, const property_list &PropList,
                    const detail::code_location &CodeLoc) {
+                    std::ignore = CodeLoc;
   void *RetVal =
       alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
                            getSyclObjImpl(Dev).get(), Kind, PropList);
@@ -204,6 +206,7 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
 
 void free(void *Ptr, const context &Ctxt,
           const detail::code_location &CodeLoc) {
+            std::ignore = CodeLoc;
   freeInternal(Ptr, detail::getSyclObjImpl(Ctxt).get());
 }
 
