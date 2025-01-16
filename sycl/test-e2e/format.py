@@ -6,12 +6,87 @@ from lit.BooleanExpression import BooleanExpression
 from lit.TestRunner import (
     ParserKind,
     IntegratedTestKeywordParser,
-    # parseIntegratedTestScript,
 )
 
 import os
 import re
 
+class E2EExpr(BooleanExpression):
+    build_specific_features = {
+            'build-and-run-mode',
+            'spir64',
+            'nvptx64-nvidia-cuda',
+            'amdgcn-amd-amdhsa',
+            'native_cpu',
+            'linux',
+            'system-linux',
+            'windows',
+            'system-windows',
+            'enable-perf-tests',
+            'opencl_icd',
+            'cuda_dev_kit',
+            'zstd',
+            'vulkan',
+            'true',
+            'false'
+            }
+    def __init__(self, string, variables, build_only_mode, ignore_value):
+        BooleanExpression.__init__(self, string, variables)
+        self.build_only_mode = build_only_mode
+        self.ignore = False
+        self.ignore_value = ignore_value
+
+    @staticmethod
+    def evaluate(string, variables, build_only_mode, ignore_value = True):
+        try:
+            parser = E2EExpr(string, set(variables), build_only_mode, ignore_value)
+            return parser.parseAll()
+        except ValueError as e:
+            raise ValueError(str(e) + ("\nin expression: %r" % string))
+
+    def parseMATCH(self):
+        token = self.token
+        BooleanExpression.parseMATCH(self)
+        if token not in self.build_specific_features and self.build_only_mode:
+            self.ignore = True
+        else:
+            self.ignore = False
+
+    def parseAND(self):
+        self.parseNOT()
+        while self.accept("&&"):
+            left = self.value
+            left_ignore = self.ignore
+            self.parseNOT()
+            right = self.value
+            right_ignore = self.ignore
+            self.value = left and right
+            # Ignore if both are ignore or if one is true and the other is ignore
+            self.ignore = ((left_ignore and right_ignore)
+                           or (left_ignore and right)
+                           or (left and right_ignore )
+                           )
+
+    def parseOR(self):
+        self.parseAND()
+        while self.accept("||"):
+            left = self.value
+            left_ignore = self.ignore
+            self.parseAND()
+            right = self.value
+            right_ignore = self.ignore
+            self.value = left or right
+            # Ignore if both are ignore or if one is false and the other is ignore
+            self.ignore = ((left_ignore and right_ignore)
+                           or (left_ignore and not right)
+                           or (not left and right_ignore)
+                           )
+
+    def parseAll(self):
+        self.token = next(self.tokens)
+        self.parseOR()
+        self.expect(BooleanExpression.END)
+        return self.ignore_value if self.ignore else self.value
 
 def get_triple(backend):
     if backend == "cuda":
@@ -87,19 +162,56 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         return script
 
-    def getMatchedFromList(self, features, alist):
+    def getMissingRequiredFeaturesFromList(self, features, requires, build_only_mode = False):
         try:
             return [
-                item for item in alist if BooleanExpression.evaluate(item, features)
+                item
+                for item in requires
+                if not E2EExpr.evaluate(item, features, build_only_mode)
+            ]
+        except ValueError as e:
+            raise ValueError("Error in REQUIRES list:\n%s" % str(e))
+
+    def getMatchedFromList(self, features, alist, build_only_mode = False):
+        try:
+            return [
+                item for item in alist if E2EExpr.evaluate(item, features, build_only_mode, False)
             ]
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
+
+    def select_triples_for_test(self, test):
+        supported_triples = set()
+        for t in test.config.available_triples:
+            features = test.config.available_features.union({t})
+            if self.getMissingRequiredFeaturesFromList(features, test.requires, True):
+                continue
+            if self.getMatchedFromList(features, test.unsupported, True):
+                continue
+            supported_triples.add(t)
+
+        if len(supported_triples) <= 1:
+            return supported_triples
+        # Treat XFAIL as UNSUPPORTED if the test is to be compiled for multiple
+        # triples.
+        if "*" in test.xfails:
+            return []
+
+        triples_without_xfail = [
+            t
+            for t in supported_triples
+            if not self.getMatchedFromList(
+                test.config.available_features.union({t}), test.xfails
+            )
+        ]
+
+        return triples_without_xfail
 
     def select_devices_for_test(self, test):
         devices = []
         for d in test.config.sycl_devices:
             features = test.config.sycl_dev_features[d]
-            if test.getMissingRequiredFeaturesFromList(features):
+            if self.getMissingRequiredFeaturesFromList(features, test.requires):
                 continue
 
             if self.getMatchedFromList(features, test.unsupported):
@@ -154,11 +266,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
-            if "build-and-run-mode" in test.requires or "true" in test.unsupported:
+            triples = self.select_triples_for_test(test)
+            if not triples:
                 return lit.Test.Result(
-                    lit.Test.UNSUPPORTED, "Test unsupported for this environment"
+                    lit.Test.UNSUPPORTED, "No supported triple to build for"
                 )
-            triples = {"spir64"}
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
@@ -239,6 +351,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         run_unfiltered_substitution += test.config.run_launcher
 
         substitutions.append(("%{run-unfiltered-devices}", run_unfiltered_substitution))
+
+        for triple in triples:
+            test.config.available_features.add(triple)
 
         new_script = []
         for directive in script:
@@ -323,19 +438,28 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if len(devices_for_test) > 1 or test.config.test_mode == "build-only":
-            return result
-
-        # Single device - might be an XFAIL.
-        device = devices_for_test[0]
-        if "*" in test.xfails or self.getMatchedFromList(
-            test.config.sycl_dev_features[device], test.xfails
-        ):
-            if result.code is lit.Test.PASS:
-                result.code = lit.Test.XPASS
-            # fail -> expected fail
-            elif result.code is lit.Test.FAIL:
-                result.code = lit.Test.XFAIL
-            return result
-
+        # Single triple/device - might be an XFAIL.
+        if len(triples) == 1 and len(devices_for_test) <= 1:
+            triple = next(iter(triples))
+            if "*" in test.xfails or self.getMatchedFromList(
+                test.config.available_features.union({triple}), test.xfails
+            ):
+                if result.code is lit.Test.PASS:
+                    result.code = lit.Test.XPASS
+                # fail -> expected fail
+                elif result.code is lit.Test.FAIL:
+                    result.code = lit.Test.XFAIL
+                return result
+        if len(devices_for_test) == 1:
+            # Single device - might be an XFAIL.
+            device = devices_for_test[0]
+            if "*" in test.xfails or self.getMatchedFromList(
+                test.config.sycl_dev_features[device], test.xfails
+            ):
+                if result.code is lit.Test.PASS:
+                    result.code = lit.Test.XPASS
+                # fail -> expected fail
+                elif result.code is lit.Test.FAIL:
+                    result.code = lit.Test.XFAIL
+                return result
         return result

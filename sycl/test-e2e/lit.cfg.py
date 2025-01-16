@@ -43,15 +43,19 @@ config.fallback_build_run_only = False
 if config.test_mode == "full":
     config.available_features.add("run-mode")
     config.available_features.add("build-and-run-mode")
+    config.available_triples=set()
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
+    config.available_triples=set()
     if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
         config.available_features.add("build-and-run-mode")
         config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
+    if not config.amd_arch:
+        config.amd_arch = "gfx1031"
 else:
     lit_config.error("Invalid argument for test-mode")
 
@@ -826,6 +830,16 @@ for sycl_device in config.sycl_devices:
     features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
+    # Add corresponding triple feature
+    triple = {
+        "level_zero":"spir64",
+        "opencl":"spir64",
+        "cuda":"nvptx64-nvidia-cuda",
+        "hip":"amdgcn-amd-amdhsa",
+        "native_cpu":"native_cpu"
+        }[be]
+    features.add(triple)
+    config.available_triples.add(triple)
 
     if be == "hip":
         if not config.amd_arch:
