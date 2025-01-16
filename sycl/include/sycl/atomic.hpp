@@ -169,8 +169,7 @@ inline namespace _V1 {
 
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
-class __SYCL2020_DEPRECATED(
-    "sycl::atomic is deprecated since SYCL 2020") atomic {
+class atomic {
   friend class atomic<T, access::address_space::global_space>;
   static_assert(detail::IsValidAtomicType<T>::value,
                 "Invalid SYCL atomic type. Valid types are: int, "
@@ -194,9 +193,11 @@ class __SYCL2020_DEPRECATED(
 public:
   template <typename pointerT, access::decorated IsDecorated>
 #ifdef __SYCL_DEVICE_ONLY__
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
   atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
       : Ptr(GetDecoratedPtr(ptr))
 #else
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
   atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
       : Ptr(reinterpret_cast<std::atomic<T> *>(ptr.get()))
 #endif
@@ -211,6 +212,7 @@ public:
             typename = typename std::enable_if_t<
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>>
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
   atomic(const atomic<T, access::address_space::ext_intel_global_device_space>
              &RHS) {
     Ptr = RHS.Ptr;
@@ -220,6 +222,7 @@ public:
             typename = typename std::enable_if_t<
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>>
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
   atomic(
       atomic<T, access::address_space::ext_intel_global_device_space> &&RHS) {
     Ptr = RHS.Ptr;
@@ -400,7 +403,6 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
                    memory_order MemoryOrder = memory_order::relaxed) {
   return Object.fetch_max(Operand, MemoryOrder);
 }
-
 } // namespace _V1
 } // namespace sycl
 

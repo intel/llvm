@@ -362,9 +362,9 @@ protected:
       return MAccessor[MIDs];
     }
 
-    template <int CurDims = SubDims>
-    typename std::enable_if_t<CurDims == 1 && IsAccessAtomic, atomic<DataT, AS>>
-    operator[](size_t Index) const {
+    template <int CurDims = SubDims,
+              typename = std::enable_if_t<CurDims == 1 && IsAccessAtomic>>
+    auto operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
@@ -1726,39 +1726,40 @@ public:
     return getQualifiedPtr()[LinearIndex];
   }
 
-  template <int Dims = Dimensions>
-  operator typename std::enable_if_t<Dims == 0 &&
-                                         AccessMode == access::mode::atomic,
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == 0 &&
+                                        AccessMode == access::mode::atomic>>
+  operator
 #ifdef __ENABLE_USM_ADDR_SPACE__
-                                     atomic<DataT>
+      atomic<DataT>
 #else
-                                     atomic<DataT, AS>
+      atomic<DataT, AS>
 #endif
-                                     >() const {
+      () const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
-        getQualifiedPtr() + LinearIndex));
+    return multi_ptr<DataT, AS, access::decorated::yes>(getQualifiedPtr() +
+                                                        LinearIndex);
   }
 
-  template <int Dims = Dimensions>
-  typename std::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
-  operator[](id<Dimensions> Index) const {
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<(Dims > 0) &&
+                                        AccessMode == access::mode::atomic>>
+  auto operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
 
-  template <int Dims = Dimensions>
-  typename std::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
-  operator[](size_t Index) const {
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == 1 &&
+                                        AccessMode == access::mode::atomic>>
+  auto operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 1)>>
-  auto operator[](size_t Index) const {
+  AccessorSubscript<Dims - 1> operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
@@ -1851,28 +1852,28 @@ public:
 
   iterator begin() const noexcept {
     return iterator::getBegin(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   iterator end() const noexcept {
     return iterator::getEnd(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cbegin() const noexcept {
     return const_iterator::getBegin(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cend() const noexcept {
     return const_iterator::getEnd(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
@@ -2344,27 +2345,27 @@ public:
     return getQualifiedPtr()[Index];
   }
 
-  template <int Dims = Dimensions>
-  operator typename std::enable_if_t<
-      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
-      const {
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == 0 &&
+                                        AccessMode == access::mode::atomic>>
+  operator atomic<DataT, AS>() const {
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS, access::decorated::yes>(getQualifiedPtr()));
   }
 
-  template <int Dims = Dimensions>
-  typename std::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
-  operator[](id<Dimensions> Index) const {
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<(Dims > 0) &&
+                                        AccessMode == access::mode::atomic>>
+  auto operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
 
-  template <int Dims = Dimensions>
-  typename std::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
-  operator[](size_t Index) const {
+  template <int Dims = Dimensions,
+            typename = std::enable_if_t<Dims == 1 &&
+                                        AccessMode == access::mode::atomic>>
+  auto operator[](size_t Index) const {
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + Index));
   }

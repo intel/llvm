@@ -40,16 +40,18 @@ void test(const InputContainer &input, BinaryOperation binary_op,
             int lid = it.get_local_id(0);
             out[0] = reduce_over_group(g, in[lid], binary_op);
             out[1] = reduce_over_group(g, in[lid], init, binary_op);
-            out[2] = joint_reduce(g, global_ptr<const InputT>(in),
-                                  global_ptr<const InputT>(in) + N, binary_op);
-            out[3] =
-                joint_reduce(g, global_ptr<const InputT>(in),
-                             global_ptr<const InputT>(in) + N, init, binary_op);
-            out[4] = joint_reduce(sg, global_ptr<const InputT>(in),
-                                  global_ptr<const InputT>(in) + N, binary_op);
-            out[5] =
-                joint_reduce(sg, global_ptr<const InputT>(in),
-                             global_ptr<const InputT>(in) + N, init, binary_op);
+            out[2] = joint_reduce(g, decorated_global_ptr<const InputT>(in),
+                                  decorated_global_ptr<const InputT>(in) + N,
+                                  binary_op);
+            out[3] = joint_reduce(g, decorated_global_ptr<const InputT>(in),
+                                  decorated_global_ptr<const InputT>(in) + N,
+                                  init, binary_op);
+            out[4] = joint_reduce(sg, decorated_global_ptr<const InputT>(in),
+                                  decorated_global_ptr<const InputT>(in) + N,
+                                  binary_op);
+            out[5] = joint_reduce(sg, decorated_global_ptr<const InputT>(in),
+                                  decorated_global_ptr<const InputT>(in) + N,
+                                  init, binary_op);
           });
     });
   }
