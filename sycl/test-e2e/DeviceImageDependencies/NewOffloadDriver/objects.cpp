@@ -10,6 +10,9 @@
 // RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies %t_a.o %t_b.o %t_c.o %t_d.o -I %S/Inputs -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
+
 #include "a.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>

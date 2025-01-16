@@ -10,6 +10,10 @@
 // REQUIRES: aspect-ext_oneapi_fixed_size_group
 // UNSUPPORTED: target-amd
 
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64702
+// The test is disabled for spirv-backend while we investigate the root cause.
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <sycl/group_algorithm.hpp>

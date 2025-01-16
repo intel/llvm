@@ -6,6 +6,9 @@
 // XFAIL: nvptx64-nvidia-cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64059
+
 #ifdef SOURCE1
 #include <iostream>
 #include <sycl/detail/core.hpp>
