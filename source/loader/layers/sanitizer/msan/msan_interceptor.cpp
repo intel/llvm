@@ -228,7 +228,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
             getContext()->logger.info(
                 "SpirKernel(name='{}', isInstrumented={})", KernelName, true);
 
-            PI->InstrumentedKernels.insert(KernelName);
+            PI->InstrumentedKernels.insert(std::move(KernelName));
         }
         getContext()->logger.info("Number of sanitized kernel: {}",
                                   PI->InstrumentedKernels.size());
