@@ -32,12 +32,12 @@
 #include <functional>  // for function
 #include <iterator>    // for distance
 #include <memory>      // for shared_ptr, operator==, hash
+#include <span>        // for span
 #include <string>      // for string
 #include <type_traits> // for enable_if_t, remove_refer...
 #include <utility>     // for move
 #include <variant>     // for hash
 #include <vector>      // for vector
-#include <span>        // for span
 
 namespace sycl {
 inline namespace _V1 {
@@ -120,9 +120,11 @@ protected:
 
   backend get_backend() const;
 
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   const std::byte *get_BinaryStart() const;
 
   const std::byte *get_BinaryEnd() const;
+#endif
 
   template <class Obj>
   friend const decltype(Obj::impl) &
@@ -156,6 +158,7 @@ public:
     return device_image_plain::get_backend();
   }
 
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
   std::vector<std::byte> ext_oneapi_get_backend_content() const {
@@ -170,7 +173,8 @@ public:
     return std::span(device_image_plain::get_BinaryStart(),
                      device_image_plain::get_BinaryEnd());
   }
-#endif
+#endif // __cpp_lib_span
+#endif // _HAS_STD_BYTE
 
 private:
   device_image(detail::DeviceImageImplPtr Impl)
