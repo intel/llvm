@@ -1,5 +1,7 @@
-# commit 0607d2c87f82f0c80c71a4341072c9e3627e0136
-# Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-# Date:   Mon Jan 13 15:15:26 2025 +0100
-# [common] Bump UMF version to v0.10.1
-set(UNIFIED_RUNTIME_TAG 0607d2c87f82f0c80c71a4341072c9e3627e0136)
+# commit 023a84744b7db460d42225c8b5ea4d6def085c81
+# Merge: 9b57d7b7 0607d2c8
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 16 10:17:25 2025 +0000
+#     Merge pull request #2546 from lukaszstolarczuk/bump-umf-to-latest-main
+#     [main] Bump UMF to v0.10.1
+set(UNIFIED_RUNTIME_TAG 023a84744b7db460d42225c8b5ea4d6def085c81)
