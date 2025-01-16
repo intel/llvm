@@ -17,7 +17,7 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
 #endif
-#include <sycl/device.hpp>                     // for device
+#include <sycl/device.hpp> // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
@@ -450,6 +450,11 @@ public:
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
+      const property_list &PropList);
+
+  dynamic_parameter_base(
+      sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
+          Graph,
       size_t ParamSize, const void *Data);
 
 protected:
@@ -461,6 +466,15 @@ protected:
   void updateValue(const raw_kernel_arg *NewRawValue, size_t Size);
 
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
+
+  sycl::detail::LocalAccessorImplPtr getLocalAccessor(handler *Handler) const;
+
+  void
+  registerLocalAccessor(sycl::detail::LocalAccessorBaseHost *LocalAccBaseHost,
+                        handler *Handler);
+
+  void updateLocalAccessor(range<3> NewAllocationSize);
+
   std::shared_ptr<dynamic_parameter_impl> impl;
 
   template <class Obj>
@@ -496,6 +510,44 @@ public:
       detail::dynamic_parameter_base::updateValue(&NewValue, sizeof(ValueT));
     }
   }
+};
+
+template <typename DataT, int Dimensions = 1>
+class dynamic_local_accessor : public detail::dynamic_parameter_base {
+public:
+  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  dynamic_local_accessor(command_graph<graph_state::modifiable> Graph,
+                         range<Dimensions> AllocationSize,
+                         const property_list &PropList = {})
+      : detail::dynamic_parameter_base(Graph, PropList),
+        AllocationSize(AllocationSize) {}
+
+  void update(range<Dimensions> NewAllocationSize) {
+    detail::dynamic_parameter_base::updateLocalAccessor(
+        ::sycl::detail::convertToArrayOfN<3, 1>(NewAllocationSize));
+  };
+
+  local_accessor<DataT, Dimensions> get(handler &CGH) {
+#ifndef __SYCL_DEVICE_ONLY__
+    ::sycl::detail::LocalAccessorImplPtr BaseLocalAcc = getLocalAccessor(&CGH);
+    if (BaseLocalAcc) {
+      return sycl::detail::createSyclObjFromImpl<
+          local_accessor<DataT, Dimensions>>(BaseLocalAcc);
+    } else {
+      local_accessor<DataT, Dimensions> LocalAccessor(AllocationSize, CGH);
+      registerLocalAccessor(
+          static_cast<sycl::detail::LocalAccessorBaseHost *>(&LocalAccessor),
+          &CGH);
+      return LocalAccessor;
+    }
+#else
+    (void)CGH;
+    return local_accessor<DataT, Dimensions>();
+#endif
+  };
+
+private:
+  range<Dimensions> AllocationSize;
 };
 
 /// Additional CTAD deduction guides.

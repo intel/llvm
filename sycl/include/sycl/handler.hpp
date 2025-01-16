@@ -647,6 +647,22 @@ private:
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
+  // setArgHelper for graph dynamic_local_accessors.
+  template <typename DataT, int Dims>
+  void
+  setArgHelper(int ArgIndex,
+               ext::oneapi::experimental::dynamic_local_accessor<DataT, Dims>
+                   &DynamicLocalAccessor) {
+#ifndef __SYCL_DEVICE_ONLY__
+    auto LocalAccessor = DynamicLocalAccessor.get(*this);
+    setArgHelper(ArgIndex, LocalAccessor);
+    registerDynamicParameter(DynamicLocalAccessor, ArgIndex);
+#else
+    (void)ArgIndex;
+    (void)DynamicLocalAccessor;
+#endif
+  }
+
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
                     sycl::ext::oneapi::experimental::raw_kernel_arg &&Arg) {
@@ -1834,14 +1850,21 @@ public:
 
   // set_arg for graph dynamic_parameters
   template <typename T>
-  void set_arg(int argIndex,
-               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
-    setArgHelper(argIndex, dynamicParam);
+  void set_arg(int ArgIndex,
+               ext::oneapi::experimental::dynamic_parameter<T> &DynamicParam) {
+    setArgHelper(ArgIndex, DynamicParam);
+  }
+
+  template <typename DataT, int Dims>
+  void set_arg(int ArgIndex,
+               ext::oneapi::experimental::dynamic_local_accessor<DataT, Dims>
+                   &DynamicLocalAccessor) {
+    setArgHelper(ArgIndex, DynamicLocalAccessor);
   }
 
   // set_arg for the raw_kernel_arg extension type.
-  void set_arg(int argIndex, ext::oneapi::experimental::raw_kernel_arg &&Arg) {
-    setArgHelper(argIndex, std::move(Arg));
+  void set_arg(int ArgIndex, ext::oneapi::experimental::raw_kernel_arg &&Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
   }
 
   /// Sets arguments for OpenCL interoperability kernels.
