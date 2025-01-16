@@ -31,7 +31,7 @@ config.igc_tag_file = os.path.join("/usr/local/lib/igc/", 'IGCTAG.txt')
 config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARGETS@").split(';')
 
 # TODO: get this information from compiler configuration
-config.available_triples = lit_config.params.get("sycl_triples", "spir64;nvptx64-nvidia-cuda;amdgcn-amd-amdhsa").split(';')
+config.sycl_triples = lit_config.params.get("sycl_triples", "spir;nvidia;amd").split(';')
 
 config.amd_arch = lit_config.params.get("amd_arch", "@AMD_ARCH@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'

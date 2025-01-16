@@ -43,17 +43,18 @@ config.fallback_build_run_only = False
 if config.test_mode == "full":
     config.available_features.add("run-mode")
     config.available_features.add("build-and-run-mode")
-    config.available_triples = set()
+    config.sycl_triples = set()
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
-    config.available_triples = set()
+    config.sycl_triples = set()
     if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
         config.available_features.add("build-and-run-mode")
         config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
+    config.sycl_triples = set(map(lambda x: "target-"+x,config.sycl_triples))
     if not config.amd_arch:
         config.amd_arch = "gfx1031"
 else:
@@ -832,14 +833,13 @@ for sycl_device in config.sycl_devices:
     features.add(be)
     # Add corresponding triple feature
     triple = {
-        "level_zero": "spir64",
-        "opencl": "spir64",
-        "cuda": "nvptx64-nvidia-cuda",
-        "hip": "amdgcn-amd-amdhsa",
-        "native_cpu": "native_cpu",
+        "level_zero": "target-spir",
+        "opencl": "target-spir",
+        "cuda": "target-nvidia",
+        "hip": "target-amd",
     }[be]
     features.add(triple)
-    config.available_triples.add(triple)
+    config.sycl_triples.add(triple)
 
     if be == "hip":
         if not config.amd_arch:

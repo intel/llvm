@@ -190,7 +190,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
     def select_triples_for_test(self, test):
         supported_triples = set()
-        for t in test.config.available_triples:
+        for t in test.config.sycl_triples:
             features = test.config.available_features.union({t})
             if self.getMissingRequiredFeaturesFromList(features, test.requires, True):
                 continue
@@ -279,6 +279,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "No supported triple to build for"
                 )
+            triples = set(map(lambda t: {
+                "target-spir":"spir64",
+                "target-nvidia":"nvptx64-nvidia-cuda",
+                "target-amd":"amdgcn-amd-amdhsa",
+                }[t], triples))
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
