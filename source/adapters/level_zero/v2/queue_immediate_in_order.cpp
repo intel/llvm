@@ -186,11 +186,23 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 
   // Free deferred events
   for (auto &hEvent : deferredEvents) {
-    hEvent->releaseDeferred();
+    UR_CALL(hEvent->releaseDeferred());
   }
   deferredEvents.clear();
 
+  // Free deferred kernels
+  for (auto &hKernel : submittedKernels) {
+    UR_CALL(hKernel->release());
+  }
+  submittedKernels.clear();
+
   return UR_RESULT_SUCCESS;
+}
+
+void ur_queue_immediate_in_order_t::recordSubmittedKernel(
+    ur_kernel_handle_t hKernel) {
+  submittedKernels.push_back(hKernel);
+  hKernel->RefCount.increment();
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
@@ -250,6 +262,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,
              (handler.commandList.get(), hZeKernel, &zeThreadGroupDimensions,
               zeSignalEvent, waitList.second, waitList.first));
+
+  recordSubmittedKernel(hKernel);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1062,6 +1076,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
   ZE2UR_CALL(zeCommandListAppendLaunchCooperativeKernel,
              (handler.commandList.get(), hZeKernel, &zeThreadGroupDimensions,
               zeSignalEvent, waitList.second, waitList.first));
+
+  recordSubmittedKernel(hKernel);
 
   return UR_RESULT_SUCCESS;
 }
