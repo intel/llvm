@@ -721,7 +721,10 @@ ur_result_t AsanInterceptor::prepareLaunch(
                     ContextInfo->Handle, DeviceInfo->Handle, (uptr)Ptr)) {
                 ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
                                             ValidateResult, PtrPair.second);
-                exitWithErrors();
+                if (ValidateResult.Type !=
+                    ValidateUSMResult::MAYBE_HOST_POINTER) {
+                    exitWithErrors();
+                }
             }
         }
     }
@@ -864,13 +867,15 @@ AsanInterceptor::findAllocInfoByAddress(uptr Address) {
     std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     auto It = m_AllocationMap.upper_bound(Address);
     if (It == m_AllocationMap.begin()) {
-        return std::optional<AllocationIterator>{};
+        return std::nullopt;
     }
     --It;
-    // Make sure we got the right AllocInfo
-    assert(Address >= It->second->AllocBegin &&
-           Address < It->second->AllocBegin + It->second->AllocSize &&
-           "Wrong AllocInfo for the address");
+
+    // Maybe it's a host pointer
+    if (Address < It->second->AllocBegin ||
+        Address >= It->second->AllocBegin + It->second->AllocSize) {
+        return std::nullopt;
+    }
     return It;
 }
 
