@@ -24,5 +24,5 @@ apt update && apt install -yqq \
       jq \
       curl \
       libhwloc-dev \
-      libzstd-dev
-
+      libzstd-dev \
+      time

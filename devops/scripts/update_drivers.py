@@ -48,16 +48,18 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
     config[platform_tag]['compute_runtime']['version'] = compute_runtime['tag_name']
     config[platform_tag]['compute_runtime']['url'] = 'https://github.com/intel/compute-runtime/releases/tag/' + compute_runtime['tag_name']
 
-    for a in compute_runtime['assets']:
-        if a['name'].endswith('.sum'):
-            deps = str(urlopen(a['browser_download_url']).read())
-            m = re.search(r"intel-igc-core_([0-9\.]*)_amd64", deps)
-            if m is not None:
-                ver = m.group(1)
-                config[platform_tag]['igc']['github_tag'] = 'igc-' + ver
-                config[platform_tag]['igc']['version'] = ver
-                config[platform_tag]['igc']['url'] = 'https://github.com/intel/intel-graphics-compiler/releases/tag/igc-' + ver
-                break
+    m = re.search(
+        re.escape("https://github.com/intel/intel-graphics-compiler/releases/tag/")
+        + r"(v[\.0-9]+)",
+        compute_runtime["body"],
+    )
+    if m is not None:
+        ver = m.group(1)
+        config[platform_tag]["igc"]["github_tag"] = ver
+        config[platform_tag]["igc"]["version"] = ver
+        config[platform_tag]["igc"]["url"] = (
+            "https://github.com/intel/intel-graphics-compiler/releases/tag/" + ver
+        )
 
     cm = get_latest_release('intel/cm-compiler')
     config[platform_tag]['cm']['github_tag'] = cm['tag_name']
