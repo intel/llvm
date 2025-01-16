@@ -530,8 +530,10 @@ public:
         for (const auto &DeviceGlobalProp : RawImg->getDeviceGlobals()) {
           std::string_view DeviceGlobalName{DeviceGlobalProp->Name};
           assert(DeviceGlobalName.find(Prefix) == 0);
-          auto [It, Ins] = DeviceGlobalIDSet.emplace(DeviceGlobalName);
-          if (Ins) {
+          bool Inserted = false;
+          std::tie(std::ignore, Inserted) =
+              DeviceGlobalIDSet.emplace(DeviceGlobalName);
+          if (Inserted) {
             DeviceGlobalIDVec.emplace_back(DeviceGlobalName);
             DeviceGlobalName.remove_prefix(PrefixLen);
             DeviceGlobalNames.emplace_back(DeviceGlobalName);
