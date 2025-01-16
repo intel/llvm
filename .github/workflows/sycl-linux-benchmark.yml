@@ -91,6 +91,7 @@ on:
           * RESET_GPU       -- set to "true" to reset Intel GPUs
           * INSTALL_DRIVERS -- set to "true" to install drivers
           * USE_DEV_IGC     -- set to "true" to use dev igc
+
         default: '{}'
 
       sycl_toolchain_artifact:
@@ -136,8 +137,6 @@ jobs:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
-    # permissions:
-    #   contents: write
     steps:
     - name: Reset GPU
       if: env.RESET_GPU == 'true'
@@ -218,26 +217,16 @@ jobs:
         rm -f ${{ inputs.sycl_toolchain_archive || needs.check_build.outputs.artifact_archive_name }}
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
-    - run: which clang++ sycl-ls
-    - run: sycl-ls --verbose
-    - run: SYCL_UR_TRACE=1 sycl-ls
-    - run: |
+    - name: Debug: Print IGC tag
+      run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
 
-    # - name: Install deps
-    #   if: success()
-    #   run: |
-    #     sudo apt install -y ssh
     - name: Run compute-benchmarks
       id: run_benchmarks
       if: success()
       run: |
-        whereis clang++
-        whereis sycl-ls
-        clang++ --version
-        ls
         export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
         export CMPLR_ROOT=$PWD/toolchain
         ./devops/scripts/benchmarking/benchmark.sh -t '${{ inputs.runner }}' ${{ inputs.cache_results == true && '-s' }}
@@ -257,6 +246,7 @@ jobs:
         git add .
         git commit -m "Update results"
         git push
+    # TODO
     # - name: Upload sycl-bench microbenchmark results
     #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
     #   uses: actions/upload-artifact@v4
@@ -268,5 +258,3 @@ jobs:
   test_aggregate:
     name: Testing sycl-benchmark-aggregate.yml (DELETE AFTER)
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
-    #permissions:
-    #  contents: write

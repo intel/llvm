@@ -21,8 +21,6 @@ permissions:
 jobs:
   aggregate:
     name: Aggregate average value for all metrics (median)
-    # permissions:
-    #   contents: write  # for Git to git push
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
     steps:
@@ -65,15 +63,11 @@ jobs:
           _testcase="$(basename $dir)"
           python llvm/devops/scripts/benchmarking/aggregate.py "$_runner" "$_testcase" "$CUTOFF_TIMESTAMP"
         done
-    - name: Debug
-      run: |
-        find "$PERF_RES_PATH" -maxdepth 3 ! -name '.*'
-        echo "########"
-        find . -maxdepth 3 ! -name '.*'
     - name: Upload average to the repo
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |
+        # TODO -- waiting on security clearance
         mkdir -p ~/.ssh
         echo "$SSH_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
