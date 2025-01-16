@@ -296,6 +296,8 @@ jobs:
           #   use_igc_dev: true
 
     uses: ./.github/workflows/sycl-linux-benchmark.yml
+    permissions:
+      contents: write
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
