@@ -10,7 +10,7 @@ import subprocess
 
 import tarfile
 import urllib # nosec B404
-from benches.options import options
+from options import options
 from pathlib import Path
 
 def run(command, env_vars={}, cwd=None, add_sycl=False, ld_library=[]):
