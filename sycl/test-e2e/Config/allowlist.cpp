@@ -17,13 +17,14 @@
 #include <string>
 #include <sycl/detail/core.hpp>
 
-static bool isIdenticalDevices(std::vector<sycl::devices> Devices) {
-  return std::all_of(Devices.cbegin(), Devices.cend(), [](sycl::device &Dev) {
-    return (Dev.get_info<sycl::info::device::name>() ==
-            Devices.at(0).get_info<sycl::info::device::name>()) &&
-           (Dev.get_info<sycl::info::device::driver_version>() ==
-            Devices.at(0).get_info<sycl::info::device::driver_version>())
-  });
+static bool isIdenticalDevices(const std::vector<sycl::device> &Devices) {
+  return std::all_of(
+      Devices.cbegin(), Devices.cend(), [&](const sycl::device &Dev) {
+        return (Dev.get_info<sycl::info::device::name>() ==
+                Devices.at(0).get_info<sycl::info::device::name>()) &&
+               (Dev.get_info<sycl::info::device::driver_version>() ==
+                Devices.at(0).get_info<sycl::info::device::driver_version>());
+      });
 }
 
 static void replaceSpecialCharacters(std::string &Str) {
