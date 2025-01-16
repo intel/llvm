@@ -13,6 +13,7 @@
 
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/IR/IRBuilder.h"
+//#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 using namespace llvm;
 
@@ -185,6 +186,17 @@ bool transformAccessChain(Function *F) {
   return ModuleChanged;
 }
 
+StoreInst *findLastStoreBeforeLoad(Value *Ptr, Instruction *Load) {
+  BasicBlock::iterator It(Load);
+  while (It != Load->getParent()->begin()) {
+    --It;
+    if (auto *Store = dyn_cast<StoreInst>(&*It))
+      if (Store->getPointerOperand() == Ptr)
+        return Store;
+  }
+  return nullptr;
+}
+
 // Per SPIR-V specification Layout of a matrix must be a constant instruction
 // aka a constexpr or specialization constant. Meanwhile in SYCL headers
 // layout is passed as a parameter to joint_matrix_load function, so even if
@@ -198,7 +210,7 @@ bool transformAccessChain(Function *F) {
 // This function also cleans up code, that becomes dead. Pattern of the dead
 // code is stable, as user's code doesn't affect it.
 bool propagateConstexprLayout(Function *F) {
-  llvm::SmallVector<Instruction *, 4> ToErase;
+  llvm::SmallVector<Instruction *, 8> ToErase;
   for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
     User *U = *I++;
     auto *CI = dyn_cast<CallInst>(U);
@@ -212,34 +224,36 @@ bool propagateConstexprLayout(Function *F) {
       continue;
 
     ConstantInt *ConstLayout = nullptr;
-    for (const auto &U : Ptr->users()) {
-      if (!isa<StoreInst>(U))
-        continue;
-      assert(!ConstLayout && "More than 1 layout value was found");
-      auto *SI = cast<StoreInst>(U);
-      ConstLayout = dyn_cast<ConstantInt>(SI->getValueOperand());
-      if (ConstLayout) {
-        CI->replaceAllUsesWith(ConstLayout);
-        ToErase.push_back(CI);
-        ToErase.push_back(SI);
-      }
-    }
+    StoreInst *SI = findLastStoreBeforeLoad(Ptr, Op);
+    if (!SI)
+      continue;
+    ConstLayout = dyn_cast<ConstantInt>(SI->getValueOperand());
     if (ConstLayout) {
+      CI->replaceAllUsesWith(ConstLayout);
+      ToErase.push_back(CI);
+      ToErase.push_back(SI);
       ToErase.push_back(Op);
       ToErase.push_back(Ptr);
       if (auto *Cast = dyn_cast<AddrSpaceCastInst>(Ptr)) {
         auto *OrigPtr = Cast->getPointerOperand();
-        if (auto *AI = dyn_cast<AllocaInst>(OrigPtr)) {
+        if (auto *AI = dyn_cast<AllocaInst>(OrigPtr))
           ToErase.push_back(AI);
-        }
       }
     }
   }
+
+  // There are possible cases, when a single instruction result is used multiple
+  // times. For this case we have to use a vector to store such instructions
+  // and keep track if we have removed them before to avoid double free().
+  SmallPtrSet<Instruction *, 8> Erased;
   for (Instruction *II : ToErase) {
-    if (!II)
+    if (!II->use_empty())
+      continue;
+    if (Erased.contains(II))
       continue;
     II->dropAllReferences();
     II->eraseFromParent();
+    Erased.insert(II);
   }
   return !ToErase.empty();
 }

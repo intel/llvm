@@ -36,6 +36,11 @@ entry:
 
   %layout.spv.3 = call spir_func noundef i32 @joint_matrix_layout_to_spv(i32 noundef %layout.val.2)
   %mload.3 = call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 16, 16, 2) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1ffLm16ELm16ELN5__spv9MatrixUseE2ELNS1_12MatrixLayoutE3ELNS1_5Scope4FlagE3EEPNS1_28__spirv_CooperativeMatrixKHRIT0_XT5_EXT1_EXT2_EXT3_EEEPT_S3_mi(ptr addrspace(1) noundef %matrix.2, i32 noundef %layout.spv.3, i64 noundef %stride, i32 noundef 0)
+
+  store i32 2, ptr addrspace(4) %layout.ascast.2, align 4
+  %layout.val.4 = load i32, ptr addrspace(4) %layout.ascast.2, align 4
+  %layout.spv.4 = call spir_func noundef i32 @joint_matrix_layout_to_spv(i32 noundef %layout.val.4)
+  %mload.4 = call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 16, 16, 2) @_Z32__spirv_CooperativeMatrixLoadKHRIU3AS1ffLm16ELm16ELN5__spv9MatrixUseE2ELNS1_12MatrixLayoutE3ELNS1_5Scope4FlagE3EEPNS1_28__spirv_CooperativeMatrixKHRIT0_XT5_EXT1_EXT2_EXT3_EEEPT_S3_mi(ptr addrspace(1) noundef %matrix.2, i32 noundef %layout.spv.4, i64 noundef %stride, i32 noundef 0)
   ret void
 }
 
