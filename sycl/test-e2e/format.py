@@ -11,25 +11,27 @@ from lit.TestRunner import (
 import os
 import re
 
+
 class E2EExpr(BooleanExpression):
     build_specific_features = {
-            'build-and-run-mode',
-            'spir64',
-            'nvptx64-nvidia-cuda',
-            'amdgcn-amd-amdhsa',
-            'native_cpu',
-            'linux',
-            'system-linux',
-            'windows',
-            'system-windows',
-            'enable-perf-tests',
-            'opencl_icd',
-            'cuda_dev_kit',
-            'zstd',
-            'vulkan',
-            'true',
-            'false'
-            }
+        "build-and-run-mode",
+        "spir64",
+        "nvptx64-nvidia-cuda",
+        "amdgcn-amd-amdhsa",
+        "native_cpu",
+        "linux",
+        "system-linux",
+        "windows",
+        "system-windows",
+        "enable-perf-tests",
+        "opencl_icd",
+        "cuda_dev_kit",
+        "zstd",
+        "vulkan",
+        "true",
+        "false",
+    }
+
     def __init__(self, string, variables, build_only_mode, ignore_value):
         BooleanExpression.__init__(self, string, variables)
         self.build_only_mode = build_only_mode
@@ -37,7 +39,7 @@ class E2EExpr(BooleanExpression):
         self.ignore_value = ignore_value
 
     @staticmethod
-    def evaluate(string, variables, build_only_mode, ignore_value = True):
+    def evaluate(string, variables, build_only_mode, ignore_value=True):
         try:
             parser = E2EExpr(string, set(variables), build_only_mode, ignore_value)
             return parser.parseAll()
@@ -62,10 +64,11 @@ class E2EExpr(BooleanExpression):
             right_ignore = self.ignore
             self.value = left and right
             # Ignore if both are ignore or if one is true and the other is ignore
-            self.ignore = ((left_ignore and right_ignore)
-                           or (left_ignore and right)
-                           or (left and right_ignore )
-                           )
+            self.ignore = (
+                (left_ignore and right_ignore)
+                or (left_ignore and right)
+                or (left and right_ignore)
+            )
 
     def parseOR(self):
         self.parseAND()
@@ -77,10 +80,11 @@ class E2EExpr(BooleanExpression):
             right_ignore = self.ignore
             self.value = left or right
             # Ignore if both are ignore or if one is false and the other is ignore
-            self.ignore = ((left_ignore and right_ignore)
-                           or (left_ignore and not right)
-                           or (not left and right_ignore)
-                           )
+            self.ignore = (
+                (left_ignore and right_ignore)
+                or (left_ignore and not right)
+                or (not left and right_ignore)
+            )
 
     def parseAll(self):
         self.token = next(self.tokens)
@@ -162,7 +166,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         return script
 
-    def getMissingRequiredFeaturesFromList(self, features, requires, build_only_mode = False):
+    def getMissingRequiredFeaturesFromList(
+        self, features, requires, build_only_mode=False
+    ):
         try:
             return [
                 item
@@ -172,10 +178,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         except ValueError as e:
             raise ValueError("Error in REQUIRES list:\n%s" % str(e))
 
-    def getMatchedFromList(self, features, alist, build_only_mode = False):
+    def getMatchedFromList(self, features, alist, build_only_mode=False):
         try:
             return [
-                item for item in alist if E2EExpr.evaluate(item, features, build_only_mode, False)
+                item
+                for item in alist
+                if E2EExpr.evaluate(item, features, build_only_mode, False)
             ]
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
