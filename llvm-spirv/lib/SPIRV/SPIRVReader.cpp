@@ -2647,11 +2647,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       if (!M->IsNewDbgInfoFormat) {
         return mapValue(
-            BV, DbgTran->transDebugIntrinsic(ExtInst, BB).get<Instruction *>());
+            BV, cast<Instruction *>(DbgTran->transDebugIntrinsic(ExtInst, BB)));
       } else {
         auto MaybeRecord = DbgTran->transDebugIntrinsic(ExtInst, BB);
         if (!MaybeRecord.isNull()) {
-          auto *Record = MaybeRecord.get<DbgRecord *>();
+          auto *Record = cast<DbgRecord *>(MaybeRecord);
           Record->setDebugLoc(
               DbgTran->transDebugScope(static_cast<SPIRVInstruction *>(BV)));
         }
