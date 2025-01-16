@@ -144,6 +144,7 @@ void test_permute_sub_group_by_xor_extra_arg() {
       91,  90,  93,  92,  95,  94,  97,  96,  99,  98,  101, 100, 103, 102, 105,
       104, 107, 106, 109, 108, 111, 110, 113, 112, 115, 114, 117, 116, 119, 118,
       121, 120, 123, 122, 125, 124, 127, 126};
+  unsigned int host_dev_data_u[DATA_NUM];
   init_data<unsigned int>(host_dev_data_u, DATA_NUM);
 
   q_ct1->memcpy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
