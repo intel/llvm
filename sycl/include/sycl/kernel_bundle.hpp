@@ -32,7 +32,9 @@
 #include <functional>  // for function
 #include <iterator>    // for distance
 #include <memory>      // for shared_ptr, operator==, hash
+#ifdef __cpp_lib_span
 #include <span>        // for span
+#endif
 #include <string>      // for string
 #include <type_traits> // for enable_if_t, remove_refer...
 #include <utility>     // for move
