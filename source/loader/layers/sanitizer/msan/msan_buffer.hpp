@@ -28,7 +28,8 @@ struct MemBuffer {
 
     // Sub-buffer constructor
     MemBuffer(std::shared_ptr<MemBuffer> Parent, size_t Origin, size_t Size)
-        : Context(Parent->Context), Size(Size), SubBuffer{{Parent, Origin}} {}
+        : Context(Parent->Context),
+          Size(Size), SubBuffer{{std::move(Parent), Origin}} {}
 
     ur_result_t getHandle(ur_device_handle_t Device, char *&Handle);
 

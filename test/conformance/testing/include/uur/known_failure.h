@@ -17,8 +17,8 @@ namespace uur {
 struct Matcher {
     Matcher(uint32_t adapterVersion, ur_adapter_backend_t backend,
             std::vector<std::string> deviceNames)
-        : adapterVersion(adapterVersion), backend(backend), names(deviceNames) {
-    }
+        : adapterVersion(adapterVersion), backend(backend),
+          names(std::move(deviceNames)) {}
 
     uint32_t adapterVersion;
     ur_adapter_backend_t backend;
