@@ -1,7 +1,7 @@
-# commit 023a84744b7db460d42225c8b5ea4d6def085c81
-# Merge: 9b57d7b7 0607d2c8
+# commit c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787
+# Merge: e6d4355f 778085f7
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 16 10:17:25 2025 +0000
-#     Merge pull request #2546 from lukaszstolarczuk/bump-umf-to-latest-main
-#     [main] Bump UMF to v0.10.1
-set(UNIFIED_RUNTIME_TAG 023a84744b7db460d42225c8b5ea4d6def085c81)
+# Date:   Mon Jan 13 10:41:50 2025 +0000
+#     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
+#     Parameterize CTS tests across all available adapters and devices.
+set(UNIFIED_RUNTIME_TAG bbf7e01bd74ac51b518fc044d0ca71a920443e5b)
