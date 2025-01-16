@@ -189,7 +189,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind, const property_list &PropList,
                    const detail::code_location &CodeLoc) {
-                    std::ignore = CodeLoc;
+  std::ignore = CodeLoc;
   void *RetVal =
       alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
                            getSyclObjImpl(Dev).get(), Kind, PropList);
@@ -206,7 +206,7 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
 
 void free(void *Ptr, const context &Ctxt,
           const detail::code_location &CodeLoc) {
-            std::ignore = CodeLoc;
+  std::ignore = CodeLoc;
   freeInternal(Ptr, detail::getSyclObjImpl(Ctxt).get());
 }
 
