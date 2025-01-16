@@ -14,7 +14,6 @@
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 #include <utility>                      // std::pair
 
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
