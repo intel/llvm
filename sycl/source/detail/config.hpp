@@ -354,7 +354,7 @@ template <> class SYCLConfig<SYCL_CACHE_PERSISTENT> {
   using BaseT = SYCLConfigBase<SYCL_CACHE_PERSISTENT>;
 
 public:
-  static constexpr bool Default = false; // default is disabled
+  static constexpr bool Default = true; // default is enabled
 
   static bool get() { return getCachedValue(); }
 
