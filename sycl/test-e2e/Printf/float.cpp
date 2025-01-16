@@ -4,7 +4,7 @@
 // The test is written using conversion specifiers table from cppreference [1]
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
