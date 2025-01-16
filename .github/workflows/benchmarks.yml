@@ -43,6 +43,11 @@ on:
         type: string
         required: false
         default: ''
+      compute_runtime_commit:
+        description: 'Compute Runtime commit'
+        type: string
+        required: false
+        default: ''
       upload_report:
         description: 'Upload HTML report'
         type: boolean
@@ -65,4 +70,5 @@ jobs:
       sycl_config_params: ${{ inputs.sycl_config_params }}
       sycl_repo: ${{ inputs.sycl_repo }}
       sycl_commit: ${{ inputs.sycl_commit }}
+      compute_runtime_commit: ${{ inputs.compute_runtime_commit }}
       upload_report: ${{ inputs.upload_report }}

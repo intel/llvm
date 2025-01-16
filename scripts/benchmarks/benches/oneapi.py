@@ -5,7 +5,7 @@
 
 from pathlib import Path
 from utils.utils import download, run
-from .options import options
+from options import options
 import os
 
 class OneAPI:

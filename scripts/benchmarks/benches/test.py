@@ -8,7 +8,7 @@ from utils.utils import git_clone
 from .base import Benchmark, Suite
 from .result import Result
 from utils.utils import run, create_build_path
-from .options import options
+from options import options
 import os
 
 class TestSuite(Suite):
