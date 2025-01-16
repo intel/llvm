@@ -867,7 +867,7 @@ AsanInterceptor::findAllocInfoByAddress(uptr Address) {
     std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     auto It = m_AllocationMap.upper_bound(Address);
     if (It == m_AllocationMap.begin()) {
-        return std::optional<AllocationIterator>{};
+        return std::nullopt;
     }
     --It;
 
