@@ -1,6 +1,6 @@
 // Test -fsycl-allow-device-image-dependencies with dynamic libraries.
 
-// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
+// UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}

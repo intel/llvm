@@ -1,4 +1,4 @@
-// REQUIRES: nvptx64-nvidia-cuda
+// REQUIRES: target-nvidia
 // REQUIRES: cuda,aspect-ext_oneapi_cubemap
 // REQUIRES: aspect-ext_oneapi_cubemap_seamless_filtering
 

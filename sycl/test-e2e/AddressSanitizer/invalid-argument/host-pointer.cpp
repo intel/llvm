@@ -1,5 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env UR_LAYER_ASAN_OPTIONS="detect_kernel_arguments:1" %{run} %if gpu %{ not %} %t 2>&1 | FileCheck --check-prefixes %if cpu %{ CHECK-CPU %} %if gpu %{ CHECK-GPU %} %s
 

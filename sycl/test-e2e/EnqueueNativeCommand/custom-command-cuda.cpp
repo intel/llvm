@@ -1,6 +1,6 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out %cuda_options
 // RUN: %{run} %t.out
-// REQUIRES: nvptx64-nvidia-cuda, cuda_dev_kit
+// REQUIRES: target-nvidia, cuda_dev_kit
 
 #include <cuda.h>
 

@@ -1,4 +1,4 @@
-// UNSUPPORTED: nvptx64-nvidia-cuda, amdgcn-amd-amdhsa
+// UNSUPPORTED: target-nvidia, target-amd
 // REQUIRES: gpu,linux,sg-8
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

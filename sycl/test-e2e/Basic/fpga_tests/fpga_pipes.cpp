@@ -1,5 +1,5 @@
 // REQUIRES: accelerator
-// REQUIRES: spir64
+// REQUIRES: target-spir
 // https://github.com/intel/llvm/issues/14308
 // Temporarily re-enabled for testing purposes.
 // If you are facing issues with this test, please leave a comment in:

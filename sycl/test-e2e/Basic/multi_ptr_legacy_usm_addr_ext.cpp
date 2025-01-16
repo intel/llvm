@@ -1,5 +1,5 @@
 // REQUIRES: accelerator
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 // RUN: %{build} -Wno-error=deprecated-declarations -D__ENABLE_USM_ADDR_SPACE__ -fsycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 // RUN: %{build} -Wno-error=deprecated-declarations -D__ENABLE_USM_ADDR_SPACE__ -DRESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR -fsycl-dead-args-optimization -o %t1.out

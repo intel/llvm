@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out

@@ -9,7 +9,7 @@
 // RUN: %{run} %t.out
 
 // Failing on HIP AMD, enable after fixed
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

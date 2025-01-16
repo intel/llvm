@@ -6,7 +6,7 @@
 //
 // REQUIRES: build-and-run-mode
 // REQUIRES: cpu || gpu
-// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
+// UNSUPPORTED: target-nvidia || target-amd
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>

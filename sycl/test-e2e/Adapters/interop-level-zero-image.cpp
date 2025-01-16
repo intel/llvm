@@ -1,5 +1,5 @@
 // REQUIRES: level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
-// REQUIRES: spir64
+// REQUIRES: target-spir
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 

@@ -1,4 +1,4 @@
-// REQUIRES: nvptx64-nvidia-cuda,aspect-ext_oneapi_cubemap
+// REQUIRES: target-nvidia,aspect-ext_oneapi_cubemap
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out

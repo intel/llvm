@@ -1,5 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: %{run} %t 2>&1 | FileCheck %s
 // RUN: env UR_LAYER_ASAN_OPTIONS="print_stats:1;quarantine_size_mb:1" %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-STATS %s

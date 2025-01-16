@@ -2,7 +2,7 @@
 // we should set this with some variable instead.
 // RUN: %{build} -Wno-error=deprecated-pragma -Wno-error=deprecated-declarations -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
 // RUN: %{run} %t.out
-// REQUIRES: amdgcn-amd-amdhsa
+// REQUIRES: target-amd
 // ROCM path causes issues on build-only ci
 // REQUIRES: build-and-run-mode
 

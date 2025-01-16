@@ -1,5 +1,5 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: amdgcn-amd-amdhsa || nvptx64-nvidia-cuda
+// UNSUPPORTED: target-amd || target-nvidia
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 

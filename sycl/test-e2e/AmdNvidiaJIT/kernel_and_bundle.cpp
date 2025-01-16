@@ -1,5 +1,5 @@
 // UNSUPPORTED: windows
-// REQUIRES: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
+// REQUIRES: target-nvidia || target-amd
 
 // This test relies on debug output from a pass, make sure that the compiler
 // can generate it.

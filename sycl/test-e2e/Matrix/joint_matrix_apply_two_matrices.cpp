@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES: spir64
+// REQUIRES: target-spir
 
 // RUN: %{build} %fp-model-precise -o %t.out
 // RUN: %{run} %t.out

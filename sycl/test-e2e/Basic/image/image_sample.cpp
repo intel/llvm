@@ -1,7 +1,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>

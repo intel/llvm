@@ -1,5 +1,5 @@
 // REQUIRES: accelerator
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 // RUN: %{build} -D__ENABLE_USM_ADDR_SPACE__ -fsycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 

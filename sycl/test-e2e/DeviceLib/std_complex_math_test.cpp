@@ -1,5 +1,5 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// UNSUPPORTED: amdgcn-amd-amdhsa || nvptx64-nvidia-cuda
+// UNSUPPORTED: target-amd || target-nvidia
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 

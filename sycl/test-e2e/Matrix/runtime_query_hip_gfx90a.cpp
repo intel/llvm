@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: arch-amd_gpu_gfx90a
-// REQUIRES: amdgcn-amd-amdhsa
+// REQUIRES: target-amd
 // RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 

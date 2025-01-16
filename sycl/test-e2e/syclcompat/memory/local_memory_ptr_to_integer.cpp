@@ -1,5 +1,5 @@
 // REQUIRES: cuda
-// REQUIRES: nvptx64-nvidia-cuda
+// REQUIRES: target-nvidia
 // RUN:  %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_75 -o %t.out
 // RUN:  %{run} %t.out
 #include <sycl/detail/core.hpp>

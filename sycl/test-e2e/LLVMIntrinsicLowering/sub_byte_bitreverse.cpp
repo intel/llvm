@@ -1,7 +1,7 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv for 2/4-bit
 // types.
 
-// UNSUPPORTED: amdgcn-amd-amdhsa || nvptx64-nvidia-cuda
+// UNSUPPORTED: target-amd || target-nvidia
 
 // XFAIL: gpu
 // XFAIL-TRACKER: https://github.com/intel/intel-graphics-compiler/issues/330

@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: amdgcn-amd-amdhsa, cuda
+// UNSUPPORTED: target-amd, cuda
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

@@ -1,4 +1,4 @@
-// REQUIRES: nvptx64-nvidia-cuda
+// REQUIRES: target-nvidia
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out

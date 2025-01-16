@@ -10,7 +10,7 @@
 // RUN: %{build} -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 // UNSUPPORTED: native_cpu
 
 #include <cstdlib>

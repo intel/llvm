@@ -2,7 +2,7 @@
 // It tests if the target triples can be specified with any order.
 // The test is repeated for per_kernel device code splitting.
 //
-// REQUIRES: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa || native_cpu
+// REQUIRES: target-nvidia || target-amd || native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 %if amdgcn-amd-amdhsa %{ %{hip_arch_opts} %} -o %t1.out %s
 // RUN: %{run} %t1.out
 //

@@ -1,4 +1,4 @@
-// REQUIRES: gpu, nvptx64-nvidia-cuda, cuda_dev_kit
+// REQUIRES: gpu, target-nvidia, cuda_dev_kit
 // RUN: %{build} %cuda_options -o %t.out
 // RUN: %{run} %t.out
 //

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: gpu-intel-gen12, gpu
-// REQUIRES: spir64
+// REQUIRES: target-spir
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

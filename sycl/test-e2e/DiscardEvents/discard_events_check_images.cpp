@@ -1,4 +1,4 @@
-// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: target-amd
 // REQUIRES: aspect-ext_intel_legacy_image
 //
 // XFAIL: linux && gpu-intel-dg2

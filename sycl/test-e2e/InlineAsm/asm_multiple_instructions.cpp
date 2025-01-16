@@ -1,4 +1,4 @@
-// UNSUPPORTED: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
+// UNSUPPORTED: target-nvidia || target-amd
 // REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -DTO_PASS -o %t.out.pass
 // RUN: %{run} %t.out.pass

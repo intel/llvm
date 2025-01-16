@@ -5,7 +5,7 @@
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: nvptx64-nvidia-cuda
+// UNSUPPORTED: target-nvidia
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 // XFAIL: hip

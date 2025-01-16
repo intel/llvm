@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
-// REQUIRES: spir64
+// REQUIRES: target-spir
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DOOB -DVNNI
