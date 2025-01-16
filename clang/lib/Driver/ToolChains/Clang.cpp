@@ -3013,7 +3013,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                        const JobAction &JA,
                                        bool &NoOffloadFP32PrecDiv,
                                        bool &NoOffloadFP32PrecSqrt) {
-                                       const JobAction &JA) {
   // List of veclibs which when used with -fveclib imply -fno-math-errno.
   constexpr std::array VecLibImpliesNoMathErrno{llvm::StringLiteral("ArmPL"),
                                                 llvm::StringLiteral("SLEEF")};
