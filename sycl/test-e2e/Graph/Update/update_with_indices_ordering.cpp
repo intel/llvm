@@ -18,7 +18,7 @@ int main() {
   const size_t N = 1 << 16;
   // Loop inside kernel to make even slower (too large N runs out of memory)
   const size_t NumKernelLoops = 4;
-  const size_t NumSubmitLoops = 8;
+  const size_t NumSubmitLoops = 2;
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
