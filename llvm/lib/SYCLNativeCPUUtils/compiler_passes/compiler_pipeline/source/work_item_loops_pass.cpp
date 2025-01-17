@@ -1913,8 +1913,6 @@ PreservedAnalyses compiler::utils::WorkItemLoopsPass::run(
     // don't want to create another wrapper where the scalar tail is the
     // 'main', unless that tail is useful as a fallback sub-group kernel. A
     // fallback sub-group kernel is one for which:
-    // * The 'main' is not a degenerate sub-group kernel. These are always safe
-    // to run so the fallback is unnecessary.
     // * The 'main' has a required sub-group size that isn't the scalar size.
     // * The 'main' and 'tail' kernels both make use of sub-group builtins. If
     // neither do, there's no need for the fallback.
@@ -1922,8 +1920,7 @@ PreservedAnalyses compiler::utils::WorkItemLoopsPass::run(
     // cleanly divides the known local work-group size.
     if (P.SkippedTailF || (P.TailInfo && P.TailInfo->vf.isScalar())) {
       const auto *TailF = P.SkippedTailF ? P.SkippedTailF : P.TailF;
-      if (hasDegenerateSubgroups(*P.MainF) ||
-          getReqdSubgroupSize(*P.MainF).value_or(1) != 1 ||
+      if (getReqdSubgroupSize(*P.MainF).value_or(1) != 1 ||
           (!GSGI.usesSubgroups(*P.MainF) && !GSGI.usesSubgroups(*TailF))) {
         RedundantMains.insert(TailF);
       } else if (auto wgs = parseRequiredWGSMetadata(*P.MainF)) {

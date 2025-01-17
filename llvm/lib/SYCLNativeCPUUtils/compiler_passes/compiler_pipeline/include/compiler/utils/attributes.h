@@ -162,16 +162,6 @@ void setBarrierSchedule(llvm::CallInst &CI, BarrierSchedule Sched);
 /// @return the execution schedule for this barrier
 BarrierSchedule getBarrierSchedule(const llvm::CallInst &CI);
 
-/// @brief Marks a kernel's subgroups as degenerate
-///
-/// @param[in] F Function in which to encode the information.
-void setHasDegenerateSubgroups(llvm::Function &F);
-
-/// @brief Returns whether the kernel has degenerate subgroups.
-///
-/// @param[in] F Function to check.
-bool hasDegenerateSubgroups(const llvm::Function &F);
-
 /// @brief Marks a function as not explicitly using subgroups
 ///
 /// May be set even with unresolved external functions, assuming those don't
