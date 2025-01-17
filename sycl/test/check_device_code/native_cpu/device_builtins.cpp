@@ -13,16 +13,18 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 
-#define DefTestCast(FName, Space, PType)\
-SYCL_EXTERNAL auto FName(PType p) {\
-  return dynamic_address_cast<Space>(p);\
-}
+#define DefTestCast(FName, Space, PType)                                       \
+  SYCL_EXTERNAL auto FName(PType p) { return dynamic_address_cast<Space>(p); }
+
+// Turning clang format off here because it would change the indentations of
+// the macro invocations making the following code difficult to read.
+// clang-format off
 
 #define DefTestCastForSpace(PType)\
-DefTestCast(to_local, access::address_space::local_space, PType)\
-DefTestCast(to_global, access::address_space::global_space, PType)\
-DefTestCast(to_private, access::address_space::private_space, PType)\
-DefTestCast(to_generic, access::address_space::generic_space, PType)
+  DefTestCast(to_local, access::address_space::local_space, PType)\
+  DefTestCast(to_global, access::address_space::global_space, PType)\
+  DefTestCast(to_private, access::address_space::private_space, PType)\
+  DefTestCast(to_generic, access::address_space::generic_space, PType)
 
 DefTestCastForSpace(int*)
 DefTestCastForSpace(const int*)
