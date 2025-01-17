@@ -42,6 +42,7 @@ __spirv_GenericCastToPtrExplicit_##sfx(cv void *p ,int) {\
 #define DefGenericCastToPtrExpl(sfx, asp)\
   DefGenericCastToPtrExplImpl(sfx, asp, )\
   DefGenericCastToPtrExplImpl(sfx, asp, const)\
+  DefGenericCastToPtrExplImpl(sfx, asp, volatile)\
   DefGenericCastToPtrExplImpl(sfx, asp, const volatile)
 
 DefGenericCastToPtrExpl(ToPrivate, OCL_PRIVATE)
