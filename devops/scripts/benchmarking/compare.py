@@ -23,7 +23,7 @@ def compare_to_median(runner: str, test_name: str, test_csv_path: str):
 			median[stat["TestCase"]] = \
 					{ metric: float(stat[metric]) for metric in common.metrics_variance }
 
-	# TODO read status codes from a config file
+	# TODO read status codes from a config file instead?
 	status = 0
 	failure_counts = { metric: 0 for metric in common.metrics_variance }
 	with open(test_csv_path, 'r') as sample_csv:

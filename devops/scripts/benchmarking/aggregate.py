@@ -5,6 +5,8 @@ import heapq
 
 import common
 
+# Calculate medians incrementally using a heap: Useful for when dealing with
+# large number of samples.
 class StreamingMedian:
 	
     def __init__(self):
@@ -19,6 +21,7 @@ class StreamingMedian:
         else:
             heapq.heappush(self.minheap_larger, n)
 
+		# Ensure minheap has more elements than maxheap
         if len(self.maxheap_smaller) > len(self.minheap_larger) + 1:
             heapq.heappush(self.minheap_larger,
 						   -heapq.heappop(self.maxheap_smaller))
@@ -28,8 +31,13 @@ class StreamingMedian:
 
     def get_median(self) -> float:
         if len(self.maxheap_smaller) == len(self.minheap_larger):
+			# Equal number of elements smaller and larger than "median":
+			# thus, there are two median values. The median would then become
+			# the average of both median values.
             return (-self.maxheap_smaller[0] + self.minheap_larger[0]) / 2.0
         else:
+			# Otherwise, median is always in minheap, as minheap is always
+			# bigger
             return -self.maxheap_smaller[0]
 
 
@@ -48,12 +56,17 @@ def aggregate_median(runner: str, benchmark: str, cutoff: str):
 	for sample_path in csv_samples():
 		with open(sample_path, 'r') as sample_file:
 			for s in csv.DictReader(sample_file):
-				if s["TestCase"] not in aggregate_s:
-					aggregate_s[s["TestCase"]] = \
+				test_case = s["TestCase"]
+				# Construct entry in aggregate_s for test case if it does not
+				# exist already:
+				if not in aggregate_s:
+					aggregate_s[test_case] = \
 				 		{ metric: StreamingMedian() for metric in common.metrics_variance }
-				for metric in common.metrics_variance:
-					aggregate_s[s["TestCase"]][metric].add(common.sanitize(s[metric]))
 
+				for metric in common.metrics_variance:
+					aggregate_s[test_case][metric].add(common.sanitize(s[metric]))
+
+	# Write calculated median (aggregate_s) as a new .csv file:
 	with open(f"{common.PERF_RES_PATH}/{runner}/{benchmark}/{benchmark}-median.csv", 'w') as output_csv:
 		writer = csv.DictWriter(output_csv,
 							    fieldnames=["TestCase", *common.metrics_variance.keys()])

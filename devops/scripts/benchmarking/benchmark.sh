@@ -39,14 +39,19 @@ clone_compute_bench() {
 build_compute_bench() {
     echo "### Building compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
     mkdir $COMPUTE_BENCH_PATH/build && cd $COMPUTE_BENCH_PATH/build &&
-    cmake .. -DBUILD_SYCL=ON  -DCCACHE_ALLOWED=FALSE # && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+    # No reason to turn on ccache, if this docker image will be disassembled later on
+    cmake .. -DBUILD_SYCL=ON -DBUILD_L0=OFF -DBUILD=OCL=OFF -DCCACHE_ALLOWED=FALSE # && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+    # TODO enable mechanism for opting into L0 and OCL -- the concept is to
+    # subtract OCL/L0 times from SYCL times in hopes of deriving SYCL runtime
+    # overhead, but this is mostly an idea that needs to be mulled upon.
 
     if [ "$?" -eq 0 ]; then
-        tail -n +2 $TESTS_CONFIG | while IFS= read -r case; do
+        while IFS= read -r case; do
+            # Skip lines starting with '#'
+            [ "${case##\#*}" ] || continue
             make $COMPUTE_BENCH_COMPILE_FLAGS "$case"
-        done
+        done < "$TESTS_CONFIG"
     fi
-    # No reason to turn on ccache, if this docker image will be disassembled later on
     #compute_bench_build_stat=$?
     cd -
     #[ "$compute_bench_build_stat" -ne 0 ] && exit $compute_bench_build_stat 
