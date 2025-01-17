@@ -46,17 +46,35 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
                                             const ur_usm_desc_t *Properties,
                                             ur_usm_pool_handle_t Pool,
-                                            size_t Size, void **ResultPtr) {
+                                            size_t Size, AllocType Type,
+                                            void **ResultPtr) {
 
     auto ContextInfo = getContextInfo(Context);
-    std::shared_ptr<DeviceInfo> DeviceInfo = getDeviceInfo(Device);
+    std::shared_ptr<DeviceInfo> DeviceInfo =
+        Device ? getDeviceInfo(Device) : nullptr;
 
     void *Allocated = nullptr;
 
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
+    if (Type == AllocType::DEVICE_USM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, Properties, Pool, Size, &Allocated));
+    } else if (Type == AllocType::HOST_USM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(
+            Context, Properties, Pool, Size, &Allocated));
+    } else if (Type == AllocType::SHARED_USM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
+            Context, Device, Properties, Pool, Size, &Allocated));
+    }
 
     *ResultPtr = Allocated;
+
+    ContextInfo->MaxAllocatedSize =
+        std::max(ContextInfo->MaxAllocatedSize, Size);
+
+    // For host/shared usm, we only record the alloc size.
+    if (Type != AllocType::DEVICE_USM) {
+        return UR_RESULT_SUCCESS;
+    }
 
     auto AI =
         std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
@@ -75,6 +93,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
         m_AllocationMap.emplace(AI->AllocBegin, AI);
     }
 
+    // Update shadow memory
     ManagedQueue Queue(Context, Device);
     DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
                                             AI->AllocSize, 0xff);
@@ -144,6 +163,12 @@ ur_result_t MsanInterceptor::registerProgram(ur_program_handle_t Program) {
         return Result;
     }
 
+    getContext()->logger.info("registerDeviceGlobals");
+    Result = registerDeviceGlobals(Program);
+    if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+    }
+
     return Result;
 }
 
@@ -203,10 +228,60 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
             getContext()->logger.info(
                 "SpirKernel(name='{}', isInstrumented={})", KernelName, true);
 
-            PI->InstrumentedKernels.insert(KernelName);
+            PI->InstrumentedKernels.insert(std::move(KernelName));
         }
         getContext()->logger.info("Number of sanitized kernel: {}",
                                   PI->InstrumentedKernels.size());
+    }
+
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
+    std::vector<ur_device_handle_t> Devices = GetDevices(Program);
+    assert(Devices.size() != 0 && "No devices in registerDeviceGlobals");
+    auto Context = GetContext(Program);
+    auto ContextInfo = getContextInfo(Context);
+    auto ProgramInfo = getProgramInfo(Program);
+    assert(ProgramInfo != nullptr && "unregistered program!");
+
+    for (auto Device : Devices) {
+        ManagedQueue Queue(Context, Device);
+
+        size_t MetadataSize;
+        void *MetadataPtr;
+        auto Result =
+            getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+                Device, Program, kSPIR_MsanDeviceGlobalMetadata, &MetadataSize,
+                &MetadataPtr);
+        if (Result != UR_RESULT_SUCCESS) {
+            getContext()->logger.info("No device globals");
+            continue;
+        }
+
+        const uint64_t NumOfDeviceGlobal =
+            MetadataSize / sizeof(DeviceGlobalInfo);
+        assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+               "DeviceGlobal metadata size is not correct");
+        std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
+        Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, &GVInfos[0], MetadataPtr,
+            sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
+        if (Result != UR_RESULT_SUCCESS) {
+            getContext()->logger.error("Device Global[{}] Read Failed: {}",
+                                       kSPIR_MsanDeviceGlobalMetadata, Result);
+            return Result;
+        }
+
+        auto DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+        for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
+            const auto &GVInfo = GVInfos[i];
+            UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
+                                                            GVInfo.Size, 0));
+            ContextInfo->MaxAllocatedSize =
+                std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
+        }
     }
 
     return UR_RESULT_SUCCESS;
@@ -379,10 +454,14 @@ ur_result_t MsanInterceptor::prepareLaunch(
     }
 
     // Set LaunchInfo
+    auto ContextInfo = getContextInfo(LaunchInfo.Context);
     LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
     LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
     LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
     LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
+        ContextInfo->MaxAllocatedSize, &LaunchInfo.Data->CleanShadow));
 
     getContext()->logger.info(
         "launch_info {} (GlobalShadow={}, Device={}, Debug={})",
@@ -465,6 +544,11 @@ ur_result_t USMLaunchInfo::initialize() {
 USMLaunchInfo::~USMLaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
     if (Data) {
+        if (Data->CleanShadow) {
+            Result = getContext()->urDdiTable.USM.pfnFree(Context,
+                                                          Data->CleanShadow);
+            assert(Result == UR_RESULT_SUCCESS);
+        }
         Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);
         assert(Result == UR_RESULT_SUCCESS);
     }

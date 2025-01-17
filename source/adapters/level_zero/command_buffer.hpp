@@ -141,6 +141,10 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // This list is needed to release all kernels retained by the
   // command_buffer.
   std::vector<ur_kernel_handle_t> KernelsList;
+  // Track whether synchronization is required when updating the command buffer
+  // Set this value to true when a command buffer is enqueued, and false after
+  // any fence or event synchronization to avoid repeated calls to synchronize.
+  bool NeedsUpdateSynchronization = false;
 };
 
 struct ur_exp_command_buffer_command_handle_t_ : public _ur_object {

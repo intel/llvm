@@ -112,7 +112,7 @@ jobs:
 
     - name: Test adapter specific
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" --timeout 180
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 180
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 

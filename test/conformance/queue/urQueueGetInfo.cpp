@@ -8,78 +8,89 @@
 using urQueueGetInfoTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoTest);
 
-TEST_P(urQueueGetInfoTest, Context) {
+TEST_P(urQueueGetInfoTest, SuccessContext) {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-    size_t size = 0;
-    auto infoType = UR_QUEUE_INFO_CONTEXT;
+    size_t property_size = 0;
+    ur_queue_info_t property_name = UR_QUEUE_INFO_CONTEXT;
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_EQ(sizeof(ur_context_handle_t), size);
+        urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(ur_context_handle_t), property_size);
 
     ur_context_handle_t returned_context = nullptr;
-    ASSERT_SUCCESS(
-        urQueueGetInfo(queue, infoType, size, &returned_context, nullptr));
+    ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
+                                  &returned_context, nullptr));
 
     ASSERT_EQ(context, returned_context);
 }
 
-TEST_P(urQueueGetInfoTest, Device) {
+TEST_P(urQueueGetInfoTest, SuccessDevice) {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-    size_t size = 0;
-    auto infoType = UR_QUEUE_INFO_DEVICE;
+    size_t property_size = 0;
+    ur_queue_info_t property_name = UR_QUEUE_INFO_DEVICE;
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_EQ(sizeof(ur_device_handle_t), size);
+        urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(ur_device_handle_t), property_size);
 
     ur_device_handle_t returned_device = nullptr;
-    ASSERT_SUCCESS(
-        urQueueGetInfo(queue, infoType, size, &returned_device, nullptr));
+    ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
+                                  &returned_device, nullptr));
 
     ASSERT_EQ(device, returned_device);
 }
 
-TEST_P(urQueueGetInfoTest, Flags) {
+TEST_P(urQueueGetInfoTest, SuccessFlags) {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-    size_t size = 0;
-    auto infoType = UR_QUEUE_INFO_FLAGS;
+    size_t property_size = 0;
+    ur_queue_info_t property_name = UR_QUEUE_INFO_FLAGS;
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_EQ(sizeof(ur_queue_flags_t), size);
+        urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(ur_queue_flags_t), property_size);
 
     ur_queue_flags_t returned_flags = 0;
-    ASSERT_SUCCESS(
-        urQueueGetInfo(queue, infoType, size, &returned_flags, nullptr));
+    ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
+                                  &returned_flags, nullptr));
 
     EXPECT_EQ(returned_flags, queue_properties.flags);
 }
 
-TEST_P(urQueueGetInfoTest, ReferenceCount) {
+TEST_P(urQueueGetInfoTest, SuccessReferenceCount) {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-    size_t size = 0;
-    auto infoType = UR_QUEUE_INFO_REFERENCE_COUNT;
+    size_t property_size = 0;
+    ur_queue_info_t property_name = UR_QUEUE_INFO_REFERENCE_COUNT;
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_EQ(sizeof(uint32_t), size);
+        urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(uint32_t), property_size);
 
     uint32_t returned_reference_count = 0;
-    ASSERT_SUCCESS(urQueueGetInfo(queue, infoType, size,
+    ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
                                   &returned_reference_count, nullptr));
 
     ASSERT_GT(returned_reference_count, 0U);
 }
 
-TEST_P(urQueueGetInfoTest, EmptyQueue) {
+TEST_P(urQueueGetInfoTest, SuccessEmptyQueue) {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-    size_t size = 0;
-    auto infoType = UR_QUEUE_INFO_EMPTY;
+    size_t property_size = 0;
+    ur_queue_info_t property_name = UR_QUEUE_INFO_EMPTY;
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
-    ASSERT_EQ(sizeof(ur_bool_t), size);
+        urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
+        property_name);
+
+    ASSERT_EQ(sizeof(ur_bool_t), property_size);
 }
 
 TEST_P(urQueueGetInfoTest, InvalidNullHandleQueue) {
@@ -162,28 +173,28 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoDeviceQueueTestWithInfoParam);
 
 TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, DeviceDefault) {
     size_t size = 0;
-    auto infoType = UR_QUEUE_INFO_DEVICE_DEFAULT;
+    ur_queue_info_t property_name = UR_QUEUE_INFO_DEVICE_DEFAULT;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
+        urQueueGetInfo(queue, property_name, 0, nullptr, &size), property_name);
     ASSERT_EQ(sizeof(ur_queue_handle_t), size);
 
     ur_queue_handle_t returned_queue = nullptr;
     ASSERT_SUCCESS(
-        urQueueGetInfo(queue, infoType, size, &returned_queue, nullptr));
+        urQueueGetInfo(queue, property_name, size, &returned_queue, nullptr));
 
     ASSERT_EQ(queue, returned_queue);
 }
 
 TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, Size) {
     size_t size = 0;
-    auto infoType = UR_QUEUE_INFO_SIZE;
+    ur_queue_info_t property_name = UR_QUEUE_INFO_SIZE;
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urQueueGetInfo(queue, infoType, 0, nullptr, &size), infoType);
+        urQueueGetInfo(queue, property_name, 0, nullptr, &size), property_name);
     ASSERT_EQ(sizeof(uint32_t), size);
 
     uint32_t returned_size = 0;
     ASSERT_SUCCESS(
-        urQueueGetInfo(queue, infoType, size, &returned_size, nullptr));
+        urQueueGetInfo(queue, property_name, size, &returned_size, nullptr));
 
     ASSERT_GT(returned_size, 0);
 }

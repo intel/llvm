@@ -257,10 +257,10 @@ returns:
       - "If $X_DEVICE_INFO_USM_HOST_SUPPORT is false."
     - $X_RESULT_ERROR_INVALID_VALUE:
       - "`pUSMDesc && pUSMDesc->align != 0 && ((pUSMDesc->align & (pUSMDesc->align-1)) != 0)`" # alignment must be power of two
-      - "If `align` is greater that the size of the largest data type supported by `hDevice`."
+      - "If `align` is greater that the size of the largest data type supported by any device in `hContext`."
     - $X_RESULT_ERROR_INVALID_USM_SIZE:
       - "`size == 0`"
-      - "`size` is greater than $X_DEVICE_INFO_MAX_MEM_ALLOC_SIZE."
+      - "`size` is greater than $X_DEVICE_INFO_MAX_MEM_ALLOC_SIZE for any device in `hContext`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:

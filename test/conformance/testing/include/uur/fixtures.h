@@ -899,6 +899,9 @@ struct urMultiDeviceMemImageWriteTest : urMultiDeviceMemImageQueueTest {
 
 struct urUSMDeviceAllocTest : urQueueTest {
     void SetUp() override {
+        // urQueueFlush is not supported by native cpu.
+        UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
         ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(GetDeviceUSMDeviceSupport(device, device_usm));

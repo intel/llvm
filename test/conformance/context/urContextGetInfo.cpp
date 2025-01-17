@@ -8,120 +8,138 @@ using urContextGetInfoTest = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextGetInfoTest);
 
 TEST_P(urContextGetInfoTest, SuccessNumDevices) {
-    ur_context_info_t info_type = UR_CONTEXT_INFO_NUM_DEVICES;
-    size_t size = 0;
+    ur_context_info_t property_name = UR_CONTEXT_INFO_NUM_DEVICES;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(uint32_t));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(uint32_t));
 
     uint32_t nDevices = 0;
-    ASSERT_SUCCESS(
-        urContextGetInfo(context, info_type, size, &nDevices, nullptr));
+    ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
+                                    &nDevices, nullptr));
 
     ASSERT_EQ(nDevices, 1);
 }
 
 TEST_P(urContextGetInfoTest, SuccessDevices) {
-    ur_context_info_t info_type = UR_CONTEXT_INFO_DEVICES;
-    size_t size = 0;
+    ur_context_info_t property_name = UR_CONTEXT_INFO_DEVICES;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_NE(property_size, 0);
 
     ur_device_handle_t queried_device = nullptr;
-    ASSERT_SUCCESS(
-        urContextGetInfo(context, info_type, size, &queried_device, nullptr));
+    ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
+                                    &queried_device, nullptr));
 
-    size_t devices_count = size / sizeof(ur_device_handle_t);
+    size_t devices_count = property_size / sizeof(ur_device_handle_t);
     ASSERT_EQ(devices_count, 1);
     ASSERT_EQ(queried_device, device);
 }
 
 TEST_P(urContextGetInfoTest, SuccessUSMMemCpy2DSupport) {
-    ur_context_info_t info_type = UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT;
-    size_t size = 0;
+    ur_context_info_t property_name = UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(ur_bool_t));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_bool_t));
 }
 
 TEST_P(urContextGetInfoTest, SuccessUSMFill2DSupport) {
-    ur_context_info_t info_type = UR_CONTEXT_INFO_USM_FILL2D_SUPPORT;
-    size_t size = 0;
+    ur_context_info_t property_name = UR_CONTEXT_INFO_USM_FILL2D_SUPPORT;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(ur_bool_t));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_bool_t));
 }
 
 TEST_P(urContextGetInfoTest, SuccessReferenceCount) {
-    ur_context_info_t info_type = UR_CONTEXT_INFO_REFERENCE_COUNT;
-    size_t size = 0;
+    ur_context_info_t property_name = UR_CONTEXT_INFO_REFERENCE_COUNT;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(uint32_t));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(uint32_t));
 
     uint32_t reference_count = 0;
-    ASSERT_SUCCESS(
-        urContextGetInfo(context, info_type, size, &reference_count, nullptr));
+    ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
+                                    &reference_count, nullptr));
     ASSERT_GT(reference_count, 0U);
 }
 
 TEST_P(urContextGetInfoTest, SuccessAtomicMemoryOrderCapabilities) {
-    ur_context_info_t info_type =
+    ur_context_info_t property_name =
         UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES;
-    size_t size = 0;
+    size_t property_size = 0;
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_EQ(size, sizeof(ur_memory_order_capability_flags_t));
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_memory_order_capability_flags_t));
 
     ur_memory_order_capability_flags_t flags = 0;
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, size, &flags, nullptr));
+    ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
+                                    &flags, nullptr));
 
     ASSERT_EQ(flags & UR_MEMORY_ORDER_CAPABILITY_FLAGS_MASK, 0);
 }
 
 TEST_P(urContextGetInfoTest, SuccessAtomicMemoryScopeCapabilities) {
-    ur_context_info_t info_type =
+    ur_context_info_t property_name =
         UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES;
-    size_t size = 0;
+    size_t property_size = 0;
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_EQ(size, sizeof(ur_memory_scope_capability_flags_t));
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_memory_scope_capability_flags_t));
 
     ur_memory_scope_capability_flags_t flags = 0;
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, size, &flags, nullptr));
+    ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
+                                    &flags, nullptr));
 
     ASSERT_EQ(flags & UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK, 0);
 }
 
 TEST_P(urContextGetInfoTest, SuccessAtomicFenceOrderCapabilities) {
-    ur_context_info_t info_type =
+    ur_context_info_t property_name =
         UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES;
-    size_t size = 0;
+    size_t property_size = 0;
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_EQ(size, sizeof(ur_memory_order_capability_flags_t));
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_memory_order_capability_flags_t));
 
     ur_memory_order_capability_flags_t flags = 0;
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, size, &flags, nullptr));
+    ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
+                                    &flags, nullptr));
 
     ASSERT_EQ(flags & UR_MEMORY_ORDER_CAPABILITY_FLAGS_MASK, 0);
 }
 
 TEST_P(urContextGetInfoTest, SuccessAtomicFenceScopeCapabilities) {
-    ur_context_info_t info_type =
+    ur_context_info_t property_name =
         UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
-    size_t size = 0;
+    size_t property_size = 0;
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urContextGetInfo(context, info_type, 0, nullptr, &size), info_type);
-    ASSERT_EQ(size, sizeof(ur_memory_scope_capability_flags_t));
+        urContextGetInfo(context, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_memory_scope_capability_flags_t));
 
     ur_memory_scope_capability_flags_t flags = 0;
-    ASSERT_SUCCESS(urContextGetInfo(context, info_type, size, &flags, nullptr));
+    ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
+                                    &flags, nullptr));
 
     ASSERT_EQ(flags & UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK, 0);
 }

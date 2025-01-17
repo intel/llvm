@@ -279,7 +279,7 @@ void KernelsEnvironment::LoadSource(
     auto binary_ptr =
         std::make_shared<std::vector<char>>(std::move(device_binary));
     cached_kernels[kernel_name] = binary_ptr;
-    binary_out = binary_ptr;
+    binary_out = std::move(binary_ptr);
 }
 
 ur_result_t KernelsEnvironment::CreateProgram(

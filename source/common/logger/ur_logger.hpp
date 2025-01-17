@@ -148,7 +148,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
             map->erase(kv);
         }
 
-        std::vector<std::string> values = {default_output};
+        std::vector<std::string> values = {std::move(default_output)};
         kv = map->find("output");
         if (kv != map->end()) {
             values = kv->second;
