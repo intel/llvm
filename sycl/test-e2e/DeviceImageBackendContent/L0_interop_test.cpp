@@ -25,6 +25,9 @@ int main() {
   sycl::queue q{d};
   sycl::context ctxt = q.get_context();
 
+  // The following ifndef is required due to a number of limitations of free
+  // function kernels. See CMPLRLLVM-61498.
+  // TODO: Remove it once these limitations are no longer there.
 #ifndef __SYCL_DEVICE_ONLY__
   // First, run the kernel using the SYCL API.
   auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt);
