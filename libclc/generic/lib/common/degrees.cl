@@ -21,8 +21,25 @@
  */
 
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 #include <clc/common/clc_degrees.h>
 
 #define FUNCTION degrees
 #define __CLC_BODY <clc/common/unary_def.inc>
 #include <clc/math/gentype.inc>
+
+_CLC_DEFINE_UNARY_BUILTIN(float, degrees, __clc_degrees, float)
+
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN(double, degrees, __clc_degrees, double)
+
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN(half, degrees, __clc_degrees, half)
+
+#endif
