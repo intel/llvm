@@ -26,14 +26,14 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
-#include <array>       // for array
-#include <cstddef>     // for std::byte
-#include <cstring>     // for size_t, memcpy
-#include <functional>  // for function
-#include <iterator>    // for distance
-#include <memory>      // for shared_ptr, operator==, hash
+#include <array>      // for array
+#include <cstddef>    // for std::byte
+#include <cstring>    // for size_t, memcpy
+#include <functional> // for function
+#include <iterator>   // for distance
+#include <memory>     // for shared_ptr, operator==, hash
 #ifdef __cpp_lib_span
-#include <span>        // for span
+#include <span> // for span
 #endif
 #include <string>      // for string
 #include <type_traits> // for enable_if_t, remove_refer...
