@@ -3,15 +3,6 @@ __SYCL_PARAM_TRAITS_DEPRECATED(image_max_array_size,"support for image arrays ha
 __SYCL_PARAM_TRAITS_DEPRECATED(opencl_c_version,"use device::get_backend_info instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(atomic64, "use sycl::aspect::atomic64 instead")
 
-//TODO:Remove when possible
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_pci_address,"use ext::intel::info::device::pci_address instead")
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_eu_count,"use ext::intel::info::device::gpu_eu_count instead")
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_eu_simd_width,"use ext::intel::info::device::gpu_eu_simd_width instead")
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_slices,"use ext::intel::info::device::gpu_slices instead")
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_subslices_per_slice,"use ext::intel::info::device::gpu_subslices_per_slice instead")
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_hw_threads_per_eu,"use ext::intel::info::device::gpu_hw_threads_per_eu instead")
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_device_info_uuid,"use ext::intel::info::device::uuid instead")
-__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_max_mem_bandwidth,"use ext::intel::info::device::max_mem_bandwidth instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_1d,"use ext::oneapi::experimental::info::device::max_work_groups<1> instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_2d,"use ext::oneapi::experimental::info::device::max_work_groups<2> instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_3d,"use ext::oneapi::experimental::info::device::max_work_groups<3> instead")
