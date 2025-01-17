@@ -1,6 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+//
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_CONFORMANCE_EVENT_FIXTURES_H_INCLUDED
@@ -20,34 +21,32 @@ namespace event {
 template <class T>
 struct urEventTestWithParam : uur::urProfilingQueueTestWithParam<T> {
 
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urProfilingQueueTestWithParam<T>::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_WRITE_ONLY,
-                                         size, nullptr, &buffer));
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urProfilingQueueTestWithParam<T>::SetUp());
+    ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_WRITE_ONLY,
+                                     size, nullptr, &buffer));
 
-        input.assign(count, 42);
-        ASSERT_SUCCESS(urEnqueueMemBufferWrite(this->queue, buffer, false, 0,
-                                               size, input.data(), 0, nullptr,
-                                               &event));
-        ASSERT_SUCCESS(urEventWait(1, &event));
+    input.assign(count, 42);
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(this->queue, buffer, false, 0, size,
+                                           input.data(), 0, nullptr, &event));
+    ASSERT_SUCCESS(urEventWait(1, &event));
+  }
+
+  void TearDown() override {
+    if (buffer) {
+      EXPECT_SUCCESS(urMemRelease(buffer));
     }
-
-    void TearDown() override {
-        if (buffer) {
-            EXPECT_SUCCESS(urMemRelease(buffer));
-        }
-        if (event) {
-            EXPECT_SUCCESS(urEventRelease(event));
-        }
-        uur::urProfilingQueueTestWithParam<T>::TearDown();
+    if (event) {
+      EXPECT_SUCCESS(urEventRelease(event));
     }
+    uur::urProfilingQueueTestWithParam<T>::TearDown();
+  }
 
-    const size_t count = 1024;
-    const size_t size = sizeof(uint32_t) * count;
-    ur_mem_handle_t buffer = nullptr;
-    ur_event_handle_t event = nullptr;
-    std::vector<uint32_t> input;
+  const size_t count = 1024;
+  const size_t size = sizeof(uint32_t) * count;
+  ur_mem_handle_t buffer = nullptr;
+  ur_event_handle_t event = nullptr;
+  std::vector<uint32_t> input;
 };
 
 /**
@@ -57,39 +56,39 @@ struct urEventTestWithParam : uur::urProfilingQueueTestWithParam<T> {
  */
 struct urEventReferenceTest : uur::urProfilingQueueTest {
 
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urProfilingQueueTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
-                                         nullptr, &buffer));
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urProfilingQueueTest::SetUp());
+    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
+                                     nullptr, &buffer));
 
-        input.assign(count, 42);
-        ASSERT_SUCCESS(urEnqueueMemBufferWrite(
-            queue, buffer, false, 0, size, input.data(), 0, nullptr, &event));
-        ASSERT_SUCCESS(urEventWait(1, &event));
+    input.assign(count, 42);
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, false, 0, size,
+                                           input.data(), 0, nullptr, &event));
+    ASSERT_SUCCESS(urEventWait(1, &event));
+  }
+
+  void TearDown() override {
+    if (buffer) {
+      EXPECT_SUCCESS(urMemRelease(buffer));
     }
+    urProfilingQueueTest::TearDown();
+  }
 
-    void TearDown() override {
-        if (buffer) {
-            EXPECT_SUCCESS(urMemRelease(buffer));
-        }
-        urProfilingQueueTest::TearDown();
-    }
-
-    const size_t count = 1024;
-    const size_t size = sizeof(uint32_t) * count;
-    ur_mem_handle_t buffer = nullptr;
-    ur_event_handle_t event = nullptr;
-    std::vector<uint32_t> input;
+  const size_t count = 1024;
+  const size_t size = sizeof(uint32_t) * count;
+  ur_mem_handle_t buffer = nullptr;
+  ur_event_handle_t event = nullptr;
+  std::vector<uint32_t> input;
 };
 
 struct urEventTest : urEventReferenceTest {
 
-    void TearDown() override {
-        if (event) {
-            EXPECT_SUCCESS(urEventRelease(event));
-        }
-        urEventReferenceTest::TearDown();
+  void TearDown() override {
+    if (event) {
+      EXPECT_SUCCESS(urEventRelease(event));
     }
+    urEventReferenceTest::TearDown();
+  }
 };
 } // namespace event
 } // namespace uur

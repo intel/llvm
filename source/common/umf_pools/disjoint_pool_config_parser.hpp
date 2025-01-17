@@ -1,7 +1,7 @@
 //===--- disjoint_pool_config_parser.hpp -configuration for USM memory pool-==//
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -19,15 +19,15 @@ namespace usm {
 enum DisjointPoolMemType { Host, Device, Shared, SharedReadOnly, All };
 
 typedef struct umf_disjoint_pool_config_t {
-    umf_disjoint_pool_config_t();
+  umf_disjoint_pool_config_t();
 
-    size_t SlabMinSize;
-    size_t MaxPoolableSize;
-    size_t Capacity;
-    size_t MinBucketSize;
-    int PoolTrace;
-    umf_disjoint_pool_shared_limits_t *SharedLimits;
-    const char *Name;
+  size_t SlabMinSize;
+  size_t MaxPoolableSize;
+  size_t Capacity;
+  size_t MinBucketSize;
+  int PoolTrace;
+  umf_disjoint_pool_shared_limits_t *SharedLimits;
+  const char *Name;
 } umf_disjoint_pool_config_t;
 
 using umfDisjointPoolParamsHandle =
@@ -36,12 +36,12 @@ using umfDisjointPoolParamsHandle =
 
 // Stores configuration for all instances of USM allocator
 class DisjointPoolAllConfigs {
-  public:
-    size_t EnableBuffers = 1;
-    std::shared_ptr<umf_disjoint_pool_shared_limits_t> limits;
-    umf_disjoint_pool_config_t Configs[DisjointPoolMemType::All];
+public:
+  size_t EnableBuffers = 1;
+  std::shared_ptr<umf_disjoint_pool_shared_limits_t> limits;
+  umf_disjoint_pool_config_t Configs[DisjointPoolMemType::All];
 
-    DisjointPoolAllConfigs(int trace = 0);
+  DisjointPoolAllConfigs(int trace = 0);
 };
 
 // Parse optional config parameters of this form:
@@ -72,29 +72,29 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
                                                int trace = 1);
 
 static inline void UMF_CALL_THROWS(umf_result_t res) {
-    if (res != UMF_RESULT_SUCCESS) {
-        throw res;
-    }
+  if (res != UMF_RESULT_SUCCESS) {
+    throw res;
+  }
 }
 
 static inline umfDisjointPoolParamsHandle
 getUmfParamsHandle(umf_disjoint_pool_config_t &config) {
-    umf_disjoint_pool_params_handle_t cHandle;
-    UMF_CALL_THROWS(umfDisjointPoolParamsCreate(&cHandle));
+  umf_disjoint_pool_params_handle_t cHandle;
+  UMF_CALL_THROWS(umfDisjointPoolParamsCreate(&cHandle));
 
-    umfDisjointPoolParamsHandle handle(cHandle, &umfDisjointPoolParamsDestroy);
-    UMF_CALL_THROWS(
-        umfDisjointPoolParamsSetSlabMinSize(cHandle, config.SlabMinSize));
-    UMF_CALL_THROWS(umfDisjointPoolParamsSetMaxPoolableSize(
-        cHandle, config.MaxPoolableSize));
-    UMF_CALL_THROWS(umfDisjointPoolParamsSetCapacity(cHandle, config.Capacity));
-    UMF_CALL_THROWS(
-        umfDisjointPoolParamsSetMinBucketSize(cHandle, config.MinBucketSize));
-    UMF_CALL_THROWS(
-        umfDisjointPoolParamsSetSharedLimits(cHandle, config.SharedLimits));
-    UMF_CALL_THROWS(umfDisjointPoolParamsSetName(cHandle, config.Name));
-    UMF_CALL_THROWS(umfDisjointPoolParamsSetTrace(cHandle, config.PoolTrace));
-    return handle;
+  umfDisjointPoolParamsHandle handle(cHandle, &umfDisjointPoolParamsDestroy);
+  UMF_CALL_THROWS(
+      umfDisjointPoolParamsSetSlabMinSize(cHandle, config.SlabMinSize));
+  UMF_CALL_THROWS(
+      umfDisjointPoolParamsSetMaxPoolableSize(cHandle, config.MaxPoolableSize));
+  UMF_CALL_THROWS(umfDisjointPoolParamsSetCapacity(cHandle, config.Capacity));
+  UMF_CALL_THROWS(
+      umfDisjointPoolParamsSetMinBucketSize(cHandle, config.MinBucketSize));
+  UMF_CALL_THROWS(
+      umfDisjointPoolParamsSetSharedLimits(cHandle, config.SharedLimits));
+  UMF_CALL_THROWS(umfDisjointPoolParamsSetName(cHandle, config.Name));
+  UMF_CALL_THROWS(umfDisjointPoolParamsSetTrace(cHandle, config.PoolTrace));
+  return handle;
 }
 } // namespace usm
 

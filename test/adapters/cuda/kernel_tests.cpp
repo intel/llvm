@@ -1,6 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+//
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "kernel.hpp"
@@ -73,185 +74,182 @@ const char *threeParamsTwoLocal = "\n\
 
 TEST_P(cudaKernelTest, CreateProgramAndKernel) {
 
-    uur::raii::Program program = nullptr;
-    auto Length = std::strlen(ptxSource);
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                             (const uint8_t **)(&ptxSource),
-                                             nullptr, program.ptr()));
-    ASSERT_NE(program, nullptr);
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  uur::raii::Program program = nullptr;
+  auto Length = std::strlen(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
+                                           (const uint8_t **)(&ptxSource),
+                                           nullptr, program.ptr()));
+  ASSERT_NE(program, nullptr);
+  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    uur::raii::Kernel kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
-    ASSERT_NE(kernel, nullptr);
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
+  ASSERT_NE(kernel, nullptr);
 }
 
 TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
 
-    std::vector<uint32_t> reqdWorkGroupSizeMD;
-    reqdWorkGroupSizeMD.reserve(5);
-    // 64-bit representing bit size
-    reqdWorkGroupSizeMD.push_back(96);
-    reqdWorkGroupSizeMD.push_back(0);
-    // reqd_work_group_size x
-    reqdWorkGroupSizeMD.push_back(8);
-    // reqd_work_group_size y
-    reqdWorkGroupSizeMD.push_back(16);
-    // reqd_work_group_size z
-    reqdWorkGroupSizeMD.push_back(32);
+  std::vector<uint32_t> reqdWorkGroupSizeMD;
+  reqdWorkGroupSizeMD.reserve(5);
+  // 64-bit representing bit size
+  reqdWorkGroupSizeMD.push_back(96);
+  reqdWorkGroupSizeMD.push_back(0);
+  // reqd_work_group_size x
+  reqdWorkGroupSizeMD.push_back(8);
+  // reqd_work_group_size y
+  reqdWorkGroupSizeMD.push_back(16);
+  // reqd_work_group_size z
+  reqdWorkGroupSizeMD.push_back(32);
 
-    const char *reqdWorkGroupSizeMDConstName =
-        "_Z8myKernelPi@reqd_work_group_size";
-    std::vector<char> reqdWorkGroupSizeMDName(
-        reqdWorkGroupSizeMDConstName, reqdWorkGroupSizeMDConstName +
-                                          strlen(reqdWorkGroupSizeMDConstName) +
-                                          1);
+  const char *reqdWorkGroupSizeMDConstName =
+      "_Z8myKernelPi@reqd_work_group_size";
+  std::vector<char> reqdWorkGroupSizeMDName(
+      reqdWorkGroupSizeMDConstName,
+      reqdWorkGroupSizeMDConstName + strlen(reqdWorkGroupSizeMDConstName) + 1);
 
-    ur_program_metadata_value_t reqd_work_group_value;
-    reqd_work_group_value.pData = reqdWorkGroupSizeMD.data();
+  ur_program_metadata_value_t reqd_work_group_value;
+  reqd_work_group_value.pData = reqdWorkGroupSizeMD.data();
 
-    ur_program_metadata_t reqdWorkGroupSizeMDProp = {
-        reqdWorkGroupSizeMDName.data(), UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
-        reqdWorkGroupSizeMD.size() * sizeof(uint32_t), reqd_work_group_value};
+  ur_program_metadata_t reqdWorkGroupSizeMDProp = {
+      reqdWorkGroupSizeMDName.data(), UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
+      reqdWorkGroupSizeMD.size() * sizeof(uint32_t), reqd_work_group_value};
 
-    ur_program_properties_t programProps{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
-                                         nullptr, 1, &reqdWorkGroupSizeMDProp};
-    uur::raii::Program program = nullptr;
-    auto Length = std::strlen(ptxSource);
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                             (const uint8_t **)(&ptxSource),
-                                             &programProps, program.ptr()));
-    ASSERT_NE(program, nullptr);
+  ur_program_properties_t programProps{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
+                                       nullptr, 1, &reqdWorkGroupSizeMDProp};
+  uur::raii::Program program = nullptr;
+  auto Length = std::strlen(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
+                                           (const uint8_t **)(&ptxSource),
+                                           &programProps, program.ptr()));
+  ASSERT_NE(program, nullptr);
 
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    uur::raii::Kernel kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
 
-    size_t compileWGSize[3] = {0};
-    ASSERT_SUCCESS(urKernelGetGroupInfo(
-        kernel, device, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(compileWGSize), &compileWGSize, nullptr));
+  size_t compileWGSize[3] = {0};
+  ASSERT_SUCCESS(urKernelGetGroupInfo(
+      kernel, device, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+      sizeof(compileWGSize), &compileWGSize, nullptr));
 
-    for (int i = 0; i < 3; i++) {
-        ASSERT_EQ(compileWGSize[i], reqdWorkGroupSizeMD[i + 2]);
-    }
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(compileWGSize[i], reqdWorkGroupSizeMD[i + 2]);
+  }
 }
 
 TEST_P(cudaKernelTest, URKernelArgumentSimple) {
-    uur::raii::Program program = nullptr;
-    auto Length = std::strlen(ptxSource);
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                             (const uint8_t **)(&ptxSource),
-                                             nullptr, program.ptr()));
-    ASSERT_NE(program, nullptr);
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  uur::raii::Program program = nullptr;
+  auto Length = std::strlen(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
+                                           (const uint8_t **)(&ptxSource),
+                                           nullptr, program.ptr()));
+  ASSERT_NE(program, nullptr);
+  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    uur::raii::Kernel kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
-    ASSERT_NE(kernel, nullptr);
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
+  ASSERT_NE(kernel, nullptr);
 
-    int number = 10;
-    ASSERT_SUCCESS(
-        urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
-    const auto &kernelArgs = kernel->getArgIndices();
-    ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
+  int number = 10;
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
+  const auto &kernelArgs = kernel->getArgIndices();
+  ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
 
-    int storedValue = *static_cast<const int *>(kernelArgs[0]);
-    ASSERT_EQ(storedValue, number);
+  int storedValue = *static_cast<const int *>(kernelArgs[0]);
+  ASSERT_EQ(storedValue, number);
 }
 
 TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
-    uur::raii::Program program = nullptr;
-    auto Length = std::strlen(ptxSource);
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                             (const uint8_t **)(&ptxSource),
-                                             nullptr, program.ptr()));
-    ASSERT_NE(program, nullptr);
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  uur::raii::Program program = nullptr;
+  auto Length = std::strlen(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
+                                           (const uint8_t **)(&ptxSource),
+                                           nullptr, program.ptr()));
+  ASSERT_NE(program, nullptr);
+  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    uur::raii::Kernel kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
-    ASSERT_NE(kernel, nullptr);
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
+  ASSERT_NE(kernel, nullptr);
 
-    int number = 10;
-    ASSERT_SUCCESS(
-        urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
-    const auto &kernelArgs = kernel->getArgIndices();
-    ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
-    int storedValue = *static_cast<const int *>(kernelArgs[0]);
-    ASSERT_EQ(storedValue, number);
+  int number = 10;
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
+  const auto &kernelArgs = kernel->getArgIndices();
+  ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
+  int storedValue = *static_cast<const int *>(kernelArgs[0]);
+  ASSERT_EQ(storedValue, number);
 
-    int otherNumber = 934;
-    ASSERT_SUCCESS(
-        urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &otherNumber));
-    const auto kernelArgs2 = kernel->getArgIndices();
-    ASSERT_EQ(kernelArgs2.size(), 1 + NumberOfImplicitArgsCUDA);
-    storedValue = *static_cast<const int *>(kernelArgs2[0]);
-    ASSERT_EQ(storedValue, otherNumber);
+  int otherNumber = 934;
+  ASSERT_SUCCESS(
+      urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &otherNumber));
+  const auto kernelArgs2 = kernel->getArgIndices();
+  ASSERT_EQ(kernelArgs2.size(), 1 + NumberOfImplicitArgsCUDA);
+  storedValue = *static_cast<const int *>(kernelArgs2[0]);
+  ASSERT_EQ(storedValue, otherNumber);
 }
 
 TEST_P(cudaKernelTest, URKernelDispatch) {
-    uur::raii::Program program = nullptr;
-    auto Length = std::strlen(ptxSource);
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                             (const uint8_t **)(&ptxSource),
-                                             nullptr, program.ptr()));
-    ASSERT_NE(program, nullptr);
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  uur::raii::Program program = nullptr;
+  auto Length = std::strlen(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
+                                           (const uint8_t **)(&ptxSource),
+                                           nullptr, program.ptr()));
+  ASSERT_NE(program, nullptr);
+  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    uur::raii::Kernel kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
-    ASSERT_NE(kernel, nullptr);
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
+  ASSERT_NE(kernel, nullptr);
 
-    const size_t memSize = 1024u;
-    uur::raii::Mem buffer = nullptr;
-    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
-                                     nullptr, buffer.ptr()));
-    ASSERT_NE(buffer, nullptr);
-    ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));
+  const size_t memSize = 1024u;
+  uur::raii::Mem buffer = nullptr;
+  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
+                                   nullptr, buffer.ptr()));
+  ASSERT_NE(buffer, nullptr);
+  ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));
 
-    const size_t workDim = 1;
-    const size_t globalWorkOffset[] = {0};
-    const size_t globalWorkSize[] = {1};
-    const size_t localWorkSize[] = {1};
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim,
-                                         globalWorkOffset, globalWorkSize,
-                                         localWorkSize, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urQueueFinish(queue));
+  const size_t workDim = 1;
+  const size_t globalWorkOffset[] = {0};
+  const size_t globalWorkSize[] = {1};
+  const size_t localWorkSize[] = {1};
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim, globalWorkOffset,
+                                       globalWorkSize, localWorkSize, 0,
+                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
 TEST_P(cudaKernelTest, URKernelDispatchTwo) {
-    uur::raii::Program program = nullptr;
-    auto Length = std::strlen(ptxSource);
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                             (const uint8_t **)(&twoParams),
-                                             nullptr, program.ptr()));
-    ASSERT_NE(program, nullptr);
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  uur::raii::Program program = nullptr;
+  auto Length = std::strlen(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
+                                           (const uint8_t **)(&twoParams),
+                                           nullptr, program.ptr()));
+  ASSERT_NE(program, nullptr);
+  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-    uur::raii::Kernel kernel = nullptr;
-    ASSERT_SUCCESS(urKernelCreate(program, "twoParamKernel", kernel.ptr()));
-    ASSERT_NE(kernel, nullptr);
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_SUCCESS(urKernelCreate(program, "twoParamKernel", kernel.ptr()));
+  ASSERT_NE(kernel, nullptr);
 
-    const size_t memSize = 1024u;
-    uur::raii::Mem buffer1 = nullptr;
-    uur::raii::Mem buffer2 = nullptr;
-    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
-                                     nullptr, buffer1.ptr()));
-    ASSERT_NE(buffer1, nullptr);
-    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
-                                     nullptr, buffer2.ptr()));
-    ASSERT_NE(buffer1, nullptr);
-    ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer1));
-    ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 1, nullptr, buffer2));
+  const size_t memSize = 1024u;
+  uur::raii::Mem buffer1 = nullptr;
+  uur::raii::Mem buffer2 = nullptr;
+  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
+                                   nullptr, buffer1.ptr()));
+  ASSERT_NE(buffer1, nullptr);
+  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
+                                   nullptr, buffer2.ptr()));
+  ASSERT_NE(buffer1, nullptr);
+  ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer1));
+  ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 1, nullptr, buffer2));
 
-    const size_t workDim = 1;
-    const size_t globalWorkOffset[] = {0};
-    const size_t globalWorkSize[] = {1};
-    const size_t localWorkSize[] = {1};
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim,
-                                         globalWorkOffset, globalWorkSize,
-                                         localWorkSize, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urQueueFinish(queue));
+  const size_t workDim = 1;
+  const size_t globalWorkOffset[] = {0};
+  const size_t globalWorkSize[] = {1};
+  const size_t localWorkSize[] = {1};
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim, globalWorkOffset,
+                                       globalWorkSize, localWorkSize, 0,
+                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 }

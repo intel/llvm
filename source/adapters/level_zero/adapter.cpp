@@ -626,19 +626,16 @@ ur_result_t adapterStateTeardown() {
 
 namespace ur::level_zero {
 ur_result_t urAdapterGet(
-    uint32_t NumEntries, ///< [in] the number of platforms to be added to
-                         ///< phAdapters. If phAdapters is not NULL, then
-                         ///< NumEntries should be greater than zero, otherwise
-                         ///< ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
-    ur_adapter_handle_t
-        *Adapters, ///< [out][optional][range(0, NumEntries)] array of handle of
-                   ///< adapters. If NumEntries is less than the number of
-                   ///< adapters available, then
-                   ///< ::urAdapterGet shall only retrieve that number of
-                   ///< platforms.
-    uint32_t *NumAdapters ///< [out][optional] returns the total number of
-                          ///< adapters available.
-) {
+    /// [in] the number of platforms to be added to phAdapters. If phAdapters is
+    /// not NULL, then NumEntries should be greater than zero, otherwise
+    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    uint32_t NumEntries,
+    /// [out][optional][range(0, NumEntries)] array of handle of adapters.
+    /// If NumEntries is less than the number of adapters available, then
+    /// ::urAdapterGet shall only retrieve that number of platforms.
+    ur_adapter_handle_t *Adapters,
+    /// [out][optional] returns the total number of adapters available.
+    uint32_t *NumAdapters) {
   if (NumEntries > 0 && Adapters) {
     if (GlobalAdapter) {
       std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
@@ -688,12 +685,14 @@ ur_result_t urAdapterRetain(ur_adapter_handle_t) {
 }
 
 ur_result_t urAdapterGetLastError(
-    ur_adapter_handle_t,  ///< [in] handle of the platform instance
-    const char **Message, ///< [out] pointer to a C string where the adapter
-                          ///< specific error message will be stored.
-    int32_t *Error ///< [out] pointer to an integer where the adapter specific
-                   ///< error code will be stored.
-) {
+    /// [in] handle of the platform instance
+    ur_adapter_handle_t,
+    /// [out] pointer to a C string where the adapter specific error message
+    /// will be stored.
+    const char **Message,
+    /// [out] pointer to an integer where the adapter specific error code will
+    /// be stored.
+    int32_t *Error) {
   *Message = ErrorMessage;
   *Error = ErrorAdapterNativeCode;
 

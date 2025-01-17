@@ -2,8 +2,10 @@
  *
  * Copyright (C) 2022-2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions.
  * See LICENSE.TXT
+ *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_ldrddi.hpp
@@ -92,24 +94,23 @@ using ur_exp_tensor_map_factory_t =
     singleton_factory_t<ur_exp_tensor_map_object_t, ur_exp_tensor_map_handle_t>;
 
 struct handle_factories {
-    ur_adapter_factory_t ur_adapter_factory;
-    ur_platform_factory_t ur_platform_factory;
-    ur_device_factory_t ur_device_factory;
-    ur_context_factory_t ur_context_factory;
-    ur_event_factory_t ur_event_factory;
-    ur_program_factory_t ur_program_factory;
-    ur_kernel_factory_t ur_kernel_factory;
-    ur_queue_factory_t ur_queue_factory;
-    ur_sampler_factory_t ur_sampler_factory;
-    ur_mem_factory_t ur_mem_factory;
-    ur_physical_mem_factory_t ur_physical_mem_factory;
-    ur_usm_pool_factory_t ur_usm_pool_factory;
-    ur_exp_external_mem_factory_t ur_exp_external_mem_factory;
-    ur_exp_external_semaphore_factory_t ur_exp_external_semaphore_factory;
-    ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
-    ur_exp_command_buffer_command_factory_t
-        ur_exp_command_buffer_command_factory;
-    ur_exp_tensor_map_factory_t ur_exp_tensor_map_factory;
+  ur_adapter_factory_t ur_adapter_factory;
+  ur_platform_factory_t ur_platform_factory;
+  ur_device_factory_t ur_device_factory;
+  ur_context_factory_t ur_context_factory;
+  ur_event_factory_t ur_event_factory;
+  ur_program_factory_t ur_program_factory;
+  ur_kernel_factory_t ur_kernel_factory;
+  ur_queue_factory_t ur_queue_factory;
+  ur_sampler_factory_t ur_sampler_factory;
+  ur_mem_factory_t ur_mem_factory;
+  ur_physical_mem_factory_t ur_physical_mem_factory;
+  ur_usm_pool_factory_t ur_usm_pool_factory;
+  ur_exp_external_mem_factory_t ur_exp_external_mem_factory;
+  ur_exp_external_semaphore_factory_t ur_exp_external_semaphore_factory;
+  ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
+  ur_exp_command_buffer_command_factory_t ur_exp_command_buffer_command_factory;
+  ur_exp_tensor_map_factory_t ur_exp_tensor_map_factory;
 };
 
 } // namespace ur_loader

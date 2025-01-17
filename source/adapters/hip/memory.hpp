@@ -85,7 +85,7 @@ public:
             AllocMode Mode, void *HostPtr, size_t Size)
       : OuterMemStruct{OuterMemStruct}, HostPtr{HostPtr}, Size{Size},
         PtrToBufferMap{}, MemAllocMode{Mode},
-        Ptrs(Context->Devices.size(), native_type{0}){};
+        Ptrs(Context->Devices.size(), native_type{0}) {};
 
   // This will allocate memory on device if there isn't already an active
   // allocation on the device
