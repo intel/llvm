@@ -1,5 +1,4 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// UNSUPPORTED: target-amd
 // RUN: %{build} %device_asan_flags -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t1
 // RUN: %{run} %t1 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_aot_flags -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t2

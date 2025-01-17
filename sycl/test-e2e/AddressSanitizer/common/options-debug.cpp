@@ -1,5 +1,4 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// UNSUPPORTED: target-amd
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env UR_LAYER_ASAN_OPTIONS=debug:0 %{run} %t 2>&1 | FileCheck %s
 

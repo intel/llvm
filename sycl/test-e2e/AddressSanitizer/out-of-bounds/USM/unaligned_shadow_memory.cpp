@@ -1,5 +1,4 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// UNSUPPORTED: target-amd
 // RUN: %{build} %device_asan_flags -DTEST1 -O0 -g -o %t1.out
 // RUN: %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK1 %s
 // RUN: %{build} %device_asan_flags -DTEST2 -O0 -g -o %t2.out

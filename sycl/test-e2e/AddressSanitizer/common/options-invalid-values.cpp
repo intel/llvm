@@ -1,5 +1,4 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// UNSUPPORTED: target-amd
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: %{run} %t
 
