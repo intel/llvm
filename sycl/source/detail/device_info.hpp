@@ -359,12 +359,17 @@ template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
-    ur_device_exec_capability_flag_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::execution_capabilities>::value, sizeof(result),
-        &result, nullptr);
-    return read_execution_bitfield(result);
+    if (Dev->getBackend() == backend::opencl) {
+      ur_device_exec_capability_flag_t result;
+      Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+          Dev->getHandleRef(),
+          UrInfoCode<info::device::execution_capabilities>::value,
+          sizeof(result), &result, nullptr);
+      return read_execution_bitfield(result);
+    }
+    throw exception(make_error_code(errc::invalid),
+                    "info::device::execution_capabilities is available for "
+                    "backend::opencl only");
   }
 };
 
