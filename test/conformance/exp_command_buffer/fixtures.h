@@ -216,19 +216,6 @@ struct urCommandBufferCommandExpTest
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
   }
 
-  void TearDown() override {
-    if (command_handle) {
-      EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(command_handle));
-    }
-
-    if (command_handle_2) {
-      EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(command_handle_2));
-    }
-
-    UUR_RETURN_ON_FATAL_FAILURE(
-        urUpdatableCommandBufferExpExecutionTest::TearDown());
-  }
-
   static constexpr size_t local_size = 4;
   static constexpr size_t global_size = 32;
   static constexpr size_t global_offset = 0;
@@ -421,12 +408,6 @@ struct urCommandEventSyncUpdateTest : urCommandEventSyncTest {
   }
 
   virtual void TearDown() override {
-    for (auto command_handle : command_handles) {
-      if (command_handle) {
-        EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(command_handle));
-      }
-    }
-
     if (updatable_cmd_buf_handle) {
       EXPECT_SUCCESS(urCommandBufferReleaseExp(updatable_cmd_buf_handle));
     }

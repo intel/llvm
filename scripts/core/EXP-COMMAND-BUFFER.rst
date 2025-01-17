@@ -486,13 +486,10 @@ Functions
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
 * ${x}CommandBufferEnqueueExp
-* ${x}CommandBufferRetainCommandExp
-* ${x}CommandBufferReleaseCommandExp
 * ${x}CommandBufferUpdateKernelLaunchExp
 * ${x}CommandBufferUpdateSignalEventExp
 * ${x}CommandBufferUpdateWaitEventsExp
 * ${x}CommandBufferGetInfoExp
-* ${x}CommandBufferCommandGetInfoExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -514,6 +511,8 @@ Changelog
 | 1.5       | Add support for updating kernel handles.              |
 +-----------+-------------------------------------------------------+
 | 1.6       | Command level synchronization with event objects      |
++-----------+-------------------------------------------------------+
+| 1.7       | Remove command handle reference counting and querying |
 +-----------+-------------------------------------------------------+
 
 Contributors

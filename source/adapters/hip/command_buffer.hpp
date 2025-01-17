@@ -83,23 +83,6 @@ struct ur_exp_command_buffer_command_handle_t_ {
     return 0 == std::memcmp(LocalWorkSize, Zeros, sizeof(LocalWorkSize));
   }
 
-  uint32_t incrementInternalReferenceCount() noexcept {
-    return ++RefCountInternal;
-  }
-  uint32_t decrementInternalReferenceCount() noexcept {
-    return --RefCountInternal;
-  }
-
-  uint32_t incrementExternalReferenceCount() noexcept {
-    return ++RefCountExternal;
-  }
-  uint32_t decrementExternalReferenceCount() noexcept {
-    return --RefCountExternal;
-  }
-  uint32_t getExternalReferenceCount() const noexcept {
-    return RefCountExternal;
-  }
-
   ur_exp_command_buffer_handle_t CommandBuffer;
 
   // The currently active kernel handle for this command.
@@ -115,10 +98,6 @@ struct ur_exp_command_buffer_command_handle_t_ {
   size_t GlobalWorkOffset[3];
   size_t GlobalWorkSize[3];
   size_t LocalWorkSize[3];
-
-private:
-  std::atomic_uint32_t RefCountInternal;
-  std::atomic_uint32_t RefCountExternal;
 };
 
 struct ur_exp_command_buffer_handle_t_ {
@@ -146,25 +125,9 @@ struct ur_exp_command_buffer_handle_t_ {
     registerSyncPoint(SyncPoint, std::move(HIPNode));
     return SyncPoint;
   }
-  uint32_t incrementInternalReferenceCount() noexcept {
-    return ++RefCountInternal;
-  }
-  uint32_t decrementInternalReferenceCount() noexcept {
-    return --RefCountInternal;
-  }
-  uint32_t getInternalReferenceCount() const noexcept {
-    return RefCountInternal;
-  }
-
-  uint32_t incrementExternalReferenceCount() noexcept {
-    return ++RefCountExternal;
-  }
-  uint32_t decrementExternalReferenceCount() noexcept {
-    return --RefCountExternal;
-  }
-  uint32_t getExternalReferenceCount() const noexcept {
-    return RefCountExternal;
-  }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
@@ -178,8 +141,7 @@ struct ur_exp_command_buffer_handle_t_ {
   hipGraphExec_t HIPGraphExec = nullptr;
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCountInternal;
-  std::atomic_uint32_t RefCountExternal;
+  std::atomic_uint32_t RefCount;
 
   // Map of sync_points to ur_events
   std::unordered_map<ur_exp_command_buffer_sync_point_t, hipGraphNode_t>

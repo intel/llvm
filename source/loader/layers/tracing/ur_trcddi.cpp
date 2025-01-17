@@ -8179,78 +8179,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferRetainCommandExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
-    /// [in][retain] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  auto pfnRetainCommandExp =
-      getContext()->urDdiTable.CommandBufferExp.pfnRetainCommandExp;
-
-  if (nullptr == pfnRetainCommandExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_command_buffer_retain_command_exp_params_t params = {&hCommand};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
-                                 "urCommandBufferRetainCommandExp", &params);
-
-  auto &logger = getContext()->logger;
-  logger.info("   ---> urCommandBufferRetainCommandExp\n");
-
-  ur_result_t result = pfnRetainCommandExp(hCommand);
-
-  getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP,
-                           "urCommandBufferRetainCommandExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= logger::Level::INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP, &params);
-    logger.info("   <--- urCommandBufferRetainCommandExp({}) -> {};\n",
-                args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferReleaseCommandExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
-    /// [in][release] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  auto pfnReleaseCommandExp =
-      getContext()->urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
-
-  if (nullptr == pfnReleaseCommandExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_command_buffer_release_command_exp_params_t params = {&hCommand};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
-                                 "urCommandBufferReleaseCommandExp", &params);
-
-  auto &logger = getContext()->logger;
-  logger.info("   ---> urCommandBufferReleaseCommandExp\n");
-
-  ur_result_t result = pfnReleaseCommandExp(hCommand);
-
-  getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP,
-                           "urCommandBufferReleaseCommandExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= logger::Level::INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP, &params);
-    logger.info("   <--- urCommandBufferReleaseCommandExp({}) -> {};\n",
-                args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     /// [in] Handle of the command-buffer kernel command to update.
@@ -8413,53 +8341,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP, &params);
     logger.info("   <--- urCommandBufferGetInfoExp({}) -> {};\n",
-                args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferCommandGetInfoExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
-    /// [in] handle of the command-buffer command object
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] the name of the command-buffer command property to query
-    ur_exp_command_buffer_command_info_t propName,
-    /// [in] size in bytes of the command-buffer command property value
-    size_t propSize,
-    /// [out][optional][typename(propName, propSize)] value of the
-    /// command-buffer command property
-    void *pPropValue,
-    /// [out][optional] bytes returned in command-buffer command property
-    size_t *pPropSizeRet) {
-  auto pfnCommandGetInfoExp =
-      getContext()->urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
-
-  if (nullptr == pfnCommandGetInfoExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_command_buffer_command_get_info_exp_params_t params = {
-      &hCommand, &propName, &propSize, &pPropValue, &pPropSizeRet};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
-      "urCommandBufferCommandGetInfoExp", &params);
-
-  auto &logger = getContext()->logger;
-  logger.info("   ---> urCommandBufferCommandGetInfoExp\n");
-
-  ur_result_t result = pfnCommandGetInfoExp(hCommand, propName, propSize,
-                                            pPropValue, pPropSizeRet);
-
-  getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP,
-                           "urCommandBufferCommandGetInfoExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= logger::Level::INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP, &params);
-    logger.info("   <--- urCommandBufferCommandGetInfoExp({}) -> {};\n",
                 args_str.str(), result);
   }
 
@@ -9440,14 +9321,6 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
   pDdiTable->pfnEnqueueExp = ur_tracing_layer::urCommandBufferEnqueueExp;
 
-  dditable.pfnRetainCommandExp = pDdiTable->pfnRetainCommandExp;
-  pDdiTable->pfnRetainCommandExp =
-      ur_tracing_layer::urCommandBufferRetainCommandExp;
-
-  dditable.pfnReleaseCommandExp = pDdiTable->pfnReleaseCommandExp;
-  pDdiTable->pfnReleaseCommandExp =
-      ur_tracing_layer::urCommandBufferReleaseCommandExp;
-
   dditable.pfnUpdateKernelLaunchExp = pDdiTable->pfnUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
       ur_tracing_layer::urCommandBufferUpdateKernelLaunchExp;
@@ -9462,10 +9335,6 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
   dditable.pfnGetInfoExp = pDdiTable->pfnGetInfoExp;
   pDdiTable->pfnGetInfoExp = ur_tracing_layer::urCommandBufferGetInfoExp;
-
-  dditable.pfnCommandGetInfoExp = pDdiTable->pfnCommandGetInfoExp;
-  pDdiTable->pfnCommandGetInfoExp =
-      ur_tracing_layer::urCommandBufferCommandGetInfoExp;
 
   return result;
 }
