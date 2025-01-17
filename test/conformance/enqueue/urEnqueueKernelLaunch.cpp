@@ -41,8 +41,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelWgSizeTest);
 // Note: Due to an issue with HIP, the subgroup test is not generated
 struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
-                         uur::LevelZeroV2{});
+    // Subgroup size of 8 isn't supported on the Data Center GPU Max
+    UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::LevelZero{"Data Center GPU Max"},
+                         uur::LevelZeroV2{"Data Center GPU Max"});
 
     program_name = "subgroup";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
@@ -191,7 +192,7 @@ TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, NonMatchingLocalSize) {
 }
 
 TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   ur_mem_handle_t buffer = nullptr;
   AddBuffer1DArg(sizeof(size_t), &buffer);
