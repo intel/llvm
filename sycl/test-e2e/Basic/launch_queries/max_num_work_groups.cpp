@@ -206,8 +206,8 @@ int main() {
 
   using namespace kernels;
 
-  int ret{0};
-  ret |= test_max_num_work_groups<TestKernel>(q, dev);
-  ret |= test_max_num_work_groups<TestLocalMemoryKernel>(q, dev);
-  return ret;
+  int Error{0};
+  Error |= test_max_num_work_groups<TestKernel>(q, dev);
+  Error |= test_max_num_work_groups<TestLocalMemoryKernel>(q, dev);
+  return Error;
 }
