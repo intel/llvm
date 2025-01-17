@@ -117,16 +117,19 @@ public:
 
   ur_native_handle_t getNative() const;
 
-protected:
-  detail::DeviceImageImplPtr impl;
-
-  backend get_backend() const;
+  backend ext_oneapi_get_backend() const noexcept;
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-  const std::byte *get_BinaryStart() const;
+  std::vector<std::byte> ext_oneapi_get_backend_content() const;
 
-  const std::byte *get_BinaryEnd() const;
-#endif
+#ifdef __cpp_lib_span
+  std::span<std::byte> ext_oneapi_get_backend_content_view() const;
+#endif // __cpp_lib_span
+
+#endif // HAS_STD_BYTE
+
+protected:
+  detail::DeviceImageImplPtr impl;
 
   template <class Obj>
   friend const decltype(Obj::impl) &
@@ -157,23 +160,21 @@ public:
   }
 
   backend ext_oneapi_get_backend() const noexcept {
-    return device_image_plain::get_backend();
+    return device_image_plain::ext_oneapi_get_backend();
   }
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
   std::vector<std::byte> ext_oneapi_get_backend_content() const {
-    return std::vector(device_image_plain::get_BinaryStart(),
-                       device_image_plain::get_BinaryEnd());
+    return device_image_plain::ext_oneapi_get_backend_content();
   }
 
 #ifdef __cpp_lib_span
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
   std::span<std::byte> ext_oneapi_get_content_backend_view() const {
-    return std::span(device_image_plain::get_BinaryStart(),
-                     device_image_plain::get_BinaryEnd());
+    return device_image_plain::ext_oneapi_get_backend_content_view();
   }
 #endif // __cpp_lib_span
 #endif // _HAS_STD_BYTE
