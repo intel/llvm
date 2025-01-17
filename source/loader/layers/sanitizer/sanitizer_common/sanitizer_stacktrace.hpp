@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file sanitizer_stacktrace.hpp
  *
@@ -21,9 +21,9 @@ namespace ur_sanitizer_layer {
 constexpr size_t MAX_BACKTRACE_FRAMES = 64;
 
 struct StackTrace {
-    std::vector<BacktraceFrame> stack;
+  std::vector<BacktraceFrame> stack;
 
-    void print() const;
+  void print() const;
 };
 
 StackTrace GetCurrentBacktrace();

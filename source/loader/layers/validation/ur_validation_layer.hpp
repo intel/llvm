@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2023-2024 Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file ur_layer.h
  *
@@ -22,39 +22,39 @@ struct RefCountContext;
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public proxy_layer_context_t,
                                public AtomicSingleton<context_t> {
-  public:
-    bool enableParameterValidation = false;
-    bool enableBoundsChecking = false;
-    bool enableLeakChecking = false;
-    bool enableLifetimeValidation = false;
-    logger::Logger logger;
+public:
+  bool enableParameterValidation = false;
+  bool enableBoundsChecking = false;
+  bool enableLeakChecking = false;
+  bool enableLifetimeValidation = false;
+  logger::Logger logger;
 
-    ur_dditable_t urDdiTable = {};
+  ur_dditable_t urDdiTable = {};
 
-    context_t();
-    ~context_t();
+  context_t();
+  ~context_t();
 
-    static std::vector<std::string> getNames() {
-        return {nameFullValidation, nameParameterValidation, nameLeakChecking,
-                nameBoundsChecking, nameLifetimeValidation};
-    }
-    ur_result_t init(ur_dditable_t *dditable,
-                     const std::set<std::string> &enabledLayerNames,
-                     codeloc_data codelocData) override;
-    ur_result_t tearDown() override;
+  static std::vector<std::string> getNames() {
+    return {nameFullValidation, nameParameterValidation, nameLeakChecking,
+            nameBoundsChecking, nameLifetimeValidation};
+  }
+  ur_result_t init(ur_dditable_t *dditable,
+                   const std::set<std::string> &enabledLayerNames,
+                   codeloc_data codelocData) override;
+  ur_result_t tearDown() override;
 
-    std::unique_ptr<RefCountContext> refCountContext;
+  std::unique_ptr<RefCountContext> refCountContext;
 
-  private:
-    inline static const std::string nameFullValidation =
-        "UR_LAYER_FULL_VALIDATION";
-    inline static const std::string nameParameterValidation =
-        "UR_LAYER_PARAMETER_VALIDATION";
-    inline static const std::string nameBoundsChecking =
-        "UR_LAYER_BOUNDS_CHECKING";
-    inline static const std::string nameLeakChecking = "UR_LAYER_LEAK_CHECKING";
-    inline static const std::string nameLifetimeValidation =
-        "UR_LAYER_LIFETIME_VALIDATION";
+private:
+  inline static const std::string nameFullValidation =
+      "UR_LAYER_FULL_VALIDATION";
+  inline static const std::string nameParameterValidation =
+      "UR_LAYER_PARAMETER_VALIDATION";
+  inline static const std::string nameBoundsChecking =
+      "UR_LAYER_BOUNDS_CHECKING";
+  inline static const std::string nameLeakChecking = "UR_LAYER_LEAK_CHECKING";
+  inline static const std::string nameLifetimeValidation =
+      "UR_LAYER_LIFETIME_VALIDATION";
 };
 
 ur_result_t bounds(ur_mem_handle_t buffer, size_t offset, size_t size);

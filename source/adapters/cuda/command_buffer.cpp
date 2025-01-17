@@ -69,9 +69,9 @@ ur_result_t commandHandleReleaseInternal(
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable)
-    : Context(Context), Device(Device),
-      IsUpdatable(IsUpdatable), CudaGraph{nullptr}, CudaGraphExec{nullptr},
-      RefCountInternal{1}, RefCountExternal{1}, NextSyncPoint{0} {
+    : Context(Context), Device(Device), IsUpdatable(IsUpdatable),
+      CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCountInternal{1},
+      RefCountExternal{1}, NextSyncPoint{0} {
   urContextRetain(Context);
   urDeviceRetain(Device);
 }

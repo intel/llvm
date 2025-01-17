@@ -36,7 +36,7 @@ struct ur_exp_tensor_map_handle_t_ {
 };
 
 #define CONVERT(URTYPE, CUTYPE)                                                \
-  if ((URTYPE)&UrType)                                                         \
+  if ((URTYPE) & UrType)                                                       \
     return (CUTYPE);
 
 inline CUtensorMapDataType

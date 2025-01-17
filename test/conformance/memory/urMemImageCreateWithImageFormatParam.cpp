@@ -1,7 +1,7 @@
 // Copyright (C) 2024 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+// LLVM-exception
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 #include <vector>
@@ -65,24 +65,24 @@ std::vector<ur_image_format_t> all_image_formats;
 
 struct urMemImageCreateTestWithImageFormatParam
     : uur::urContextTestWithParam<ur_image_format_t> {
-    void SetUp() {
-        UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urContextTestWithParam<ur_image_format_t>::SetUp());
-    }
-    void TearDown() {
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urContextTestWithParam<ur_image_format_t>::TearDown());
-    }
+  void SetUp() {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urContextTestWithParam<ur_image_format_t>::SetUp());
+  }
+  void TearDown() {
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urContextTestWithParam<ur_image_format_t>::TearDown());
+  }
 
-    static std::vector<ur_image_format_t> makeImageFormats() {
-        for (auto channel_order : channel_orders) {
-            for (auto channel_type : channel_types) {
-                all_image_formats.push_back({channel_order, channel_type});
-            }
-        }
-        return all_image_formats;
+  static std::vector<ur_image_format_t> makeImageFormats() {
+    for (auto channel_order : channel_orders) {
+      for (auto channel_type : channel_types) {
+        all_image_formats.push_back({channel_order, channel_type});
+      }
     }
+    return all_image_formats;
+  }
 };
 
 UUR_DEVICE_TEST_SUITE_P(
@@ -92,42 +92,41 @@ UUR_DEVICE_TEST_SUITE_P(
     uur::deviceTestWithParamPrinter<ur_image_format_t>);
 
 TEST_P(urMemImageCreateTestWithImageFormatParam, Success) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{},
-                         uur::OpenCL{"Intel(R) UHD Graphics 770"});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::NativeCPU{},
+                       uur::OpenCL{"Intel(R) UHD Graphics 770"});
 
-    ur_image_channel_order_t channel_order =
-        std::get<1>(GetParam()).channelOrder;
-    ur_image_channel_type_t channel_type = std::get<1>(GetParam()).channelType;
+  ur_image_channel_order_t channel_order = std::get<1>(GetParam()).channelOrder;
+  ur_image_channel_type_t channel_type = std::get<1>(GetParam()).channelType;
 
-    if (channel_order == UR_IMAGE_CHANNEL_ORDER_RGBA) {
-        UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  if (channel_order == UR_IMAGE_CHANNEL_ORDER_RGBA) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  }
+
+  ur_image_format_t image_format{channel_order, channel_type};
+
+  ur_mem_handle_t image_handle = nullptr;
+  ur_result_t res =
+      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
+                       &image_desc, nullptr, &image_handle);
+
+  bool is_primary_image_format = false;
+  for (auto primary_image_format : primary_image_formats) {
+    if (primary_image_format.channelOrder == image_format.channelOrder &&
+        primary_image_format.channelType == image_format.channelType) {
+      is_primary_image_format = true;
+      break;
     }
+  }
 
-    ur_image_format_t image_format{channel_order, channel_type};
+  if (res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    GTEST_SKIP() << "urMemImageCreate not supported";
+  }
 
-    ur_mem_handle_t image_handle = nullptr;
-    ur_result_t res =
-        urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
-                         &image_desc, nullptr, &image_handle);
-
-    bool is_primary_image_format = false;
-    for (auto primary_image_format : primary_image_formats) {
-        if (primary_image_format.channelOrder == image_format.channelOrder &&
-            primary_image_format.channelType == image_format.channelType) {
-            is_primary_image_format = true;
-            break;
-        }
-    }
-
-    if (res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-        GTEST_SKIP() << "urMemImageCreate not supported";
-    }
-
-    if (!is_primary_image_format &&
-        res == UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT) {
-        GTEST_SKIP();
-    }
-    ASSERT_SUCCESS(res);
-    ASSERT_NE(nullptr, image_handle);
-    ASSERT_SUCCESS(urMemRelease(image_handle));
+  if (!is_primary_image_format &&
+      res == UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT) {
+    GTEST_SKIP();
+  }
+  ASSERT_SUCCESS(res);
+  ASSERT_NE(nullptr, image_handle);
+  ASSERT_SUCCESS(urMemRelease(image_handle));
 }

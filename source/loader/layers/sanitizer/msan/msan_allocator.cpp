@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file msan_allocator.cpp
  *
@@ -17,9 +17,9 @@ namespace ur_sanitizer_layer {
 namespace msan {
 
 void MsanAllocInfo::print() {
-    getContext()->logger.info("AllocInfo(Alloc=[{}-{}), AllocSize={})",
-                              (void *)AllocBegin,
-                              (void *)(AllocBegin + AllocSize), AllocSize);
+  getContext()->logger.info("AllocInfo(Alloc=[{}-{}), AllocSize={})",
+                            (void *)AllocBegin,
+                            (void *)(AllocBegin + AllocSize), AllocSize);
 }
 
 } // namespace msan

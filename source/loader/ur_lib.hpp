@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2022-2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file ur_lib.hpp
  *
@@ -33,87 +33,87 @@
 #include <vector>
 
 struct ur_loader_config_handle_t_ {
-    std::set<std::string> enabledLayers;
-    std::atomic_uint32_t refCount = 1;
+  std::set<std::string> enabledLayers;
+  std::atomic_uint32_t refCount = 1;
 
-    uint32_t incrementReferenceCount() {
-        return refCount.fetch_add(1, std::memory_order_acq_rel) + 1;
-    }
-    uint32_t decrementReferenceCount() {
-        return refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
-    }
-    uint32_t getReferenceCount() {
-        return refCount.load(std::memory_order_acquire);
-    }
-    std::set<std::string> &getEnabledLayerNames() { return enabledLayers; }
+  uint32_t incrementReferenceCount() {
+    return refCount.fetch_add(1, std::memory_order_acq_rel) + 1;
+  }
+  uint32_t decrementReferenceCount() {
+    return refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
+  }
+  uint32_t getReferenceCount() {
+    return refCount.load(std::memory_order_acquire);
+  }
+  std::set<std::string> &getEnabledLayerNames() { return enabledLayers; }
 
-    codeloc_data codelocData;
-    bool enableMock = false;
+  codeloc_data codelocData;
+  bool enableMock = false;
 };
 
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public AtomicSingleton<context_t> {
-  public:
+public:
 #ifdef DYNAMIC_LOAD_LOADER
-    HMODULE loader = nullptr;
+  HMODULE loader = nullptr;
 #endif
 
-    context_t();
-    ~context_t();
+  context_t();
+  ~context_t();
 
-    std::once_flag initOnce;
+  std::once_flag initOnce;
 
-    ur_result_t Init(ur_device_init_flags_t dflags,
-                     ur_loader_config_handle_t hLoaderConfig);
+  ur_result_t Init(ur_device_init_flags_t dflags,
+                   ur_loader_config_handle_t hLoaderConfig);
 
-    ur_result_t ddiInit();
-    ur_dditable_t urDdiTable = {};
+  ur_result_t ddiInit();
+  ur_dditable_t urDdiTable = {};
 
-    using LayerData = std::pair<proxy_layer_context_t *, void (*)()>;
-    const std::vector<LayerData> layers = {
-        {ur_validation_layer::getContext(),
-         ur_validation_layer::context_t::forceDelete},
-    // Initialize tracing layer after sanitizer layer to make sure tracing
-    // layer will properly print all API calls.
+  using LayerData = std::pair<proxy_layer_context_t *, void (*)()>;
+  const std::vector<LayerData> layers = {
+      {ur_validation_layer::getContext(),
+       ur_validation_layer::context_t::forceDelete},
+  // Initialize tracing layer after sanitizer layer to make sure tracing
+  // layer will properly print all API calls.
 #if UR_ENABLE_SANITIZER
-        {ur_sanitizer_layer::getContext(),
-         ur_sanitizer_layer::context_t::forceDelete},
+      {ur_sanitizer_layer::getContext(),
+       ur_sanitizer_layer::context_t::forceDelete},
 #endif
 #if UR_ENABLE_TRACING
-        {ur_tracing_layer::getContext(),
-         ur_tracing_layer::context_t::forceDelete},
+      {ur_tracing_layer::getContext(),
+       ur_tracing_layer::context_t::forceDelete},
 #endif
-    };
+  };
 
-    static const std::string availableLayers() {
-        auto layers = {
-            ur_validation_layer::context_t::getNames(),
+  static const std::string availableLayers() {
+    auto layers = {
+        ur_validation_layer::context_t::getNames(),
 #if UR_ENABLE_TRACING
-            ur_tracing_layer::context_t::getNames(),
+        ur_tracing_layer::context_t::getNames(),
 #endif
 #if UR_ENABLE_SANITIZER
-            ur_sanitizer_layer::context_t::getNames(),
+        ur_sanitizer_layer::context_t::getNames(),
 #endif
-        };
-        std::string s;
-        for (auto &layer : layers) {
-            for (auto &name : layer) {
-                s += name + ";";
-            }
-        }
-        // Remove the trailing ";"
-        s.pop_back();
-        return s;
     };
+    std::string s;
+    for (auto &layer : layers) {
+      for (auto &name : layer) {
+        s += name + ";";
+      }
+    }
+    // Remove the trailing ";"
+    s.pop_back();
+    return s;
+  };
 
-    std::set<std::string> enabledLayerNames;
+  std::set<std::string> enabledLayerNames;
 
-    codeloc_data codelocData;
+  codeloc_data codelocData;
 
-    void parseEnvEnabledLayers();
-    void initLayers();
-    void tearDownLayers() const;
+  void parseEnvEnabledLayers();
+  void initLayers();
+  void tearDownLayers() const;
 };
 
 context_t *getContext();

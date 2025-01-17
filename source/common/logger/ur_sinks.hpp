@@ -1,7 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+// LLVM-exception
 
 #ifndef UR_SINKS_HPP
 #define UR_SINKS_HPP 1
@@ -22,16 +22,16 @@ inline bool isTearDowned = false;
 #endif
 
 class Sink {
-  public:
-    template <typename... Args>
-    void log(logger::Level level, const char *fmt, Args &&...args) {
-        std::ostringstream buffer;
-        if (!skip_prefix && level != logger::Level::QUIET) {
-            buffer << "<" << logger_name << ">"
-                   << "[" << level_to_str(level) << "]: ";
-        }
+public:
+  template <typename... Args>
+  void log(logger::Level level, const char *fmt, Args &&...args) {
+    std::ostringstream buffer;
+    if (!skip_prefix && level != logger::Level::QUIET) {
+      buffer << "<" << logger_name << ">"
+             << "[" << level_to_str(level) << "]: ";
+    }
 
-        format(buffer, fmt, std::forward<Args &&>(args)...);
+    format(buffer, fmt, std::forward<Args &&>(args)...);
 // This is a temporary workaround on windows, where UR adapter is teardowned
 // before the UR loader, which will result in access violation when we use print
 // function as the overrided print function was already released with the UR
@@ -39,178 +39,175 @@ class Sink {
 // TODO: Change adapters to use a common sink class in the loader instead of
 // using thier own sink class that inherit from logger::Sink.
 #if defined(_WIN32)
-        if (isTearDowned) {
-            std::cerr << buffer.str() << "\n";
-        } else {
-            print(level, buffer.str());
-        }
+    if (isTearDowned) {
+      std::cerr << buffer.str() << "\n";
+    } else {
+      print(level, buffer.str());
+    }
 #else
-        print(level, buffer.str());
+    print(level, buffer.str());
 #endif
+  }
+
+  void setFlushLevel(logger::Level level) { this->flush_level = level; }
+
+  virtual ~Sink() = default;
+
+protected:
+  std::ostream *ostream;
+  logger::Level flush_level;
+
+  Sink(std::string logger_name, bool skip_prefix = false,
+       bool skip_linebreak = false)
+      : logger_name(std::move(logger_name)), skip_prefix(skip_prefix),
+        skip_linebreak(skip_linebreak) {
+    ostream = nullptr;
+    flush_level = logger::Level::ERR;
+  }
+
+  virtual void print(logger::Level level, const std::string &msg) {
+    std::scoped_lock<std::mutex> lock(output_mutex);
+    *ostream << msg;
+    if (level >= flush_level) {
+      ostream->flush();
     }
+  }
 
-    void setFlushLevel(logger::Level level) { this->flush_level = level; }
+private:
+  std::string logger_name;
+  bool skip_prefix;
+  bool skip_linebreak;
+  std::mutex output_mutex;
+  const char *error_prefix = "Log message syntax error: ";
 
-    virtual ~Sink() = default;
+  void format(std::ostringstream &buffer, const char *fmt) {
+    while (*fmt != '\0') {
+      while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
+        buffer << *fmt++;
+      }
 
-  protected:
-    std::ostream *ostream;
-    logger::Level flush_level;
-
-    Sink(std::string logger_name, bool skip_prefix = false,
-         bool skip_linebreak = false)
-        : logger_name(std::move(logger_name)), skip_prefix(skip_prefix),
-          skip_linebreak(skip_linebreak) {
-        ostream = nullptr;
-        flush_level = logger::Level::ERR;
-    }
-
-    virtual void print(logger::Level level, const std::string &msg) {
-        std::scoped_lock<std::mutex> lock(output_mutex);
-        *ostream << msg;
-        if (level >= flush_level) {
-            ostream->flush();
+      if (*fmt == '{') {
+        if (*(++fmt) == '{') {
+          buffer << *fmt++;
+        } else {
+          std::cerr << error_prefix
+                    << "No arguments provided and braces not escaped!"
+                    << std::endl;
         }
+      } else if (*fmt == '}') {
+        if (*(++fmt) == '}') {
+          buffer << *fmt++;
+        } else {
+          std::cerr << error_prefix << "Closing curly brace not escaped!"
+                    << std::endl;
+        }
+      }
+    }
+    if (!skip_linebreak) {
+      buffer << "\n";
+    }
+  }
+
+  template <typename Arg, typename... Args>
+  void format(std::ostringstream &buffer, const char *fmt, Arg &&arg,
+              Args &&...args) {
+    bool arg_printed = false;
+    while (!arg_printed) {
+      while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
+        buffer << *fmt++;
+      }
+
+      if (*fmt == '{') {
+        if (*(++fmt) == '{') {
+          buffer << *fmt++;
+        } else if (*fmt != '}') {
+          std::cerr << error_prefix << "Only empty braces are allowed!"
+                    << std::endl;
+        } else {
+          buffer << arg;
+          arg_printed = true;
+        }
+      } else if (*fmt == '}') {
+        if (*(++fmt) == '}') {
+          buffer << *fmt++;
+        } else {
+          std::cerr << error_prefix << "Closing curly brace not escaped!"
+                    << std::endl;
+        }
+      }
+
+      if (*fmt == '\0') {
+        std::cerr << error_prefix << "Too many arguments!" << std::endl;
+        // ignore all left arguments and finalize message
+        format(buffer, fmt);
+        return;
+      }
     }
 
-  private:
-    std::string logger_name;
-    bool skip_prefix;
-    bool skip_linebreak;
-    std::mutex output_mutex;
-    const char *error_prefix = "Log message syntax error: ";
-
-    void format(std::ostringstream &buffer, const char *fmt) {
-        while (*fmt != '\0') {
-            while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
-                buffer << *fmt++;
-            }
-
-            if (*fmt == '{') {
-                if (*(++fmt) == '{') {
-                    buffer << *fmt++;
-                } else {
-                    std::cerr << error_prefix
-                              << "No arguments provided and braces not escaped!"
-                              << std::endl;
-                }
-            } else if (*fmt == '}') {
-                if (*(++fmt) == '}') {
-                    buffer << *fmt++;
-                } else {
-                    std::cerr << error_prefix
-                              << "Closing curly brace not escaped!"
-                              << std::endl;
-                }
-            }
-        }
-        if (!skip_linebreak) {
-            buffer << "\n";
-        }
-    }
-
-    template <typename Arg, typename... Args>
-    void format(std::ostringstream &buffer, const char *fmt, Arg &&arg,
-                Args &&...args) {
-        bool arg_printed = false;
-        while (!arg_printed) {
-            while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
-                buffer << *fmt++;
-            }
-
-            if (*fmt == '{') {
-                if (*(++fmt) == '{') {
-                    buffer << *fmt++;
-                } else if (*fmt != '}') {
-                    std::cerr << error_prefix
-                              << "Only empty braces are allowed!" << std::endl;
-                } else {
-                    buffer << arg;
-                    arg_printed = true;
-                }
-            } else if (*fmt == '}') {
-                if (*(++fmt) == '}') {
-                    buffer << *fmt++;
-                } else {
-                    std::cerr << error_prefix
-                              << "Closing curly brace not escaped!"
-                              << std::endl;
-                }
-            }
-
-            if (*fmt == '\0') {
-                std::cerr << error_prefix << "Too many arguments!" << std::endl;
-                // ignore all left arguments and finalize message
-                format(buffer, fmt);
-                return;
-            }
-        }
-
-        format(buffer, ++fmt, std::forward<Args &&>(args)...);
-    }
+    format(buffer, ++fmt, std::forward<Args &&>(args)...);
+  }
 };
 
 class StdoutSink : public Sink {
-  public:
-    StdoutSink(std::string logger_name, bool skip_prefix = false,
-               bool skip_linebreak = false)
-        : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
-        this->ostream = &std::cout;
-    }
+public:
+  StdoutSink(std::string logger_name, bool skip_prefix = false,
+             bool skip_linebreak = false)
+      : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
+    this->ostream = &std::cout;
+  }
 
-    StdoutSink(std::string logger_name, Level flush_lvl,
-               bool skip_prefix = false, bool skip_linebreak = false)
-        : StdoutSink(std::move(logger_name), skip_prefix, skip_linebreak) {
-        this->flush_level = flush_lvl;
-    }
+  StdoutSink(std::string logger_name, Level flush_lvl, bool skip_prefix = false,
+             bool skip_linebreak = false)
+      : StdoutSink(std::move(logger_name), skip_prefix, skip_linebreak) {
+    this->flush_level = flush_lvl;
+  }
 
-    ~StdoutSink() = default;
+  ~StdoutSink() = default;
 };
 
 class StderrSink : public Sink {
-  public:
-    StderrSink(std::string logger_name, bool skip_prefix = false,
-               bool skip_linebreak = false)
-        : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
-        this->ostream = &std::cerr;
-    }
+public:
+  StderrSink(std::string logger_name, bool skip_prefix = false,
+             bool skip_linebreak = false)
+      : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
+    this->ostream = &std::cerr;
+  }
 
-    StderrSink(std::string logger_name, Level flush_lvl, bool skip_prefix,
-               bool skip_linebreak)
-        : StderrSink(std::move(logger_name), skip_prefix, skip_linebreak) {
-        this->flush_level = flush_lvl;
-    }
+  StderrSink(std::string logger_name, Level flush_lvl, bool skip_prefix,
+             bool skip_linebreak)
+      : StderrSink(std::move(logger_name), skip_prefix, skip_linebreak) {
+    this->flush_level = flush_lvl;
+  }
 
-    ~StderrSink() = default;
+  ~StderrSink() = default;
 };
 
 class FileSink : public Sink {
-  public:
-    FileSink(std::string logger_name, filesystem::path file_path,
-             bool skip_prefix = false, bool skip_linebreak = false)
-        : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
-        ofstream = std::ofstream(file_path);
-        if (!ofstream.good()) {
-            std::stringstream ss;
-            ss << "Failure while opening log file " << file_path.string()
-               << ". Check if given path exists.";
-            throw std::invalid_argument(ss.str());
-        }
-        this->ostream = &ofstream;
+public:
+  FileSink(std::string logger_name, filesystem::path file_path,
+           bool skip_prefix = false, bool skip_linebreak = false)
+      : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {
+    ofstream = std::ofstream(file_path);
+    if (!ofstream.good()) {
+      std::stringstream ss;
+      ss << "Failure while opening log file " << file_path.string()
+         << ". Check if given path exists.";
+      throw std::invalid_argument(ss.str());
     }
+    this->ostream = &ofstream;
+  }
 
-    FileSink(std::string logger_name, filesystem::path file_path,
-             Level flush_lvl, bool skip_prefix = false,
-             bool skip_linebreak = false)
-        : FileSink(std::move(logger_name), std::move(file_path), skip_prefix,
-                   skip_linebreak) {
-        this->flush_level = flush_lvl;
-    }
+  FileSink(std::string logger_name, filesystem::path file_path, Level flush_lvl,
+           bool skip_prefix = false, bool skip_linebreak = false)
+      : FileSink(std::move(logger_name), std::move(file_path), skip_prefix,
+                 skip_linebreak) {
+    this->flush_level = flush_lvl;
+  }
 
-    ~FileSink() = default;
+  ~FileSink() = default;
 
-  private:
-    std::ofstream ofstream;
+private:
+  std::ofstream ofstream;
 };
 
 inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
@@ -218,21 +215,21 @@ inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
                                            filesystem::path file_path = "",
                                            bool skip_prefix = false,
                                            bool skip_linebreak = false) {
-    if (name == "stdout" && file_path.empty()) {
-        return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix,
-                                                    skip_linebreak);
-    } else if (name == "stderr" && file_path.empty()) {
-        return std::make_unique<logger::StderrSink>(logger_name, skip_prefix,
-                                                    skip_linebreak);
-    } else if (name == "file" && !file_path.empty()) {
-        return std::make_unique<logger::FileSink>(logger_name, file_path,
-                                                  skip_prefix, skip_linebreak);
-    }
+  if (name == "stdout" && file_path.empty()) {
+    return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix,
+                                                skip_linebreak);
+  } else if (name == "stderr" && file_path.empty()) {
+    return std::make_unique<logger::StderrSink>(logger_name, skip_prefix,
+                                                skip_linebreak);
+  } else if (name == "file" && !file_path.empty()) {
+    return std::make_unique<logger::FileSink>(logger_name, file_path,
+                                              skip_prefix, skip_linebreak);
+  }
 
-    throw std::invalid_argument(
-        std::string("Parsing error: no valid sink for string '") + name +
-        std::string("' with path '") + file_path.string() + std::string("'.") +
-        std::string("\nValid sink names are: stdout, stderr, file"));
+  throw std::invalid_argument(
+      std::string("Parsing error: no valid sink for string '") + name +
+      std::string("' with path '") + file_path.string() + std::string("'.") +
+      std::string("\nValid sink names are: stdout, stderr, file"));
 }
 
 } // namespace logger
