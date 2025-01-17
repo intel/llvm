@@ -276,7 +276,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
         build-args: |
           base_image=ghcr.io/intel/llvm/ubuntu2204_build
-          base_tag=latest
+          base_tag=alldeps
         tags: |
           ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
           ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
