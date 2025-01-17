@@ -244,7 +244,6 @@ jobs:
 #
 #      env: '{"LIT_FILTER":"PerformanceTests/"}'
 #      extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-#      extra_cmake_args: ${{ matrix.extra_cmake_args }}
 #
 #      ref: ${{ github.sha }}
 #      merge_ref: ''
