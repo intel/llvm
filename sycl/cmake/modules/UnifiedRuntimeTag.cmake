@@ -1,8 +1,7 @@
-# commit 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f
-# Merge: 9c652ffb b78cfa71
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Thu Jan 9 17:28:00 2025 +0000
-# Merge pull request #2048 from RossBrunton/ross/refc
-#
-# Use reference counting on factories
-set(UNIFIED_RUNTIME_TAG 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f)
+# commit 222e4b1d51536bb38e03e2000a79679af0a44a6d
+# Merge: 30d183a0 28108a7e
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Fri Jan 17 10:28:34 2025 +0000
+#     Merge pull request #2561 from Bensuo/ben/cmd-buffer-l0-fence
+#     [L0][CMDBUF] Optimize fence/event waits during update
+set(UNIFIED_RUNTIME_TAG 222e4b1d51536bb38e03e2000a79679af0a44a6d)

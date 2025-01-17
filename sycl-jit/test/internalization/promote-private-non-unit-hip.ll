@@ -1,4 +1,4 @@
-; REQUIRES: hip_amd
+; REQUIRES: hip
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext \
 ; RUN: -passes=sycl-internalization -S %s | FileCheck %s
 

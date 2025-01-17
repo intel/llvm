@@ -461,8 +461,8 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     NewInvokeSimdArgs.push_back(NewHelper);
     auto ThirdArg = std::next(InvokeSimd->arg_begin(), 2);
     NewInvokeSimdArgs.append(ThirdArg, InvokeSimd->arg_end());
-    CallInst *NewInvokeSimd =
-        CallInst::Create(NewInvokeSimdF, NewInvokeSimdArgs, "", InvokeSimd);
+    CallInst *NewInvokeSimd = CallInst::Create(
+        NewInvokeSimdF, NewInvokeSimdArgs, "", InvokeSimd->getIterator());
     // - transfer flags, attributes (with shrinking), calling convention:
     NewInvokeSimd->copyIRFlags(InvokeSimd);
     NewInvokeSimd->setCallingConv(InvokeSimd->getCallingConv());
