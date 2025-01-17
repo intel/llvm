@@ -14,7 +14,7 @@ on:
       build_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2404_build:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
       build_ref:
         type: string
         required: false
@@ -70,7 +70,7 @@ on:
       build_image:
         type: choice
         options:
-          - "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+          - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
       cc:
         type: choice
         options:
@@ -252,3 +252,37 @@ jobs:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Copy toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      # We must have the compiler in the same location as it will be in the E2E
+      # run-tests job.
+      run: cp -r $GITHUB_WORKSPACE/build/install $GITHUB_WORKSPACE/toolchain
+
+    - name: Source OneAPI TBB vars.sh
+      shell: bash
+      run: |
+        # https://github.com/actions/runner/issues/1964 prevents us from using
+        # the ENTRYPOINT in the image.
+        env | sort > env_before
+        if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
+          source /runtimes/oneapi-tbb/env/vars.sh;
+        elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
+          source /opt/runtimes/oneapi-tbb/env/vars.sh;
+        else
+          echo "no TBB vars in /opt/runtimes or /runtimes";
+        fi
+        env | sort > env_after
+        comm -13 env_before env_after >> $GITHUB_ENV
+        rm env_before env_after
+
+    - name: Build E2E tests
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
+        e2e_testing_mode: build-only
+        target_devices: all
+        artifact_suffix: default
+        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
