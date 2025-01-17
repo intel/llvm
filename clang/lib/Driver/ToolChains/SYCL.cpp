@@ -361,7 +361,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       for (std::string S; std::getline(Devices, S, ',');)
         UseNative &= checkBF(S);
 
-      // When "-device XXX" is applied to speicify GPU type, user can still
+      // When "-device XXX" is applied to specify GPU type, user can still
       // add -fsycl-targets=intel_gpu_pvc..., native bfloat16 devicelib can
       // only be linked when all GPU types specified support.
       // We need to filter CPU and FPGA target here and only focus on GPU
