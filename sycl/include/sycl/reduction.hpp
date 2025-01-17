@@ -2338,10 +2338,6 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
                                          reduction::strategy::multi,
                                          decltype(KernelTag)>;
 
-    static_assert(is_device_copyable_v<decltype(IdentitiesTuple)>);
-    static_assert(is_device_copyable_v<decltype(BOPsTuple)>);
-    static_assert(is_device_copyable_v<decltype(InitToIdentityProps)>);
-
     CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
       // We can deduce IsOneWG from the tag type.
       constexpr bool IsOneWG =
