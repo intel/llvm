@@ -10,8 +10,8 @@
 using urKernelGetInfoTest = uur::urKernelTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetInfoTest);
 
-TEST_P(urKernelGetInfoTest, FunctionName) {
-    auto property_name = UR_KERNEL_INFO_FUNCTION_NAME;
+TEST_P(urKernelGetInfoTest, SuccessFunctionName) {
+    ur_kernel_info_t property_name = UR_KERNEL_INFO_FUNCTION_NAME;
     size_t property_size = 0;
 
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -23,12 +23,13 @@ TEST_P(urKernelGetInfoTest, FunctionName) {
                                    property_value.data(), nullptr));
 }
 
-TEST_P(urKernelGetInfoTest, NumArgs) {
-    auto property_name = UR_KERNEL_INFO_NUM_ARGS;
+TEST_P(urKernelGetInfoTest, SuccessNumArgs) {
+    ur_kernel_info_t property_name = UR_KERNEL_INFO_NUM_ARGS;
     size_t property_size = 0;
 
-    ASSERT_SUCCESS(
-        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
+        property_name);
     ASSERT_EQ(property_size, sizeof(uint32_t));
 
     std::vector<char> property_value(property_size);
@@ -36,12 +37,13 @@ TEST_P(urKernelGetInfoTest, NumArgs) {
                                    property_value.data(), nullptr));
 }
 
-TEST_P(urKernelGetInfoTest, ReferenceCount) {
-    auto property_name = UR_KERNEL_INFO_REFERENCE_COUNT;
+TEST_P(urKernelGetInfoTest, SuccessReferenceCount) {
+    ur_kernel_info_t property_name = UR_KERNEL_INFO_REFERENCE_COUNT;
     size_t property_size = 0;
 
-    ASSERT_SUCCESS(
-        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
+        property_name);
     ASSERT_EQ(property_size, sizeof(uint32_t));
 
     std::vector<char> property_value(property_size);
@@ -53,12 +55,13 @@ TEST_P(urKernelGetInfoTest, ReferenceCount) {
     ASSERT_GT(*returned_reference_count, 0U);
 }
 
-TEST_P(urKernelGetInfoTest, Context) {
-    auto property_name = UR_KERNEL_INFO_CONTEXT;
+TEST_P(urKernelGetInfoTest, SuccessContext) {
+    ur_kernel_info_t property_name = UR_KERNEL_INFO_CONTEXT;
     size_t property_size = 0;
 
-    ASSERT_SUCCESS(
-        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
+        property_name);
     ASSERT_EQ(property_size, sizeof(ur_context_handle_t));
 
     std::vector<char> property_value(property_size);
@@ -70,12 +73,13 @@ TEST_P(urKernelGetInfoTest, Context) {
     ASSERT_EQ(context, *returned_context);
 }
 
-TEST_P(urKernelGetInfoTest, Program) {
-    auto property_name = UR_KERNEL_INFO_PROGRAM;
+TEST_P(urKernelGetInfoTest, SuccessProgram) {
+    ur_kernel_info_t property_name = UR_KERNEL_INFO_PROGRAM;
     size_t property_size = 0;
 
-    ASSERT_SUCCESS(
-        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
+        property_name);
     ASSERT_EQ(property_size, sizeof(ur_program_handle_t));
 
     std::vector<char> property_value(property_size);
@@ -87,12 +91,13 @@ TEST_P(urKernelGetInfoTest, Program) {
     ASSERT_EQ(program, *returned_program);
 }
 
-TEST_P(urKernelGetInfoTest, Attributes) {
-    auto property_name = UR_KERNEL_INFO_ATTRIBUTES;
+TEST_P(urKernelGetInfoTest, SuccessAttributes) {
+    ur_kernel_info_t property_name = UR_KERNEL_INFO_ATTRIBUTES;
     size_t property_size = 0;
 
-    ASSERT_SUCCESS(
-        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
+        property_name);
 
     std::vector<char> property_value(property_size);
     ASSERT_SUCCESS(urKernelGetInfo(kernel, property_name, property_size,
@@ -114,13 +119,15 @@ TEST_P(urKernelGetInfoTest, Attributes) {
     }
 }
 
-TEST_P(urKernelGetInfoTest, NumRegs) {
+TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
     UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{});
-    auto property_name = UR_KERNEL_INFO_NUM_REGS;
+
+    ur_kernel_info_t property_name = UR_KERNEL_INFO_NUM_REGS;
     size_t property_size = 0;
 
-    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
+        property_name);
     ASSERT_EQ(property_size, sizeof(uint32_t));
 
     std::vector<char> property_value(property_size);

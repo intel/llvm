@@ -17,39 +17,48 @@ struct urProgramGetInfoTest : uur::urProgramTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetInfoTest);
 
 TEST_P(urProgramGetInfoTest, SuccessReferenceCount) {
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_REFERENCE_COUNT;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(uint32_t));
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_REFERENCE_COUNT;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(uint32_t));
 
     uint32_t returned_reference_count = 0;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, size,
+    ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                     &returned_reference_count, nullptr));
 
     ASSERT_GT(returned_reference_count, 0U);
 }
 
 TEST_P(urProgramGetInfoTest, SuccessContext) {
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_CONTEXT;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(ur_context_handle_t));
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_CONTEXT;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_context_handle_t));
 
     ur_context_handle_t returned_context = nullptr;
-    ASSERT_SUCCESS(
-        urProgramGetInfo(program, info_type, size, &returned_context, nullptr));
+    ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
+                                    &returned_context, nullptr));
 
     ASSERT_EQ(returned_context, context);
 }
 
 TEST_P(urProgramGetInfoTest, SuccessNumDevices) {
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_NUM_DEVICES;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(uint32_t));
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_NUM_DEVICES;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(uint32_t));
 
     uint32_t returned_num_devices = 0;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, size,
+    ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                     &returned_num_devices, nullptr));
 
     ASSERT_GE(uur::DevicesEnvironment::instance->devices.size(),
@@ -57,33 +66,40 @@ TEST_P(urProgramGetInfoTest, SuccessNumDevices) {
 }
 
 TEST_P(urProgramGetInfoTest, SuccessDevices) {
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_DEVICES;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(ur_context_handle_t));
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_DEVICES;
 
-    std::vector<ur_device_handle_t> returned_devices(size);
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, size,
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_context_handle_t));
+
+    std::vector<ur_device_handle_t> returned_devices(property_size);
+    ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                     returned_devices.data(), nullptr));
 
-    size_t devices_count = size / sizeof(ur_device_handle_t);
+    size_t devices_count = property_size / sizeof(ur_device_handle_t);
 
     ASSERT_EQ(devices_count, 1);
     ASSERT_EQ(returned_devices[0], device);
 }
 
 TEST_P(urProgramGetInfoTest, SuccessIL) {
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_IL;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, 0, nullptr, &size));
-    ASSERT_GE(size, 0);
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_IL;
 
-    std::vector<char> returned_il(size);
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_GE(property_size, 0);
+
+    std::vector<char> returned_il(property_size);
     // Some adapters only support ProgramCreateWithBinary, in those cases we
     // expect a return size of 0 and an empty return value for INFO_IL.
-    if (size > 0) {
-        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_IL, size,
-                                        returned_il.data(), nullptr));
+    if (property_size > 0) {
+        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_IL,
+                                        property_size, returned_il.data(),
+                                        nullptr));
         ASSERT_EQ(returned_il, *il_binary.get());
     } else {
         ASSERT_TRUE(returned_il.empty());
@@ -91,14 +107,18 @@ TEST_P(urProgramGetInfoTest, SuccessIL) {
 }
 
 TEST_P(urProgramGetInfoTest, SuccessBinarySizes) {
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_BINARY_SIZES;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_BINARY_SIZES;
 
-    std::vector<size_t> binary_sizes(size / sizeof(size_t));
-    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES, size,
-                                    binary_sizes.data(), nullptr));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_NE(property_size, 0);
+
+    std::vector<size_t> binary_sizes(property_size / sizeof(size_t));
+    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
+                                    property_size, binary_sizes.data(),
+                                    nullptr));
 
     for (const auto &binary_size : binary_sizes) {
         ASSERT_GT(binary_size, 0);
@@ -108,8 +128,11 @@ TEST_P(urProgramGetInfoTest, SuccessBinarySizes) {
 TEST_P(urProgramGetInfoTest, SuccessBinaries) {
     size_t binary_sizes_len = 0;
     std::vector<char> property_value;
-    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES, 0,
-                                    nullptr, &binary_sizes_len));
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES, 0, nullptr,
+                         &binary_sizes_len),
+        UR_PROGRAM_INFO_BINARY_SIZES);
     // Due to how the fixtures + env are set up we should only have one
     // device associated with program, so one binary.
     ASSERT_EQ(binary_sizes_len / sizeof(size_t), 1);
@@ -119,40 +142,46 @@ TEST_P(urProgramGetInfoTest, SuccessBinaries) {
                                     binary_sizes_len, binary_sizes, nullptr));
     property_value.resize(binary_sizes[0]);
     char *binaries[1] = {property_value.data()};
-    ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARIES,
-                                    sizeof(binaries[0]), binaries, nullptr));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, UR_PROGRAM_INFO_BINARIES, sizeof(binaries[0]),
+                         binaries, nullptr),
+        UR_PROGRAM_INFO_BINARIES);
 }
 
 TEST_P(urProgramGetInfoTest, SuccessNumKernels) {
     UUR_KNOWN_FAILURE_ON(uur::HIP{});
 
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_NUM_KERNELS;
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_NUM_KERNELS;
+
     ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urProgramGetInfo(program, info_type, 0, nullptr, &size), info_type);
-    ASSERT_EQ(size, sizeof(size_t));
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(size_t));
 
     size_t returned_num_kernels = 0;
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, size,
+    ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                     &returned_num_kernels, nullptr));
 
     ASSERT_GT(returned_num_kernels, 0U);
 }
 
 TEST_P(urProgramGetInfoTest, SuccessKernelNames) {
-    size_t size = 0;
-    auto info_type = UR_PROGRAM_INFO_KERNEL_NAMES;
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urProgramGetInfo(program, info_type, 0, nullptr, &size), info_type);
-    ASSERT_GT(size, 0);
+    size_t property_size = 0;
+    ur_program_info_t property_name = UR_PROGRAM_INFO_KERNEL_NAMES;
 
-    std::vector<char> returned_kernel_names(size);
-    returned_kernel_names[size - 1] = 'x';
-    ASSERT_SUCCESS(urProgramGetInfo(program, info_type, size,
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urProgramGetInfo(program, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_GT(property_size, 0);
+
+    std::vector<char> returned_kernel_names(property_size);
+    returned_kernel_names[property_size - 1] = 'x';
+    ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                     returned_kernel_names.data(), nullptr));
 
-    ASSERT_EQ(size, returned_kernel_names.size());
-    ASSERT_EQ(returned_kernel_names[size - 1], '\0');
+    ASSERT_EQ(property_size, returned_kernel_names.size());
+    ASSERT_EQ(returned_kernel_names[property_size - 1], '\0');
 }
 
 TEST_P(urProgramGetInfoTest, InvalidNullHandleProgram) {
