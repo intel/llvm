@@ -229,8 +229,11 @@ int main() {
         test_ewops_c<float, 16, 16>();
 // This combination is not currently supported for sub group size = 32 in IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
+        test_ewops_ab<bfloat16, 1, 32, use::a, layout::row_major, 1>();
         test_ewops_ab<bfloat16, 32, 16, use::a, layout::row_major, 1>();
+        test_ewops_ab<bfloat16, 32, 32, use::a, layout::row_major, 1>();
         test_ewops_ab<bfloat16, 16, 64, use::b, layout::ext_intel_packed, 2>();
+        test_ewops_ab<bfloat16, 32, 64, use::b, layout::ext_intel_packed, 2>();
         test_ewops_c<float, 1, 64>();
         test_ewops_c<float, 32, 64>();
 #endif
