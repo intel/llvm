@@ -54,5 +54,5 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
+      runner: '["Windows","gen12-test"]'
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
