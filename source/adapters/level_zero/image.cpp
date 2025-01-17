@@ -517,6 +517,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     ZE2UR_CALL(zeContextMakeImageResident,
                (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
   } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
+             MemAllocProperties.type == ZE_MEMORY_TYPE_HOST ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
     ZeStruct<ze_image_pitched_exp_desc_t> PitchedDesc;
     PitchedDesc.ptr = reinterpret_cast<void *>(hImageMem);
