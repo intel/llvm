@@ -6787,6 +6787,10 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                                       transValue(CI->getArgOperand(2), BB), BB);
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
   }
+  case OpCooperativeMatrixLengthKHR: {
+    return BM->addCooperativeMatrixLengthKHRInst(
+        transScavengedType(CI), transType(CI->getArgOperand(0)->getType()), BB);
+  }
   case OpGroupNonUniformShuffleDown: {
     Function *F = CI->getCalledFunction();
     if (F->arg_size() && F->getArg(0)->hasStructRetAttr()) {
