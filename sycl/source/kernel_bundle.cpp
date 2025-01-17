@@ -45,25 +45,25 @@ ur_native_handle_t device_image_plain::getNative() const {
   return impl->getNative();
 }
 
-backend device_image_plain::ext_oneapi_get_backend() const noexcept{
+backend device_image_plain::ext_oneapi_get_backend() const noexcept {
   return impl->get_context().get_backend();
 }
 
-std::vector<std::byte> device_image_plain::ext_oneapi_get_backend_content() const {
+std::vector<std::byte>
+device_image_plain::ext_oneapi_get_backend_content() const {
   return std::vector(reinterpret_cast<const std::byte *>(
                          impl->get_bin_image_ref()->getRawData().BinaryStart),
                      reinterpret_cast<const std::byte *>(
                          impl->get_bin_image_ref()->getRawData().BinaryEnd));
 }
 
-#ifdef __cpp_lib_span
-std::span<std::byte> device_image_plain::ext_oneapi_get_backend_content_view() const {
+std::span<std::byte>
+device_image_plain::ext_oneapi_get_backend_content_view() const {
   return std::span(reinterpret_cast<const std::byte *>(
                        impl->get_bin_image_ref()->getRawData().BinaryStart),
                    reinterpret_cast<const std::byte *>(
                        impl->get_bin_image_ref()->getRawData().BinaryEnd));
 }
-#endif
 
 ////////////////////////////
 ///// kernel_bundle_plain
