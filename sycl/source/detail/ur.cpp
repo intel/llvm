@@ -17,7 +17,6 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/xpti_registry.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_filter.hpp>
@@ -36,12 +35,6 @@
 #include <string>
 #include <tuple>
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-// Include the headers necessary for emitting
-// traces using the trace framework
-#include "xpti/xpti_trace_framework.h"
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -56,13 +49,6 @@ void contextSetExtendedDeleter(const sycl::context &context,
       reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
 }
 } // namespace pi
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-// Global (to the SYCL runtime) graph handle that all command groups are a
-// child of
-/// Event to be used by graph related activities
-xpti_td *GSYCLGraphEvent = nullptr;
-#endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE>
 void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
@@ -85,8 +71,6 @@ bool trace(TraceLevel Level) {
 
 static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
-
-bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
 std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
@@ -221,39 +205,6 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
     Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
   }
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-
-  if (!(xptiTraceEnabled() && !XPTIInitDone))
-    return;
-  // Not sure this is the best place to initialize the framework; SYCL runtime
-  // team needs to advise on the right place, until then we piggy-back on the
-  // initialization of the UR layer.
-
-  // Initialize the global events just once, in the case ur::initialize() is
-  // called multiple times
-  XPTIInitDone = true;
-  // Registers a new stream for 'sycl' and any application that wants to listen
-  // to this stream will register itself using this string or stream ID for
-  // this string.
-  uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  // Let all tool applications know that a stream by the name of 'sycl' has
-  // been initialized and will be generating the trace stream.
-  GlobalHandler::instance().getXPTIRegistry().initializeStream(
-      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-  // Create a tracepoint to indicate the graph creation
-  xpti::payload_t GraphPayload("application_graph");
-  uint64_t GraphInstanceNo;
-  GSYCLGraphEvent =
-      xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
-                    xpti_at::active, &GraphInstanceNo);
-  if (GSYCLGraphEvent) {
-    // The graph event is a global event and will be used as the parent for
-    // all nodes (command groups)
-    xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
-                          GSYCLGraphEvent, GraphInstanceNo, nullptr);
-  }
-#endif
 #undef CHECK_UR_SUCCESS
 }
 

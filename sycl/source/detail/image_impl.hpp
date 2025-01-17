@@ -285,18 +285,6 @@ public:
     }
   }
 
-  void sampledImageConstructorNotification(const detail::code_location &CodeLoc,
-                                           void *UserObj, const void *HostObj,
-                                           uint32_t Dim, size_t Range[3],
-                                           image_format Format,
-                                           const image_sampler &Sampler);
-  void sampledImageDestructorNotification(void *UserObj);
-
-  void unsampledImageConstructorNotification(
-      const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
-      uint32_t Dim, size_t Range[3], image_format Format);
-  void unsampledImageDestructorNotification(void *UserObj);
-
 private:
   std::vector<device> getDevices(const ContextImplPtr Context);
 

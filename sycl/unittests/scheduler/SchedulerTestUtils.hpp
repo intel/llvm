@@ -54,7 +54,6 @@ public:
   }
 
   void printDot(std::ostream &) const override {}
-  void emitInstrumentationData() override {}
 
   const sycl::detail::Requirement *getRequirement() const final {
     return &MRequirement;

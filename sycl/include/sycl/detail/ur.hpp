@@ -31,13 +31,6 @@ typedef void (*pi_context_extended_deleter)(void *user_data);
 struct _sycl_device_binary_property_struct;
 using sycl_device_binary_property = _sycl_device_binary_property_struct*;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-// Forward declarations
-namespace xpti {
-struct trace_event_data_t;
-}
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 

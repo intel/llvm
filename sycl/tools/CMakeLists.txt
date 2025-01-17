@@ -6,12 +6,3 @@ function(link_llvm_libs target)
 endfunction()
 
 add_subdirectory(sycl-ls)
-
-if (SYCL_ENABLE_XPTI_TRACING)
-  if (UNIX)
-    add_subdirectory(sycl-prof)
-    add_subdirectory(sycl-trace)
-    add_subdirectory(sycl-sanitize)
-  endif()
-endif()
-

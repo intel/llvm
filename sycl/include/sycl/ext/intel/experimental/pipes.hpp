@@ -24,11 +24,6 @@
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
 #endif
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-#include <xpti/xpti_data_types.h>
-#include <xpti/xpti_trace_framework.hpp>
-#endif
-
 #include <stdint.h> // for int32_t
 #include <string>   // for string
 #include <tuple>    // for _Swallow_...

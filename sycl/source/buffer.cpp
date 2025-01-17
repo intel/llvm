@@ -70,14 +70,6 @@ void buffer_plain::set_final_data_internal(
   impl->set_final_data(FinalDataFunc);
 }
 
-void buffer_plain::constructorNotification(const detail::code_location &CodeLoc,
-                                           void *UserObj, const void *HostObj,
-                                           const void *Type, uint32_t Dim,
-                                           uint32_t ElemType, size_t Range[3]) {
-  impl->constructorNotification(CodeLoc, UserObj, HostObj, Type, Dim, ElemType,
-                                Range);
-}
-
 void buffer_plain::set_write_back(bool NeedWriteBack) {
   impl->set_write_back(NeedWriteBack);
 }
