@@ -15,9 +15,9 @@ import re
 class E2EExpr(BooleanExpression):
     build_specific_features = {
         "build-and-run-mode",
-        "spir64",
-        "nvptx64-nvidia-cuda",
-        "amdgcn-amd-amdhsa",
+        "target-spir",
+        "target-nvidia",
+        "target-amd",
         "native_cpu",
         "linux",
         "system-linux",
