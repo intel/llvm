@@ -111,8 +111,9 @@ protected:
 
 inline void CheckLastEventDiscarded(sycl::queue &Q) {
   auto QueueImplPtr = sycl::detail::getSyclObjImpl(Q);
-  event LastEvent = QueueImplPtr->getLastEvent();
-  auto LastEventImplPtr = sycl::detail::getSyclObjImpl(LastEvent);
+  sycl::detail::optional<event> LastEvent = QueueImplPtr->getLastEvent();
+  ASSERT_TRUE(LastEvent.has_value());
+  auto LastEventImplPtr = sycl::detail::getSyclObjImpl(*LastEvent);
   ASSERT_TRUE(LastEventImplPtr->isDiscarded());
 }
 

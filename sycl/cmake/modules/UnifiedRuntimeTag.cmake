@@ -1,7 +1,7 @@
-# commit 9e48f543b8dd39d45563169433bb529583625dfe
-# Merge: 6a3fece6 1a1108b3
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Jan 15 14:33:29 2025 +0000
-#     Merge pull request #2540 from martygrant/martin/program-info-unswitch
-#     Move urProgramGetInfo success test from a switch to individual tests.
-set(UNIFIED_RUNTIME_TAG 9e48f543b8dd39d45563169433bb529583625dfe)
+# commit eaea885d5477c8936209175a5b00062ca44f5765
+# Merge: af4ab49c 2a03334c
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 16 14:30:47 2025 +0000
+#     Merge pull request #2569 from zhaomaosu/asan-only-warn-host-ptr
+#     [DevASAN] Only report warning if passing host ptr to kernel
+set(UNIFIED_RUNTIME_TAG eaea885d5477c8936209175a5b00062ca44f5765)
