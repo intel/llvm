@@ -1,6 +1,6 @@
-# commit 3e3282c01f3703b76a107ed34593ba46c4444298
-# Merge: 2e7eb6ad bfc0676a
+# commit bbb172e7df29cefc1fd809f75f0295aefb0eeed8
+# Merge: ac2780e0 222e4b1d
 # Author: Daniel Skrobot <daniel.skrobot@intel.com>
-# Date:   Thu Jan 16 18:00:16 2025 +0100
+# Date:   Fri Jan 17 11:37:50 2025 +0100
 #     Addition of num_compute_units query
-set(UNIFIED_RUNTIME_TAG 3e3282c01f3703b76a107ed34593ba46c4444298)
+set(UNIFIED_RUNTIME_TAG bbb172e7df29cefc1fd809f75f0295aefb0eeed8)
