@@ -1,1 +1,7 @@
-set(UNIFIED_RUNTIME_TAG fe926aa6d666a5e25a2b44e584508257d6f3cbc5)
+# commit 222e4b1d51536bb38e03e2000a79679af0a44a6d
+# Merge: 30d183a0 28108a7e
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Fri Jan 17 10:28:34 2025 +0000
+#     Merge pull request #2561 from Bensuo/ben/cmd-buffer-l0-fence
+#     [L0][CMDBUF] Optimize fence/event waits during update
+set(UNIFIED_RUNTIME_TAG 222e4b1d51536bb38e03e2000a79679af0a44a6d)
