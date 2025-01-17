@@ -267,20 +267,7 @@ jobs:
         tags: |
           ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:${{ github.sha }}
           ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:latest
-    - name: Build and Push Container (no drivers)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_base
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
-    - name: Build and Push Container (Build image)
+    - name: Build and Push Container
       uses: ./devops/actions/build_container
       with:
         push: ${{ github.ref_name == 'sycl' }}
