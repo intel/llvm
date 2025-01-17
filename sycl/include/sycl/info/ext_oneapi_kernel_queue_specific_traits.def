@@ -5,4 +5,4 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_n
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_work_group_size, size_t,)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_sub_group_size, uint32_t,)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, num_sub_groups, uint32_t,)
-__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_work_item_sizes, sycl::id<3>,)
+__SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_work_item_sizes, sycl::id,)

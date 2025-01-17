@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
+#include <sycl/info/info_desc.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -16,7 +16,7 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
-#include <sycl/info/info_desc.hpp>
+
 #include <sycl/queue.hpp>
 
 #include <cassert>
@@ -336,11 +336,22 @@ inline typename syclex::info::kernel_queue_specific::max_work_group_size::
   return 0;
 }
 
+template <int D>
+inline sycl::id<D> generate_id(const size_t* sizes)
+{
+  sycl::id<D> ret;
+  for (int i = 0; i < D; i++)
+  {
+    ret[i] = sizes[i];
+  }
+  return ret;
+}
+
 template <>
-inline typename syclex::info::kernel_queue_specific::max_work_item_sizes::
+inline typename syclex::info::kernel_queue_specific::max_work_item_sizes<1>::
     return_type
     kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_work_item_sizes>(
+        syclex::info::kernel_queue_specific::max_work_item_sizes<1>>(
         queue Queue) const {
   const auto &Adapter = getAdapter();
   const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
@@ -351,9 +362,46 @@ inline typename syclex::info::kernel_queue_specific::max_work_item_sizes::
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     // The feature is supported. Check for other errors and throw if any.
     Adapter->checkUrResult(Result);
-    return sycl::id<3>(KernelWGSize[0], KernelWGSize[1], KernelWGSize[2]);
   }
-  return sycl::id<3>(0, 0, 0);
+  return generate_id<1>(KernelWGSize);
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_work_item_sizes<2>::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_work_item_sizes<2>>(
+        queue Queue) const {
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
+  size_t KernelWGSize[3] = {0};
+  if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+        MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE,
+        sizeof(size_t)*3, KernelWGSize, nullptr);
+      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Adapter->checkUrResult(Result);
+  }
+  return generate_id<2>(KernelWGSize);
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_work_item_sizes<3>::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_work_item_sizes<3>>(
+        queue Queue) const {
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
+  size_t KernelWGSize[3] = {0};
+  if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+        MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE,
+        sizeof(size_t)*3, KernelWGSize, nullptr);
+      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Adapter->checkUrResult(Result);
+  }
+  return generate_id<3>(KernelWGSize);
 }
 
 template <>

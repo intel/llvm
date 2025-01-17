@@ -139,10 +139,22 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
             max_work_group_size>(queue Queue) const;
 
 template __SYCL_EXPORT typename ext::oneapi::experimental::info::
-    kernel_queue_specific::max_work_item_sizes::return_type
+    kernel_queue_specific::max_work_item_sizes<1>::return_type
     kernel::ext_oneapi_get_info<
         ext::oneapi::experimental::info::kernel_queue_specific::
-            max_work_item_sizes>(queue Queue) const;
+            max_work_item_sizes<1>>(queue Queue) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_work_item_sizes<2>::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_work_item_sizes<2>>(queue Queue) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_work_item_sizes<3>::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_work_item_sizes<3>>(queue Queue) const;
 
 template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel_queue_specific::max_sub_group_size::return_type
