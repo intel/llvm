@@ -1,6 +1,6 @@
 // TODO: Despite using a supported required subgroup size compile_sub_group_size
 // reports as 0 on cuda and hip
-// XFAIL: nvptx64-nvidia-cuda || amdgcn-amd-amdhsa
+// XFAIL: target-nvidia || target-amd
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14357
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out

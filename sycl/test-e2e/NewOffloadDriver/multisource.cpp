@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: nvptx64-nvidia-cuda
+// XFAIL: target-nvidia
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
 // Separate kernel sources and host code sources
 // Test with `--offload-new-driver`

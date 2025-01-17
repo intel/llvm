@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: nvptx64-nvidia-cuda
+// XFAIL: target-nvidia
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
 // UNSUPPORTED: target-amd
 

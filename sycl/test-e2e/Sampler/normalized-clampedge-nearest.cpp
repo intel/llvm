@@ -4,7 +4,7 @@
 //
 // Missing __spirv_ImageWrite, __spirv_SampledImage,
 // __spirv_ImageSampleExplicitLod on AMD
-// XFAIL: amdgcn-amd-amdhsa
+// XFAIL: target-amd
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14732
 
 /*
