@@ -4346,3 +4346,5 @@
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
+??$get_info@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
+??$get_info_impl@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
