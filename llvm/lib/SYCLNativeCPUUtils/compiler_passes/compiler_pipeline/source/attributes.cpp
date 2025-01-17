@@ -186,18 +186,6 @@ BarrierSchedule getBarrierSchedule(const CallInst &CI) {
   return BarrierSchedule::Unordered;
 }
 
-static constexpr const char *MuxDegenerateSubgroupsAttrName =
-    "mux-degenerate-subgroups";
-
-void setHasDegenerateSubgroups(Function &F) {
-  F.addFnAttr(MuxDegenerateSubgroupsAttrName);
-}
-
-bool hasDegenerateSubgroups(const Function &F) {
-  const Attribute Attr = F.getFnAttribute(MuxDegenerateSubgroupsAttrName);
-  return Attr.isValid();
-}
-
 static constexpr const char *MuxNoSubgroupsAttrName = "mux-no-subgroups";
 
 void setHasNoExplicitSubgroups(Function &F) {
