@@ -59,6 +59,7 @@
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/SROA.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
@@ -296,11 +297,35 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   MPM.run(M, MAM);
 }
 
-std::string saveModuleIR(Module &M, int I, StringRef Suff) {
-  DUMP_ENTRY_POINTS(M, EmitOnlyKernelsAsEntryPoints, "saving IR");
+std::unique_ptr<Module> makeDummyImageIR(const Module &M) {
+  auto MCopy = CloneModule(M);
+  for (Function &F : MCopy->functions()) {
+    if (!F.hasFnAttribute("indirectly-callable"))
+      continue;
+
+    F.erase(F.begin(), F.end());
+    BasicBlock *newBB = BasicBlock::Create(F.getContext(), "entry", &F);
+    IRBuilder<> builder(newBB);
+    if (F.getReturnType()->isVoidTy())
+      builder.CreateRetVoid();
+    else
+      builder.CreateRet(UndefValue::get(F.getReturnType()));
+  }
+  return MCopy;
+}
+
+std::string saveModuleIR(module_split::ModuleDesc &MD, int I, StringRef Suff) {
+  std::unique_ptr<Module> Storage;
+  Module *M = &MD.getModule();
+  if (MD.isDummyImage()) {
+    Storage = makeDummyImageIR(MD.getModule());
+    M = Storage.get();
+  }
+
+  DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "saving IR");
   StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
   std::string OutFilename = makeResultFileName(FileExt, I, Suff);
-  saveModuleIR(M, OutFilename);
+  saveModuleIR(*M, OutFilename);
   return OutFilename;
 }
 
@@ -326,6 +351,9 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     NewSuff += "_";
     NewSuff += Target;
   }
+
+  if (MD.isDummyImage())
+    PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS, "dummy-image", 1);
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, NewSuff);
@@ -434,7 +462,7 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     BaseTriple.Ir = IRFilename.str();
   } else {
     MD.cleanup();
-    BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+    BaseTriple.Ir = saveModuleIR(MD, I, Suffix);
   }
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
@@ -750,6 +778,20 @@ bool isTargetCompatibleWithModule(const std::string &Target,
   return true;
 }
 
+bool hasVirtualFunctionsAndOptionalKernelFeatures(const Module &M) {
+  bool hasVirtualFunctions = false;
+  bool hasOptionalKernelFeatures = false;
+  for (const Function &F : M.functions()) {
+    if (F.hasFnAttribute("indirectly-callable"))
+      hasVirtualFunctions = true;
+    if (F.getMetadata("sycl_used_aspects"))
+      hasOptionalKernelFeatures = true;
+    if (hasVirtualFunctions && hasOptionalKernelFeatures)
+      break;
+  }
+  return hasVirtualFunctions && hasOptionalKernelFeatures;
+}
+
 std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
@@ -903,6 +945,21 @@ processInputModule(std::unique_ptr<Module> M) {
 
       ++ID;
     }
+
+    // For kernels with virtual functions and optional kernel features, generate
+    // a dummy image to avoid link errors. A dummy image for a set of virtual
+    // functions is a module with the same set of virtual functions, but with
+    // those function bodies replaced with just a return.
+    bool dummyEmitted = false;
+    for (module_split::ModuleDesc &IrMD : MMs) {
+      if ((dummyEmitted = hasVirtualFunctionsAndOptionalKernelFeatures(
+               IrMD.getModule()))) {
+        auto DummyImage = IrMD.makeDummy();
+        saveModule(Tables, DummyImage, ID, OutIRFileName);
+      }
+    }
+    if (dummyEmitted)
+      ++ID;
   }
   return Tables;
 }

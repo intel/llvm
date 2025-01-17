@@ -130,6 +130,7 @@ class ModuleDesc {
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
   mutable std::optional<SYCLDeviceRequirements> Reqs;
+  bool IsDummyImage = false;
 
 public:
   struct Properties {
@@ -224,6 +225,9 @@ public:
   }
 
   void saveSplitInformationAsMetadata();
+
+  ModuleDesc makeDummy() const;
+  bool isDummyImage() { return IsDummyImage; }
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;

@@ -25,13 +25,15 @@ define spir_func void @subBar() {
   ret void
 }
 
-; CHECK: @kernelA() #2 !sycl_used_aspects ![[#aspectsFoo]]
-define spir_kernel void @kernelA() #2 {
+; CHECK: @kernelA({{.*}}) #2 !sycl_used_aspects ![[#aspectsFoo]]
+define spir_kernel void @kernelA(ptr %f) #2 {
+  call void %f() #4
   ret void
 }
 
-; CHECK: @kernelB() #3 !sycl_used_aspects ![[#aspectsBar]]
-define spir_kernel void @kernelB() #3 {
+; CHECK: @kernelB({{.*}}) #3 !sycl_used_aspects ![[#aspectsBar]]
+define spir_kernel void @kernelB(ptr %f) #3 {
+  call void %f() #4
   ret void
 }
 
@@ -42,6 +44,7 @@ attributes #0 = { "indirectly-callable"="setFoo" }
 attributes #1 = { "indirectly-callable"="setBar" }
 attributes #2 = { "calls-indirectly"="setFoo" }
 attributes #3 = { "calls-indirectly"="setBar" }
+attributes #4 = { "virtual-call" }
 
 !sycl_aspects = !{!0}
 !0 = !{!"fp64", i32 6}

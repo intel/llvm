@@ -692,10 +692,11 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   std::set<std::string> HandledSets;
   std::queue<std::string> WorkList;
   for (const sycl_device_binary_property &VFProp : Img.getVirtualFunctions()) {
-    std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+    std::string_view StrValue = DeviceBinaryProperty(VFProp).asStringView();
     // Device image passed to this function is expected to contain SYCL kernels
     // and therefore it may only use virtual function sets, but cannot provide
-    // them. We expect to see just a single property here
+    // them. Additionally, it cannot be a dummy image.
+    // We expect to see just a single property here
     assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
            "Unexpected virtual function property");
     for (const auto &SetName : detail::split_string(StrValue, ',')) {
@@ -716,23 +717,41 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // virtual-functions-set properties, but their handling is the same: we
       // just grab all sets they reference and add them for consideration if
       // we haven't done so already.
+      bool isDummyImage = false;
       for (const sycl_device_binary_property &VFProp :
            BinImage->getVirtualFunctions()) {
-        std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+        if (VFProp->Name == std::string_view("dummy-image")) {
+          isDummyImage = true;
+          continue;
+        }
+        std::string_view StrValue = DeviceBinaryProperty(VFProp).asStringView();
         for (const auto &SetName : detail::split_string(StrValue, ',')) {
           if (HandledSets.insert(SetName).second)
             WorkList.push(SetName);
         }
       }
 
-      // TODO: Complete this part about handling of incompatible device images.
       // If device image uses the same virtual function set, then we only
       // link it if it is compatible.
       // However, if device image provides virtual function set and it is
       // incompatible, then we should link its "dummy" version to avoid link
       // errors about unresolved external symbols.
-      if (doesDevSupportDeviceRequirements(Dev, *BinImage))
+      // Note: we only link when exactly one of
+      // doesDevSupportDeviceRequirements(Dev, *BinImage) and
+      // isDummyImage is true. We don't want to link every dummy image,
+      // otherwise we could run into linking errors defining the same symbol
+      // multiple times. For every image providing virtual functions that has
+      // a dummy image, the dummy image will have the same device requirements
+      // as the original image. So when the dummy image does support the
+      // device requirements, we know that the corresponding image providing
+      // actual definitions will be linked and not the dummy. And vice versa:
+      // when the dummy image does not support the device requirements, we
+      // know the corresponding image providing virtual functions was not
+      // linked and we must link the dummy image.
+      if (doesDevSupportDeviceRequirements(Dev, *BinImage) + isDummyImage ==
+          1) {
         DeviceImagesToLink.insert(BinImage);
+      }
     }
   }
 
@@ -1813,6 +1832,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     else
       Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
 
+    if (std::getenv("SYCL_PRINT_IMAGES"))
+      Img->print();
+
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
@@ -1838,7 +1860,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     // Record mapping between virtual function sets and device images
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
-      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+      if (VFProp->Name == std::string_view("dummy-image"))
+        continue;
+      std::string_view StrValue = DeviceBinaryProperty(VFProp).asStringView();
       for (const auto &SetName : detail::split_string(StrValue, ','))
         m_VFSet2BinImage[SetName].insert(Img.get());
     }
