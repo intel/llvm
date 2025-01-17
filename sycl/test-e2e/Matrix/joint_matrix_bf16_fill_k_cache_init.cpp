@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
-// REQUIRES: target-spir
 
 // RUN: %{build} -o %t.out -DINIT_LIST -DVNNI %fp-model-precise
 // RUN: %{run} %t.out

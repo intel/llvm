@@ -10,7 +10,6 @@
 // only run this on AMX
 // REQUIRES: cpu
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES: target-spir
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

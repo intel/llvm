@@ -8,7 +8,6 @@
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-ext_intel_matrix, gpu
-// REQUIRES: target-spir
 
 // RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DSLM -DVNNI
 // RUN: %{run} %t_gpu_vnni.out

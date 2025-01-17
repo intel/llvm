@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES: target-spir
 
 // RUN: %{build} -o %t_runtime_dim_vnni.out %fp-model-precise -DRUNTIME_DIM -DVNNI
 // RUN: %{run} %t_runtime_dim_vnni.out 256

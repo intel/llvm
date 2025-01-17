@@ -12,10 +12,10 @@
 // REQUIRES: arch-amd_gpu_gfx90a
 // REQUIRES: aspect-fp16
 
-#include "joint_matrix_hip_apply.hpp"
-#include "joint_matrix_hip_copy.hpp"
-#include "joint_matrix_hip_fill.hpp"
-#include "joint_matrix_hip_mfma.hpp"
+#include "../joint_matrix_hip_apply.hpp"
+#include "../joint_matrix_hip_copy.hpp"
+#include "../joint_matrix_hip_fill.hpp"
+#include "../joint_matrix_hip_mfma.hpp"
 
 template <size_t KX> void half_matrix_mfma() {
   hip_matrix_mfma<sycl::half, float, 32, 32, 8, KX, layout::row_major>();

@@ -9,7 +9,6 @@
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
-// REQUIRES: target-spir
 
 // RUN: %{build} -mllvm -inline-threshold=5000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
 // RUN: %{run} %t.out
