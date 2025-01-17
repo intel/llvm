@@ -25,14 +25,6 @@ struct BCopyable {
   BCopyable(const BCopyable &x) : i(x.i) {}
 };
 
-// Not trivially copyable, but trivially copy constructible/destructible.
-// Such types are passed to kernels to stay compatible with deprecated
-// sycl 1.2.1 rules.
-struct C : A {
-  const A C2;
-  C() : A{0}, C2{2} {}
-};
-
 // Not copyable type, but it will be declared as device copyable.
 struct DCopyable {
   int i;
@@ -67,7 +59,6 @@ void test() {
   A IamGood;
   IamGood.i = 0;
   BCopyable IamBadButCopyable(1);
-  C IamAlsoGood;
   DCopyable IamAlsoBadButCopyable{0};
   marray<int, 5> MarrayForCopyableIsCopyable(0);
   range<2> Range{1,2};
@@ -78,7 +69,6 @@ void test() {
     int A = IamGood.i;
     int B = IamBadButCopyable.i;
     int C = IamAlsoBadButCopyable.i;
-    int D = IamAlsoGood.i;
     int E = MarrayForCopyableIsCopyable[0];
     int F = Range[1];
     int G = Id[2];
