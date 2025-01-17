@@ -136,14 +136,6 @@ struct LocalMemoryUpdateTest : LocalMemoryUpdateTestBase {
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
   }
 
-  void TearDown() override {
-    if (command_handle) {
-      EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(command_handle));
-    }
-
-    UUR_RETURN_ON_FATAL_FAILURE(LocalMemoryUpdateTestBase::TearDown());
-  }
-
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
@@ -886,15 +878,6 @@ struct LocalMemoryMultiUpdateTest : LocalMemoryUpdateTestBase {
     }
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  }
-
-  void TearDown() override {
-    for (auto &handle : command_handles) {
-      if (handle) {
-        EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(handle));
-      }
-    }
-    UUR_RETURN_ON_FATAL_FAILURE(LocalMemoryUpdateTestBase::TearDown());
   }
 
   static constexpr size_t nodes = 1024;

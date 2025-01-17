@@ -56,28 +56,13 @@ enum class CommandType {
 struct ur_exp_command_buffer_command_handle_t_ {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
-      CUgraphNode SignalNode, const std::vector<CUgraphNode> &WaitNodes);
+      CUgraphNode SignalNode, const std::vector<CUgraphNode> &WaitNodes)
+      : CommandBuffer(CommandBuffer), Node(Node), SignalNode(SignalNode),
+        WaitNodes(WaitNodes) {}
 
   virtual ~ur_exp_command_buffer_command_handle_t_() {}
 
   virtual CommandType getCommandType() const noexcept = 0;
-
-  uint32_t incrementInternalReferenceCount() noexcept {
-    return ++RefCountInternal;
-  }
-  uint32_t decrementInternalReferenceCount() noexcept {
-    return --RefCountInternal;
-  }
-
-  uint32_t incrementExternalReferenceCount() noexcept {
-    return ++RefCountExternal;
-  }
-  uint32_t decrementExternalReferenceCount() noexcept {
-    return --RefCountExternal;
-  }
-  uint32_t getExternalReferenceCount() const noexcept {
-    return RefCountExternal;
-  }
 
   // Parent UR command-buffer.
   ur_exp_command_buffer_handle_t CommandBuffer;
@@ -89,10 +74,6 @@ struct ur_exp_command_buffer_command_handle_t_ {
   // Optional list of EventWait Nodes to wait on commands from outside of the
   // command-buffer.
   std::vector<CUgraphNode> WaitNodes;
-
-private:
-  std::atomic_uint32_t RefCountInternal;
-  std::atomic_uint32_t RefCountExternal;
 };
 
 struct kernel_command_handle : ur_exp_command_buffer_command_handle_t_ {
@@ -340,25 +321,9 @@ struct ur_exp_command_buffer_handle_t_ {
     return SyncPoint;
   }
 
-  uint32_t incrementInternalReferenceCount() noexcept {
-    return ++RefCountInternal;
-  }
-  uint32_t decrementInternalReferenceCount() noexcept {
-    return --RefCountInternal;
-  }
-  uint32_t getInternalReferenceCount() const noexcept {
-    return RefCountInternal;
-  }
-
-  uint32_t incrementExternalReferenceCount() noexcept {
-    return ++RefCountExternal;
-  }
-  uint32_t decrementExternalReferenceCount() noexcept {
-    return --RefCountExternal;
-  }
-  uint32_t getExternalReferenceCount() const noexcept {
-    return RefCountExternal;
-  }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
@@ -372,8 +337,7 @@ struct ur_exp_command_buffer_handle_t_ {
   CUgraphExec CudaGraphExec = nullptr;
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCountInternal;
-  std::atomic_uint32_t RefCountExternal;
+  std::atomic_uint32_t RefCount;
 
   // Map of sync_points to ur_events
   std::unordered_map<ur_exp_command_buffer_sync_point_t, CUgraphNode>

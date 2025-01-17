@@ -21,36 +21,10 @@
 
 #include <cstring>
 
-namespace {
-ur_result_t
-commandBufferReleaseInternal(ur_exp_command_buffer_handle_t CommandBuffer) {
-  if (CommandBuffer->decrementInternalReferenceCount() != 0) {
-    return UR_RESULT_SUCCESS;
-  }
-
-  delete CommandBuffer;
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t
-commandHandleReleaseInternal(ur_exp_command_buffer_command_handle_t Command) {
-  if (Command->decrementInternalReferenceCount() != 0) {
-    return UR_RESULT_SUCCESS;
-  }
-
-  // Decrement parent command-buffer internal ref count
-  commandBufferReleaseInternal(Command->CommandBuffer);
-
-  delete Command;
-  return UR_RESULT_SUCCESS;
-}
-} // end anonymous namespace
-
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, bool IsUpdatable)
     : Context(hContext), Device(hDevice), IsUpdatable(IsUpdatable),
-      HIPGraph{nullptr}, HIPGraphExec{nullptr}, RefCountInternal{1},
-      RefCountExternal{1}, NextSyncPoint{0} {
+      HIPGraph{nullptr}, HIPGraphExec{nullptr}, RefCount{1}, NextSyncPoint{0} {
   urContextRetain(hContext);
   urDeviceRetain(hDevice);
 }
@@ -81,9 +55,7 @@ ur_exp_command_buffer_command_handle_t_::
         const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
         ur_kernel_handle_t *KernelAlternatives)
     : CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node), Params(Params),
-      WorkDim(WorkDim), RefCountInternal(1), RefCountExternal(1) {
-  CommandBuffer->incrementInternalReferenceCount();
-
+      WorkDim(WorkDim) {
   const size_t CopySize = sizeof(size_t) * WorkDim;
   std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
   std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
@@ -284,22 +256,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->incrementInternalReferenceCount();
-  hCommandBuffer->incrementExternalReferenceCount();
+  hCommandBuffer->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->decrementExternalReferenceCount() == 0) {
-    // External ref count has reached zero, internal release of created
+  if (hCommandBuffer->decrementReferenceCount() == 0) {
+    // Ref count has reached zero, release of created commands
     // commands.
     for (auto Command : hCommandBuffer->CommandHandles) {
-      commandHandleReleaseInternal(Command);
+      delete Command;
     }
-  }
 
-  return commandBufferReleaseInternal(hCommandBuffer);
+    delete hCommandBuffer;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -408,7 +380,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         pGlobalWorkSize,     pLocalWorkSize, numKernelAlternatives,
         phKernelAlternatives};
 
-    NewCommand->incrementInternalReferenceCount();
     hCommandBuffer->CommandHandles.push_back(NewCommand);
 
     if (phCommand) {
@@ -901,19 +872,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  hCommand->incrementExternalReferenceCount();
-  hCommand->incrementInternalReferenceCount();
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  hCommand->decrementExternalReferenceCount();
-  return commandHandleReleaseInternal(hCommand);
-}
-
 /**
  * Validates contents of the update command description.
  * @param[in] Command The command which is being updated.
@@ -1133,7 +1091,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommandBuffer->getExternalReferenceCount());
+    return ReturnValue(hCommandBuffer->getReferenceCount());
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
@@ -1145,22 +1103,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   }
   default:
     assert(!"Command-buffer info request not implemented");
-  }
-
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    ur_exp_command_buffer_command_info_t propName, size_t propSize,
-    void *pPropValue, size_t *pPropSizeRet) {
-  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-
-  switch (propName) {
-  case UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommand->getExternalReferenceCount());
-  default:
-    assert(!"Command-buffer command info request not implemented");
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;

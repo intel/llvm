@@ -308,9 +308,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
   pDdiTable->pfnUpdateKernelLaunchExp = urCommandBufferUpdateKernelLaunchExp;
   pDdiTable->pfnGetInfoExp = urCommandBufferGetInfoExp;
-  pDdiTable->pfnCommandGetInfoExp = urCommandBufferCommandGetInfoExp;
-  pDdiTable->pfnReleaseCommandExp = urCommandBufferReleaseCommandExp;
-  pDdiTable->pfnRetainCommandExp = urCommandBufferRetainCommandExp;
   pDdiTable->pfnUpdateWaitEventsExp = urCommandBufferUpdateWaitEventsExp;
   pDdiTable->pfnUpdateSignalEventExp = urCommandBufferUpdateSignalEventExp;
 

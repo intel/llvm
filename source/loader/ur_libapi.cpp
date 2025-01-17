@@ -8741,59 +8741,6 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Increment the command object's reference count.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
-    /// [in][retain] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) try {
-  auto pfnRetainCommandExp =
-      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnRetainCommandExp;
-  if (nullptr == pfnRetainCommandExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnRetainCommandExp(hCommand);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Decrement the command object's reference count and delete the command
-///        object if the reference count becomes zero.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
-    /// [in][release] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) try {
-  auto pfnReleaseCommandExp =
-      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
-  if (nullptr == pfnReleaseCommandExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnReleaseCommandExp(hCommand);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Update a kernel launch command in a finalized command-buffer.
 ///
 /// @details
@@ -9015,53 +8962,6 @@ ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   return pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
                        pPropSizeRet);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get command-buffer object information.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT < propName`
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
-///         + If `propName` is not supported by the adapter.
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `propSize == 0 && pPropValue != NULL`
-///         + If `propSize` is less than the real number of bytes needed to
-///         return the info.
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `propSize != 0 && pPropValue == NULL`
-///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
-    /// [in] handle of the command-buffer command object
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] the name of the command-buffer command property to query
-    ur_exp_command_buffer_command_info_t propName,
-    /// [in] size in bytes of the command-buffer command property value
-    size_t propSize,
-    /// [out][optional][typename(propName, propSize)] value of the
-    /// command-buffer command property
-    void *pPropValue,
-    /// [out][optional] bytes returned in command-buffer command property
-    size_t *pPropSizeRet) try {
-  auto pfnCommandGetInfoExp =
-      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
-  if (nullptr == pfnCommandGetInfoExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnCommandGetInfoExp(hCommand, propName, propSize, pPropValue,
-                              pPropSizeRet);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
