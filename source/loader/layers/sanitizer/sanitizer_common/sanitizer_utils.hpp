@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file sanitizer_utils.hpp
  *
@@ -21,17 +21,17 @@
 namespace ur_sanitizer_layer {
 
 struct ManagedQueue {
-    ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device);
-    ~ManagedQueue();
+  ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device);
+  ~ManagedQueue();
 
-    // Disable copy semantics
-    ManagedQueue(const ManagedQueue &) = delete;
-    ManagedQueue &operator=(const ManagedQueue &) = delete;
+  // Disable copy semantics
+  ManagedQueue(const ManagedQueue &) = delete;
+  ManagedQueue &operator=(const ManagedQueue &) = delete;
 
-    operator ur_queue_handle_t() { return Handle; }
+  operator ur_queue_handle_t() { return Handle; }
 
-  private:
-    ur_queue_handle_t Handle = nullptr;
+private:
+  ur_queue_handle_t Handle = nullptr;
 };
 
 ur_context_handle_t GetContext(ur_queue_handle_t Queue);

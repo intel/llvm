@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file ur_sanitizer_layer.cpp
  *
@@ -23,18 +23,18 @@ context_t::context_t()
                                    logger::Level::WARN)) {}
 
 ur_result_t context_t::tearDown() {
-    switch (enabledType) {
-    case SanitizerType::AddressSanitizer:
-        destroyAsanInterceptor();
-        break;
-    case SanitizerType::MemorySanitizer:
-        destroyMsanInterceptor();
-        break;
-    default:
-        break;
-    }
+  switch (enabledType) {
+  case SanitizerType::AddressSanitizer:
+    destroyAsanInterceptor();
+    break;
+  case SanitizerType::MemorySanitizer:
+    destroyMsanInterceptor();
+    break;
+  default:
+    break;
+  }
 
-    return UR_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

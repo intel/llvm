@@ -1,7 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+// LLVM-exception
 
 #ifndef UUR_RAII_H_INCLUDED
 #define UUR_RAII_H_INCLUDED
@@ -15,82 +15,82 @@ namespace raii {
 template <class URHandleT, ur_result_t (*retain)(URHandleT),
           ur_result_t (*release)(URHandleT)>
 struct Wrapper {
-    using handle_t = URHandleT;
+  using handle_t = URHandleT;
 
-    handle_t handle;
+  handle_t handle;
 
-    Wrapper() : handle(nullptr) {}
-    explicit Wrapper(handle_t handle) : handle(handle) {}
-    ~Wrapper() {
-        if (handle) {
-            release(handle);
-        }
+  Wrapper() : handle(nullptr) {}
+  explicit Wrapper(handle_t handle) : handle(handle) {}
+  ~Wrapper() {
+    if (handle) {
+      release(handle);
     }
+  }
 
-    Wrapper(const Wrapper &other) : handle(other.handle) { retain(handle); }
-    Wrapper(Wrapper &&other) : handle(other.handle) { other.handle = nullptr; }
-    Wrapper(std::nullptr_t) : handle(nullptr) {}
+  Wrapper(const Wrapper &other) : handle(other.handle) { retain(handle); }
+  Wrapper(Wrapper &&other) : handle(other.handle) { other.handle = nullptr; }
+  Wrapper(std::nullptr_t) : handle(nullptr) {}
 
-    Wrapper &operator=(const Wrapper &other) {
-        if (handle) {
-            release(handle);
-        }
-        handle = other.handle;
-        retain(handle);
-        return *this;
+  Wrapper &operator=(const Wrapper &other) {
+    if (handle) {
+      release(handle);
     }
-    Wrapper &operator=(Wrapper &&other) {
-        if (handle) {
-            release(handle);
-        }
-        handle = other.handle;
-        other.handle = nullptr;
-        return *this;
+    handle = other.handle;
+    retain(handle);
+    return *this;
+  }
+  Wrapper &operator=(Wrapper &&other) {
+    if (handle) {
+      release(handle);
     }
-    Wrapper &operator=(std::nullptr_t) {
-        if (handle) {
-            release(handle);
-        }
-        new (this) Wrapper(nullptr);
-        return *this;
+    handle = other.handle;
+    other.handle = nullptr;
+    return *this;
+  }
+  Wrapper &operator=(std::nullptr_t) {
+    if (handle) {
+      release(handle);
     }
+    new (this) Wrapper(nullptr);
+    return *this;
+  }
 
-    handle_t *ptr() { return &handle; }
-    handle_t get() { return handle; }
-    handle_t operator->() { return handle; }
-    operator handle_t() { return handle; }
+  handle_t *ptr() { return &handle; }
+  handle_t get() { return handle; }
+  handle_t operator->() { return handle; }
+  operator handle_t() { return handle; }
 
-    friend bool operator==(const Wrapper &lhs, const Wrapper &rhs) {
-        return lhs.handle == rhs.handle;
-    }
-    friend bool operator==(const Wrapper &lhs, const handle_t &rhs) {
-        return lhs.handle == rhs;
-    }
-    friend bool operator==(const handle_t &lhs, const Wrapper &rhs) {
-        return lhs == rhs.handle;
-    }
-    friend bool operator==(const Wrapper &lhs, const std::nullptr_t &rhs) {
-        return lhs.handle == rhs;
-    }
-    friend bool operator==(const std::nullptr_t &lhs, const Wrapper &rhs) {
-        return lhs == rhs.handle;
-    }
+  friend bool operator==(const Wrapper &lhs, const Wrapper &rhs) {
+    return lhs.handle == rhs.handle;
+  }
+  friend bool operator==(const Wrapper &lhs, const handle_t &rhs) {
+    return lhs.handle == rhs;
+  }
+  friend bool operator==(const handle_t &lhs, const Wrapper &rhs) {
+    return lhs == rhs.handle;
+  }
+  friend bool operator==(const Wrapper &lhs, const std::nullptr_t &rhs) {
+    return lhs.handle == rhs;
+  }
+  friend bool operator==(const std::nullptr_t &lhs, const Wrapper &rhs) {
+    return lhs == rhs.handle;
+  }
 
-    friend bool operator!=(const Wrapper &lhs, const Wrapper &rhs) {
-        return lhs.handle != rhs.handle;
-    }
-    friend bool operator!=(const Wrapper &lhs, const handle_t &rhs) {
-        return lhs.handle != rhs;
-    }
-    friend bool operator!=(const handle_t &lhs, const Wrapper &rhs) {
-        return lhs != rhs.handle;
-    }
-    friend bool operator!=(const Wrapper &lhs, const std::nullptr_t &rhs) {
-        return lhs.handle != rhs;
-    }
-    friend bool operator!=(const std::nullptr_t &lhs, const Wrapper &rhs) {
-        return lhs != rhs.handle;
-    }
+  friend bool operator!=(const Wrapper &lhs, const Wrapper &rhs) {
+    return lhs.handle != rhs.handle;
+  }
+  friend bool operator!=(const Wrapper &lhs, const handle_t &rhs) {
+    return lhs.handle != rhs;
+  }
+  friend bool operator!=(const handle_t &lhs, const Wrapper &rhs) {
+    return lhs != rhs.handle;
+  }
+  friend bool operator!=(const Wrapper &lhs, const std::nullptr_t &rhs) {
+    return lhs.handle != rhs;
+  }
+  friend bool operator!=(const std::nullptr_t &lhs, const Wrapper &rhs) {
+    return lhs != rhs.handle;
+  }
 };
 
 using LoaderConfig = Wrapper<ur_loader_config_handle_t, urLoaderConfigRetain,

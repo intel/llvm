@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file asan_allocator.hpp
  *
@@ -20,22 +20,22 @@ namespace ur_sanitizer_layer {
 namespace asan {
 
 struct AllocInfo {
-    uptr AllocBegin = 0;
-    uptr UserBegin = 0;
-    uptr UserEnd = 0;
-    size_t AllocSize = 0;
+  uptr AllocBegin = 0;
+  uptr UserBegin = 0;
+  uptr UserEnd = 0;
+  size_t AllocSize = 0;
 
-    AllocType Type = AllocType::UNKNOWN;
-    bool IsReleased = false;
+  AllocType Type = AllocType::UNKNOWN;
+  bool IsReleased = false;
 
-    ur_context_handle_t Context = nullptr;
-    ur_device_handle_t Device = nullptr;
+  ur_context_handle_t Context = nullptr;
+  ur_device_handle_t Device = nullptr;
 
-    StackTrace AllocStack;
-    StackTrace ReleaseStack;
+  StackTrace AllocStack;
+  StackTrace ReleaseStack;
 
-    void print();
-    size_t getRedzoneSize() { return AllocSize - (UserEnd - UserBegin); }
+  void print();
+  size_t getRedzoneSize() { return AllocSize - (UserEnd - UserBegin); }
 };
 
 using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;

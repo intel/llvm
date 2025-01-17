@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file msan_shadow.hpp
  *
@@ -21,34 +21,34 @@ namespace ur_sanitizer_layer {
 namespace msan {
 
 struct MsanShadowMemory {
-    MsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
-        : Context(Context), Device(Device) {}
+  MsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
+      : Context(Context), Device(Device) {}
 
-    virtual ~MsanShadowMemory() {}
+  virtual ~MsanShadowMemory() {}
 
-    virtual ur_result_t Setup() = 0;
+  virtual ur_result_t Setup() = 0;
 
-    virtual ur_result_t Destory() = 0;
+  virtual ur_result_t Destory() = 0;
 
-    virtual uptr MemToShadow(uptr Ptr) = 0;
+  virtual uptr MemToShadow(uptr Ptr) = 0;
 
-    virtual ur_result_t
-    EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
-                        uint32_t NumEvents = 0,
-                        const ur_event_handle_t *EventWaitList = nullptr,
-                        ur_event_handle_t *OutEvent = nullptr) = 0;
+  virtual ur_result_t
+  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
+                      uint32_t NumEvents = 0,
+                      const ur_event_handle_t *EventWaitList = nullptr,
+                      ur_event_handle_t *OutEvent = nullptr) = 0;
 
-    virtual ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo>) {
-        return UR_RESULT_SUCCESS;
-    }
+  virtual ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo>) {
+    return UR_RESULT_SUCCESS;
+  }
 
-    ur_context_handle_t Context{};
+  ur_context_handle_t Context{};
 
-    ur_device_handle_t Device{};
+  ur_device_handle_t Device{};
 
-    uptr ShadowBegin = 0;
+  uptr ShadowBegin = 0;
 
-    uptr ShadowEnd = 0;
+  uptr ShadowEnd = 0;
 };
 
 /// Shadow Memory layout of CPU device
@@ -68,50 +68,50 @@ struct MsanShadowMemory {
 /// 0x740000000000 ~ 0x800000000000 "app-3"
 ///
 struct MsanShadowMemoryCPU final : public MsanShadowMemory {
-    MsanShadowMemoryCPU(ur_context_handle_t Context, ur_device_handle_t Device)
-        : MsanShadowMemory(Context, Device) {}
+  MsanShadowMemoryCPU(ur_context_handle_t Context, ur_device_handle_t Device)
+      : MsanShadowMemory(Context, Device) {}
 
-    ur_result_t Setup() override;
+  ur_result_t Setup() override;
 
-    ur_result_t Destory() override;
+  ur_result_t Destory() override;
 
-    uptr MemToShadow(uptr Ptr) override;
+  uptr MemToShadow(uptr Ptr) override;
 
-    ur_result_t
-    EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
-                        uint32_t NumEvents = 0,
-                        const ur_event_handle_t *EventWaitList = nullptr,
-                        ur_event_handle_t *OutEvent = nullptr) override;
+  ur_result_t
+  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
+                      uint32_t NumEvents = 0,
+                      const ur_event_handle_t *EventWaitList = nullptr,
+                      ur_event_handle_t *OutEvent = nullptr) override;
 };
 
 struct MsanShadowMemoryGPU : public MsanShadowMemory {
-    MsanShadowMemoryGPU(ur_context_handle_t Context, ur_device_handle_t Device)
-        : MsanShadowMemory(Context, Device) {}
+  MsanShadowMemoryGPU(ur_context_handle_t Context, ur_device_handle_t Device)
+      : MsanShadowMemory(Context, Device) {}
 
-    ur_result_t Setup() override;
+  ur_result_t Setup() override;
 
-    ur_result_t Destory() override;
+  ur_result_t Destory() override;
 
-    ur_result_t
-    EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
-                        uint32_t NumEvents = 0,
-                        const ur_event_handle_t *EventWaitList = nullptr,
-                        ur_event_handle_t *OutEvent = nullptr) override final;
+  ur_result_t
+  EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
+                      uint32_t NumEvents = 0,
+                      const ur_event_handle_t *EventWaitList = nullptr,
+                      ur_event_handle_t *OutEvent = nullptr) override final;
 
-    ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;
+  ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;
 
-    virtual size_t GetShadowSize() = 0;
+  virtual size_t GetShadowSize() = 0;
 
-  private:
-    ur_result_t EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
-                                 std::vector<ur_event_handle_t> &EventWaitList,
-                                 ur_event_handle_t *OutEvent);
+private:
+  ur_result_t EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+                               std::vector<ur_event_handle_t> &EventWaitList,
+                               ur_event_handle_t *OutEvent);
 
-    std::unordered_map<
-        uptr, std::pair<ur_physical_mem_handle_t,
-                        std::unordered_set<std::shared_ptr<MsanAllocInfo>>>>
-        VirtualMemMaps;
-    ur_mutex VirtualMemMapsMutex;
+  std::unordered_map<
+      uptr, std::pair<ur_physical_mem_handle_t,
+                      std::unordered_set<std::shared_ptr<MsanAllocInfo>>>>
+      VirtualMemMaps;
+  ur_mutex VirtualMemMapsMutex;
 };
 
 /// Shadow Memory layout of GPU PVC device
@@ -127,12 +127,12 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
 ///   Device USM : 0xff00_0000_0000_0000 ~ 0xff00_ffff_ffff_ffff
 ///
 struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
-    MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
-        : MsanShadowMemoryGPU(Context, Device) {}
+  MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
+      : MsanShadowMemoryGPU(Context, Device) {}
 
-    uptr MemToShadow(uptr Ptr) override;
+  uptr MemToShadow(uptr Ptr) override;
 
-    size_t GetShadowSize() override { return 0x8000'0000'0000ULL; }
+  size_t GetShadowSize() override { return 0x8000'0000'0000ULL; }
 };
 
 /// Shadow Memory layout of GPU DG2 device
@@ -142,12 +142,12 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
 ///   Device      USM : 0xffff_8000_0000_0000 ~ 0xffff_ffff_ffff_ffff
 ///
 struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
-    MsanShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
-        : MsanShadowMemoryGPU(Context, Device) {}
+  MsanShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
+      : MsanShadowMemoryGPU(Context, Device) {}
 
-    uptr MemToShadow(uptr Ptr) override;
+  uptr MemToShadow(uptr Ptr) override;
 
-    size_t GetShadowSize() override { return 0x4000'0000'0000ULL; }
+  size_t GetShadowSize() override { return 0x4000'0000'0000ULL; }
 };
 
 std::shared_ptr<MsanShadowMemory>

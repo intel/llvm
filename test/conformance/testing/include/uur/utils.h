@@ -1,7 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+// LLVM-exception
 
 #ifndef UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
@@ -15,214 +15,213 @@
 namespace uur {
 
 inline size_t RoundUpToNearestFactor(size_t num, size_t factor) {
-    return ((num + factor - 1) / factor) * factor;
+  return ((num + factor - 1) / factor) * factor;
 }
 
 /// @brief Make a string a valid identifier for gtest.
 /// @param str The string to sanitize.
 inline std::string GTestSanitizeString(const std::string &str) {
-    auto str_cpy = str;
-    std::replace_if(
-        str_cpy.begin(), str_cpy.end(), [](char c) { return !std::isalnum(c); },
-        '_');
-    return str_cpy;
+  auto str_cpy = str;
+  std::replace_if(
+      str_cpy.begin(), str_cpy.end(), [](char c) { return !std::isalnum(c); },
+      '_');
+  return str_cpy;
 }
 
 template <class T, class ObjectTy, class InfoTy, class Callable>
 ur_result_t GetInfo(ObjectTy object, InfoTy info, Callable cb, T &out_value) {
-    // first get the size of the info
-    size_t size = 0;
-    ur_result_t result = cb(object, info, 0, nullptr, &size);
-    if (result != UR_RESULT_SUCCESS || size == 0) {
-        return result;
-    }
+  // first get the size of the info
+  size_t size = 0;
+  ur_result_t result = cb(object, info, 0, nullptr, &size);
+  if (result != UR_RESULT_SUCCESS || size == 0) {
+    return result;
+  }
 
-    // special case for strings
-    if constexpr (std::is_same_v<std::string, T>) {
-        std::string value(size, '\0');
-        result = cb(object, info, size, value.data(), nullptr);
-        if (result != UR_RESULT_SUCCESS) {
-            return result;
-        }
-        out_value =
-            value.substr(0, std::min(value.find_last_of('\0'), value.size()));
-        return UR_RESULT_SUCCESS;
-    } else {
-        if (size != sizeof(T)) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        T value{};
-        result = cb(object, info, sizeof(T), &value, nullptr);
-        if (result != UR_RESULT_SUCCESS) {
-            return result;
-        }
-        out_value = value;
-        return UR_RESULT_SUCCESS;
+  // special case for strings
+  if constexpr (std::is_same_v<std::string, T>) {
+    std::string value(size, '\0');
+    result = cb(object, info, size, value.data(), nullptr);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
     }
+    out_value =
+        value.substr(0, std::min(value.find_last_of('\0'), value.size()));
+    return UR_RESULT_SUCCESS;
+  } else {
+    if (size != sizeof(T)) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    T value{};
+    result = cb(object, info, sizeof(T), &value, nullptr);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+    out_value = value;
+    return UR_RESULT_SUCCESS;
+  }
 }
 
 template <class T>
 auto GetPlatformInfo =
     [](ur_platform_handle_t platform, ur_platform_info_t info, T &out_value) {
-        return GetInfo(platform, info, urPlatformGetInfo, out_value);
+      return GetInfo(platform, info, urPlatformGetInfo, out_value);
     };
 
 template <class T>
 auto GetContextInfo =
     [](ur_context_handle_t context, ur_context_info_t info, T &out_value) {
-        return GetInfo(context, info, urContextGetInfo, out_value);
+      return GetInfo(context, info, urContextGetInfo, out_value);
     };
 
 template <class T>
 auto GetDeviceInfo =
     [](ur_device_handle_t device, ur_device_info_t info, T &out_value) {
-        return GetInfo(device, info, urDeviceGetInfo, out_value);
+      return GetInfo(device, info, urDeviceGetInfo, out_value);
     };
 
 template <class T>
 auto GetEventInfo =
     [](ur_event_handle_t event, ur_event_info_t info, T &out_value) {
-        return GetInfo(event, info, urEventGetInfo, out_value);
+      return GetInfo(event, info, urEventGetInfo, out_value);
     };
 
 template <class T>
 auto GetQueueInfo =
     [](ur_queue_handle_t queue, ur_queue_info_t info, T &out_value) {
-        return GetInfo(queue, info, urQueueGetInfo, out_value);
+      return GetInfo(queue, info, urQueueGetInfo, out_value);
     };
 
 template <class T>
 auto GetSamplerInfo =
     [](ur_sampler_handle_t sampler, ur_sampler_info_t info, T &out_value) {
-        return GetInfo(sampler, info, urSamplerGetInfo, out_value);
+      return GetInfo(sampler, info, urSamplerGetInfo, out_value);
     };
 
 template <class T>
 auto GetKernelInfo =
     [](ur_kernel_handle_t kernel, ur_kernel_info_t info, T &out_value) {
-        return GetInfo(kernel, info, urKernelGetInfo, out_value);
+      return GetInfo(kernel, info, urKernelGetInfo, out_value);
     };
 
 template <class T>
 auto GetProgramInfo =
     [](ur_program_handle_t program, ur_program_info_t info, T &out_value) {
-        return GetInfo(program, info, urProgramGetInfo, out_value);
+      return GetInfo(program, info, urProgramGetInfo, out_value);
     };
 
 template <class T>
 auto GetPoolInfo =
     [](ur_usm_pool_handle_t pool, ur_usm_pool_info_t info, T &out_value) {
-        return GetInfo(pool, info, urUSMPoolGetInfo, out_value);
+      return GetInfo(pool, info, urUSMPoolGetInfo, out_value);
     };
 
 template <class T>
 auto GetCommandBufferInfo = [](ur_exp_command_buffer_handle_t cmd_buf,
                                ur_exp_command_buffer_info_t info,
                                T &out_value) {
-    return GetInfo(cmd_buf, info, urCommandBufferGetInfoExp, out_value);
+  return GetInfo(cmd_buf, info, urCommandBufferGetInfoExp, out_value);
 };
 
 template <class T>
 auto GetCommandBufferCommandInfo =
     [](ur_exp_command_buffer_command_handle_t command,
        ur_exp_command_buffer_command_info_t info, T &out_value) {
-        return GetInfo(command, info, urCommandBufferCommandGetInfoExp,
-                       out_value);
+      return GetInfo(command, info, urCommandBufferCommandGetInfoExp,
+                     out_value);
     };
 
 template <class T>
 ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
-    if constexpr (std::is_same_v<T, ur_context_handle_t>) {
-        return GetContextInfo<uint32_t>(object, UR_CONTEXT_INFO_REFERENCE_COUNT,
-                                        out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_device_handle_t>) {
-        return GetDeviceInfo<uint32_t>(object, UR_DEVICE_INFO_REFERENCE_COUNT,
-                                       out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_event_handle_t>) {
-        return GetEventInfo<uint32_t>(object, UR_EVENT_INFO_REFERENCE_COUNT,
-                                      out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_queue_handle_t>) {
-        return GetQueueInfo<uint32_t>(object, UR_QUEUE_INFO_REFERENCE_COUNT,
-                                      out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_sampler_handle_t>) {
-        return GetSamplerInfo<uint32_t>(object, UR_SAMPLER_INFO_REFERENCE_COUNT,
-                                        out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_kernel_handle_t>) {
-        return GetKernelInfo<uint32_t>(object, UR_KERNEL_INFO_REFERENCE_COUNT,
-                                       out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_program_handle_t>) {
-        return GetProgramInfo<uint32_t>(object, UR_PROGRAM_INFO_REFERENCE_COUNT,
-                                        out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_usm_pool_handle_t>) {
-        return GetPoolInfo<uint32_t>(object, UR_USM_POOL_INFO_REFERENCE_COUNT,
-                                     out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_exp_command_buffer_handle_t>) {
-        return GetCommandBufferInfo<uint32_t>(
-            object, UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT, out_ref_count);
-    }
-    if constexpr (std::is_same_v<T, ur_exp_command_buffer_command_handle_t>) {
-        return GetCommandBufferCommandInfo<uint32_t>(
-            object, UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT,
-            out_ref_count);
-    }
+  if constexpr (std::is_same_v<T, ur_context_handle_t>) {
+    return GetContextInfo<uint32_t>(object, UR_CONTEXT_INFO_REFERENCE_COUNT,
+                                    out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_device_handle_t>) {
+    return GetDeviceInfo<uint32_t>(object, UR_DEVICE_INFO_REFERENCE_COUNT,
+                                   out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_event_handle_t>) {
+    return GetEventInfo<uint32_t>(object, UR_EVENT_INFO_REFERENCE_COUNT,
+                                  out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_queue_handle_t>) {
+    return GetQueueInfo<uint32_t>(object, UR_QUEUE_INFO_REFERENCE_COUNT,
+                                  out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_sampler_handle_t>) {
+    return GetSamplerInfo<uint32_t>(object, UR_SAMPLER_INFO_REFERENCE_COUNT,
+                                    out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_kernel_handle_t>) {
+    return GetKernelInfo<uint32_t>(object, UR_KERNEL_INFO_REFERENCE_COUNT,
+                                   out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_program_handle_t>) {
+    return GetProgramInfo<uint32_t>(object, UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                    out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_usm_pool_handle_t>) {
+    return GetPoolInfo<uint32_t>(object, UR_USM_POOL_INFO_REFERENCE_COUNT,
+                                 out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_exp_command_buffer_handle_t>) {
+    return GetCommandBufferInfo<uint32_t>(
+        object, UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT, out_ref_count);
+  }
+  if constexpr (std::is_same_v<T, ur_exp_command_buffer_command_handle_t>) {
+    return GetCommandBufferCommandInfo<uint32_t>(
+        object, UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT,
+        out_ref_count);
+  }
 
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
 std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter);
 
 inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
-    std::string platform_name;
-    GetPlatformInfo<std::string>(hPlatform, UR_PLATFORM_INFO_NAME,
-                                 platform_name);
-    return GTestSanitizeString(
-        std::string(platform_name.data(), platform_name.size()));
+  std::string platform_name;
+  GetPlatformInfo<std::string>(hPlatform, UR_PLATFORM_INFO_NAME, platform_name);
+  return GTestSanitizeString(
+      std::string(platform_name.data(), platform_name.size()));
 }
 
 inline std::string GetPlatformNameWithID(ur_platform_handle_t hPlatform) {
-    auto platform_name = GetPlatformName(hPlatform);
-    auto &platforms = uur::PlatformEnvironment::instance->platforms;
-    size_t platform_id =
-        std::find(platforms.begin(), platforms.end(), hPlatform) -
-        platforms.begin();
-    return platform_name + "_ID" + std::to_string(platform_id);
+  auto platform_name = GetPlatformName(hPlatform);
+  auto &platforms = uur::PlatformEnvironment::instance->platforms;
+  size_t platform_id =
+      std::find(platforms.begin(), platforms.end(), hPlatform) -
+      platforms.begin();
+  return platform_name + "_ID" + std::to_string(platform_id);
 }
 
 inline std::string GetDeviceName(ur_device_handle_t device) {
-    std::string device_name, device_uuid;
-    GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_NAME, device_name);
-    GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_UUID, device_uuid);
-    if (!device_uuid.empty()) {
-        device_uuid += "____";
-    }
+  std::string device_name, device_uuid;
+  GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_NAME, device_name);
+  GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_UUID, device_uuid);
+  if (!device_uuid.empty()) {
+    device_uuid += "____";
+  }
 
-    size_t device_id = 0;
-    if (uur::DevicesEnvironment::instance) {
-        auto &devices = uur::DevicesEnvironment::instance->devices;
-        auto TupleContainsDevice = [device](DeviceTuple &tuple) -> bool {
-            return device == tuple.device;
-        };
-        device_id =
-            std::find_if(devices.begin(), devices.end(), TupleContainsDevice) -
-            devices.begin();
-    }
-    return GTestSanitizeString(device_name + "_ID" + std::to_string(device_id) +
-                               "ID_" + device_uuid);
+  size_t device_id = 0;
+  if (uur::DevicesEnvironment::instance) {
+    auto &devices = uur::DevicesEnvironment::instance->devices;
+    auto TupleContainsDevice = [device](DeviceTuple &tuple) -> bool {
+      return device == tuple.device;
+    };
+    device_id =
+        std::find_if(devices.begin(), devices.end(), TupleContainsDevice) -
+        devices.begin();
+  }
+  return GTestSanitizeString(device_name + "_ID" + std::to_string(device_id) +
+                             "ID_" + device_uuid);
 }
 
 inline std::string GetPlatformAndDeviceName(ur_device_handle_t device) {
-    ur_platform_handle_t platform = nullptr;
-    urDeviceGetInfo(device, UR_DEVICE_INFO_PLATFORM,
-                    sizeof(ur_platform_handle_t), &platform, nullptr);
-    return GetPlatformName(platform) + "__" + GetDeviceName(device);
+  ur_platform_handle_t platform = nullptr;
+  urDeviceGetInfo(device, UR_DEVICE_INFO_PLATFORM, sizeof(ur_platform_handle_t),
+                  &platform, nullptr);
+  return GetPlatformName(platform) + "__" + GetDeviceName(device);
 }
 
 ur_result_t GetDeviceType(ur_device_handle_t device,
@@ -443,73 +442,70 @@ ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
 
 inline std::tuple<size_t, size_t, size_t>
 decodeSemVersion(std::string version) {
-    auto posMajor = version.find('.');
-    auto posMinor = version.find('.', posMajor + 1);
-    auto major = std::stoi(version.substr(0, posMajor));
-    auto minor =
-        std::stoi(version.substr(posMajor + 1, posMinor - posMajor - 1));
-    auto patch = std::stoi(version.substr(posMinor + 1));
-    return std::make_tuple(major, minor, patch);
+  auto posMajor = version.find('.');
+  auto posMinor = version.find('.', posMajor + 1);
+  auto major = std::stoi(version.substr(0, posMajor));
+  auto minor = std::stoi(version.substr(posMajor + 1, posMinor - posMajor - 1));
+  auto patch = std::stoi(version.substr(posMinor + 1));
+  return std::make_tuple(major, minor, patch);
 }
 
 inline bool isGivenAdapter(ur_platform_handle_t hPlatform,
                            std::string adapterName) {
-    size_t psize;
-    EXPECT_EQ(
-        urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, 0, nullptr, &psize),
-        UR_RESULT_SUCCESS);
-    std::string platform(psize, '\0');
-    EXPECT_EQ(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, psize,
-                                platform.data(), nullptr),
-              UR_RESULT_SUCCESS);
+  size_t psize;
+  EXPECT_EQ(
+      urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, 0, nullptr, &psize),
+      UR_RESULT_SUCCESS);
+  std::string platform(psize, '\0');
+  EXPECT_EQ(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, psize,
+                              platform.data(), nullptr),
+            UR_RESULT_SUCCESS);
 
-    return platform.find(adapterName) != std::string::npos;
+  return platform.find(adapterName) != std::string::npos;
 }
 
 inline std::tuple<size_t, size_t, size_t>
 getDriverVersion(ur_device_handle_t hDevice) {
-    size_t driverVersionSize = 0;
-    EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DRIVER_VERSION, 0,
-                              nullptr, &driverVersionSize),
-              UR_RESULT_SUCCESS);
-    std::string driver(driverVersionSize, '\0');
-    EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DRIVER_VERSION,
-                              driverVersionSize, driver.data(),
-                              &driverVersionSize),
-              UR_RESULT_SUCCESS);
+  size_t driverVersionSize = 0;
+  EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DRIVER_VERSION, 0, nullptr,
+                            &driverVersionSize),
+            UR_RESULT_SUCCESS);
+  std::string driver(driverVersionSize, '\0');
+  EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DRIVER_VERSION,
+                            driverVersionSize, driver.data(),
+                            &driverVersionSize),
+            UR_RESULT_SUCCESS);
 
-    return decodeSemVersion(driver);
+  return decodeSemVersion(driver);
 }
 
 #define SKIP_IF_DRIVER_TOO_OLD(adapterName, minDriverVersion, hPlatform,       \
                                hDevice)                                        \
-    do {                                                                       \
-        if (uur::isGivenAdapter(hPlatform, adapterName)) {                     \
-            auto [major, minor, patch] = uur::getDriverVersion(hDevice);       \
-            auto [minMajor, minMinor, minPatch] = minL0DriverVersion;          \
-            if (major < minMajor || (major == minMajor && minor < minMinor) || \
-                (major == minMajor && minor == minMinor &&                     \
-                 patch < minPatch)) {                                          \
-                GTEST_SKIP()                                                   \
-                    << "Skipping test because driver version is too old for "  \
-                    << adapterName << ". "                                     \
-                    << "Driver version: " << major << "." << minor << "."      \
-                    << patch << " Minimum required version: " << minMajor      \
-                    << "." << minMinor << "." << minPatch;                     \
-            }                                                                  \
-        }                                                                      \
-    } while (0)
+  do {                                                                         \
+    if (uur::isGivenAdapter(hPlatform, adapterName)) {                         \
+      auto [major, minor, patch] = uur::getDriverVersion(hDevice);             \
+      auto [minMajor, minMinor, minPatch] = minL0DriverVersion;                \
+      if (major < minMajor || (major == minMajor && minor < minMinor) ||       \
+          (major == minMajor && minor == minMinor && patch < minPatch)) {      \
+        GTEST_SKIP() << "Skipping test because driver version is too old for " \
+                     << adapterName << ". "                                    \
+                     << "Driver version: " << major << "." << minor << "."     \
+                     << patch << " Minimum required version: " << minMajor     \
+                     << "." << minMinor << "." << minPatch;                    \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
 
 // Is this a Data Center GPU Max series (aka PVC)?
 // TODO: change to use
 // https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t
 // when that is stable.
 static inline bool isPVC(ur_device_handle_t hDevice) {
-    uint32_t deviceId;
-    EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID,
-                              sizeof(uint32_t), &deviceId, nullptr),
-              UR_RESULT_SUCCESS);
-    return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
+  uint32_t deviceId;
+  EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID, sizeof(uint32_t),
+                            &deviceId, nullptr),
+            UR_RESULT_SUCCESS);
+  return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
 }
 
 } // namespace uur

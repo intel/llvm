@@ -1021,15 +1021,15 @@ ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
-                                                         InteropZeModule} {}
+      AssociatedDevices({Context->getDevices()[0]}),
+      InteropZeModule{InteropZeModule} {}
 
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule,
                                            bool OwnZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{OwnZeModule},
-      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
-                                                         InteropZeModule} {
+      AssociatedDevices({Context->getDevices()[0]}),
+      InteropZeModule{InteropZeModule} {
   // TODO: Currently it is not possible to understand the device associated
   // with provided ZeModule. So we can't set the state on that device to Exe.
 }

@@ -2,9 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
- * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+ * LLVM-exception
  *
  * @file sanitizer_utils.cpp
  *
@@ -27,65 +27,64 @@ namespace ur_sanitizer_layer {
 bool IsInASanContext() { return (void *)__asan_init != nullptr; }
 
 uptr MmapFixedNoReserve(uptr Addr, uptr Size) {
-    Size = RoundUpTo(Size, EXEC_PAGESIZE);
-    Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
-    void *P =
-        mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
-             MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
-    return (uptr)P;
+  Size = RoundUpTo(Size, EXEC_PAGESIZE);
+  Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
+  void *P =
+      mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
+           MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
+  return (uptr)P;
 }
 
 uptr MmapNoReserve(uptr Addr, uptr Size) {
-    Size = RoundUpTo(Size, EXEC_PAGESIZE);
-    Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
-    void *P = mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
-    if (P == MAP_FAILED) {
-        return 0;
-    }
-    return (uptr)P;
+  Size = RoundUpTo(Size, EXEC_PAGESIZE);
+  Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
+  void *P = mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
+                 MAP_PRIVATE | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
+  if (P == MAP_FAILED) {
+    return 0;
+  }
+  return (uptr)P;
 }
 
 bool Munmap(uptr Addr, uptr Size) { return munmap((void *)Addr, Size) == 0; }
 
 uptr ProtectMemoryRange(uptr Addr, uptr Size) {
-    Size = RoundUpTo(Size, EXEC_PAGESIZE);
-    Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
-    void *P =
-        mmap((void *)Addr, Size, PROT_NONE,
-             MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
-    return (uptr)P;
+  Size = RoundUpTo(Size, EXEC_PAGESIZE);
+  Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
+  void *P =
+      mmap((void *)Addr, Size, PROT_NONE,
+           MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
+  return (uptr)P;
 }
 
 bool DontCoredumpRange(uptr Addr, uptr Size) {
-    Size = RoundUpTo(Size, EXEC_PAGESIZE);
-    Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
-    return madvise((void *)Addr, Size, MADV_DONTDUMP) == 0;
+  Size = RoundUpTo(Size, EXEC_PAGESIZE);
+  Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
+  return madvise((void *)Addr, Size, MADV_DONTDUMP) == 0;
 }
 
 void *GetMemFunctionPointer(const char *FuncName) {
-    void *handle = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
-    if (!handle) {
-        getContext()->logger.error("Failed to dlopen {}", LIBC_SO);
-        return nullptr;
-    }
-    auto ptr = dlsym(handle, FuncName);
-    if (!ptr) {
-        getContext()->logger.error("Failed to get '{}' from {}", FuncName,
-                                   LIBC_SO);
-    }
-    return ptr;
+  void *handle = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
+  if (!handle) {
+    getContext()->logger.error("Failed to dlopen {}", LIBC_SO);
+    return nullptr;
+  }
+  auto ptr = dlsym(handle, FuncName);
+  if (!ptr) {
+    getContext()->logger.error("Failed to get '{}' from {}", FuncName, LIBC_SO);
+  }
+  return ptr;
 }
 
 std::string DemangleName(const std::string &name) {
-    std::string result = name;
-    char *demangled =
-        abi::__cxa_demangle(name.c_str(), nullptr, nullptr, nullptr);
-    if (demangled) {
-        result = demangled;
-        free(demangled);
-    }
-    return result;
+  std::string result = name;
+  char *demangled =
+      abi::__cxa_demangle(name.c_str(), nullptr, nullptr, nullptr);
+  if (demangled) {
+    result = demangled;
+    free(demangled);
+  }
+  return result;
 }
 
 } // namespace ur_sanitizer_layer

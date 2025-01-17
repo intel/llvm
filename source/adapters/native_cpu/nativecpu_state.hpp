@@ -23,9 +23,8 @@ struct state {
   state(size_t globalR0, size_t globalR1, size_t globalR2, size_t localR0,
         size_t localR1, size_t localR2, size_t globalO0, size_t globalO1,
         size_t globalO2)
-      : MGlobal_range{globalR0, globalR1, globalR2}, MWorkGroup_size{localR0,
-                                                                     localR1,
-                                                                     localR2},
+      : MGlobal_range{globalR0, globalR1, globalR2},
+        MWorkGroup_size{localR0, localR1, localR2},
         MNumGroups{globalR0 / localR0, globalR1 / localR1, globalR2 / localR2},
         MGlobalOffset{globalO0, globalO1, globalO2} {
     MGlobal_id[0] = 0;

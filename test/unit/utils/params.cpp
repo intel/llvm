@@ -1,7 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT SPDX-License-Identifier: Apache-2.0 WITH
+// LLVM-exception
 
 #include <cstddef>
 #include <cstring>
@@ -13,31 +13,31 @@
 #include "ur_print.hpp"
 
 TYPED_TEST(ParamsTest, Print) {
-    std::ostringstream out;
-    out << this->params.get_struct();
-    EXPECT_THAT(out.str(), MatchesRegex(this->params.get_expected()));
+  std::ostringstream out;
+  out << this->params.get_struct();
+  EXPECT_THAT(out.str(), MatchesRegex(this->params.get_expected()));
 }
 
 TEST(PrintPtr, nested_void_ptrs) {
-    void *real = (void *)0xFEEDCAFEull;
-    void **preal = &real;
-    void ***ppreal = &preal;
-    void ****pppreal = &ppreal;
-    std::ostringstream out;
-    ur::details::printPtr(out, pppreal);
-    EXPECT_THAT(out.str(), MatchesRegex(".+ \\(.+ \\(.+ \\(.+\\)\\)\\)"));
+  void *real = (void *)0xFEEDCAFEull;
+  void **preal = &real;
+  void ***ppreal = &preal;
+  void ****pppreal = &ppreal;
+  std::ostringstream out;
+  ur::details::printPtr(out, pppreal);
+  EXPECT_THAT(out.str(), MatchesRegex(".+ \\(.+ \\(.+ \\(.+\\)\\)\\)"));
 }
 
 TEST(PrintBool, False) {
-    ur_bool_t value = false;
-    std::ostringstream out;
-    out << value;
-    EXPECT_STREQ(out.str().data(), "false");
+  ur_bool_t value = false;
+  std::ostringstream out;
+  out << value;
+  EXPECT_STREQ(out.str().data(), "false");
 }
 
 TEST(PrintBool, True) {
-    ur_bool_t value = 1;
-    std::ostringstream out;
-    out << value;
-    EXPECT_STREQ(out.str().data(), "true");
+  ur_bool_t value = 1;
+  std::ostringstream out;
+  out << value;
+  EXPECT_STREQ(out.str().data(), "true");
 }
