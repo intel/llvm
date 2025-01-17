@@ -70,8 +70,8 @@ struct ur_queue_handle_t_ {
                      ur_context_handle_t_ *Context, ur_device_handle_t_ *Device,
                      unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
                      bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)}, TransferStreams{std::move(
-                                                       TransferStreams)},
+      : ComputeStreams{std::move(ComputeStreams)},
+        TransferStreams{std::move(TransferStreams)},
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),
         TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
