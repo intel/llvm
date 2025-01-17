@@ -49,6 +49,7 @@ int main() {
       [&](const sycl::device_image<sycl::bundle_state::executable> &img) {
         return img.has_kernel(iota_id, d);
       });
+  assert(!exe_bndl.empty());
   std::vector<std::byte> bytes;
   const sycl::device_image<sycl::bundle_state::executable> &img =
       *(exe_bndl.begin());
