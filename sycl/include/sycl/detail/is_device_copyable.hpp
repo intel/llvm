@@ -90,10 +90,8 @@ template <typename T>
 inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
 namespace detail {
 #ifdef __SYCL_DEVICE_ONLY__
-template <typename T, typename>
-struct CheckFieldsAreDeviceCopyable;
-template <typename T, typename>
-struct CheckBasesAreDeviceCopyable;
+template <typename T, typename> struct CheckFieldsAreDeviceCopyable;
+template <typename T, typename> struct CheckBasesAreDeviceCopyable;
 
 template <typename T, unsigned... FieldIds>
 struct CheckFieldsAreDeviceCopyable<T, std::index_sequence<FieldIds...>> {
