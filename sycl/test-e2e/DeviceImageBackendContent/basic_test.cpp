@@ -28,18 +28,19 @@ int main() {
   sycl::kernel_id id = sycl::get_kernel_id<kernel>();
   auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {id});
-  assert(!bundle.empty());
   sycl::backend backend;
   std::vector<std::byte> bytes;
 #ifdef __cpp_lib_span
   std::span<std::byte> bytes_view;
 #endif
+  int runs = 0;
   for (const auto &img : bundle) {
     if (img.has_kernel(id, d)) {
       // Check that all 3 functions of the api compile.
       // Furthermore, check that the backend corresponds to the backend of the
       // bundle Check that the view of the content is indeed equal to the
       // content.
+      ++runs;
       backend = img.ext_oneapi_get_backend();
       assert(backend == bundle.get_backend());
       bytes = img.ext_oneapi_get_backend_content();
@@ -52,6 +53,7 @@ int main() {
 #endif
     }
   }
+  assert(runs); // check that the inner loop ran at least once
 
 #ifdef TEST_API_VIOLATION
   // Check that the ext_oneapi_get_backend_content and the
