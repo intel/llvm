@@ -77,6 +77,15 @@ jobs:
   build_e2e_tests:
     needs: [build]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SPIRV Translator
+            artifact_suffix: spirv_translator
+          - name: SPIRV Backend
+            artifact_suffix: spirv_backend
+            extra_lit_opts: --param spirv_backend=True
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Build e2e tests
@@ -89,6 +98,7 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
       e2e_testing_mode: 'build-only'
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
   run_prebuilt_e2e_tests:
     needs: [build, build_e2e_tests]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
@@ -96,13 +106,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Intel
+          - name: SPIRV Translator on Intel GEN 12
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
+            e2e_binaries_artifact: sycl_e2e_bin_spirv_translator
+          - name: SPIRV Backend on Intel PVC
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            reset_intel_gpu: true
+            # Even though the tests are pre-built, we still need the feature for
+            # XFAIL/UNSUPPORTED filtering:
+            extra_lit_opts: --param spirv_backend=True
+            e2e_binaries_artifact: sycl_e2e_bin_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -117,7 +138,7 @@ jobs:
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_binaries_artifact: sycl_e2e_bin_default
+      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact }}
       e2e_testing_mode: 'run-only'
 
   test:
@@ -161,6 +182,12 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             extra_lit_opts: -j 50
+          - name: E2E tests with SPIRV Backend on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            extra_lit_opts: --param spirv-backend=True -j 50
           - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
