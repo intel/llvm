@@ -4,6 +4,9 @@
 // RUN: %{build} %device_msan_flags -O2 -g -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
 
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <sycl/detail/core.hpp>
 
 __attribute__((noinline)) int foo(int data1, int data2) {
