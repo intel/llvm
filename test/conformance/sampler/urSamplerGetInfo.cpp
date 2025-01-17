@@ -11,13 +11,17 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerGetInfoTest);
 
 TEST_P(urSamplerGetInfoTest, SuccessReferenceCount) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-    size_t size = 0;
-    auto infoType = UR_SAMPLER_INFO_REFERENCE_COUNT;
-    ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
-    ASSERT_EQ(sizeof(uint32_t), size);
+
+    size_t property_size = 0;
+    ur_sampler_info_t property_name = UR_SAMPLER_INFO_REFERENCE_COUNT;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urSamplerGetInfo(sampler, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(uint32_t), property_size);
 
     uint32_t returned_reference_count = 0;
-    ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, size,
+    ASSERT_SUCCESS(urSamplerGetInfo(sampler, property_name, property_size,
                                     &returned_reference_count, nullptr));
 
     ASSERT_GT(returned_reference_count, 0U);
@@ -25,37 +29,49 @@ TEST_P(urSamplerGetInfoTest, SuccessReferenceCount) {
 
 TEST_P(urSamplerGetInfoTest, SuccessContext) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-    size_t size = 0;
-    auto infoType = UR_SAMPLER_INFO_CONTEXT;
-    ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
-    ASSERT_EQ(sizeof(ur_context_handle_t), size);
+
+    size_t property_size = 0;
+    ur_sampler_info_t property_name = UR_SAMPLER_INFO_CONTEXT;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urSamplerGetInfo(sampler, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(ur_context_handle_t), property_size);
 
     ur_context_handle_t returned_context = nullptr;
-    ASSERT_SUCCESS(
-        urSamplerGetInfo(sampler, infoType, size, &returned_context, nullptr));
+    ASSERT_SUCCESS(urSamplerGetInfo(sampler, property_name, property_size,
+                                    &returned_context, nullptr));
 
     ASSERT_EQ(returned_context, context);
 }
 
 TEST_P(urSamplerGetInfoTest, SuccessNormalizedCoords) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-    size_t size = 0;
-    auto infoType = UR_SAMPLER_INFO_NORMALIZED_COORDS;
-    ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
-    ASSERT_EQ(sizeof(ur_bool_t), size);
+
+    size_t property_size = 0;
+    ur_sampler_info_t property_name = UR_SAMPLER_INFO_NORMALIZED_COORDS;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urSamplerGetInfo(sampler, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(ur_bool_t), property_size);
 }
 
 TEST_P(urSamplerGetInfoTest, SuccessAddressingMode) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-    size_t size = 0;
-    auto infoType = UR_SAMPLER_INFO_ADDRESSING_MODE;
-    ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
-    ASSERT_EQ(sizeof(ur_sampler_addressing_mode_t), size);
+
+    size_t property_size = 0;
+    ur_sampler_info_t property_name = UR_SAMPLER_INFO_ADDRESSING_MODE;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urSamplerGetInfo(sampler, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(ur_sampler_addressing_mode_t), property_size);
 
     ur_sampler_addressing_mode_t returned_mode =
         UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32;
-    ASSERT_SUCCESS(
-        urSamplerGetInfo(sampler, infoType, size, &returned_mode, nullptr));
+    ASSERT_SUCCESS(urSamplerGetInfo(sampler, property_name, property_size,
+                                    &returned_mode, nullptr));
 
     ASSERT_GE(returned_mode, UR_SAMPLER_ADDRESSING_MODE_NONE);
     ASSERT_LT(returned_mode, UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32);
@@ -63,15 +79,19 @@ TEST_P(urSamplerGetInfoTest, SuccessAddressingMode) {
 
 TEST_P(urSamplerGetInfoTest, SuccessFilterMode) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-    size_t size = 0;
-    auto infoType = UR_SAMPLER_INFO_FILTER_MODE;
-    ASSERT_SUCCESS(urSamplerGetInfo(sampler, infoType, 0, nullptr, &size));
-    ASSERT_EQ(sizeof(ur_sampler_filter_mode_t), size);
+
+    size_t property_size = 0;
+    ur_sampler_info_t property_name = UR_SAMPLER_INFO_FILTER_MODE;
+
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urSamplerGetInfo(sampler, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(sizeof(ur_sampler_filter_mode_t), property_size);
 
     ur_sampler_filter_mode_t returned_mode =
         UR_SAMPLER_FILTER_MODE_FORCE_UINT32;
-    ASSERT_SUCCESS(
-        urSamplerGetInfo(sampler, infoType, size, &returned_mode, nullptr));
+    ASSERT_SUCCESS(urSamplerGetInfo(sampler, property_name, property_size,
+                                    &returned_mode, nullptr));
 
     ASSERT_GE(returned_mode, UR_SAMPLER_FILTER_MODE_NEAREST);
     ASSERT_LT(returned_mode, UR_SAMPLER_FILTER_MODE_FORCE_UINT32);

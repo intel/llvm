@@ -61,3 +61,27 @@ add_adapter_test(level_zero_memory_residency
         "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
         "ZES_ENABLE_SYSMAN=1"
 )
+
+if(NOT WIN32)
+    add_adapter_test(level_zero_deferred_kernel
+        FIXTURE KERNELS
+        SOURCES
+            deferred_kernel.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
+    )
+
+    set(backend level_zero)
+    add_adapter_memcheck_test(level_zero_deferred_kernel
+        FIXTURE KERNELS
+        SOURCES
+            deferred_kernel.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
+    )
+
+    target_link_libraries(test-adapter-level_zero_deferred_kernel PRIVATE
+        LevelZeroLoader
+        LevelZeroLoader-Headers
+    )
+endif()

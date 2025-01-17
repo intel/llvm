@@ -13,6 +13,7 @@
 #include "ur_loader.hpp"
 
 namespace ur_loader {
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
 __urdlllocal ur_result_t UR_APICALL urAdapterGet(
@@ -4476,6 +4477,22 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     return result;
 }
 
+namespace {
+struct event_callback_wrapper_data_t {
+    ur_event_callback_t fn;
+    ur_event_handle_t event;
+    void *userData;
+};
+
+void event_callback_wrapper([[maybe_unused]] ur_event_handle_t hEvent,
+                            ur_execution_info_t execStatus, void *pUserData) {
+    auto *wrapper =
+        reinterpret_cast<event_callback_wrapper_data_t *>(pUserData);
+    (wrapper->fn)(wrapper->event, execStatus, wrapper->userData);
+    delete wrapper;
+}
+} // namespace
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventSetCallback
 __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
@@ -4495,6 +4512,13 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     if (nullptr == pfnSetCallback) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
+
+    // Replace the callback with a wrapper function that gives the callback the loader event rather than a
+    // backend-specific event
+    auto *wrapper_data =
+        new event_callback_wrapper_data_t{pfnNotify, hEvent, pUserData};
+    pUserData = wrapper_data;
+    pfnNotify = event_callback_wrapper;
 
     // convert loader handle to platform handle
     hEvent = reinterpret_cast<ur_event_object_t *>(hEvent)->handle;

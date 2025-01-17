@@ -1753,6 +1753,8 @@ ur_result_t urCommandBufferEnqueueExp(
                                  EventWaitList, OutEvent, ZeCommandListHelper,
                                  DoProfiling));
   }
+  // Mark that synchronization will be required for later updates
+  CommandBuffer->NeedsUpdateSynchronization = true;
 
   return UR_RESULT_SUCCESS;
 }
@@ -2117,6 +2119,13 @@ ur_result_t updateKernelCommand(
  */
 ur_result_t
 waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+  // Calling function has taken a lock for the command buffer so we can safely
+  // check and modify this value here.
+  // If command buffer was recently synchronized we can return early.
+  if (!CommandBuffer->NeedsUpdateSynchronization) {
+    return UR_RESULT_SUCCESS;
+  }
+
   if (CommandBuffer->UseImmediateAppendPath) {
     if (ur_event_handle_t &CurrentSubmissionEvent =
             CommandBuffer->CurrentSubmissionEvent) {
@@ -2128,7 +2137,8 @@ waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
   } else if (ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence) {
     ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
   }
-
+  // Mark that command buffer was recently synchronized
+  CommandBuffer->NeedsUpdateSynchronization = false;
   return UR_RESULT_SUCCESS;
 }
 

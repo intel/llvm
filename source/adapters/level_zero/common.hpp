@@ -363,6 +363,9 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
 
+#define ZE_CALL_NOCHECK_NAME(ZeName, ZeArgs, callName)                         \
+  ZeCall().doCall(ZeName ZeArgs, callName, #ZeArgs, false)
+
 // This wrapper around std::atomic is created to limit operations with reference
 // counter and to make allowed operations more transparent in terms of
 // thread-safety in the plugin. increment() and load() operations do not need a

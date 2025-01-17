@@ -95,6 +95,9 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
 }
 
 ur_result_t ur_kernel_handle_t_::release() {
+  if (!RefCount.decrementAndTest())
+    return UR_RESULT_SUCCESS;
+
   // manually release kernels to allow errors to be propagated
   for (auto &singleDeviceKernelOpt : deviceKernels) {
     if (singleDeviceKernelOpt.has_value()) {
@@ -103,6 +106,8 @@ ur_result_t ur_kernel_handle_t_::release() {
   }
 
   UR_CALL_THROWS(ur::level_zero::urProgramRelease(hProgram));
+
+  delete this;
 
   return UR_RESULT_SUCCESS;
 }
@@ -362,13 +367,7 @@ ur_result_t urKernelRetain(
 ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
     ) try {
-  if (!hKernel->RefCount.decrementAndTest())
-    return UR_RESULT_SUCCESS;
-
-  hKernel->release();
-  delete hKernel;
-
-  return UR_RESULT_SUCCESS;
+  return hKernel->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

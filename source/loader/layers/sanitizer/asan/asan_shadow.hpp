@@ -22,9 +22,11 @@ namespace asan {
 
 struct ShadowMemory {
     ShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
-        : Context(Context), Device(Device) {}
+        : Context(Context), Device(Device) {
+        urDeviceRetain(Device);
+    }
 
-    virtual ~ShadowMemory() {}
+    virtual ~ShadowMemory() { urDeviceRelease(Device); }
 
     virtual ur_result_t Setup() = 0;
 
