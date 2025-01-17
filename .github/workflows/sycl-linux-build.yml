@@ -60,7 +60,8 @@ on:
         required: false
       skip_reason:
         description: |
-          Reason for skipping the build.
+          Message displayed for skipping the build: Only used if skip_build is
+          true.
         type: string
         default: "inputs.skip-reason set to true."
       ref:

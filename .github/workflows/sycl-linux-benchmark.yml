@@ -127,6 +127,7 @@ jobs:
       build_cache_suffix: "default_benchmark"
       build_image: ${{ inputs.image }}
       skip_build: ${{ inputs.sycl_toolchain_archive != '' }}
+      # skip_reason only used if skip_build is true
       skip_reason: "SYCL toolchain artifact already provided, no build necessary"
 
   run_benchmarks:
@@ -217,7 +218,7 @@ jobs:
         rm -f ${{ inputs.sycl_toolchain_archive || needs.check_build.outputs.artifact_archive_name }}
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
-    - name: Debug: Print IGC tag
+    - name: Print IGC tag [Debug]
       run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
@@ -235,6 +236,7 @@ jobs:
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |
+        # TODO -- waiting on security clearance
         mkdir -p .ssh
         echo "$SSH_KEY" > .ssh/id_rsa
         chmod 600 .ssh/id_rsa
