@@ -12,84 +12,96 @@ using urPlatformGetInfoTest = uur::urPlatformTest;
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetInfoTest);
 
 TEST_P(urPlatformGetInfoTest, SuccessName) {
-    ur_platform_info_t info_type = UR_PLATFORM_INFO_NAME;
-    size_t size = 0;
+    ur_platform_info_t property_name = UR_PLATFORM_INFO_NAME;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_GT(size, 0);
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_GT(property_size, 0);
 
-    std::vector<char> returned_name(size);
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+    std::vector<char> returned_name(property_size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                      returned_name.data(), nullptr));
 
-    ASSERT_EQ(size, returned_name.size());
+    ASSERT_EQ(property_size, returned_name.size());
 }
 
 TEST_P(urPlatformGetInfoTest, SuccessVendorName) {
-    ur_platform_info_t info_type = UR_PLATFORM_INFO_VENDOR_NAME;
-    size_t size = 0;
+    ur_platform_info_t property_name = UR_PLATFORM_INFO_VENDOR_NAME;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_GT(size, 0);
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_GT(property_size, 0);
 
-    std::vector<char> returned_vendor_name(size);
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+    std::vector<char> returned_vendor_name(property_size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                      returned_vendor_name.data(), nullptr));
 
-    ASSERT_EQ(size, returned_vendor_name.size());
+    ASSERT_EQ(property_size, returned_vendor_name.size());
 }
 
 TEST_P(urPlatformGetInfoTest, SuccessVersion) {
-    ur_platform_info_t info_type = UR_PLATFORM_INFO_VERSION;
-    size_t size = 0;
+    ur_platform_info_t property_name = UR_PLATFORM_INFO_VERSION;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_GT(size, 0);
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_GT(property_size, 0);
 
-    std::vector<char> returned_version(size);
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+    std::vector<char> returned_version(property_size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                      returned_version.data(), nullptr));
 
-    ASSERT_EQ(size, returned_version.size());
+    ASSERT_EQ(property_size, returned_version.size());
 }
 
 TEST_P(urPlatformGetInfoTest, SuccessExtensions) {
-    ur_platform_info_t info_type = UR_PLATFORM_INFO_EXTENSIONS;
-    size_t size = 0;
+    ur_platform_info_t property_name = UR_PLATFORM_INFO_EXTENSIONS;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_GT(size, 0);
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_GT(property_size, 0);
 
-    std::vector<char> returned_extensions(size);
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+    std::vector<char> returned_extensions(property_size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                      returned_extensions.data(), nullptr));
 
-    ASSERT_EQ(size, returned_extensions.size());
+    ASSERT_EQ(property_size, returned_extensions.size());
 }
 
 TEST_P(urPlatformGetInfoTest, SuccessProfile) {
-    ur_platform_info_t info_type = UR_PLATFORM_INFO_PROFILE;
-    size_t size = 0;
+    ur_platform_info_t property_name = UR_PLATFORM_INFO_PROFILE;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_GT(size, 0);
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_GT(property_size, 0);
 
-    std::vector<char> returned_profile(size);
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+    std::vector<char> returned_profile(property_size);
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                      returned_profile.data(), nullptr));
 
-    ASSERT_EQ(size, returned_profile.size());
+    ASSERT_EQ(property_size, returned_profile.size());
 }
 
 TEST_P(urPlatformGetInfoTest, SuccessBackend) {
-    ur_platform_info_t info_type = UR_PLATFORM_INFO_BACKEND;
-    size_t size = 0;
+    ur_platform_info_t property_name = UR_PLATFORM_INFO_BACKEND;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(ur_platform_backend_t));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_platform_backend_t));
 
     ur_platform_backend_t returned_backend = UR_PLATFORM_BACKEND_UNKNOWN;
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                      &returned_backend, nullptr));
 
     ASSERT_TRUE(returned_backend >= UR_PLATFORM_BACKEND_LEVEL_ZERO &&
@@ -97,14 +109,16 @@ TEST_P(urPlatformGetInfoTest, SuccessBackend) {
 }
 
 TEST_P(urPlatformGetInfoTest, SuccessAdapter) {
-    ur_platform_info_t info_type = UR_PLATFORM_INFO_ADAPTER;
-    size_t size = 0;
+    ur_platform_info_t property_name = UR_PLATFORM_INFO_ADAPTER;
+    size_t property_size = 0;
 
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_EQ(size, sizeof(ur_adapter_handle_t));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
+        property_name);
+    ASSERT_EQ(property_size, sizeof(ur_adapter_handle_t));
 
     ur_adapter_handle_t returned_adapter = nullptr;
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, size,
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                      &returned_adapter, nullptr));
 
     auto adapter_found = std::find(
