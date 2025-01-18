@@ -490,9 +490,6 @@ jobs:
         path: e2e_binaries.tar.zst
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Aggregate compute-benchmark historical average (TODO reconsider)
-      if: inputs.tests_selector == 'benchmark'
-      uses: ./.github/workflows/sycl-benchmark-aggregate.yml
     - name: Run compute-benchmarks
       if: inputs.tests_selector == 'benchmark'
       run: |
@@ -516,3 +513,8 @@ jobs:
         git add .
         git commit -m "Update results"
         git push
+
+  benchmark_aggregate:
+    if: ${{ inputs.test_selector == 'benchmark' && (github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false') }}
+    name: Aggregate compute-benchmark historical average (TODO reconsider)
+    uses: ./.github/workflows/sycl-benchmark-aggregate.yml
