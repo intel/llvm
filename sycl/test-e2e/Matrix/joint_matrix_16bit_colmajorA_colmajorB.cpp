@@ -139,6 +139,9 @@ int main() {
       test<half>();
       half_run = true;
     }
+
+    if (bf16_run && half_run)
+      break;
   }
 
   return 0;
