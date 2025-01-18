@@ -330,7 +330,7 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
         PointeeTy, BM->getAddressingModel() * 32, 0, AS);
 
   if (Flags & SPIRVDebug::FlagIsObjectPointer)
-    Ty = getDIBuilder(DebugInst).createObjectPointerType(Ty);
+    Ty = getDIBuilder(DebugInst).createObjectPointerType(Ty, true);
   else if (Flags & SPIRVDebug::FlagIsArtificial)
     Ty = getDIBuilder(DebugInst).createArtificialType(Ty);
 
