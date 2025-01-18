@@ -1302,9 +1302,10 @@ bool ControlFlowConversionState::Impl::tryApplyMaskToMemOp(
           Ctx, memOp.getDataOperand(), memOp.getPointerOperand(), wideMask,
           /*VL*/ nullptr, memOp.getAlignment(), I->getName());
     }
+    VECZ_FAIL_IF(!newVal);
+
     newVal->insertBefore(I->getIterator());
 
-    VECZ_FAIL_IF(!newVal);
     if (!I->getType()->isVoidTy()) {
       I->replaceAllUsesWith(newVal);
     }
