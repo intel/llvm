@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Two possible options: "e2e" and "cts".
+          Three possible options: "e2e", "cts", and "benchmark".
         type: string
         default: "e2e"
 
@@ -153,6 +153,7 @@ on:
         options:
           - e2e
           - cts
+          - benchmark
 
       env:
         description: |
