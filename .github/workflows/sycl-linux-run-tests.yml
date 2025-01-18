@@ -316,12 +316,12 @@ jobs:
           fi
 
     - name: Download E2E Binaries
-      if: inputs.e2e_binaries_artifact != ''
+      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact != ''
       uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.e2e_binaries_artifact }}
     - name: Extract E2E Binaries
-      if: inputs.e2e_binaries_artifact != ''
+      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact != ''
       run: |
         mkdir build-e2e
         tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
@@ -387,11 +387,11 @@ jobs:
         ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
     - name: Pack SYCL-CTS binaries
-      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
+      if: inputs.tests_selector == 'cts' && always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
       run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
 
     - name: Upload SYCL-CTS binaries
-      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
+      if: inputs.tests_selector == 'cts' && always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
       uses: actions/upload-artifact@v4
       with:
         name: sycl_cts_bin
@@ -399,13 +399,13 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Download SYCL-CTS binaries
-      if: inputs.sycl_cts_artifact != ''
+      if: inputs.tests_selector == 'cts' && inputs.sycl_cts_artifact != ''
       uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.sycl_cts_artifact }}
 
     - name: Extract SYCL-CTS binaries
-      if: inputs.sycl_cts_artifact != ''
+      if: inputs.tests_selector == 'cts' && inputs.sycl_cts_artifact != ''
       run: |
         mkdir -p build-cts/bin
         tar -I 'zstd' -xf sycl_cts_bin.tar.zst -C build-cts/bin
@@ -425,7 +425,7 @@ jobs:
     # these files may differ from each other, so when there is a pre-built set of
     # tests, we need to filter it according to the filter-file.
     - name: Filter SYCL CTS test categories
-      if: inputs.sycl_cts_artifact != ''
+      if: inputs.tests_selector == 'cts' && inputs.sycl_cts_artifact != ''
       shell: bash
       run: |
         cts_exclude_filter=""
@@ -479,12 +479,39 @@ jobs:
 
         exit $ret
     - name: Pack E2E binaries
-      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
+      if: inputs.tests_selector == 'e2e' && always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'
       run: tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
     - name: Upload E2E binaries
-      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
+      if: inputs.tests_selector == 'e2e' && always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'
       uses: actions/upload-artifact@v4
       with:
         name: sycl_e2e_bin_${{ inputs.artifact_suffix }}
         path: e2e_binaries.tar.zst
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Aggregate compute-benchmark historical average (TODO reconsider)
+      if: inputs.tests_selector == 'benchmark'
+      uses: ./.github/workflows/sycl-benchmark-aggregate.yml
+    - name: Run compute-benchmarks
+      if: inputs.tests_selector == 'benchmark'
+      run: |
+        export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
+        export CMPLR_ROOT=$PWD/toolchain
+        ./devops/scripts/benchmarking/benchmark.sh -t '${{ inputs.runner }}' -s
+    - name: Push compute-benchmarks results
+      if: inputs.tests_selector == 'benchmark'
+      env:
+        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
+      run: |
+        # TODO -- waiting on security clearance
+        mkdir -p .ssh
+        echo "$SSH_KEY" > .ssh/id_rsa
+        chmod 600 .ssh/id_rsa
+        eval "$(ssh-agent -s)"
+        ssh-add -k .ssh/id_rsa
+        cd llvm-ci-perf-results
+        git config --global user.name "iclsrc"
+        git config --global user.email "ia.compiler.tools.git@intel.com"
+        git add .
+        git commit -m "Update results"
+        git push
