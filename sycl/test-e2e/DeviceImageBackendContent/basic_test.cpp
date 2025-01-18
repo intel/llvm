@@ -53,7 +53,7 @@ int main() {
 #endif
     }
   }
-  assert(runs); // check that the inner loop ran at least once
+  assert(runs); // check that the loop contents were ran at least once
 
 #ifdef TEST_API_VIOLATION
   // Check that the ext_oneapi_get_backend_content and the
