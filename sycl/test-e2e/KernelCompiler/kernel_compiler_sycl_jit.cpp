@@ -79,6 +79,18 @@ void vector_add_esimd(float *A, float *B, float *C) {
     }
 )===";
 
+auto constexpr DeviceCodeSplitSource = R"===(
+#include <sycl/sycl.hpp>
+
+template<typename T, unsigned SG = 16> SYCL_EXTERNAL 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::nd_range_kernel<1>)
+[[sycl::reqd_sub_group_size(SG)]]
+void vec_add(T* in1, T* in2, T* out){
+  size_t id = sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
+  out[id] = in1[id] + in2[id];
+}
+)===";
+
 auto constexpr BadSource = R"===(
 #include <sycl/sycl.hpp>
 
@@ -203,18 +215,65 @@ int test_build_and_run() {
       ctx, syclex::source_language::sycl_jit, SYCLSource,
       syclex::properties{incFiles2});
 
-  exe_kb kbExe3 = syclex::build(
-      kbSrc2, syclex::properties{
-                  syclex::build_options{"-fsycl-device-code-split=per_kernel"},
-                  syclex::registered_kernel_names{"ff_templated<int>"}});
-  assert(std::distance(kbExe3.begin(), kbExe3.end()) == 2 &&
-         "Expected 2 device images");
+  exe_kb kbExe3 = syclex::build(kbSrc2);
   sycl::kernel k3 = kbExe3.ext_oneapi_get_kernel("ff_cp");
   test_1(q, k3, 37 + 7);
 
   // Can we still run the original compilation?
   sycl::kernel k4 = kbExe1.ext_oneapi_get_kernel("ff_cp");
   test_1(q, k4, 37 + 5);
+
+  return 0;
+}
+
+int test_device_code_split() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, DeviceCodeSplitSource);
+
+  // Test explicit device code split
+  std::vector<std::string> names{"vec_add<float>", "vec_add<int>",
+                                 "vec_add<short>"};
+  auto build = [&](const std::string &mode) -> size_t {
+    exe_kb kbExe = syclex::build(
+        kbSrc, syclex::properties{
+                   syclex::registered_kernel_names{names},
+                   syclex::build_options{"-fsycl-device-code-split=" + mode}});
+    return std::distance(kbExe.begin(), kbExe.end());
+  };
+
+  size_t perKernelNImg = build("per_kernel");
+  size_t perSourceNImg = build("per_source");
+  size_t offNImg = build("off");
+  size_t autoNImg = build("auto");
+
+  assert(perKernelNImg == 3);
+  assert(perSourceNImg == 1);
+  assert(offNImg == 1);
+  assert(autoNImg >= offNImg && autoNImg <= perKernelNImg);
+
+  // Test implicit device code split
+  names = {"vec_add<float, 8>", "vec_add<float, 16>"};
+  exe_kb kbDiffSubgroupSizes = syclex::build(
+      kbSrc, syclex::properties{syclex::registered_kernel_names{names}});
+  assert(std::distance(kbDiffSubgroupSizes.begin(),
+                       kbDiffSubgroupSizes.end()) == 2);
 
   return 0;
 }
@@ -390,8 +449,8 @@ int test_warning() {
 int main(int argc, char **) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   int optional_tests = (argc > 1) ? test_warning() : 0;
-  return test_build_and_run() || test_esimd() || test_unsupported_options() ||
-         test_error() || optional_tests;
+  return test_build_and_run() || test_device_code_split() || test_esimd() ||
+         test_unsupported_options() || test_error() || optional_tests;
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
