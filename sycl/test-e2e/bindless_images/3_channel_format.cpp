@@ -1,7 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -21,19 +21,22 @@ int main() {
   auto ctxt = q.get_context();
 
   constexpr size_t width = 512;
-  std::vector<float> out(width);
-  std::vector<float> expected(width);
-  std::vector<sycl::float3> dataIn(width);
-  float exp = 512;
-  for (int i = 0; i < width; i++) {
+  std::vector<unsigned short> out(width);
+  std::vector<unsigned short> expected(width);
+  std::vector<unsigned short> dataIn(width * 3);
+  unsigned short exp = 512;
+  for (unsigned int i = 0; i < width; i++) {
     expected[i] = exp;
-    dataIn[i] = sycl::float3(exp, width, i);
+    dataIn[(i * 3)] = exp;
+    dataIn[(i * 3) + 1] = static_cast<unsigned short>(width);
+    dataIn[(i * 3) + 2] = static_cast<unsigned short>(i);
   }
 
   try {
     // Main point of this test is to check creating an image
     // with a 3-channel format
-    syclexp::image_descriptor desc({width}, 3, sycl::image_channel_type::fp32);
+    syclexp::image_descriptor desc({width}, 3,
+                                   sycl::image_channel_type::unsigned_int16);
 
     syclexp::image_mem imgMem(desc, dev, ctxt);
 
@@ -46,7 +49,7 @@ int main() {
     syclexp::unsampled_image_handle imgHandle =
         sycl::ext::oneapi::experimental::create_image(imgMem, desc, dev, ctxt);
 
-    sycl::buffer<float> buf(out.data(), width);
+    sycl::buffer<unsigned short> buf(out.data(), width);
 
     q.submit([&](sycl::handler &cgh) {
       sycl::accessor outAcc{buf, cgh};
@@ -55,9 +58,9 @@ int main() {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
         // This shouldn't be hit anyway since CUDA doesn't support
         // 3-channel formats, but we need to ensure the kernel can compile
-        using pixel_t = sycl::float4;
+        using pixel_t = sycl::ushort4;
 #else
-        using pixel_t = sycl::float3;
+            using pixel_t = sycl::ushort3;
 #endif
         auto pixel = syclexp::fetch_image<pixel_t>(imgHandle, int(id[0]));
         outAcc[id] = pixel[0];
@@ -83,7 +86,7 @@ int main() {
   }
 
   bool validated = true;
-  for (int i = 0; i < width; i++) {
+  for (unsigned int i = 0; i < width; i++) {
     bool mismatch = false;
     if (out[i] != expected[i]) {
       mismatch = true;

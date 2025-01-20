@@ -113,6 +113,7 @@ SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg, int v,
 using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
                                  access::placeholder::false_t>::iterator;
 
+//
 // CHECK-LABEL: @_ZN7blocked18test_accessor_iterERN4sycl3_V19sub_groupEiRNS1_6detail17accessor_iteratorIiLi1EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ITER:%.*]], align 8, !tbaa [[TBAA15:![0-9]+]]
@@ -732,6 +733,68 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
                                     plain_global_ptr<short> p) {
   // Just because there is a blocked data layout testcase, nothing inherently
   // useful here.
+  group_store(sg, v, p, opt_striped{});
+}
+
+// CHECK-LABEL: @_ZN7striped19test_sixteen_shortsERN4sycl3_V19sub_groupENS1_4spanIsLm16EEEPU3AS1s(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    [[VALUES_I:%.*]] = alloca [16 x i16], align 2
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA22]]
+// CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
+// CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
+// CHECK-NEXT:    [[TMP2:%.*]] = ptrtoint ptr addrspace(1) [[P]] to i64
+// CHECK-NEXT:    [[REM_I_I:%.*]] = and i64 [[TMP2]], 15
+// CHECK-NEXT:    [[CMP1_I_NOT_I:%.*]] = icmp eq i64 [[REM_I_I]], 0
+// CHECK-NEXT:    br i1 [[CMP1_I_NOT_I]], label [[IF_END_I:%.*]], label [[IF_THEN_I:%.*]]
+// CHECK:       if.then.i:
+// CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META107:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META110:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_THEN_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I19_I:%.*]] = icmp samesign ult i32 [[I_0_I_I]], 16
+// CHECK-NEXT:    br i1 [[CMP_I19_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM16EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_SS__EXIT_I:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP1]], i64 [[CONV_I_I]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA27]]
+// CHECK-NEXT:    [[MUL_I_I_I:%.*]] = mul i32 [[TMP4]], [[I_0_I_I]]
+// CHECK-NEXT:    [[ADD_I_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I_I]]
+// CHECK-NEXT:    [[IDXPROM_I_I:%.*]] = sext i32 [[ADD_I_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I]]
+// CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(1) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA27]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP113:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm16EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_SS_.exit.i:
+// CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM16EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_SQ__EXIT:%.*]]
+// CHECK:       if.end.i:
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 32, ptr nonnull [[VALUES_I]]) #[[ATTR7]]
+// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+// CHECK:       for.cond.i:
+// CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_END_I]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 16
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[FOR_COND_CLEANUP_I:%.*]]
+// CHECK:       for.cond.cleanup.i:
+// CHECK-NEXT:    [[TMP6:%.*]] = load <16 x i16>, ptr [[VALUES_I]], align 2, !tbaa [[TBAA31]]
+// CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIDv16_tEvPU3AS1tT_(ptr addrspace(1) noundef nonnull [[P]], <16 x i16> noundef [[TMP6]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[VALUES_I]]) #[[ATTR7]]
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM16EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_SQ__EXIT]]
+// CHECK:       for.body.i:
+// CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I20_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[TMP7:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20_I]], align 2, !tbaa [[TBAA27]]
+// CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds [16 x i16], ptr [[VALUES_I]], i64 0, i64 [[CONV_I]]
+// CHECK-NEXT:    store i16 [[TMP7]], ptr [[ARRAYIDX_I]], align 2, !tbaa [[TBAA27]]
+// CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP114:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm16EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_.exit:
+// CHECK-NEXT:    ret void
+//
+SYCL_EXTERNAL void test_sixteen_shorts(sycl::sub_group &sg, span<short, 16> v,
+                                       plain_global_ptr<short> p) {
   group_store(sg, v, p, opt_striped{});
 }
 

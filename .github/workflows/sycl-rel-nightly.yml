@@ -36,10 +36,11 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: v6
+      build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda'
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       merge_ref: ''
-      ref: sycl-rel-6_0_0
+      build_ref: sycl-rel-6_0_0
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -118,10 +119,12 @@ jobs:
     if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
+      ref: sycl-rel-6_0_0
+      merge_ref: ''
+
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
-      build_ref: sycl-rel-6_0_0
 
   e2e-win:
     needs: build-win
@@ -137,6 +140,7 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
       ref: sycl-rel-6_0_0
+      merge_ref: ''
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -154,7 +158,7 @@ jobs:
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
-      image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
       ref: sycl-rel-6_0_0

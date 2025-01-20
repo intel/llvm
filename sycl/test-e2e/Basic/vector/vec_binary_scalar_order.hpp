@@ -93,7 +93,5 @@ bool CheckResult(sycl::vec<T1, N> V, T2 Ref) {
 
 #define CHECK_SIZES(Q, C, T, IS_RELOP, OP)                                     \
   CHECK(Q, C, T, 1, IS_RELOP, OP)                                              \
-  CHECK(Q, C, T, 2, IS_RELOP, OP)                                              \
-  CHECK(Q, C, T, 4, IS_RELOP, OP)                                              \
-  CHECK(Q, C, T, 8, IS_RELOP, OP)                                              \
-  CHECK(Q, C, T, 16, IS_RELOP, OP)
+  CHECK(Q, C, T, 3, IS_RELOP, OP)                                              \
+  CHECK(Q, C, T, 8, IS_RELOP, OP)

@@ -1,7 +1,7 @@
-# commit b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf
-# Merge: 3472b5bd ead3d07d
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 8 10:49:59 2025 +0000
-#     Merge pull request #2462 from Bensuo/cmd-buf_update_errors
-#     Improve specification of command-buffer update errors
-set(UNIFIED_RUNTIME_TAG b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf)
+# commit 8b7a99578966eb691a961d9620ea38d235196b2f
+# Merge: ed095412 7b0e3b19
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Mon Jan 20 09:27:22 2025 +0000
+#     Merge pull request #2582 from przemektmalon/przemek/intel-host-usm-support
+#     Enable Host USM backed images on Level Zero
+set(UNIFIED_RUNTIME_TAG 8b7a99578966eb691a961d9620ea38d235196b2f)
