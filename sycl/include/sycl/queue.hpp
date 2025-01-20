@@ -351,9 +351,11 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
             ,
             int = detail::emit_get_backend_info_error<queue, Param>()
+#endif
 #endif
             >
   __SYCL_DEPRECATED(
