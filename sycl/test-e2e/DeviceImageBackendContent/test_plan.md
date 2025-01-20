@@ -4,10 +4,10 @@
 
 ### Device coverage
 
-The unit tests must be launched on every supported device configuration we have.
+The unit tests should be launched on every supported device configuration we have.
 
 The end-to-end tests, which consist of checking the interoperability with Level Zero
-and OpenCL backends, must be run on devices that are exposed through these 
+and OpenCL backends, should be run on devices that are exposed through these 
 low-level interfaces.
 
 ### Type coverage
@@ -17,10 +17,10 @@ arguments.
 
 There are, however, some requirements related to the value of the 
 `State` template parameter of the `device_image` class on which these 
-APIs are defined. In particular, the `ext_oneapi_backend_content` 
-and `ext_oneapi_backend_content_view` functions are only 
+APIs are defined. In particular, the `ext_oneapi_get_backend_content` 
+and `ext_oneapi_get_backend_content_view` functions are only 
 available when `State == sycl::bundle_state::executable`. 
-Tests shouls verify that these functions are indeed only available when this equality occurs.
+Tests should verify that these functions are indeed only available when this equality occurs.
 
 ## Tests
 
@@ -32,7 +32,7 @@ These tests are intended to check that all classes and methods defined by the
 extension have correct implementation, i.e.: right signatures, right return
 types, all necessary constraints are checked/enforced, etc.
 
-These tests must check the following:
+These tests should check the following:
 
 - that diagnostic is emitted when `ext_oneapi_get_backend_content` or
   `ext_oneapi_get_backend_content_view` functions are called and 
