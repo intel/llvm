@@ -69,7 +69,8 @@ kernel is defined using the requirements [here][ref-link], it is possible to ret
 kernel from the device image contents.
 
 This test selects a Level Zero or OpenCL backend device and defines a simple kernel using 
-free function syntax. Then, using the device image contents and backend specific API, 
+free function syntax adhering to the requirements mentioned in the paragraph above. 
+Then, using the device image contents and backend specific API, 
 it should create a Level Zero or OpenCL kernel object corresponding to the kernel. 
 Using interoperability API, this kernel object can be made into a high-level SYCL kernel object.
 The test should then run this kernel on the device and verify that it has the same effects as running 
