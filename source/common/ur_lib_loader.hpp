@@ -2,8 +2,9 @@
  *
  * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT
+ *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
@@ -21,19 +22,19 @@
 namespace ur_loader {
 
 class LibLoader {
-  public:
-    struct lib_dtor {
-        typedef HMODULE pointer;
-        void operator()(HMODULE handle) { freeAdapterLibrary(handle); }
-    };
+public:
+  struct lib_dtor {
+    typedef HMODULE pointer;
+    void operator()(HMODULE handle) { freeAdapterLibrary(handle); }
+  };
 
-    using Lib = std::unique_ptr<HMODULE, lib_dtor>;
+  using Lib = std::unique_ptr<HMODULE, lib_dtor>;
 
-    static Lib loadAdapterLibrary(const char *name);
+  static Lib loadAdapterLibrary(const char *name);
 
-    static void freeAdapterLibrary(HMODULE handle);
+  static void freeAdapterLibrary(HMODULE handle);
 
-    static void *getFunctionPtr(HMODULE handle, const char *func_name);
+  static void *getFunctionPtr(HMODULE handle, const char *func_name);
 };
 
 } // namespace ur_loader

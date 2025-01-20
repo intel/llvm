@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 class Compare(Enum):
@@ -27,6 +27,10 @@ class Options:
     stddev_threshold: float = 0.02
     epsilon: float = 0.02
     iterations_stddev: int = 5
+    build_compute_runtime: bool = False
+    extra_ld_libraries: list[str] = field(default_factory=list)
+    extra_env_vars: dict = field(default_factory=dict)
+    compute_runtime_tag: str = 'c1ed0334d65f6ce86d7273fe4137d1d4a5b5fa7c'
 
 options = Options()
 

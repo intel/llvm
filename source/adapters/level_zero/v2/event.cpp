@@ -275,15 +275,17 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
 }
 
 ur_result_t urEventGetProfilingInfo(
-    ur_event_handle_t hEvent, ///< [in] handle of the event object
-    ur_profiling_info_t
-        propName, ///< [in] the name of the profiling property to query
-    size_t
-        propValueSize, ///< [in] size in bytes of the profiling property value
-    void *pPropValue,  ///< [out][optional] value of the profiling property
-    size_t *pPropValueSizeRet ///< [out][optional] pointer to the actual size in
-                              ///< bytes returned in propValue
-    ) try {
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent,
+    /// [in] the name of the profiling property to query
+    ur_profiling_info_t propName,
+    /// [in] size in bytes of the profiling property value
+    size_t propValueSize,
+    /// [out][optional] value of the profiling property
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes returned in
+    /// propValue
+    size_t *pPropValueSizeRet) try {
   std::scoped_lock<ur_shared_mutex> lock(hEvent->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.

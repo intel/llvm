@@ -2,8 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT
+ *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file msan_allocator.hpp
@@ -20,18 +21,18 @@ namespace ur_sanitizer_layer {
 namespace msan {
 
 struct MsanAllocInfo {
-    uptr AllocBegin = 0;
-    size_t AllocSize = 0;
+  uptr AllocBegin = 0;
+  size_t AllocSize = 0;
 
-    bool IsReleased = false;
+  bool IsReleased = false;
 
-    ur_context_handle_t Context = nullptr;
-    ur_device_handle_t Device = nullptr;
+  ur_context_handle_t Context = nullptr;
+  ur_device_handle_t Device = nullptr;
 
-    StackTrace AllocStack;
-    StackTrace ReleaseStack;
+  StackTrace AllocStack;
+  StackTrace ReleaseStack;
 
-    void print();
+  void print();
 };
 
 using MsanAllocationMap = std::map<uptr, std::shared_ptr<MsanAllocInfo>>;

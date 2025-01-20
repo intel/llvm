@@ -129,7 +129,7 @@ def jsonRead(path):
 def jsonWrite(path, data):
     try:
         with open(path, 'w') as fout:
-            fout.write(json.dumps(data, indent=4, sort_keys=True))
+            fout.write(json.dumps(data, indent=2, sort_keys=True))
     except:
         print("error: unable to write %s"%path)
 

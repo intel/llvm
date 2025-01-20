@@ -7,7 +7,7 @@ import os
 import json
 from pathlib import Path
 from benches.result import Result, BenchmarkRun
-from benches.options import Compare, options
+from options import Compare, options
 from datetime import datetime, timezone
 from utils.utils import run;
 

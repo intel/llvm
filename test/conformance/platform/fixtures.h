@@ -1,6 +1,7 @@
 // Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+//
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_CONFORMANCE_PLATFORM_FIXTURES_H_INCLUDED
@@ -16,21 +17,21 @@ template <class T>
 struct urPlatformTestWithParam
     : ::testing::Test,
       ::testing::WithParamInterface<std::tuple<ur_platform_handle_t, T>> {
-    void SetUp() override { platform = std::get<0>(this->GetParam()); }
-    const T &getParam() const { return std::get<1>(this->GetParam()); }
-    ur_platform_handle_t platform;
+  void SetUp() override { platform = std::get<0>(this->GetParam()); }
+  const T &getParam() const { return std::get<1>(this->GetParam()); }
+  ur_platform_handle_t platform;
 };
 
 template <class T>
 std::string platformTestWithParamPrinter(
     const ::testing::TestParamInfo<std::tuple<ur_platform_handle_t, T>> &info) {
-    auto platform = std::get<0>(info.param);
-    auto param = std::get<1>(info.param);
+  auto platform = std::get<0>(info.param);
+  auto param = std::get<1>(info.param);
 
-    std::stringstream ss;
-    ss << param;
-    return uur::GetPlatformNameWithID(platform) + "__" +
-           GTestSanitizeString(ss.str());
+  std::stringstream ss;
+  ss << param;
+  return uur::GetPlatformNameWithID(platform) + "__" +
+         GTestSanitizeString(ss.str());
 }
 
 } // namespace platform

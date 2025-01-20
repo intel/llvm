@@ -63,25 +63,32 @@ add_adapter_test(level_zero_memory_residency
 )
 
 if(NOT WIN32)
-    add_adapter_test(level_zero_deferred_kernel
-        FIXTURE KERNELS
-        SOURCES
-            deferred_kernel.cpp
-        ENVIRONMENT
-            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
-    )
+    if (NOT UR_DPCXX)
+        # Tests that require kernels can't be used if we aren't generating
+        # device binaries
+        message(WARNING
+            "UR_DPCXX is not defined, skipping some tests for level_zero_v2 adapter")
+    else()
+        add_adapter_test(level_zero_deferred_kernel
+            FIXTURE KERNELS
+            SOURCES
+                deferred_kernel.cpp
+            ENVIRONMENT
+                "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
+        )
 
-    set(backend level_zero)
-    add_adapter_memcheck_test(level_zero_deferred_kernel
-        FIXTURE KERNELS
-        SOURCES
-            deferred_kernel.cpp
-        ENVIRONMENT
-            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
-    )
+        set(backend level_zero)
+        add_adapter_memcheck_test(level_zero_deferred_kernel
+            FIXTURE KERNELS
+            SOURCES
+                deferred_kernel.cpp
+            ENVIRONMENT
+                "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
+        )
 
-    target_link_libraries(test-adapter-level_zero_deferred_kernel PRIVATE
-        LevelZeroLoader
-        LevelZeroLoader-Headers
-    )
+        target_link_libraries(test-adapter-level_zero_deferred_kernel PRIVATE
+            LevelZeroLoader
+            LevelZeroLoader-Headers
+        )
+    endif()
 endif()
