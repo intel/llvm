@@ -330,26 +330,26 @@ int main() {
   }
 
   // Non-blocking pipes
-  int Result = test_simple_nb_pipe<some_nb_pipe, /*test number*/ 1>(Queue);
-  Result &= test_simple_nb_pipe<some::nb_pipe, /*test number*/ 2>(Queue);
+  int Error = test_simple_nb_pipe<some_nb_pipe, /*test number*/ 1>(Queue);
+  Error |= test_simple_nb_pipe<some::nb_pipe, /*test number*/ 2>(Queue);
   class forward_nb_pipe;
-  Result &= test_simple_nb_pipe<forward_nb_pipe, /*test number*/ 3>(Queue);
-  Result &= test_simple_nb_pipe<templ_nb_pipe<0>, /*test number*/ 4>(Queue);
-  Result &= test_multiple_nb_pipe</*test number*/ 5>(Queue);
+  Error |= test_simple_nb_pipe<forward_nb_pipe, /*test number*/ 3>(Queue);
+  Error |= test_simple_nb_pipe<templ_nb_pipe<0>, /*test number*/ 4>(Queue);
+  Error |= test_multiple_nb_pipe</*test number*/ 5>(Queue);
 
   // Blocking pipes
-  Result &= test_simple_bl_pipe<some_bl_pipe, /*test number*/ 6>(Queue);
-  Result &= test_simple_bl_pipe<some::bl_pipe, /*test number*/ 7>(Queue);
+  Error |= test_simple_bl_pipe<some_bl_pipe, /*test number*/ 6>(Queue);
+  Error |= test_simple_bl_pipe<some::bl_pipe, /*test number*/ 7>(Queue);
   class forward_bl_pipe;
-  Result &= test_simple_bl_pipe<forward_bl_pipe, /*test number*/ 8>(Queue);
-  Result &= test_simple_bl_pipe<templ_bl_pipe<0>, /*test number*/ 9>(Queue);
-  Result &= test_multiple_bl_pipe</*test number*/ 10>(Queue);
+  Error |= test_simple_bl_pipe<forward_bl_pipe, /*test number*/ 8>(Queue);
+  Error |= test_simple_bl_pipe<templ_bl_pipe<0>, /*test number*/ 9>(Queue);
+  Error |= test_multiple_bl_pipe</*test number*/ 10>(Queue);
 
   // Test for an array data passing through a pipe
-  Result &= test_array_th_nb_pipe</*test number*/ 11>(Queue);
-  Result &= test_array_th_bl_pipe</*test number*/ 12>(Queue);
+  Error |= test_array_th_nb_pipe</*test number*/ 11>(Queue);
+  Error |= test_array_th_bl_pipe</*test number*/ 12>(Queue);
 
   // TODO Remove when #14308 is closed
-  std::cerr << "DEBUG: Finished with result " << Result << std::endl;
-  return Result;
+  std::cerr << "DEBUG: Finished with result " << Error << std::endl;
+  return Error;
 }
