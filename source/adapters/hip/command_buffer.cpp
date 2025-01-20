@@ -48,9 +48,9 @@ commandHandleReleaseInternal(ur_exp_command_buffer_command_handle_t Command) {
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, bool IsUpdatable)
-    : Context(hContext), Device(hDevice),
-      IsUpdatable(IsUpdatable), HIPGraph{nullptr}, HIPGraphExec{nullptr},
-      RefCountInternal{1}, RefCountExternal{1}, NextSyncPoint{0} {
+    : Context(hContext), Device(hDevice), IsUpdatable(IsUpdatable),
+      HIPGraph{nullptr}, HIPGraphExec{nullptr}, RefCountInternal{1},
+      RefCountExternal{1}, NextSyncPoint{0} {
   urContextRetain(hContext);
   urDeviceRetain(hDevice);
 }

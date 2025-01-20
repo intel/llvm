@@ -7,7 +7,7 @@ import os
 import shutil
 from pathlib import Path
 from .result import Result
-from .options import options
+from options import options
 from utils.utils import download, run
 import urllib.request
 import tarfile
@@ -28,17 +28,22 @@ class Benchmark:
             f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
     def run_bench(self, command, env_vars, ld_library=[], add_sycl=True):
-        env_vars_with_forced_adapter = env_vars.copy()
+        env_vars = env_vars.copy()
         if options.ur is not None:
-            env_vars_with_forced_adapter.update(
+            env_vars.update(
                 {'UR_ADAPTERS_FORCE_LOAD': Benchmark.get_adapter_full_path()})
+
+        env_vars.update(options.extra_env_vars)
+
+        ld_libraries = options.extra_ld_libraries.copy()
+        ld_libraries.extend(ld_library)
 
         return run(
             command=command,
-            env_vars=env_vars_with_forced_adapter,
+            env_vars=env_vars,
             add_sycl=add_sycl,
             cwd=options.benchmark_cwd,
-            ld_library=ld_library
+            ld_library=ld_libraries
         ).stdout.decode()
 
     def create_data_path(self, name, skip_data_dir = False):

@@ -21,14 +21,14 @@
 namespace ur::level_zero {
 
 ur_result_t urContextCreate(
-    uint32_t DeviceCount, ///< [in] the number of devices given in phDevices
-    const ur_device_handle_t
-        *Devices, ///< [in][range(0, DeviceCount)] array of handle of devices.
-    const ur_context_properties_t
-        *Properties, ///< [in][optional] pointer to context creation properties.
-    ur_context_handle_t
-        *RetContext ///< [out] pointer to handle of context object created
-) {
+    /// [in] the number of devices given in phDevices
+    uint32_t DeviceCount,
+    /// [in][range(0, DeviceCount)] array of handle of devices.
+    const ur_device_handle_t *Devices,
+    /// [in][optional] pointer to context creation properties.
+    const ur_context_properties_t *Properties,
+    /// [out] pointer to handle of context object created
+    ur_context_handle_t *RetContext) {
   std::ignore = Properties;
 
   ur_platform_handle_t Platform = Devices[0]->Platform;
@@ -58,16 +58,16 @@ ur_result_t urContextCreate(
 }
 
 ur_result_t urContextRetain(
-    ur_context_handle_t
-        Context ///< [in] handle of the context to get a reference of.
-) {
+
+    /// [in] handle of the context to get a reference of.
+    ur_context_handle_t Context) {
   Context->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urContextRelease(
-    ur_context_handle_t Context ///< [in] handle of the context to release.
-) {
+    /// [in] handle of the context to release.
+    ur_context_handle_t Context) {
   ur_platform_handle_t Plt = Context->getPlatform();
   std::unique_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex,
                                                  std::defer_lock);
@@ -90,18 +90,20 @@ static const bool UseMemcpy2DOperations = [] {
 }();
 
 ur_result_t urContextGetInfo(
-    ur_context_handle_t Context,       ///< [in] handle of the context
-    ur_context_info_t ContextInfoType, ///< [in] type of the info to retrieve
-    size_t PropSize,    ///< [in] the number of bytes of memory pointed to by
-                        ///< pContextInfo.
-    void *ContextInfo,  ///< [out][optional] array of bytes holding the info.
-                        ///< if propSize is not equal to or greater than the
-                        ///< real number of bytes needed to return the info then
-                        ///< the ::UR_RESULT_ERROR_INVALID_SIZE error is
-                        ///< returned and pContextInfo is not used.
-    size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
-                        ///< bytes of data queried by ContextInfoType.
-) {
+    /// [in] handle of the context
+    ur_context_handle_t Context,
+    /// [in] type of the info to retrieve
+    ur_context_info_t ContextInfoType,
+    /// [in] the number of bytes of memory pointed to by pContextInfo.
+    size_t PropSize,
+    /// [out][optional] array of bytes holding the info. if propSize is not
+    /// equal to or greater than the real number of bytes needed to return the
+    /// info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pContextInfo is not used.
+    void *ContextInfo,
+    /// [out][optional] pointer to the actual size in bytes of data queried by
+    /// ContextInfoType.
+    size_t *PropSizeRet) {
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
   UrReturnHelper ReturnValue(PropSize, ContextInfo, PropSizeRet);
   switch (
@@ -141,22 +143,22 @@ ur_result_t urContextGetInfo(
 }
 
 ur_result_t urContextGetNativeHandle(
-    ur_context_handle_t Context,      ///< [in] handle of the context.
-    ur_native_handle_t *NativeContext ///< [out] a pointer to the native
-                                      ///< handle of the context.
-) {
+    /// [in] handle of the context.
+    ur_context_handle_t Context,
+    /// [out] a pointer to the native handle of the context.
+    ur_native_handle_t *NativeContext) {
   *NativeContext = reinterpret_cast<ur_native_handle_t>(Context->ZeContext);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urContextCreateWithNativeHandle(
     ur_native_handle_t
-        NativeContext, ///< [in] the native handle of the context.
+        /// [in] the native handle of the context.
+        NativeContext,
     ur_adapter_handle_t, uint32_t NumDevices, const ur_device_handle_t *Devices,
     const ur_context_native_properties_t *Properties,
-    ur_context_handle_t
-        *Context ///< [out] pointer to the handle of the context object created.
-) {
+    /// [out] pointer to the handle of the context object created.
+    ur_context_handle_t *Context) {
   bool OwnNativeHandle = Properties->isNativeHandleOwned;
   try {
     ze_context_handle_t ZeContext =
@@ -174,12 +176,12 @@ ur_result_t urContextCreateWithNativeHandle(
 }
 
 ur_result_t urContextSetExtendedDeleter(
-    ur_context_handle_t Context, ///< [in] handle of the context.
-    ur_context_extended_deleter_t
-        Deleter,   ///< [in] Function pointer to extended deleter.
-    void *UserData ///< [in][out][optional] pointer to data to be passed to
-                   ///< callback.
-) {
+    /// [in] handle of the context.
+    ur_context_handle_t Context,
+    /// [in] Function pointer to extended deleter.
+    ur_context_extended_deleter_t Deleter,
+    /// [in][out][optional] pointer to data to be passed to callback.
+    void *UserData) {
   std::ignore = Context;
   std::ignore = Deleter;
   std::ignore = UserData;

@@ -57,35 +57,35 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
 }
 
 ur_result_t urEnqueueKernelLaunch(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t WorkDim, ///< [in] number of dimensions, from 1 to 3, to specify
-                      ///< the global and work-group work-items
-    const size_t
-        *GlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned
-                           ///< values that specify the offset used to
-                           ///< calculate the global ID of a work-item
-    const size_t *GlobalWorkSize, ///< [in] pointer to an array of workDim
-                                  ///< unsigned values that specify the number
-                                  ///< of global work-items in workDim that
-                                  ///< will execute the kernel function
-    const size_t
-        *LocalWorkSize, ///< [in][optional] pointer to an array of workDim
-                        ///< unsigned values that specify the number of local
-                        ///< work-items forming a work-group that will execute
-                        ///< the kernel function. If nullptr, the runtime
-                        ///< implementation will choose the work-group size.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular kernel execution instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t WorkDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// offset used to calculate the global ID of a work-item
+    const size_t *GlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *GlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that
+    /// will execute the kernel function. If nullptr, the runtime
+    /// implementation will choose the work-group size.
+    const size_t *LocalWorkSize,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *OutEvent) {
   UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -203,35 +203,35 @@ ur_result_t urEnqueueKernelLaunch(
 }
 
 ur_result_t urEnqueueCooperativeKernelLaunchExp(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t WorkDim, ///< [in] number of dimensions, from 1 to 3, to specify
-                      ///< the global and work-group work-items
-    const size_t
-        *GlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned
-                           ///< values that specify the offset used to
-                           ///< calculate the global ID of a work-item
-    const size_t *GlobalWorkSize, ///< [in] pointer to an array of workDim
-                                  ///< unsigned values that specify the number
-                                  ///< of global work-items in workDim that
-                                  ///< will execute the kernel function
-    const size_t
-        *LocalWorkSize, ///< [in][optional] pointer to an array of workDim
-                        ///< unsigned values that specify the number of local
-                        ///< work-items forming a work-group that will execute
-                        ///< the kernel function. If nullptr, the runtime
-                        ///< implementation will choose the work-group size.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular kernel execution instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t WorkDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// offset used to calculate the global ID of a work-item
+    const size_t *GlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *GlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that
+    /// will execute the kernel function. If nullptr, the runtime
+    /// implementation will choose the work-group size.
+    const size_t *LocalWorkSize,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *OutEvent) {
   UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -463,27 +463,30 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
 }
 
 ur_result_t urEnqueueDeviceGlobalVariableWrite(
-    ur_queue_handle_t Queue,     ///< [in] handle of the queue to submit to.
-    ur_program_handle_t Program, ///< [in] handle of the program containing the
-                                 ///< device global variable.
-    const char
-        *Name, ///< [in] the unique identifier for the device global variable.
-    bool BlockingWrite, ///< [in] indicates if this operation should block.
-    size_t Count,       ///< [in] the number of bytes to copy.
-    size_t Offset, ///< [in] the byte offset into the device global variable to
-                   ///< start copying.
-    const void *Src, ///< [in] pointer to where the data must be copied from.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list.
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
-    ur_event_handle_t
-        *Event ///< [in,out][optional] return an event object that identifies
-               ///< this particular kernel execution instance.
-) {
+    /// [in] handle of the queue to submit to.
+    ur_queue_handle_t Queue,
+    /// [in] handle of the program containing the device global variable.
+    ur_program_handle_t Program,
+    /// [in] the unique identifier for the device global variable.
+    const char *Name,
+    /// [in] indicates if this operation should block.
+    bool BlockingWrite,
+    /// [in] the number of bytes to copy.
+    size_t Count,
+    /// [in] the byte offset into the device global variable to start copying.
+    size_t Offset,
+    /// [in] pointer to where the data must be copied from.
+    const void *Src,
+    /// [in] size of the event wait list.
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *Event) {
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
   // Find global variable pointer
   size_t GlobalVarSize = 0;
@@ -518,27 +521,31 @@ ur_result_t urEnqueueDeviceGlobalVariableWrite(
 }
 
 ur_result_t urEnqueueDeviceGlobalVariableRead(
-    ur_queue_handle_t Queue,     ///< [in] handle of the queue to submit to.
-    ur_program_handle_t Program, ///< [in] handle of the program containing the
-                                 ///< device global variable.
+    /// [in] handle of the queue to submit to.
+    ur_queue_handle_t Queue,
+    /// [in] handle of the program containing the device global variable.
+    ur_program_handle_t Program,
     const char
-        *Name, ///< [in] the unique identifier for the device global variable.
-    bool BlockingRead, ///< [in] indicates if this operation should block.
-    size_t Count,      ///< [in] the number of bytes to copy.
-    size_t Offset, ///< [in] the byte offset into the device global variable to
-                   ///< start copying.
-    void *Dst,     ///< [in] pointer to where the data must be copied to.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list.
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
-    ur_event_handle_t
-        *Event ///< [in,out][optional] return an event object that identifies
-               ///< this particular kernel execution instance.
-) {
+        /// [in] the unique identifier for the device global variable.
+        *Name,
+    /// [in] indicates if this operation should block.
+    bool BlockingRead,
+    /// [in] the number of bytes to copy.
+    size_t Count,
+    /// [in] the byte offset into the device global variable to start copying.
+    size_t Offset,
+    /// [in] pointer to where the data must be copied to.
+    void *Dst,
+    /// [in] size of the event wait list.
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *Event) {
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
   ze_module_handle_t ZeModule =
       Program->getZeModuleHandle(Queue->Device->ZeDevice);
@@ -573,11 +580,12 @@ ur_result_t urEnqueueDeviceGlobalVariableRead(
 }
 
 ur_result_t urKernelCreate(
-    ur_program_handle_t Program, ///< [in] handle of the program instance
-    const char *KernelName,      ///< [in] pointer to null-terminated string.
-    ur_kernel_handle_t
-        *RetKernel ///< [out] pointer to handle of kernel object created.
-) {
+    /// [in] handle of the program instance
+    ur_program_handle_t Program,
+    /// [in] pointer to null-terminated string.
+    const char *KernelName,
+    /// [out] pointer to handle of kernel object created.
+    ur_kernel_handle_t *RetKernel) {
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   try {
     ur_kernel_handle_t_ *UrKernel = new ur_kernel_handle_t_(true, Program);
@@ -639,14 +647,16 @@ ur_result_t urKernelCreate(
 }
 
 ur_result_t urKernelSetArgValue(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
-    size_t ArgSize,    ///< [in] size of argument type
-    const ur_kernel_arg_value_properties_t
-        *Properties, ///< [in][optional] argument properties
-    const void
-        *PArgValue ///< [in] argument value represented as matching arg type.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in] size of argument type
+    size_t ArgSize,
+    /// [in][optional] argument properties
+    const ur_kernel_arg_value_properties_t *Properties,
+    /// [in] argument value represented as matching arg type.
+    const void *PArgValue) {
   std::ignore = Properties;
 
   UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -689,13 +699,14 @@ ur_result_t urKernelSetArgValue(
 }
 
 ur_result_t urKernelSetArgLocal(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
-    size_t ArgSize,    ///< [in] size of the local buffer to be allocated by the
-                       ///< runtime
-    const ur_kernel_arg_local_properties_t
-        *Properties ///< [in][optional] argument properties
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t ArgSize,
+    /// [in][optional] argument properties
+    const ur_kernel_arg_local_properties_t *Properties) {
   std::ignore = Properties;
 
   UR_CALL(ur::level_zero::urKernelSetArgValue(Kernel, ArgIndex, ArgSize,
@@ -705,18 +716,20 @@ ur_result_t urKernelSetArgLocal(
 }
 
 ur_result_t urKernelGetInfo(
-    ur_kernel_handle_t Kernel,  ///< [in] handle of the Kernel object
-    ur_kernel_info_t ParamName, ///< [in] name of the Kernel property to query
-    size_t PropSize,            ///< [in] the size of the Kernel property value.
-    void *KernelInfo, ///< [in,out][optional] array of bytes holding the kernel
-                      ///< info property. If propSize is not equal to or
-                      ///< greater than the real number of bytes needed to
-                      ///< return the info then the
-                      ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                      ///< pKernelInfo is not used.
-    size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
-                        ///< bytes of data being queried by propName.
-) {
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] name of the Kernel property to query
+    ur_kernel_info_t ParamName,
+    /// [in] the size of the Kernel property value.
+    size_t PropSize,
+    /// [in,out][optional] array of bytes holding the kernel info property. If
+    /// propSize is not equal to or greater than the real number of bytes needed
+    /// to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    /// returned and pKernelInfo is not used.
+    void *KernelInfo,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *PropSizeRet) {
 
   UrReturnHelper ReturnValue(PropSize, KernelInfo, PropSizeRet);
 
@@ -767,17 +780,20 @@ ur_result_t urKernelGetInfo(
 }
 
 ur_result_t urKernelGetGroupInfo(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the Kernel object
-    ur_device_handle_t Device, ///< [in] handle of the Device object
-    ur_kernel_group_info_t
-        ParamName, ///< [in] name of the work Group property to query
-    size_t
-        ParamValueSize, ///< [in] size of the Kernel Work Group property value
-    void *ParamValue,   ///< [in,out][optional][range(0, propSize)] value of the
-                        ///< Kernel Work Group property.
-    size_t *ParamValueSizeRet ///< [out][optional] pointer to the actual size in
-                              ///< bytes of data being queried by propName.
-) {
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t Device,
+    /// [in] name of the work Group property to query
+    ur_kernel_group_info_t ParamName,
+    /// [in] size of the Kernel Work Group property value
+    size_t ParamValueSize,
+    /// [in,out][optional][range(0, propSize)] value of the Kernel Work Group
+    /// property.
+    void *ParamValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *ParamValueSizeRet) {
   UrReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
@@ -853,16 +869,20 @@ ur_result_t urKernelGetGroupInfo(
 }
 
 ur_result_t urKernelGetSubGroupInfo(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the Kernel object
-    ur_device_handle_t Device, ///< [in] handle of the Device object
-    ur_kernel_sub_group_info_t
-        PropName,       ///< [in] name of the SubGroup property to query
-    size_t PropSize,    ///< [in] size of the Kernel SubGroup property value
-    void *PropValue,    ///< [in,out][range(0, propSize)][optional] value of the
-                        ///< Kernel SubGroup property.
-    size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
-                        ///< bytes of data being queried by propName.
-) {
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t Device,
+    /// [in] name of the SubGroup property to query
+    ur_kernel_sub_group_info_t PropName,
+    /// [in] size of the Kernel SubGroup property value
+    size_t PropSize,
+    /// [in,out][range(0, propSize)][optional] value of the Kernel SubGroup
+    /// property.
+    void *PropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *PropSizeRet) {
   std::ignore = Device;
 
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
@@ -884,16 +904,16 @@ ur_result_t urKernelGetSubGroupInfo(
 }
 
 ur_result_t urKernelRetain(
-    ur_kernel_handle_t Kernel ///< [in] handle for the Kernel to retain
-) {
+    /// [in] handle for the Kernel to retain
+    ur_kernel_handle_t Kernel) {
   Kernel->RefCount.increment();
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urKernelRelease(
-    ur_kernel_handle_t Kernel ///< [in] handle for the Kernel to release
-) {
+    /// [in] handle for the Kernel to release
+    ur_kernel_handle_t Kernel) {
   if (!Kernel->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
@@ -920,14 +940,15 @@ ur_result_t urKernelRelease(
 }
 
 ur_result_t urKernelSetArgPointer(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
-    const ur_kernel_arg_pointer_properties_t
-        *Properties,     ///< [in][optional] argument properties
-    const void *ArgValue ///< [in][optional] SVM pointer to memory location
-                         ///< holding the argument value. If null then argument
-                         ///< value is considered null.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in][optional] argument properties
+    const ur_kernel_arg_pointer_properties_t *Properties,
+    /// [in][optional] SVM pointer to memory location holding the argument
+    /// value. If null then argument value is considered null.
+    const void *ArgValue) {
   std::ignore = Properties;
 
   // KernelSetArgValue is expecting a pointer to the argument
@@ -937,14 +958,17 @@ ur_result_t urKernelSetArgPointer(
 }
 
 ur_result_t urKernelSetExecInfo(
-    ur_kernel_handle_t Kernel,      ///< [in] handle of the kernel object
-    ur_kernel_exec_info_t PropName, ///< [in] name of the execution attribute
-    size_t PropSize,                ///< [in] size in byte the attribute value
-    const ur_kernel_exec_info_properties_t
-        *Properties, ///< [in][optional] pointer to execution info properties
-    const void *PropValue ///< [in][range(0, propSize)] pointer to memory
-                          ///< location holding the property value.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] name of the execution attribute
+    ur_kernel_exec_info_t PropName,
+    /// [in] size in byte the attribute value
+    size_t PropSize,
+    /// [in][optional] pointer to execution info properties
+    const ur_kernel_exec_info_properties_t *Properties,
+    /// [in][range(0, propSize)] pointer to memory location holding the property
+    /// value.
+    const void *PropValue) {
   std::ignore = PropSize;
   std::ignore = Properties;
 
@@ -984,12 +1008,14 @@ ur_result_t urKernelSetExecInfo(
 }
 
 ur_result_t urKernelSetArgSampler(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
-    const ur_kernel_arg_sampler_properties_t
-        *Properties,             ///< [in][optional] argument properties
-    ur_sampler_handle_t ArgValue ///< [in] handle of Sampler object.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in][optional] argument properties
+    const ur_kernel_arg_sampler_properties_t *Properties,
+    /// [in] handle of Sampler object.
+    ur_sampler_handle_t ArgValue) {
   std::ignore = Properties;
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
@@ -1002,12 +1028,14 @@ ur_result_t urKernelSetArgSampler(
 }
 
 ur_result_t urKernelSetArgMemObj(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
-    const ur_kernel_arg_mem_obj_properties_t
-        *Properties, ///< [in][optional] pointer to Memory object properties.
-    ur_mem_handle_t ArgValue ///< [in][optional] handle of Memory object.
-) {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in][optional] pointer to Memory object properties.
+    const ur_kernel_arg_mem_obj_properties_t *Properties,
+    /// [in][optional] handle of Memory object.
+    ur_mem_handle_t ArgValue) {
   std::ignore = Properties;
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
@@ -1044,10 +1072,10 @@ ur_result_t urKernelSetArgMemObj(
 }
 
 ur_result_t urKernelGetNativeHandle(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel.
-    ur_native_handle_t
-        *NativeKernel ///< [out] a pointer to the native handle of the kernel.
-) {
+    /// [in] handle of the kernel.
+    ur_kernel_handle_t Kernel,
+    /// [out] a pointer to the native handle of the kernel.
+    ur_native_handle_t *NativeKernel) {
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
 
   *NativeKernel = reinterpret_cast<ur_native_handle_t>(Kernel->ZeKernel);
@@ -1077,13 +1105,13 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
 }
 
 ur_result_t urKernelCreateWithNativeHandle(
-    ur_native_handle_t NativeKernel, ///< [in] the native handle of the kernel.
-    ur_context_handle_t Context,     ///< [in] handle of the context object
-    ur_program_handle_t Program,
+    /// [in] the native handle of the kernel.
+    ur_native_handle_t NativeKernel,
+    /// [in] handle of the context object
+    ur_context_handle_t Context, ur_program_handle_t Program,
     const ur_kernel_native_properties_t *Properties,
-    ur_kernel_handle_t *
-        RetKernel ///< [out] pointer to the handle of the kernel object created.
-) {
+    /// [out] pointer to the handle of the kernel object created.
+    ur_kernel_handle_t *RetKernel) {
   if (!Program) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
@@ -1113,12 +1141,13 @@ ur_result_t urKernelCreateWithNativeHandle(
 }
 
 ur_result_t urKernelSetSpecializationConstants(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t Count, ///< [in] the number of elements in the pSpecConstants array
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] the number of elements in the pSpecConstants array
+    uint32_t Count,
     const ur_specialization_constant_info_t
-        *SpecConstants ///< [in] array of specialization constant value
-                       ///< descriptions
-) {
+        /// [in] array of specialization constant value descriptions
+        *SpecConstants) {
   std::ignore = Kernel;
   std::ignore = Count;
   std::ignore = SpecConstants;

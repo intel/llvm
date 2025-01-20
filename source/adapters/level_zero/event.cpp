@@ -63,18 +63,18 @@ bool WaitListEmptyOrAllEventsFromSameQueue(
 namespace ur::level_zero {
 
 ur_result_t urEnqueueEventsWait(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating that
-                        ///< all previously enqueued commands must be complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that all
+    /// previously enqueued commands must be complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   if (EventWaitList) {
     bool UseCopyEngine = false;
 
@@ -157,37 +157,37 @@ static const bool InOrderBarrierBySignal = [] {
 }();
 
 ur_result_t urEnqueueEventsWaitWithBarrier(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating that
-                        ///< all previously enqueued commands must be complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that all
+    /// previously enqueued commands must be complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   return ur::level_zero::urEnqueueEventsWaitWithBarrierExt(
       Queue, nullptr, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
 ur_result_t urEnqueueEventsWaitWithBarrierExt(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    const ur_exp_enqueue_ext_properties_t
-        *EnqueueExtProp, ///< [in][optional] pointer to the extended enqueue
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating that
-                        ///< all previously enqueued commands must be complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in][optional] pointer to the extended enqueue
+    const ur_exp_enqueue_ext_properties_t *EnqueueExtProp,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that all
+    /// previously enqueued commands must be complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   bool InterruptBasedEventsEnabled =
       EnqueueExtProp ? (EnqueueExtProp->flags &
                         UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) ||
@@ -446,13 +446,17 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
 }
 
 ur_result_t urEventGetInfo(
-    ur_event_handle_t Event,  ///< [in] handle of the event object
-    ur_event_info_t PropName, ///< [in] the name of the event property to query
-    size_t PropValueSize, ///< [in] size in bytes of the event property value
-    void *PropValue,      ///< [out][optional] value of the event property
+    /// [in] handle of the event object
+    ur_event_handle_t Event,
+    /// [in] the name of the event property to query
+    ur_event_info_t PropName,
+    /// [in] size in bytes of the event property value
+    size_t PropValueSize,
+    /// [out][optional] value of the event property
+    void *PropValue,
     size_t
-        *PropValueSizeRet ///< [out][optional] bytes returned in event property
-) {
+        /// [out][optional] bytes returned in event property
+        *PropValueSizeRet) {
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
   switch (PropName) {
@@ -529,15 +533,17 @@ ur_result_t urEventGetInfo(
 }
 
 ur_result_t urEventGetProfilingInfo(
-    ur_event_handle_t Event, ///< [in] handle of the event object
-    ur_profiling_info_t
-        PropName, ///< [in] the name of the profiling property to query
-    size_t
-        PropValueSize, ///< [in] size in bytes of the profiling property value
-    void *PropValue,   ///< [out][optional] value of the profiling property
-    size_t *PropValueSizeRet ///< [out][optional] pointer to the actual size in
-                             ///< bytes returned in propValue
-) {
+    /// [in] handle of the event object
+    ur_event_handle_t Event,
+    /// [in] the name of the profiling property to query
+    ur_profiling_info_t PropName,
+    /// [in] size in bytes of the profiling property value
+    size_t PropValueSize,
+    /// [out][optional] value of the profiling property
+    void *PropValue,
+    /// [out][optional] pointer to the actual size in bytes returned in
+    /// propValue
+    size_t *PropValueSizeRet) {
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.
@@ -718,20 +724,20 @@ ur_result_t urEventGetProfilingInfo(
 }
 
 ur_result_t urEnqueueTimestampRecordingExp(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
-    bool Blocking,                ///< [in] blocking or non-blocking enqueue
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] blocking or non-blocking enqueue
+    bool Blocking,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *OutEvent) {
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -776,11 +782,11 @@ ur_result_t urEnqueueTimestampRecordingExp(
 }
 
 ur_result_t
-urEventWait(uint32_t NumEvents, ///< [in] number of events in the event list
-            const ur_event_handle_t
-                *EventWaitList ///< [in][range(0, numEvents)] pointer to a list
-                               ///< of events to wait for completion
-) {
+/// [in] number of events in the event list
+urEventWait(uint32_t NumEvents,
+            /// [in][range(0, numEvents)] pointer to a
+            /// list of events to wait for completion
+            const ur_event_handle_t *EventWaitList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     auto e = EventWaitList[I];
     auto UrQueue = e->UrQueue;
@@ -869,8 +875,8 @@ urEventWait(uint32_t NumEvents, ///< [in] number of events in the event list
 }
 
 ur_result_t
-urEventRetain(ur_event_handle_t Event ///< [in] handle of the event object
-) {
+/// [in] handle of the event object
+urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
   Event->RefCountExternal++;
   Event->RefCount.increment();
 
@@ -878,8 +884,8 @@ urEventRetain(ur_event_handle_t Event ///< [in] handle of the event object
 }
 
 ur_result_t
-urEventRelease(ur_event_handle_t Event ///< [in] handle of the event object
-) {
+
+urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
   Event->RefCountExternal--;
   UR_CALL(urEventReleaseInternal(Event));
 
@@ -887,10 +893,10 @@ urEventRelease(ur_event_handle_t Event ///< [in] handle of the event object
 }
 
 ur_result_t urEventGetNativeHandle(
-    ur_event_handle_t Event, ///< [in] handle of the event.
-    ur_native_handle_t
-        *NativeEvent ///< [out] a pointer to the native handle of the event.
-) {
+    /// [in] handle of the event.
+    ur_event_handle_t Event,
+    /// [out] a pointer to the native handle of the event.
+    ur_native_handle_t *NativeEvent) {
   {
     std::shared_lock<ur_shared_mutex> Lock(Event->Mutex);
     auto *ZeEvent = ur_cast<ze_event_handle_t *>(NativeEvent);
@@ -912,10 +918,11 @@ ur_result_t urEventGetNativeHandle(
 }
 
 ur_result_t urExtEventCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
     ur_event_handle_t
-        *Event ///< [out] pointer to the handle of the event object created.
-) {
+        /// [out] pointer to the handle of the event object created.
+        *Event) {
   UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                       true /*HostVisible*/, Event,
                       false /*CounterBasedEventEnabled*/,
@@ -928,12 +935,12 @@ ur_result_t urExtEventCreate(
 }
 
 ur_result_t urEventCreateWithNativeHandle(
-    ur_native_handle_t NativeEvent, ///< [in] the native handle of the event.
-    ur_context_handle_t Context,    ///< [in] handle of the context object
-    const ur_event_native_properties_t *Properties,
-    ur_event_handle_t
-        *Event ///< [out] pointer to the handle of the event object created.
-) {
+    /// [in] the native handle of the event.
+    ur_native_handle_t NativeEvent,
+    /// [in] handle of the context object
+    ur_context_handle_t Context, const ur_event_native_properties_t *Properties,
+    /// [out] pointer to the handle of the event object created.
+    ur_event_handle_t *Event) {
 
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
@@ -980,12 +987,14 @@ ur_result_t urEventCreateWithNativeHandle(
 }
 
 ur_result_t urEventSetCallback(
-    ur_event_handle_t Event,        ///< [in] handle of the event object
-    ur_execution_info_t ExecStatus, ///< [in] execution status of the event
-    ur_event_callback_t Notify,     ///< [in] execution status of the event
-    void *UserData ///< [in][out][optional] pointer to data to be passed to
-                   ///< callback.
-) {
+    /// [in] handle of the event object
+    ur_event_handle_t Event,
+    /// [in] execution status of the event
+    ur_execution_info_t ExecStatus,
+    /// [in] execution status of the event
+    ur_event_callback_t Notify,
+    /// [in][out][optional] pointer to data to be passed to callback.
+    void *UserData) {
   std::ignore = Event;
   std::ignore = ExecStatus;
   std::ignore = Notify;

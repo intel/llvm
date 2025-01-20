@@ -9,7 +9,7 @@ import io
 from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
 from .result import Result
-from .options import options
+from options import options
 
 class SyclBench(Suite):
     def __init__(self, directory):
