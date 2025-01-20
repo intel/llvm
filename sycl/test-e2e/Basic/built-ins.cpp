@@ -5,7 +5,7 @@
 // RUN: %{run} %t_var.out | FileCheck %s
 
 // Hits an assertion and kernel page fault with AMD:
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14404
 
 #include <sycl/detail/core.hpp>
