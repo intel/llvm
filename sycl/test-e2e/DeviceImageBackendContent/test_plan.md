@@ -15,7 +15,7 @@ low-level interfaces.
 All of the APIs introduced by this extension are not templated and do not have any
 arguments. 
 
-There are however, some requirements related to the value of the 
+There are, however, some requirements related to the value of the 
 `State` template parameter of the `device_image` class on which these 
 APIs are defined. In particular, the `ext_oneapi_backend_content` 
 and `ext_oneapi_backend_content_view` functions are only 
