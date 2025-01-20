@@ -16,5 +16,5 @@
 // XFAIL: (!igc-dev || gpu-intel-dg2) && run-mode
 // XFAIL-TRACKER: GSD-10510
 
-#include "../Inputs/common.hpp"
-#include "../Inputs/joint_matrix_bf16_fill_k_cache_impl.hpp"
+#include "../include/common.hpp"
+#include "../include/joint_matrix_bf16_fill_k_cache_impl.hpp"

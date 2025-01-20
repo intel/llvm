@@ -11,9 +11,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../Inputs/common.hpp"
+#include "../include/common.hpp"
 
 constexpr size_t TN = 16;
 constexpr size_t MATRIX_K = 1024 + 24;
 
-#include "../Inputs/joint_matrix_out_bounds_impl.hpp"
+#include "../include/joint_matrix_out_bounds_impl.hpp"

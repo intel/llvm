@@ -14,8 +14,8 @@
 
 // This test stores the matrix B that is VNNIed (packed).
 
-#include "../../Inputs/common.hpp"
+#include "../../include/common.hpp"
 
 #define SG_SZ 32
 
-#include "../../Inputs/element_wise_all_ops_int8_packed_impl.hpp"
+#include "../../include/element_wise_all_ops_int8_packed_impl.hpp"

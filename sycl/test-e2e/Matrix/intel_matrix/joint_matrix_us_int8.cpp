@@ -9,5 +9,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../Inputs/common.hpp"
-#include "../Inputs/joint_matrix_us_int8_impl.hpp"
+#include "../include/common.hpp"
+#include "../include/joint_matrix_us_int8_impl.hpp"

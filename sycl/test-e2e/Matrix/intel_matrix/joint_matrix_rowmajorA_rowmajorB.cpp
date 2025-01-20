@@ -18,5 +18,5 @@
 // This tests support of row major layout for matrix B which does automatic VNNI
 // transform. This is currently only available on AMX and XMX of PVC
 
-#include "../Inputs/common.hpp"
-#include "../Inputs/joint_matrix_rowmajorA_rowmajorB_impl.hpp"
+#include "../include/common.hpp"
+#include "../include/joint_matrix_rowmajorA_rowmajorB_impl.hpp"

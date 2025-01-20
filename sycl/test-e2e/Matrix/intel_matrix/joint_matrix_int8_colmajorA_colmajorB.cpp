@@ -15,8 +15,8 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
 
-#include "../Inputs/common.hpp"
+#include "../include/common.hpp"
 
 constexpr size_t TN = 16;
 
-#include "../Inputs/joint_matrix_int8_colmajorA_colmajorB_impl.hpp"
+#include "../include/joint_matrix_int8_colmajorA_colmajorB_impl.hpp"

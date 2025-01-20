@@ -18,8 +18,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../../Inputs/common.hpp"
+#include "../../include/common.hpp"
 
 #define SG_SZ 32
 
-#include "../../Inputs/get_coordinate_ops_impl.hpp"
+#include "../../include/get_coordinate_ops_impl.hpp"

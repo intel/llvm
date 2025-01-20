@@ -12,8 +12,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../../Inputs/common.hpp"
+#include "../../include/common.hpp"
 
 #define SG_SZ 32
 
-#include "../../Inputs/element_wise_all_ops_impl.hpp"
+#include "../../include/element_wise_all_ops_impl.hpp"

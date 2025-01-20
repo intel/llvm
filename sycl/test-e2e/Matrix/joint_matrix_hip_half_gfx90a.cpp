@@ -13,10 +13,10 @@
 // REQUIRES: aspect-fp16
 // REQUIRES: build-and-run-mode
 
-#include "Inputs/joint_matrix_hip_apply.hpp"
-#include "Inputs/joint_matrix_hip_copy.hpp"
-#include "Inputs/joint_matrix_hip_fill.hpp"
-#include "Inputs/joint_matrix_hip_mfma.hpp"
+#include "include/joint_matrix_hip_apply.hpp"
+#include "include/joint_matrix_hip_copy.hpp"
+#include "include/joint_matrix_hip_fill.hpp"
+#include "include/joint_matrix_hip_mfma.hpp"
 
 template <size_t KX> void half_matrix_mfma() {
   hip_matrix_mfma<sycl::half, float, 32, 32, 8, KX, layout::row_major>();

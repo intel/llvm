@@ -10,5 +10,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../Inputs/common.hpp"
-#include "../Inputs/joint_matrix_half_impl.hpp"
+#include "../include/common.hpp"
+#include "../include/joint_matrix_half_impl.hpp"

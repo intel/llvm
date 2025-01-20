@@ -17,11 +17,11 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-4181
 
-#include "../../Inputs/common.hpp"
+#include "../../include/common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 32
 
-#include "../../Inputs/joint_matrix_rowmajorA_rowmajorB_impl.hpp"
+#include "../../include/joint_matrix_rowmajorA_rowmajorB_impl.hpp"

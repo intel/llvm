@@ -17,7 +17,7 @@
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-#include "../../Inputs/common.hpp"
+#include "../../include/common.hpp"
 #define SG_SZ 32
 
-#include "../../Inputs/joint_matrix_bf16_fill_k_cache_impl.hpp"
+#include "../../include/joint_matrix_bf16_fill_k_cache_impl.hpp"

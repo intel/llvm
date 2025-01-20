@@ -9,5 +9,5 @@
 // RUN: %{build} %fp-model-precise -o %t.out
 // RUN: %{run} %t.out
 
-#include "../Inputs/common.hpp"
-#include "../Inputs/joint_matrix_apply_two_matrices_impl.hpp"
+#include "../include/common.hpp"
+#include "../include/joint_matrix_apply_two_matrices_impl.hpp"

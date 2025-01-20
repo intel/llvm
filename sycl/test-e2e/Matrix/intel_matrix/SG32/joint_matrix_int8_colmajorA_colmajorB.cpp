@@ -16,7 +16,7 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
 
-#include "../../Inputs/common.hpp"
+#include "../../include/common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -24,4 +24,4 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 #define SG_SZ 32
 constexpr size_t TN = 16;
 
-#include "../../Inputs/joint_matrix_int8_colmajorA_colmajorB_impl.hpp"
+#include "../../include/joint_matrix_int8_colmajorA_colmajorB_impl.hpp"

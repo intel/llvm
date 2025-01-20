@@ -9,5 +9,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../Inputs/common.hpp"
-#include "../Inputs/element_wise_all_ops_impl.hpp"
+#include "../include/common.hpp"
+#include "../include/element_wise_all_ops_impl.hpp"

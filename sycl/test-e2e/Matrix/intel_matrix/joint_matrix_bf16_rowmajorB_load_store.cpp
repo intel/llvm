@@ -10,6 +10,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../Inputs/common.hpp"
+#include "../include/common.hpp"
 
-#include "../Inputs/joint_matrix_bf16_rowmajorB_load_store_impl.hpp"
+#include "../include/joint_matrix_bf16_rowmajorB_load_store_impl.hpp"

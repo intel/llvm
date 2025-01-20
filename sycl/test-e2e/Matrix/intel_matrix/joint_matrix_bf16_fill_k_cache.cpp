@@ -14,5 +14,5 @@
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-#include "../Inputs/common.hpp"
-#include "../Inputs/joint_matrix_bf16_fill_k_cache_impl.hpp"
+#include "../include/common.hpp"
+#include "../include/joint_matrix_bf16_fill_k_cache_impl.hpp"

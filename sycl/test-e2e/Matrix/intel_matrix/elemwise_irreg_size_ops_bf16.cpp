@@ -13,7 +13,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../Inputs/common.hpp"
+#include "../include/common.hpp"
 
 #define SG_SZ 16
 
