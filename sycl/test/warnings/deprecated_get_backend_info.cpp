@@ -6,23 +6,17 @@
 using namespace sycl;
 
 int main() {
-#if (defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI != 0) ||        \
-    !defined(_GLIBCXX_USE_CXX11_ABI) || TEST_ERRORS
   try {
     // Test get_backend_info for sycl::platform
     std::vector<platform> platform_list = platform::get_platforms();
     for (const auto &platform : platform_list) {
-      // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-warning@+4 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
+      // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+      // expected-warning@+2 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
       std::cout << "  Backend device version: "
                 << platform.get_backend_info<info::device::version>()
                 << std::endl;
-      // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-warning@+4 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
+      // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+      // expected-warning@+2 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
       std::cout << "  Backend platform version: "
                 << platform.get_backend_info<info::platform::version>()
                 << std::endl;
@@ -32,17 +26,13 @@ int main() {
     std::vector<device> device_list =
         device::get_devices(info::device_type::gpu);
     for (const auto &device : device_list) {
-      // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-warning@+4 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
+      // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+      // expected-warning@+2 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
       std::cout << "  Backend device version: "
                 << device.get_backend_info<info::device::version>()
                 << std::endl;
-      // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-warning@+4 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-      // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-      // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
+      // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+      // expected-warning@+2 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
       std::cout << "  Backend platform version: "
                 << device.get_backend_info<info::platform::version>()
                 << std::endl;
@@ -50,46 +40,34 @@ int main() {
 
     // Test get_backend_info for sycl::queue
     queue q;
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend device version: "
               << q.get_backend_info<info::device::version>() << std::endl;
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend platform version: "
               << q.get_backend_info<info::platform::version>() << std::endl;
 
     // Test get_backend_info for sycl::context
     context Ctx = q.get_context();
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend device version: "
               << Ctx.get_backend_info<info::device::version>() << std::endl;
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend platform version: "
               << Ctx.get_backend_info<info::platform::version>() << std::endl;
 
     // Test get_backend_info for sycl::event
     event e = q.single_task([=]() { return; });
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend device version: "
               << e.get_backend_info<info::device::version>() << std::endl;
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend platform version: "
               << e.get_backend_info<info::platform::version>() << std::endl;
 
@@ -104,16 +82,12 @@ int main() {
       auto acc = buf.get_access<access::mode::read_write>(cgh);
       cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
     });
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::device::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::device::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend device version: "
               << krn.get_backend_info<info::device::version>() << std::endl;
-    // expected-warning@+5 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-warning@+4 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
-    // expected-error@*:* {{static assertion failed due to requirement 'False': This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0}}
-    // expected-note@+2 {{while substituting deduced template arguments into function template 'get_backend_info' [with Param = info::platform::version, $1 = (no value)]}}
+    // expected-warning@+3 {{'get_backend_info' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
+    // expected-warning@+2 {{'get_backend_info<sycl::info::platform::version>' is deprecated: All current implementations of get_backend_info() are to be removed. Use respective variants of get_info() instead.}}
     std::cout << "  Backend platform version: "
               << krn.get_backend_info<info::platform::version>() << std::endl;
   } catch (exception e) {
@@ -132,6 +106,5 @@ int main() {
     assert(has_non_opencl_backend && "unexpected error code");
   }
   std::cout << "  Backend info query tests passed" << std::endl;
-#endif
   return 0;
 }
