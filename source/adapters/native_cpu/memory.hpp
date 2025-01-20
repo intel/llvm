@@ -23,8 +23,8 @@ struct ur_mem_handle_t_ : _ur_object {
         IsImage{_IsImage} {}
 
   ur_mem_handle_t_(void *HostPtr, size_t Size, bool _IsImage)
-      : _mem{static_cast<char *>(malloc(Size))}, _ownsMem{true}, IsImage{
-                                                                     _IsImage} {
+      : _mem{static_cast<char *>(malloc(Size))}, _ownsMem{true},
+        IsImage{_IsImage} {
     memcpy(_mem, HostPtr, Size);
   }
 

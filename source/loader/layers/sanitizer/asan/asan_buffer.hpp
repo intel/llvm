@@ -2,8 +2,9 @@
  *
  * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- * See LICENSE.TXT
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT
+ *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file asan_buffer.hpp
@@ -22,53 +23,53 @@ namespace ur_sanitizer_layer {
 namespace asan {
 
 struct MemBuffer {
-    // Buffer constructor
-    MemBuffer(ur_context_handle_t Context, size_t Size, char *HostPtr)
-        : Context(Context), Size(Size), HostPtr(HostPtr) {}
+  // Buffer constructor
+  MemBuffer(ur_context_handle_t Context, size_t Size, char *HostPtr)
+      : Context(Context), Size(Size), HostPtr(HostPtr) {}
 
-    // Sub-buffer constructor
-    MemBuffer(std::shared_ptr<MemBuffer> Parent, size_t Origin, size_t Size)
-        : Context(Parent->Context), Size(Size), SubBuffer{{Parent, Origin}} {}
+  // Sub-buffer constructor
+  MemBuffer(std::shared_ptr<MemBuffer> Parent, size_t Origin, size_t Size)
+      : Context(Parent->Context), Size(Size), SubBuffer{{Parent, Origin}} {}
 
-    ur_result_t getHandle(ur_device_handle_t Device, char *&Handle);
+  ur_result_t getHandle(ur_device_handle_t Device, char *&Handle);
 
-    ur_result_t free();
+  ur_result_t free();
 
-    size_t getAlignment();
+  size_t getAlignment();
 
-    std::unordered_map<ur_device_handle_t, char *> Allocations;
+  std::unordered_map<ur_device_handle_t, char *> Allocations;
 
-    enum AccessMode { UNKNOWN, READ_WRITE, READ_ONLY, WRITE_ONLY };
+  enum AccessMode { UNKNOWN, READ_WRITE, READ_ONLY, WRITE_ONLY };
 
-    struct Mapping {
-        size_t Offset;
-        size_t Size;
-    };
-
-    std::unordered_map<void *, Mapping> Mappings;
-
-    ur_context_handle_t Context;
-
-    struct Device_t {
-        ur_device_handle_t hDevice;
-        char *MemHandle;
-    };
-    Device_t LastSyncedDevice{};
-
+  struct Mapping {
+    size_t Offset;
     size_t Size;
+  };
 
-    char *HostPtr{};
+  std::unordered_map<void *, Mapping> Mappings;
 
-    struct SubBuffer_t {
-        std::shared_ptr<MemBuffer> Parent;
-        size_t Origin;
-    };
+  ur_context_handle_t Context;
 
-    std::optional<SubBuffer_t> SubBuffer;
+  struct Device_t {
+    ur_device_handle_t hDevice;
+    char *MemHandle;
+  };
+  Device_t LastSyncedDevice{};
 
-    std::atomic<int32_t> RefCount = 1;
+  size_t Size;
 
-    ur_shared_mutex Mutex;
+  char *HostPtr{};
+
+  struct SubBuffer_t {
+    std::shared_ptr<MemBuffer> Parent;
+    size_t Origin;
+  };
+
+  std::optional<SubBuffer_t> SubBuffer;
+
+  std::atomic<int32_t> RefCount = 1;
+
+  ur_shared_mutex Mutex;
 };
 
 ur_result_t EnqueueMemCopyRectHelper(

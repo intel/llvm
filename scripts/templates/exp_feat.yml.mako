@@ -7,8 +7,10 @@ import datetime
 %>#
 # Copyright (C) ${year_now} Intel Corporation
 #
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+# Exceptions.
 # See LICENSE.TXT
+#
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition

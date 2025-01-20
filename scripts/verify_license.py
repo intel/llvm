@@ -20,8 +20,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--files', nargs='+', default=[])
     args = parser.parse_args()
+    failed = []
     for file in args.files:
-        verify_file_has_license(file)
+        try:
+            verify_file_has_license(file)
+        except Exception:
+            failed.append(file)
+
+    for fail in failed:
+        print(f'{fail}', file=sys.stderr)
+
+    return len(failed) != 0
 
 
 if __name__ == "__main__":

@@ -1,17 +1,18 @@
 // Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+//
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
 struct urMemImageGetInfoTest : uur::urMemImageTestWithParam<ur_image_info_t> {
-    void SetUp() override {
-        UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMemImageTestWithParam<ur_image_info_t>::SetUp());
-    }
+  void SetUp() override {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urMemImageTestWithParam<ur_image_info_t>::SetUp());
+  }
 };
 
 static std::unordered_map<ur_image_info_t, size_t> image_info_size_map = {
@@ -33,69 +34,69 @@ UUR_DEVICE_TEST_SUITE_P(
     uur::deviceTestWithParamPrinter<ur_image_info_t>);
 
 TEST_P(urMemImageGetInfoTest, Success) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-    // This fail is specific to the "Multi device testing" ci job.
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::HIP{});
+  // This fail is specific to the "Multi device testing" ci job.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-    ur_image_info_t info = getParam();
-    size_t size = 0;
-    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-        urMemImageGetInfo(image, info, 0, nullptr, &size), info);
-    ASSERT_NE(size, 0);
+  ur_image_info_t info = getParam();
+  size_t size = 0;
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urMemImageGetInfo(image, info, 0, nullptr, &size), info);
+  ASSERT_NE(size, 0);
 
-    if (const auto expected_size = image_info_size_map.find(info);
-        expected_size != image_info_size_map.end()) {
-        ASSERT_EQ(expected_size->second, size);
-    } else {
-        FAIL() << "Missing info value in image info size map";
-    }
+  if (const auto expected_size = image_info_size_map.find(info);
+      expected_size != image_info_size_map.end()) {
+    ASSERT_EQ(expected_size->second, size);
+  } else {
+    FAIL() << "Missing info value in image info size map";
+  }
 
-    std::vector<uint8_t> info_data(size);
-    ASSERT_SUCCESS(
-        urMemImageGetInfo(image, info, size, info_data.data(), nullptr));
+  std::vector<uint8_t> info_data(size);
+  ASSERT_SUCCESS(
+      urMemImageGetInfo(image, info, size, info_data.data(), nullptr));
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidNullHandleImage) {
-    size_t info_size = 0;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urMemImageGetInfo(nullptr, UR_IMAGE_INFO_FORMAT,
-                                       sizeof(size_t), &info_size, nullptr));
+  size_t info_size = 0;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                   urMemImageGetInfo(nullptr, UR_IMAGE_INFO_FORMAT,
+                                     sizeof(size_t), &info_size, nullptr));
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidEnumerationImageInfoType) {
-    size_t info_size = 0;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
-                     urMemImageGetInfo(image, UR_IMAGE_INFO_FORCE_UINT32,
-                                       sizeof(size_t), &info_size, nullptr));
+  size_t info_size = 0;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
+                   urMemImageGetInfo(image, UR_IMAGE_INFO_FORCE_UINT32,
+                                     sizeof(size_t), &info_size, nullptr));
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidSizeZero) {
-    size_t info_size = 0;
-    ASSERT_EQ_RESULT(
-        urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT, 0, &info_size, nullptr),
-        UR_RESULT_ERROR_INVALID_SIZE);
+  size_t info_size = 0;
+  ASSERT_EQ_RESULT(
+      urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT, 0, &info_size, nullptr),
+      UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidSizeSmall) {
-    // This fail is specific to the "Multi device testing" ci job.
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  // This fail is specific to the "Multi device testing" ci job.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-    int info_size = 0;
-    ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
-                                       sizeof(info_size) - 1, &info_size,
-                                       nullptr),
-                     UR_RESULT_ERROR_INVALID_SIZE);
+  int info_size = 0;
+  ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
+                                     sizeof(info_size) - 1, &info_size,
+                                     nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidNullPointerParamValue) {
-    size_t info_size = 0;
-    ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
-                                       sizeof(info_size), nullptr, nullptr),
-                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  size_t info_size = 0;
+  ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
+                                     sizeof(info_size), nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urMemImageGetInfoTest, InvalidNullPointerPropSizeRet) {
-    ASSERT_EQ_RESULT(
-        urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT, 0, nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  ASSERT_EQ_RESULT(
+      urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT, 0, nullptr, nullptr),
+      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }

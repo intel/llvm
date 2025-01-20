@@ -1,6 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+//
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_LOADER_CONFIG_TEST_FIXTURES_H
@@ -14,17 +15,15 @@
 #endif
 
 struct LoaderConfigTest : ::testing::Test {
-    void SetUp() override {
-        ASSERT_SUCCESS(urLoaderConfigCreate(&loaderConfig));
-    }
+  void SetUp() override { ASSERT_SUCCESS(urLoaderConfigCreate(&loaderConfig)); }
 
-    void TearDown() override {
-        if (loaderConfig) {
-            ASSERT_SUCCESS(urLoaderConfigRelease(loaderConfig));
-        }
+  void TearDown() override {
+    if (loaderConfig) {
+      ASSERT_SUCCESS(urLoaderConfigRelease(loaderConfig));
     }
+  }
 
-    ur_loader_config_handle_t loaderConfig = nullptr;
+  ur_loader_config_handle_t loaderConfig = nullptr;
 };
 
 #endif

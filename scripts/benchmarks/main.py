@@ -11,11 +11,12 @@ from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
-from benches.options import Compare, options
+from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
 from history import BenchmarkHistory
-from utils.utils import prepare_workdir;
+from utils.utils import prepare_workdir
+from utils.compute_runtime import *
 
 import argparse
 import re
@@ -117,6 +118,13 @@ def process_results(results: dict[str, list[Result]], stddev_threshold_override)
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
+    if options.build_compute_runtime:
+        print(f"Setting up Compute Runtime {options.compute_runtime_tag}")
+        cr = get_compute_runtime()
+        print("Compute Runtime setup complete.")
+        options.extra_ld_libraries.extend(cr.ld_libraries())
+        options.extra_env_vars.update(cr.env_vars())
+
     suites = [
         ComputeBench(directory),
         VelocityBench(directory),
@@ -129,15 +137,15 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     benchmarks = []
 
     for s in suites:
-        print(f"Setting up {type(s).__name__}")
-        s.setup()
-        print(f"{type(s).__name__} setup complete.")
+        suite_benchmarks = s.benchmarks()
+        if filter:
+            suite_benchmarks = [benchmark for benchmark in suite_benchmarks if filter.search(benchmark.name())]
 
-    for s in suites:
-        benchmarks += s.benchmarks()
-
-    if filter:
-        benchmarks = [benchmark for benchmark in benchmarks if filter.search(benchmark.name())]
+        if suite_benchmarks:
+            print(f"Setting up {type(s).__name__}")
+            s.setup()
+            print(f"{type(s).__name__} setup complete.")
+            benchmarks += suite_benchmarks
 
     for b in benchmarks:
         print(b.name())
@@ -241,7 +249,7 @@ if __name__ == "__main__":
     parser.add_argument("--save", type=str, help='Save the results for comparison under a specified name.')
     parser.add_argument("--compare", type=str, help='Compare results against previously saved data.', action="append", default=["baseline"])
     parser.add_argument("--iterations", type=int, help='Number of times to run each benchmark to select a median value.', default=options.iterations)
-    parser.add_argument("--stddev-threshold", type=float, help='If stddev % is above this threshold, rerun all iterations', default=options.stddev_threshold)
+    parser.add_argument("--stddev-threshold", type=float, help='If stddev pct is above this threshold, rerun all iterations', default=options.stddev_threshold)
     parser.add_argument("--timeout", type=int, help='Timeout for individual benchmarks in seconds.', default=options.timeout)
     parser.add_argument("--filter", type=str, help='Regex pattern to filter benchmarks by name.', default=None)
     parser.add_argument("--epsilon", type=float, help='Threshold to consider change of performance significant', default=options.epsilon)
@@ -252,12 +260,8 @@ if __name__ == "__main__":
     parser.add_argument("--output-html", help='Create HTML output', action="store_true", default=False)
     parser.add_argument("--output-markdown", help='Create Markdown output', action="store_true", default=True)
     parser.add_argument("--dry-run", help='Do not run any actual benchmarks', action="store_true", default=False)
-    parser.add_argument(
-    "--iterations-stddev",
-    type=int,
-    help="Max number of iterations of the loop calculating stddev after completed benchmark runs",
-    default=options.iterations_stddev,
-    )
+    parser.add_argument("--compute-runtime", nargs='?', const=options.compute_runtime_tag, help="Fetch and build compute runtime")
+    parser.add_argument("--iterations-stddev", type=int, help="Max number of iterations of the loop calculating stddev after completed benchmark runs", default=options.iterations_stddev)
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -279,6 +283,9 @@ if __name__ == "__main__":
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
+    if args.compute_runtime is not None:
+        options.build_compute_runtime = True
+        options.compute_runtime_tag = args.compute_runtime
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

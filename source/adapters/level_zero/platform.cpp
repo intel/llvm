@@ -16,19 +16,16 @@ namespace ur::level_zero {
 
 ur_result_t urPlatformGet(
     ur_adapter_handle_t *, uint32_t,
-    uint32_t NumEntries, ///< [in] the number of platforms to be added to
-                         ///< phPlatforms. If phPlatforms is not NULL, then
-                         ///< NumEntries should be greater than zero, otherwise
-                         ///< ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
-    ur_platform_handle_t
-        *Platforms, ///< [out][optional][range(0, NumEntries)] array of handle
-                    ///< of platforms. If NumEntries is less than the number of
-                    ///< platforms available, then
-                    ///< ::urPlatformGet shall only retrieve that number of
-                    ///< platforms.
-    uint32_t *NumPlatforms ///< [out][optional] returns the total number of
-                           ///< platforms available.
-) {
+    /// [in] the number of platforms to be added to phPlatforms. If phPlatforms
+    /// is not NULL, then NumEntries should be greater than zero, otherwise
+    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    uint32_t NumEntries,
+    /// [out][optional][range(0, NumEntries)] array of handle of platforms.
+    /// If NumEntries is less than the number of platforms available, then
+    /// ::urPlatformGet shall only retrieve that number of platforms.
+    ur_platform_handle_t *Platforms,
+    /// [out][optional] returns the total number of platforms available.
+    uint32_t *NumPlatforms) {
   // Platform handles are cached for reuse. This is to ensure consistent
   // handle pointers across invocations and to improve retrieval performance.
   if (const auto *cached_platforms = GlobalAdapter->PlatformCache->get_value();
@@ -50,17 +47,20 @@ ur_result_t urPlatformGet(
 }
 
 ur_result_t urPlatformGetInfo(
-    ur_platform_handle_t Platform, ///< [in] handle of the platform
-    ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve
-    size_t Size,      ///< [in] the number of bytes pointed to by pPlatformInfo.
-    void *ParamValue, ///< [out][optional] array of bytes holding the info.
-                      ///< If Size is not equal to or greater to the real number
-                      ///< of bytes needed to return the info then the
-                      ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                      ///< pPlatformInfo is not used.
-    size_t *SizeRet   ///< [out][optional] pointer to the actual number of bytes
-                      ///< being queried by pPlatformInfo.
-) {
+    /// [in] handle of the platform
+    ur_platform_handle_t Platform,
+    /// [in] type of the info to retrieve
+    ur_platform_info_t ParamName,
+    /// [in] the number of bytes pointed to by pPlatformInfo.
+    size_t Size,
+    /// [out][optional] array of bytes holding the info. If Size is not equal to
+    /// or greater to the real number of bytes needed to return the info then
+    /// the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo
+    /// is not used.
+    void *ParamValue,
+    /// [out][optional] pointer to the actual number of bytes being queried by
+    /// pPlatformInfo.
+    size_t *SizeRet) {
   UrReturnHelper ReturnValue(Size, ParamValue, SizeRet);
 
   switch (ParamName) {
@@ -106,34 +106,32 @@ ur_result_t urPlatformGetInfo(
 }
 
 ur_result_t urPlatformGetApiVersion(
-    ur_platform_handle_t Driver, ///< [in] handle of the platform
-    ur_api_version_t *Version    ///< [out] api version
-) {
+    /// [in] handle of the platform
+    ur_platform_handle_t Driver,
+    /// [out] api version
+    ur_api_version_t *Version) {
   std::ignore = Driver;
   *Version = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urPlatformGetNativeHandle(
-    ur_platform_handle_t Platform,     ///< [in] handle of the platform.
-    ur_native_handle_t *NativePlatform ///< [out] a pointer to the native
-                                       ///< handle of the platform.
-) {
+    /// [in] handle of the platform.
+    ur_platform_handle_t Platform,
+    /// [out] a pointer to the native handle of the platform.
+    ur_native_handle_t *NativePlatform) {
   // Extract the Level Zero driver handle from the given PI platform
   *NativePlatform = reinterpret_cast<ur_native_handle_t>(Platform->ZeDriver);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urPlatformCreateWithNativeHandle(
-    ur_native_handle_t
-        NativePlatform, ///< [in] the native handle of the platform.
-    ur_adapter_handle_t,
-    const ur_platform_native_properties_t
-        *Properties, ///< [in][optional] pointer to native platform properties
-                     ///< struct.
-    ur_platform_handle_t *Platform ///< [out] pointer to the handle of the
-                                   ///< platform object created.
-) {
+    /// [in] the native handle of the platform.
+    ur_native_handle_t NativePlatform, ur_adapter_handle_t,
+    /// [in][optional] pointer to native platform properties struct.
+    const ur_platform_native_properties_t *Properties,
+    /// [out] pointer to the handle of the platform object created.
+    ur_platform_handle_t *Platform) {
   std::ignore = Properties;
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
@@ -170,12 +168,13 @@ ur_result_t urPlatformCreateWithNativeHandle(
 // Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
 // frontend_option=-ftarget-compile-fast.
 ur_result_t urPlatformGetBackendOption(
-    ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
-    const char *FrontendOption, ///< [in] string containing the frontend option.
-    const char *
-        *PlatformOption ///< [out] returns the correct platform specific
-                        ///< compiler option based on the frontend option.
-) {
+    /// [in] handle of the platform instance.
+    ur_platform_handle_t Platform,
+    /// [in] string containing the frontend option.
+    const char *FrontendOption,
+    /// [out] returns the correct platform specific compiler option based on
+    /// the frontend option.
+    const char **PlatformOption) {
   std::ignore = Platform;
   using namespace std::literals;
   if (FrontendOption == nullptr) {
