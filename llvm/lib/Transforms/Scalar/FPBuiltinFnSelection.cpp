@@ -64,6 +64,30 @@ static bool replaceWithAltMathFunction(FPBuiltinIntrinsic &BuiltinCall,
   return true;
 }
 
+static bool replaceWithNVPTXCalls(FPBuiltinIntrinsic &BuiltinCall) {
+  IRBuilder<> IRBuilder(&BuiltinCall);
+  SmallVector<Value *> Args(BuiltinCall.args());
+  Value *Replacement = nullptr;
+  switch (BuiltinCall.getIntrinsicID()) {
+  case Intrinsic::fpbuiltin_fdiv:
+    Replacement = IRBuilder.CreateFDiv(Args[0], Args[1]);
+    break;
+  case Intrinsic::fpbuiltin_sqrt:
+    Replacement =
+        IRBuilder.CreateIntrinsic(BuiltinCall.getType(), Intrinsic::sqrt, Args);
+    break;
+  default:
+    return false;
+  }
+  BuiltinCall.replaceAllUsesWith(Replacement);
+  cast<Instruction>(Replacement)->copyFastMathFlags(&BuiltinCall);
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": Replaced call to `"
+                    << BuiltinCall.getCalledFunction()->getName()
+                    << "` with equivalent IR. \n `");
+  return true;
+
+}
+
 static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
   // Replace the call to the fpbuiltin intrinsic with a call
   // to the corresponding function from the alternate math library.
@@ -152,6 +176,12 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
     default:
       report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
     }
+  }
+
+  if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() == 3.0) {
+    bool ToReturn = replaceWithNVPTXCalls(BuiltinCall);
+    if (ToReturn)
+      return true;
   }
 
   /// Call TLI to select a function implementation to call
