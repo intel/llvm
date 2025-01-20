@@ -225,6 +225,8 @@ if lit_config.params.get("ur_l0_leaks_debug"):
 if lit_config.params.get("enable-perf-tests", False):
     config.available_features.add("enable-perf-tests")
 
+if lit_config.params.get("spirv-backend", False):
+    config.available_features.add("spirv-backend")
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
@@ -524,18 +526,6 @@ for d in config.sycl_devices:
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
 
-# If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
-supported_hip_platforms = ["AMD", "NVIDIA"]
-if config.hip_platform == "":
-    config.hip_platform = "AMD"
-if config.hip_platform not in supported_hip_platforms:
-    lit_config.error(
-        "Unknown HIP platform '"
-        + config.hip_platform
-        + "' supported platforms are "
-        + ", ".join(supported_hip_platforms)
-    )
-
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
         if platform.system() == "Windows":
@@ -697,8 +687,6 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
-# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
-arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
@@ -839,7 +827,7 @@ for sycl_device in config.sycl_devices:
     # Use short names for LIT rules.
     features.add(be)
 
-    if be == "hip" and config.hip_platform == "AMD":
+    if be == "hip":
         if not config.amd_arch:
             # Guaranteed to be a single element in the set
             arch = [x for x in architecture_feature][0]
@@ -850,15 +838,9 @@ for sycl_device in config.sycl_devices:
                 )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
         llvm_config.with_system_environment("ROCM_PATH")
-        config.available_features.add("hip_amd")
-        arch_flag = (
-            "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
-        )
         config.substitutions.append(
             ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
         )
-    elif be == "hip" and config.hip_platform == "NVIDIA":
-        config.available_features.add("hip_nvidia")
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
@@ -871,10 +853,7 @@ if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clang", " true "))
 else:
     config.substitutions.append(
-        (
-            "%clangxx",
-            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
-        )
+        ("%clangxx", " " + config.dpcpp_compiler + " " + config.cxx_flags)
     )
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)

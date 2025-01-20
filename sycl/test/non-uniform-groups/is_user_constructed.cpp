@@ -1,5 +1,4 @@
-// FIXME: Move to sycl/test.
-// RUN: %{build} -fsyntax-only -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>

@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 415
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 414
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -62,7 +62,6 @@
 // CHECK: AOT/early_aot.cpp
 // CHECK-NEXT: AOT/gpu.cpp
 // CHECK-NEXT: AOT/multiple-devices.cpp
-// CHECK-NEXT: Adapters/enqueue-arg-order-buffer.cpp
 // CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
 // CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
 // CHECK-NEXT: Adapters/interop-l0-direct.cpp

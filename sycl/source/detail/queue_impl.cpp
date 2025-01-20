@@ -283,7 +283,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 }
 
-event queue_impl::getLastEvent() {
+sycl::detail::optional<event> queue_impl::getLastEvent() {
   {
     // The external event is required to finish last if set, so it is considered
     // the last event if present.
@@ -293,12 +293,12 @@ event queue_impl::getLastEvent() {
   }
 
   std::lock_guard<std::mutex> Lock{MMutex};
+  if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)
+    return std::nullopt;
   if (MDiscardEvents)
     return createDiscardedEvent();
   if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
     return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
-  if (!MDefaultGraphDeps.LastEventPtr)
-    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
   return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
