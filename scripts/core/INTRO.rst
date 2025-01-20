@@ -29,7 +29,7 @@ For more detailed information, refer to the programming guides and detailed spec
 
 The repository for Unified Runtime can be found here:
 
-* `oneapi-src/unified-runtime <https://github.com/oneapi-src/unified-runtime>`_
+* `intel/llvm/unified-runtime <https://github.com/intel/llvm/tree/sycl/unified-runtime>`_
 
 Terminology
 -----------
@@ -253,6 +253,10 @@ UR is capable of discovering adapter libraries in the following ways in the list
 Currently, UR looks for these adapter libraries:
 
   - ur_adapter_level_zero
+  - ur_adapter_opencl
+  - ur_adapter_cuda
+  - ur_adapter_hip
+  - ur_adapter_native_cpu
 
 For more information about the usage of mentioned environment variables see `Environment Variables`_ section.
 

@@ -13,15 +13,6 @@ accepted into the project.
 
 .. important::
 
-    Any contributions that fall into the following criteria *must* follow the
-    `Adapter Change Process`_:
-
-    *   Changing the API/ABI of the specification and or loader.
-
-    *   Changing the implementation of an adapter.
-
-    *   Changing the implementation of shared/common code used by an adapter.
-
     Before making a contribution to the specification you *should* determine if
     the change should be made directly to the core specification or introduced
     as an experimental feature. The criteria we use to make this distinction
@@ -41,95 +32,16 @@ accepted into the project.
     If the feature in question matches any of these criteria, please refer to
     the `Experimental Features`_ section, otherwise refer to the `Core
     Features`_ section. If you are unsure how to proceed please `create an
-    issue <https://github.com/oneapi-src/unified-runtime/issues/new>`_ asking
-    for clarification.
+    issue <https://github.com/intel/llvm/issues/new?template=Blank+issue>`_
+    asking or clarification.
 
     If you are unsure whether a feature can be supported by certain adapters
     please seek the advice of an appropriate stakeholder or ask the Unified
     Runtime team via the `GitHub issue tracker
-    <https://github.com/oneapi-src/unified-runtime/issues/new>`_.
+    <https://github.com/intel/llvm/issues/new?template=Blank+issue>`_.
 
-Adapter Change Process
-======================
-
-1.  Create a pull request containing the adapter changes in the
-    `oneapi-src/unified-runtime`_ project targeting the `main
-    <https://github.com/oneapi-src/unified-runtime/tree/main>`_ branch.
-
-    .. note::
-        Historically, convention on the project has been to add one or more
-        ``[COMPONENT]`` prefixes to the pull request title to signify which
-        components are changed within. This is no longer necessary as pull
-        requests are now automatically labeled by the `Pull Request Labeler
-        <https://github.com/oneapi-src/unified-runtime/blob/main/.github/labeler.yml>`_
-        GitHub Action. This approach is less error prone and much easier to
-        filter on the GitHub pull requests tab. Lastly, commit and pull request
-        summaries should strive be short to align with Git convention.
-
-2.  Create a draft pull request in the `intel/llvm`_ project to take advantage
-    of the pre-merge testing. Add any required implementation changes in
-    addition to changing:
-
-    *   `UNIFIED_RUNTIME_REPO`_ to point at your fork of Unified Runtime.
-
-    *   `UNIFIED_RUNTIME_TAG`_ to point at your development branch name used to
-        create the Unified Runtime pull request in step 1.
-
-3.  Add a comment in the *oneapi-src/unified-runtime* pull request linking to
-    the *intel/llvm* pull request created in step 2.
-
-4.  Code reviews for the adapter changes are carried out in the
-    *oneapi-src/unified-runtime* pull request.
-
-5.  Any new commits to the *oneapi-src/unified-runtime* pull request *must* be
-    accompanied by a corresponding update in the *intel/llvm* pull request as
-    indicated in step 2, so the testing is always up-to-date.
-
-6.  Once the *oneapi-src/unified-runtime* pull request has been approved by at
-    least one member of each relevant code-owner team:
-
-    *   Make the *intel/llvm* pull request ready to review (remove draft) in
-        order to gain approvals from all code-owners to ensure step 8 can
-        progress quickly when the time comes.
-
-    *   Add the *ready to merge* label to the *oneapi-src/unified-runtime* pull
-        request.
-
-7.  The Unified Runtime maintainers *must* ensure that step 5 has been carried
-    out and that all pre-merge testing has passed before merging the
-    *oneapi-src/unified-runtime* pull request.
-
-    *   The oldest pull requests with the *ready to merge* label will be
-        prioritized.
-
-    *   Contact the Unified Runtime maintainers if a pull request should be
-        given a higher priority.
-
-8.  Once the *oneapi-src/unified-runtime* pull request has been merged:
-
-    *   Reverse the change to `UNIFIED_RUNTIME_REPO`_ made in step 2.
-
-    *   Update the `UNIFIED_RUNTIME_TAG`_ to point at the
-        *oneapi-src/unified-runtime* commit/tag containing the merged adapter
-        changes.
-
-    *   Update the pull request description, linking to any other *intel/llvm*
-        pull requests who's changes have been merged into
-        *oneapi-src/unified-runtime* but have not yet been merge into
-        *intel/llvm*.
-
-    *   A Unified Runtime maintainer may facilitate these steps either by
-        making suggestions on the *intel/llvm* pull request or by making those
-        changes directly.
-
-.. _oneapi-src/unified-runtime:
-   https://github.com/oneapi-src/unified-runtime
-.. _intel/llvm:
-   https://github.com/intel/llvm
-.. _UNIFIED_RUNTIME_REPO:
-   https://github.com/intel/llvm/blob/sycl/sycl/cmake/modules/FetchUnifiedRuntime.cmake#L119
-.. _UNIFIED_RUNTIME_TAG:
-   https://github.com/intel/llvm/blob/sycl/sycl/cmake/modules/UnifiedRuntimeTag.cmake
+    When creating issues pertaining the to unified runtime, please include the
+    [UR] tag in the issue title.
 
 Build Environment
 =================
@@ -137,7 +49,7 @@ Build Environment
 To be able to generate the source from the YAML files, the build environment
 must be configured correctly and all dependencies must be installed. The
 instructions for a basic setup are available in the `README
-<https://github.com/oneapi-src/unified-runtime/blob/main/README.md#building>`_.
+<https://github.com/intel/llvm/blob/sycl/unified-runtime/README.md#building>`_.
 
 The following additional dependencies are required to support the ``generate``
 target:
@@ -183,9 +95,9 @@ You can then follow the instructions below to use the ``generate`` target to
 regenerate the source.
 
 .. _thirdparty/requirements.txt:
-   https://github.com/oneapi-src/unified-runtime/blob/main/third_party/requirements.txt
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/third_party/requirements.txt
 .. _.github/docker:
-   https://github.com/oneapi-src/unified-runtime/blob/main/.github/docker
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/.github/docker
 
 Generating Source
 =================
@@ -205,7 +117,7 @@ equivalent):
 .. _YAML: https://yaml.org/
 .. _Mako: https://www.makotemplates.org/
 .. _YAML syntax:
-   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/YaML.md
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/YaML.md
 
 .. note::
 
@@ -265,14 +177,16 @@ To submit a pull request to Unified Runtime, you must first create your own
 personal fork of the project and submit your changes to a branch. By convention
 we name our branches ``<your_name>/<short_description>``, where the description
 indicates the intent of your change. You can then raise a pull request
-targeting ``oneapi-src/unified-runtime:main``. Please add the *experimental*
-label to you pull request.
+targeting ``intel/llvm:sycl``.
+
+Please ensure you include the ``[UR]`` tag in the title of your pull request.
 
 When making changes to the specification you *must* commit all changes to files
 in the repository as a result of `Generating Source`_.
 
 Before your pull request is merged it *must* pass all jobs in the GitHub
-Actions workflow and *must* be reviewed by no less than two code owners.
+Actions workflow and *must* be reviewed by all reviewer teams tagged as
+code-owners.
 
 .. hint::
 
@@ -308,7 +222,7 @@ OpenMP, ...) where possible although this is a secondary concern.
     features in parallel language runtimes.
 
 Core features are defined in the ``*.yml`` files in the `scripts/core
-<https://github.com/oneapi-src/unified-runtime/tree/main/scripts/core>`_
+<https://github.com/intel/llvm/tree/sycl/unified-runtime/scripts/core>`_
 directory. Most of the files are named after the API object who's interface is
 defined within them, with the following exceptions:
 
@@ -325,13 +239,13 @@ defined within them, with the following exceptions:
 *   ``scripts/core/exp-<feature>.yml`` see `Experimental Features`_.
 
 .. _scripts/core/common.yml:
-   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/common.yml
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/core/common.yml
 .. _scripts/core/enqueue.yml:
-   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/enqueue.yml
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/core/enqueue.yml
 .. _scripts/core/loader.yml:
-   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/loader.yml
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/core/loader.yml
 .. _scripts/core/registry.yml:
-   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/registry.yml
+   https://github.com/intel/llvm/blob/sycl/unified-runtime/scripts/core/registry.yml
 
 Core Optional Features
 ----------------------
@@ -366,45 +280,6 @@ the following command from the build directory.
 .. code-block:: console
      
     ctest -L "conformance"
-
-Conformance Match Files
------------------------
-
-At the moment, not all tests currently pass with all adapters. Some tests are
-selectively marked as failing on certain adapters using a .match file located
-at ``test/conformance/<component>/<component>_adapter_<adapter>.match``. If
-that file exists, then it must contain a list of test specifiers which
-specify tests that fail for the given adapter.
-
-when run through ``ctest``, each failing test will be ran in a separate
-invocation (to capture any crashes) to verify that they are still failing. All
-tests not matched by the filters will also be ran in a single invocation which
-must succeed.
-
-This behaviour can be disabled by setting the environment variable
-``GTEST_OUTPUT``. If this is set, the test runner assumes it is being ran to
-collect testing statistics, and just runs the test suite with no filters.
-
-The format of the match files are as follows:
-
-* Each line consists of the name of a test as understood by gtest. This is the
-  name printed next to ``[ RUN      ]`` in the test log.
-* ``*`` is a wildcard that matches any number of characters in a test name. ``?``
-  matches a single character.
-* Empty lines or lines beginning with ``#`` are ignored.
-* A line beginning with ``{{OPT}}`` is a optional test; see below.
-
-Normally tests in the match file must fail (either by crashing or having a test
-failure) for the given adapter. However this can be disabled by prepending
-``{{OPT}}`` to the match line. This can be used if the test is flaky or
-depends on a particular environment.
-
-This matching is done via ``test/conformance/cts_exe.py``, which is designed to be
-called from ctest. However, it can be run manually as follows:
-
-.. code-block:: console
-
-    test/conformance/cts_exe.py --test_command build/bin/test-adapter --failslist test/conformance/adapter/adapter_adapter_mytarget.match -- --backend=BACKEND
 
 Experimental Features
 =====================

@@ -1,13 +1,7 @@
 # Unified Runtime
 
 [![Build and test](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml)
-[![Bandit](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml)
-[![CodeQL](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml)
-[![Coverity build](https://github.com/oneapi-src/unified-runtime/actions/workflows/coverity.yml/badge.svg?branch=main)](https://github.com/oneapi-src/unified-runtime/actions/workflows/coverity.yml)
-[![Coverity report](https://scan.coverity.com/projects/28213/badge.svg)](https://scan.coverity.com/projects/oneapi-src-unified-runtime)
 [![Nightly](https://github.com/oneapi-src/unified-runtime/actions/workflows/nightly.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/nightly.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/unified-runtime/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/unified-runtime)
-[![Trivy](https://github.com/oneapi-src/unified-runtime/actions/workflows/trivy.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/trivy.yml)
 [![Deploy documentation to Pages](https://github.com/oneapi-src/unified-runtime/actions/workflows/docs.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/docs.yml)
 [![Compute Benchmarks Nightly](https://github.com/oneapi-src/unified-runtime/actions/workflows/benchmarks-nightly.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/benchmarks-nightly.yml)
 
@@ -33,9 +27,9 @@
     - [Documentation](#documentation)
   - [Release Process](#release-process)
 
-## Contents of the repo
+## Contents of the project
 
-This repo contains the following:
+This project contains the following:
 
 - API specification in YaML
 - API programming guide in RST
