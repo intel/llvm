@@ -9,6 +9,11 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// Flaky timeout on CPU. Enable when fixed.
+// Depends on SPIR-V Backend & run-time drivers version.
+// UNSUPPORTED: spirv-backend && cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
+
 // -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
 
