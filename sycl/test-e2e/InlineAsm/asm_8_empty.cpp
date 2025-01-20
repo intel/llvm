@@ -1,4 +1,4 @@
-// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED: cuda
 // REQUIRES: gpu,linux,sg-8
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
