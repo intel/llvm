@@ -5,7 +5,7 @@
 // Test for the assumption behide DevASAN shadow memory for L0GPU , which is it
 // is okay to access VirtualMem from different device/context.
 
-#include <sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
