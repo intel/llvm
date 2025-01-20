@@ -65,7 +65,7 @@ extension.
 In general, it is not possible to interpret the device image contents returned by this API 
 in such a way that allows us to retrieve specific kernels inside the device image.
 However, under the conditions that the device be managed by an Level Zero or OpenCL backend and the 
-kernel is defined using the requirements link:{ref1}[here], it is possible to retrieve the 
+kernel is defined using the requirements [here][ref-link], it is possible to retrieve the 
 kernel from the device image contents.
 
 This test selects a Level Zero or OpenCL backend device and defines a simple kernel using 
@@ -78,5 +78,5 @@ the original kernel directly on the device, that is, by only using high-level SY
 The test requires either Level Zero or OpenCL backend and development kits to be available
 in the testing environment. 
 
-:ref1: ../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc#level-zero-and-opencl-compatibility
+[ref-link]: ../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc#level-zero-and-opencl-compatibility
 [spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_device_image_backend_content.asciidoc
