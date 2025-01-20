@@ -320,7 +320,7 @@ etors:
     - name: QUEUE_ON_HOST_PROPERTIES
       desc: "[$x_queue_flags_t] host queue property bit-field"
     - name: BUILT_IN_KERNELS
-      desc: "[char[]] a semi-colon separated list of built-in kernels"
+      desc: "[char[]] a null-terminated semi-colon separated list of built-in kernels"
     - name: PLATFORM
       desc: "[$x_platform_handle_t] the platform associated with the device"
     - name: REFERENCE_COUNT
@@ -329,21 +329,21 @@ etors:
             The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: IL_VERSION
-      desc: "[char[]] IL version"
+      desc: "[char[]] null-terminated IL version"
     - name: NAME
-      desc: "[char[]] Device name"
+      desc: "[char[]] null-terminated device name"
     - name: VENDOR
-      desc: "[char[]] Device vendor"
+      desc: "[char[]] null-terminated device vendor"
     - name: DRIVER_VERSION
-      desc: "[char[]] Driver version"
+      desc: "[char[]] null-terminated driver version"
     - name: PROFILE
-      desc: "[char[]] Device profile"
+      desc: "[char[]] null-terminated device profile"
     - name: VERSION
-      desc: "[char[]] Device version"
+      desc: "[char[]] null-terminated device version"
     - name: BACKEND_RUNTIME_VERSION
-      desc: "[char[]] Version of backend runtime"
+      desc: "[char[]] null-terminated version of backend runtime"
     - name: EXTENSIONS
-      desc: "[char[]] Return a space separated list of extension names"
+      desc: "[char[]] Return a null-terminated space separated list of extension names"
     - name: PRINTF_BUFFER_SIZE
       desc: "[size_t] Maximum size in bytes of internal printf buffer"
     - name: PREFERRED_INTEROP_USER_SYNC
@@ -359,7 +359,7 @@ etors:
             [$x_device_affinity_domain_flags_t] Returns a bit-field of the supported affinity domains for partitioning.
             If the device does not support any affinity domains, then 0 will be returned.
     - name: PARTITION_TYPE
-      desc: "[$x_device_partition_property_t[]] return an array of $x_device_partition_property_t for properties specified in $xDevicePartition"
+      desc: "[$x_device_partition_property_t[]] returns an array of properties specified in $xDevicePartition"
     - name: MAX_NUM_SUB_GROUPS
       desc: "[uint32_t] max number of sub groups"
     - name: SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS
@@ -379,7 +379,7 @@ etors:
     - name: UUID
       desc: "[uint8_t[]][optional-query] return device UUID"
     - name: PCI_ADDRESS
-      desc: "[char[]][optional-query] return device PCI address"
+      desc: "[char[]][optional-query] return null-terminated device PCI address"
     - name: GPU_EU_COUNT
       desc: "[uint32_t][optional-query] return Intel GPU EU count"
     - name: GPU_EU_SIMD_WIDTH

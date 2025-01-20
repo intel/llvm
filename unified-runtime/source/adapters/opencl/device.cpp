@@ -151,203 +151,29 @@ mapCLDeviceFpConfigToUR(cl_device_fp_config CLValue) {
   return URValue;
 }
 
-static cl_int mapURDeviceInfoToCL(ur_device_info_t URPropName) {
-
-  switch (static_cast<uint32_t>(URPropName)) {
-  case UR_DEVICE_INFO_TYPE:
-    return CL_DEVICE_TYPE;
-  case UR_DEVICE_INFO_PARENT_DEVICE:
-    return CL_DEVICE_PARENT_DEVICE;
-  case UR_DEVICE_INFO_PLATFORM:
-    return CL_DEVICE_PLATFORM;
-  case UR_DEVICE_INFO_VENDOR_ID:
-    return CL_DEVICE_VENDOR_ID;
-  case UR_DEVICE_INFO_EXTENSIONS:
-    return CL_DEVICE_EXTENSIONS;
-  case UR_DEVICE_INFO_NAME:
-    return CL_DEVICE_NAME;
-  case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-    return CL_DEVICE_COMPILER_AVAILABLE;
-  case UR_DEVICE_INFO_LINKER_AVAILABLE:
-    return CL_DEVICE_LINKER_AVAILABLE;
-  case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
-    return CL_DEVICE_MAX_COMPUTE_UNITS;
-  case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
-    return CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS;
-  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
-    return CL_DEVICE_MAX_WORK_GROUP_SIZE;
-  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
-    return CL_DEVICE_MAX_WORK_ITEM_SIZES;
-  case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
-    return CL_DEVICE_MAX_CLOCK_FREQUENCY;
-  case UR_DEVICE_INFO_ADDRESS_BITS:
-    return CL_DEVICE_ADDRESS_BITS;
-  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
-    return CL_DEVICE_MAX_MEM_ALLOC_SIZE;
-  case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
-    return CL_DEVICE_GLOBAL_MEM_SIZE;
-  case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
-    return CL_DEVICE_LOCAL_MEM_SIZE;
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED:
-    return CL_DEVICE_IMAGE_SUPPORT;
-  case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
-    return CL_DEVICE_HOST_UNIFIED_MEMORY;
-  case UR_DEVICE_INFO_AVAILABLE:
-    return CL_DEVICE_AVAILABLE;
-  case UR_DEVICE_INFO_VENDOR:
-    return CL_DEVICE_VENDOR;
-  case UR_DEVICE_INFO_DRIVER_VERSION:
-    return CL_DRIVER_VERSION;
-  case UR_DEVICE_INFO_VERSION:
-    return CL_DEVICE_VERSION;
-  case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
-    return CL_DEVICE_PARTITION_MAX_SUB_DEVICES;
-  case UR_DEVICE_INFO_REFERENCE_COUNT:
-    return CL_DEVICE_REFERENCE_COUNT;
-  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
-    return CL_DEVICE_PARTITION_PROPERTIES;
-  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
-    return CL_DEVICE_PARTITION_AFFINITY_DOMAIN;
-  case UR_DEVICE_INFO_PARTITION_TYPE:
-    return CL_DEVICE_PARTITION_TYPE;
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
-    return CL_DEVICE_OPENCL_C_VERSION;
-  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-    return CL_DEVICE_PREFERRED_INTEROP_USER_SYNC;
-  case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
-    return CL_DEVICE_PRINTF_BUFFER_SIZE;
-  case UR_DEVICE_INFO_PROFILE:
-    return CL_DEVICE_PROFILE;
-  case UR_DEVICE_INFO_BUILT_IN_KERNELS:
-    return CL_DEVICE_BUILT_IN_KERNELS;
-  case UR_DEVICE_INFO_QUEUE_PROPERTIES:
-    return CL_DEVICE_QUEUE_PROPERTIES;
-  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
-    return CL_DEVICE_QUEUE_ON_HOST_PROPERTIES;
-  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
-    return CL_DEVICE_QUEUE_ON_DEVICE_PROPERTIES;
-  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES:
-    return CL_DEVICE_EXECUTION_CAPABILITIES;
-  case UR_DEVICE_INFO_ENDIAN_LITTLE:
-    return CL_DEVICE_ENDIAN_LITTLE;
-  case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
-    return CL_DEVICE_ERROR_CORRECTION_SUPPORT;
-  case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    return CL_DEVICE_PROFILING_TIMER_RESOLUTION;
-  case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
-    return CL_DEVICE_LOCAL_MEM_TYPE;
-  case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
-    return CL_DEVICE_MAX_CONSTANT_ARGS;
-  case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
-    return CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE;
-  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
-    return CL_DEVICE_GLOBAL_MEM_CACHE_TYPE;
-  case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
-    return CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE;
-  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
-    return CL_DEVICE_GLOBAL_MEM_CACHE_SIZE;
-  case UR_DEVICE_INFO_MAX_PARAMETER_SIZE:
-    return CL_DEVICE_MAX_PARAMETER_SIZE;
-  case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
-    return CL_DEVICE_MEM_BASE_ADDR_ALIGN;
-  case UR_DEVICE_INFO_MAX_SAMPLERS:
-    return CL_DEVICE_MAX_SAMPLERS;
-  case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
-    return CL_DEVICE_MAX_READ_IMAGE_ARGS;
-  case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
-    return CL_DEVICE_MAX_WRITE_IMAGE_ARGS;
-  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
-    return CL_DEVICE_MAX_READ_WRITE_IMAGE_ARGS;
-  case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
-    return CL_DEVICE_SINGLE_FP_CONFIG;
-  case UR_DEVICE_INFO_HALF_FP_CONFIG:
-    return CL_DEVICE_HALF_FP_CONFIG;
-  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG:
-    return CL_DEVICE_DOUBLE_FP_CONFIG;
-  case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
-    return CL_DEVICE_IMAGE2D_MAX_WIDTH;
-  case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
-    return CL_DEVICE_IMAGE2D_MAX_HEIGHT;
-  case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
-    return CL_DEVICE_IMAGE3D_MAX_WIDTH;
-  case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
-    return CL_DEVICE_IMAGE3D_MAX_HEIGHT;
-  case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
-    return CL_DEVICE_IMAGE3D_MAX_DEPTH;
-  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
-    return CL_DEVICE_IMAGE_MAX_BUFFER_SIZE;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
-    return CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-    return CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
-    return CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-    return CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
-    return CL_DEVICE_NATIVE_VECTOR_WIDTH_INT;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-    return CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
-    return CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-    return CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
-    return CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-    return CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
-    return CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
-    return CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
-    return CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
-    return CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF;
-  case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
-    return CL_DEVICE_MAX_NUM_SUB_GROUPS;
-  case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
-    return CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS;
-  case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
-    return CL_DEVICE_SUB_GROUP_SIZES_INTEL;
-  case UR_DEVICE_INFO_IL_VERSION:
-    return CL_DEVICE_IL_VERSION;
-  case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
-    return CL_DEVICE_IMAGE_MAX_ARRAY_SIZE;
-  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
-    return CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL;
-  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
-    return CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL;
-  case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
-    return CL_DEVICE_SINGLE_DEVICE_SHARED_MEM_CAPABILITIES_INTEL;
-  case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
-    return CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL;
-  case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
-    return CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL;
-  case UR_DEVICE_INFO_GPU_EU_SLICES:
-    return CL_DEVICE_NUM_SLICES_INTEL;
-  case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
-    return CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL;
-  case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
-    return CL_DEVICE_NUM_SUB_SLICES_PER_SLICE_INTEL;
-  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-    return CL_DEVICE_NUM_THREADS_PER_EU_INTEL;
-  case UR_DEVICE_INFO_IP_VERSION:
-    return CL_DEVICE_IP_VERSION_INTEL;
-  default:
-    return -1;
-  }
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     ur_device_info_t propName,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
+  /* We can convert between OpenCL and UR outputs because the sizes
+   * of OpenCL types are the same as UR.
+   * | CL                 | UR                     | Size |
+   * | char[]             | char[]                 | 8    |
+   * | cl_uint            | uint32_t               | 4    |
+   * | cl_ulong           | uint64_t               | 8    |
+   * | size_t             | size_t                 | 8    |
+   * | cl_platform_id     | ur_platform_handle_t   | 8    |
+   * | cl_device_id       | ur_device_handle_t     | 8    |
+   *
+   * These other types are equivalent:
+   * | cl_device_fp_config | ur_device_fp_capability_flags_t |
+   * | cl_bitfield / enum | ur_flags_t |
+   * | cl_bool | ur_bool_t |
+   * | cl_device_atomic_capabilities | ur_memory_order_capability_flags_t |
+   */
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-
-  const cl_device_info CLPropName = mapURDeviceInfoToCL(propName);
 
   /* TODO UR: Casting to uint32_t to silence warnings due to some values not
    * being part of the enum. Can be removed once all UR_EXT enums are promoted
@@ -356,7 +182,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_TYPE: {
     cl_device_type CLType;
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_TYPE,
                         sizeof(cl_device_type), &CLType, nullptr));
 
     /* TODO UR: If the device is an Accelerator (FPGA, VPU, etc.), there is not
@@ -402,15 +228,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Results.c_str(), Results.size() + 1);
   }
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
+    const cl_device_info info_name = CL_DEVICE_PARTITION_PROPERTIES;
     size_t CLSize;
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), info_name, 0,
                         nullptr, &CLSize));
     const size_t NProperties = CLSize / sizeof(cl_device_partition_property);
 
     std::vector<cl_device_partition_property> CLValue(NProperties);
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), info_name,
                         CLSize, CLValue.data(), nullptr));
 
     /* The OpenCL implementation returns a value of 0 if no properties are
@@ -430,10 +257,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(URValue.data(), URValue.size());
   }
   case UR_DEVICE_INFO_PARTITION_TYPE: {
-
+    const cl_device_info info_name = CL_DEVICE_PARTITION_TYPE;
     size_t CLSize;
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), info_name, 0,
                         nullptr, &CLSize));
     const size_t NProperties = CLSize / sizeof(cl_device_partition_property);
 
@@ -449,7 +276,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     auto CLValue =
         reinterpret_cast<cl_device_partition_property *>(alloca(CLSize));
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), info_name,
                         CLSize, CLValue, nullptr));
 
     std::vector<ur_device_partition_property_t> URValue(NProperties - 1);
@@ -526,27 +353,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return ReturnValue(1u);
     }
   }
-  case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
-  case UR_DEVICE_INFO_HALF_FP_CONFIG:
-  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    /* CL type: cl_device_fp_config
-     * UR type: ur_device_fp_capability_flags_t */
-    if (propName == UR_DEVICE_INFO_HALF_FP_CONFIG) {
-      bool Supported;
-      UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
-          cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, Supported));
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
+    cl_device_fp_config CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_SINGLE_FP_CONFIG,
+        sizeof(cl_device_fp_config), &CLValue, nullptr));
 
-      if (!Supported) {
-        // If we don't support the extension then our capabilities are 0.
-        ur_device_fp_capability_flags_t halfCapabilities = 0;
-        return ReturnValue(halfCapabilities);
-      }
+    return ReturnValue(mapCLDeviceFpConfigToUR(CLValue));
+  }
+  case UR_DEVICE_INFO_HALF_FP_CONFIG: {
+    bool Supported;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, Supported));
+
+    if (!Supported) {
+      // If we don't support the extension then our capabilities are 0.
+      ur_device_fp_capability_flags_t halfCapabilities = 0;
+      return ReturnValue(halfCapabilities);
     }
 
     cl_device_fp_config CLValue;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                        sizeof(cl_device_fp_config), &CLValue, nullptr));
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_HALF_FP_CONFIG,
+        sizeof(cl_device_fp_config), &CLValue, nullptr));
+
+    return ReturnValue(mapCLDeviceFpConfigToUR(CLValue));
+  }
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+    cl_device_fp_config CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_DOUBLE_FP_CONFIG,
+        sizeof(cl_device_fp_config), &CLValue, nullptr));
 
     return ReturnValue(mapCLDeviceFpConfigToUR(CLValue));
   }
@@ -597,8 +434,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
                         UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
     }
-    /* cl_device_atomic_capabilities is uint64_t and
-     * ur_memory_order_capability_flags_t is uint32_t */
     return ReturnValue(
         static_cast<ur_memory_order_capability_flags_t>(URCapabilities));
   }
@@ -653,8 +488,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       }
     }
 
-    /* cl_device_atomic_capabilities is uint64_t and
-     * ur_memory_scope_capability_flags_t is uint32_t */
     return ReturnValue(
         static_cast<ur_memory_scope_capability_flags_t>(URCapabilities));
   }
@@ -701,8 +534,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       }
     }
 
-    /* cl_device_atomic_capabilities is uint64_t and
-     * ur_memory_order_capability_flags_t is uint32_t */
     return ReturnValue(
         static_cast<ur_memory_order_capability_flags_t>(URCapabilities));
   }
@@ -772,8 +603,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       }
     }
 
-    /* cl_device_atomic_capabilities is uint64_t and
-     * ur_memory_scope_capability_flags_t is uint32_t */
     return ReturnValue(
         static_cast<ur_memory_scope_capability_flags_t>(URCapabilities));
   }
@@ -880,33 +709,68 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         {"cl_intel_global_variable_access"}, Supported));
     return ReturnValue(Supported);
   }
-  case UR_DEVICE_INFO_QUEUE_PROPERTIES:
-  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
-  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
-  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
-  case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
-  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES:
-  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
-    /* CL type: cl_bitfield / enum
-     * UR type: ur_flags_t (uint32_t) */
-
+  case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
     cl_bitfield CLValue = 0;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                        sizeof(cl_bitfield), &CLValue, nullptr));
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_QUEUE_PROPERTIES,
+        sizeof(cl_bitfield), &CLValue, nullptr));
 
-    /* We can just static_cast the output because OpenCL and UR bitfields
-     * map 1 to 1 for these properties. cl_bitfield is uint64_t and ur_flags_t
-     * types are uint32_t */
     return ReturnValue(static_cast<uint32_t>(CLValue));
   }
-  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
-  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
-  case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
-  case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
-  case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-    /* CL type: cl_bitfield / enum
-     * UR type: ur_flags_t (uint32_t) */
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
+    cl_bitfield CLValue = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_QUEUE_ON_DEVICE_PROPERTIES,
+                        sizeof(cl_bitfield), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<uint32_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+    cl_bitfield CLValue = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_QUEUE_ON_HOST_PROPERTIES, sizeof(cl_bitfield),
+                        &CLValue, nullptr));
+
+    return ReturnValue(static_cast<uint32_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
+    cl_bitfield CLValue = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_GLOBAL_MEM_CACHE_TYPE, sizeof(cl_bitfield),
+                        &CLValue, nullptr));
+
+    return ReturnValue(static_cast<uint32_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_LOCAL_MEM_TYPE: {
+    cl_bitfield CLValue = 0;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_LOCAL_MEM_TYPE,
+        sizeof(cl_bitfield), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<uint32_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
+    cl_bitfield CLValue = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_EXECUTION_CAPABILITIES, sizeof(cl_bitfield),
+                        &CLValue, nullptr));
+
+    return ReturnValue(static_cast<uint32_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    cl_bitfield CLValue = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PARTITION_AFFINITY_DOMAIN,
+                        sizeof(cl_bitfield), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<uint32_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_USM_HOST_SUPPORT: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
         cl_adapter::cast<cl_device_id>(hDevice),
@@ -914,36 +778,145 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     if (Supported) {
       cl_bitfield CLValue = 0;
       CL_RETURN_ON_FAILURE(
-          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                          CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL,
                           sizeof(cl_bitfield), &CLValue, nullptr));
       return ReturnValue(static_cast<uint32_t>(CLValue));
     } else {
       return ReturnValue(0);
     }
   }
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED:
-  case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
-  case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
-  case UR_DEVICE_INFO_ENDIAN_LITTLE:
-  case UR_DEVICE_INFO_AVAILABLE:
-  case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-  case UR_DEVICE_INFO_LINKER_AVAILABLE:
-  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
-    /* CL type: cl_bool
-     * UR type: ur_bool_t */
+  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_unified_shared_memory"}, Supported));
+    if (Supported) {
+      cl_bitfield CLValue = 0;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                          CL_DEVICE_DEVICE_MEM_CAPABILITIES_INTEL,
+                          sizeof(cl_bitfield), &CLValue, nullptr));
+      return ReturnValue(static_cast<uint32_t>(CLValue));
+    } else {
+      return ReturnValue(0);
+    }
+  }
+  case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_unified_shared_memory"}, Supported));
+    if (Supported) {
+      cl_bitfield CLValue = 0;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                          CL_DEVICE_SINGLE_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+                          sizeof(cl_bitfield), &CLValue, nullptr));
+      return ReturnValue(static_cast<uint32_t>(CLValue));
+    } else {
+      return ReturnValue(0);
+    }
+  }
+  case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_unified_shared_memory"}, Supported));
+    if (Supported) {
+      cl_bitfield CLValue = 0;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                          CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
+                          sizeof(cl_bitfield), &CLValue, nullptr));
+      return ReturnValue(static_cast<uint32_t>(CLValue));
+    } else {
+      return ReturnValue(0);
+    }
+  }
+  case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_unified_shared_memory"}, Supported));
+    if (Supported) {
+      cl_bitfield CLValue = 0;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                          CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL,
+                          sizeof(cl_bitfield), &CLValue, nullptr));
+      return ReturnValue(static_cast<uint32_t>(CLValue));
+    } else {
+      return ReturnValue(0);
+    }
+  }
+  case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
+    cl_bool CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IMAGE_SUPPORT,
+        sizeof(cl_bool), &CLValue, nullptr));
 
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     cl_bool CLValue;
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                        sizeof(cl_bool), &CLValue, nullptr));
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(cl_bool),
+                        &CLValue, nullptr));
 
-    /* cl_bool is uint32_t and ur_bool_t is bool */
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
+    cl_bool CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_HOST_UNIFIED_MEMORY,
+        sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_ENDIAN_LITTLE: {
+    cl_bool CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_ENDIAN_LITTLE,
+        sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_AVAILABLE: {
+    cl_bool CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_AVAILABLE,
+        sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
+    cl_bool CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_COMPILER_AVAILABLE,
+        sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_LINKER_AVAILABLE: {
+    cl_bool CLValue;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_LINKER_AVAILABLE,
+        sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
+    cl_bool CLValue;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_INTEROP_USER_SYNC, sizeof(cl_bool),
+                        &CLValue, nullptr));
+
     return ReturnValue(static_cast<ur_bool_t>(CLValue));
   }
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
-    /* CL type: cl_bool
-     * UR type: ur_bool_t */
-
     oclv::OpenCLVersion DevVer;
     CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
         cl_adapter::cast<cl_device_id>(hDevice), DevVer));
@@ -952,84 +925,418 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     if (DevVer >= oclv::V2_1) {
       cl_bool CLValue;
       CL_RETURN_ON_FAILURE(
-          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                          CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
                           sizeof(cl_bool), &CLValue, nullptr));
 
-      /* cl_bool is uint32_t and ur_bool_t is bool */
       return ReturnValue(static_cast<ur_bool_t>(CLValue));
     } else {
       return ReturnValue(false);
     }
   }
-  case UR_DEVICE_INFO_VENDOR_ID:
-  case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
-  case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
-  case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
-  case UR_DEVICE_INFO_ADDRESS_BITS:
-  case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
-  case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
-  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
-  case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
-  case UR_DEVICE_INFO_MAX_SAMPLERS:
-  case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
-  case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
-  case UR_DEVICE_INFO_REFERENCE_COUNT:
-  case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
-  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
-  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
-  case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
-  case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
-  case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
-  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
-  case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
-  case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
-  case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
-  case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
-  case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
-  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
-  case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
-  case UR_DEVICE_INFO_MAX_PARAMETER_SIZE:
-  case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-  case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
-  case UR_DEVICE_INFO_PLATFORM:
-  case UR_DEVICE_INFO_PARENT_DEVICE:
-  case UR_DEVICE_INFO_IL_VERSION:
-  case UR_DEVICE_INFO_NAME:
-  case UR_DEVICE_INFO_VENDOR:
-  case UR_DEVICE_INFO_DRIVER_VERSION:
-  case UR_DEVICE_INFO_PROFILE:
-  case UR_DEVICE_INFO_VERSION:
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
-  case UR_DEVICE_INFO_BUILT_IN_KERNELS:
-  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
-    /* We can just use the OpenCL outputs because the sizes of OpenCL types
-     * are the same as UR.
-     * | CL                 | UR                     | Size |
-     * | char[]             | char[]                 | 8    |
-     * | cl_uint            | uint32_t               | 4    |
-     * | cl_ulong           | uint64_t               | 8    |
-     * | size_t             | size_t                 | 8    |
-     * | cl_platform_id     | ur_platform_handle_t   | 8    |
-     * | ur_device_handle_t | cl_device_id           | 8    |
-     */
+  case UR_DEVICE_INFO_VENDOR_ID: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_VENDOR_ID, propSize,
+        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_COMPUTE_UNITS,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        CL_DEVICE_NATIVE_VECTOR_WIDTH_INT, propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_CLOCK_FREQUENCY,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_ADDRESS_BITS: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_ADDRESS_BITS,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_READ_IMAGE_ARGS,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_MAX_READ_WRITE_IMAGE_ARGS, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
 
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_MAX_READ_WRITE_IMAGE_ARGS, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MEM_BASE_ADDR_ALIGN,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_SAMPLERS: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_SAMPLERS,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_CONSTANT_ARGS: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_CONSTANT_ARGS,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_REFERENCE_COUNT: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_REFERENCE_COUNT,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PARTITION_MAX_SUB_DEVICES, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_MEM_ALLOC_SIZE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_GLOBAL_MEM_SIZE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_LOCAL_MEM_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_LOCAL_MEM_SIZE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_WORK_GROUP_SIZE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IMAGE2D_MAX_WIDTH,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IMAGE2D_MAX_HEIGHT,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IMAGE3D_MAX_WIDTH,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IMAGE3D_MAX_HEIGHT,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IMAGE3D_MAX_DEPTH,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        CL_DEVICE_IMAGE_MAX_BUFFER_SIZE, propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IMAGE_MAX_ARRAY_SIZE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_PARAMETER_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_PARAMETER_SIZE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PROFILING_TIMER_RESOLUTION, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_PRINTF_BUFFER_SIZE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PLATFORM: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_PLATFORM, propSize,
+        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PARENT_DEVICE: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_PARENT_DEVICE,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IL_VERSION: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IL_VERSION, propSize,
+        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_NAME: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_NAME,
                         propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_VENDOR: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_VENDOR, propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_DRIVER_VERSION: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DRIVER_VERSION, propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PROFILE: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_PROFILE, propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_VERSION: {
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_VERSION, propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_OPENCL_C_VERSION,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_BUILT_IN_KERNELS,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_MAX_WORK_ITEM_SIZES,
+        propSize, pPropValue, pPropSizeRet));
 
     return UR_RESULT_SUCCESS;
   }
@@ -1081,11 +1388,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-  case UR_DEVICE_INFO_GPU_EU_SLICES:
-  case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
-  case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
-  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-  case UR_DEVICE_INFO_IP_VERSION: {
+  case UR_DEVICE_INFO_GPU_EU_SLICES: {
+    bool Supported;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_NUM_SLICES_INTEL,
+        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE: {
     bool Supported;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
         cl_adapter::cast<cl_device_id>(hDevice),
@@ -1094,13 +1411,59 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                        propSize, pPropValue, pPropSizeRet));
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE: {
+    bool Supported;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NUM_SUB_SLICES_PER_SLICE_INTEL, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU: {
+    bool Supported;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                        CL_DEVICE_NUM_THREADS_PER_EU_INTEL, propSize,
+                        pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_IP_VERSION: {
+    bool Supported;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_IP_VERSION_INTEL,
+        propSize, pPropValue, pPropSizeRet));
 
     return UR_RESULT_SUCCESS;
   }
 
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+    const cl_device_info info_name = CL_DEVICE_SUB_GROUP_SIZES_INTEL;
     bool isExtensionSupported;
     if (cl_adapter::checkDeviceExtensions(
             cl_adapter::cast<cl_device_id>(hDevice),
@@ -1115,11 +1478,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Have to convert size_t to uint32_t
     size_t SubGroupSizesSize = 0;
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), info_name, 0,
                         nullptr, &SubGroupSizesSize));
     std::vector<size_t> SubGroupSizes(SubGroupSizesSize / sizeof(size_t));
     CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), info_name,
                         SubGroupSizesSize, SubGroupSizes.data(), nullptr));
     return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
                                                      SubGroupSizes.size());
@@ -1157,38 +1520,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         CL_DEVICE_UUID_KHR, UUID.size(), UUID.data(), nullptr));
     return ReturnValue(UUID);
   }
-
-  case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS: {
-    return ReturnValue(
-        ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
-  }
-
-  // We can't query to check if these are supported, they will need to be
-  // manually updated if support is ever implemented.
-  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
-  case UR_DEVICE_INFO_BFLOAT16:
-  case UR_DEVICE_INFO_ASYNC_BARRIER: {
-    return ReturnValue(false);
-  }
-
-  case UR_DEVICE_INFO_USM_POOL_SUPPORT: {
-    return ReturnValue(false);
-  }
-
-  /* TODO: Check regularly to see if support is enabled in OpenCL. Intel GPU
-   * EU device-specific information extensions. Some of the queries are
-   * enabled by cl_intel_device_attribute_query extension, but it's not yet in
-   * the Registry. */
-  case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
-  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
-  /* This enums have no equivalent in OpenCL */
-  case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
-  case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
-  case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
-  case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case UR_DEVICE_INFO_COMPONENT_DEVICES:
-  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
     bool Is2DBlockIOSupported = false;
     if (cl_adapter::checkDeviceExtensions(
@@ -1223,10 +1554,59 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         getDeviceCommandBufferUpdateCapabilities(Dev, UpdateCapabilities));
     return ReturnValue(UpdateCapabilities);
   }
+  case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS: {
+    return ReturnValue(
+        ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
+  }
+  // TODO: We can't query to check if these are supported, they will need to be
+  // manually updated if support is ever implemented.
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
+  case UR_DEVICE_INFO_BFLOAT16:
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_USM_POOL_SUPPORT: // end of TODO
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
-    return ReturnValue(false);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP:
+  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP:
+  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP:
+  case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP:
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP:
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP:
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP:
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP:
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP:
+  case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP:
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP:
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP:
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
+  case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
+  /* TODO: Check regularly to see if support is enabled in OpenCL. Intel GPU
+   * EU device-specific information extensions. Some of the queries are
+   * enabled by cl_intel_device_attribute_query extension, but it's not yet in
+   * the Registry. */
+  case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
+  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
+  /* These enums have no equivalent in OpenCL */
+  case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
+  case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
+  case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
+  case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
