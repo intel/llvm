@@ -356,8 +356,8 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
 }
 
 ur_result_t urKernelRetain(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
-    ) try {
+    /// [in] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel) try {
   hKernel->RefCount.increment();
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -365,22 +365,24 @@ ur_result_t urKernelRetain(
 }
 
 ur_result_t urKernelRelease(
-    ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
-    ) try {
+    /// [in] handle for the Kernel to release
+    ur_kernel_handle_t hKernel) try {
   return hKernel->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    size_t argSize,    ///< [in] size of argument type
-    const ur_kernel_arg_value_properties_t
-        *pProperties, ///< [in][optional] argument properties
-    const void
-        *pArgValue ///< [in] argument value represented as matching arg type.
-    ) try {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of argument type
+    size_t argSize,
+    /// [in][optional] argument properties
+    const ur_kernel_arg_value_properties_t *pProperties,
+    /// [in] argument value represented as matching arg type.
+    const void *pArgValue) try {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgValue");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
@@ -390,13 +392,14 @@ ur_result_t urKernelSetArgValue(
 }
 
 ur_result_t urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
-    const ur_kernel_arg_pointer_properties_t
-        *pProperties, ///< [in][optional] argument properties
-    const void
-        *pArgValue ///< [in] argument value represented as matching arg type.
-    ) try {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] argument properties
+    const ur_kernel_arg_pointer_properties_t *pProperties,
+    /// [in] argument value represented as matching arg type.
+    const void *pArgValue) try {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgPointer");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
@@ -454,14 +457,17 @@ urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
 }
 
 ur_result_t urKernelSetExecInfo(
-    ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
-    ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
-    size_t propSize,                ///< [in] size in byte the attribute value
-    const ur_kernel_exec_info_properties_t
-        *pProperties, ///< [in][optional] pointer to execution info properties
-    const void *pPropValue ///< [in][range(0, propSize)] pointer to memory
-                           ///< location holding the property value.
-    ) try {
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the execution attribute
+    ur_kernel_exec_info_t propName,
+    /// [in] size in byte the attribute value
+    size_t propSize,
+    /// [in][optional] pointer to execution info properties
+    const ur_kernel_exec_info_properties_t *pProperties,
+    /// [in][range(0, propSize)] pointer to memory location holding the property
+    /// value.
+    const void *pPropValue) try {
   std::ignore = propSize;
   std::ignore = pProperties;
 
@@ -473,17 +479,20 @@ ur_result_t urKernelSetExecInfo(
 }
 
 ur_result_t urKernelGetGroupInfo(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
-    ur_device_handle_t hDevice, ///< [in] handle of the Device object
-    ur_kernel_group_info_t
-        paramName, ///< [in] name of the work Group property to query
-    size_t
-        paramValueSize, ///< [in] size of the Kernel Work Group property value
-    void *pParamValue,  ///< [in,out][optional][range(0, propSize)] value of the
-                        ///< Kernel Work Group property.
-    size_t *pParamValueSizeRet ///< [out][optional] pointer to the actual size
-                               ///< in bytes of data being queried by propName.
-    ) try {
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the work Group property to query
+    ur_kernel_group_info_t paramName,
+    /// [in] size of the Kernel Work Group property value
+    size_t paramValueSize,
+    /// [in,out][optional][range(0, propSize)] value of the Kernel Work Group
+    /// property.
+    void *pParamValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pParamValueSizeRet) try {
   UrReturnHelper returnValue(paramValueSize, pParamValue, pParamValueSizeRet);
 
   // No locking needed here, we only read const members
@@ -555,16 +564,20 @@ ur_result_t urKernelGetGroupInfo(
 }
 
 ur_result_t urKernelGetSubGroupInfo(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
-    ur_device_handle_t hDevice, ///< [in] handle of the Device object
-    ur_kernel_sub_group_info_t
-        propName,     ///< [in] name of the SubGroup property to query
-    size_t propSize,  ///< [in] size of the Kernel SubGroup property value
-    void *pPropValue, ///< [in,out][range(0, propSize)][optional] value of the
-                      ///< Kernel SubGroup property.
-    size_t *pPropSizeRet ///< [out][optional] pointer to the actual size in
-                         ///< bytes of data being queried by propName.
-    ) try {
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the SubGroup property to query
+    ur_kernel_sub_group_info_t propName,
+    /// [in] size of the Kernel SubGroup property value
+    size_t propSize,
+    /// [in,out][range(0, propSize)][optional] value of the Kernel SubGroup
+    /// property.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) try {
   UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
 
   auto props = hKernel->getProperties(hDevice);

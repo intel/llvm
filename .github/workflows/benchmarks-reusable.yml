@@ -34,6 +34,10 @@ on:
         required: false
         type: boolean
         default: false
+      compute_runtime_commit:
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -200,6 +204,7 @@ jobs:
         --ur ${{ github.workspace }}/ur_install
         --umf ${{ github.workspace }}/umf_build
         --adapter ${{ matrix.adapter.str_name }}
+        --compute-runtime ${{ inputs.compute_runtime_commit }}
         ${{ inputs.upload_report && '--output-html' || '' }}
         ${{ inputs.bench_script_params }}
 

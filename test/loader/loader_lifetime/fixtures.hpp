@@ -1,6 +1,7 @@
 // Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// See LICENSE.TXT
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
+//
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef UR_LOADER_CONFIG_TEST_FIXTURES_H
@@ -17,11 +18,11 @@
 /// @brief Make a string a valid identifier for gtest.
 /// @param str The string to sanitize.
 inline std::string GTestSanitizeString(const std::string &str) {
-    auto str_cpy = str;
-    std::replace_if(
-        str_cpy.begin(), str_cpy.end(), [](char c) { return !std::isalnum(c); },
-        '_');
-    return str_cpy;
+  auto str_cpy = str;
+  std::replace_if(
+      str_cpy.begin(), str_cpy.end(), [](char c) { return !std::isalnum(c); },
+      '_');
+  return str_cpy;
 }
 
 #endif

@@ -478,24 +478,28 @@ static ur_result_t enqueueMemImageCommandHelper(
 namespace ur::level_zero {
 
 ur_result_t urEnqueueMemBufferRead(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
-    bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
-    size_t offset,     ///< [in] offset in bytes in the buffer object
-    size_t size,       ///< [in] size in bytes of data being read
-    void *pDst, ///< [in] pointer to host memory where data is to be read into
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingRead,
+    /// [in] offset in bytes in the buffer object
+    size_t offset,
+    /// [in] size in bytes of data being read
+    size_t size,
+    /// [in] pointer to host memory where data is to be read into
+    void *pDst,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *phEvent) {
   ur_mem_handle_t_ *Src = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Src->Mutex, std::defer_lock);
@@ -513,26 +517,28 @@ ur_result_t urEnqueueMemBufferRead(
 }
 
 ur_result_t urEnqueueMemBufferWrite(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
-    bool
-        blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
-    size_t offset,     ///< [in] offset in bytes in the buffer object
-    size_t size,       ///< [in] size in bytes of data being written
-    const void
-        *pSrc, ///< [in] pointer to host memory where data is to be written from
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingWrite,
+    /// [in] offset in bytes in the buffer object
+    size_t offset,
+    /// [in] size in bytes of data being written
+    size_t size,
+    /// [in] pointer to host memory where data is to be written from
+    const void *pSrc,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *phEvent) {
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
@@ -551,34 +557,40 @@ ur_result_t urEnqueueMemBufferWrite(
 }
 
 ur_result_t urEnqueueMemBufferReadRect(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
-    bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region
-    ur_rect_region_t
-        region, ///< [in] 3D rectangular region descriptor: width, height, depth
-    size_t bufferRowPitch,   ///< [in] length of each row in bytes in the buffer
-                             ///< object
-    size_t bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                             ///< buffer object being read
-    size_t hostRowPitch,     ///< [in] length of each row in bytes in the host
-                             ///< memory region pointed by dst
-    size_t hostSlicePitch,   ///< [in] length of each 2D slice in bytes in the
-                             ///< host memory region pointed by dst
-    void *pDst, ///< [in] pointer to host memory where data is to be read into
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< pointer to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingRead,
+    /// [in] 3D offset in the buffer
+    ur_rect_offset_t bufferOffset,
+    /// [in] 3D offset in the host region
+    ur_rect_offset_t hostOffset,
+    /// [in] 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t region,
+    /// [in] length of each row in bytes in the buffer object
+    size_t bufferRowPitch,
+    /// [in] length of each 2D slice in bytes in the buffer object being read
+    size_t bufferSlicePitch,
+    /// [in] length of each row in bytes in the host memory region pointed by
+    /// dst
+    size_t hostRowPitch,
+    /// [in] length of each 2D slice in bytes in the host memory region pointed
+    /// by dst
+    size_t hostSlicePitch,
+    /// [in] pointer to host memory where data is to be read into
+    void *pDst,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *phEvent) {
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Buffer->Mutex, std::defer_lock);
@@ -597,36 +609,40 @@ ur_result_t urEnqueueMemBufferReadRect(
 }
 
 ur_result_t urEnqueueMemBufferWriteRect(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
-    bool
-        blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer
-    ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region
-    ur_rect_region_t
-        region, ///< [in] 3D rectangular region descriptor: width, height, depth
-    size_t bufferRowPitch,   ///< [in] length of each row in bytes in the buffer
-                             ///< object
-    size_t bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                             ///< buffer object being written
-    size_t hostRowPitch,     ///< [in] length of each row in bytes in the host
-                             ///< memory region pointed by src
-    size_t hostSlicePitch,   ///< [in] length of each 2D slice in bytes in the
-                             ///< host memory region pointed by src
-    void
-        *pSrc, ///< [in] pointer to host memory where data is to be written from
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                          ///< points to a list of events that must be complete
-                          ///< before this command can be executed. If nullptr,
-                          ///< the numEventsInWaitList must be 0, indicating
-                          ///< that this command does not wait on any event to
-                          ///< complete.
-    ur_event_handle_t
-        *phEvent ///< [in,out][optional] return an event object that identifies
-                 ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool blockingWrite,
+    /// [in] 3D offset in the buffer
+    ur_rect_offset_t bufferOffset,
+    /// [in] 3D offset in the host region
+    ur_rect_offset_t hostOffset,
+    /// [in] 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t region,
+    /// [in] length of each row in bytes in the buffer object
+    size_t bufferRowPitch,
+    /// [in] length of each 2D slice in bytes in the buffer object being written
+    size_t bufferSlicePitch,
+    /// [in] length of each row in bytes in the host memory region pointed by
+    /// src
+    size_t hostRowPitch,
+    /// [in] length of each 2D slice in bytes in the host memory region pointed
+    /// by src
+    size_t hostSlicePitch,
+    /// [in] pointer to host memory where data is to be written from
+    void *pSrc,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] points to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *phEvent) {
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
@@ -645,24 +661,28 @@ ur_result_t urEnqueueMemBufferWriteRect(
 }
 
 ur_result_t urEnqueueMemBufferCopy(
-    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
-    ur_mem_handle_t BufferSrc, ///< [in] handle of the src buffer object
-    ur_mem_handle_t BufferDst, ///< [in] handle of the dest buffer object
-    size_t SrcOffset, ///< [in] offset into hBufferSrc to begin copying from
-    size_t DstOffset, ///< [in] offset info hBufferDst to begin copying into
-    size_t Size,      ///< [in] size in bytes of data being copied
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the src buffer object
+    ur_mem_handle_t BufferSrc,
+    /// [in] handle of the dest buffer object
+    ur_mem_handle_t BufferDst,
+    /// [in] offset into hBufferSrc to begin copying from
+    size_t SrcOffset,
+    /// [in] offset info hBufferDst to begin copying into
+    size_t DstOffset,
+    /// [in] size in bytes of data being copied
+    size_t Size,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   _ur_buffer *SrcBuffer = ur_cast<_ur_buffer *>(BufferSrc);
   _ur_buffer *DstBuffer = ur_cast<_ur_buffer *>(BufferDst);
 
@@ -698,33 +718,36 @@ ur_result_t urEnqueueMemBufferCopy(
 }
 
 ur_result_t urEnqueueMemBufferCopyRect(
-    ur_queue_handle_t Queue,    ///< [in] handle of the queue object
-    ur_mem_handle_t BufferSrc,  ///< [in] handle of the source buffer object
-    ur_mem_handle_t BufferDst,  ///< [in] handle of the dest buffer object
-    ur_rect_offset_t SrcOrigin, ///< [in] 3D offset in the source buffer
-    ur_rect_offset_t DstOrigin, ///< [in] 3D offset in the destination buffer
-    ur_rect_region_t SrcRegion, ///< [in] source 3D rectangular region
-                                ///< descriptor: width, height, depth
-    size_t SrcRowPitch,   ///< [in] length of each row in bytes in the source
-                          ///< buffer object
-    size_t SrcSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                          ///< source buffer object
-    size_t DstRowPitch, ///< [in] length of each row in bytes in the destination
-                        ///< buffer object
-    size_t DstSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                          ///< destination buffer object
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the source buffer object
+    ur_mem_handle_t BufferSrc,
+    /// [in] handle of the dest buffer object
+    ur_mem_handle_t BufferDst,
+    /// [in] 3D offset in the source buffer
+    ur_rect_offset_t SrcOrigin,
+    /// [in] 3D offset in the destination buffer
+    ur_rect_offset_t DstOrigin,
+    /// [in] source 3D rectangular region descriptor: width, height, depth
+    ur_rect_region_t SrcRegion,
+    /// [in] length of each row in bytes in the source buffer object
+    size_t SrcRowPitch,
+    /// [in] length of each 2D slice in bytes in the source buffer object
+    size_t SrcSlicePitch,
+    /// [in] length of each row in bytes in the destination buffer object
+    size_t DstRowPitch,
+    /// [in] length of each 2D slice in bytes in the destination buffer object
+    size_t DstSlicePitch,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   _ur_buffer *SrcBuffer = ur_cast<_ur_buffer *>(BufferSrc);
   _ur_buffer *DstBuffer = ur_cast<_ur_buffer *>(BufferDst);
 
@@ -758,24 +781,28 @@ ur_result_t urEnqueueMemBufferCopyRect(
 }
 
 ur_result_t urEnqueueMemBufferFill(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Buffer,  ///< [in] handle of the buffer object
-    const void *Pattern,     ///< [in] pointer to the fill pattern
-    size_t PatternSize,      ///< [in] size in bytes of the pattern
-    size_t Offset,           ///< [in] offset into the buffer
-    size_t Size, ///< [in] fill size in bytes, must be a multiple of patternSize
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the buffer object
+    ur_mem_handle_t Buffer,
+    /// [in] pointer to the fill pattern
+    const void *Pattern,
+    /// [in] size in bytes of the pattern
+    size_t PatternSize,
+    /// [in] offset into the buffer
+    size_t Offset,
+    /// [in] fill size in bytes, must be a multiple of patternSize
+    size_t Size,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Buffer->Mutex);
 
@@ -792,28 +819,33 @@ ur_result_t urEnqueueMemBufferFill(
 }
 
 ur_result_t urEnqueueMemImageRead(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Image,   ///< [in] handle of the image object
-    bool BlockingRead, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t Origin, ///< [in] defines the (x,y,z) offset in pixels in
-                             ///< the 1D, 2D, or 3D image
-    ur_rect_region_t Region, ///< [in] defines the (width, height, depth) in
-                             ///< pixels of the 1D, 2D, or 3D image
-    size_t RowPitch,         ///< [in] length of each row in bytes
-    size_t SlicePitch,       ///< [in] length of each 2D slice of the 3D image
-    void *Dst, ///< [in] pointer to host memory where image is to be read into
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the image object
+    ur_mem_handle_t Image,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool BlockingRead,
+    /// [in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image
+    ur_rect_offset_t Origin,
+    /// [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+    /// image
+    ur_rect_region_t Region,
+    /// [in] length of each row in bytes
+    size_t RowPitch,
+    /// [in] length of each 2D slice of the 3D image
+    size_t SlicePitch,
+    /// [in] pointer to host memory where image is to be read into
+    void *Dst,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Image->Mutex);
   return enqueueMemImageCommandHelper(
@@ -823,29 +855,33 @@ ur_result_t urEnqueueMemImageRead(
 }
 
 ur_result_t urEnqueueMemImageWrite(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Image,   ///< [in] handle of the image object
-    bool
-        BlockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_rect_offset_t Origin, ///< [in] defines the (x,y,z) offset in pixels in
-                             ///< the 1D, 2D, or 3D image
-    ur_rect_region_t Region, ///< [in] defines the (width, height, depth) in
-                             ///< pixels of the 1D, 2D, or 3D image
-    size_t RowPitch,         ///< [in] length of each row in bytes
-    size_t SlicePitch,       ///< [in] length of each 2D slice of the 3D image
-    void *Src, ///< [in] pointer to host memory where image is to be read into
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the image object
+    ur_mem_handle_t Image,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool BlockingWrite,
+    /// [in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image
+    ur_rect_offset_t Origin,
+    /// [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+    /// image
+    ur_rect_region_t Region,
+    /// [in] length of each row in bytes
+    size_t RowPitch,
+    /// [in] length of each 2D slice of the 3D image
+    size_t SlicePitch,
+    /// [in] pointer to host memory where image is to be read into
+    void *Src,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Image->Mutex);
   return enqueueMemImageCommandHelper(
@@ -855,27 +891,31 @@ ur_result_t urEnqueueMemImageWrite(
 }
 
 ur_result_t urEnqueueMemImageCopy(
-    ur_queue_handle_t Queue,    ///< [in] handle of the queue object
-    ur_mem_handle_t ImageSrc,   ///< [in] handle of the src image object
-    ur_mem_handle_t ImageDst,   ///< [in] handle of the dest image object
-    ur_rect_offset_t SrcOrigin, ///< [in] defines the (x,y,z) offset in pixels
-                                ///< in the source 1D, 2D, or 3D image
-    ur_rect_offset_t DstOrigin, ///< [in] defines the (x,y,z) offset in pixels
-                                ///< in the destination 1D, 2D, or 3D image
-    ur_rect_region_t Region,    ///< [in] defines the (width, height, depth) in
-                                ///< pixels of the 1D, 2D, or 3D image
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the src image object
+    ur_mem_handle_t ImageSrc,
+    /// [in] handle of the dest image object
+    ur_mem_handle_t ImageDst,
+    /// [in] defines the (x,y,z) offset in pixels in the source 1D, 2D, or 3D
+    /// image
+    ur_rect_offset_t SrcOrigin,
+    /// [in] defines the (x,y,z) offset in pixels in the destination 1D, 2D, or
+    /// 3D image
+    ur_rect_offset_t DstOrigin,
+    /// [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+    /// image
+    ur_rect_region_t Region,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   std::shared_lock<ur_shared_mutex> SrcLock(ImageSrc->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex,
                    ur_shared_mutex>
@@ -894,26 +934,31 @@ ur_result_t urEnqueueMemImageCopy(
 }
 
 ur_result_t urEnqueueMemBufferMap(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Buf,     ///< [in] handle of the buffer object
-    bool BlockingMap, ///< [in] indicates blocking (true), non-blocking (false)
-    ur_map_flags_t MapFlags, ///< [in] flags for read, write, readwrite mapping
-    size_t Offset, ///< [in] offset in bytes of the buffer region being mapped
-    size_t Size,   ///< [in] size in bytes of the buffer region being mapped
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent, ///< [in,out][optional] return an event object that
-                   ///< identifies this particular command instance.
-    void **RetMap  ///< [in,out] return mapped pointer.  TODO: move it before
-                   ///< numEventsInWaitList?
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the buffer object
+    ur_mem_handle_t Buf,
+    /// [in] indicates blocking (true), non-blocking (false)
+    bool BlockingMap,
+    /// [in] flags for read, write, readwrite mapping
+    ur_map_flags_t MapFlags,
+    /// [in] offset in bytes of the buffer region being mapped
+    size_t Offset,
+    /// [in] size in bytes of the buffer region being mapped
+    size_t Size,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent,
+    /// [in,out] return mapped pointer. TODO: move it before
+    /// numEventsInWaitList?
+    void **RetMap) {
   auto Buffer = ur_cast<_ur_buffer *>(Buf);
 
   UR_ASSERT(!Buffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -1066,21 +1111,22 @@ ur_result_t urEnqueueMemBufferMap(
 }
 
 ur_result_t urEnqueueMemUnmap(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    ur_mem_handle_t Mem, ///< [in] handle of the memory (buffer or image) object
-    void *MappedPtr,     ///< [in] mapped host address
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the memory (buffer or image) object
+    ur_mem_handle_t Mem,
+    /// [in] mapped host address
+    void *MappedPtr,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   UR_ASSERT(!Mem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   auto Buffer = ur_cast<_ur_buffer *>(Mem);
@@ -1197,23 +1243,26 @@ ur_result_t urEnqueueMemUnmap(
 }
 
 ur_result_t urEnqueueUSMMemcpy(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    bool Blocking,           ///< [in] blocking or non-blocking copy
-    void *Dst,       ///< [in] pointer to the destination USM memory object
-    const void *Src, ///< [in] pointer to the source USM memory object
-    size_t Size,     ///< [in] size in bytes to be copied
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] blocking or non-blocking copy
+    bool Blocking,
+    /// [in] pointer to the destination USM memory object
+    void *Dst,
+    /// [in] pointer to the source USM memory object
+    const void *Src,
+    /// [in] size in bytes to be copied
+    size_t Size,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   return enqueueMemCopyHelper( // TODO: do we need a new command type for this?
@@ -1223,22 +1272,24 @@ ur_result_t urEnqueueUSMMemcpy(
 }
 
 ur_result_t urEnqueueUSMPrefetch(
-    ur_queue_handle_t Queue,        ///< [in] handle of the queue object
-    const void *Mem,                ///< [in] pointer to the USM memory object
-    size_t Size,                    ///< [in] size in bytes to be fetched
-    ur_usm_migration_flags_t Flags, ///< [in] USM prefetch flags
-    uint32_t NumEventsInWaitList,   ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before this command can be executed. If nullptr,
-                        ///< the numEventsInWaitList must be 0, indicating
-                        ///< that this command does not wait on any event to
-                        ///< complete.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] pointer to the USM memory object
+    const void *Mem,
+    /// [in] size in bytes to be fetched
+    size_t Size,
+    /// [in] USM prefetch flags
+    ur_usm_migration_flags_t Flags,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   std::ignore = Flags;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
@@ -1293,14 +1344,17 @@ ur_result_t urEnqueueUSMPrefetch(
 }
 
 ur_result_t urEnqueueUSMAdvise(
-    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
-    const void *Mem,              ///< [in] pointer to the USM memory object
-    size_t Size,                  ///< [in] size in bytes to be advised
-    ur_usm_advice_flags_t Advice, ///< [in] USM memory advice
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] pointer to the USM memory object
+    const void *Mem,
+    /// [in] size in bytes to be advised
+    size_t Size,
+    /// [in] USM memory advice
+    ur_usm_advice_flags_t Advice,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular command instance.
+    ur_event_handle_t *OutEvent) {
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -1353,25 +1407,30 @@ ur_result_t urEnqueueUSMAdvise(
 }
 
 ur_result_t urEnqueueUSMFill2D(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
-    void *Mem,               ///< [in] pointer to memory to be filled.
-    size_t Pitch, ///< [in] the total width of the destination memory including
-                  ///< padding.
-    size_t PatternSize,  ///< [in] the size in bytes of the pattern.
-    const void *Pattern, ///< [in] pointer with the bytes of the pattern to set.
-    size_t Width,        ///< [in] the width in bytes of each row to fill.
-    size_t Height,       ///< [in] the height of the columns to fill.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
-    ur_event_handle_t
-        *OutEvent ///< [in,out][optional] return an event object that identifies
-                  ///< this particular kernel execution instance.
-) {
+    /// [in] handle of the queue to submit to.
+    ur_queue_handle_t Queue,
+    /// [in] pointer to memory to be filled.
+    void *Mem,
+    /// [in] the total width of the destination memory including padding.
+    size_t Pitch,
+    /// [in] the size in bytes of the pattern.
+    size_t PatternSize,
+    /// [in] pointer with the bytes of the pattern to set.
+    const void *Pattern,
+    /// [in] the width in bytes of each row to fill.
+    size_t Width,
+    /// [in] the height of the columns to fill.
+    size_t Height,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *OutEvent) {
   std::ignore = Queue;
   std::ignore = Mem;
   std::ignore = Pitch;
@@ -1388,27 +1447,32 @@ ur_result_t urEnqueueUSMFill2D(
 }
 
 ur_result_t urEnqueueUSMMemcpy2D(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
-    bool Blocking, ///< [in] indicates if this operation should block the host.
-    void *Dst,     ///< [in] pointer to memory where data will be copied.
-    size_t DstPitch, ///< [in] the total width of the source memory including
-                     ///< padding.
-    const void *Src, ///< [in] pointer to memory to be copied.
-    size_t SrcPitch, ///< [in] the total width of the source memory including
-                     ///< padding.
-    size_t Width,    ///< [in] the width in bytes of each row to be copied.
-    size_t Height,   ///< [in] the height of columns to be copied.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t
-        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                        ///< pointer to a list of events that must be complete
-                        ///< before the kernel execution. If nullptr, the
-                        ///< numEventsInWaitList must be 0, indicating that no
-                        ///< wait event.
-    ur_event_handle_t
-        *Event ///< [in,out][optional] return an event object that identifies
-               ///< this particular kernel execution instance.
-) {
+    /// [in] handle of the queue to submit to.
+    ur_queue_handle_t Queue,
+    /// [in] indicates if this operation should block the host.
+    bool Blocking,
+    /// [in] pointer to memory where data will be copied.
+    void *Dst,
+    /// [in] the total width of the source memory including padding.
+    size_t DstPitch,
+    /// [in] pointer to memory to be copied.
+    const void *Src,
+    /// [in] the total width of the source memory including padding.
+    size_t SrcPitch,
+    /// [in] the width in bytes of each row to be copied.
+    size_t Width,
+    /// [in] the height of columns to be copied.
+    size_t Height,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *Event) {
   ur_rect_offset_t ZeroOffset{0, 0, 0};
   ur_rect_region_t Region{Width, Height, 0};
 
@@ -1501,14 +1565,18 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
 }
 
 ur_result_t urMemImageCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
-    const ur_image_format_t
-        *ImageFormat, ///< [in] pointer to image format specification
-    const ur_image_desc_t *ImageDesc, ///< [in] pointer to image description
-    void *Host,                       ///< [in] pointer to the buffer data
-    ur_mem_handle_t *Mem ///< [out] pointer to handle of image object created
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] allocation and usage information flags
+    ur_mem_flags_t Flags,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *ImageFormat,
+    /// [in] pointer to image description
+    const ur_image_desc_t *ImageDesc,
+    /// [in] pointer to the buffer data
+    void *Host,
+    /// [out] pointer to handle of image object created
+    ur_mem_handle_t *Mem) {
   // TODO: implement read-only, write-only
   if ((Flags & UR_MEM_FLAG_READ_WRITE) == 0) {
     die("urMemImageCreate: Level-Zero implements only read-write buffer,"
@@ -1550,16 +1618,16 @@ ur_result_t urMemImageCreate(
 }
 
 ur_result_t urMemImageCreateWithNativeHandle(
-    ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t Context,  ///< [in] handle of the context object.
-    [[maybe_unused]] const ur_image_format_t
-        *ImageFormat, ///< [in] pointer to image format specification.
-    [[maybe_unused]] const ur_image_desc_t
-        *ImageDesc, ///< [in] pointer to image description.
-    const ur_mem_native_properties_t
-        *Properties, ///< [in][optional] pointer to native memory creation
-                     ///< properties.
-    ur_mem_handle_t *Mem) {
+    /// [in] the native handle to the memory.
+    ur_native_handle_t NativeMem,
+    /// [in] handle of the context object.
+    ur_context_handle_t Context,
+    /// [in] pointer to image format specification.
+    [[maybe_unused]] const ur_image_format_t *ImageFormat,
+    /// [in] pointer to image description.
+    [[maybe_unused]] const ur_image_desc_t *ImageDesc,
+    /// [in][optional] pointer to native memory creation properties.
+    const ur_mem_native_properties_t *Properties, ur_mem_handle_t *Mem) {
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
   ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
@@ -1578,13 +1646,14 @@ ur_result_t urMemImageCreateWithNativeHandle(
 }
 
 ur_result_t urMemBufferCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
-    size_t Size, ///< [in] size in bytes of the memory object to be allocated
-    const ur_buffer_properties_t *Properties,
-    ur_mem_handle_t
-        *RetBuffer ///< [out] pointer to handle of the memory buffer created
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] allocation and usage information flags
+    ur_mem_flags_t Flags,
+    /// [in] size in bytes of the memory object to be allocated
+    size_t Size, const ur_buffer_properties_t *Properties,
+    /// [out] pointer to handle of the memory buffer created
+    ur_mem_handle_t *RetBuffer) {
   if (Flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
     // pinned host memory, see:
@@ -1653,15 +1722,15 @@ ur_result_t urMemBufferCreate(
 }
 
 ur_result_t urMemRetain(
-    ur_mem_handle_t Mem ///< [in] handle of the memory object to get access
-) {
+    /// [in] handle of the memory object to get access
+    ur_mem_handle_t Mem) {
   Mem->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemRelease(
-    ur_mem_handle_t Mem ///< [in] handle of the memory object to release
-) {
+    /// [in] handle of the memory object to release
+    ur_mem_handle_t Mem) {
   if (!Mem->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
@@ -1687,15 +1756,17 @@ ur_result_t urMemRelease(
 }
 
 ur_result_t urMemBufferPartition(
-    ur_mem_handle_t
-        Buffer,           ///< [in] handle of the buffer object to allocate from
-    ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
-    ur_buffer_create_type_t BufferCreateType, ///< [in] buffer creation type
-    const ur_buffer_region_t
-        *BufferCreateInfo, ///< [in] pointer to buffer create region information
-    ur_mem_handle_t
-        *RetMem ///< [out] pointer to the handle of sub buffer created
-) {
+
+    /// [in] handle of the buffer object to allocate from
+    ur_mem_handle_t Buffer,
+    /// [in] allocation and usage information flags
+    ur_mem_flags_t Flags,
+    /// [in] buffer creation type
+    ur_buffer_create_type_t BufferCreateType,
+    /// [in] pointer to buffer create region information
+    const ur_buffer_region_t *BufferCreateInfo,
+    /// [out] pointer to the handle of sub buffer created
+    ur_mem_handle_t *RetMem) {
   std::ignore = BufferCreateType;
   UR_ASSERT(Buffer && !Buffer->isImage() &&
                 !(static_cast<_ur_buffer *>(Buffer))->isSubBuffer(),
@@ -1723,11 +1794,12 @@ ur_result_t urMemBufferPartition(
 }
 
 ur_result_t urMemGetNativeHandle(
-    ur_mem_handle_t Mem, ///< [in] handle of the mem.
-    ur_device_handle_t,  ///< [in] handle of the device.
-    ur_native_handle_t
-        *NativeMem ///< [out] a pointer to the native handle of the mem.
-) {
+    /// [in] handle of the mem.
+    ur_mem_handle_t Mem,
+    /// [in] handle of the device.
+    ur_device_handle_t,
+    /// [out] a pointer to the native handle of the mem.
+    ur_native_handle_t *NativeMem) {
   std::shared_lock<ur_shared_mutex> Guard(Mem->Mutex);
   char *ZeHandle = nullptr;
   UR_CALL(Mem->getZeHandle(ZeHandle, ur_mem_handle_t_::read_write, nullptr,
@@ -1738,14 +1810,14 @@ ur_result_t urMemGetNativeHandle(
 }
 
 ur_result_t urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t Context,  ///< [in] handle of the context object.
-    const ur_mem_native_properties_t
-        *Properties, ///< [in][optional] pointer to native memory creation
-                     ///< properties.
-    ur_mem_handle_t
-        *Mem ///< [out] pointer to handle of buffer memory object created.
-) {
+    /// [in] the native handle to the memory.
+    ur_native_handle_t NativeMem,
+    /// [in] handle of the context object.
+    ur_context_handle_t Context,
+    /// [in][optional] pointer to native memory creation properties.
+    const ur_mem_native_properties_t *Properties,
+    /// [out] pointer to handle of buffer memory object created.
+    ur_mem_handle_t *Mem) {
   bool OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
 
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
@@ -1832,18 +1904,20 @@ ur_result_t urMemBufferCreateWithNativeHandle(
 }
 
 ur_result_t urMemGetInfo(
-    ur_mem_handle_t Memory, ///< [in] handle to the memory object being queried.
-    ur_mem_info_t MemInfoType, ///< [in] type of the info to retrieve.
-    size_t PropSize, ///< [in] the number of bytes of memory pointed to by
-                     ///< pMemInfo.
-    void *MemInfo,   ///< [out][optional] array of bytes holding the info.
-                     ///< If propSize is less than the real number of bytes
-                     ///< needed to return the info then the
-                     ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                     ///< pMemInfo is not used.
-    size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
-                        ///< bytes of data queried by pMemInfo.
-) {
+    /// [in] handle to the memory object being queried.
+    ur_mem_handle_t Memory,
+    /// [in] type of the info to retrieve.
+    ur_mem_info_t MemInfoType,
+    /// [in] the number of bytes of memory pointed to by pMemInfo.
+    size_t PropSize,
+    /// [out][optional] array of bytes holding the info. If propSize is less
+    /// than the real number of bytes needed to return the info then the
+    /// ::UR_RESULT_ERROR_INVALID_SIZE error is returned and pMemInfo is not
+    /// used.
+    void *MemInfo,
+    /// [out][optional] pointer to the actual size in bytes of data queried by
+    /// pMemInfo.
+    size_t *PropSizeRet) {
   auto Buffer = reinterpret_cast<_ur_buffer *>(Memory);
   std::shared_lock<ur_shared_mutex> Lock(Buffer->Mutex);
   UrReturnHelper ReturnValue(PropSize, MemInfo, PropSizeRet);
@@ -1868,18 +1942,20 @@ ur_result_t urMemGetInfo(
 }
 
 ur_result_t urMemImageGetInfo(
-    ur_mem_handle_t Memory, ///< [in] handle to the image object being queried.
-    ur_image_info_t ImgInfoType, ///< [in] type of image info to retrieve.
-    size_t PropSize, ///< [in] the number of bytes of memory pointer to by
-                     ///< pImgInfo.
-    void *ImgInfo,   ///< [out][optional] array of bytes holding the info.
-                     ///< If propSize is less than the real number of bytes
-                     ///< needed to return the info then the
-                     ///< ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                     ///< pImgInfo is not used.
-    size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
-                        ///< bytes of data queried by pImgInfo.
-) {
+    /// [in] handle to the image object being queried.
+    ur_mem_handle_t Memory,
+    /// [in] type of image info to retrieve.
+    ur_image_info_t ImgInfoType,
+    /// [in] the number of bytes of memory pointer to by pImgInfo.
+    size_t PropSize,
+    /// [out][optional] array of bytes holding the info. If propSize is less
+    /// than the real number of bytes needed to return the info then the
+    /// ::UR_RESULT_ERROR_INVALID_SIZE error is returned and pImgInfo is not
+    /// used.
+    void *ImgInfo,
+    /// [out][optional] pointer to the actual size in bytes of data queried by
+    /// pImgInfo.
+    size_t *PropSizeRet) {
   std::ignore = Memory;
   std::ignore = ImgInfoType;
   std::ignore = PropSize;
@@ -1891,23 +1967,27 @@ ur_result_t urMemImageGetInfo(
 }
 
 ur_result_t urEnqueueUSMFill(
-    ur_queue_handle_t Queue, ///< [in] handle of the queue object
-    void *Ptr,               ///< [in] pointer to USM memory object
-    size_t PatternSize,  ///< [in] the size in bytes of the pattern. Must be a
-                         ///< power of 2 and less than or equal to width.
-    const void *Pattern, ///< [in] pointer with the bytes of the pattern to set.
-    size_t Size, ///< [in] size in bytes to be set. Must be a multiple of
-                 ///< patternSize.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t *
-        EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                       ///< pointer to a list of events that must be complete
-                       ///< before this command can be executed. If nullptr, the
-                       ///< numEventsInWaitList must be 0, indicating that this
-                       ///< command does not wait on any event to complete.
-    ur_event_handle_t *Event ///< [out][optional] return an event object that
-                             ///< identifies this particular command instance.
-) {
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] pointer to USM memory object
+    void *Ptr,
+    /// [in] the size in bytes of the pattern. Must be a power of 2 and less
+    /// than or equal to width.
+    size_t PatternSize,
+    /// [in] pointer with the bytes of the pattern to set.
+    const void *Pattern,
+    /// [in] size in bytes to be set. Must be a multiple of patternSize.
+    size_t Size,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *EventWaitList,
+    /// [out][optional] return an event object that identifies this particular
+    /// command instance.
+    ur_event_handle_t *Event) {
   std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
 
   return enqueueMemFillHelper(

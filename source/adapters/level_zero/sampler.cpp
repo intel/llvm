@@ -15,13 +15,13 @@
 namespace ur::level_zero {
 
 ur_result_t urSamplerCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    const ur_sampler_desc_t
-        *Props, ///< [in] specifies a list of sampler property names and their
-                ///< corresponding values.
-    ur_sampler_handle_t
-        *Sampler ///< [out] pointer to handle of sampler object created
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] specifies a list of sampler property names and their
+    /// corresponding values.
+    const ur_sampler_desc_t *Props,
+    /// [out] pointer to handle of sampler object created
+    ur_sampler_handle_t *Sampler) {
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
   // Have the "0" device in context to own the sampler. Rely on Level-Zero
@@ -111,18 +111,16 @@ ur_result_t urSamplerCreate(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urSamplerRetain(ur_sampler_handle_t
-                    Sampler ///< [in] handle of the sampler object to get access
-) {
+ur_result_t urSamplerRetain(
+    /// [in] handle of the sampler object to get access
+    ur_sampler_handle_t Sampler) {
   Sampler->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urSamplerRelease(ur_sampler_handle_t
-                     Sampler ///< [in] handle of the sampler object to release
-) {
+ur_result_t urSamplerRelease(
+    /// [in] handle of the sampler object to release
+    ur_sampler_handle_t Sampler) {
   if (!Sampler->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
@@ -136,14 +134,16 @@ urSamplerRelease(ur_sampler_handle_t
 }
 
 ur_result_t urSamplerGetInfo(
-    ur_sampler_handle_t Sampler, ///< [in] handle of the sampler object
-    ur_sampler_info_t PropName,  ///< [in] name of the sampler property to query
-    size_t PropValueSize, ///< [in] size in bytes of the sampler property value
-                          ///< provided
-    void *PropValue,      ///< [out] value of the sampler property
-    size_t
-        *PropSizeRet ///< [out] size in bytes returned in sampler property value
-) {
+    /// [in] handle of the sampler object
+    ur_sampler_handle_t Sampler,
+    /// [in] name of the sampler property to query
+    ur_sampler_info_t PropName,
+    /// [in] size in bytes of the sampler property value provided
+    size_t PropValueSize,
+    /// [out] value of the sampler property
+    void *PropValue,
+    /// [out] size in bytes returned in sampler property value
+    size_t *PropSizeRet) {
   std::ignore = Sampler;
   std::ignore = PropName;
   std::ignore = PropValueSize;
@@ -155,10 +155,10 @@ ur_result_t urSamplerGetInfo(
 }
 
 ur_result_t urSamplerGetNativeHandle(
-    ur_sampler_handle_t Sampler,      ///< [in] handle of the sampler.
-    ur_native_handle_t *NativeSampler ///< [out] a pointer to the native
-                                      ///< handle of the sampler.
-) {
+    /// [in] handle of the sampler.
+    ur_sampler_handle_t Sampler,
+    /// [out] a pointer to the native handle of the sampler.
+    ur_native_handle_t *NativeSampler) {
   std::ignore = Sampler;
   std::ignore = NativeSampler;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
@@ -167,15 +167,14 @@ ur_result_t urSamplerGetNativeHandle(
 }
 
 ur_result_t urSamplerCreateWithNativeHandle(
-    ur_native_handle_t
-        NativeSampler,           ///< [in] the native handle of the sampler.
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    const ur_sampler_native_properties_t
-        *Properties, ///< [in][optional] pointer to native sampler properties
-                     ///< struct.
-    ur_sampler_handle_t *Sampler ///< [out] pointer to the handle of the
-                                 ///< sampler object created.
-) {
+    /// [in] the native handle of the sampler.
+    ur_native_handle_t NativeSampler,
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in][optional] pointer to native sampler properties struct.
+    const ur_sampler_native_properties_t *Properties,
+    /// [out] pointer to the handle of the sampler object created.
+    ur_sampler_handle_t *Sampler) {
   std::ignore = NativeSampler;
   std::ignore = Context;
   std::ignore = Properties;

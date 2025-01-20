@@ -32,7 +32,7 @@ public:
   event_pool(ur_context_handle_t hContext,
              std::unique_ptr<event_provider> Provider)
       : hContext(hContext), provider(std::move(Provider)),
-        mutex(std::make_unique<std::mutex>()){};
+        mutex(std::make_unique<std::mutex>()) {};
 
   event_pool(event_pool &&other) = default;
   event_pool &operator=(event_pool &&other) = default;

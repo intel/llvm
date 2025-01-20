@@ -322,15 +322,16 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
 namespace ur::level_zero {
 
 ur_result_t urUSMHostAlloc(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    const ur_usm_desc_t
-        *USMDesc, ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t Pool, ///< [in][optional] Pointer to a pool created
-                               ///< using urUSMPoolCreate
-    size_t
-        Size, ///< [in] size in bytes of the USM memory object to be allocated
-    void **RetMem ///< [out] pointer to USM host memory object
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t *USMDesc,
+    /// [in][optional] Pointer to a pool created using urUSMPoolCreate
+    ur_usm_pool_handle_t Pool,
+    /// [in] size in bytes of the USM memory object to be allocated
+    size_t Size,
+    /// [out] pointer to USM host memory object
+    void **RetMem) {
 
   uint32_t Align = USMDesc ? USMDesc->align : 0;
   // L0 supports alignment up to 64KB and silently ignores higher values.
@@ -394,16 +395,18 @@ ur_result_t urUSMHostAlloc(
 }
 
 ur_result_t urUSMDeviceAlloc(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_device_handle_t Device,   ///< [in] handle of the device object
-    const ur_usm_desc_t
-        *USMDesc, ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t Pool, ///< [in][optional] Pointer to a pool created
-                               ///< using urUSMPoolCreate
-    size_t
-        Size, ///< [in] size in bytes of the USM memory object to be allocated
-    void **RetMem ///< [out] pointer to USM device memory object
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] handle of the device object
+    ur_device_handle_t Device,
+    /// [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t *USMDesc,
+    /// [in][optional] Pointer to a pool created using urUSMPoolCreate
+    ur_usm_pool_handle_t Pool,
+    /// [in] size in bytes of the USM memory object to be allocated
+    size_t Size,
+    /// [out] pointer to USM device memory object
+    void **RetMem) {
 
   uint32_t Alignment = USMDesc ? USMDesc->align : 0;
 
@@ -474,16 +477,18 @@ ur_result_t urUSMDeviceAlloc(
 }
 
 ur_result_t urUSMSharedAlloc(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_device_handle_t Device,   ///< [in] handle of the device object
-    const ur_usm_desc_t
-        *USMDesc, ///< [in][optional] USM memory allocation descriptor
-    ur_usm_pool_handle_t Pool, ///< [in][optional] Pointer to a pool created
-                               ///< using urUSMPoolCreate
-    size_t
-        Size, ///< [in] size in bytes of the USM memory object to be allocated
-    void **RetMem ///< [out] pointer to USM shared memory object
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] handle of the device object
+    ur_device_handle_t Device,
+    /// [in][optional] USM memory allocation descriptor
+    const ur_usm_desc_t *USMDesc,
+    /// [in][optional] Pointer to a pool created using urUSMPoolCreate
+    ur_usm_pool_handle_t Pool,
+    /// [in] size in bytes of the USM memory object to be allocated
+    size_t Size,
+    /// [out] pointer to USM shared memory object
+    void **RetMem) {
 
   uint32_t Alignment = USMDesc ? USMDesc->align : 0;
 
@@ -581,9 +586,10 @@ ur_result_t urUSMSharedAlloc(
 }
 
 ur_result_t
-urUSMFree(ur_context_handle_t Context, ///< [in] handle of the context object
-          void *Mem                    ///< [in] pointer to USM memory object
-) {
+/// [in] handle of the context object
+urUSMFree(ur_context_handle_t Context,
+          /// [in] pointer to USM memory object
+          void *Mem) {
   ur_platform_handle_t Plt = Context->getPlatform();
 
   std::scoped_lock<ur_shared_mutex> Lock(
@@ -593,16 +599,18 @@ urUSMFree(ur_context_handle_t Context, ///< [in] handle of the context object
 }
 
 ur_result_t urUSMGetMemAllocInfo(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    const void *Ptr,             ///< [in] pointer to USM memory object
-    ur_usm_alloc_info_t
-        PropName, ///< [in] the name of the USM allocation property to query
-    size_t PropValueSize, ///< [in] size in bytes of the USM allocation property
-                          ///< value
-    void *PropValue, ///< [out][optional] value of the USM allocation property
-    size_t *PropValueSizeRet ///< [out][optional] bytes returned in USM
-                             ///< allocation property
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] pointer to USM memory object
+    const void *Ptr,
+    /// [in] the name of the USM allocation property to query
+    ur_usm_alloc_info_t PropName,
+    /// [in] size in bytes of the USM allocation property value
+    size_t PropValueSize,
+    /// [out][optional] value of the USM allocation property
+    void *PropValue,
+    /// [out][optional] bytes returned in USM allocation property
+    size_t *PropValueSizeRet) {
   ze_device_handle_t ZeDeviceHandle;
   ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
 
@@ -693,12 +701,13 @@ ur_result_t urUSMGetMemAllocInfo(
 }
 
 ur_result_t urUSMPoolCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_usm_pool_desc_t
-        *PoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
-                   ///< ::ur_usm_pool_limits_desc_t
-    ur_usm_pool_handle_t *Pool ///< [out] pointer to USM memory pool
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] pointer to USM pool descriptor. Can be chained with
+    /// ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_desc_t *PoolDesc,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *Pool) {
 
   try {
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
@@ -718,15 +727,15 @@ ur_result_t urUSMPoolCreate(
 }
 
 ur_result_t
-urUSMPoolRetain(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
-) {
+/// [in] pointer to USM memory pool
+urUSMPoolRetain(ur_usm_pool_handle_t Pool) {
   Pool->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
-urUSMPoolRelease(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
-) {
+/// [in] pointer to USM memory pool
+urUSMPoolRelease(ur_usm_pool_handle_t Pool) {
   if (Pool->RefCount.decrementAndTest()) {
     std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
     Pool->Context->UsmPoolHandles.remove(Pool);
@@ -736,13 +745,16 @@ urUSMPoolRelease(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
 }
 
 ur_result_t urUSMPoolGetInfo(
-    ur_usm_pool_handle_t Pool,   ///< [in] handle of the USM memory pool
-    ur_usm_pool_info_t PropName, ///< [in] name of the pool property to query
-    size_t PropSize, ///< [in] size in bytes of the pool property value provided
-    void *PropValue, ///< [out][typename(propName, propSize)] value of the pool
-                     ///< property
-    size_t *PropSizeRet ///< [out] size in bytes returned in pool property value
-) {
+    /// [in] handle of the USM memory pool
+    ur_usm_pool_handle_t Pool,
+    /// [in] name of the pool property to query
+    ur_usm_pool_info_t PropName,
+    /// [in] size in bytes of the pool property value provided
+    size_t PropSize,
+    /// [out][typename(propName, propSize)] value of the pool property
+    void *PropValue,
+    /// [out] size in bytes returned in pool property value
+    size_t *PropSizeRet) {
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
   switch (PropName) {

@@ -439,12 +439,13 @@ bool ur_usm_pool_handle_t_::hasUMFPool(umf_memory_pool_t *umf_pool) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_usm_pool_desc_t
-        *PoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
-                   ///< ::ur_usm_pool_limits_desc_t
-    ur_usm_pool_handle_t *Pool ///< [out] pointer to USM memory pool
-) {
+    /// [in] handle of the context object
+    ur_context_handle_t Context,
+    /// [in] pointer to USM pool descriptor. Can be chained with
+    /// ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_desc_t *PoolDesc,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *Pool) {
   // Without pool tracking we can't free pool allocations.
 #ifdef UMF_ENABLE_POOL_TRACKING
   if (PoolDesc->flags & UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK) {
@@ -470,15 +471,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRetain(
-    ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
-) {
+    /// [in] pointer to USM memory pool
+    ur_usm_pool_handle_t Pool) {
   Pool->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRelease(
-    ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
-) {
+    /// [in] pointer to USM memory pool
+    ur_usm_pool_handle_t Pool) {
   if (Pool->decrementReferenceCount() > 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -488,14 +489,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRelease(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
-    ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
-    ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
-    size_t propSize, ///< [in] size in bytes of the pool property value provided
-    void *pPropValue, ///< [out][optional][typename(propName, propSize)] value
-                      ///< of the pool property
-    size_t *pPropSizeRet ///< [out][optional] size in bytes returned in pool
-                         ///< property value
-) {
+    /// [in] handle of the USM memory pool
+    ur_usm_pool_handle_t hPool,
+    /// [in] name of the pool property to query
+    ur_usm_pool_info_t propName,
+    /// [in] size in bytes of the pool property value provided
+    size_t propSize,
+    /// [out][optional][typename(propName, propSize)] value of the pool property
+    void *pPropValue,
+    /// [out][optional] size in bytes returned in pool property value
+    size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
