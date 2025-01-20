@@ -3,6 +3,8 @@ Konstantin Bobrovskii <konstantin.s.bobrovsky@intel.com>, John Pennycook <john.p
 v0.1
 :source-highlighter: pygments
 :icons: font
+:dpcpp: pass:[DPC++]
+
 == Introduction
 This document describes an interface for online compilation from high-level languages, such as
 OpenCL, to a binary format, such as SPIR-V, loadable by SYCL backends. Unlike SYCL 2020 provisional's
@@ -19,7 +21,10 @@ This API is an Intel SYCL extension.
 
 == Status
 
-This extension has been deprecated. Although it is still supported in DPC++, we expect that the interfaces defined in this specification will be removed in an upcoming DPC++ release. Shipping software products should stop using APIs defined in this specification and use an alternative instead.
+This extension has been deprecated.  Although it is still supported in {dpcpp},
+we expect that the interfaces defined in this specification will be removed in
+an upcoming {dpcpp} release.  *Shipping software products should stop using
+APIs defined in this specification and use an alternative instead.*
 
 == Online compilation API
 
