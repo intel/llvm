@@ -57,7 +57,7 @@ The test needs to check that the values returned by `ext_oneapi_get_backend_cont
 ### End-to-end tests
 
 Tests in this category perform some meaningful actions with the extension to
-see that the extension works in a scenarios which mimic real-life usage of the
+see that the extension works in scenarios which mimic real-life usage of the
 extension.
 
 #### Level Zero and OpenCL interoperability
