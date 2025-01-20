@@ -29,25 +29,34 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
                          const ur_device_handle_t *phDevices) {
   std::shared_ptr<ContextInfo> CI;
   UR_CALL(getAsanInterceptor()->insertContext(Context, CI));
-  for (uint32_t i = 0; i < numDevices; ++i) {
-    auto hDevice = phDevices[i];
-    std::shared_ptr<DeviceInfo> DI;
-    UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
-    DI->Type = GetDeviceType(Context, hDevice);
-    if (DI->Type == DeviceType::UNKNOWN) {
-      getContext()->logger.error("Unsupport device");
-      return UR_RESULT_ERROR_INVALID_DEVICE;
+
+  if (numDevices > 0) {
+    auto DeviceType = GetDeviceType(Context, phDevices[0]);
+    auto ShadowMemory =
+        getAsanInterceptor()->getOrCreateShadowMemory(phDevices[0], DeviceType);
+
+    for (uint32_t i = 0; i < numDevices; ++i) {
+      auto hDevice = phDevices[i];
+      std::shared_ptr<DeviceInfo> DI;
+      UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
+      DI->Type = GetDeviceType(Context, hDevice);
+      if (DI->Type == DeviceType::UNKNOWN) {
+        getContext()->logger.error("Unsupport device");
+        return UR_RESULT_ERROR_INVALID_DEVICE;
+      }
+      if (DI->Type != DeviceType) {
+        getContext()->logger.error("Different device type in the same context");
+        return UR_RESULT_ERROR_INVALID_DEVICE;
+      }
+      getContext()->logger.info(
+          "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
+          (void *)DI->Handle, ToString(DI->Type), DI->IsSupportSharedSystemUSM);
+      getContext()->logger.info("Add {} into context {}", (void *)DI->Handle,
+                                (void *)Context);
+      DI->Shadow = ShadowMemory;
+      CI->DeviceList.emplace_back(hDevice);
+      CI->AllocInfosMap[hDevice];
     }
-    getContext()->logger.info(
-        "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
-        (void *)DI->Handle, ToString(DI->Type), DI->IsSupportSharedSystemUSM);
-    getContext()->logger.info("Add {} into context {}", (void *)DI->Handle,
-                              (void *)Context);
-    if (!DI->Shadow) {
-      UR_CALL(DI->allocShadowMemory(Context));
-    }
-    CI->DeviceList.emplace_back(hDevice);
-    CI->AllocInfosMap[hDevice];
   }
   return UR_RESULT_SUCCESS;
 }

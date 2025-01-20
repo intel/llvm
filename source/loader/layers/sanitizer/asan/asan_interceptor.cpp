@@ -36,8 +36,7 @@ AsanInterceptor::~AsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    [[maybe_unused]] auto URes = DeviceInfo->Shadow->Destory();
-    assert(URes == UR_RESULT_SUCCESS);
+    DeviceInfo->Shadow = nullptr;
   }
 
   m_Quarantine = nullptr;
@@ -47,6 +46,11 @@ AsanInterceptor::~AsanInterceptor() {
   // AllocationMap need to be cleared after ContextMap because memory leak
   // detection depends on it.
   m_AllocationMap.clear();
+
+  for (auto &[_, ShadowManager] : m_ShadowMap) {
+    ShadowManager->Destory();
+    getContext()->urDdiTable.Context.pfnRelease(ShadowManager->Context);
+  }
 
   for (auto Adapter : m_Adapters) {
     getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
@@ -303,14 +307,26 @@ ur_result_t AsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
   return Result;
 }
 
-ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
-  Shadow = GetShadowMemory(Context, Handle, Type);
-  assert(Shadow && "Failed to get shadow memory");
-  UR_CALL(Shadow->Setup());
-  getContext()->logger.info("ShadowMemory(Global): {} - {}",
-                            (void *)Shadow->ShadowBegin,
-                            (void *)Shadow->ShadowEnd);
-  return UR_RESULT_SUCCESS;
+std::shared_ptr<ShadowMemory>
+AsanInterceptor::getOrCreateShadowMemory(ur_device_handle_t Device,
+                                         DeviceType Type) {
+  if (m_ShadowMap.find(Type) == m_ShadowMap.end()) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_ShadowMapMutex);
+    if (m_ShadowMap.find(Type) == m_ShadowMap.end()) {
+      ur_context_handle_t InternalContext;
+      auto Res = getContext()->urDdiTable.Context.pfnCreate(1, &Device, nullptr,
+                                                            &InternalContext);
+      if (Res != UR_RESULT_SUCCESS) {
+        getContext()->logger.error("Failed to create shadow context");
+        return nullptr;
+      }
+      std::shared_ptr<ContextInfo> CI;
+      insertContext(InternalContext, CI);
+      m_ShadowMap[Type] = GetShadowMemory(InternalContext, Device, Type);
+      m_ShadowMap[Type]->Setup();
+    }
+  }
+  return m_ShadowMap[Type];
 }
 
 /// Each 8 bytes of application memory are mapped into one byte of shadow memory

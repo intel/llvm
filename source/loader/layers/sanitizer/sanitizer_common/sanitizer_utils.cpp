@@ -156,7 +156,7 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     // by the value of device USM pointer (see "USM Allocation Range" in
     // asan_shadow.cpp)
     auto Type = DeviceType::UNKNOWN;
-    if (Ptr >> 48 == 0xff00U) {
+    if (((Ptr >> 48) & 0xff00U) == 0xff00U) {
       Type = DeviceType::GPU_PVC;
     } else {
       Type = DeviceType::GPU_DG2;
