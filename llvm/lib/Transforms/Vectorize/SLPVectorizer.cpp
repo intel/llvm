@@ -12601,9 +12601,12 @@ BoUpSLP::isGatherShuffledSingleRegisterEntry(
           VTE = *MIt;
         }
       }
-      Instruction &LastBundleInst = getLastInstructionInBundle(VTE);
-      if (&LastBundleInst == TEInsertPt || !CheckOrdering(&LastBundleInst))
-        continue;
+      if (none_of(TE->CombinedEntriesWithIndices,
+                  [&](const auto &P) { return P.first == VTE->Idx; })) {
+        Instruction &LastBundleInst = getLastInstructionInBundle(VTE);
+        if (&LastBundleInst == TEInsertPt || !CheckOrdering(&LastBundleInst))
+          continue;
+      }
       VToTEs.insert(VTE);
     }
     if (VToTEs.empty())
@@ -13737,7 +13740,9 @@ public:
           break;
         }
     }
-    int VF = getVF(V1);
+    unsigned VF = 0;
+    for (Value *V : InVectors)
+      VF = std::max(VF, getVF(V));
     for (unsigned Idx = 0, Sz = CommonMask.size(); Idx < Sz; ++Idx)
       if (Mask[Idx] != PoisonMaskElem && CommonMask[Idx] == PoisonMaskElem)
         CommonMask[Idx] = Mask[Idx] + (It == InVectors.begin() ? 0 : VF);
