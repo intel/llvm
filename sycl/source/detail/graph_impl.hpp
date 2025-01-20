@@ -779,27 +779,7 @@ public:
   /// @param SyclDevice Device to create nodes with.
   /// @param PropList Optional list of properties.
   graph_impl(const sycl::context &SyclContext, const sycl::device &SyclDevice,
-             const sycl::property_list &PropList = {})
-      : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-        MEventsMap(), MInorderQueueMap() {
-    if (PropList.has_property<property::graph::no_cycle_check>()) {
-      MSkipCycleChecks = true;
-    }
-    if (PropList
-            .has_property<property::graph::assume_buffer_outlives_graph>()) {
-      MAllowBuffers = true;
-    }
-
-    if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
-        !SyclDevice.has(aspect::ext_oneapi_graph)) {
-      std::stringstream Stream;
-      Stream << SyclDevice.get_backend();
-      std::string BackendString = Stream.str();
-      throw sycl::exception(
-          sycl::make_error_code(errc::invalid),
-          BackendString + " backend is not supported by SYCL Graph extension.");
-    }
-  }
+             const sycl::property_list &PropList = {});
 
   ~graph_impl();
 

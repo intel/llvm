@@ -7,6 +7,9 @@
 // RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies -fsycl-device-lib-jit-link %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
+
 #include <cmath>
 #include <sycl/detail/core.hpp>
 

@@ -426,7 +426,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       if (nullptr == ReplaceFunc)
         ReplaceFunc = getReplaceFunc(M, Entry.second, Use, Args);
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
-                                    Args, "", I);
+                                    Args, "", I->getIterator());
       // If the parent function has debug info, we need to make sure that the
       // CallInstructions in it have debug info, otherwise we end up with
       // invalid IR after inlining.

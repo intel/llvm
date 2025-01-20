@@ -20,9 +20,11 @@ int main() {
 
   // Use a large N to try and make the kernel slow
   const size_t N = 1 << 16;
-  // Loop inside kernel to make even slower (too large N runs out of memory)
-  const size_t NumKernelLoops = 4;
-  const size_t NumSubmitLoops = 8;
+
+  // Reduce amount of work compared to version of test without free functions
+  // due to CMPLRLLVM-64841
+  const size_t NumKernelLoops = 1;
+  const size_t NumSubmitLoops = 1;
 
   exp_ext::command_graph Graph{Ctxt, Queue.get_device()};
 

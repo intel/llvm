@@ -9,6 +9,9 @@
 
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+
 // This test checks correctness of hierarchical kernel execution when there is
 // code and data in the work group scope, and when the test is compiled with
 // -O0 switch.

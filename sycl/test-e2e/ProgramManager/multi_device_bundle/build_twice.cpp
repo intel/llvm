@@ -6,8 +6,9 @@
 // RUN: %{build} -o %t.out
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

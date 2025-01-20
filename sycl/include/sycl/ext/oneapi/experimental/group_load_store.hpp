@@ -125,7 +125,7 @@ int get_mem_idx(GroupTy g, int vec_or_array_idx) {
 // | block type | # of blocks |
 // +------------+-------------+
 // | uchar      | 1,2,4,8,16  |
-// | ushort     | 1,2,4,8     |
+// | ushort     | 1,2,4,8,16  |
 // | uint       | 1,2,4,8     |
 // | ulong      | 1,2,4,8     |
 // +------------+-------------+
@@ -146,7 +146,7 @@ struct BlockInfo {
   static constexpr bool has_builtin =
       detail::is_power_of_two(block_size) &&
       detail::is_power_of_two(num_blocks) && block_size <= 8 &&
-      (num_blocks <= 8 || (num_blocks == 16 && block_size == 1));
+      (num_blocks <= 8 || (num_blocks == 16 && block_size <= 2));
 };
 
 template <typename BlockInfoTy> struct BlockTypeInfo;
@@ -284,11 +284,11 @@ group_load(Group g, InputIteratorT in_ptr,
 
       if constexpr (std::is_same_v<std::remove_const_t<value_type>, OutputT>) {
         static_assert(sizeof(load) == out.size_bytes());
-        std::memcpy(out.begin(), &load, out.size_bytes());
+        sycl::detail::memcpy_no_adl(out.begin(), &load, out.size_bytes());
       } else {
         std::remove_const_t<value_type> values[ElementsPerWorkItem];
         static_assert(sizeof(load) == sizeof(values));
-        std::memcpy(values, &load, sizeof(values));
+        sycl::detail::memcpy_no_adl(values, &load, sizeof(values));
 
         // Note: can't `memcpy` directly into `out` because that might bypass
         // an implicit conversion required by the specification.

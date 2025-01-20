@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <limits>
 #include <sycl/feature_test.hpp>
 #include <type_traits>
 
@@ -118,34 +119,13 @@ public:
   }
 };
 
-// Vectorized_binary for logical operations
 template <typename VecT, class BinaryOperation>
 class vectorized_binary<
     VecT, BinaryOperation,
-    std::enable_if_t<std::is_same_v<
-        bool, decltype(std::declval<BinaryOperation>()(
-                  std::declval<typename VecT::element_type>(),
-                  std::declval<typename VecT::element_type>()))>>> {
+    std::void_t<std::invoke_result_t<BinaryOperation, VecT, VecT>>> {
 public:
   inline VecT operator()(VecT a, VecT b, const BinaryOperation binary_op) {
-    unsigned result = 0;
-    constexpr size_t elem_size = 8 * sizeof(typename VecT::element_type);
-    static_assert(elem_size < 32,
-                  "Vector element size must be less than 4 bytes");
-    constexpr unsigned bool_mask = (1U << elem_size) - 1;
-
-    for (size_t i = 0; i < a.size(); ++i) {
-      bool comp_result = binary_op(a[i], b[i]);
-      result |= (comp_result ? bool_mask : 0U) << (i * elem_size);
-    }
-
-    VecT v4;
-    for (size_t i = 0; i < v4.size(); ++i) {
-      v4[i] = static_cast<typename VecT::element_type>(
-          (result >> (i * elem_size)) & bool_mask);
-    }
-
-    return v4;
+    return binary_op(a, b).template as<VecT>();
   }
 };
 
@@ -308,7 +288,9 @@ inline T bfe(const T source, const uint32_t bit_start,
   // FIXME(syclcompat-lib-reviewers): This ternary was added to catch a case
   // which may be undefined anyway. Consider that we are losing perf here.
   const T mask =
-      num_bits >= CHAR_BIT * sizeof(T) ? T{-1} : ((T{1} << num_bits) - 1);
+      num_bits >= std::numeric_limits<unsigned char>::digits * sizeof(T)
+          ? static_cast<T>(-1)
+          : ((static_cast<T>(1) << num_bits) - 1);
   return (source >> bit_start) & mask;
 }
 
@@ -321,7 +303,7 @@ inline T bfe(const T source, const uint32_t bit_start,
 /// and source \param num_bits gives the bit field length in bits.
 ///
 /// The result is padded with the sign bit of the extracted field. If `num_bits`
-/// is zero, the  result is zero. If the start position is beyond the msb of the
+/// is zero, the result is zero. If the start position is beyond the msb of the
 /// input, the result is filled with the replicated sign bit of the extracted
 /// field.
 ///
@@ -363,7 +345,8 @@ inline T bfe_safe(const T source, const uint32_t bit_start,
     return res;
   }
 #endif
-  const uint32_t bit_width = CHAR_BIT * sizeof(T);
+  const uint32_t bit_width =
+      std::numeric_limits<unsigned char>::digits * sizeof(T);
   const uint32_t pos = std::min(bit_start, bit_width);
   const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
   if constexpr (std::is_signed_v<T>) {
@@ -397,7 +380,8 @@ template <typename T>
 inline T bfi(const T x, const T y, const uint32_t bit_start,
              const uint32_t num_bits) {
   static_assert(std::is_unsigned_v<T>);
-  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+  constexpr unsigned bit_width =
+      std::numeric_limits<unsigned char>::digits * sizeof(T);
 
   // if bit_start > bit_width || len == 0, should return y.
   const T ignore_bfi = static_cast<T>(bit_start > bit_width || num_bits == 0);
@@ -441,7 +425,8 @@ inline T bfi_safe(const T x, const T y, const uint32_t bit_start,
     return res;
   }
 #endif
-  constexpr unsigned bit_width = CHAR_BIT * sizeof(T);
+  constexpr unsigned bit_width =
+      std::numeric_limits<unsigned char>::digits * sizeof(T);
   const uint32_t pos = std::min(bit_start, bit_width);
   const uint32_t len = std::min(pos + num_bits, bit_width) - pos;
   return syclcompat::detail::bfi(x, y, pos, len);
@@ -688,8 +673,9 @@ inline unsigned vectorized_unary(unsigned a, const UnaryOperation unary_op) {
 template <typename VecT>
 inline unsigned vectorized_sum_abs_diff(unsigned a, unsigned b) {
   sycl::vec<unsigned, 1> v0{a}, v1{b};
-  auto v2 = v0.as<VecT>();
-  auto v3 = v1.as<VecT>();
+  // Need convert element type to wider signed type to avoid overflow.
+  auto v2 = v0.as<VecT>().template convert<int>();
+  auto v3 = v1.as<VecT>().template convert<int>();
   auto v4 = sycl::abs_diff(v2, v3);
   unsigned sum = 0;
   for (size_t i = 0; i < v4.size(); ++i) {
@@ -1089,13 +1075,8 @@ inline unsigned vectorized_binary(unsigned a, unsigned b,
   auto v3 = v1.as<VecT>();
   auto v4 =
       detail::vectorized_binary<VecT, BinaryOperation>()(v2, v3, binary_op);
-  if constexpr (!std::is_same_v<
-                    bool, decltype(std::declval<BinaryOperation>()(
-                              std::declval<typename VecT::element_type>(),
-                              std::declval<typename VecT::element_type>()))>) {
-    if (need_relu)
-      v4 = relu(v4);
-  }
+  if (need_relu)
+    v4 = relu(v4);
   v0 = v4.template as<sycl::vec<unsigned, 1>>();
   return v0;
 }

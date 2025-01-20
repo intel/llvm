@@ -180,7 +180,7 @@ public:
 #endif
   }
 
-  event getLastEvent();
+  sycl::detail::optional<event> getLastEvent();
 
 private:
   void queue_impl_interop(ur_queue_handle_t UrQueue) {

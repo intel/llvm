@@ -514,15 +514,15 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
       auto *NewFT = FunctionType::get(NewRetTy, ArgTys, false /*isVarArg*/);
       auto NewFC = M->getOrInsertFunction(FunctionName, NewFT);
 
-      auto *Call =
-          CallInst::Create(NewFT, NewFC.getCallee(), Args, "", InsertBefore);
+      auto *Call = CallInst::Create(NewFT, NewFC.getCallee(), Args, "",
+                                    InsertBefore->getIterator());
       if (IsSPIROrSPIRV) {
         cast<Function>(NewFC.getCallee())
             ->setCallingConv(CallingConv::SPIR_FUNC);
         Call->setCallingConv(CallingConv::SPIR_FUNC);
       }
       return CastInst::CreateTruncOrBitCast(Call, RetTy, "tobool",
-                                            InsertBefore);
+                                            InsertBefore->getIterator());
     }
   }
 
@@ -711,7 +711,7 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   Type *Int32Ty = Type::getInt32Ty(C);
   GetElementPtrInst *GEP = GetElementPtrInst::Create(
       Int8Ty, Buffer, {ConstantInt::get(Int32Ty, Offset, false)}, "gep",
-      InsertBefore);
+      InsertBefore->getIterator());
 
   Instruction *BitCast = nullptr;
   if (SCType->isIntegerTy(1)) // No bitcast to i1 before load
@@ -719,14 +719,14 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   else
     BitCast =
         new BitCastInst(GEP, PointerType::get(SCType, GEP->getAddressSpace()),
-                        "bc", InsertBefore);
+                        "bc", InsertBefore->getIterator());
 
   // When we encounter i1 spec constant, we still load the whole byte
   Value *Load = new LoadInst(SCType->isIntegerTy(1) ? Int8Ty : SCType, BitCast,
-                             "load", InsertBefore);
+                             "load", InsertBefore->getIterator());
   if (SCType->isIntegerTy(1)) // trunc back to i1 if necessary
     Load = CastInst::CreateIntegerCast(Load, SCType, /* IsSigned */ false,
-                                       "tobool", InsertBefore);
+                                       "tobool", InsertBefore->getIterator());
 
   return Load;
 }
@@ -993,8 +993,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         if (SCTy->isIntegerTy(1)) {
           assert(DefaultValue->getType()->isIntegerTy(8) &&
                  "For bool spec constant default value is expected to be i8");
-          Replacement =
-              new TruncInst(DefaultValue, Type::getInt1Ty(Ctx), "bool", CI);
+          Replacement = new TruncInst(DefaultValue, Type::getInt1Ty(Ctx),
+                                      "bool", CI->getIterator());
         } else
           Replacement = DefaultValue;
       }
@@ -1021,9 +1021,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         Value *ArraySize =
             Mode == HandlingMode::emulation ? DefaultValue : Replacement;
         assert(ArraySize->getType()->isIntegerTy() && "Expecting integer type");
-        Replacement =
-            new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
-                           ArraySize, Intr->getAlign(), "alloca", CI);
+        Replacement = new AllocaInst(
+            Intr->getAllocatedType(), Intr->getAddressSpace(), ArraySize,
+            Intr->getAlign(), "alloca", CI->getIterator());
       }
 
       if (HasSretParameter)

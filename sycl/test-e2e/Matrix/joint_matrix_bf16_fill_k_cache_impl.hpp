@@ -119,7 +119,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
           // along the workgroup prefetch for B matrix. For A matrix, sgId is
           // enough.
           size_t pm1B = sgId / 16;   // prefetch m1 (sgId/16)
-          size_t pn1B = sgId & 0x15; // prefetch n1 (sgId%16)
+          size_t pn1B = sgId & 0xF;  // prefetch n1 (sgId%16)
 #else                                // VNNI
           size_t pm1B = sgId / 8;   // prefetch m1 (sgId/8)
           size_t pn1B = sgId & 0x7; // prefetch n1 (sgId%8)

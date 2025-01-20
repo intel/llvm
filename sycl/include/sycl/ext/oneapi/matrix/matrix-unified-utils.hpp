@@ -11,6 +11,7 @@
 #include <optional>                     // std::optional
 #include <string_view>                  // std::string_view
 #include <sycl/__spirv/spirv_types.hpp> // __spv namespace
+#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 #include <utility>                      // std::pair
 
 namespace sycl {

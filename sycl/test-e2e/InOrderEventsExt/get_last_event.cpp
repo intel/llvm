@@ -21,8 +21,18 @@
 
 template <typename F>
 int Check(const sycl::queue &Q, const char *CheckName, const F &CheckFunc) {
-  sycl::event E = CheckFunc();
-  if (E != Q.ext_oneapi_get_last_event()) {
+  std::optional<sycl::event> E = CheckFunc();
+  if (!E) {
+    std::cout << "No result event return by CheckFunc()" << std::endl;
+    return 1;
+  }
+  std::optional<sycl::event> LastEvent = Q.ext_oneapi_get_last_event();
+  if (!LastEvent) {
+    std::cout << "No result event return by ext_oneapi_get_last_event()"
+              << std::endl;
+    return 1;
+  }
+  if (*E != *LastEvent) {
     std::cout << "Failed " << CheckName << std::endl;
     return 1;
   }
@@ -34,12 +44,17 @@ int main() {
 
   int Failed = 0;
 
-  // Check that a valid event is returned on the empty queue.
-  Q.ext_oneapi_get_last_event().wait();
+  // Check that a std::nullopt is returned on the empty queue.
+  std::optional<sycl::event> EmptyEvent = Q.ext_oneapi_get_last_event();
+  if (EmptyEvent.has_value()) {
+    std::cout << "Unexpected event return by ext_oneapi_get_last_event()"
+              << std::endl;
+    ++Failed;
+  }
 
   // Check that a valid event is returned after enqueuing work without events.
   sycl::ext::oneapi::experimental::single_task(Q, []() {});
-  Q.ext_oneapi_get_last_event().wait();
+  Q.ext_oneapi_get_last_event()->wait();
 
   // Check event equivalences - This is an implementation detail, but useful
   // for checking behavior.

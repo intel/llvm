@@ -49,15 +49,10 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * C++ compiler
   * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
-Alternatively, you can use a Docker image that has everything you need for
-building pre-installed:
+Alternatively, you can create a Docker image that has everything you need for
+building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
 
-```bash
-docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2204_build /bin/bash
-```
-
-This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on
+See [Docker BKMs](developer/DockerBKMs.md) for more info on
 Docker commands.
 
 ### Create DPC++ workspace

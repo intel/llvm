@@ -189,6 +189,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   run:
@@ -221,7 +222,7 @@ jobs:
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
     - name: Checkout SYCL CTS tests
-      if: inputs.tests_selector == 'cts'
+      if: inputs.tests_selector == 'cts' && inputs.cts_testing_mode != 'run-only'
       uses: ./devops/actions/cached_checkout
       with:
         path: khronos_sycl_cts
@@ -230,7 +231,7 @@ jobs:
         default_branch: 'main'
         cache_path: "/__w/repo_cache/"
     - name: SYCL CTS GIT submodules init
-      if: inputs.tests_selector == 'cts'
+      if: inputs.tests_selector == 'cts' && inputs.cts_testing_mode != 'run-only'
       run: |
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers

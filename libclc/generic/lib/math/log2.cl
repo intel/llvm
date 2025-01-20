@@ -29,6 +29,10 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif // cl_khr_fp64
 
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif // cl_khr_fp16
+
 _CLC_OVERLOAD _CLC_DEF float log2(float x) {
     return __spirv_ocl_log2(x);
 }
@@ -42,3 +46,11 @@ _CLC_OVERLOAD _CLC_DEF double log2(double x) {
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, log2, double);
 #endif // cl_khr_fp64
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DEF half log2(half x) {
+    return __spirv_ocl_log2(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, log2, half);
+#endif // cl_khr_fp16

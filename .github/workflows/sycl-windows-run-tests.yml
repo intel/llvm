@@ -18,6 +18,13 @@ on:
       ref:
         type: string
         required: False
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
+        type: string
+        default: 'FETCH_HEAD'
+        required: False
 
       sycl_toolchain_artifact:
         type: string
@@ -68,7 +75,8 @@ jobs:
     - uses: ./devops/actions/cached_checkout
       with:
         path: llvm
-        ref: ${{ inputs.build_ref || github.sha }}
+        ref: ${{ inputs.ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Download compiler toolchain
       uses: actions/download-artifact@v4

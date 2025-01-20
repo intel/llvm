@@ -674,10 +674,10 @@ bool device_impl::has(aspect Aspect) const {
     using arch = sycl::ext::oneapi::experimental::architecture;
     const arch supported_archs[] = {
         arch::intel_cpu_spr,     arch::intel_cpu_gnr,
-        arch::intel_gpu_pvc,     arch::intel_gpu_dg2_g10,
-        arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12,
-        arch::intel_gpu_bmg_g21, arch::intel_gpu_lnl_m,
-        arch::intel_gpu_arl_h,
+        arch::intel_cpu_dmr,     arch::intel_gpu_pvc,
+        arch::intel_gpu_dg2_g10, arch::intel_gpu_dg2_g11,
+        arch::intel_gpu_dg2_g12, arch::intel_gpu_bmg_g21,
+        arch::intel_gpu_lnl_m,   arch::intel_gpu_arl_h,
     };
     try {
       return std::any_of(

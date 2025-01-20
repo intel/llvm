@@ -206,3 +206,5 @@ shared/vload.cl
 shared/vstore.cl
 workitem/get_global_id.cl
 workitem/get_global_size.cl
+workitem/get_num_sub_groups.cl
+workitem/get_sub_group_size.cl
