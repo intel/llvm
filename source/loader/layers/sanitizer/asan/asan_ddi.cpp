@@ -1368,12 +1368,12 @@ __urdlllocal ur_result_t urKernelRelease(
     }
 
     getContext()->logger.debug("==== urKernelRelease");
-    UR_CALL(pfnRelease(hKernel));
 
     auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
     if (--KernelInfo.RefCount == 0) {
         UR_CALL(getAsanInterceptor()->eraseKernelInfo(hKernel));
     }
+    UR_CALL(pfnRelease(hKernel));
 
     return UR_RESULT_SUCCESS;
 }
