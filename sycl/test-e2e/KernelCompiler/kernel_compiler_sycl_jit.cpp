@@ -82,9 +82,9 @@ void vector_add_esimd(float *A, float *B, float *C) {
 auto constexpr DeviceCodeSplitSource = R"===(
 #include <sycl/sycl.hpp>
 
-template<typename T, unsigned SG = 16> SYCL_EXTERNAL 
+template<typename T, unsigned WG = 16> SYCL_EXTERNAL 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::nd_range_kernel<1>)
-[[sycl::reqd_sub_group_size(SG)]]
+[[sycl::reqd_work_group_size(WG)]]
 void vec_add(T* in1, T* in2, T* out){
   size_t id = sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
   out[id] = in1[id] + in2[id];
@@ -270,10 +270,10 @@ int test_device_code_split() {
 
   // Test implicit device code split
   names = {"vec_add<float, 8>", "vec_add<float, 16>"};
-  exe_kb kbDiffSubgroupSizes = syclex::build(
+  exe_kb kbDiffWorkGroupSizes = syclex::build(
       kbSrc, syclex::properties{syclex::registered_kernel_names{names}});
-  assert(std::distance(kbDiffSubgroupSizes.begin(),
-                       kbDiffSubgroupSizes.end()) == 2);
+  assert(std::distance(kbDiffWorkGroupSizes.begin(),
+                       kbDiffWorkGroupSizes.end()) == 2);
 
   return 0;
 }
