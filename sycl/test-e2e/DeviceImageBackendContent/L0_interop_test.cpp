@@ -34,6 +34,7 @@ int main() {
   sycl::kernel_id iota_id = syclexp::get_kernel_id<iota>();
   sycl::kernel k_iota = Bundle.get_kernel(iota_id);
   int *ptr = sycl::malloc_shared<int>(1, q);
+  *ptr = 0;
   q.submit([&](sycl::handler &cgh) {
      cgh.set_args(ptr);
      cgh.parallel_for(sycl::nd_range{{1}, {1}}, k_iota);
@@ -84,6 +85,7 @@ int main() {
            ZeKernel},
           ctxt);
   int *ptr_twin = sycl::malloc_shared<int>(1, q);
+  *ptr_twin = 1;
   q.submit([&](sycl::handler &cgh) {
      cgh.set_args(ptr_twin);
      cgh.parallel_for(sycl::nd_range{{1}, {1}}, k_iota_twin);
