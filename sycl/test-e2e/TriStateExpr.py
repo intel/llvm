@@ -1,5 +1,6 @@
 from lit.BooleanExpression import BooleanExpression
 
+
 class E2EExpr(BooleanExpression):
     build_specific_features = {
         "build-and-run-mode",
@@ -80,37 +81,96 @@ class E2EExpr(BooleanExpression):
         self.expect(BooleanExpression.END)
         return self.ignore_value if self.ignore else self.value
 
+
 import unittest
+
 
 class TestE2EExpr(unittest.TestCase):
     def test_basic(self):
         # Non build-only expressions should work the same
         self.assertTrue(E2EExpr.evaluate("linux", {"linux", "ignored_aspect"}, False))
-        self.assertTrue(E2EExpr.evaluate("ignored_aspect", {"linux", "ignored_aspect"}, False))
-        self.assertFalse(E2EExpr.evaluate("another_aspect && ignored_aspect", {"linux", "ignored_aspect"}, False))
+        self.assertTrue(
+            E2EExpr.evaluate("ignored_aspect", {"linux", "ignored_aspect"}, False)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate(
+                "another_aspect && ignored_aspect", {"linux", "ignored_aspect"}, False
+            )
+        )
         # build-only expressions with no ignores should work the same
-        self.assertTrue(E2EExpr.evaluate("linux", {"linux", "ignored_aspect"}, True, False))
-        self.assertFalse(E2EExpr.evaluate("linux && windows", {"linux", "ignored_aspect"}, True, True))
-        self.assertTrue(E2EExpr.evaluate("!(windows || zstd)", {"linux", "ignored_aspect"}, True, False))
+        self.assertTrue(
+            E2EExpr.evaluate("linux", {"linux", "ignored_aspect"}, True, False)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate(
+                "linux && windows", {"linux", "ignored_aspect"}, True, True
+            )
+        )
+        self.assertTrue(
+            E2EExpr.evaluate(
+                "!(windows || zstd)", {"linux", "ignored_aspect"}, True, False
+            )
+        )
         # build-only expressions where ignore affects the resulting value
-        self.assertTrue(E2EExpr.evaluate("ignored_aspect", {"ignored_aspect"}, True, True))
-        self.assertFalse(E2EExpr.evaluate("ignored_aspect", {"ignored_aspect"}, True, False))
+        self.assertTrue(
+            E2EExpr.evaluate("ignored_aspect", {"ignored_aspect"}, True, True)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate("ignored_aspect", {"ignored_aspect"}, True, False)
+        )
         self.assertTrue(E2EExpr.evaluate("ignored_aspect", {}, True, True))
-        self.assertTrue(E2EExpr.evaluate("!ignored_aspect", {"ignored_aspect"}, True, True))
-        self.assertTrue(E2EExpr.evaluate("!!ignored_aspect", {"ignored_aspect"}, True, True))
-        self.assertTrue(E2EExpr.evaluate("windows || ignored_aspect", {"linux"}, True, True))
-        self.assertFalse(E2EExpr.evaluate("windows || ignored_aspect", {"linux"}, True, False))
-        self.assertTrue(E2EExpr.evaluate("linux && ignored_aspect", {"linux"}, True, True))
-        self.assertFalse(E2EExpr.evaluate("linux && ignored_aspect", {"linux"}, True, False))
-        self.assertTrue(E2EExpr.evaluate("linux && !(windows || ignored_aspect)", {"linux"}, True, True))
-        self.assertFalse(E2EExpr.evaluate("linux && !(windows || ignored_aspect)", {"linux"}, True, False))
+        self.assertTrue(
+            E2EExpr.evaluate("!ignored_aspect", {"ignored_aspect"}, True, True)
+        )
+        self.assertTrue(
+            E2EExpr.evaluate("!!ignored_aspect", {"ignored_aspect"}, True, True)
+        )
+        self.assertTrue(
+            E2EExpr.evaluate("windows || ignored_aspect", {"linux"}, True, True)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate("windows || ignored_aspect", {"linux"}, True, False)
+        )
+        self.assertTrue(
+            E2EExpr.evaluate("linux && ignored_aspect", {"linux"}, True, True)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate("linux && ignored_aspect", {"linux"}, True, False)
+        )
+        self.assertTrue(
+            E2EExpr.evaluate(
+                "linux && !(windows || ignored_aspect)", {"linux"}, True, True
+            )
+        )
+        self.assertFalse(
+            E2EExpr.evaluate(
+                "linux && !(windows || ignored_aspect)", {"linux"}, True, False
+            )
+        )
         # build-only expressions where ignore does not affect the resulting value
-        self.assertTrue(E2EExpr.evaluate("linux || ignored_aspect", {"linux"}, True, True))
-        self.assertTrue(E2EExpr.evaluate("linux || ignored_aspect", {"linux"}, True, False))
-        self.assertFalse(E2EExpr.evaluate("windows && ignored_aspect", {"linux"}, True, True))
-        self.assertFalse(E2EExpr.evaluate("windows && ignored_aspect", {"linux"}, True, False))
-        self.assertFalse(E2EExpr.evaluate("linux && (windows && ignored_aspect)", {"linux"}, True, True))
-        self.assertFalse(E2EExpr.evaluate("linux && (windows && ignored_aspect)", {"linux"}, True, False))
+        self.assertTrue(
+            E2EExpr.evaluate("linux || ignored_aspect", {"linux"}, True, True)
+        )
+        self.assertTrue(
+            E2EExpr.evaluate("linux || ignored_aspect", {"linux"}, True, False)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate("windows && ignored_aspect", {"linux"}, True, True)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate("windows && ignored_aspect", {"linux"}, True, False)
+        )
+        self.assertFalse(
+            E2EExpr.evaluate(
+                "linux && (windows && ignored_aspect)", {"linux"}, True, True
+            )
+        )
+        self.assertFalse(
+            E2EExpr.evaluate(
+                "linux && (windows && ignored_aspect)", {"linux"}, True, False
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

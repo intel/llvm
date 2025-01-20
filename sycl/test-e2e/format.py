@@ -199,11 +199,16 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "No supported triple to build for"
                 )
-            triples = set(map(lambda t: {
-                "target-spir":"spir64",
-                "target-nvidia":"nvptx64-nvidia-cuda",
-                "target-amd":"amdgcn-amd-amdhsa",
-                }[t], triples))
+            triples = set(
+                map(
+                    lambda t: {
+                        "target-spir": "spir64",
+                        "target-nvidia": "nvptx64-nvidia-cuda",
+                        "target-amd": "amdgcn-amd-amdhsa",
+                    }[t],
+                    triples,
+                )
+            )
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:

@@ -54,7 +54,7 @@ elif config.test_mode == "run-only":
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
-    config.sycl_triples = set(map(lambda x: "target-"+x,config.sycl_triples))
+    config.sycl_triples = set(map(lambda x: "target-" + x, config.sycl_triples))
     if not config.amd_arch:
         config.amd_arch = "gfx1031"
 else:
