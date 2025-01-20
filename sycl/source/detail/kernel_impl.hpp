@@ -147,6 +147,28 @@ public:
   typename Param::return_type
   ext_oneapi_get_info(queue Queue, const range<3> &WG) const;
 
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG // update description
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type
+  ext_oneapi_get_info(queue Queue, const range<2> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG // update description
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type
+  ext_oneapi_get_info(queue Queue, const range<1> &WG) const;
+
   /// Get a constant reference to a raw kernel object.
   ///
   /// \return a constant reference to a valid UrKernel instance with raw
@@ -428,11 +450,105 @@ inline typename syclex::info::kernel_queue_specific::max_sub_group_size::
 }
 
 template <>
+inline typename syclex::info::kernel_queue_specific::max_sub_group_size::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_sub_group_size>(
+        queue Queue, const range<2> &WG) const {
+
+  // TODO: check if WG is grater than max WG size
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
+
+  uint32_t KernelSubWGSize = 0;
+
+  if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetSubGroupInfo>(
+      MKernel, DeviceNativeHandle, UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE, sizeof(uint32_t), &KernelSubWGSize,
+      nullptr);Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Adapter->checkUrResult(Result);
+    return KernelSubWGSize;
+  }
+  return 0;
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_sub_group_size::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_sub_group_size>(
+        queue Queue, const range<1> &WG) const {
+
+  // TODO: check if WG is grater than max WG size
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
+
+  uint32_t KernelSubWGSize = 0;
+
+  if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetSubGroupInfo>(
+      MKernel, DeviceNativeHandle, UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE, sizeof(uint32_t), &KernelSubWGSize,
+      nullptr);Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Adapter->checkUrResult(Result);
+    return KernelSubWGSize;
+  }
+  return 0;
+}
+
+template <>
 inline typename syclex::info::kernel_queue_specific::num_sub_groups::
     return_type
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::num_sub_groups>(
         queue Queue, const range<3> &WG) const {
+
+  // TODO: check if WG is grater than max WG size
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
+
+  uint32_t KernelSubWGSize = 0;
+
+// TODO: check if UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS is required value
+  if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetSubGroupInfo>(
+      MKernel, DeviceNativeHandle, UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS, sizeof(uint32_t), &KernelSubWGSize,
+      nullptr);Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Adapter->checkUrResult(Result);
+    return KernelSubWGSize;
+  }
+  return 0;
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::num_sub_groups::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::num_sub_groups>(
+        queue Queue, const range<2> &WG) const {
+
+  // TODO: check if WG is grater than max WG size
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
+
+  uint32_t KernelSubWGSize = 0;
+
+// TODO: check if UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS is required value
+  if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetSubGroupInfo>(
+      MKernel, DeviceNativeHandle, UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS, sizeof(uint32_t), &KernelSubWGSize,
+      nullptr);Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Adapter->checkUrResult(Result);
+    return KernelSubWGSize;
+  }
+  return 0;
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::num_sub_groups::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::num_sub_groups>(
+        queue Queue, const range<1> &WG) const {
 
   // TODO: check if WG is grater than max WG size
   const auto &Adapter = getAdapter();

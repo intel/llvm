@@ -176,13 +176,37 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizesException)
       syclex::info::kernel_queue_specific::max_work_item_sizes<3>>(Queue), sycl::exception);
 }
 
-TEST(LaunchQueries, GetMaxSubGroupSizeSuccess)
+TEST(LaunchQueries, GetMaxSubGroupSize3DSuccess)
 {
     sycl::unittest::UrMock<> Mock;
     const auto Queue = getQueue();
     const auto Kernel = getKernel(Queue);
     const auto maxSubGroupSize = Kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_sub_group_size>(Queue, sycl::range<3>{1,1,1});
+    const auto result = std::is_same_v<std::remove_cv_t<decltype(maxSubGroupSize)>, uint32_t>;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(maxSubGroupSize, 123);
+}
+
+TEST(LaunchQueries, GetMaxSubGroupSize2DSuccess)
+{
+    sycl::unittest::UrMock<> Mock;
+    const auto Queue = getQueue();
+    const auto Kernel = getKernel(Queue);
+    const auto maxSubGroupSize = Kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_sub_group_size>(Queue, sycl::range<2>{1,1});
+    const auto result = std::is_same_v<std::remove_cv_t<decltype(maxSubGroupSize)>, uint32_t>;
+    ASSERT_TRUE(result);
+    ASSERT_EQ(maxSubGroupSize, 123);
+}
+
+TEST(LaunchQueries, GetMaxSubGroupSize1DSuccess)
+{
+    sycl::unittest::UrMock<> Mock;
+    const auto Queue = getQueue();
+    const auto Kernel = getKernel(Queue);
+    const auto maxSubGroupSize = Kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_sub_group_size>(Queue, sycl::range<1>{1});
     const auto result = std::is_same_v<std::remove_cv_t<decltype(maxSubGroupSize)>, uint32_t>;
     ASSERT_TRUE(result);
     ASSERT_EQ(maxSubGroupSize, 123);
@@ -211,13 +235,37 @@ TEST(LaunchQueries, GetMaxSubGroupSizeException)
       syclex::info::kernel_queue_specific::max_sub_group_size>(Queue, sycl::range<3>{1,1,1});, sycl::exception);
 }
 
-TEST(LaunchQueries, GetNumSubGroupsSuccess)
+TEST(LaunchQueries, GetNumSubGroups3DSuccess)
 {
   sycl::unittest::UrMock<> Mock;
   const auto Queue = getQueue();
   const auto Kernel = getKernel(Queue);
   const auto NumSubGroups = Kernel.template ext_oneapi_get_info<
-    syclex::info::kernel_queue_specific::num_sub_groups>(Queue, sycl::range<3>{1,1,1});
+    syclex::info::kernel_queue_specific::num_sub_groups>(Queue, sycl::range<3>{1, 1, 1});
+  const auto result = std::is_same_v<std::remove_cv_t<decltype(NumSubGroups)>, uint32_t>;
+  ASSERT_TRUE(result);
+  ASSERT_EQ(NumSubGroups, 123);
+}
+
+TEST(LaunchQueries, GetNumSubGroups2DSuccess)
+{
+  sycl::unittest::UrMock<> Mock;
+  const auto Queue = getQueue();
+  const auto Kernel = getKernel(Queue);
+  const auto NumSubGroups = Kernel.template ext_oneapi_get_info<
+    syclex::info::kernel_queue_specific::num_sub_groups>(Queue, sycl::range<2>{1, 1});
+  const auto result = std::is_same_v<std::remove_cv_t<decltype(NumSubGroups)>, uint32_t>;
+  ASSERT_TRUE(result);
+  ASSERT_EQ(NumSubGroups, 123);
+}
+
+TEST(LaunchQueries, GetNumSubGroups1DSuccess)
+{
+  sycl::unittest::UrMock<> Mock;
+  const auto Queue = getQueue();
+  const auto Kernel = getKernel(Queue);
+  const auto NumSubGroups = Kernel.template ext_oneapi_get_info<
+    syclex::info::kernel_queue_specific::num_sub_groups>(Queue, sycl::range<1>{1});
   const auto result = std::is_same_v<std::remove_cv_t<decltype(NumSubGroups)>, uint32_t>;
   ASSERT_TRUE(result);
   ASSERT_EQ(NumSubGroups, 123);

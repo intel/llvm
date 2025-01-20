@@ -44,23 +44,41 @@ int main() {
   auto kernel = bundle.template get_kernel<kernels::TestKernel>();
 
   // get value to compare with
-  auto *MaxLocalRange = sycl::malloc_shared<size_t>(1, q);
+  auto *maxLocalRange = sycl::malloc_shared<size_t>(1, q);
   q.submit([&](sycl::handler &h) {
     h.parallel_for( sycl::nd_range<1>(1, 1), [=](sycl::nd_item<1> item) {
           const auto sg = item.get_sub_group();
           if (item.get_local_id(0) == 0) {
-            *MaxLocalRange = sg.get_group_range()[0];
+            *maxLocalRange = sg.get_group_range()[0];
           }
         });
   }).wait();
-  
-  const sycl::range<3> r{};
-  // get value to test
-  const auto SubSGSize = kernel.template ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::num_sub_groups>(q, r);
+  {
+    const sycl::range<3> r3D{1, 1, 1};
+    const auto subSGSize = kernel.template ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::num_sub_groups>(q, r3D);
 
-  static_assert(std::is_same_v<std::remove_cv_t<decltype(SubSGSize)>, size_t>,
-                "num_sub_groups query must return size_t");
-  assert(SubSGSize == *MaxLocalRange);
-  sycl::free(MaxLocalRange, q);
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
+                  "num_sub_groups query must return uint32_t");
+    assert(subSGSize == *maxLocalRange);
+  }
+  {
+    const sycl::range<2> r2D{1, 1};
+    const auto subSGSize = kernel.template ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::num_sub_groups>(q, r2D);
+
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
+                  "num_sub_groups query must return uint32_t");
+    assert(subSGSize == *maxLocalRange);
+  }
+  {
+    const sycl::range<1> r1D{1};
+    const auto subSGSize = kernel.template ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::num_sub_groups>(q, r1D);
+
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
+                  "num_sub_groups query must return uint32_t");
+    assert(subSGSize == *maxLocalRange);
+  }
+  sycl::free(maxLocalRange, q);
 }

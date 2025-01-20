@@ -126,6 +126,20 @@ kernel::ext_oneapi_get_info(queue Queue, const range<3> &WG) const
   return impl->ext_oneapi_get_info<Param>(Queue, WG);
 }
 
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<2> &WG) const
+{
+  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+}
+
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<1> &WG) const
+{
+  return impl->ext_oneapi_get_info<Param>(Queue, WG);
+}
+
 template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel_queue_specific::max_num_work_group_sync::return_type
     kernel::ext_oneapi_get_info<
@@ -163,10 +177,34 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
             max_sub_group_size>(queue Queue, const range<3> &) const;
 
 template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_sub_group_size::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_sub_group_size>(queue Queue, const range<2> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_sub_group_size::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_sub_group_size>(queue Queue, const range<1> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel_queue_specific::num_sub_groups::return_type
     kernel::ext_oneapi_get_info<
         ext::oneapi::experimental::info::kernel_queue_specific::
             num_sub_groups>(queue Queue, const range<3> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::num_sub_groups::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            num_sub_groups>(queue Queue, const range<2> &) const;
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::num_sub_groups::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            num_sub_groups>(queue Queue, const range<1> &) const;
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT)           \
   template __SYCL_EXPORT ReturnT                                               \
