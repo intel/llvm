@@ -17,8 +17,8 @@ arguments.
 
 There are however, some requirements related to the value of the 
 `State` template parameter of the `device_image` class on which these 
-APIs are defined. In particular, the `ext_oneapi_device_image_backend_content` 
-and `ext_oneapi_device_image_backend_content_view` functions are only 
+APIs are defined. In particular, the `ext_oneapi_backend_content` 
+and `ext_oneapi_backend_content_view` functions are only 
 available when `State == sycl::bundle_state::executable`. 
 Tests shouls verify that these functions are indeed only available when this equality occurs.
 
