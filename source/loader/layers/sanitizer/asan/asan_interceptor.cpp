@@ -47,9 +47,9 @@ AsanInterceptor::~AsanInterceptor() {
   // detection depends on it.
   m_AllocationMap.clear();
 
-  for (auto &[_, ShadowManager] : m_ShadowMap) {
-    ShadowManager->Destory();
-    getContext()->urDdiTable.Context.pfnRelease(ShadowManager->Context);
+  for (auto &[_, ShadowMemory] : m_ShadowMap) {
+    ShadowMemory->Destory();
+    getContext()->urDdiTable.Context.pfnRelease(ShadowMemory->Context);
   }
 
   for (auto Adapter : m_Adapters) {
