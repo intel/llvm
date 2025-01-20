@@ -161,7 +161,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
   DIExpression *Expr = DbgValue->getExpression();
   if (!isNonSemanticDebugInfo()) {
     if (DbgValue->getNumVariableLocationOps() > 1) {
-      Val = UndefValue::get(Val->getType());
+      Val = PoisonValue::get(Val->getType());
       Expr = DIExpression::get(M->getContext(), {});
     }
   }
