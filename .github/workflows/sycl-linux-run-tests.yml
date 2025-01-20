@@ -195,6 +195,7 @@ permissions:
 jobs:
   run:
     if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
+    needs: ${{ inputs.test_selector == 'benchmark' && ['benchmark_aggregate'] || [] }}
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
@@ -516,6 +517,6 @@ jobs:
         git push
 
   benchmark_aggregate:
-    if: ${{ inputs.test_selector == 'benchmark' && (github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false') }}
+    if: inputs.test_selector == 'benchmark'
     name: Aggregate compute-benchmark historical average (TODO reconsider)
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
