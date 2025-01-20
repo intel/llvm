@@ -12,7 +12,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: spirv-backend && gpu
+// XFAIL: spirv-backend
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include <cmath>
