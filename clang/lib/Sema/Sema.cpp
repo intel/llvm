@@ -2095,6 +2095,10 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, const FunctionDecl *FD) {
   if (getLangOpts().SYCLIsDevice)
     return SYCL().DiagIfDeviceCode(Loc, DiagID);
 
+  if (getLangOpts().CUDA)
+    return getLangOpts().CUDAIsDevice ? CUDA().DiagIfDeviceCode(Loc, DiagID)
+                                      : CUDA().DiagIfHostCode(Loc, DiagID);
+
   return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
                                FD, *this, DeviceDiagnosticReason::All);
 }
