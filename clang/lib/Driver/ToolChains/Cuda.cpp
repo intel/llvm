@@ -949,7 +949,6 @@ void CudaToolChain::addClangTargetOptions(
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
-  assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
   assert((DeviceOffloadingKind == Action::OFK_OpenMP ||
           DeviceOffloadingKind == Action::OFK_SYCL ||
           DeviceOffloadingKind == Action::OFK_Cuda) &&
@@ -972,8 +971,9 @@ void CudaToolChain::addClangTargetOptions(
       CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
                       "--nvptx-prec-sqrtf32=0"});
   } else {
-    CC1Args.append(
-        {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
+    CC1Args.append({"-fcuda-is-device", "-mllvm",
+                    "-enable-memcpyopt-without-libcalls",
+                    "-fno-threadsafe-statics"});
 
     // Unsized function arguments used for variadics were introduced in CUDA-9.0
     // We still do not support generating code that actually uses variadic

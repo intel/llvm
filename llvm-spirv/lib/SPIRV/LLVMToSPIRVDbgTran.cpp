@@ -500,6 +500,8 @@ SPIRVWord LLVMToSPIRVDbgTran::mapDebugFlags(DINode::DIFlags DFlags) {
   if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
     if (DFlags & DINode::FlagBitField)
       Flags |= SPIRVDebug::FlagBitField;
+  if (DFlags & DINode::FlagEnumClass)
+    Flags |= SPIRVDebug::FlagIsEnumClass;
   return Flags;
 }
 

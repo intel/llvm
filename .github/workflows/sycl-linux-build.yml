@@ -14,7 +14,7 @@ on:
       build_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2404_build:latest"
       build_ref:
         type: string
         required: false

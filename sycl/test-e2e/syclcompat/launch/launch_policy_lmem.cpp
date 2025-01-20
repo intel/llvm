@@ -23,8 +23,12 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2)
+// UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2 || arch-intel_gpu_pvc)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15275
+
+// Flaky pass/fail behaviour.
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>

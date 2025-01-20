@@ -18,6 +18,7 @@
 #include <sycl/detail/string_view.hpp>
 #endif
 #include <sycl/device.hpp>                     // for device
+#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
@@ -153,47 +154,7 @@ private:
   std::shared_ptr<detail::node_impl> impl;
 };
 
-namespace property {
-namespace graph {
-
-/// Property passed to command_graph constructor to disable checking for cycles.
-///
-class no_cycle_check : public ::sycl::detail::DataLessProperty<
-                           ::sycl::detail::GraphNoCycleCheck> {
-public:
-  no_cycle_check() = default;
-};
-
-/// Property passed to command_graph constructor to allow buffers to be used
-/// with graphs. Passing this property represents a promise from the user that
-/// the buffer will outlive any graph that it is used in.
-///
-class assume_buffer_outlives_graph
-    : public ::sycl::detail::DataLessProperty<
-          ::sycl::detail::GraphAssumeBufferOutlivesGraph> {
-public:
-  assume_buffer_outlives_graph() = default;
-};
-
-/// Property passed to command_graph<graph_state::modifiable>::finalize() to
-/// mark the resulting executable command_graph as able to be updated.
-class updatable
-    : public ::sycl::detail::DataLessProperty<::sycl::detail::GraphUpdatable> {
-public:
-  updatable() = default;
-};
-
-/// Property used to enable executable graph profiling. Enables profiling on
-/// events returned by submissions of the executable graph
-class enable_profiling : public ::sycl::detail::DataLessProperty<
-                             ::sycl::detail::GraphEnableProfiling> {
-public:
-  enable_profiling() = default;
-};
-} // namespace graph
-
-namespace node {
-
+namespace property::node {
 /// Property used to define dependent nodes when creating a new node with
 /// command_graph::add().
 class depends_on : public ::sycl::detail::PropertyWithData<
@@ -209,17 +170,7 @@ public:
 private:
   const std::vector<::sycl::ext::oneapi::experimental::node> MDeps;
 };
-
-/// Property used to to add all previous graph leaves as dependencies when
-/// creating a new node with command_graph::add().
-class depends_on_all_leaves : public ::sycl::detail::DataLessProperty<
-                                  ::sycl::detail::GraphDependOnAllLeaves> {
-public:
-  depends_on_all_leaves() = default;
-};
-
-} // namespace node
-} // namespace property
+} // namespace property::node
 
 class __SYCL_EXPORT dynamic_command_group {
 public:
@@ -260,6 +211,7 @@ public:
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed empty node which has been added to the graph.
   node add(const property_list &PropList = {}) {
+    checkNodePropertiesAndThrow(PropList);
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
       node Node = addImpl(Deps.get_dependencies());
@@ -280,6 +232,7 @@ public:
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed node which has been added to the graph.
   template <typename T> node add(T CGF, const property_list &PropList = {}) {
+    checkNodePropertiesAndThrow(PropList);
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
       node Node = addImpl(CGF, Deps.get_dependencies());
@@ -340,7 +293,13 @@ public:
   /// @param path The path to write the DOT file to.
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
+#ifdef ___INTEL_PREVIEW_BREAKING_CHANGES
+  void print_graph(const std::string path, bool verbose = false) const {
+    print_graph(sycl::detail::string_view{path}, verbose);
+  }
+#else
   void print_graph(const std::string path, bool verbose = false) const;
+#endif
 
   /// Get a list of all nodes contained in this graph.
   std::vector<node> get_nodes() const;
@@ -385,8 +344,11 @@ protected:
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   std::shared_ptr<detail::graph_impl> impl;
+
+  static void checkNodePropertiesAndThrow(const property_list &Properties);
 };
 
+#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_GRAPH_IMPL_CPP
 // Magic combination found by trial and error:
 __SYCL_EXPORT
@@ -401,6 +363,7 @@ inline
                                           bool verbose) const {
   print_graph(sycl::detail::string_view{path}, verbose);
 }
+#endif
 
 // Templateless executable command-graph base class.
 class __SYCL_EXPORT executable_command_graph
@@ -546,25 +509,6 @@ command_graph(const context &SyclContext, const device &SyclDevice,
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
-template <>
-struct is_property<ext::oneapi::experimental::property::graph::no_cycle_check>
-    : std::true_type {};
-
-template <>
-struct is_property<ext::oneapi::experimental::property::node::depends_on>
-    : std::true_type {};
-
-template <>
-struct is_property_of<
-    ext::oneapi::experimental::property::graph::no_cycle_check,
-    ext::oneapi::experimental::command_graph<
-        ext::oneapi::experimental::graph_state::modifiable>> : std::true_type {
-};
-
-template <>
-struct is_property_of<ext::oneapi::experimental::property::node::depends_on,
-                      ext::oneapi::experimental::node> : std::true_type {};
 
 } // namespace _V1
 } // namespace sycl

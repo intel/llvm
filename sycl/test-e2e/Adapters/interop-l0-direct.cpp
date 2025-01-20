@@ -1,5 +1,9 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // UNSUPPORTED: ze_debug
+
+// DeviceSanitizer will report error for cross context USM usage, turn it off
+// RUN: export UR_LAYER_ASAN_OPTIONS="detect_kernel_arguments:0"
+
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out
@@ -219,6 +223,9 @@ int main() {
     std::cout << "GPU Result from Immediate Q = {" << hostOut[0] << ", "
               << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
   }
+
+  free(deviceData, InteropContext);
+
   // Check results
   buffer<int, 1> bufDataResult{data, 3};
   host_accessor hostResult{bufDataResult, read_only};
