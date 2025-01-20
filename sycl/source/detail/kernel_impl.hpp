@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/info/info_desc.hpp>
+
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -16,7 +16,7 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
-
+#include <sycl/info/info_desc.hpp>
 #include <sycl/queue.hpp>
 
 #include <cassert>
@@ -433,7 +433,9 @@ inline typename syclex::info::kernel_queue_specific::max_sub_group_size::
         syclex::info::kernel_queue_specific::max_sub_group_size>(
         queue Queue, const range<3> &WG) const {
 
-  // TODO: check if WG is grater than max WG size
+  if (WG.size() == 0)
+    throw exception(sycl::make_error_code(errc::invalid),
+                    "The max work-group size cannot be zero.");
   const auto &Adapter = getAdapter();
   const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
 
@@ -456,7 +458,9 @@ inline typename syclex::info::kernel_queue_specific::max_sub_group_size::
         syclex::info::kernel_queue_specific::max_sub_group_size>(
         queue Queue, const range<2> &WG) const {
 
-  // TODO: check if WG is grater than max WG size
+  if (WG.size() == 0)
+    throw exception(sycl::make_error_code(errc::invalid),
+                    "The max work-group size cannot be zero.");
   const auto &Adapter = getAdapter();
   const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
 
@@ -478,8 +482,9 @@ inline typename syclex::info::kernel_queue_specific::max_sub_group_size::
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_sub_group_size>(
         queue Queue, const range<1> &WG) const {
-
-  // TODO: check if WG is grater than max WG size
+  if (WG.size() == 0)
+    throw exception(sycl::make_error_code(errc::invalid),
+                    "The max work-group size cannot be zero.");
   const auto &Adapter = getAdapter();
   const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
 
@@ -501,14 +506,14 @@ inline typename syclex::info::kernel_queue_specific::num_sub_groups::
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::num_sub_groups>(
         queue Queue, const range<3> &WG) const {
-
-  // TODO: check if WG is grater than max WG size
+  if (WG.size() == 0)
+    throw exception(sycl::make_error_code(errc::invalid),
+                    "The max work-group size cannot be zero.");
   const auto &Adapter = getAdapter();
   const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
 
   uint32_t KernelSubWGSize = 0;
 
-// TODO: check if UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS is required value
   if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetSubGroupInfo>(
       MKernel, DeviceNativeHandle, UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS, sizeof(uint32_t), &KernelSubWGSize,
       nullptr);Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -525,14 +530,14 @@ inline typename syclex::info::kernel_queue_specific::num_sub_groups::
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::num_sub_groups>(
         queue Queue, const range<2> &WG) const {
-
-  // TODO: check if WG is grater than max WG size
+  if (WG.size() == 0)
+    throw exception(sycl::make_error_code(errc::invalid),
+                    "The max work-group size cannot be zero.");
   const auto &Adapter = getAdapter();
   const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
 
   uint32_t KernelSubWGSize = 0;
 
-// TODO: check if UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS is required value
   if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetSubGroupInfo>(
       MKernel, DeviceNativeHandle, UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS, sizeof(uint32_t), &KernelSubWGSize,
       nullptr);Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -549,14 +554,14 @@ inline typename syclex::info::kernel_queue_specific::num_sub_groups::
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::num_sub_groups>(
         queue Queue, const range<1> &WG) const {
-
-  // TODO: check if WG is grater than max WG size
+  if (WG.size() == 0)
+    throw exception(sycl::make_error_code(errc::invalid),
+                    "The max work-group size cannot be zero.");
   const auto &Adapter = getAdapter();
   const auto DeviceNativeHandle = getSyclObjImpl(Queue.get_device())->getHandleRef();
 
   uint32_t KernelSubWGSize = 0;
 
-// TODO: check if UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS is required value
   if (auto Result = Adapter->call_nocheck<UrApiKind::urKernelGetSubGroupInfo>(
       MKernel, DeviceNativeHandle, UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS, sizeof(uint32_t), &KernelSubWGSize,
       nullptr);Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {

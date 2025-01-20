@@ -85,7 +85,6 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-
 #include <sycl/info/kernel_device_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -119,7 +118,6 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
       : std::true_type {                                                       \
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
-
 
 #define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc, ReturnT, UrCode) \
 template <int Dimensions>                                                                              \
