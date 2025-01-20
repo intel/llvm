@@ -156,6 +156,10 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     // by the value of device USM pointer (see "USM Allocation Range" in
     // asan_shadow.cpp)
     auto Type = DeviceType::UNKNOWN;
+
+    // ((Ptr >> 48) & 0xff00U) is because I have seen a DeviceUSM of PVC having
+    // 0xff01xxxx addr. We need to confirm this with L0 team later about the
+    // address space mapping.
     if (((Ptr >> 48) & 0xff00U) == 0xff00U) {
       Type = DeviceType::GPU_PVC;
     } else {
