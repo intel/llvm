@@ -517,6 +517,6 @@ jobs:
         git push
 
   benchmark_aggregate:
-    if: inputs.test_selector == 'benchmark' && inputs.skip_run == 'false'
+    if: inputs.test_selector == 'benchmark'
     name: Aggregate compute-benchmark historical average (TODO reconsider)
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
