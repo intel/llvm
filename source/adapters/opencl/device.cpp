@@ -7,6 +7,7 @@
 //===-----------------------------------------------------------------===//
 
 #include "device.hpp"
+#include "adapter.hpp"
 #include "common.hpp"
 #include "platform.hpp"
 
@@ -1155,6 +1156,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
                         CL_DEVICE_UUID_KHR, UUID.size(), UUID.data(), nullptr));
     return ReturnValue(UUID);
+  }
+
+  case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS: {
+    return ReturnValue(
+        ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
   }
 
   // We can't query to check if these are supported, they will need to be

@@ -110,6 +110,7 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_BFLOAT16, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES, sizeof(uint32_t)},
     {UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS, sizeof(ur_bool_t)},
+    {UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MEMORY_BUS_WIDTH, sizeof(uint32_t)},
     {UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(size_t[3])},
     {UR_DEVICE_INFO_ASYNC_BARRIER, sizeof(ur_bool_t)},
@@ -253,7 +254,8 @@ UUR_DEVICE_TEST_SUITE_P(
         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE,          //
         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF,            //
         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT,             //
-        UR_DEVICE_INFO_NUM_COMPUTE_UNITS                       //
+        UR_DEVICE_INFO_NUM_COMPUTE_UNITS,                      //
+        UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS    //
         ),
     uur::deviceTestWithParamPrinter<ur_device_info_t>);
 
