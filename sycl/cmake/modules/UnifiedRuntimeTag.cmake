@@ -1,7 +1,8 @@
-# commit c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787
-# Merge: e6d4355f 778085f7
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 13 10:41:50 2025 +0000
-#     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
-#     Parameterize CTS tests across all available adapters and devices.
-set(UNIFIED_RUNTIME_TAG c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787)
+# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
+# Merge: 71a5eab0 128ea023
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 21 11:21:50 2025 +0000
+#     Merge pull request #2539 from RossBrunton/ross/specconst
+#
+#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
+set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
