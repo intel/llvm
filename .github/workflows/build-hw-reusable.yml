@@ -40,32 +40,21 @@ env:
 
 jobs:
   adapter-build-hw:
-    name: Build & Test HW
+    name: Build & CTS
     if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
     strategy:
       matrix:
-        adapter: [{
-          name: "${{inputs.adapter_name}}",
-          other_name: "${{inputs.other_adapter_name}}",
-          platform: "${{inputs.platform}}",
-          static_Loader: "${{inputs.static_loader}}",
-          static_adapter: "${{inputs.static_loader}}"
-        }]
-        build_type: [Debug, Release]
-        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
-        # TODO: The latest L0 loader segfaults when built with clang.
-        exclude:
-         - adapter: {name: L0, platform: ""}
-           compiler: {c: clang, cxx: clang++}
-        # Exclude these configurations to avoid overloading the runners.
-         - adapter: {static_Loader: ON}
-           build_type: Release
-         - adapter: {static_Loader: ON}
-           compiler: {c: clang, cxx: clang++}
-         - adapter: {static_adapter: ON}
-           build_type: Release
-         - adapter: {static_adapter: ON}
-           compiler: {c: clang, cxx: clang++}
+        adapter: [
+          {
+            name: "${{inputs.adapter_name}}",
+            other_name: "${{inputs.other_adapter_name}}",
+            platform: "${{inputs.platform}}",
+            static_Loader: "${{inputs.static_loader}}",
+            static_adapter: "${{inputs.static_loader}}"
+          }
+        ]
+        build_type: [Release]
+        compiler: [{c: gcc, cxx: g++}]
 
     runs-on: ${{inputs.runner_name}}
 
