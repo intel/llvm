@@ -31,16 +31,18 @@
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=compiler_wrappers.bc -unbundle
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-stubs%obj_ext -output=itt_stubs.bc -unbundle
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-user-wrappers%obj_ext -output=user_wrappers.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-ulnknown -input=%sycl_static_libs_dir/libsycl-asan%obj_ext -output=asan.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-ulnknown -input=%sycl_static_libs_dir/libsycl-msan%obj_ext -output=msan.bc -unbundle
 //
 // >> ---- link device code
-// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc compiler_wrappers.bc itt_stubs.bc user_wrappers.bc
+// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc compiler_wrappers.bc itt_stubs.bc user_wrappers.bc asan.bc msan.bc
 //
 // >> ---- produce entries data
-// RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols  -o test.table app.bc
+// RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -properties -o test.table app.bc
 //
 // >> ---- do table transformations from bc to spv entries
 // RUN: file-table-tform -extract=Code -drop_titles -o test_spv_in.table test.table
-// RUN: llvm-foreach --in-file-list=test_spv_in.table --in-replace=test_spv_in.table --out-ext=spv --out-file-list=test_spv_out.table --out-replace=test_spv_out.table -- llvm-spirv -o test_spv_out.table -spirv-allow-extra-diexpressions -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all test_spv_in.table
+// RUN: llvm-foreach --in-file-list=test_spv_in.table --in-replace=test_spv_in.table --out-ext=spv --out-file-list=test_spv_out.table --out-replace=test_spv_out.table -- llvm-spirv -o test_spv_out.table -spirv-allow-extra-diexpressions -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all,+SPV_INTEL_global_variable_decorations test_spv_in.table
 // RUN: file-table-tform -replace=Code,Code -o test_spv.table test.table test_spv_out.table
 //
 // >> ---- wrap device binary
