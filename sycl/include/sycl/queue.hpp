@@ -2751,7 +2751,9 @@ public:
 
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 
-  event ext_oneapi_get_last_event() const;
+  std::optional<event> ext_oneapi_get_last_event() const {
+    return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
+  }
 
   void ext_oneapi_set_external_event(const event &external_event);
 
@@ -3019,6 +3021,11 @@ private:
                                size_t Offset,
                                const std::vector<event> &DepEvents);
   const property_list &getPropList() const;
+
+  // Helper implementation for ext_oneapi_get_last_event. This is needed to
+  // avoid issues where std::optional has a different layout between user-code
+  // and library.
+  sycl::detail::optional<event> ext_oneapi_get_last_event_impl() const;
 
   template <typename KernelName>
   static constexpr detail::code_location getCodeLocation() {
