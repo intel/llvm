@@ -25,4 +25,5 @@ apt update && apt install -yqq \
       curl \
       libhwloc-dev \
       libzstd-dev \
-      time
+      time \
+      spirv-tools
