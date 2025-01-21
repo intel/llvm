@@ -289,7 +289,7 @@ members:
     - type: bool
       name: isNativeHandleOwned
       desc: |
-            [in] If true then ownership of the native handle is tranferred to
+            [in] If true then ownership of the native handle is transferred to
             the resultant object. This means the object will be responsible for
             releasing the native resources at the end of its lifetime.
 --- #--------------------------------------------------------------------------

@@ -354,7 +354,7 @@ native handle, it is guaranteed not to retain a reference to the native handle,
 or cause its resources to be released. A ${X} object that doesn't own its
 associated native handle **must** be destroyed before the native handle is.
 
-Ownership of the native handle can be tranferred to the ${X} object by passing
+Ownership of the native handle can be transferred to the ${X} object by passing
 ``isNativeHandleOwned = true`` in the native properties struct when calling the
 ``CreateWithNativeHandle`` entry point. A ${X} object that owns a native handle
 will attempt to release the native resources associated with that handle on

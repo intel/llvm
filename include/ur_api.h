@@ -1615,7 +1615,7 @@ typedef struct ur_platform_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -2696,7 +2696,7 @@ typedef struct ur_device_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -3076,7 +3076,7 @@ typedef struct ur_context_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -3697,7 +3697,7 @@ typedef struct ur_mem_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -4103,7 +4103,7 @@ typedef struct ur_sampler_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -5811,7 +5811,7 @@ typedef struct ur_program_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -6480,7 +6480,7 @@ typedef struct ur_kernel_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -6875,7 +6875,7 @@ typedef struct ur_queue_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
@@ -7301,7 +7301,7 @@ typedef struct ur_event_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] If true then ownership of the native handle is tranferred to
+  /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
