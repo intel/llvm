@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#ifdef __cpp_lib_span
+#if __has_include(<span>)
 #include <span>
 #endif
 #include <sycl/detail/core.hpp>
