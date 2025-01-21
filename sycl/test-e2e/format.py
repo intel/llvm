@@ -77,11 +77,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         assert parsed["DEFINE:"] == script
         assert parsed["REDEFINE:"] == script
 
-        test.xfails += parsed["XFAIL:"] or []
-        test.requires += test.config.required_features
-        test.requires += parsed["REQUIRES:"] or []
-        test.unsupported += test.config.unsupported_features
-        test.unsupported += parsed["UNSUPPORTED:"] or []
+        test.run_xfails += parsed["XFAIL:"] or []
+        test.run_requires += test.config.required_features
+        test.run_requires += parsed["REQUIRES:"] or []
+        test.run_unsupported += test.config.unsupported_features
+        test.run_unsupported += parsed["UNSUPPORTED:"] or []
 
         test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
 
@@ -102,7 +102,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if test.getMissingRequiredFeaturesFromList(features):
                 continue
 
-            if self.getMatchedFromList(features, test.unsupported):
+            if self.getMatchedFromList(features, test.run_unsupported):
                 continue
 
             driver_ok = True
@@ -128,14 +128,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         #
         # TODO: What if the entire list of devices consists of XFAILs only?
 
-        if "*" in test.xfails:
+        if "*" in test.run_xfails:
             return []
 
         devices_without_xfail = [
             d
             for d in devices
             if not self.getMatchedFromList(
-                test.config.sycl_dev_features[d], test.xfails
+                test.config.sycl_dev_features[d], test.run_xfails
             )
         ]
 
@@ -154,7 +154,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
-            if "build-and-run-mode" in test.requires or "true" in test.unsupported:
+            if (
+                "build-and-run-mode" in test.run_requires
+                or "true" in test.run_unsupported
+            ):
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "Test unsupported for this environment"
                 )
@@ -253,7 +256,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
 
             ignore_line_filtering = (
-                "build-and-run-mode" in test.requires
+                "build-and-run-mode" in test.run_requires
                 and test.config.fallback_build_run_only
             )
             if not ignore_line_filtering and (
@@ -328,8 +331,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         # Single device - might be an XFAIL.
         device = devices_for_test[0]
-        if "*" in test.xfails or self.getMatchedFromList(
-            test.config.sycl_dev_features[device], test.xfails
+        if "*" in test.run_xfails or self.getMatchedFromList(
+            test.config.sycl_dev_features[device], test.run_xfails
         ):
             if result.code is lit.Test.PASS:
                 result.code = lit.Test.XPASS
