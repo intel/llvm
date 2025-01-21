@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 // TODO: re-enable on cuda device.
 // See https://github.com/intel/llvm/issues/1542#issuecomment-707877817 for more
 // details.

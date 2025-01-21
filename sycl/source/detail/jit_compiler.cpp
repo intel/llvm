@@ -15,6 +15,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -22,24 +23,38 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+std::function<void(void *)> jit_compiler::CustomDeleterForLibHandle =
+    [](void *StoredPtr) {
+      if (!StoredPtr)
+        return;
+      std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
+    };
+
 static inline void printPerformanceWarning(const std::string &Message) {
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
     std::cerr << "WARNING: " << Message << "\n";
   }
 }
 
-jit_compiler::jit_compiler() {
+jit_compiler::jit_compiler()
+    : LibraryHandle(nullptr, CustomDeleterForLibHandle) {
   auto checkJITLibrary = [this]() -> bool {
+#ifdef _WIN32
+    static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
+    static const std::string JITLibraryName = dir + "\\" + "sycl-jit.dll";
+#else
     static const std::string JITLibraryName = "libsycl-jit.so";
-
-    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
+#endif
+    std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryPtr(
+        sycl::detail::ur::loadOsLibrary(JITLibraryName),
+        CustomDeleterForLibHandle);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
                                                   "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
@@ -48,7 +63,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
                                                   "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
@@ -57,7 +72,8 @@ jit_compiler::jit_compiler() {
     }
 
     this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
+                                                  "fuseKernels"));
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -67,13 +83,22 @@ jit_compiler::jit_compiler() {
     this->MaterializeSpecConstHandle =
         reinterpret_cast<MaterializeSpecConstFuncT>(
             sycl::detail::ur::getOsLibraryFuncAddress(
-                LibraryPtr, "materializeSpecConstants"));
+                LibraryPtr.get(), "materializeSpecConstants"));
     if (!this->MaterializeSpecConstHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
       return false;
     }
 
+    this->CompileSYCLHandle = reinterpret_cast<CompileSYCLFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
+                                                  "compileSYCL"));
+    if (!this->CompileSYCLHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+    LibraryHandle = std::move(LibraryPtr);
     return true;
   };
   Available = checkJITLibrary();
@@ -133,6 +158,8 @@ translateArgType(kernel_param_kind_t Kind) {
     return PK::SpecConstBuffer;
   case kind::kind_stream:
     return PK::Stream;
+  case kind::kind_work_group_memory:
+    return PK::WorkGroupMemory;
   case kind::kind_invalid:
     return PK::Invalid;
   }
@@ -615,6 +642,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
     const std::string &KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
+#ifndef _WIN32
   if (!BinImage) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "No suitable IR available for materializing");
@@ -706,6 +734,13 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   }
 
   return NewKernel;
+#else  // _WIN32
+  (void)Queue;
+  (void)BinImage;
+  (void)KernelName;
+  (void)SpecConstBlob;
+  return nullptr;
+#endif // _WIN32
 }
 
 std::unique_ptr<detail::CG>
@@ -997,7 +1032,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
       std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
       CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
-      false /* KernelUsesClusterLaunch*/));
+      false /* KernelUsesClusterLaunch*/, 0 /* KernelWorkGroupMemorySize */));
   return FusedCG;
 }
 
@@ -1095,6 +1130,53 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   return JITDeviceBinaries.back().getPIDeviceStruct();
 }
 
+sycl_device_binaries jit_compiler::createDeviceBinaryImage(
+    const ::jit_compiler::RTCBundleInfo &BundleInfo,
+    const std::string &OffloadEntryPrefix) {
+  DeviceBinariesCollection Collection;
+
+  for (const auto &DevImgInfo : BundleInfo) {
+    DeviceBinaryContainer Binary;
+    for (const auto &Symbol : DevImgInfo.SymbolTable) {
+      // Create an offload entry for each kernel. We prepend a unique prefix to
+      // support reusing the same name across multiple RTC requests. The actual
+      // entrypoints remain unchanged.
+      // It seems to be OK to set zero for most of the information here, at
+      // least that is the case for compiled SPIR-V binaries.
+      std::string PrefixedName = OffloadEntryPrefix + Symbol.c_str();
+      OffloadEntryContainer Entry{PrefixedName, /*Addr=*/nullptr, /*Size=*/0,
+                                  /*Flags=*/0, /*Reserved=*/0};
+      Binary.addOffloadEntry(std::move(Entry));
+    }
+
+    for (const auto &FPS : DevImgInfo.Properties) {
+      PropertySetContainer PropSet{FPS.Name.c_str()};
+      for (const auto &FPV : FPS.Values) {
+        if (FPV.IsUIntValue) {
+          PropSet.addProperty(
+              PropertyContainer{FPV.Name.c_str(), FPV.UIntValue});
+        } else {
+          PropSet.addProperty(PropertyContainer{
+              FPV.Name.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
+              sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY});
+        }
+      }
+      Binary.addProperty(std::move(PropSet));
+    }
+
+    Collection.addDeviceBinary(std::move(Binary),
+                               DevImgInfo.BinaryInfo.BinaryStart,
+                               DevImgInfo.BinaryInfo.BinarySize,
+                               (DevImgInfo.BinaryInfo.AddressBits == 64)
+                                   ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
+                                   : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
+                               SYCL_DEVICE_BINARY_TYPE_SPIRV);
+  }
+
+  JITDeviceBinaries.push_back(std::move(Collection));
+  return JITDeviceBinaries.back().getPIDeviceStruct();
+}
+
 std::vector<uint8_t> jit_compiler::encodeArgUsageMask(
     const ::jit_compiler::ArgUsageMask &Mask) const {
   // This must match the decoding logic in program_manager.cpp.
@@ -1141,6 +1223,55 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
     Ptr += sizeof(uint32_t);
   }
   return Encoded;
+}
+
+sycl_device_binaries jit_compiler::compileSYCL(
+    const std::string &CompilationID, const std::string &SYCLSource,
+    const std::vector<std::pair<std::string, std::string>> &IncludePairs,
+    const std::vector<std::string> &UserArgs, std::string *LogPtr,
+    const std::vector<std::string> &RegisteredKernelNames) {
+
+  // RegisteredKernelNames may contain template specializations, so we just put
+  // them in main() which ensures they are instantiated.
+  std::ostringstream ss;
+  ss << SYCLSource << '\n';
+  ss << "int main() {\n";
+  for (const std::string &KernelName : RegisteredKernelNames) {
+    ss << "  (void)" << KernelName << ";\n";
+  }
+  ss << "  return 0;\n}\n" << std::endl;
+
+  std::string FinalSource = ss.str();
+
+  std::string SYCLFileName = CompilationID + ".cpp";
+  ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
+                                          FinalSource.c_str()};
+
+  std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
+  IncludeFilesView.reserve(IncludePairs.size());
+  std::transform(IncludePairs.begin(), IncludePairs.end(),
+                 std::back_inserter(IncludeFilesView), [](const auto &Pair) {
+                   return ::jit_compiler::InMemoryFile{Pair.first.c_str(),
+                                                       Pair.second.c_str()};
+                 });
+  std::vector<const char *> UserArgsView;
+  UserArgsView.reserve(UserArgs.size());
+  std::transform(UserArgs.begin(), UserArgs.end(),
+                 std::back_inserter(UserArgsView),
+                 [](const auto &Arg) { return Arg.c_str(); });
+
+  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
+
+  if (LogPtr) {
+    LogPtr->append(Result.getBuildLog());
+  }
+
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getBuildLog());
+  }
+
+  return createDeviceBinaryImage(Result.getBundleInfo(),
+                                 /*OffloadEntryPrefix=*/CompilationID + '$');
 }
 
 } // namespace detail

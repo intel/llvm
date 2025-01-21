@@ -444,12 +444,14 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   //   local work size
   // The arguments need to add missing members.
   for (size_t I = 1, E = CI->arg_size(); I != E; ++I)
-    Mutator.mapArg(I, [=](Value *V) { return getScalarOrArray(V, Len, CI); });
+    Mutator.mapArg(I, [=](Value *V) {
+      return getScalarOrArray(V, Len, CI->getIterator());
+    });
   switch (CI->arg_size()) {
   case 2: {
     // Has global work size.
     auto *T = Mutator.getArg(1)->getType();
-    auto *C = getScalarOrArrayConstantInt(CI, T, Len, 0);
+    auto *C = getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0);
     Mutator.appendArg(C);
     Mutator.appendArg(C);
     break;
@@ -457,7 +459,8 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   case 3: {
     // Has global and local work size.
     auto *T = Mutator.getArg(1)->getType();
-    Mutator.appendArg(getScalarOrArrayConstantInt(CI, T, Len, 0));
+    Mutator.appendArg(
+        getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0));
     break;
   }
   case 4: {
@@ -1158,7 +1161,7 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
         .mapArg(Mutator.arg_size() - 1,
                 [&](Value *V) {
                   return std::make_pair(
-                      castToInt8Ptr(V, CI),
+                      castToInt8Ptr(V, CI->getIterator()),
                       TypedPointerType::get(Type::getInt8Ty(V->getContext()),
                                             SPIRAS_Generic));
                 })
@@ -1428,7 +1431,7 @@ bool usesSpvExtImageRaw10Raw12Constants(const CallInst *CI) {
   // common use patterns here.
   for (auto *U : CI->users()) {
     for (auto C : ExtConstants) {
-      ICmpInst::Predicate Pred;
+      CmpPredicate Pred;
       if (match(U, m_c_ICmp(Pred, m_Value(), m_SpecificInt(C)))) {
         return true;
       }

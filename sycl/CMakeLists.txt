@@ -30,11 +30,6 @@ endif()
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
 # materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
-if(SYCL_ENABLE_EXTENSION_JIT AND WIN32)
-  message(WARNING "Extension to JIT kernels not yet supported on Windows")
-  set(SYCL_ENABLE_EXTENSION_JIT OFF CACHE
-      BOOL "Extension to JIT kernels not yet supported on Windows" FORCE)
-endif()
 
 if (NOT XPTI_INCLUDES)
   set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
@@ -58,7 +53,7 @@ if(MSVC)
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   include(CheckLinkerFlag)
-  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  check_linker_flag(CXX "LINKER:/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
     # sccache is not compatible with /Zi flag
     if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
@@ -77,12 +72,12 @@ if(MSVC)
     else()
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
     endif()
-    add_link_options("/DEBUG")
+    add_link_options("LINKER:/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "LINKER:/OPT:REF LINKER:/OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
-      add_link_options("/OPT:REF" "/OPT:ICF")
+      add_link_options("LINKER:/OPT:REF" "LINKER:/OPT:ICF")
     endif()
   endif()
 endif()
@@ -199,10 +194,23 @@ string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
+# Generate device_aspect_macros.hpp
+find_package(Python3 REQUIRED)
+add_custom_command(
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/device_aspect_macros_generator.py ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp
+  COMMENT "Generating device_aspect_macros.hpp"
+)
+
+add_custom_target(sycl-device-aspect-macros-header
+  DEPENDS "${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp"
+)
+
 # Install generated headers.
 install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
@@ -232,8 +240,14 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
+          sycl-device-aspect-macros-header
           boost_mp11-headers)
 
+list(APPEND UR_HEADERS_TO_COPY
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp
+)
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
@@ -243,14 +257,13 @@ add_custom_command(
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
           ${HEADERS_IN_SYCLCOMPAT_DIR}
+          ${UR_HEADERS_TO_COPY}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def ${SYCL_INCLUDE_BUILD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
@@ -455,7 +468,8 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
-     level-zero-sycl-dev
+     unified-memory-framework
+     unified-runtime-loader
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )

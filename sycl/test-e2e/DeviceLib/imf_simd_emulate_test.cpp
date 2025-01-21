@@ -1,10 +1,14 @@
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
+// RUN: %{run} %t2.out
 //
 // UNSUPPORTED: cuda || hip
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+
 #include "imf_utils.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>

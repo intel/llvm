@@ -9,8 +9,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 #include "ur_mock_helpers.hpp"
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <cassert>
@@ -102,29 +102,22 @@ struct KernelInfo<StreamAUXCmdsWait_TestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addESIMDFlag(PropSet);
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  std::vector<UrOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({"StreamAUXCmdsWait_TestKernel"});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-sycl::unittest::UrImage Img = generateDefaultImage();
-sycl::unittest::UrImageArray<1> ImgArray{&Img};
+sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 class EventImplProxyT : public sycl::detail::event_impl {
 public:

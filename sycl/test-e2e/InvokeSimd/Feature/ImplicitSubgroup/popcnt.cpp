@@ -1,6 +1,6 @@
 // NOTE: The feature is not yet supported, there is a discussion on the
 // feasibility of tests
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 //
 // Check that full compilation works:
 // RUN: %clangxx -DIMPL_SUBGROUP -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %S/../popcnt.cpp -o %t.out

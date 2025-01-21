@@ -8,8 +8,8 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -19,14 +19,14 @@ using namespace sycl;
 namespace sycl {
 inline namespace _V1 {
 namespace unittest {
-static inline UrImage
+static inline MockDeviceImage
 generateImageWithCompileTarget(std::string KernelName,
                                std::string CompileTarget) {
   std::vector<char> Data(8 + CompileTarget.size());
   std::copy(CompileTarget.begin(), CompileTarget.end(), Data.data() + 8);
-  UrProperty CompileTargetProperty("compile_target", Data,
-                                   SYCL_PROPERTY_TYPE_BYTE_ARRAY);
-  UrPropertySet PropSet;
+  MockProperty CompileTargetProperty("compile_target", Data,
+                                     SYCL_PROPERTY_TYPE_BYTE_ARRAY);
+  MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
                  std::move(CompileTargetProperty));
 
@@ -34,19 +34,19 @@ generateImageWithCompileTarget(std::string KernelName,
   // Null terminate the data so it can be interpreted as c string.
   Bin.push_back(0);
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
   auto DeviceTargetSpec = CompileTarget == "spir64_x86_64"
                               ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64
                               : __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN;
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_NATIVE, // Format
-              DeviceTargetSpec,               // DeviceTargetSpec
-              "",                             // Compile options
-              "",                             // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_NATIVE, // Format
+                      DeviceTargetSpec,               // DeviceTargetSpec
+                      "",                             // Compile options
+                      "",                             // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
@@ -59,14 +59,16 @@ class NDRangeKernel;
 class RangeKernel;
 class NoDeviceKernel;
 class JITFallbackKernel;
+class SKLOnlyKernel;
 
 MOCK_INTEGRATION_HEADER(SingleTaskKernel)
 MOCK_INTEGRATION_HEADER(NDRangeKernel)
 MOCK_INTEGRATION_HEADER(RangeKernel)
 MOCK_INTEGRATION_HEADER(NoDeviceKernel)
 MOCK_INTEGRATION_HEADER(JITFallbackKernel)
+MOCK_INTEGRATION_HEADER(SKLOnlyKernel)
 
-static sycl::unittest::UrImage Img[] = {
+static sycl::unittest::MockDeviceImage Img[] = {
     sycl::unittest::generateDefaultImage({"SingleTaskKernel"}),
     sycl::unittest::generateImageWithCompileTarget("SingleTaskKernel",
                                                    "spir64_x86_64"),
@@ -93,9 +95,10 @@ static sycl::unittest::UrImage Img[] = {
     sycl::unittest::generateDefaultImage({"JITFallbackKernel"}),
     sycl::unittest::generateImageWithCompileTarget("JITFallbackKernel",
                                                    "intel_gpu_bdw"),
-};
+    sycl::unittest::generateImageWithCompileTarget("SKLOnlyKernel",
+                                                   "intel_gpu_skl")};
 
-static sycl::unittest::UrImageArray<std::size(Img)> ImgArray{Img};
+static sycl::unittest::MockDeviceImageArray<std::size(Img)> ImgArray{Img};
 
 struct MockDeviceData {
   int Ip;
@@ -138,8 +141,9 @@ static ur_result_t redefinedDeviceGet(void *pParams) {
 std::vector<std::string> createWithBinaryLog;
 static ur_result_t redefinedProgramCreateWithBinary(void *pParams) {
   auto params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
-  createWithBinaryLog.push_back(
-      reinterpret_cast<const char *>(*params.ppBinary));
+  for (uint32_t i = 0; i < *params.pnumDevices; ++i)
+    createWithBinaryLog.push_back(
+        reinterpret_cast<const char *>(*params.pppBinaries[i]));
   return UR_RESULT_SUCCESS;
 }
 
@@ -334,4 +338,11 @@ TEST_F(CompileTargetTest, JITFallbackKernel) {
   EXPECT_EQ(createWithBinaryLog.size(), 0U);
   ASSERT_EQ(createWithILLog.size(), 1U);
   EXPECT_EQ(createWithILLog.back(), "JITFallbackKernel");
+}
+
+TEST_F(CompileTargetTest, IsCompatible) {
+  device Skl{archSelector(syclex::architecture::intel_gpu_skl)};
+  EXPECT_TRUE(sycl::is_compatible<SKLOnlyKernel>(Skl));
+  device Pvc{archSelector(syclex::architecture::intel_gpu_pvc)};
+  EXPECT_FALSE(sycl::is_compatible<SKLOnlyKernel>(Pvc));
 }

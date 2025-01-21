@@ -2,11 +2,11 @@
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// RUN: %{build} %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} %{mathflags} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t.out
-// RUN: %if !gpu %{ %{run} %t.out %}
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t2.out
+// RUN: %if !gpu %{ %{run} %t2.out %}
 
 #include "math_utils.hpp"
 #include <cstdint>

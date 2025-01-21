@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <ur_api.h>
@@ -42,6 +41,7 @@ struct trace_event_data_t;
 namespace sycl {
 inline namespace _V1 {
 
+enum class backend : char;
 class context;
 
 namespace detail {

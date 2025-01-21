@@ -29,6 +29,21 @@
 
 using namespace llvm;
 
+static cl::opt<SpecConstantsPass::HandlingMode> SpecConstantMode(
+    "spec-constant-mode", cl::Optional, cl::Hidden,
+    cl::desc("Specialization constant handling mode"),
+    cl::init(SpecConstantsPass::HandlingMode::emulation),
+    cl::values(
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::default_values, "default_values",
+            "Specialization constant uses are replaced by default values"),
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::emulation, "emulation",
+            "Specialization constant intrinsic is replaced by run-time buffer"),
+        clEnumValN(SpecConstantsPass::HandlingMode::native, "native",
+                   "Specialization constant intrinsic is lowered to SPIR-V "
+                   "intrinsic")));
+
 namespace {
 
 // __sycl* intrinsic names are Itanium ABI-mangled; this is common prefix for
@@ -475,6 +490,7 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   std::string FunctionName = mangleFuncItanium(BaseFunctionName, FT);
   Module *M = InsertBefore->getFunction()->getParent();
+  bool IsSPIROrSPIRV = llvm::Triple(M->getTargetTriple()).isSPIROrSPIRV();
 
   if (RetTy->isIntegerTy(1)) {
     assert(ArgTys.size() == 2 && "Expected a scalar spec constant");
@@ -498,10 +514,15 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
       auto *NewFT = FunctionType::get(NewRetTy, ArgTys, false /*isVarArg*/);
       auto NewFC = M->getOrInsertFunction(FunctionName, NewFT);
 
-      auto *Call =
-          CallInst::Create(NewFT, NewFC.getCallee(), Args, "", InsertBefore);
+      auto *Call = CallInst::Create(NewFT, NewFC.getCallee(), Args, "",
+                                    InsertBefore->getIterator());
+      if (IsSPIROrSPIRV) {
+        cast<Function>(NewFC.getCallee())
+            ->setCallingConv(CallingConv::SPIR_FUNC);
+        Call->setCallingConv(CallingConv::SPIR_FUNC);
+      }
       return CastInst::CreateTruncOrBitCast(Call, RetTy, "tobool",
-                                            InsertBefore);
+                                            InsertBefore->getIterator());
     }
   }
 
@@ -520,7 +541,12 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   // types? Is it necessary?
 
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
-  return CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  if (IsSPIROrSPIRV) {
+    cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
+    Call->setCallingConv(CallingConv::SPIR_FUNC);
+  }
+  return Call;
 }
 
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
@@ -685,7 +711,7 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   Type *Int32Ty = Type::getInt32Ty(C);
   GetElementPtrInst *GEP = GetElementPtrInst::Create(
       Int8Ty, Buffer, {ConstantInt::get(Int32Ty, Offset, false)}, "gep",
-      InsertBefore);
+      InsertBefore->getIterator());
 
   Instruction *BitCast = nullptr;
   if (SCType->isIntegerTy(1)) // No bitcast to i1 before load
@@ -693,14 +719,14 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   else
     BitCast =
         new BitCastInst(GEP, PointerType::get(SCType, GEP->getAddressSpace()),
-                        "bc", InsertBefore);
+                        "bc", InsertBefore->getIterator());
 
   // When we encounter i1 spec constant, we still load the whole byte
   Value *Load = new LoadInst(SCType->isIntegerTy(1) ? Int8Ty : SCType, BitCast,
-                             "load", InsertBefore);
+                             "load", InsertBefore->getIterator());
   if (SCType->isIntegerTy(1)) // trunc back to i1 if necessary
     Load = CastInst::CreateIntegerCast(Load, SCType, /* IsSigned */ false,
-                                       "tobool", InsertBefore);
+                                       "tobool", InsertBefore->getIterator());
 
   return Load;
 }
@@ -815,6 +841,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<unsigned> OffsetMap;
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
+
+  if (SpecConstantMode.getNumOccurrences() > 0)
+    Mode = SpecConstantMode;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
@@ -964,8 +993,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         if (SCTy->isIntegerTy(1)) {
           assert(DefaultValue->getType()->isIntegerTy(8) &&
                  "For bool spec constant default value is expected to be i8");
-          Replacement =
-              new TruncInst(DefaultValue, Type::getInt1Ty(Ctx), "bool", CI);
+          Replacement = new TruncInst(DefaultValue, Type::getInt1Ty(Ctx),
+                                      "bool", CI->getIterator());
         } else
           Replacement = DefaultValue;
       }
@@ -992,9 +1021,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         Value *ArraySize =
             Mode == HandlingMode::emulation ? DefaultValue : Replacement;
         assert(ArraySize->getType()->isIntegerTy() && "Expecting integer type");
-        Replacement =
-            new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
-                           ArraySize, Intr->getAlign(), "alloca", CI);
+        Replacement = new AllocaInst(
+            Intr->getAllocatedType(), Intr->getAddressSpace(), ArraySize,
+            Intr->getAlign(), "alloca", CI->getIterator());
       }
 
       if (HasSretParameter)

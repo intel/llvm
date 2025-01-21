@@ -1,0 +1,37 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Int64
+               OpCapability Linkage
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpSource OpenCL_CPP 100000
+               OpName %foo "foo"
+               OpName %get "get"
+               OpDecorate %foo LinkageAttributes "foo" Export
+               OpDecorate %get LinkageAttributes "get" Import
+       %uint = OpTypeInt 32 0
+          %3 = OpTypeFunction %uint
+      %ulong = OpTypeInt 64 0
+     %uint_2 = OpConstant %uint 2
+     %uint_4 = OpConstant %uint 4
+        %get = OpFunction %uint None %3
+               OpFunctionEnd
+        %foo = OpFunction %uint None %3
+         %11 = OpLabel
+          %9 = OpFunctionCall %uint %get
+               OpSwitch %9 %12 10 %13 4 %13 0 %13 42 %13
+         %12 = OpLabel
+               OpBranch %13
+         %13 = OpLabel
+         %10 = OpPhi %uint %uint_4 %11 %uint_2 %12
+         %14 = OpPhi %uint %uint_2 %12 %uint_4 %11
+               OpReturnValue %14
+               OpFunctionEnd
+
+; CHECK: phi i32 [ 4, %0 ], [ 4, %0 ], [ 4, %0 ], [ 4, %0 ], [ 2, %2 ]
+; CHECK: phi i32 [ 2, %2 ], [ 4, %0 ], [ 4, %0 ], [ 4, %0 ], [ 4, %0 ]

@@ -14,10 +14,10 @@
 
 #if defined(__SYCL_NATIVE_CPU__)
 
-#include "CL/__spirv/spirv_ops.hpp"
 #include "device.h"
 #include <cstdint>
-#include <sycl/types.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/vector.hpp>
 
 // including state definition from Native CPU UR adapter
 #include "nativecpu_state.hpp"
@@ -31,16 +31,7 @@ using __nativecpu_state = native_cpu::state;
 
 #define OCL_LOCAL __attribute__((opencl_local))
 #define OCL_GLOBAL __attribute__((opencl_global))
-
-DEVICE_EXTERNAL OCL_LOCAL void *
-__spirv_GenericCastToPtrExplicit_ToLocal(void *p, int) {
-  return (OCL_LOCAL void *)p;
-}
-
-DEVICE_EXTERNAL OCL_GLOBAL void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(void *p, int) {
-  return (OCL_GLOBAL void *)p;
-}
+#define OCL_PRIVATE __attribute__((opencl_private))
 
 DEVICE_EXTERN_C void __mux_work_group_barrier(uint32_t id, uint32_t scope,
                                               uint32_t semantics);
@@ -61,17 +52,34 @@ __spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
 // Turning clang format off here because it reorders macro invocations
 // making the following code very difficult to read.
 // clang-format off
+
+#define DefGenericCastToPtrExplImpl(sfx, asp, cv)\
+DEVICE_EXTERNAL cv asp void *\
+__spirv_GenericCastToPtrExplicit_##sfx(cv void *p ,int) {\
+  return (cv asp void *)p;\
+}
+
+#define DefGenericCastToPtrExpl(sfx, asp)\
+  DefGenericCastToPtrExplImpl(sfx, asp, )\
+  DefGenericCastToPtrExplImpl(sfx, asp, const)\
+  DefGenericCastToPtrExplImpl(sfx, asp, volatile)\
+  DefGenericCastToPtrExplImpl(sfx, asp, const volatile)
+
+DefGenericCastToPtrExpl(ToPrivate, OCL_PRIVATE)
+DefGenericCastToPtrExpl(ToLocal, OCL_LOCAL)
+DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL)
+
 #define DefSubgroupBlockINTEL1(Type, PType)                                    \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
   __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
-    return *Ptr;                                                               \
+    return Ptr[__spirv_SubgroupLocalInvocationId()];                           \
   }                                                                            \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL void                                     \
   __spirv_SubgroupBlockWriteINTEL<Type>(PType OCL_GLOBAL * ptr,                \
                                         Type v) noexcept {                     \
-    *(Type *)ptr = v;                                                          \
+    ((Type*)ptr)[__spirv_SubgroupLocalInvocationId()]  = v;                    \
   }
 
 #define DefSubgroupBlockINTEL_vt(Type, VT_name)                                \
@@ -92,16 +100,19 @@ template <class T> struct vtypes {
 DefSubgroupBlockINTEL(uint32_t) DefSubgroupBlockINTEL(uint64_t)
 DefSubgroupBlockINTEL(uint8_t) DefSubgroupBlockINTEL(uint16_t)
 
-#define DefineGOp1(spir_sfx, mux_name)\
-DEVICE_EXTERN_C bool mux_name(bool);\
+#define DefineGOp1(spir_sfx, name)\
+DEVICE_EXTERN_C bool __mux_sub_group_##name##_i1(bool);\
+DEVICE_EXTERN_C bool __mux_work_group_##name##_i1(uint32_t id, bool val);\
 DEVICE_EXTERNAL bool __spirv_Group ## spir_sfx(unsigned g, bool val) {\
   if (__spv::Scope::Flag::Subgroup == g)\
-    return mux_name(val);\
+    return __mux_sub_group_##name##_i1(val);\
+  else if (__spv::Scope::Flag::Workgroup == g)\
+    return __mux_work_group_##name##_i1(0, val);\
   return false;\
 }
 
-DefineGOp1(Any, __mux_sub_group_any_i1)
-DefineGOp1(All, __mux_sub_group_all_i1)
+DefineGOp1(Any, any)
+DefineGOp1(All, all)
 
 
 #define DefineGOp(Type, MuxType, spir_sfx, mux_sfx)                            \
@@ -184,18 +195,6 @@ DefineBitwiseGroupOp(uint64_t, int64_t, i64)
 
 DefineLogicalGroupOp(bool, bool, i1)
 
-#define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                       \
-  DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                   \
-      int32_t id, MuxType val, int64_t lidx, int64_t lidy, int64_t lidz);     \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,        \
-                                                          int32_t sg_lid);    \
-  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
-                                              IDType l) {                     \
-    if (__spv::Scope::Flag::Subgroup == g)                                    \
-      return __mux_sub_group_broadcast_##Sfx(v, l);                           \
-    return Type(); /*todo: add support for other flags as they are tested*/   \
-  }
-
 #define DefineBroadcastMuxType(Type, Sfx, MuxType, IDType)                    \
   DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                   \
       int32_t id, MuxType val, uint64_t lidx, uint64_t lidy, uint64_t lidz);  \
@@ -216,7 +215,7 @@ DefineLogicalGroupOp(bool, bool, i1)
     if (__spv::Scope::Flag::Subgroup == g)                                    \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
     else                                                                      \
-      return __mux_work_group_broadcast_##Sfx(0, v, l[0], l[0], 0);           \
+      return __mux_work_group_broadcast_##Sfx(0, v, l[0], l[1], 0);           \
   }                                                                           \
                                                                               \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \

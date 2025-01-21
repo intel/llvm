@@ -1,5 +1,5 @@
-// https://github.com/intel/llvm/issues/14324
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14324
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -13,6 +13,7 @@
 //      call to ext_oneapi_set_external_event.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 
@@ -20,8 +21,18 @@
 
 template <typename F>
 int Check(const sycl::queue &Q, const char *CheckName, const F &CheckFunc) {
-  sycl::event E = CheckFunc();
-  if (E != Q.ext_oneapi_get_last_event()) {
+  std::optional<sycl::event> E = CheckFunc();
+  if (!E) {
+    std::cout << "No result event return by CheckFunc()" << std::endl;
+    return 1;
+  }
+  std::optional<sycl::event> LastEvent = Q.ext_oneapi_get_last_event();
+  if (!LastEvent) {
+    std::cout << "No result event return by ext_oneapi_get_last_event()"
+              << std::endl;
+    return 1;
+  }
+  if (*E != *LastEvent) {
     std::cout << "Failed " << CheckName << std::endl;
     return 1;
   }
@@ -33,11 +44,23 @@ int main() {
 
   int Failed = 0;
 
-  Failed += Check(Q, "single_task", [&]() { return Q.single_task([]() {}); });
+  // Check that a std::nullopt is returned on the empty queue.
+  std::optional<sycl::event> EmptyEvent = Q.ext_oneapi_get_last_event();
+  if (EmptyEvent.has_value()) {
+    std::cout << "Unexpected event return by ext_oneapi_get_last_event()"
+              << std::endl;
+    ++Failed;
+  }
 
+  // Check that a valid event is returned after enqueuing work without events.
+  sycl::ext::oneapi::experimental::single_task(Q, []() {});
+  Q.ext_oneapi_get_last_event()->wait();
+
+  // Check event equivalences - This is an implementation detail, but useful
+  // for checking behavior.
+  Failed += Check(Q, "single_task", [&]() { return Q.single_task([]() {}); });
   Failed += Check(Q, "parallel_for",
                   [&]() { return Q.parallel_for(32, [](sycl::id<1>) {}); });
-
   Failed += Check(Q, "host_task", [&]() {
     return Q.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
   });

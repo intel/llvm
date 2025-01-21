@@ -31,12 +31,13 @@
 // CHK-ACTIONS-WIN: llvm-foreach" {{.*}} "--" "{{.*}}fatbinary"
 // CHK-ACTIONS-WIN: file-table-tform" "-replace=Code,Code"
 // CHK-ACTIONS-WIN-NOT: "-mllvm -sycl-opt"
-// CHK-ACTIONS-WIN: clang-offload-wrapper"{{.*}} "-host=x86_64-pc-windows-msvc" "-target=nvptx64" "-kind=sycl"{{.*}}
+// CHK-ACTIONS-WIN: clang-offload-wrapper"{{.*}} "-host=[[HOST_TARGET:x86_64-pc-windows-msvc.*]]" "-target=nvptx64" "-kind=sycl"{{.*}}
+// CHK-ACTIONS-WIN: clang{{.*}} "--target=[[HOST_TARGET]]" "-c"
 
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all \
-// RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN: -fsycl-instrument-device-code -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
@@ -73,7 +74,7 @@
 /// Check phases specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all \
-// RUN: -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: -fsycl-instrument-device-code -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \

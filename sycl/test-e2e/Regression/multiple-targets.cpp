@@ -3,20 +3,18 @@
 // The test is repeated for per_kernel device code splitting.
 //
 // REQUIRES: cuda || hip || native_cpu
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -o %t.out %s
-// RUN: %{run} %t.out
+// REQUIRES: build-and-run-mode
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 %if any-device-is-hip %{ %{hip_arch_opts} %} -o %t1.out %s
+// RUN: %{run} %t1.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -o %t.out %s
-// RUN: %{run} %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} %if any-device-is-hip %{ %{hip_arch_opts} %} -o %t2.out %s
+// RUN: %{run} %t2.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -fsycl-device-code-split=per_kernel -o %t.out %s
-// RUN: %{run} %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 %if any-device-is-hip %{ %{hip_arch_opts} %} -fsycl-device-code-split=per_kernel -o %t3.out %s
+// RUN: %{run} %t3.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -fsycl-device-code-split=per_kernel -o %t.out %s
-// RUN: %{run} %t.out
-//
-// XFAIL: hip_nvidia
-//
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} %if any-device-is-hip %{ %{hip_arch_opts} %} -fsycl-device-code-split=per_kernel -o %t4.out %s
+// RUN: %{run} %t4.out
 
 #include <sycl/detail/core.hpp>
 

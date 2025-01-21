@@ -19,9 +19,9 @@
 
 ; CHECK-PROP1: specConstsReplacedWithDefault=1|1
 
-; CHECK-IR0: call i32 @_Z20__spirv_SpecConstantii
-; CHECK-IR0: call %struct.B @_Z29__spirv_SpecConstantCompositeiii_Rstruct.B
-; CHECK-IR0: call %struct.A @_Z29__spirv_SpecConstantCompositeistruct.B_Rstruct.A
+; CHECK-IR0: call spir_func i32 @_Z20__spirv_SpecConstantii
+; CHECK-IR0: call spir_func %struct.B @_Z29__spirv_SpecConstantCompositeiii_Rstruct.B
+; CHECK-IR0: call spir_func %struct.A @_Z29__spirv_SpecConstantCompositeistruct.B_Rstruct.A
 
 ; CHECK-IR1: store %struct.A { i32 3, %struct.B { i32 3, i32 2, i32 1 } }, ptr addrspace(4) %a.ascast.i, align 4
 

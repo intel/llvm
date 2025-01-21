@@ -1,8 +1,12 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O2 -g -DUSER_CODE_1 -c -o %t1.o
 // RUN: %{build} %device_asan_flags -O2 -g -DUSER_CODE_2 -c -o %t2.o
 // RUN: %clangxx -fsycl %device_asan_flags -O2 -g %t1.o %t2.o -o %t.out
 // RUN: %{run} not %t.out 2>&1 | FileCheck %s
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64059
+
 #include <sycl/usm.hpp>
 
 constexpr std::size_t N = 4;

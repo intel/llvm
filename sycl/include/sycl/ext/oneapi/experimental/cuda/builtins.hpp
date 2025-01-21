@@ -10,7 +10,7 @@
 
 #define SYCL_EXT_ONEAPI_CUDA_TEX_CACHE_READ 1
 
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 #if defined(_WIN32) || defined(_WIN64)
 #define ATTRIBUTE_EXT_VEC_TYPE(N) __declspec(ext_vector_type(N))
@@ -24,37 +24,19 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 namespace cuda {
-
 namespace detail {
-using ldg_vector_types = sycl::detail::type_list<
-    sycl::vec<char, 2>, sycl::vec<char, 3>, sycl::vec<char, 4>,
-    sycl::vec<signed char, 2>, sycl::vec<signed char, 3>,
-    sycl::vec<signed char, 4>, sycl::vec<short, 2>, sycl::vec<short, 3>,
-    sycl::vec<short, 4>, sycl::vec<int, 2>, sycl::vec<int, 3>,
-    sycl::vec<int, 4>, sycl::vec<long, 2>, sycl::vec<long, 3>,
-    sycl::vec<long, 4>, sycl::vec<long long, 2>, sycl::vec<long long, 3>,
-    sycl::vec<long long, 4>, sycl::vec<unsigned char, 2>,
-    sycl::vec<unsigned char, 3>, sycl::vec<unsigned char, 4>,
-    sycl::vec<unsigned short, 2>, sycl::vec<unsigned short, 3>,
-    sycl::vec<unsigned short, 4>, sycl::vec<unsigned int, 2>,
-    sycl::vec<unsigned int, 3>, sycl::vec<unsigned int, 4>,
-    sycl::vec<unsigned long, 2>, sycl::vec<unsigned long, 3>,
-    sycl::vec<unsigned long, 4>, sycl::vec<unsigned long long, 2>,
-    sycl::vec<unsigned long long, 3>, sycl::vec<unsigned long long, 4>,
-    sycl::vec<half, 2>, sycl::vec<half, 3>, sycl::vec<half, 4>,
-    sycl::vec<float, 2>, sycl::vec<float, 3>, sycl::vec<float, 4>,
-    sycl::vec<double, 2>, sycl::vec<double, 3>, sycl::vec<double, 4>>;
-
-using ldg_types =
-    sycl::detail::tl_append<ldg_vector_types,
-                            sycl::detail::gtl::scalar_signed_basic_list,
-                            sycl::detail::gtl::scalar_unsigned_basic_list>;
-} // namespace detail
+using namespace sycl::detail;
+}
 
 template <typename T>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    sycl::detail::is_contained<
-        T, sycl::ext::oneapi::experimental::cuda::detail::ldg_types>::value,
+    detail::check_type_in_v<detail::element_type_t<T>, char, signed char, short,
+                            int, long, long long, unsigned char, unsigned short,
+                            unsigned int, unsigned long, unsigned long long,
+                            half, float, double> &&
+        (std::is_same_v<detail::element_type_t<T>, T> ||
+         (detail::is_vec_v<T> && detail::num_elements_v<T> >= 2 &&
+          detail::num_elements_v<T> <= 4)),
     T>
 ldg(const T *ptr) {
 #if defined(__SYCL_DEVICE_ONLY__)

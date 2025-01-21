@@ -1,11 +1,15 @@
 // REQUIRES: aspect-fp64
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
+// RUN: %{run} %t2.out
 //
 // UNSUPPORTED: cuda || hip
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>

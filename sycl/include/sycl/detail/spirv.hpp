@@ -255,7 +255,7 @@ using EnableIfBitcastBroadcast = std::enable_if_t<
     is_bitcast_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 template <typename T>
-using ConvertToNativeBroadcastType_t = select_cl_scalar_integral_unsigned_t<T>;
+using ConvertToNativeBroadcastType_t = fixed_width_unsigned<sizeof(T)>;
 
 // Generic broadcasts may require multiple calls to SPIR-V GroupBroadcast
 // intrinsics, and should use the fewest broadcasts possible
@@ -524,7 +524,7 @@ inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
                       memory_scope Scope, memory_order Success,
                       memory_order Failure, T Desired, T Expected) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
@@ -552,7 +552,7 @@ template <typename T, access::address_space AddressSpace,
 inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -587,7 +587,7 @@ template <typename T, access::address_space AddressSpace,
 inline typename std::enable_if_t<std::is_floating_point<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -622,7 +622,7 @@ template <typename T, access::address_space AddressSpace,
 inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -796,13 +796,11 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 //   variants for all scalar types
 #ifndef __NVPTX__
 
-using ProhibitedTypesForShuffleEmulation =
-    type_list<double, long, long long, unsigned long, unsigned long long, half>;
-
 template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
-    : std::bool_constant<is_contained<
-          vector_element_t<T>, ProhibitedTypesForShuffleEmulation>::value> {};
+    : std::bool_constant<
+          check_type_in_v<vector_element_t<T>, double, long, long long,
+                          unsigned long, unsigned long long, half>> {};
 
 template <typename T>
 struct VecTypeIsProhibitedForShuffleEmulation
@@ -1129,7 +1127,7 @@ EnableIfNonScalarShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 }
 
 template <typename T>
-using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
+using ConvertToNativeShuffleType_t = fixed_width_unsigned<sizeof(T)>;
 
 template <typename GroupT, typename T>
 EnableIfBitcastShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
@@ -1376,30 +1374,6 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAnd, KHR)
 
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAnd, KHR)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOr, KHR)
-
-template <access::address_space Space, typename T>
-auto GenericCastToPtr(T *Ptr) ->
-    typename multi_ptr<T, Space, access::decorated::yes>::pointer {
-  if constexpr (Space == access::address_space::global_space) {
-    return __SYCL_GenericCastToPtr_ToGlobal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::local_space) {
-    return __SYCL_GenericCastToPtr_ToLocal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::private_space) {
-    return __SYCL_GenericCastToPtr_ToPrivate<T>(Ptr);
-  }
-}
-
-template <access::address_space Space, typename T>
-auto GenericCastToPtrExplicit(T *Ptr) ->
-    typename multi_ptr<T, Space, access::decorated::yes>::pointer {
-  if constexpr (Space == access::address_space::global_space) {
-    return __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::local_space) {
-    return __SYCL_GenericCastToPtrExplicit_ToLocal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::private_space) {
-    return __SYCL_GenericCastToPtrExplicit_ToPrivate<T>(Ptr);
-  }
-}
 
 } // namespace spirv
 } // namespace detail

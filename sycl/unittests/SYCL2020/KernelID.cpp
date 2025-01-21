@@ -8,8 +8,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -47,33 +47,13 @@ struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage
-generateDefaultImage(std::initializer_list<std::string> Kernels) {
-  using namespace sycl::unittest;
-
-  UrPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(Kernels);
-
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::UrImage Imgs[2] = {
-    generateDefaultImage({"KernelID_TestKernel1", "KernelID_TestKernel3"}),
-    generateDefaultImage(
+static sycl::unittest::MockDeviceImage Imgs[2] = {
+    sycl::unittest::generateDefaultImage(
+        {"KernelID_TestKernel1", "KernelID_TestKernel3"}),
+    sycl::unittest::generateDefaultImage(
         {"KernelID_TestKernel2",
          "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
-static sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
   std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();

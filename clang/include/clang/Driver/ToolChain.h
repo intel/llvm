@@ -377,9 +377,9 @@ public:
     return nullptr;
   }
 
-  /// TranslateOffloadTargetArgs - Create a new derived argument list for
-  /// that contains the Offload target specific flags passed via
-  /// -Xopenmp-target -opt=val OR -Xopenmp-target=<triple> -opt=val
+  /// TranslateOffloadTargetArgs - Create a new derived argument list that
+  /// contains the Offload target specific flags passed via -Xopenmp-target
+  /// -opt=val OR -Xopenmp-target=<triple> -opt=val
   /// Also handles -Xsycl-target OR -Xsycl-target=<triple>
   virtual llvm::opt::DerivedArgList *TranslateOffloadTargetArgs(
       const llvm::opt::DerivedArgList &Args, bool SameTripleAsHost,
@@ -780,6 +780,10 @@ public:
   /// Add arguments to use system-specific HIP includes.
   virtual void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                                  llvm::opt::ArgStringList &CC1Args) const;
+
+  /// Add arguments to use system-specific SYCL includes.
+  virtual void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                                  llvm::opt::ArgStringList &CC1Args) const;
 
   /// Add arguments to use MCU GCC toolchain includes.
   virtual void AddIAMCUIncludeArgs(const llvm::opt::ArgList &DriverArgs,

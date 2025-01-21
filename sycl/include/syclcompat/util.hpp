@@ -36,9 +36,11 @@
 
 #include <sycl/atomic_ref.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
+#include <syclcompat/dims.hpp>
 
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
@@ -161,6 +163,13 @@ inline double cast_ints_to_double(int high32, int low32) {
 template <typename T> inline T reverse_bits(T a) {
   static_assert(std::is_unsigned<T>::value && std::is_integral<T>::value,
                 "unsigned integer required");
+#if defined(__NVPTX__)
+  if constexpr (sizeof(T) == 4) {
+    unsigned result;
+    asm volatile("brev.b32 %0, %1;" : "=r"(result) : "r"(a));
+    return result;
+  }
+#endif // __NVPTX__
   if (!a)
     return 0;
   T mask = 0;
@@ -188,6 +197,110 @@ inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
       (((((std::uint64_t)b << 32 | a) >> ((s >> 8) & 0x7) * 8) & 0xff) << 16) |
       (((((std::uint64_t)b << 32 | a) >> ((s >> 12) & 0x7) * 8) & 0xff) << 24);
   return ret;
+}
+
+/// \brief The function performs bitwise logical operations on three input
+/// values of \p a, \p b and \p c based on the specified 8-bit truth table \p
+/// lut and return the result
+///
+/// \param [in] a Input value
+/// \param [in] b Input value
+/// \param [in] c Input value
+/// \param [in] lut truth table for looking up
+/// \returns The result
+inline uint32_t ternary_logic_op(uint32_t a, uint32_t b, uint32_t c,
+                                 uint8_t lut) {
+  uint32_t result = 0;
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  asm volatile("lop3.b32 %0, %1, %2, %3, %4;"
+               : "=r"(result)
+               : "r"(a), "r"(b), "r"(c), "n"(lut));
+#else
+  switch (lut) {
+  case 0x0:
+    result = 0;
+    break;
+  case 0x1:
+    result = ~a & ~b & ~c;
+    break;
+  case 0x2:
+    result = ~a & ~b & c;
+  case 0x4:
+    result = ~a & b & ~c;
+    break;
+  case 0x8:
+    result = ~a & b & c;
+    break;
+  case 0x10:
+    result = a & ~b & ~c;
+    break;
+  case 0x20:
+    result = a & ~b & c;
+    break;
+  case 0x40:
+    result = a & b & ~c;
+    break;
+  case 0x80:
+    result = a & b & c;
+    break;
+  case 0x1a:
+    result = (a & b | c) ^ a;
+    break;
+  case 0x1e:
+    result = a ^ (b | c);
+    break;
+  case 0x2d:
+    result = ~a ^ (~b & c);
+    break;
+  case 0x78:
+    result = a ^ (b & c);
+    break;
+  case 0x96:
+    result = a ^ b ^ c;
+    break;
+  case 0xb4:
+    result = a ^ (b & ~c);
+    break;
+  case 0xb8:
+    result = a ^ (b & (c ^ a));
+    break;
+  case 0xd2:
+    result = a ^ (~b & c);
+    break;
+  case 0xe8:
+    result = a & (b | c) | (b & c);
+    break;
+  case 0xea:
+    result = a & b | c;
+    break;
+  case 0xfe:
+    result = a | b | c;
+    break;
+  case 0xff:
+    result = -1;
+    break;
+  default: {
+    if (lut & 0x01)
+      result |= ~a & ~b & ~c;
+    if (lut & 0x02)
+      result |= ~a & ~b & c;
+    if (lut & 0x04)
+      result |= ~a & b & ~c;
+    if (lut & 0x08)
+      result |= ~a & b & c;
+    if (lut & 0x10)
+      result |= a & ~b & ~c;
+    if (lut & 0x20)
+      result |= a & ~b & c;
+    if (lut & 0x40)
+      result |= a & b & ~c;
+    if (lut & 0x80)
+      result |= a & b & c;
+    break;
+  }
+  }
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return result;
 }
 
 /// Find position of first least significant set bit in an integer.
@@ -297,6 +410,9 @@ T shift_sub_group_right(sycl::sub_group g, T x, unsigned int delta,
 template <typename T>
 T permute_sub_group_by_xor(sycl::sub_group g, T x, unsigned int mask,
                            int logical_sub_group_size = 32) {
+  if (logical_sub_group_size == 32) {
+    return permute_group_by_xor(g, x, mask);
+  }
   unsigned int id = g.get_local_linear_id();
   unsigned int start_index =
       id / logical_sub_group_size * logical_sub_group_size;
@@ -918,6 +1034,46 @@ public:
   }
 };
 } // namespace experimental
+
+// Calculate the number of work-groups per compute unit
+// \tparam [in] KernelName SYCL kernel name to calculate for
+// \param [in] q SYCL queue used to execute kernel
+// \param [in] wg_dim3 dim3 representing work-group shape
+// \param [in] local_mem_size Local memory usage per work-group in bytes
+// \return size_t representing maximum work-groups per compute unit
+template <class KernelName>
+size_t max_active_work_groups_per_cu(
+    syclcompat::dim3 wg_dim3, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue()) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  // max_num_work_groups only supports range<3>
+  auto ctx = queue.get_context();
+  auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
+  auto kernel = bundle.template get_kernel<KernelName>();
+  sycl::range<3> wg_range_3d(wg_dim3);
+  size_t max_wgs = kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(queue, wg_range_3d,
+                                                                local_mem_size);
+  size_t max_compute_units =
+      queue.get_device().get_info<sycl::info::device::max_compute_units>();
+  // Spec dictates max_compute_units > 0, so no need to catch div 0
+  return max_wgs / max_compute_units;
+}
+
+// Calculate the number of work-groups per compute unit
+// \tparam [in] KernelName SYCL kernel name to calculate for
+// \tparam [in] RangeDim the dimension of the sycl::range
+// \param [in] q SYCL queue used to execute kernel
+// \param [in] wg_range SYCL work-group range
+// \param [in] local_mem_size Local memory usage per work-group in bytes
+// \return size_t representing maximum work-groups per compute unit
+template <class KernelName, int RangeDim>
+size_t max_active_work_groups_per_cu(
+    sycl::range<RangeDim> wg_range, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue()) {
+  return max_active_work_groups_per_cu<KernelName>(syclcompat::dim3(wg_range),
+                                                   local_mem_size, queue);
+}
 
 /// If x <= 2, then return a pointer to the default queue;
 /// otherwise, return x reinterpreted as a queue_ptr.

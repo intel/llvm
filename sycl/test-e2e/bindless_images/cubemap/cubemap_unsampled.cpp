@@ -1,7 +1,7 @@
 // REQUIRES: cuda,aspect-ext_oneapi_cubemap
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include "../helpers/common.hpp"
 #include <iostream>
