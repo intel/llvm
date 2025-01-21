@@ -327,6 +327,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_POOL_SUPPORT);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(
+      hDevice, UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
