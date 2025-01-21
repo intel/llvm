@@ -150,13 +150,18 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
             ,
             int = detail::emit_get_backend_info_error<platform, Param>()
 #endif
+#endif
             >
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Returns all available SYCL platforms in the system.
   ///

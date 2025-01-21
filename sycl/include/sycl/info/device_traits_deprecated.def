@@ -1,6 +1,6 @@
 // Deprecated and not part of SYCL 2020 spec
 __SYCL_PARAM_TRAITS_DEPRECATED(image_max_array_size,"support for image arrays has been removed in SYCL 2020")
-__SYCL_PARAM_TRAITS_DEPRECATED(opencl_c_version,"use device::get_backend_info instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(opencl_c_version,"use device::get_info instead")
 __SYCL_PARAM_TRAITS_DEPRECATED(atomic64, "use sycl::aspect::atomic64 instead")
 
 //TODO:Remove when possible
