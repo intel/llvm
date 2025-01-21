@@ -1,0 +1,662 @@
+= sycl_ext_oneapi_non_uniform_groups
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has one or more of
+the xref:ext-aspects[extension aspects]. The application must check that the
+device has this aspect before submitting a kernel using any of the APIs in this
+extension. If the application fails to do this, the implementation throws a
+synchronous exception with the `errc::kernel_not_supported` error code when the
+kernel is submitted to the queue.
+
+== Overview
+
+Many modern hardware architectures support flexible sub-divisions of
+work-groups and sub-groups to support fine-grained work scheduling. A common
+use-case for such flexibility is communication between and coordination of
+work-items in divergent control flow.
+
+This proposal introduces the `chunk` and `fragment` classes to represent
+contiguous and non-contiguous sub-divisions of SYCL's built-in group types,
+respectively. It also introduces new traits for detecting these classes, and
+free functions for creating new instances of these classes.
+
+These new classes can be used as arguments to group functions, group algorithms,
+and custom functions to convey exactly which work-items an operation is expecting,
+simplifying interfaces and greatly reducing the amount of delicate wording
+needed in function documentation.
+
+NOTE: The first version of this extension only supports partitioning of
+sub-groups. It is expected that in the future, these functions will be expanded
+to also allow partitioning of
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_root_group.asciidoc[root-groups],
+work-groups and user-constructed groups.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_NON_UNIFORM_GROUPS` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+[#ext-aspects]
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_chunk
+  ext_oneapi_fragment
+}
+}
+----
+
+If a SYCL device has these aspects, that device supports the non-uniform groups
+as follows:
+
+[%header,cols="2,3"]
+|===
+| Aspect | Supported group
+| `ext_oneapi_fragment` | `fragment`
+| `ext_oneapi_chunk` | `chunk`
+|===
+
+=== Control Flow
+
+The SYCL specification defines
+link:https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#control-flow[control
+flow] as below:
+
+> When all work-items in a group are executing the same sequence of statements,
+> they are said to be executing under _converged_ control flow. Control flow
+> _diverges_ when different work-items in a group execute a different sequence of
+> statements, typically as a result of evaluating conditions differently (e.g.
+> in selection statements or loops).
+
+This extension introduces some new terminology to describe other kinds of
+control flow, to simplify the description of the behavior for new group types.
+
+Two or more work-items are considered to have _simultaneous_ execution at a
+given point if they execute statements at the same time. A common example of
+simultaneous execution is when work-items are mapped to different lanes of the
+same SIMD instruction(s). The amount of granularity of simultaneous
+execution is implementation-defined.
+
+
+=== Group Taxonomy
+
+_Fixed topology groups_ are groups which represent the hierarchical execution
+model topology used by SYCL kernels. These groups are implicitly created by an
+implementation when a SYCL kernel function is enqueued. The following group
+types are fixed topology groups:
+
+- `root_group` (if link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group] is supported)
+- `group`
+- `sub_group`
+
+_User-constructed groups_ are explicitly created by a developer (e.g. by
+partitioning one of the fixed topology groups). This extension introduces the
+following user-constructed groups:
+
+- `fragment`
+- `chunk`
+
+The `is_fixed_topology_group` and `is_user_constructed_group` traits can be
+used to detect whether a group type represents a fixed topology or
+user-constructed group, respectively.
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template <class T>
+  struct is_fixed_topology_group;
+
+  template <class T>
+  inline constexpr
+  bool is_fixed_topology_group_v = is_fixed_topology_group<T>::value;
+
+
+  template <class T>
+  struct is_user_constructed_group;
+
+  template <class T>
+  inline constexpr bool
+  is_user_constructed_group_v = is_user_constructed_group<T>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+`is_fixed_topology_group<T>::value` is `std::true_type` if `T` is one of:
+`root_group`, `group` or `sub_group`.
+
+`is_user_constructed_group<T>::value` is `std::true_type` if `T` is one of:
+`fragment` or `chunk`.
+
+Additionally, the `is_group<T>::value` trait from the core SYCL specification
+is `std::true_type` if `T` is one of: `fragment` or `chunk`.
+
+
+=== Group Functions and Algorithms
+
+When a user-constructed group is passed to a group function or group algorithm,
+all work-items in the group must call the function or algorithm in converged
+control flow. Violating this restriction results in undefined behavior.
+
+If a work-item calls a group function or group algorithm using an object that
+represents a group to which the work-item does not belong, this results in
+undefined behavior.
+
+NOTE: Using group functions and algorithms in the presence of overlapping
+groups is discouraged, since it is highly likely that such code would have to
+make assumptions regarding work-item scheduling and forward progress
+guarantees.
+
+The following group functions support user-constructed groups:
+
+* `group_barrier`
+* `group_broadcast`
+
+The following group algorithms support user-constructed groups:
+
+* `joint_any_of` and `any_of_group`
+* `joint_all_of` and `all_of_group`
+* `joint_none_of` and `none_of_group`
+* `shift_group_left`
+* `shift_group_right`
+* `permute_group_by_xor`
+* `select_from_group`
+* `joint_reduce` and `reduce_over_group`
+* `joint_exclusive_scan` and `exclusive_scan_over_group`
+* `joint_inclusive_scan` and `inclusive_scan_over_group`
+
+
+=== Fragment
+
+A `fragment` represents a non-contiguous subset of the work-items in some
+parent group.
+
+
+==== Creation
+
+A new `fragment` can be created via the following:
+
+- Partitioning an existing group with the `binary_partition()` function.
+- By calling the `get_opportunistic_group()` function.
+
+[source, c++]
+----
+namespace ext::oneapi::experimental {
+
+template <typename ParentGroup>
+fragment<ParentGroup> binary_partition(ParentGroup parent, bool predicate);
+
+} // namespace ext::oneapi::experimental
+----
+_Constraints_: Available only if `ParentGroup` is `sycl::sub_group`,
+`sycl::chunk`, or `sycl::fragment`.
+
+_Preconditions_: All work-items in `parent` must encounter this function in
+converged control flow.
+
+_Effects:_ Blocks until all work-items in `parent` have reached this
+synchronization point.
+
+_Synchronization:_ The call in each work-item happens before any work-item
+blocking on the same synchronization point is unblocked.
+Synchronization operations used by an implementation must respect the memory
+scope reported by `ParentGroup::fence_scope`.
+
+_Returns_: A `fragment` consisting of the work-items in `parent` for which
+`predicate` has the same value as the calling work-item. This `fragment`
+must have a group range of 2, and a group index of either 0 (if `predicate` is
+false) or 1 (if `predicate` is true).
+
+
+[source, c++]
+----
+namespace ext::oneapi::experimental::this_work_item {
+
+fragment<sycl::sub_group> get_opportunistic_group();
+
+} // namespace ext::oneapi::experimental::this_work_item
+----
+
+_Returns_: A `fragment` consisting of all work-items in the same sub-group as
+the calling work-item which call this function simultaneously.
+This `fragment` must have a group range of 1, and a group index of 0.
+
+_Remarks_: Each call to the function returns a different group. There are
+no guarantees that the group will contain all work-items executing the same
+control flow, nor the same set of work-items as the group returned by any
+previous call to this function.
+
+
+==== `fragment` Class
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename ParentGroup>
+class fragment {
+public:
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = typename ParentGroup::linear_id_type;
+  static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
+
+  id_type get_group_id() const;
+
+  id_type get_local_id() const;
+
+  range_type get_group_range() const;
+
+  range_type get_local_range() const;
+
+  linear_id_type get_group_linear_id() const;
+
+  linear_id_type get_local_linear_id() const;
+
+  linear_id_type get_group_linear_range() const;
+
+  linear_id_type get_local_linear_range() const;
+
+  bool leader() const;
+};
+
+}
+----
+
+[source,c++]
+----
+id_type get_group_id() const;
+----
+_Returns_: An `id` representing the index of the fragment within its parent.
+
+[source,c++]
+----
+id_type get_local_id() const;
+----
+_Returns_: An `id` representing the calling work-item's position within the
+fragment.
+
+[source,c++]
+----
+range_type get_group_range() const;
+----
+_Returns_: A `range` representing the number of fragments created when the
+parent group was partitioned, or 1 if the fragment was created by a call
+to `get_opportunistic_group()`.
+
+[source,c++]
+----
+range_type get_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the fragment.
+
+[source,c++]
+----
+id_type get_group_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_id()`.
+
+[source,c++]
+----
+id_type get_local_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
+
+[source,c++]
+----
+linear_id_type get_group_linear_range() const;
+----
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
+
+[source,c++]
+----
+linear_id_type get_local_linear_range() const;
+----
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
+
+[source,c++]
+----
+bool leader() const;
+----
+_Returns_: `true` for exactly one work-item in the fragment, if the calling
+work-item is the leader of the fragment, and `false` for all other work-items
+in the fragment. The leader of the fragment is guaranteed to be the work-item
+for which `get_local_id()` returns 0.
+
+
+==== Usage examples
+
+A `fragment` created with `binary_partition()` can be used in conjunction with
+constructs like loops and branches to safely communicate between all work-items
+still executing.
+
+[source, c++]
+----
+auto sg = it.get_sub_group();
+
+// get group representing the subset of the sub-group that will take the branch
+auto will_branch = sg.get_local_linear_id() % 2 == 0;
+auto inner = sycl::ext::oneapi::experimental::binary_partition(sg, will_branch);
+
+if (will_branch)
+{
+  // wait for all work-items that took the branch to hit the barrier
+  sycl::group_barrier(inner);
+
+  // reduce across subset of outer work-items that took the branch
+  float ix = sycl::reduce_over_group(inner, x, plus<>());
+}
+----
+
+A `fragment` created with `get_opportunistic_group()` can be used to take
+advantage of situations where it is beneficial for work-items to collaborate
+on an operation, but the set of work-items arriving at the operation is not
+known a priori.
+The following example shows an atomic reference being incremented.
+It is known that all the work-items will increment a reference to the same
+location, but it is unknown which work-items will call the function.
+We can opportunistically capture this group of work-items as they
+arrive to this point in the control flow.
+
+[source, c++]
+----
+template <sycl::memory_order Order,
+          sycl::memory_scope Scope,
+          sycl::access::address_space AddressSpace>
+int atomic_aggregate_inc(sycl::atomic_ref<int, Order, Scope, AddressSpace> ptr) {
+
+  // get the set of work-items that called this function simultaneously
+  auto active_group = sycl::ext::oneapi::experimental::this_work_item::get_opportunistic_group();
+
+  // increment the atomic once on behalf of all active work-items
+  int count = active_group.get_local_linear_range();
+  int old_value;
+  if (active_group.leader()) {
+    old_value = ptr.fetch_add(count);
+  }
+
+  // return the value the individual work-item might have received if it had worked alone
+  auto base = sycl::group_broadcast(active_group, old_value);
+  auto idx = active_group.get_local_linear_id();
+  return base + idx;
+
+}
+----
+
+
+=== Chunk
+
+A `chunk` represents a contiguous collection of work-items created by
+subdividing a group into equally sized parts, such that each work-item is a
+member of exactly one partition.
+The size of a chunk is a static (compile-time) property.
+
+
+==== Creation
+
+A new `chunk` can only be created by partitioning an existing group with the
+`chunked_partition` function.
+
+[source, c++]
+----
+namespace ext::oneapi::experimental {
+
+template <size_t ChunkSize, typename ParentGroup>
+chunk<ChunkSize, Group> chunked_partition(ParentGroup parent);
+
+} // namespace ext::oneapi::experimental
+----
+
+_Constraints_: Available only if `ParentGroup` is `sycl::sub_group` or
+`sycl::chunk`.
+`ChunkSize` must be positive and a power of 2.
+
+_Preconditions_: `parent.get_local_linear_range()` must be evenly divisible by
+`ChunkSize`.
+
+_Effects:_ Blocks until all work-items in `parent` have reached this
+synchronization point.
+
+_Synchronization:_ The call in each work-item happens before any work-item
+blocking on the same synchronization point is unblocked.
+Synchronization operations used by an implementation must respect the memory
+scope reported by `ParentGroup::fence_scope`.
+
+_Returns_: A `chunk` consisting of all work-items in `parent` that are in the
+same partition as the calling work-item.
+
+
+==== `chunk` Class
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <std::size_t ChunkSize, typename ParentGroup>
+class chunk {
+public:
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = typename ParentGroup::linear_id_type;
+  static constexpr int dimensions = 1;
+  static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
+
+  operator fragment<ParentGroup>() const;
+
+  id_type get_group_id() const;
+
+  id_type get_local_id() const;
+
+  range_type get_group_range() const;
+
+  range_type get_local_range() const;
+
+  linear_id_type get_group_linear_id() const;
+
+  linear_id_type get_local_linear_id() const;
+
+  linear_id_type get_group_linear_range() const;
+
+  linear_id_type get_local_linear_range() const;
+
+  bool leader() const;
+};
+
+}
+----
+
+[source,c++]
+----
+operator fragment<ParentGroup>() const;
+----
+_Returns_: A `fragment` representing the same work-items as this chunk.
+
+[source,c++]
+----
+id_type get_group_id() const;
+----
+_Returns_: An `id` representing the index of the chunk within its parent.
+
+[source,c++]
+----
+id_type get_local_id() const;
+----
+_Returns_: An `id` representing the calling work-item's position within
+the chunk.
+
+[source,c++]
+----
+range_type get_group_range() const;
+----
+_Returns_: A `range` representing the number of chunks created when the parent
+group was partitioned.
+
+[source,c++]
+----
+range_type get_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the chunk, which
+is always equal to `ChunkSize`.
+
+[source,c++]
+----
+id_type get_group_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_id()`.
+
+[source,c++]
+----
+id_type get_local_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
+
+[source,c++]
+----
+linear_id_type get_group_linear_range() const;
+----
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
+
+[source,c++]
+----
+linear_id_type get_local_linear_range() const;
+----
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
+
+[source,c++]
+----
+bool leader() const;
+----
+_Returns_: `true` for exactly one work-item in the chunk, if the calling
+work-item is the leader of the chunk, and `false` for all other work-items in
+the chunk. The leader of the chunk is guaranteed to be the work-item for which
+`get_local_id()` returns 0.
+
+
+==== Usage examples
+
+A `chunk` can be used to apply group algorithms to subsets of data.
+
+[source, c++]
+----
+auto sg = it.get_sub_group();
+
+// reduce over contiguous groups of 8 elements
+auto chunk = sycl::ext::oneapi::experimental::chunked_partition<8>(sg);
+auto result = sycl::reduce_over_group(chunk, buf[it.get_local_linear_id()], sycl::plus<>());
+
+// write result out once per group
+if (chunk.leader()){
+  buf[chunk.get_group_id()] = result;
+}
+----
+
+A `chunk` can be used to provide an interface accepting a specific number of
+work-items.
+
+[source, c++]
+----
+template <typename ParentGroup>
+void func_that_needs_4_work_items(sycl::ext::oneapi::experimental::chunk<4, ParentGroup> group);
+----
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+For SPIR-V backends, all user-constructed group types are expected to be
+implemented using SPIR-V's
+link:https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_non_uniform_instructions[non-uniform
+instructions]. `chunk` functionality is expected to leverage the
+optional `ClusterSize` argument of those instructions. Each group type will
+require slightly different usage of those instructions to ensure that distinct
+groups encounter unique control flow when appropriate.
+
+For CUDA backends, all user-constructed group types are expected to be lowered
+to PTX instructions with explicit masks. The only expected difference in
+implementation for the different group types is how the mask is initially
+constructed.
+
+
+== Issues
+
+None

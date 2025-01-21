@@ -1,0 +1,28 @@
+name: Windows setup oneAPI env
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup oneAPI env
+      shell: powershell
+      run: |
+        $batchFilePath = "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+
+        $githubEnvFilePath = $env:GITHUB_ENV
+
+        $envBefore = Get-ChildItem Env: | ForEach-Object { "$($_.Name)=$($_.Value)" }
+
+        $envVars = & cmd.exe /c "call `"$batchFilePath`" && set" | Out-String
+
+        $envAfter = $envVars -split "`r`n" | Where-Object { $_ -match "^(.*?)=(.*)$" }
+
+        foreach ($envVar in $envAfter) {
+            if ($envVar -match "^(.*?)=(.*)$") {
+                $name = $matches[1]
+                $value = $matches[2]
+                $envBeforeVar = $envBefore | Where-Object { $_ -like "$name=*" }
+                if (-not $envBeforeVar -or $envBeforeVar -ne "$name=$value") {
+                    Add-Content -Path $githubEnvFilePath -Value "$name=$value"
+                }
+            }
+         }

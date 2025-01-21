@@ -1,0 +1,25 @@
+119734787 65536 458752 27 0
+2 Capability Addresses
+2 Capability Shader
+3 MemoryModel 2 2
+4 EntryPoint 6 2 "foo"
+3 Name 3 "res"
+2 TypeVoid 12
+3 TypeFloat 13 32
+4 TypePointer 14 5 13
+4 TypeFunction 15 12 13
+
+5 Function 12 2 0 15
+3 FunctionParameter 13 3
+
+2 Label 6
+4 DPdx 13 16 3
+1 Return
+
+1 FunctionEnd
+
+; Test that we gracefully reject an unimplemented opcode such as OpDPdx.
+
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
+
+; CHECK: UnimplementedOpCode: Unimplemented opcode 207

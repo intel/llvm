@@ -1,0 +1,65 @@
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
+; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.0 -o - | FileCheck %s --check-prefix=CHECK-SPIRV_1_0
+
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.0 --spirv-ext=+SPV_KHR_untyped_pointers -o - | FileCheck %s --check-prefix=CHECK-SPIRV_1_0
+
+
+; CHECK-LLVM: define spir_kernel void @worker(ptr addrspace(3) dereferenceable(12) %ptr)
+; CHECK-LLVM: define spir_func void @not_a_kernel(ptr addrspace(3) dereferenceable(123) %ptr2)
+
+; CHECK-SPIRV: 3 Name [[PTR_ID:[0-9]+]] "ptr"
+; CHECK-SPIRV: 4 Name [[PTR2_ID:[0-9]+]] "ptr2"
+; CHECK-SPIRV-DAG: 4 Decorate [[PTR_ID]] MaxByteOffset 12
+; CHECK-SPIRV-DAG: 4 Decorate [[PTR2_ID]] MaxByteOffset 123
+; CHECK-SPIRV: 4 TypeInt [[CHAR_T:[0-9]+]] 8 0
+; CHECK-SPIRV-TYPED-PTR: 4 TypePointer [[CHAR_PTR_T:[0-9]+]] 4 [[CHAR_T]]
+; CHECK-SPIRV-UNTYPED-PTR: 3 TypeUntypedPointerKHR [[CHAR_PTR_T:[0-9]+]] 4
+; CHECK-SPIRV: 3 FunctionParameter [[CHAR_PTR_T]] [[PTR_ID]]
+; CHECK-SPIRV: 3 FunctionParameter [[CHAR_PTR_T]] [[PTR2_ID]]
+
+; CHECK-SPIRV_1_0-NOT: Decorate {{[0-9]+}} MaxByteOffset
+
+target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+target triple = "spir-unknown-unknown"
+
+; Function Attrs: nounwind
+define spir_kernel void @worker(ptr addrspace(3) dereferenceable(12) %ptr) #0 {
+entry:
+  %ptr.addr = alloca ptr addrspace(3), align 4
+  store ptr addrspace(3) %ptr, ptr %ptr.addr, align 4
+  ret void
+}
+
+; Function Attrs: nounwind
+define spir_func void @not_a_kernel(ptr addrspace(3) dereferenceable(123) %ptr2) #0 {
+entry:
+  ret void
+}
+
+attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+
+!opencl.enable.FP_CONTRACT = !{}
+!opencl.spir.version = !{!0}
+!opencl.ocl.version = !{!1}
+!opencl.used.extensions = !{!2}
+!opencl.used.optional.core.features = !{!2}
+!opencl.compiler.options = !{!2}
+!llvm.ident = !{!3}
+!spirv.Source = !{!4}
+!spirv.String = !{}
+
+!0 = !{i32 1, i32 2}
+!1 = !{i32 2, i32 2}
+!2 = !{}
+!3 = !{!"clang version 3.6.1 "}
+!4 = !{i32 4, i32 202000}

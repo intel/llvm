@@ -1,0 +1,77 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+;
+; CHECK-LABEL: spir_kernel void @test
+; CHECK-SPV-IR: call spir_func i64 @_Z22__spirv_ocl_s_upsampleij(i32 %{{[0-9a-z]+}}, i32
+; CHECK-SPV-IR: call spir_func i64 @_Z22__spirv_ocl_u_upsamplejj(i32 %{{[0-9a-z]+}}, i32
+; CHECK-CL20: call spir_func i64 @_Z8upsampleij(i32 %{{[0-9a-z]+}}, i32
+; CHECK-CL20: call spir_func i64 @_Z8upsamplejj(i32 %{{[0-9a-z]+}}, i32
+; CHECK-LABEL: spir_kernel void @test2
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z22__spirv_ocl_s_upsampleDv4_iDv4_j(<4 x i32> %{{[0-9a-z]+}}, <4 x i32>
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z22__spirv_ocl_u_upsampleDv4_jS_(<4 x i32> %{{[0-9a-z]+}}, <4 x i32>
+; CHECK-CL20: call spir_func <4 x i64> @_Z8upsampleDv4_iDv4_j(<4 x i32> %{{[0-9a-z]+}}, <4 x i32>
+; CHECK-CL20: call spir_func <4 x i64> @_Z8upsampleDv4_jS_(<4 x i32> %{{[0-9a-z]+}}, <4 x i32>
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int64
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %7 "test"
+               OpEntryPoint Kernel %20 "test2"
+         %28 = OpString "kernel_arg_type.test.int,uint,long*,"
+         %29 = OpString "kernel_arg_type.test2.int4,uint4,ulong4*,"
+               OpSource OpenCL_C 200000
+               OpName %a "a"
+               OpName %b "b"
+               OpName %c "c"
+               OpName %entry "entry"
+               OpName %call "call"
+               OpName %call1 "call1"
+               OpName %arrayidx2 "arrayidx2"
+               OpName %call2 "call2"
+               OpName %b_0 "b"
+               OpName %c_0 "c"
+               OpName %entry_0 "entry"
+               OpName %call1_0 "call1"
+               OpName %call3 "call3"
+               OpName %arrayidx4 "arrayidx4"
+               OpDecorate %c FuncParamAttr NoCapture
+               OpDecorate %c_0 FuncParamAttr NoCapture
+       %uint = OpTypeInt 32 0
+      %ulong = OpTypeInt 64 0
+     %uint_1 = OpConstant %uint 1
+       %void = OpTypeVoid
+%_ptr_CrossWorkgroup_ulong = OpTypePointer CrossWorkgroup %ulong
+          %6 = OpTypeFunction %void %uint %uint %_ptr_CrossWorkgroup_ulong
+     %v4uint = OpTypeVector %uint 4
+    %v4ulong = OpTypeVector %ulong 4
+%_ptr_CrossWorkgroup_v4ulong = OpTypePointer CrossWorkgroup %v4ulong
+         %19 = OpTypeFunction %void %v4uint %v4uint %_ptr_CrossWorkgroup_v4ulong
+          %7 = OpFunction %void None %6
+          %a = OpFunctionParameter %uint
+          %b = OpFunctionParameter %uint
+          %c = OpFunctionParameter %_ptr_CrossWorkgroup_ulong
+      %entry = OpLabel
+       %call = OpExtInst %ulong %1 s_upsample %a %b
+               OpStore %c %call Aligned 8
+      %call1 = OpExtInst %ulong %1 u_upsample %a %b
+  %arrayidx2 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_ulong %c %uint_1
+               OpStore %arrayidx2 %call1 Aligned 8
+               OpReturn
+               OpFunctionEnd
+         %20 = OpFunction %void None %19
+      %call2 = OpFunctionParameter %v4uint
+        %b_0 = OpFunctionParameter %v4uint
+        %c_0 = OpFunctionParameter %_ptr_CrossWorkgroup_v4ulong
+    %entry_0 = OpLabel
+    %call1_0 = OpExtInst %v4ulong %1 s_upsample %call2 %b_0
+               OpStore %c_0 %call1_0 Aligned 32
+      %call3 = OpExtInst %v4ulong %1 u_upsample %call2 %b_0
+  %arrayidx4 = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_v4ulong %c_0 %uint_1
+               OpStore %arrayidx4 %call3 Aligned 32
+               OpReturn
+               OpFunctionEnd

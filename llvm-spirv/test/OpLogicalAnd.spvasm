@@ -1,0 +1,25 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testLogicalAnd"
+               OpName %a "a"
+               OpName %b "b"
+       %void = OpTypeVoid
+       %bool = OpTypeBool
+%_ptr_CrossWorkgroup_bool = OpTypePointer CrossWorkgroup %bool
+          %7 = OpTypeFunction %void %_ptr_CrossWorkgroup_bool %_ptr_CrossWorkgroup_bool
+          %1 = OpFunction %void None %7
+          %8 = OpFunctionParameter %_ptr_CrossWorkgroup_bool
+          %9 = OpFunctionParameter %_ptr_CrossWorkgroup_bool
+         %10 = OpLabel
+          %a = OpLoad %bool %8 Aligned 8
+          %b = OpLoad %bool %9 Aligned 8
+         %11 = OpLogicalAnd %bool %a %b
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: and i1 {{%a, %b|%b, %a}}

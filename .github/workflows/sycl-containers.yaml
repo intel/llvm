@@ -1,0 +1,96 @@
+name: CI Containers
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 1st and 15th day of month
+    - cron: '0 0 1,15 * *'
+  push:
+    branches:
+      - sycl
+    paths:
+      - 'devops/actions/build_container/**'
+      - 'devops/containers/**'
+      - 'devops/dependencies.json'
+      - 'devops/scripts/install_drivers.sh'
+      - 'devops/scripts/install_build_tools.sh'
+      - '.github/workflows/sycl-containers.yaml'
+  pull_request:
+    paths:
+      - 'devops/actions/build_container/**'
+      - 'devops/containers/**'
+      - 'devops/dependencies.json'
+      - 'devops/scripts/install_drivers.sh'
+      - 'devops/scripts/install_build_tools.sh'
+      - '.github/workflows/sycl-containers.yaml'
+
+permissions: read-all
+
+jobs:
+  build_and_push_images:
+    if: github.repository == 'intel/llvm'
+    name: Build and Push Docker Images
+    runs-on: ubuntu-22.04
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: Base Ubuntu 22.04 Docker image
+            file: ubuntu2204_base
+            tag: latest
+            build_args: ""
+          - name: Base Ubuntu 24.04 Docker image
+            file: ubuntu2404_base
+            tag: latest
+            build_args: ""
+          - name: Build Ubuntu 22.04 Docker image
+            file: ubuntu2204_build
+            tag: latest
+            build_args: ""
+          - name: Build Ubuntu 24.04 Docker image
+            file: ubuntu2404_build
+            tag: latest
+            build_args: ""
+          - name: Intel Drivers Ubuntu 22.04 Docker image
+            file: ubuntu2204_intel_drivers
+            tag: latest
+            build_args: "use_unstable_driver=false"
+          - name: Intel Drivers Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
+            tag: latest
+            build_args: "use_unstable_driver=false"
+          - name: Intel Drivers (unstable) Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
+            tag: unstable
+            build_args: "use_unstable_driver=true"
+          - name: Build + Intel Drivers Ubuntu 22.04 Docker image
+            file: ubuntu2204_intel_drivers
+            tag: alldeps
+            build_args: |
+              base_image=ghcr.io/intel/llvm/ubuntu2204_build
+              base_tag=latest
+              use_unstable_driver=false
+          - name: Build + Intel Drivers Ubuntu 24.04 Docker image
+            file: ubuntu2404_intel_drivers
+            tag: alldeps
+            build_args: |
+              base_image=ghcr.io/intel/llvm/ubuntu2404_build
+              base_tag=latest
+              use_unstable_driver=false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Build and Push Container
+        uses: ./devops/actions/build_container
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+          file: ${{ matrix.file }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
+          build-args: ${{ matrix.build_args }}
+

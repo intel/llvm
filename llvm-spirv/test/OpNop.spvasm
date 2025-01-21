@@ -1,0 +1,19 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testNop"
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+          %5 = OpTypeFunction %void
+          %1 = OpFunction %void None %5
+          %6 = OpLabel
+               OpNop
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-LABEL: @testNop
+; CHECK-NEXT: ret

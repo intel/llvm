@@ -1,0 +1,83 @@
+119734787 65536 393230 34 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Int64
+2 Capability Int64Atomics
+2 Capability GenericPointer
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+3 Source 3 200000
+5 Decorate 8 LinkageAttributes "foo" Export
+4 TypeInt 3 64 0
+4 TypeInt 5 32 0
+4 Constant 5 17 1
+4 Constant 5 18 16
+2 TypeVoid 2
+4 TypePointer 4 8 3
+4 TypePointer 6 8 5
+9 TypeFunction 7 2 4 4 6 3 3 3
+2 TypeBool 32
+
+
+5 Function 2 8 0 7
+3 FunctionParameter 4 9
+3 FunctionParameter 4 10
+3 FunctionParameter 6 11
+3 FunctionParameter 3 12
+3 FunctionParameter 3 13
+3 FunctionParameter 3 14
+
+2 Label 15
+6 AtomicLoad 3 16 9 17 18
+5 AtomicStore 9 17 18 12
+7 AtomicExchange 3 19 9 17 18 12
+9 AtomicCompareExchange 3 20 9 17 18 18 12 14
+6 AtomicIIncrement 3 21 9 17 18
+6 AtomicIDecrement 3 22 9 17 18
+7 AtomicIAdd 3 23 9 17 18 12
+7 AtomicISub 3 24 9 17 18 12
+7 AtomicSMin 3 25 9 17 18 12
+7 AtomicUMin 3 26 10 17 18 13
+7 AtomicSMax 3 27 9 17 18 12
+7 AtomicUMax 3 28 10 17 18 13
+7 AtomicAnd 3 29 9 17 18 12
+7 AtomicOr 3 30 9 17 18 12
+7 AtomicXor 3 31 9 17 18 12
+6 AtomicFlagTestAndSet 32 33 11 17 18
+4 AtomicFlagClear 11 17 18
+1 Return
+
+1 FunctionEnd
+
+; RUN: llvm-spirv --to-binary %s -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv --spirv-target-env=CL1.2 -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: FileCheck %s < %t.ll
+
+; OpAtomicLoad is emulated via atom_add(*p, 0)
+; CHECK: call spir_func i64 @_Z8atom_addPU3AS4Vll
+
+; OpAtomicStore is emulated via atom_xchg(*p, val)
+; CHECK: call spir_func i64 @_Z9atom_xchgPU3AS4Vll
+
+; CHECK: call spir_func i64 @_Z9atom_xchgPU3AS4Vll
+; CHECK: call spir_func i64 @_Z12atom_cmpxchgPU3AS4Vlll
+; CHECK: call spir_func i64 @_Z8atom_incPU3AS4Vl
+; CHECK: call spir_func i64 @_Z8atom_decPU3AS4Vl
+; CHECK: call spir_func i64 @_Z8atom_addPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_subPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_minPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_minPU3AS4Vmm
+; CHECK: call spir_func i64 @_Z8atom_maxPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_maxPU3AS4Vmm
+; CHECK: call spir_func i64 @_Z8atom_andPU3AS4Vll
+; CHECK: call spir_func i64 @_Z7atom_orPU3AS4Vll
+; CHECK: call spir_func i64 @_Z8atom_xorPU3AS4Vll
+
+; OpAtomicFlagTestAndSet is emulated via atomic_xchg(*p, 1)
+; CHECK: call spir_func i32 @_Z11atomic_xchg
+
+; OpAtomicFlagClear is emulated via atomic_xchg(*p, 0)
+; CHECK: call spir_func i32 @_Z11atomic_xchg
+

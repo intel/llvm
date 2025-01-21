@@ -1,0 +1,60 @@
+; Tests translation of DebugTypePtrToMember DebugInfoNone type
+
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.1 -o %t.spv
+; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+
+; CHECK-LLVM: !DIDerivedType(tag: DW_TAG_ptr_to_member_type, baseType: ![[#Type:]]
+; CHECK-LLVM: ![[#Type]] = !DIBasicType(tag: DW_TAG_unspecified_type, name: "SPIRV unknown type")
+
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 35
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int64
+               OpExtension "SPV_KHR_non_semantic_info"
+          %1 = OpExtInstImport "OpenCL.std"
+          %2 = OpExtInstImport "NonSemantic.Shader.DebugInfo.100"
+               OpMemoryModel Physical64 OpenCL
+          %7 = OpString "./foo.cpp"
+         %10 = OpString "0"
+         %14 = OpString ""
+         %20 = OpString "int"
+         %26 = OpString "_ZTS3Foo"
+         %27 = OpString "Foo"
+         %32 = OpString "x"
+               OpSource Unknown 0
+               OpName %x "x"
+               OpDecorate %x LinkageAttributes "x" Export
+               OpDecorate %x Alignment 8
+      %ulong = OpTypeInt 64 0
+       %uint = OpTypeInt 32 0
+%ulong_18446744073709551615 = OpConstant %ulong 18446744073709551615
+     %uint_1 = OpConstant %uint 1
+ %uint_65536 = OpConstant %uint 65536
+     %uint_2 = OpConstant %uint 2
+     %uint_6 = OpConstant %uint 6
+    %uint_32 = OpConstant %uint 32
+     %uint_4 = OpConstant %uint 4
+     %uint_0 = OpConstant %uint 0
+    %uint_16 = OpConstant %uint 16
+     %uint_8 = OpConstant %uint 8
+%_ptr_CrossWorkgroup_ulong = OpTypePointer CrossWorkgroup %ulong
+       %void = OpTypeVoid
+          %x = OpVariable %_ptr_CrossWorkgroup_ulong CrossWorkgroup %ulong_18446744073709551615
+          %9 = OpExtInst %void %2 DebugSource %7
+         %13 = OpExtInst %void %2 DebugBuildIdentifier %10 %uint_1
+         %15 = OpExtInst %void %2 DebugStoragePath %14
+         %19 = OpExtInst %void %2 DebugCompilationUnit %uint_65536 %uint_2 %9 %uint_6
+         %23 = OpExtInst %void %2 DebugInfoNone
+         %24 = OpExtInst %void %2 DebugTypeBasic %20 %uint_32 %uint_4 %23
+         %25 = OpExtInst %void %2 DebugTypeComposite %27 %uint_1 %9 %uint_1 %uint_0 %19 %26 %uint_0 %uint_16
+         %31 = OpExtInst %void %2 DebugTypePtrToMember %23 %25
+         %34 = OpExtInst %void %2 DebugGlobalVariable %32 %31 %9 %uint_4 %uint_0 %19 %14 %x %uint_8

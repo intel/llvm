@@ -1,0 +1,60 @@
+name: Generate documentation
+
+on:
+  schedule:
+  - cron: 0 1 * * *
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - '.github/workflows/sycl-docs.yml'
+    - 'clang/docs/**'
+    - 'sycl/doc/**'
+  push:
+    branches:
+    - sycl
+    paths:
+    - '.github/workflows/sycl-docs.yml'
+    - 'clang/docs/**'
+    - 'sycl/doc/**'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.repository == 'intel/llvm'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: repo
+    - name: Install deps
+      run: |
+        sudo apt-get install -y graphviz ssh ninja-build libhwloc-dev
+        sudo pip3 install -r repo/llvm/docs/requirements.txt
+    - name: Build Docs
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
+        -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release --docs
+        cmake --build . --target docs-sycl-html
+        cmake --build . --target docs-clang-html
+        # Copy the generated docs to a separate directory for uploading.
+        mkdir $GITHUB_WORKSPACE/install_docs
+        cd $GITHUB_WORKSPACE/install_docs
+        mkdir clang
+        mv $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
+        mv $GITHUB_WORKSPACE/build/tools/clang/docs/html/* clang/
+        touch .nojekyll
+    # Upload the generated docs as an artifact and deploy to GitHub Pages.
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./install_docs
+    - name: Deploy to GitHub Pages
+      if: ${{ github.event_name == 'push' }}
+      uses: actions/deploy-pages@v4

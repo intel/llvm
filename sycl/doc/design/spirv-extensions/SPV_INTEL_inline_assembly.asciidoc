@@ -1,0 +1,224 @@
+SPV_INTEL_inline_assembly
+=========================
+
+Name Strings
+------------
+
+SPV_INTEL_inline_assembly
+
+Contact
+-------
+
+To report problems or to provide input on this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+Contributors
+------------
+- Mariusz Merecki, Intel
+- Alexey Sotkin, Intel
+- Konstantin Vladimirov, Intel
+- Nikita Rudenko, Intel
+
+
+Notice
+------
+
+Copyright (c) 2019-2020 Intel Corporation. All rights reserved.
+
+Status
+------
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products. If you are interested in using this feature in your software product, please let us know!
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2020-03-11
+| Revision           | 5
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5, Revision 2, Unified
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds new capability, decoration, instructions and definitions to enable the use of inline assembly.
+
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_inline_assembly"
+----
+
+Modifications to the SPIR-V Specification, Version 1.5, Revision 2, Unified
+---------------------------------------------------------------------------
+
+Validation Rules
+~~~~~~~~~~~~~~~~
+
+TBD.
+
+Logical Layout of a Module
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Modify Section 2.4, Logical Layout of a Module, adding the following text to the 9th entry of the numbered list:
+
+This section is the first section to allow use of <<OpAsmTargetINTEL, *OpAsmTargetINTEL*>> and <<OpAsmINTEL, *OpAsmNTEL*>> instructions, though they can also appear in function bodies.
+
+
+Decoration
+~~~~~~~~~~
+Modify Section 3.20, Decoration, adding these rows to the Decoration table:
+
+--
+[cols="1,10,5,5",options="header",width = "100%"]
+|====
+2+^| Decoration | Extra Operands | <<Capability,Enabling Capabilities>>
+| 5607 | *ClobberINTEL* +
+Apply to an *OpAsmINTEL* to indicate that the assembly instructions clobber registers specified in the 'Register'. +
+ 'Register' is <<Literal, literal>> string.
+| '<<Literal, Literals>> +
+Register'
+|*AsmINTEL*
+| 5608 | *SideEffectsINTEL* +
+Apply to an *OpAsmINTEL* to indicate that the assembly instructions have side effects. Compiler cannot remove or duplicate *<<OpAsmCallINTEL, OpAsmCallINTEL*>> instructions calling assembly instructions provided by an *OpAsmINTEL* decorated with *SideEffectsINTEL*
+||*AsmINTEL*
+|====
+--
+
+Capability
+~~~~~~~~~~
+
+Modify Section 3.31, Capability, adding these rows to the Capability table:
+
+--
+[cols="1,15,5",options="header",width = "100%"]
+|===
+  2+^| Capability         | Implicitly Declares
+| 5606 | *AsmINTEL* +
+Module contains inline assembly instructions.
+|
+|===
+--
+
+Instructions
+~~~~~~~~~~~~
+
+Add a new section 3.32.26, Inline Assembly Instructions, adding these new instructions:
+
+--
+
+[cols="1,1,2,2,2,2,2",width="100%"]
+|===
+6+|[[OpAsmTargetINTEL]]*OpAsmTargetINTEL* +
+ +
+Defines vendor specific assembly target or dialect. +
+ 'Asm Target' is a <<Literal, literal>> string. See the client API specification for more detail.
+|Capability: +
+*AsmINTEL*
+| 3 + variable | 5609
+| '<id> +
+Result' 4+| '<<Literal, Literals>> +
+Asm Target'
+|===
+
+[cols="1,1,2,2,2,2,2,2",width="100%"]
+|===
+7+|[[OpAsmINTEL]]*OpAsmINTEL* +
+ +
+Defines vendor specific assembly instructions string. See the client API specification for more detail.
+
+'Result Type' is the type of the return value of the inline assembly, must be the same as the 'Return Type' declared in 'Asm Type'.
+
+'Asm Type' is the result of an OpTypeFunction, which declares the types of the return value and operands of the inline assembly.
+
+'Target' is the result of an <<OpAsmTargetINTEL, *OpAsmTargetINTEL*>>.
+
+'Asm Instructions' is a <<Literal, literal>> string. It contains the inline assembly instructions in the format specified by the client API.
+
+'Constraints' is a <<Literal, literal>> string. It contains inline assembly operand constraints as specified by the client API.
+
+'Asm Instructions' and 'Constraints' are <<Linteral, literal>> strings.
+|Capability: +
+*AsmINTEL*
+| 7 + variable | 5610  | '<id>' +
+'Result Type'
+ | '<id> +
+ Result' | '<id> +
+ Asm Type' | '<id> +
+ Target' |  '<<Literal, Linterals>> +
+Asm Instructions'
+| '<<Literal, Literals>> +
+Constraints'
+|===
+
+[cols="1,1,2,2,2,2,2",width="100%"]
+|===
+6+|[[OpAsmCallINTEL]]*OpAsmCallINTEL* +
+ +
+Calls inline assembly instructions.
+
+'Result Type' is the type of the return value of the inline assembly.  It must be the same as the 'Return Type' operand of the 'Asm' operand.
+
+'Asm' is an <<OpAsmIntel, *OpAsmIntel*>> instruction.
+
+'Argument N' is the object to copy or to pass as reference to parameter 'N' of the 'Inline Assembly'.
+|Capability: +
+*AsmINTEL*
+| 4 + variable | 5611  | '<id>' +
+'Result Type'
+ | '<id> +
+ Result' | '<id> +
+ Asm' 2+| Optional +
+ '<id>, ... +
+  Argument 0, ...''
+|===
+--
+
+Issues
+------
+
+1) Do we need to an explicit bitmask type for register constraints?
+
+Discussion: Current version uses string representation for flexibility.
+
+Resolution: UNRESOLVED
+
+2) What is the limit of an assembly string length? Is 65355 characters enough?
+
+Discussion: If long strings are needed we may need to a solution similar to OpSource and OpSourceContinued
+
+Resolution: UNRESOLVED
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2019-08-16|Mariusz Merecki|Initial revision
+|2|2019-10-08|Mariusz Merecki|Changed constraints to string, assigned tokens, added issues
+|3|2020-03-02|Mariusz Merecki|Removed changes to the OpDecorateString instruction. Fixed extension formatting (removed unneeded sections)
+|4|2020-03-06|Mariusz Merecki|Added OpFunctionType argument to the OpAsmINTEL to describe types of arguments
+|5|2020-03-11|Mariusz Merecki|Updated Status and Contributors sections
+|========================================

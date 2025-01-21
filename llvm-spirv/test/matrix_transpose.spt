@@ -1,0 +1,174 @@
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: %1 = load [4 x <4 x float>], ptr %mtx4
+; CHECK-LLVM: %2 = extractvalue [4 x <4 x float>] %1, 0
+; CHECK-LLVM: %3 = extractvalue [4 x <4 x float>] %1, 1
+; CHECK-LLVM: %4 = extractvalue [4 x <4 x float>] %1, 2
+; CHECK-LLVM: %5 = extractvalue [4 x <4 x float>] %1, 3
+; CHECK-LLVM: %6 = shufflevector <4 x float> %2, <4 x float> %3, <2 x i32> <i32 0, i32 4>
+; CHECK-LLVM: %7 = shufflevector <4 x float> %4, <4 x float> %5, <2 x i32> <i32 0, i32 4>
+; CHECK-LLVM: %8 = shufflevector <2 x float> %6, <2 x float> %7, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; CHECK-LLVM: %9 = insertvalue [4 x <4 x float>] undef, <4 x float> %8, 0
+; CHECK-LLVM: %10 = shufflevector <4 x float> %2, <4 x float> %3, <2 x i32> <i32 1, i32 5>
+; CHECK-LLVM: %11 = shufflevector <4 x float> %4, <4 x float> %5, <2 x i32> <i32 1, i32 5>
+; CHECK-LLVM: %12 = shufflevector <2 x float> %10, <2 x float> %11, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; CHECK-LLVM: %13 = insertvalue [4 x <4 x float>] %9, <4 x float> %12, 1
+; CHECK-LLVM: %14 = shufflevector <4 x float> %2, <4 x float> %3, <2 x i32> <i32 2, i32 6>
+; CHECK-LLVM: %15 = shufflevector <4 x float> %4, <4 x float> %5, <2 x i32> <i32 2, i32 6>
+; CHECK-LLVM: %16 = shufflevector <2 x float> %14, <2 x float> %15, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; CHECK-LLVM: %17 = insertvalue [4 x <4 x float>] %13, <4 x float> %16, 2
+; CHECK-LLVM: %18 = shufflevector <4 x float> %2, <4 x float> %3, <2 x i32> <i32 3, i32 7>
+; CHECK-LLVM: %19 = shufflevector <4 x float> %4, <4 x float> %5, <2 x i32> <i32 3, i32 7>
+; CHECK-LLVM: %20 = shufflevector <2 x float> %18, <2 x float> %19, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+; CHECK-LLVM: %21 = insertvalue [4 x <4 x float>] %17, <4 x float> %20, 3
+; CHECK-LLVM: store [4 x <4 x float>] %21, ptr %res4
+
+; CHECK-LLVM: %22 = load [2 x <2 x float>], ptr %mtx2
+; CHECK-LLVM: %23 = extractvalue [2 x <2 x float>] %22, 0
+; CHECK-LLVM: %24 = extractvalue [2 x <2 x float>] %22, 1
+; CHECK-LLVM: %25 = shufflevector <2 x float> %23, <2 x float> %24, <2 x i32> <i32 0, i32 2>
+; CHECK-LLVM: %26 = insertvalue [2 x <2 x float>] undef, <2 x float> %25, 0
+; CHECK-LLVM: %27 = shufflevector <2 x float> %23, <2 x float> %24, <2 x i32> <i32 1, i32 3>
+; CHECK-LLVM: %28 = insertvalue [2 x <2 x float>] %26, <2 x float> %27, 1
+; CHECK-LLVM: store [2 x <2 x float>] %28, ptr %res2
+
+; CHECK-LLVM: %29 = load [3 x <3 x float>], ptr %mtx3
+; CHECK-LLVM: %30 = extractvalue [3 x <3 x float>] %29, 0
+; CHECK-LLVM: %31 = extractvalue [3 x <3 x float>] %29, 1
+; CHECK-LLVM: %32 = extractvalue [3 x <3 x float>] %29, 2
+; CHECK-LLVM: %33 = extractelement <3 x float> %30, i32 0
+; CHECK-LLVM: %34 = insertelement <3 x float> undef, float %33, i64 0
+; CHECK-LLVM: %35 = extractelement <3 x float> %31, i32 0
+; CHECK-LLVM: %36 = insertelement <3 x float> %34, float %35, i64 1
+; CHECK-LLVM: %37 = extractelement <3 x float> %32, i32 0
+; CHECK-LLVM: %38 = insertelement <3 x float> %36, float %37, i64 2
+; CHECK-LLVM: %39 = insertvalue [3 x <3 x float>] undef, <3 x float> %38, 0
+; CHECK-LLVM: %40 = extractelement <3 x float> %30, i32 1
+; CHECK-LLVM: %41 = insertelement <3 x float> undef, float %40, i64 0
+; CHECK-LLVM: %42 = extractelement <3 x float> %31, i32 1
+; CHECK-LLVM: %43 = insertelement <3 x float> %41, float %42, i64 1
+; CHECK-LLVM: %44 = extractelement <3 x float> %32, i32 1
+; CHECK-LLVM: %45 = insertelement <3 x float> %43, float %44, i64 2
+; CHECK-LLVM: %46 = insertvalue [3 x <3 x float>] %39, <3 x float> %45, 1
+; CHECK-LLVM: %47 = extractelement <3 x float> %30, i32 2
+; CHECK-LLVM: %48 = insertelement <3 x float> undef, float %47, i64 0
+; CHECK-LLVM: %49 = extractelement <3 x float> %31, i32 2
+; CHECK-LLVM: %50 = insertelement <3 x float> %48, float %49, i64 1
+; CHECK-LLVM: %51 = extractelement <3 x float> %32, i32 2
+; CHECK-LLVM: %52 = insertelement <3 x float> %50, float %51, i64 2
+; CHECK-LLVM: %53 = insertvalue [3 x <3 x float>] %46, <3 x float> %52, 2
+; CHECK-LLVM: store [3 x <3 x float>] %53, ptr %res3
+
+; CHECK-LLVM: %54 = load [4 x <3 x float>], ptr %mtx43
+; CHECK-LLVM: %55 = extractvalue [4 x <3 x float>] %54, 0
+; CHECK-LLVM: %56 = extractvalue [4 x <3 x float>] %54, 1
+; CHECK-LLVM: %57 = extractvalue [4 x <3 x float>] %54, 2
+; CHECK-LLVM: %58 = extractvalue [4 x <3 x float>] %54, 3
+; CHECK-LLVM: %59 = extractelement <3 x float> %55, i32 0
+; CHECK-LLVM: %60 = insertelement <4 x float> undef, float %59, i64 0
+; CHECK-LLVM: %61 = extractelement <3 x float> %56, i32 0
+; CHECK-LLVM: %62 = insertelement <4 x float> %60, float %61, i64 1
+; CHECK-LLVM: %63 = extractelement <3 x float> %57, i32 0
+; CHECK-LLVM: %64 = insertelement <4 x float> %62, float %63, i64 2
+; CHECK-LLVM: %65 = extractelement <3 x float> %58, i32 0
+; CHECK-LLVM: %66 = insertelement <4 x float> %64, float %65, i64 3
+; CHECK-LLVM: %67 = insertvalue [3 x <4 x float>] undef, <4 x float> %66, 0
+; CHECK-LLVM: %68 = extractelement <3 x float> %55, i32 1
+; CHECK-LLVM: %69 = insertelement <4 x float> undef, float %68, i64 0
+; CHECK-LLVM: %70 = extractelement <3 x float> %56, i32 1
+; CHECK-LLVM: %71 = insertelement <4 x float> %69, float %70, i64 1
+; CHECK-LLVM: %72 = extractelement <3 x float> %57, i32 1
+; CHECK-LLVM: %73 = insertelement <4 x float> %71, float %72, i64 2
+; CHECK-LLVM: %74 = extractelement <3 x float> %58, i32 1
+; CHECK-LLVM: %75 = insertelement <4 x float> %73, float %74, i64 3
+; CHECK-LLVM: %76 = insertvalue [3 x <4 x float>] %67, <4 x float> %75, 1
+; CHECK-LLVM: %77 = extractelement <3 x float> %55, i32 2
+; CHECK-LLVM: %78 = insertelement <4 x float> undef, float %77, i64 0
+; CHECK-LLVM: %79 = extractelement <3 x float> %56, i32 2
+; CHECK-LLVM: %80 = insertelement <4 x float> %78, float %79, i64 1
+; CHECK-LLVM: %81 = extractelement <3 x float> %57, i32 2
+; CHECK-LLVM: %82 = insertelement <4 x float> %80, float %81, i64 2
+; CHECK-LLVM: %83 = extractelement <3 x float> %58, i32 2
+; CHECK-LLVM: %84 = insertelement <4 x float> %82, float %83, i64 3
+; CHECK-LLVM: %85 = insertvalue [3 x <4 x float>] %76, <4 x float> %84, 2
+; CHECK-LLVM: store [3 x <4 x float>] %85, ptr %res34
+; CHECK-LLVM: ret void
+
+119734787 65536 458752 51 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Float64
+2 Capability Matrix
+3 MemoryModel 2 2
+8 EntryPoint 6 40 "matrix_transpose"
+3 Source 3 102000
+3 Name 30 "res4"
+3 Name 31 "mtx4"
+3 Name 32 "res2"
+3 Name 33 "mtx2"
+3 Name 34 "res3"
+3 Name 35 "mtx3"
+3 Name 36 "res34"
+3 Name 37 "mtx43"
+
+2 TypeVoid 5
+3 TypeFloat 6 32
+4 TypeVector 7 6 4
+4 TypeMatrix 8 7 4
+4 TypePointer 9 7 8               ; 9  : Pointer to Matrix4x4
+
+4 TypeVector 10 6 2
+4 TypeMatrix 11 10 2
+4 TypePointer 12 7 11             ; 12 : Pointer to Matrix2x2
+
+4 TypeVector 13 6 3
+4 TypeMatrix 14 13 3
+4 TypePointer 15 7 14             ; 15 : Pointer to Matrix3x3
+
+4 TypeMatrix 17 13 4
+4 TypePointer 18 7 17             ; 18 : Pointer to Matrix4x3
+
+4 TypeMatrix 20 7 3
+4 TypePointer 21 7 20             ; 21 : Pointer to Matrix3x4
+
+11 TypeFunction 29 5 9 9 12 12 15 15 21 18
+
+5 Function 5 40 0 29
+3 FunctionParameter 9 30
+3 FunctionParameter 9 31
+3 FunctionParameter 12 32
+3 FunctionParameter 12 33
+3 FunctionParameter 15 34
+3 FunctionParameter 15 35
+3 FunctionParameter 21 36
+3 FunctionParameter 18 37
+
+2 Label 50
+
+; 4x4, fastpath
+4 Load 8 41 31
+4 Transpose 8 42 41
+3 Store 30 42
+
+; 2x2, fastpath
+4 Load 11 43 33
+4 Transpose 11 44 43
+3 Store 32 44
+
+; 3x3, slowpath
+4 Load 14 45 35
+4 Transpose 14 46 45
+3 Store 34 46
+
+; 3x4, slowpath
+4 Load 17 47 37
+4 Transpose 20 48 47
+3 Store 36 48
+
+1 Return
+
+1 FunctionEnd

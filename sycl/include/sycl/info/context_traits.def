@@ -1,0 +1,7 @@
+__SYCL_PARAM_TRAITS_SPEC(context, reference_count, uint32_t, UR_CONTEXT_INFO_REFERENCE_COUNT)
+__SYCL_PARAM_TRAITS_SPEC(context, platform, sycl::platform, __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_SPEC(context, devices, std::vector<sycl::device>, UR_CONTEXT_INFO_DEVICES)
+__SYCL_PARAM_TRAITS_SPEC(context, atomic_memory_order_capabilities, std::vector<sycl::memory_order>, UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+__SYCL_PARAM_TRAITS_SPEC(context, atomic_memory_scope_capabilities, std::vector<sycl::memory_scope>, UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+__SYCL_PARAM_TRAITS_SPEC(context, atomic_fence_order_capabilities, std::vector<sycl::memory_order>, UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
+__SYCL_PARAM_TRAITS_SPEC(context, atomic_fence_scope_capabilities, std::vector<sycl::memory_scope>, UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)

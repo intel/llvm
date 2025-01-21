@@ -1,0 +1,68 @@
+119734787 65536 458752 21 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Float64
+2 Capability Matrix
+3 MemoryModel 2 2
+8 EntryPoint 6 20 "matrix_times_vector"
+3 Source 3 102000
+3 Name 12 "res"
+3 Name 13 "lhs"
+3 Name 14 "rhs"
+
+2 TypeVoid 5
+3 TypeFloat 6 32
+4 TypeVector 7 6 4
+4 TypeMatrix 8 7 4
+4 TypePointer 9 7 8
+4 TypePointer 10 7 7
+6 TypeFunction 11 5 10 9 10
+
+5 Function 5 20 0 11
+3 FunctionParameter 10 12
+3 FunctionParameter 9 13
+3 FunctionParameter 10 14
+
+2 Label 15
+4 Load 8 16 13
+4 Load 7 17 14
+5 MatrixTimesVector 7 18 16 17
+3 Store 12 18
+1 Return
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: %1 = load [4 x <4 x float>], ptr %lhs
+; CHECK-LLVM: %2 = load <4 x float>, ptr %rhs
+; CHECK-LLVM: %3 = extractelement <4 x float> %2, i32 0
+; CHECK-LLVM: %.splatinsert = insertelement <4 x float> poison, float %3, i64 0
+; CHECK-LLVM: %.splat = shufflevector <4 x float> %.splatinsert, <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK-LLVM: %4 = extractvalue [4 x <4 x float>] %1, 0
+; CHECK-LLVM: %5 = fmul <4 x float> %.splat, %4
+; CHECK-LLVM: %6 = fadd <4 x float> zeroinitializer, %5
+; CHECK-LLVM: %7 = extractelement <4 x float> %2, i32 1
+; CHECK-LLVM: %.splatinsert1 = insertelement <4 x float> poison, float %7, i64 0
+; CHECK-LLVM: %.splat2 = shufflevector <4 x float> %.splatinsert1, <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK-LLVM: %8 = extractvalue [4 x <4 x float>] %1, 1
+; CHECK-LLVM: %9 = fmul <4 x float> %.splat2, %8
+; CHECK-LLVM: %10 = fadd <4 x float> %6, %9
+; CHECK-LLVM: %11 = extractelement <4 x float> %2, i32 2
+; CHECK-LLVM: %.splatinsert3 = insertelement <4 x float> poison, float %11, i64 0
+; CHECK-LLVM: %.splat4 = shufflevector <4 x float> %.splatinsert3, <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK-LLVM: %12 = extractvalue [4 x <4 x float>] %1, 2
+; CHECK-LLVM: %13 = fmul <4 x float> %.splat4, %12
+; CHECK-LLVM: %14 = fadd <4 x float> %10, %13
+; CHECK-LLVM: %15 = extractelement <4 x float> %2, i32 3
+; CHECK-LLVM: %.splatinsert5 = insertelement <4 x float> poison, float %15, i64 0
+; CHECK-LLVM: %.splat6 = shufflevector <4 x float> %.splatinsert5, <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK-LLVM: %16 = extractvalue [4 x <4 x float>] %1, 3
+; CHECK-LLVM: %17 = fmul <4 x float> %.splat6, %16
+; CHECK-LLVM: %18 = fadd <4 x float> %14, %17
+; CHECK-LLVM: store <4 x float> %18, ptr %res
+; CHECK-LLVM: ret void

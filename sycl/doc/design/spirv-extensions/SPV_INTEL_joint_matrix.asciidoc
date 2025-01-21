@@ -1,0 +1,422 @@
+:extension_name: SPV_INTEL_joint_matrix
+:main_capability_name: CooperativeMatrixKHR
+:packed_capability_name: PackedCooperativeMatrixINTEL
+:packed_capability_token: 6434
+:invocation_capability_name: CooperativeMatrixInvocationInstructionsINTEL
+:invocation_capability_token: 6435
+:tf32_capability_name: CooperativeMatrixTF32ComponentTypeINTEL
+:tf32_capability_token: 6436
+:bf16_capability_name: CooperativeMatrixBFloat16ComponentTypeINTEL
+:bf16_capability_token: 6437
+:capability_prefetch_name: CooperativeMatrixPrefetchINTEL
+:capability_prefetch_token: 6411
+:OpCooperativeMatrixGetElementCoordINTEL_token: 6440
+:OpCooperativeMatrixApplyFunctionINTEL_token: 6448
+:OpCooperativeMatrixPrefetchINTEL_token: 6449
+
+:DPCPP_URL: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_intel_matrix.asciidoc
+:bfloat16_conv_url: http://htmlpreview.github.io/?https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_bfloat16_conversion.html
+:tf32_conv_url: https://github.com/intel/llvm/pull/6990
+:cache_control_url: http://htmlpreview.github.io/?https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_cache_controls.html
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Alexey Sotkin, Intel +
+- Dounia Khaldi, Intel +
+- Mateusz Belicki, Intel +
+- Dmitry Sidorov, Intel +
+- Ben Ashbaugh, Intel +
+- Greg Lueck, Intel +
+- Victor Mustya, Intel +
+- Arvind Sudarsanam, Intel +
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2023-11-06
+| Revision           | 15
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6 Revision 2.
+
+This extension is written against *SPV_KHR_cooperative_matrix* extension
+specification Revision 3.
+
+This extension is written against *SPV_INTEL_bfloat16_conversion* extension
+specification Revision 1.
+
+This extension is written against *SPV_INTEL_tensor_float32_rounding* extension
+specification Revision 2.
+
+This extension requires SPIR-V 1.0.
+
+
+== Overview
+
+This extension adds new capabilities to *SPV_KHR_cooperative_matrix* such as special
+interpretations of matrix's element type and 'Packed' layout to support Intel
+VNNI instructions. The extension also adds new instructions for element-wise
+function apply instruction, get matrix element coordinate and matrix prefetch,
+adding mechanisms to specify cache level for matrix load and store instructions.
+
+== Extension Name
+
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{packed_capability_name}
+{invocation_capability_name}
+{tf32_capability_name}
+{bf16_capability_name}
+{capability_prefetch_name}
+----
+
+== New Instructions
+Instructions added under the *{invocation_capability_name}* capability:
+
+----
+
+OpCooperativeMatrixGetElementCoordINTEL
+OpCooperativeMatrixApplyFunctionINTEL
+
+----
+
+Instructions added under the *{capability_prefetch_name}* capability:
+
+----
+
+OpCooperativeMatrixPrefetchINTEL
+
+----
+
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{packed_capability_name}*          | {packed_capability_token}
+|*{invocation_capability_name}*      | {invocation_capability_token}
+|*{tf32_capability_name}*            | {tf32_capability_token}
+|*{bf16_capability_name}*            | {bf16_capability_token}
+|*{capability_prefetch_name}*        | {capability_prefetch_token}
+|*OpCooperativeMatrixGetElementCoordINTEL* | {OpCooperativeMatrixGetElementCoordINTEL_token}
+|*OpCooperativeMatrixApplyFunctionINTEL*   | {OpCooperativeMatrixApplyFunctionINTEL_token}
+|*OpCooperativeMatrixPrefetchINTEL*        | {OpCooperativeMatrixPrefetchINTEL_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.6 and SPV_KHR_cooperative_matrix, Revision 3
+
+=== Cooperative Matrix Layout
+
+Modify section 3.X, Cooperative Matrix Layout adding *PackedINTEL* layout
+
+[options="header"]
+|====
+2+^| Layout ^| Enabling capability 
+| 0x2 | *PackedINTEL* +
+Suitable for Vector Neural Network Instruction (VNNI) format used in Intel AMX
+and Intel XMX. It specifies that the data was prepacked by user before loading
+a cooperative matrix.
+More info could be found in {DPCPP_URL}[DPCPP matrix extension spec] | *{packed_capability_name}*
+|====
+
+
+=== Cooperative Matrix Operands
+
+Modify section 3.X, Cooperative Matrix Operands adding new entries to the table
+to specify Component Type Interpretation
+
+[options="header"]
+|====
+2+^| Interpretation ^| Enabling capability
+| 0x20 | *MatrixAAndBTF32ComponentsINTEL* +
+'Component Type' of 'A' and 'B' must be 32-bit _floating-point type_. Interpret 'Component Type' of
+'A' and 'B' cooperative matrices as TF32. | *{tf32_capability_name}*
+| 0x40 | *MatrixAAndBBFloat16ComponentsINTEL* +
+'Component Type' of 'A' and 'B' must be 16-bit _integer_. Interpret 'Component Type' of
+'A' and 'B' cooperative matrices as BFloat16. +
+It is mutually exclusive with *Matrix{A,B}SignedComponents* Cooperative Matrix Operands.
+| *{bf16_capability_name}*
+| 0x80 | *MatrixCBFloat16ComponentsINTEL* +
+'Component Type' of 'C' must be 16-bit _integer_. Interpret 'Component Type' of
+'C' cooperative matrix as BFloat16. +
+It is mutually exclusive with *MatrixCSignedComponents* Cooperative Matrix Operands.
+| *{bf16_capability_name}*
+| 0x100 | *MatrixResultBFloat16ComponentsINTEL* +
+'Component Type' of 'Result' must be 16-bit _integer_. Interpret 'Component Type' of
+'Result' cooperative matrix as BFloat16. +
+It is mutually exclusive with *MatrixResultSignedComponents* Cooperative Matrix Operands.
+| *{bf16_capability_name}*
+|====
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {packed_capability_token} | *{packed_capability_name}* +
+ +
+Uses *PackedINTEL* layout to +Cooperative Matrix Layout+. +
+| *{main_capability_name}* +
+| {invocation_capability_token} | *{invocation_capability_name}* +
+ +
+Uses *OpCooperativeMatrixGetElementCoordINTEL* and *OpCooperativeMatrixApplyFunctionINTEL*
+instructions. +
+| *{main_capability_name}* +
+| {tf32_capability_token} | *{tf32_capability_name}* +
+ +
+Uses *TF32* in 3.X, Cooperative Matrix Operands +
+ +
+| *{main_capability_name}* +
+| {bf16_capability_token} | *{bf16_capability_name}* +
+ +
+Uses *BFloat16* in 3.X, Cooperative Matrix Operands +
+ +
+| *{main_capability_name}* +
+| {capability_prefetch_token} | *{capability_prefetch_name}* +
+ +
+Uses *OpCooperativeMatrixPrefetchINTEL* instructions. +
+ +
+| *{main_capability_name}* +
+|====
+--
+
+=== Instructions
+
+==== 3.42.8. Memory Instructions
+
+Modify *OpCooperativeMatrixLoadKHR* adding: +
+Note: To specify cache level for *OpCooperativeMatrixLoadKHR* one
+can use *CacheControlLoadINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
+
+Modify *OpCooperativeMatrixStoreKHR* adding: +
+Note: To specify cache level for *OpCooperativeMatrixStoreKHR* one
+can use *CacheControlStoreINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
+ +
+
+[cols="1,1,8*3",width="100%"]
+|=====
+9+|[[OpCooperativeMatrixPrefetchINTEL]]*OpCooperativeMatrixPrefetchINTEL* +
+ +
+The instruction does not modify the behaviour of the program. The instruction
+prefetches 'Rows' X 'Columns' block of data. +
+ +
+'Pointer' is a pointer to a memory to prefetch. Its type must be an *OpTypePointer*
+whose 'Type' operand is a scalar or vector type. If the *Shader* capability was
+declared, 'Pointer' must point into an array and any *ArrayStride* decoration on
+'Pointer' is ignored. +
+ +
+'X offset' must be a constant instruction with scalar 32-bit integer type.
+It specifies offset in bytes along X axis from the 'Pointer' where prefetched
+memory region starts from. +
+ +
+'Y offset' must be a constant instruction with scalar 32-bit integer type.
+It specifies offset in bytes along Y axis from the 'Pointer' where prefetched
+memory region starts from. +
+ +
+'Rows' must be a constant instruction with scalar 32-bit integer type. +
+ +
+'Columns' must be a constant instruction with scalar 32-bit integer type. +
+ +
+'Cache Level' is an unsigned 32-bit integer telling the cache level to which
+the control applies. The value `0` indicates the cache level closest to the
+processing unit, the value `1` indicates the next furthest cache level, etc.
+If some cache level does not exist, the instruction is ignored. +
+ +
+'MemoryLayout' specifies how matrix elements are laid out in memory. It must come
+from a 32-bit integer 'constant instruction' whose value corresponds to a
+'Cooperative Matrix Layout'. See the _Cooperative Matrix Layout_ table for
+a description of the layouts and detailed layout-specific rules. +
+ +
+'Stride' further qualifies how matrix elements are laid out in memory. It must be a
+scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
+ +
+1+|Capability: +
+*{capability_prefetch_name}*
+1+| 8+variable | {OpCooperativeMatrixPrefetchINTEL_token} | '<id>' +
+'Pointer' | '<id>' +
+'X offset' | '<id>' +
+'Y offset' | '<id>' +
+'Rows' | '<id>' +
+'Columns' | Literal +
+'Cache Level' | '<id>' +
+'MemoryLayout' | Optional '<id>' +
+'Stride' |
+|=====
+
+==== 3.42.11. Conversion Instructions
+
+If *{bf16_capability_name}* and *BFloat16ConversionINTEL* capabilities are
+declared, then allow cooperative matrix types for the following conversion
+instructions (if the component types are appropriate): *OpConvertFToBF16INTEL*,
+*OpConvertBF16ToFINTEL* (See also: {bfloat16_conv_url}[SPV_INTEL_bfloat16_conversion]
+extension).
+
+If *{tf32_capability_name}* and *TensorFloat32RoundingINTEL* capabilities are
+declared, then allow cooperative matrix types for the following conversion
+instructions (if the component types are appropriate): *OpRoundFToTF32INTEL*
+(See also: {tf32_conv_url}[SPV_INTEL_tensor_float32_rounding] extension).
+
+==== 3.42.12. Composite Instructions
+
+[cols="1,1,4*3",width="100%"]
+|=====
+5+|[[OpCooperativeMatrixGetElementCoordINTEL]]*OpCooperativeMatrixGetElementCoordINTEL* +
+ +
+*NOTE* the instruction is being deprecated. +
+ +
+Returns (Row, Column) coordinate of dynamically selected element of a matrix.  +
+ +
+'Result Type' must be a 32-bit integer 2-elements vector, where the first component
+contains the row with the selected element, and the second element contains the
+column with the selected element. +
+ +
+'Matrix' is an ID of *OpTypeCooperativeMatrixKHR*. The instruction returns the
+element's coordinate of this cooperative matrix type. +
+ +
+'Index' must be a 32-bit 'scalar integer'. It is interpreted as an index into the list
+of components owned by this work-item in the cooperative matrix. The behavior is
+undefined if 'Index' is less than zero or greater than or equal to the number
+that *OpCooperativeMatrixLengthKHR* returns for this work-item. +
+ +
+
+1+|Capability: +
+*{invocation_capability_name}*
+1+| 5 | {OpCooperativeMatrixGetElementCoordINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Matrix'
+| '<id>' +
+'Index'
+|=====
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpCooperativeMatrixApplyFunctionINTEL]]*OpCooperativeMatrixApplyFunctionINTEL* +
+ +
+Apply the function for each element of the matrix. Results in a new matrix within
+the same scope and with the same number of rows and columns. +
+ +
+'Result Type' is the type of the return value of the function. It must be an
+*OpTypeCooperativeMatrix* with the same _Scope_, _Rows_ and _Columns_ as the type of
+'Matrix' operand. _Component type_ as well as _Use_ of 'Result Type' and 'Matrix' can
+differ. +
+ +
+'Function' is an *OpFunction* instruction whose *OpTypeFunction* operand has _Result Type_
+of scalar _numerical type_. This could be a forward reference. The 'Function' will be
+invoked (_Rows_ - 'Y')_x_(_Cols_ - 'X') times within the cooperative matrix scope. The first parameter of the
+'Function' must be scalar _numerical type_ that corresponds to an element of
+the matrix to which 'Function' is being applied.
+ +
+'Matrix' is a cooperative matrix which elements are used as the first parameter of
+the 'Function'. +
+ +
+'Argument N' is the object to copy to parameter N. +
+ +
+*Note* the first parameter is omitted in this list of parameters, as it is copied
+from the unique element of the 'Matrix'. Following two parameters must be (X, Y)
+coordinate of a first element of the matrix to apply the function, for example
+(0, 0) would mean, that *OpCooperativeMatrixApplyFunctionINTEL* affects the
+entire matrix. +
+ +
+
+1+|Capability: +
+*{invocation_capability_name}*
+1+| 4 + variable | {OpCooperativeMatrixApplyFunctionINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Function'
+| '<id>' +
+'Matrix'
+| '<id>, <id>, ..., <id>' +
+'Argument 1', 'Argument 2', ..., 'Argument N'
+|=====
+
+=== Issues
+
+1. Should we keep *OpCooperativeMatrixGetElementCoordINTEL* once we have *OpCooperativeMatrixApplyFunctionINTEL*? +
+ +
+*RESOLVED*: No, *OpCooperativeMatrixGetElementCoordINTEL* will be removed, for now put deprecation note. +
+
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-02-16|Alexey Sotkin|Initial revision
+|2|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
+|3|2021-12-28|Dmitry Sidorov|Add Joint matrix to Composite definition
+|4|2022-03-10|Dmitry Sidorov|Add OpJointMatrixWorkItemLengthINTEL instruction
+|5|2022-04-01|Dmitry Sidorov|Add Use parameter to TypeJointMatrixINTEL
+|6|2022-09-07|Dmitry Sidorov|Make Use parameter to be mandatory
+|7|2022-10-13|Dmitry Sidorov|Add ComponentTypeInterpretation decoration and OpJointMatrixGetElementCoordINTEL
+|8|2022-12-02|Dmitry Sidorov|Remove Scope from the instructions and Layout from the type
+|9|2022-12-07|Dmitry Sidorov|Split main capability into 3
+|10|2023-02-01|Dmitry Sidorov|Move ComponentTypeInterpretation to an optional type parameter
+|11|2023-07-05|Dmitry Sidorov|Update on top of SPV_KHR_cooperative_matrix
+|12|2023-09-25|Dmitry Sidorov|Add apply function instruction
+|13|2023-09-25|Dmitry Sidorov|Add convertion instructions for tf32 and bf16
+|14|2023-10-11|Dmitry Sidorov|Add matrix prefetch instruction
+|15|2023-11-06|Dmitry Sidorov|Put deprecation note on OpCooperativeMatrixGetElementCoordINTEL
+|========================================

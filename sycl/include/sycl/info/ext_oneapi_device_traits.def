@@ -1,0 +1,87 @@
+#ifndef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
+#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
+#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC __SYCL_PARAM_TRAITS_SPEC
+#endif
+
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental,device, max_global_work_groups, size_t, __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<1>, id<1>, __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<2>, id<2>, __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<3>, id<3>, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D)
+
+// Forward progress guarantees
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(
+    ext::oneapi::experimental, device,
+    work_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>,
+    std::vector<ext::oneapi::experimental::forward_progress_guarantee>,
+    __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(
+    ext::oneapi::experimental, device,
+    sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>,
+    std::vector<ext::oneapi::experimental::forward_progress_guarantee>,
+    __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(
+    ext::oneapi::experimental, device,
+    sub_group_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>,
+    std::vector<ext::oneapi::experimental::forward_progress_guarantee>,
+    __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(
+    ext::oneapi::experimental, device,
+    work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::root_group>,
+    std::vector<ext::oneapi::experimental::forward_progress_guarantee>,
+    __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(
+    ext::oneapi::experimental, device,
+    work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::work_group>,
+    std::vector<ext::oneapi::experimental::forward_progress_guarantee>,
+    __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(
+    ext::oneapi::experimental, device,
+    work_item_progress_capabilities<
+        ext::oneapi::experimental::execution_scope::sub_group>,
+    std::vector<ext::oneapi::experimental::forward_progress_guarantee>,
+    __SYCL_TRAIT_HANDLED_IN_RT)
+
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device, architecture,
+                         ext::oneapi::experimental::architecture,
+                        UR_DEVICE_INFO_IP_VERSION)
+
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device, matrix_combinations,
+                         std::vector<ext::oneapi::experimental::matrix::combination>,
+                         __SYCL_TRAIT_HANDLED_IN_RT)
+
+// Bindless images pitched allocation
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         image_row_pitch_align, uint32_t,
+                        UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         max_image_linear_row_pitch, uint32_t,
+                        UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         max_image_linear_width, uint32_t,
+                        UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         max_image_linear_height, uint32_t,
+                        UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP)
+
+// Bindless images mipmaps
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         mipmap_max_anisotropy, float,
+                        UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP)
+
+// Composite devices
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         component_devices, std::vector<sycl::device>,
+                        UR_DEVICE_INFO_COMPONENT_DEVICES)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         composite_device, sycl::device,
+                        UR_DEVICE_INFO_COMPOSITE_DEVICE)
+
+#ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
+#endif

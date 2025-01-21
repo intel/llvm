@@ -1,0 +1,41 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testFPFastMathModeNotNaNFast"
+               OpName %a "a"
+               OpName %b "b"
+               OpName %r1 "r1"
+               OpName %r2 "r2"
+               OpName %r3 "r3"
+               OpName %r4 "r4"
+               OpName %r5 "r5"
+               OpName %r6 "r6"
+               OpDecorate %dec FPFastMathMode NotNaN|Fast
+        %dec = OpDecorationGroup
+               OpGroupDecorate %dec %r1 %r2 %r3 %r4 %r5 %r6
+       %void = OpTypeVoid
+      %float = OpTypeFloat 32
+          %5 = OpTypeFunction %void %float %float
+          %1 = OpFunction %void None %5
+          %a = OpFunctionParameter %float
+          %b = OpFunctionParameter %float
+          %6 = OpLabel
+         %r1 = OpFAdd %float %a %b
+         %r2 = OpFSub %float %a %b
+         %r3 = OpFMul %float %a %b
+         %r4 = OpFDiv %float %a %b
+         %r5 = OpFRem %float %a %b
+         %r6 = OpFNegate %float %a
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: %r1 = fadd fast float %a, %b
+; CHECK: %r2 = fsub fast float %a, %b
+; CHECK: %r3 = fmul fast float %a, %b
+; CHECK: %r4 = fdiv fast float %a, %b
+; CHECK: %r5 = frem fast float %a, %b
+; CHECK: %r6 = fneg fast float %a

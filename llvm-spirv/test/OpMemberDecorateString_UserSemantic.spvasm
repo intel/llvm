@@ -1,0 +1,37 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.4 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+; SPIR-V
+; Version: 1.4
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 44
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int64
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %kernel "test"
+               OpMemberDecorateString %struct 0 UserSemantic "foo"
+; CHECK: [[STR:@[0-9_.]+]] = {{.*}}foo
+; Note: this is checking for an annotation on an instantiation of the structure,
+; which is different than an annotation on the structure type.
+; CHECK: call ptr @llvm.ptr.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr undef, i32 undef, ptr undef)
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+       %void = OpTypeVoid
+ %kernel_sig = OpTypeFunction %void %uint
+     %struct = OpTypeStruct %uint
+ %ptr_struct = OpTypePointer Function %struct
+   %ptr_uint = OpTypePointer Function %uint
+     %kernel = OpFunction %void None %kernel_sig
+          %a = OpFunctionParameter %uint
+      %entry = OpLabel
+          %s = OpVariable %ptr_struct Function
+        %add = OpIAdd %uint %a %a
+          %x = OpInBoundsPtrAccessChain %ptr_uint %s %uint_0 %uint_0
+               OpStore %x %add Aligned 4
+               OpReturn
+               OpFunctionEnd

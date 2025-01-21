@@ -1,0 +1,28 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Float16
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testFMod_v2f16"
+               OpName %a "a"
+               OpName %b "b"
+       %void = OpTypeVoid
+       %half = OpTypeFloat 16
+      %half2 = OpTypeVector %half 2
+          %5 = OpTypeFunction %void %half2 %half2
+          %1 = OpFunction %void None %5
+          %a = OpFunctionParameter %half2
+          %b = OpFunctionParameter %half2
+          %6 = OpLabel
+          %7 = OpFMod %half2 %a %b
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-DAG: %frem.res = frem <2 x half> %a, %b
+; CHECK-DAG: %copysign.res = call <2 x half> @llvm.copysign.v2f16(<2 x half> %frem.res, <2 x half> %b)
+; CHECK-DAG: %fadd.res = fadd <2 x half> {{%frem\.res, %b|%b, %frem\.res}}
+; CHECK-DAG: %cmp.res = fcmp one <2 x half> {{%frem\.res, %copysign\.res|%copysign\.res, %frem\.res}}
+; CHECK: select <2 x i1> %cmp.res, <2 x half> %fadd.res, <2 x half> %copysign.res

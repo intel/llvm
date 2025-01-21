@@ -1,0 +1,111 @@
+; Tests translation of DebugTypeVector DebugInfoNone type
+
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.1 -o %t.spv
+; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+
+; CHECK-LLVM: !DICompositeType(tag: DW_TAG_array_type, baseType: ![[#Type:]], flags: DIFlagVector
+; CHECK-LLVM: ![[#Type]] = !DIBasicType(tag: DW_TAG_unspecified_type, name: "SPIRV unknown type")
+
+; SPIR-V
+; Version: 1.1
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 61
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int16
+          %1 = OpExtInstImport "OpenCL.std"
+          %2 = OpExtInstImport "OpenCL.DebugInfo.100"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %23 "do_add_sub" %__spirv_BuiltInGlobalInvocationId
+         %27 = OpString "/app/<stdin>"
+         %28 = OpString "//__CSK_MD5:df3c6ff4eef4b9de43419af39216b003"
+         %31 = OpString "short4"
+         %32 = OpString "short"
+         %36 = OpString "/opt/compiler-explorer/clang-assertions-trunk-20240209/lib/clang/19/include/opencl-c-base.h"
+         %37 = OpString "//__CSK_MD5:0cbe46031b64656ef87e922672ce4bdc"
+         %42 = OpString "size_t"
+         %43 = OpString "unsigned int"
+         %47 = OpString "do_add_sub"
+         %48 = OpString "/app/example.cl"
+         %50 = OpString ""
+         %52 = OpString "add_out"
+         %54 = OpString "g"
+               OpSource OpenCL_C 102000
+               OpName %__spirv_BuiltInGlobalInvocationId "__spirv_BuiltInGlobalInvocationId"
+               OpName %do_add_sub "do_add_sub"
+               OpName %add_out "add_out"
+               OpName %entry "entry"
+               OpName %call "call"
+               OpName %arrayidx "arrayidx"
+               OpName %add_out_0 "add_out"
+               OpModuleProcessed "Debug info producer: clang version 19.0.0git (https://github.com/llvm/llvm-project.git 2572f45c7d6c081ba9b4fa344e928182f8df7773)"
+               OpDecorate %__spirv_BuiltInGlobalInvocationId LinkageAttributes "__spirv_BuiltInGlobalInvocationId" Import
+               OpDecorate %__spirv_BuiltInGlobalInvocationId Constant
+               OpDecorate %__spirv_BuiltInGlobalInvocationId BuiltIn GlobalInvocationId
+               OpDecorate %do_add_sub LinkageAttributes "do_add_sub" Export
+               OpDecorate %add_out FuncParamAttr NoCapture
+               OpDecorate %add_out Alignment 8
+               OpDecorate %add_out_0 FuncParamAttr NoCapture
+               OpDecorate %add_out_0 Alignment 8
+       %uint = OpTypeInt 32 0
+     %ushort = OpTypeInt 16 0
+   %ushort_2 = OpConstant %ushort 2
+    %uint_16 = OpConstant %uint 16
+    %uint_32 = OpConstant %uint 32
+     %v3uint = OpTypeVector %uint 3
+%_ptr_Input_v3uint = OpTypePointer Input %v3uint
+       %void = OpTypeVoid
+   %v4ushort = OpTypeVector %ushort 4
+%_ptr_CrossWorkgroup_v4ushort = OpTypePointer CrossWorkgroup %v4ushort
+         %11 = OpTypeFunction %void %_ptr_CrossWorkgroup_v4ushort
+%__spirv_BuiltInGlobalInvocationId = OpVariable %_ptr_Input_v3uint Input
+         %22 = OpConstantComposite %v4ushort %ushort_2 %ushort_2 %ushort_2 %ushort_2
+         %15 = OpExtInst %void %2 DebugInfoNone
+         %29 = OpExtInst %void %2 DebugSource %27 %28
+         %30 = OpExtInst %void %2 DebugCompilationUnit 65536 5 %29 OpenCL_C
+         %34 = OpExtInst %void %2 DebugTypeBasic %32 %uint_16 Signed
+         %35 = OpExtInst %void %2 DebugTypeVector %15 4
+         %38 = OpExtInst %void %2 DebugSource %36 %37
+         %39 = OpExtInst %void %2 DebugTypedef %31 %35 %38 0 0 %30
+         %40 = OpExtInst %void %2 DebugTypePointer %39 CrossWorkgroup None
+         %41 = OpExtInst %void %2 DebugTypeFunction None %15 %40
+         %45 = OpExtInst %void %2 DebugTypeBasic %43 %uint_32 Unsigned
+         %46 = OpExtInst %void %2 DebugTypedef %42 %45 %38 0 0 %30
+         %49 = OpExtInst %void %2 DebugSource %48 %28
+         %51 = OpExtInst %void %2 DebugFunction %47 %41 %49 1 0 %30 %50 FlagIsDefinition|FlagPrototyped|FlagIsOptimized 2 %do_add_sub %15
+         %53 = OpExtInst %void %2 DebugLocalVariable %52 %40 %49 1 0 %51 None 1
+         %55 = OpExtInst %void %2 DebugLocalVariable %54 %46 %49 3 0 %51 None
+         %56 = OpExtInst %void %2 DebugOperation Constu 0
+         %57 = OpExtInst %void %2 DebugOperation Swap
+         %58 = OpExtInst %void %2 DebugOperation Xderef
+         %59 = OpExtInst %void %2 DebugExpression %56 %57 %58
+ %do_add_sub = OpFunction %void None %11
+    %add_out = OpFunctionParameter %_ptr_CrossWorkgroup_v4ushort
+      %entry = OpLabel
+         %60 = OpExtInst %void %2 DebugScope %51
+               OpLine %48 0 0
+         %16 = OpExtInst %void %2 DebugValue %53 %add_out %59
+               OpLine %48 3 16
+         %17 = OpLoad %v3uint %__spirv_BuiltInGlobalInvocationId Aligned 16
+       %call = OpCompositeExtract %uint %17 0
+               OpLine %48 0 0
+         %19 = OpExtInst %void %2 DebugValue %55 %call %59
+               OpLine %48 4 5
+   %arrayidx = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_v4ushort %add_out %call
+               OpLine %48 4 16
+               OpStore %arrayidx %22 Aligned 8
+               OpLine %48 5 1
+               OpReturn
+               OpFunctionEnd
+         %23 = OpFunction %void None %11
+  %add_out_0 = OpFunctionParameter %_ptr_CrossWorkgroup_v4ushort
+         %25 = OpLabel
+         %26 = OpFunctionCall %void %do_add_sub %add_out_0
+               OpReturn
+               OpFunctionEnd

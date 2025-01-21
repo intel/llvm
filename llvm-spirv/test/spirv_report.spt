@@ -1,0 +1,43 @@
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv --spirv-print-report %t.spv | FileCheck %s --check-prefix=CHECK-DAG
+
+; CHECK-DAG: Version: 1.0
+; CHECK-DAG: Memory model: OpenCL
+; CHECK-DAG: Addressing model: Physical32
+; CHECK-DAG: Number of capabilities: 4
+; CHECK-DAG: Capability: Addresses
+; CHECK-DAG: Capability: Kernel
+; CHECK-DAG: Capability: LoopFuseINTEL
+; CHECK-DAG: Capability: BitInstructions
+; CHECK-DAG: Number of extensions: 2
+; CHECK-DAG: Extension: SPV_INTEL_loop_fuse
+; CHECK-DAG: Extension: SPV_KHR_bit_instructions
+; CHECK-DAG: Number of extended instruction sets: 1
+; CHECK-DAG: Extended Instruction Set: OpenCL.std
+
+119734787 65536 393230 10 0
+2 Capability Addresses
+2 Capability Kernel
+2 Capability LoopFuseINTEL
+2 Capability BitInstructions
+6 Extension "SPV_INTEL_loop_fuse"
+8 Extension "SPV_KHR_bit_instructions"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+7 EntryPoint 6 5 "TestSatPacked"
+3 Source 3 102000
+
+5 Decorate 5 FuseLoopsInFunctionINTEL 3 1
+4 TypeInt 3 32 0
+2 TypeVoid 2
+5 TypeFunction 4 2 3 3
+
+5 Function 2 5 0 4
+3 FunctionParameter 3 6
+3 FunctionParameter 3 7
+
+2 Label 8
+4 BitReverse 3 9 6
+1 Return
+
+1 FunctionEnd

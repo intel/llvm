@@ -1,0 +1,35 @@
+119734787 65792 393230 12 0
+2 Capability Addresses
+2 Capability Kernel
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+4 EntryPoint 6 6 "foo"
+9 String 11 "kernel_arg_type.foo.int*,"
+3 Source 3 102000
+3 Name 7 "a"
+4 Name 8 "entry"
+4 Name 10 "a.addr"
+4 Decorate 10 Alignment 4
+4 TypeInt 3 32 0
+2 TypeVoid 2
+4 TypePointer 4 5 3
+4 TypeFunction 5 2 4
+4 TypePointer 9 7 4
+
+
+5 Function 2 6 0 5
+3 FunctionParameter 4 7
+
+2 Label 8
+4 Variable 9 10 7
+5 Store 10 7 2 4
+1 Return
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv --spirv-max-version=1.1 -o %t
+; RUN: not llvm-spirv -r %t.spv --spirv-max-version=1.0 -o - 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+;
+; CHECK-ERROR: Invalid SPIR-V module: incorrect SPIR-V version number 1.1 (65792) - it conflicts with maximum allowed version which is set to 1.0 (65536)

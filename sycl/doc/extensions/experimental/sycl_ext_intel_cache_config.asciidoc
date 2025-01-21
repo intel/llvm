@@ -1,0 +1,183 @@
+= sycl_ext_intel_cache_config
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (c) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+Greg Lueck, Intel +
+John Pennycook, Intel +
+Artur Gainullin, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 6 and
+the following extensions:
+
+- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+- link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Overview
+
+There are devices where the same hardware resources are used for shared local
+memory (SLM) and L1 data cache. Developers may want more L1 data cache or SLM based
+on their application. This extension adds runtime kernel property `cache_config`
+which provides a way to set the preferred cache configuration for a kernel.
+
+=== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_CACHE_CONFIG` to one of the values defined
+in the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's APIs the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+=== Introduction
+
+This extension introduces new kernel property that can be applied to kernels
+using the mechanism defined in link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties].
+
+=== Cache Config Property
+
+```c++
+namespace sycl::ext::intel::experimental {
+
+
+enum class cache_config_enum : /*unspecified*/ { large_slm, large_data };
+
+inline constexpr cache_config_enum large_slm =
+    cache_config_enum::large_slm;
+inline constexpr cache_config_enum large_data =
+    cache_config_enum::large_data;
+
+struct cache_config {
+  cache_config(cache_config_enum v) : value(v) {}
+  cache_config_enum value;
+};
+
+} // namespace sycl::ext::intel::experimental
+```
+
+The `cache_config` property provides a way to set the preferred cache
+configuration for a kernel. The following values are supported:
+
+ * `large_slm`: Prefer having larger shared local memory and smaller L1 data cache.
+                In this case driver will ensure that all workgroups will have enough
+                SLM to run.
+
+ * `large_data`: Prefer having larger L1 data cache and smaller shared local memory.
+                 In this case SLM size may be shrinked (which may result in workgroups
+                 spawning as there will be not enough SLM to handle multiple workgroups)
+                 but L1 data cache will be bigger. There may be rare use cases when this
+                 is beneficial.
+
+These property may be passed to any kernel invocation function (e.g.
+`parallel_for`) via the properties parameter.  At most, only one of these
+values may be passed to any single kernel invocation function.
+
+Backends that do not support this extension may accept and ignore this
+property.
+
+=== Adding a Property List to a Kernel Launch
+
+A simple example of using this extension  is shown below.
+
+The example assumes that the kernel will benefit from large SLM and hence uses the property
+`cache_config_large_slm`:
+
+```c++
+using namespace sycl::ext::intel::experimental;
+{
+  ...
+  properties kernel_properties{cache_config{large_slm}};
+
+  q.single_task(kernel_properties, [=] {
+    *a = *b + *c;
+  }).wait();
+}
+```
+
+=== Embedding Property into a Kernel
+
+The example below shows how the kernel from the previous section could be
+rewritten to leverage an embedded property list (see link:sycl_ext_oneapi_kernel_properties.asciidoc#embedding-properties-into-a-kernel[embedding-properties-into-a-kernel]):
+
+```c++
+using namespace sycl::ext::intel::experimental;
+struct KernelFunctor {
+
+  KernelFunctor(int* a, int* b, int* c) : a(a), b(b), c(c) {}
+
+  void operator()() const {
+    *a = *b + *c;
+  }
+
+  auto get(properties_tag) const {
+    return properties{cache_config{large_slm}};
+  }
+
+  int* a;
+  int* b;
+  int* c;
+};
+
+...
+
+q.single_task(KernelFunctor{a, b, c}).wait();
+```
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-03-01|Artur Gainullin|*Initial public working draft*
+|========================================

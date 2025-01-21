@@ -1,0 +1,80 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+;
+; CHECK-LABEL: spir_kernel void @test
+; CHECK-SPV-IR: call spir_func float @_Z16__spirv_ocl_acosf(float
+; CHECK-SPV-IR: call spir_func double @_Z16__spirv_ocl_acosd(double
+; CHECK-CL20: call spir_func float @_Z4acosf(float
+; CHECK-CL20: call spir_func double @_Z4acosd(double
+; CHECK-LABEL: spir_kernel void @test2
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z16__spirv_ocl_acosDv4_f(<4 x float>
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z16__spirv_ocl_acosDv4_d(<4 x double>
+; CHECK-CL20: call spir_func <4 x float> @_Z4acosDv4_f(<4 x float>
+; CHECK-CL20: call spir_func <4 x double> @_Z4acosDv4_d(<4 x double>
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Float64
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %8 "test"
+               OpEntryPoint Kernel %21 "test2"
+         %29 = OpString "kernel_arg_type.test.float,double,float*,double*,"
+         %30 = OpString "kernel_arg_type.test2.float4,double4,float4*,double4*,"
+               OpSource OpenCL_C 200000
+               OpName %arg1 "arg1"
+               OpName %arg2 "arg2"
+               OpName %output1 "output1"
+               OpName %output2 "output2"
+               OpName %entry "entry"
+               OpName %call "call"
+               OpName %call1 "call1"
+               OpName %arg1_0 "arg1"
+               OpName %arg2_0 "arg2"
+               OpName %output1_0 "output1"
+               OpName %output2_0 "output2"
+               OpName %entry_0 "entry"
+               OpName %call_0 "call"
+               OpName %call1_0 "call1"
+               OpDecorate %output1 FuncParamAttr NoCapture
+               OpDecorate %output2 FuncParamAttr NoCapture
+               OpDecorate %output1_0 FuncParamAttr NoCapture
+               OpDecorate %output2_0 FuncParamAttr NoCapture
+       %void = OpTypeVoid
+      %float = OpTypeFloat 32
+     %double = OpTypeFloat 64
+%_ptr_CrossWorkgroup_float = OpTypePointer CrossWorkgroup %float
+%_ptr_CrossWorkgroup_double = OpTypePointer CrossWorkgroup %double
+          %7 = OpTypeFunction %void %float %double %_ptr_CrossWorkgroup_float %_ptr_CrossWorkgroup_double
+    %v4float = OpTypeVector %float 4
+   %v4double = OpTypeVector %double 4
+%_ptr_CrossWorkgroup_v4float = OpTypePointer CrossWorkgroup %v4float
+%_ptr_CrossWorkgroup_v4double = OpTypePointer CrossWorkgroup %v4double
+         %20 = OpTypeFunction %void %v4float %v4double %_ptr_CrossWorkgroup_v4float %_ptr_CrossWorkgroup_v4double
+          %8 = OpFunction %void None %7
+       %arg1 = OpFunctionParameter %float
+       %arg2 = OpFunctionParameter %double
+    %output1 = OpFunctionParameter %_ptr_CrossWorkgroup_float
+    %output2 = OpFunctionParameter %_ptr_CrossWorkgroup_double
+      %entry = OpLabel
+       %call = OpExtInst %float %1 acos %arg1
+               OpStore %output1 %call Aligned 4
+      %call1 = OpExtInst %double %1 acos %arg2
+               OpStore %output2 %call1 Aligned 8
+               OpReturn
+               OpFunctionEnd
+         %21 = OpFunction %void None %20
+     %arg1_0 = OpFunctionParameter %v4float
+     %arg2_0 = OpFunctionParameter %v4double
+  %output1_0 = OpFunctionParameter %_ptr_CrossWorkgroup_v4float
+  %output2_0 = OpFunctionParameter %_ptr_CrossWorkgroup_v4double
+    %entry_0 = OpLabel
+     %call_0 = OpExtInst %v4float %1 acos %arg1_0
+               OpStore %output1_0 %call_0 Aligned 16
+    %call1_0 = OpExtInst %v4double %1 acos %arg2_0
+               OpStore %output2_0 %call1_0 Aligned 32
+               OpReturn
+               OpFunctionEnd

@@ -1,0 +1,26 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int64
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testNarrowingUToPtr"
+               OpName %a "a"
+               OpName %entry "entry"
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+      %ulong = OpTypeInt 64 0
+       %void = OpTypeVoid
+%_ptr_CrossWorkgroup_uint = OpTypePointer CrossWorkgroup %uint
+          %9 = OpTypeFunction %void %ulong
+          %1 = OpFunction %void None %9
+          %a = OpFunctionParameter %ulong
+      %entry = OpLabel
+         %10 = OpConvertUToPtr %_ptr_CrossWorkgroup_uint %a
+               OpStore %10 %uint_0 Aligned 4
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: inttoptr i64 %a to ptr addrspace(1)

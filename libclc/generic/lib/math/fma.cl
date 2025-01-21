@@ -1,0 +1,5 @@
+#include <clc/clc.h>
+#include <libspirv/spirv.h>
+
+#define __CLC_BODY <fma.inc>
+#include <clc/math/gentype.inc>

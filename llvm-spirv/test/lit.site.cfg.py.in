@@ -1,0 +1,46 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+import sys
+
+config.llvm_src_root = "@LLVM_SOURCE_DIR@"
+config.llvm_obj_root = "@LLVM_BINARY_DIR@"
+config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+config.llvm_spirv_dir = "@LLVM_SPIRV_DIR@"
+config.llvm_spirv_lib_dir = "@LLVM_SPIRV_LIB_DIR@"
+config.llvm_libs_dir = "@LLVM_LIBS_DIR@"
+config.llvm_shlib_dir = "@SHLIBDIR@"
+config.llvm_plugin_ext = "@LLVM_PLUGIN_EXT@"
+config.llvm_build_shared_libs = @LLVM_BUILD_SHARED_LIBS@
+config.llvm_spirv_build_external = @LLVM_SPIRV_BUILD_EXTERNAL@
+config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
+config.host_triple = "@LLVM_HOST_TRIPLE@"
+config.target_triple = "@LLVM_TARGET_TRIPLE@"
+config.host_arch = "@HOST_ARCH@"
+config.python_executable = "@PYTHON_EXECUTABLE@"
+config.test_run_dir = "@CMAKE_CURRENT_BINARY_DIR@"
+config.spirv_tools_found = "@SPIRV_TOOLS_FOUND@"
+config.libspirv_dis = "@SPIRV_ENABLE_LIBSPIRV_DIS@"
+config.spirv_tools_have_spirv_as = @SPIRV_TOOLS_SPIRV_AS_FOUND@
+config.spirv_tools_have_spirv_dis = @SPIRV_TOOLS_SPIRV_DIS_FOUND@
+config.spirv_tools_have_spirv_link = @SPIRV_TOOLS_SPIRV_LINK_FOUND@
+config.spirv_tools_have_spirv_val = @SPIRV_TOOLS_SPIRV_VAL_FOUND@
+config.spirv_tools_bin_dir = "@SPIRV_TOOLS_BINDIR@"
+config.spirv_tools_lib_dir = "@SPIRV_TOOLS_LIBDIR@"
+config.spirv_skip_debug_info_tests = @SPIRV_SKIP_DEBUG_INFO_TESTS@
+
+# Support substitution of the tools and libs dirs with user parameters. This is
+# used when we can't determine the tool dir at configuration time.
+try:
+    config.llvm_tools_dir = config.llvm_tools_dir % lit_config.params
+    config.llvm_shlib_dir = config.llvm_shlib_dir % lit_config.params
+    config.llvm_libs_dir = config.llvm_libs_dir % lit_config.params
+except KeyError:
+    e = sys.exc_info()[1]
+    key, = e.args
+    lit_config.fatal("unable to find %r parameter, use '--param=%s=VALUE'" % (key,key))
+
+import lit.llvm
+lit.llvm.initialize(lit_config, config)
+
+# Let the main config do the real work.
+lit_config.load_config(config, "@LLVM_SPIRV_TEST_SOURCE_DIR@/lit.cfg.py")

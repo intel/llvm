@@ -1,0 +1,218 @@
+; Source
+; typedef struct {int a;} ndrange_t;
+;
+; kernel void device_side_enqueue() {
+;   ndrange_t ndrange;
+;
+;   get_kernel_work_group_size(^(){});
+;   get_kernel_preferred_work_group_size_multiple(^(){});
+;
+; #pragma OPENCL EXTENSION cl_khr_subgroups : enable
+;   get_kernel_max_sub_group_size_for_ndrange(ndrange, ^(){});
+;   get_kernel_sub_group_count_for_ndrange(ndrange, ^(){});
+; }
+;
+; Compilation command:
+; clang -cc1 -triple spir-unknown-unknown -O0 -cl-std=CL2.0 -emit-llvm kernel_query.cl
+
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
+; RUN: FileCheck < %t.spv.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
+; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o %t.spv.txt
+; RUN: FileCheck < %t.spv.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
+source_filename = "kernel_query.cl"
+target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+target triple = "spir-unknown-unknown"
+
+%struct.ndrange_t = type { i32 }
+
+; CHECK-SPIRV-DAG: Name [[BlockGlb1:[0-9]+]] "__block_literal_global"
+; CHECK-SPIRV-DAG: Name [[BlockGlb2:[0-9]+]] "__block_literal_global.1"
+; CHECK-SPIRV-DAG: Name [[BlockGlb3:[0-9]+]] "__block_literal_global.2"
+; CHECK-SPIRV-DAG: Name [[BlockGlb4:[0-9]+]] "__block_literal_global.3"
+; CHECK-SPIRV-DAG: Name [[BlockKer1:[0-9]+]] "__device_side_enqueue_block_invoke_kernel"
+; CHECK-SPIRV-DAG: Name [[BlockKer2:[0-9]+]] "__device_side_enqueue_block_invoke_2_kernel"
+; CHECK-SPIRV-DAG: Name [[BlockKer3:[0-9]+]] "__device_side_enqueue_block_invoke_3_kernel"
+; CHECK-SPIRV-DAG: Name [[BlockKer4:[0-9]+]] "__device_side_enqueue_block_invoke_4_kernel"
+
+; CHECK-LLVM: [[BlockTy:%[0-9a-z\.]+]] = type { i32, i32 }
+%1 = type <{ i32, i32 }>
+
+; CHECK-LLVM: @__block_literal_global = internal addrspace(1) constant [[BlockTy]] { i32 8, i32 4 }, align 4
+; CHECK-LLVM: @__block_literal_global.1 = internal addrspace(1) constant [[BlockTy]] { i32 8, i32 4 }, align 4
+; CHECK-LLVM: @__block_literal_global.2 = internal addrspace(1) constant [[BlockTy]] { i32 8, i32 4 }, align 4
+; CHECK-LLVM: @__block_literal_global.3 = internal addrspace(1) constant [[BlockTy]] { i32 8, i32 4 }, align 4
+
+@__block_literal_global = internal addrspace(1) constant { i32, i32 } { i32 8, i32 4 }, align 4
+@__block_literal_global.1 = internal addrspace(1) constant { i32, i32 } { i32 8, i32 4 }, align 4
+@__block_literal_global.2 = internal addrspace(1) constant { i32, i32 } { i32 8, i32 4 }, align 4
+@__block_literal_global.3 = internal addrspace(1) constant { i32, i32 } { i32 8, i32 4 }, align 4
+
+; CHECK-SPIRV: TypeInt [[Int32Ty:[0-9]+]] 32
+; CHECK-SPIRV: TypeInt [[Int8Ty:[0-9]+]] 8
+; CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt8:[0-9]+]] 8
+; CHECK-SPIRV: TypeVoid [[VoidTy:[0-9]+]]
+; CHECK-SPIRV: TypeStruct [[NDRangeTy:[0-9]+]] [[Int32Ty]] {{$}}
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[NDRangePtrTy:[0-9]+]] 7 [[NDRangeTy]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[NDRangePtrTy:[0-9]+]] 7
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrGenTy:[0-9]+]] 8
+; CHECK-SPIRV: TypeFunction [[BlockKerTy:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
+
+; Function Attrs: convergent noinline nounwind optnone
+define spir_kernel void @device_side_enqueue() #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !2 !kernel_arg_type !2 !kernel_arg_base_type !2 !kernel_arg_type_qual !2 {
+entry:
+
+; CHECK-SPIRV-TYPED-PTR: Variable [[NDRangePtrTy]] [[NDRange:[0-9]+]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[NDRangePtrTy]] [[NDRange:[0-9]+]] [[#]] [[NDRangeTy]]
+
+  %ndrange = alloca %struct.ndrange_t, align 4
+
+; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[BlockLit1Tmp:[0-9]+]] [[BlockGlb1]]
+; CHECK-SPIRV: Bitcast [[Int8PtrGenTy]] [[BlockLit1:[0-9]+]] [[BlockLit1Tmp]]
+; CHECK-SPIRV: GetKernelWorkGroupSize [[Int32Ty]] {{[0-9]+}} [[BlockKer1]] [[BlockLit1]] [[ConstInt8]] [[ConstInt8]]
+
+; CHECK-LLVM: call i32 @__get_kernel_work_group_size_impl(ptr addrspace(4) {{.*}}, ptr addrspace(4) {{.*}})
+
+  %0 = call i32 @__get_kernel_work_group_size_impl(ptr addrspace(4) addrspacecast (ptr @__device_side_enqueue_block_invoke_kernel to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global to ptr addrspace(4)))
+
+; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[BlockLit2Tmp:[0-9]+]] [[BlockGlb2]]
+; CHECK-SPIRV: Bitcast [[Int8PtrGenTy]] [[BlockLit2:[0-9]+]] [[BlockLit2Tmp]]
+; CHECK-SPIRV: GetKernelPreferredWorkGroupSizeMultiple [[Int32Ty]] {{[0-9]+}} [[BlockKer2]] [[BlockLit2]] [[ConstInt8]] [[ConstInt8]]
+
+; CHECK-LLVM: call i32 @__get_kernel_preferred_work_group_size_multiple_impl(ptr addrspace(4) {{.*}}, ptr addrspace(4) {{.*}}) #1
+
+  %1 = call i32 @__get_kernel_preferred_work_group_size_multiple_impl(ptr addrspace(4) addrspacecast (ptr @__device_side_enqueue_block_invoke_2_kernel to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global.1 to ptr addrspace(4)))
+
+; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[BlockLit3Tmp:[0-9]+]] [[BlockGlb3]]
+; CHECK-SPIRV: Bitcast [[Int8PtrGenTy]] [[BlockLit3:[0-9]+]] [[BlockLit3Tmp]]
+; CHECK-SPIRV: GetKernelNDrangeMaxSubGroupSize [[Int32Ty]] {{[0-9]+}} [[NDRange]] [[BlockKer3]] [[BlockLit3]] [[ConstInt8]] [[ConstInt8]]
+
+; CHECK-LLVM: call i32 @__get_kernel_max_sub_group_size_for_ndrange_impl(ptr {{.*}}, ptr addrspace(4) {{.*}}, ptr addrspace(4) {{.*}})
+
+  %2 = call i32 @__get_kernel_max_sub_group_size_for_ndrange_impl(ptr %ndrange, ptr addrspace(4) addrspacecast (ptr @__device_side_enqueue_block_invoke_3_kernel to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global.2 to ptr addrspace(4)))
+
+; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[BlockLit4Tmp:[0-9]+]] [[BlockGlb4]]
+; CHECK-SPIRV: Bitcast [[Int8PtrGenTy]] [[BlockLit4:[0-9]+]] [[BlockLit4Tmp]]
+; CHECK-SPIRV: GetKernelNDrangeSubGroupCount [[Int32Ty]] {{[0-9]+}} [[NDRange]] [[BlockKer4]] [[BlockLit4]] [[ConstInt8]] [[ConstInt8]]
+
+; CHECK-LLVM: call i32 @__get_kernel_sub_group_count_for_ndrange_impl(ptr {{.*}}, ptr addrspace(4) {{.*}}, ptr addrspace(4) {{.*}})
+
+  %3 = call i32 @__get_kernel_sub_group_count_for_ndrange_impl(ptr %ndrange, ptr addrspace(4) addrspacecast (ptr @__device_side_enqueue_block_invoke_4_kernel to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global.3 to ptr addrspace(4)))
+  ret void
+}
+
+; Function Attrs: convergent noinline nounwind optnone
+define internal spir_func void @__device_side_enqueue_block_invoke(ptr addrspace(4) %.block_descriptor) #1 {
+entry:
+  %.block_descriptor.addr = alloca ptr addrspace(4), align 4
+  %block.addr = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %.block_descriptor.addr, align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %block.addr, align 4
+  ret void
+}
+
+; Function Attrs: nounwind
+define internal spir_kernel void @__device_side_enqueue_block_invoke_kernel(ptr addrspace(4)) #2 {
+entry:
+  call void @__device_side_enqueue_block_invoke(ptr addrspace(4) %0)
+  ret void
+}
+
+declare i32 @__get_kernel_work_group_size_impl(ptr addrspace(4), ptr addrspace(4))
+
+; Function Attrs: convergent noinline nounwind optnone
+define internal spir_func void @__device_side_enqueue_block_invoke_2(ptr addrspace(4) %.block_descriptor) #1 {
+entry:
+  %.block_descriptor.addr = alloca ptr addrspace(4), align 4
+  %block.addr = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %.block_descriptor.addr, align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %block.addr, align 4
+  ret void
+}
+
+; Function Attrs: nounwind
+define internal spir_kernel void @__device_side_enqueue_block_invoke_2_kernel(ptr addrspace(4)) #2 {
+entry:
+  call void @__device_side_enqueue_block_invoke_2(ptr addrspace(4) %0)
+  ret void
+}
+
+declare i32 @__get_kernel_preferred_work_group_size_multiple_impl(ptr addrspace(4), ptr addrspace(4))
+
+; Function Attrs: convergent noinline nounwind optnone
+define internal spir_func void @__device_side_enqueue_block_invoke_3(ptr addrspace(4) %.block_descriptor) #1 {
+entry:
+  %.block_descriptor.addr = alloca ptr addrspace(4), align 4
+  %block.addr = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %.block_descriptor.addr, align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %block.addr, align 4
+  ret void
+}
+
+; Function Attrs: nounwind
+define internal spir_kernel void @__device_side_enqueue_block_invoke_3_kernel(ptr addrspace(4)) #2 {
+entry:
+  call void @__device_side_enqueue_block_invoke_3(ptr addrspace(4) %0)
+  ret void
+}
+
+declare i32 @__get_kernel_max_sub_group_size_for_ndrange_impl(ptr, ptr addrspace(4), ptr addrspace(4))
+
+; Function Attrs: convergent noinline nounwind optnone
+define internal spir_func void @__device_side_enqueue_block_invoke_4(ptr addrspace(4) %.block_descriptor) #1 {
+entry:
+  %.block_descriptor.addr = alloca ptr addrspace(4), align 4
+  %block.addr = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %.block_descriptor.addr, align 4
+  store ptr addrspace(4) %.block_descriptor, ptr %block.addr, align 4
+  ret void
+}
+
+; Function Attrs: nounwind
+define internal spir_kernel void @__device_side_enqueue_block_invoke_4_kernel(ptr addrspace(4)) #2 {
+entry:
+  call void @__device_side_enqueue_block_invoke_4(ptr addrspace(4) %0)
+  ret void
+}
+
+declare i32 @__get_kernel_sub_group_count_for_ndrange_impl(ptr, ptr addrspace(4), ptr addrspace(4))
+
+; CHECK-SPIRV-DAG: Function [[VoidTy]] [[BlockKer1]] 0 [[BlockKerTy]]
+; CHECK-SPIRV-DAG: Function [[VoidTy]] [[BlockKer2]] 0 [[BlockKerTy]]
+; CHECK-SPIRV-DAG: Function [[VoidTy]] [[BlockKer3]] 0 [[BlockKerTy]]
+; CHECK-SPIRV-DAG: Function [[VoidTy]] [[BlockKer4]] 0 [[BlockKerTy]]
+
+; CHECK-LLVM-DAG: define spir_kernel void @__device_side_enqueue_block_invoke_kernel(ptr addrspace(4){{.*}})
+; CHECK-LLVM-DAG: define spir_kernel void @__device_side_enqueue_block_invoke_2_kernel(ptr addrspace(4){{.*}})
+; CHECK-LLVM-DAG: define spir_kernel void @__device_side_enqueue_block_invoke_3_kernel(ptr addrspace(4){{.*}})
+; CHECK-LLVM-DAG: define spir_kernel void @__device_side_enqueue_block_invoke_4_kernel(ptr addrspace(4){{.*}})
+
+attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { nounwind }
+attributes #3 = { argmemonly nounwind }
+
+!llvm.module.flags = !{!0}
+!opencl.enable.FP_CONTRACT = !{}
+!opencl.ocl.version = !{!1}
+!opencl.spir.version = !{!1}
+!opencl.used.extensions = !{!2}
+!opencl.used.optional.core.features = !{!2}
+!opencl.compiler.options = !{!2}
+!llvm.ident = !{!3}
+
+!0 = !{i32 1, !"wchar_size", i32 4}
+!1 = !{i32 2, i32 0}
+!2 = !{}
+!3 = !{!"clang version 7.0.0"}

@@ -1,0 +1,57 @@
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: %1 = load [4 x <4 x float>], ptr %lhs
+; CHECK-LLVM: %2 = load float, ptr %rhs
+; CHECK-LLVM: %.splatinsert = insertelement <4 x float> poison, float %2, i64 0
+; CHECK-LLVM: %3 = shufflevector <4 x float> %.splatinsert, <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK-LLVM: %4 = extractvalue [4 x <4 x float>] %1, 0
+; CHECK-LLVM: %5 = fmul <4 x float> %4, %3
+; CHECK-LLVM: %6 = insertvalue [4 x <4 x float>] undef, <4 x float> %5, 0
+; CHECK-LLVM: %7 = extractvalue [4 x <4 x float>] %1, 1
+; CHECK-LLVM: %8 = fmul <4 x float> %7, %3
+; CHECK-LLVM: %9 = insertvalue [4 x <4 x float>] %6, <4 x float> %8, 1
+; CHECK-LLVM: %10 = extractvalue [4 x <4 x float>] %1, 2
+; CHECK-LLVM: %11 = fmul <4 x float> %10, %3
+; CHECK-LLVM: %12 = insertvalue [4 x <4 x float>] %9, <4 x float> %11, 2
+; CHECK-LLVM: %13 = extractvalue [4 x <4 x float>] %1, 3
+; CHECK-LLVM: %14 = fmul <4 x float> %13, %3
+; CHECK-LLVM: %15 = insertvalue [4 x <4 x float>] %12, <4 x float> %14, 3
+; CHECK-LLVM: store [4 x <4 x float>] %15, ptr %res
+
+119734787 65536 458752 21 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Float64
+2 Capability Matrix
+3 MemoryModel 2 2
+8 EntryPoint 6 20 "matrix_times_scalar"
+3 Source 3 102000
+3 Name 12 "res"
+3 Name 13 "lhs"
+3 Name 14 "rhs"
+
+2 TypeVoid 5
+3 TypeFloat 6 32
+4 TypeVector 7 6 4
+4 TypeMatrix 8 7 4
+4 TypePointer 9 7 8             ; 9  : Pointer to Matrix
+4 TypePointer 10 7 6            ; 10 : Pointer to Scalar
+6 TypeFunction 11 5 9 9 10
+
+5 Function 5 20 0 11            ; lhs x rhs -> res
+3 FunctionParameter 9 12        ; res : Pointer to Matrix
+3 FunctionParameter 9 13        ; lhs : Pointer to Matrix
+3 FunctionParameter 10 14       ; rhs : Pointer to Scalar
+
+2 Label 15
+4 Load 8 16 13
+4 Load 6 17 14
+5 MatrixTimesScalar 8 18 16 17
+3 Store 12 18
+1 Return
+
+1 FunctionEnd

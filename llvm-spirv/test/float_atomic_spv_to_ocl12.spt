@@ -1,0 +1,82 @@
+119734787 65536 393230 38 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2
+3 Source 4 100000
+7 Name 4 "test_atomicStore"
+4 Name 5 "entry"
+7 Name 20 "test_atomicExchange"
+4 Name 21 "entry"
+6 Name 29 "test_atomicLoad"
+4 Name 30 "entry"
+4 Decorate 36 Alignment 4
+2 DecorationGroup 36
+4 Decorate 37 Alignment 8
+2 DecorationGroup 37
+8 Decorate 29 LinkageAttributes "test_atomicLoad" Export
+9 Decorate 20 LinkageAttributes "test_atomicExchange" Export
+9 Decorate 4 LinkageAttributes "test_atomicStore" Export
+7 GroupDecorate 36 12 14 23 24 32
+5 GroupDecorate 37 9 22 31
+4 TypeInt 10 32 0
+4 Constant 10 18 2
+2 TypeVoid 2
+3 TypeFunction 3 2
+3 TypeFloat 6 32
+4 TypePointer 7 4 6
+4 TypePointer 8 7 7
+4 TypePointer 11 7 10
+4 TypePointer 13 7 6
+3 TypeFunction 19 6
+
+
+5 Function 2 4 0 3
+
+2 Label 5
+4 Variable 8 9 7
+4 Variable 11 12 7
+4 Variable 13 14 7
+6 Load 7 15 9 2 8
+6 Load 10 16 12 2 4
+6 Load 6 17 14 2 4
+5 AtomicStore 15 18 16 17
+1 Return
+
+1 FunctionEnd
+
+5 Function 6 20 0 19
+
+2 Label 21
+4 Variable 8 22 7
+4 Variable 11 23 7
+4 Variable 13 24 7
+6 Load 7 25 22 2 8
+6 Load 10 26 23 2 4
+6 Load 6 27 24 2 4
+7 AtomicExchange 6 28 25 18 26 27
+2 ReturnValue 28
+
+1 FunctionEnd
+
+5 Function 6 29 0 19
+
+2 Label 30
+4 Variable 8 31 7
+4 Variable 11 32 7
+6 Load 7 33 31 2 8
+6 Load 10 34 32 2 4
+6 AtomicLoad 6 35 33 18 34
+2 ReturnValue 35
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env="CL1.2"
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-12
+
+; CHECK-LLVM-12: %{{[0-9]+}} = call spir_func float @{{[_A-Z0-9]+}}atomic_xchg{{[_A-Za-z0-9]+}}ff(ptr addrspace({{[0-9]+}}) %{{[0-9]+}}, float %{{[0-9]+}})
+; CHECK-LLVM-12: %{{[0-9]+}} = call spir_func float @{{[_A-Z0-9]+}}atomic_add{{[_A-Za-z0-9]+}}ff(ptr addrspace({{[0-9]+}}) %{{[0-9]+}}, float 0.000000e+00)
+

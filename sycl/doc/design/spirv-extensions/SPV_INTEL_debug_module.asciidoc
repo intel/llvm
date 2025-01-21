@@ -1,0 +1,206 @@
+SPV_INTEL_debug_module
+======================
+
+Name Strings
+------------
+
+SPV_INTEL_debug_module
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+Contributors
+------------
+
+- Mariya Podchishchaeva, Intel
+- Alexey Sotkin, Intel
+- Ashbaugh Ben, Intel
+
+Notice
+------
+
+Copyright (c) 2021 Intel Corporation. All rights reserved.
+
+Status
+------
+
+First draft
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2021-06-22
+| Revision           | 3
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 5, Unified
+
+This extension requires SPIR-V 1.0. and OpenCL.DebugInfo.100 Extended
+Instruction Set
+
+Overview
+--------
+
+This extension adds new instruction `DebugModuleINTEL` to OpenCL.DebugInfo.100
+Extended Instruction Set. This instruction allows to represent concept of a
+"module" used in some programming languages.
+Example - Fortran module or Clang module. The proposed instruction is defined in
+accordance with LLVM `!DIModule` metadata for easier translation between
+SPIR-V/LLVM.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_debug_module"
+----
+
+New Capabilities
+----------------
+This extension introduces a new capability:
+
+----
+DebugInfoModuleINTEL
+----
+
+New Instructions
+----------------
+This extension adds the following extended instruction:
+
+----
+DebugModuleINTEL
+----
+
+Token Number Assignments
+------------------------
+[width="45%",cols="30,15"]
+|===============================
+| DebugInfoModuleINTEL | 6114
+| DebugModuleINTEL | 36
+|===============================
+
+Modifications to the SPIR-V Specification, Version 1.5, Revision, Unified
+--------------------------------------------------------------------------
+
+Capabilities
+~~~~~~~~~~~~
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| 6114 | *DebugInfoModuleINTEL* +
+Allow to use `DebugModuleINTEL` extended instruction if OpenCL.DebugInfo.100 Extended Instruction Set is imported |
+|====
+--
+
+Modifications to the OpenCL.DebugInfo.100 Extended Instruction Set
+------------------------------------------------------------------
+
+Instructions
+~~~~~~~~~~~
+
+Modify section 4.10 "Imported Entities", adding the following instruction:
+
+[cols="14", width="100%"]
+|=====
+13+^|*DebugModuleINTEL* +
+
+Represents a module in the programming language, for example a Fortran module. +
+
+_Result Type_ must be *OpTypeVoid* +
+
+_Set_ must be result of an OpExtInstImport instruction. +
+
+_Name_ is an *OpString*, holding the name of the imported module. +
+
+_Source_ is a *DebugSource* instruction representing text of the source program
+of the module. +
+
+_Line_ is a single word literal denoting the source line number at which the
+declaration or use of a module appears in the _Source_. +
+
+_Parent_ is id of a debug instruction which represents the parent lexical scope. +
+
+_ConfigurationMacros_ is an *OpString*, holding space-separated shell-quoted
+list of -D macro definitions as they would appear on a command line specified
+to a preprocessor on early stages of _Source_ translation to a SPIR-V module. +
+
+_IncludePath_ is an *OpString*, holding the path to the module map file. +
+
+_APINotesFile_ is an *OpString*, holding the path to an API notes file for this
+module. +
+
+_IsDecl_ indicates if the module is a declaration and must be one of the
+following values: +
+0 indicates that this module is not a declaration +
+1 indicates that this module is a declaration +
+
+The *DebugModuleINTEL* instruction has no semantic impact and can be safely
+removed from the module if all references to _Result_ of this instruction are
+replaced with id of *DebugInfoNone* instruction. +
+
+Result of this instruction can be used as _Entity_ operand of
+*DebugImportedEntity* instruction. +
+
+Any non-literal operand, except _Set_, can be _id_ of *DebugInfoNone*
+instruction in case the corresponding debug information is unavailable. String
+operands can also refer to an *OpString*, holding an empty string in this
+case.
+
+| Capability:
+*DebugInfoModuleINTEL*
+
+| 13 | 12 | _<id> Result type_ | _Result <id>_ | _<id> Set_ | 36 | _<id> Name_ | _<id> Source_ | _Literal Number Line_ | _<id> Parent_ | _<id> ConfigurationMacros_ | _<id> IncludePath_ | _<id> APINotesFile_ | _Literal IsDeclaration_ |
+|=====
+
+Modify the description of *DebugImportedEntity* instruction by changing the
+first sentence to:
+Represents a C++ namespace using-directive, namespace alias, using-declaration
+or imported module.
+
+In section 4.5. Global Variables of OpenCL.DebugInfo.100 Extended
+Instruction Set specification:
+
+Modify the description of *DebugGlobalVariable* instruction by changing the
+description of _Parent_ operand to:
+Parent is a debug instruction which represents parent lexical scope. Must be one
+of the following: *DebugCompilationUnit*, *DebugFunction*, *DebugLexicalBlock*,
+*DebugTypeComposite* or *DebugModuleINTEL*.
+
+Issues
+------
+
+1) Any issues?
+
+Discussion:
+
+...
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-06-04|Mariya Podchishchaeva|Initial revision
+|2|2021-06-10|Mariya Podchishchaeva|Apply review Feedback
+|3|2021-06-22|Mariya Podchishchaeva|Apply review Feedback
+|========================================

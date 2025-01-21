@@ -1,0 +1,205 @@
+= sycl_ext_oneapi_local_memory
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2021 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+
+== Overview
+
+OpenCL provides two ways for local memory to be used in a kernel:
+
+* The kernel accepts a pointer in the `local` address space as an argument,
+and the host passes the size of the allocation to the OpenCL runtime when the
+kernel is launched.
+* The kernel declares `local` variables in the kernel function scope.
+
+In SYCL, programmers have two choices:
+
+* Local accessors created by the host, analogous to the OpenCL kernel argument
+mechanism.
+* Variables declared at the kernel functor scope, in hierarchical parallelism
+kernels.
+
+Note that SYCL currently lags behind OpenCL when it comes to local memory
+allocations; in particular, work-group data parallel SYCL kernels are limited
+to the accessor method. This is undesirable for some architectures, where
+allocating local memory with a compile-time known size is required for
+performance.
+
+This limitation is also undesirable from a usability point of view, since
+programmers have to declare an accessor *outside* a kernel and capture it
+inside the kernel functor.
+
+This extension introduces a concept of group-local memory, with semantics
+similar to OpenCL kernel-scope `local` variables and C++ `thread_local`
+variables.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_LOCAL_MEMORY` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial extension version.  Base features are supported.
+
+|2
+|Support for aggregate initialization of arrays.
+|===
+
+
+== Allocating local memory
+
+The `sycl::ext::oneapi::group_local_memory` and
+`sycl::ext::oneapi::group_local_memory_for_overwrite` functions can be used to
+allocate group-local memory at the kernel functor scope of a work-group data
+parallel kernel.
+
+NOTE: The restriction that group-local variables must be defined at kernel
+functor scope may be lifted in a future version of this extension.
+
+Group-local memory is allocated in an address space accessible by all
+work-items in the group, and is shared by all work-items of the group.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+template <typename T, typename Group, typename... Args>
+multi_ptr<T, access::address_space::local_space>
+group_local_memory(Group g, Args&&... args);
+
+template <typename T, typename Group>
+multi_ptr<T, access::address_space::local_space>
+group_local_memory_for_overwrite(Group g);
+
+} // namespace sycl::ext::oneapi
+----
+
+[source,c++]
+----
+template <typename T, typename Group, typename ... Args>
+multi_ptr<T, access::address_space::local_space>
+group_local_memory(Group g, Args&&... args)
+----
+_Constraints_: `Group` must be `sycl::group`, and `T` must be trivially
+destructible.
+
+_Preconditions_: All arguments in `args` must be the same for all work-items in
+the group.
+
+_Effects_: Constructs an object of type `T` in an address space accessible by
+all work-items in group `g`, forwarding `args` to the constructor's parameter
+list. If `args` is empty, the object is value initialized. For array types, the
+`args` parameter pack is used to initialize the array using aggregate
+initialization. The constructor is called once per group, upon or before the
+first call to `group_local_memory`. The storage for the object is allocated
+upon or before the first call to `group_local_memory`, and deallocated when all
+work-items in the group have completed execution of the kernel.
+
+_Returns_: A `multi_ptr` to the constructed object.
+
+[source,c++]
+----
+template <typename T, typename Group>
+multi_ptr<T, access::address_space::local_space>
+group_local_memory_for_overwrite(Group g)
+----
+_Constraints_: `Group` must be `sycl::group`, and `T` must be trivially
+destructible.
+
+_Effects_: Constructs an object of type `T` in an address space accessible by
+all work-items in group `g`, using default initialization.  The object is
+initialized upon or before the first call to
+`group_local_memory_for_overwrite`. The storage for the object is allocated
+upon or before the first call to `group_local_memory_for_overwrite`, and
+deallocated when all work-items in the group have completed execution of the
+kernel.
+
+_Returns_: A `multi_ptr` to the constructed object.
+
+NOTE: The restrictions on supported types for `Group` and `T` may be lifted
+in a future version of this extension.
+
+
+== Example Usage
+
+This non-normative section shows some example usages of the extension.
+
+[source,c++]
+----
+myQueue.submit([&](handler &h) {
+  h.parallel_for(
+    nd_range<1>(range<1>(128), range<1>(32)), [=](nd_item<1> item) {
+      multi_ptr<int[64], access::address_space::local_space> ptr = group_local_memory<int[64]>(item.get_group());
+      auto& ref = *ptr;
+      ref[2 * item.get_local_linear_id()] = 42;
+    });
+});
+----
+
+The example above creates a kernel with four work-groups, each containing 32
+work-items. An `int[64]` object is defined in group-local memory, and
+each work-item in the work-group obtains a `multi_ptr` to the same allocation.
+The array is aggregate initialized, but since there are no arguments supplied
+after `item.get_group()` there are no arguments to forward to the array
+constructor. The result is that all array elements are value initialized
+(to zero, since that is the value initialization behavior for `float`).
+
+
+== Issues
+
+None.

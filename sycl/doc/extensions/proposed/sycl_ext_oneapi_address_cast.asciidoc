@@ -1,0 +1,251 @@
+= sycl_ext_oneapi_address_cast
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+The `sycl::address_space_cast` function in SYCL 2020 does two things: 1) checks
+whether a given raw pointer can be cast to a specific address space; and 2)
+performs the casting operation. In cases where the developer is attempting to
+assert that a raw pointer points to an object in a specific address space, the
+checks from 1) are not required and may have undesirable performance impact.
+
+This extension separates `sycl::address_space_cast` into two functions:
+
+- `static_address_cast`, which casts with no run-time checks.
+- `dynamic_address_cast`, which casts with run-time checks.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_ADDRESS_CAST` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Address space cast functions
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Shorthands for address space names
+constexpr inline access::address_space global_space = access::address_space::global_space;
+constexpr inline access::address_space local_space = access::address_space::local_space;
+constexpr inline access::address_space private_space = access::address_space::private_space;
+constexpr inline access::address_space generic_space = access::address_space::generic_space;
+
+template <access::address_space Space,
+          typename ElementType>
+multi_ptr<ElementType, Space, access::decorated::no>
+static_address_cast(ElementType* ptr);
+
+template <access::address_space Space,
+          typename ElementType,
+          access::decorated DecorateAddress>
+multi_ptr<ElementType, Space, DecorateAddress>
+static_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
+
+template <access::address_space Space,
+          typename ElementType>
+multi_ptr<ElementType, Space, access::decorated::no>
+dynamic_address_cast(ElementType* ptr);
+
+template <access::address_space Space,
+          typename ElementType,
+          access::decorated DecorateAddress>
+multi_ptr<ElementType, Space, DecorateAddress>
+dynamic_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+
+[source,c++]
+----
+template <access::address_space Space,
+          typename ElementType>
+multi_ptr<ElementType, Space, access::decorated::no>
+static_address_cast(ElementType* ptr);
+----
+_Preconditions_: `ptr` points to an object allocated in the address space
+designated by `Space`.
+
+_Returns_: A `multi_ptr` with the specified address space that points to the
+same object as `ptr`.
+
+[source,c++]
+----
+template <access::address_space Space,
+          typename ElementType,
+          access::decorated DecorateAddress>
+multi_ptr<ElementType, Space, DecorateAddress>
+static_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
+----
+_Preconditions_: `ptr` points to an object allocated in the address space
+designated by `Space`.
+
+_Returns_: A `multi_ptr` with the specified address space that points to the
+same object as `ptr` and has the same decoration.
+
+[NOTE]
+====
+Implementations may choose to issue a diagnostic if they can prove that `ptr`
+does not point to an object allocated in the address space designated by
+`Space`.
+====
+
+
+[source,c++]
+----
+template <access::address_space Space,
+          typename ElementType>
+multi_ptr<ElementType, Space, access::decorated::no>
+dynamic_address_cast(ElementType* ptr);
+----
+_Preconditions_: The memory at `ptr` is accessible to the calling work-item.
+
+_Returns_: A `multi_ptr` with the specified address space that points to the
+same object as `ptr` if `ptr` points to an object allocated in the address
+space designated by `Space`, and `nullptr` otherwise.
+
+[source,c++]
+----
+template <access::address_space Space,
+          typename ElementType,
+          access::decorated DecorateAddress>
+multi_ptr<ElementType, Space, DecorateAddress>
+dynamic_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
+----
+_Preconditions_: The memory at `ptr` is accessible to the calling work-item.
+
+_Returns_: A `multi_ptr` with the specified address space that points to the
+same object as `ptr` and has the same decoration, if `ptr` points to an object
+allocated in the address space designated by `Space`, and `nullptr` otherwise.
+
+[NOTE]
+====
+The precondition prevents `dynamic_address_cast` from being used to
+reason about the address space of pointers originating from another work-item
+(in the case of `private` pointers) or another work-group (in the case of
+`local` pointers). Such pointers could not be dereferenced by the calling
+work-item, and it is thus unclear that being able to reason about the address
+space would be useful. Limiting the use of `dynamic_address_cast` to
+accessible pointers is expected to result in simpler and faster
+implementations.
+====
+
+
+== Implementation notes
+
+For SPIR-V backends, `static_address_cast` corresponds to
+`OpGenericCastToPtr`. `dynamic_address_cast` _may_ correspond to
+`OpGenericCastToPtrExplicit` -- there is currently some ambiguity regarding
+exactly how `OpGenericCastToPtrExplicit` is expected to behave, because the
+SPIR-V specification does not explain what it means for a cast to "fail".
+Since this extension is only experimental, we can likely implement
+`dynamic_address_cast` using `OpGenericCastToPtrExplicit` while we
+seek to clarify the SPIR-V specification.
+
+Generally speaking, it is expected that a `static_address_cast` can
+simply attach new decoration(s) to the raw pointer (or do nothing), while
+a `dynamic_address_cast` will have to inspect the address of the
+raw pointer to determine which region of memory it points to.
+
+An implementation for a CPU target could be implemented by keeping track of
+three pieces of information in thread-local storage:
+
+- The base (highest address) of the calling thread's stack.
+- The low bound of the calling work-item's local memory area.
+- The high bound of the calling work-item's local memory area.
+
+A cast to `private_space` succeeds as long as the pointer is within the calling
+thread's stack. A cast to `local_space` succeeds as long as the pointer is
+within the calling work-item's local memory area. A cast to `global_space`
+succeeds as long as the pointer is not within either of the above two address
+ranges.
+
+Implementations for GPU targets may be able to leverage dedicated instructions
+for checking the address space.
+
+
+== Issues
+
+. Some developers may expect a `dynamic_address_cast` to succeed if the
+pointer continues to work, irrespective of where the object the pointer points
+to was allocated. For example, some CPU implementations may treat global and
+local pointers equivalently in many situations.
++
+--
+*UNRESOLVED*:
+The current description of `dynamic_address_cast` requires
+implementations to track precisely which address space a pointer is associated
+with, in order to ensure that using the result of a dynamic cast is always
+safe. If we can identify use-cases for the more relaxed behavior, it would
+make sense to introduce either a third type of cast or some global check that
+two address spaces use the same representation and are thus "compatible".
+--
