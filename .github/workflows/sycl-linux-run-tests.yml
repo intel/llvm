@@ -195,7 +195,7 @@ permissions:
 jobs:
   benchmark_aggregate:
     if: ${{ inputs.tests_selector == 'benchmark' }}
-    name: Aggregate compute-benchmark historical average (TODO reconsider)
+    name: (Benchmark only) Aggregate benchmark data
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
 
   run:
