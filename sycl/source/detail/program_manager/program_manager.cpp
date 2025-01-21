@@ -1999,12 +1999,12 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     if (EntriesB == EntriesE)
       continue;
 
-    // Retrieve raw image by looking up the first offload entry
+    // Retrieve RTDeviceBinaryImage by looking up the first offload entry
     kernel_id FirstKernelID = getSYCLKernelID(RawImg->EntriesBegin->name);
-    auto RawImages = getRawDeviceImages({FirstKernelID});
-    assert(RawImages.size() == 1);
+    auto RTDBImages = getRawDeviceImages({FirstKernelID});
+    assert(RTDBImages.size() == 1);
 
-    RTDeviceBinaryImage *Img = *RawImages.begin();
+    RTDeviceBinaryImage *Img = *RTDBImages.begin();
 
     // Drop the kernel argument mask map
     // TODO: Why is this not protected by a mutex?
