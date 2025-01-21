@@ -52,6 +52,29 @@ def parse_min_intel_driver_req(line_number, line, output):
     return output
 
 
+def parse_bool_literal(line_number, line, output):
+    """
+    Input looks like this:
+    # KEYWORD: <"true" | "false">
+    """
+    if output is None:
+        output = []
+
+    line = line.strip()
+    if line == "true":
+        output.append(True)
+    elif line == "false":
+        output.append(False)
+    else:
+        raise ValueError(
+            "Unexpected value '{}', expected boolean literal 'true' or 'false'".format(
+                line
+            )
+        )
+
+    return output
+
+
 class SYCLEndToEndTest(lit.formats.ShTest):
     def parseTestScript(self, test):
         """This is based on lit.TestRunner.parseIntegratedTestScript but we
@@ -67,7 +90,19 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                         "REQUIRES-INTEL-DRIVER:",
                         ParserKind.CUSTOM,
                         parse_min_intel_driver_req,
-                    )
+                    ),
+                    IntegratedTestKeywordParser(
+                        "ENABLE_RUN_REQUIRES:",
+                        ParserKind.CUSTOM,
+                        parse_bool_literal,
+                    ),
+                    IntegratedTestKeywordParser("RUN_XFAIL:", ParserKind.BOOLEAN_EXPR),
+                    IntegratedTestKeywordParser(
+                        "RUN_REQUIRES:", ParserKind.BOOLEAN_EXPR
+                    ),
+                    IntegratedTestKeywordParser(
+                        "RUN_UNSUPPORTED:", ParserKind.BOOLEAN_EXPR
+                    ),
                 ],
                 require_script=True,
             )
@@ -77,13 +112,69 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         assert parsed["DEFINE:"] == script
         assert parsed["REDEFINE:"] == script
 
-        test.run_xfails += parsed["XFAIL:"] or []
-        test.run_requires += test.config.required_features
-        test.run_requires += parsed["REQUIRES:"] or []
-        test.run_unsupported += test.config.unsupported_features
-        test.run_unsupported += parsed["UNSUPPORTED:"] or []
+        if parsed["ENABLE_RUN_REQUIRES:"] is None:
+            enable_run_requires = test.config.enable_run_requires
+        elif len(parsed["ENABLE_RUN_REQUIRES:"]) > 1:
+            return lit.Test.Result(
+                lit.Test.UNRESOLVED, "Test has more than one ENABLE_RUN_REQUIRES lines"
+            )
+        else:
+            enable_run_requires = parsed["ENABLE_RUN_REQUIRES:"][0]
+
+        if not enable_run_requires:
+            for kw in ["RUN_XFAIL", "RUN_REQUIRES", "RUN_UNSUPPORTED"]:
+                if parsed[kw + ":"] is not None:
+                    return lit.Test.Result(
+                        lit.Test.UNRESOLVED,
+                        "Directive %s requires ENABLE_RUN_REQUIRES: true",
+                    )
+
+        if test.config.enable_run_requires:
+            test.requires += test.config.required_features
+            test.unsupported += test.config.unsupported_features
+
+            test.run_requires = test.config.run_required_features
+            test.run_unsupported = test.config.run_unsupported_features
+        else:
+            test.run_requires = test.config.required_features
+            test.run_unsupported = test.config.unsupported_features
+
+        if enable_run_requires:
+            test.xfails += parsed["XFAIL:"] or []
+            test.requires += parsed["REQUIRES:"] or []
+            test.unsupported += parsed["UNSUPPORTED:"] or []
+
+            test.run_xfails = parsed["RUN_XFAIL:"] or []
+            test.run_requires += parsed["RUN_REQUIRES:"] or []
+            test.run_unsupported += parsed["RUN_UNSUPPORTED:"] or []
+        else:
+            test.run_xfails = parsed["XFAIL:"] or []
+            test.run_requires = parsed["REQUIRES:"] or []
+            test.run_unsupported = parsed["UNSUPPORTED:"] or []
 
         test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
+
+        if test.config.enable_run_requires or enable_run_requires:
+            # Enforce REQUIRES:
+            missing_required_features = test.getMissingRequiredFeatures()
+            if missing_required_features:
+                msg = ", ".join(missing_required_features)
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED,
+                    "Test requires the following unavailable " "features: %s" % msg,
+                )
+            # Enforce UNSUPPORTED:
+            unsupported_features = test.getUnsupportedFeatures()
+            if unsupported_features:
+                msg = ", ".join(unsupported_features)
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED,
+                    "Test does not support the following features "
+                    "and/or targets: %s" % msg,
+                )
+        else:
+            assert len(test.requires) == 0
+            assert len(test.unsupported) == 0
 
         return script
 

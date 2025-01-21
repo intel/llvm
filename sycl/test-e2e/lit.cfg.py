@@ -37,6 +37,18 @@ config.recursiveExpansionLimit = 10
 config.required_features = []
 config.unsupported_features = []
 
+# Enable RUN_REQUIRES, RUN_UNSUPPORTED and RUN_XFAIL,
+# and change the meaning of REQUIRES, UNSUPPORTED and XFAIL to apply to both build and run.
+# Per-device features are only available in RUN_* directives in this mode.
+# Can be overridden by lit.local.cfg files. If set in lit.local.cfg then the restriction above
+# will also apply to config.required_features and config.unsupported_features.
+# Can be overridden per-test with `ENABLE_RUN_REQUIRES: <true | false>`
+config.enable_run_requires = False
+
+# To be filled by lit.local.cfg files. Ignored if enable_run_requires = False
+config.run_required_features = []
+config.run_unsupported_features = []
+
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
 config.fallback_build_run_only = False
