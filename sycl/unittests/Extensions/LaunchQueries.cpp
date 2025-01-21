@@ -59,7 +59,7 @@ const auto getQueue() {
   return Queue;
 }
 
-const auto getKernel(const sycl::queue& Q) {
+const auto getKernel(const sycl::queue &Q) {
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       Q.get_context(), std::vector<sycl::kernel_id>{KernelID});
   return KernelBundle.get_kernel(KernelID);
@@ -340,8 +340,8 @@ TEST(LaunchQueries, GetNumSubGroupsUnsupported) {
   }
   {
     const auto NumSubGroups = Kernel.template ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::num_sub_groups>(
-        Queue, sycl::range<1>{1});
+        syclex::info::kernel_queue_specific::num_sub_groups>(Queue,
+                                                             sycl::range<1>{1});
     ASSERT_EQ(NumSubGroups, 0);
   }
 }

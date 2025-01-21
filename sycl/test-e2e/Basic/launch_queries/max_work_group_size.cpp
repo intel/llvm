@@ -31,7 +31,7 @@ public:
 private:
   sycl_global_accessor<value_type, 1> acc_;
 };
-} // namespace kernel
+} // namespace kernels
 
 int main() {
   sycl::queue q{};
