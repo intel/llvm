@@ -323,7 +323,8 @@ defvar HipMinAspects = [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnli
 
 defvar HipUSMAspects = [
     AspectUsm_device_allocations, AspectUsm_host_allocations,
-    AspectUsm_shared_allocations, AspectUsm_atomic_shared_allocations
+    AspectUsm_shared_allocations, AspectUsm_atomic_host_allocations,
+    AspectUsm_atomic_shared_allocations
 ];
 
 // The following AMDGCN targets are ordered based on their ROCm driver support:
