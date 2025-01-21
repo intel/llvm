@@ -59,7 +59,7 @@ def aggregate_median(runner: str, benchmark: str, cutoff: str):
 				test_case = s["TestCase"]
 				# Construct entry in aggregate_s for test case if it does not
 				# exist already:
-				if not in aggregate_s:
+				if test_case not in aggregate_s:
 					aggregate_s[test_case] = \
 				 		{ metric: StreamingMedian() for metric in common.metrics_variance }
 
