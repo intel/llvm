@@ -153,7 +153,7 @@ TEST_P(cudaKernelTest, URKernelArgumentSimple) {
 
   int number = 10;
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
-  const auto &kernelArgs = kernel->getArgIndices();
+  const auto &kernelArgs = kernel->getArgPointers();
   ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
 
   int storedValue = *static_cast<const int *>(kernelArgs[0]);
@@ -175,7 +175,7 @@ TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
 
   int number = 10;
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
-  const auto &kernelArgs = kernel->getArgIndices();
+  const auto &kernelArgs = kernel->getArgPointers();
   ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
   int storedValue = *static_cast<const int *>(kernelArgs[0]);
   ASSERT_EQ(storedValue, number);
@@ -183,7 +183,7 @@ TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
   int otherNumber = 934;
   ASSERT_SUCCESS(
       urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &otherNumber));
-  const auto kernelArgs2 = kernel->getArgIndices();
+  const auto kernelArgs2 = kernel->getArgPointers();
   ASSERT_EQ(kernelArgs2.size(), 1 + NumberOfImplicitArgsCUDA);
   storedValue = *static_cast<const int *>(kernelArgs2[0]);
   ASSERT_EQ(storedValue, otherNumber);
