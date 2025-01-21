@@ -45,11 +45,11 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: oneapi
       build_artifact_suffix: oneapi
-      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" --cmake-opt=-DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise" --cmake-opt=-DCOMPILER_RT_BUILD_SANITIZERS=Off --cmake-opt=-DCOMPILER_RT_BUILD_MEMPROF=Off
+      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" --cmake-opt=-DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
       cc: icx
       cxx: icpx
 
-      artifact_archive_name: sycl_linux.tar.zst
+      artifact_archive_name: sycl_linux_oneapi.tar.zst
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
