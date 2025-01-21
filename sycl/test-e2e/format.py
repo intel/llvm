@@ -72,7 +72,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 require_script=True,
             )
         except ValueError as e:
-            return lit.Test.Result(Test.UNRESOLVED, str(e))
+            return lit.Test.Result(lit.Test.UNRESOLVED, str(e))
         script = parsed["RUN:"] or []
         assert parsed["DEFINE:"] == script
         assert parsed["REDEFINE:"] == script
