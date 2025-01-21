@@ -373,15 +373,10 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event<
-#if __SYCL_USE_FALLBACK_ASSERT
-        true
-#else
-        false
-#endif
-        >(sycl::ext::oneapi::experimental::empty_properties_t{},
-          detail::type_erased_cgfo_ty{CGF},
-          /*SecondaryQueuePtr=*/nullptr, CodeLoc);
+    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF},
+        /*SecondaryQueuePtr=*/nullptr, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -399,14 +394,9 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event<
-#if __SYCL_USE_FALLBACK_ASSERT
-        true
-#else
-        false
-#endif
-        >(sycl::ext::oneapi::experimental::empty_properties_t{},
-          detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
+    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing

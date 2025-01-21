@@ -168,9 +168,6 @@ class type_erased_cgfo_ty {
   // command group handler, that defines a command group which can be submitted
   // by a queue. The function object can be a named type, lambda function or
   // std::function.
-  //
-  // TODO: Is that true?
-  // As such, we know that it can't be a [member] function pointer.
   template <typename T> struct invoker {
     static void call(void *object, handler &cgh) {
       (*static_cast<T *>(object))(cgh);
@@ -183,6 +180,9 @@ class type_erased_cgfo_ty {
 public:
   template <class T>
   type_erased_cgfo_ty(T &f)
+      // NOTE: Even if `T` is a pointer to a function, `&f` is a pointer to a
+      // pointer to a function and as such can be casted to `void *` (pointer to
+      // a function cannot be casted).
       : object(static_cast<void *>(&f)), invoker_f(&invoker<T>::call) {}
   ~type_erased_cgfo_ty() = default;
 
