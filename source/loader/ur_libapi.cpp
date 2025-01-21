@@ -3543,6 +3543,10 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
 /// @brief Set an array of specialization constants on a Program.
 ///
 /// @details
+///     - This entry point is optional, the application should query for support
+///       with device query
+///       ::UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS passed to
+///       ::urDeviceGetInfo.
 ///     - The application may call this function from simultaneous threads for
 ///       the same device.
 ///     - The implementation of this function should be thread-safe.
@@ -3562,6 +3566,9 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
 ///         + `NULL == pSpecConstants`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `count == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS query is
+///         false
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + A pSpecConstant entry contains a size that does not match that of
 ///         the specialization constant in the module.
