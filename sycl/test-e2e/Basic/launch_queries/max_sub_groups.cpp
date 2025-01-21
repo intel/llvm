@@ -4,9 +4,9 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/sycl.hpp>
-#include <sycl/kernel.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -35,7 +35,7 @@ public:
 private:
   sycl_global_accessor<value_type, 1> acc_;
 };
-}
+} // namespace kernels
 
 int main() {
   sycl::queue q{};
@@ -46,20 +46,21 @@ int main() {
   // get value to compare with
   auto *maxLocalRange = sycl::malloc_shared<size_t>(1, q);
   q.submit([&](sycl::handler &h) {
-    h.parallel_for( sycl::nd_range<1>(1, 1), [=](sycl::nd_item<1> item) {
-          const auto sg = item.get_sub_group();
-          if (item.get_local_id(0) == 0) {
-            *maxLocalRange = sg.get_group_range()[0];
-          }
-        });
-  }).wait();
+     h.parallel_for(sycl::nd_range<1>(1, 1), [=](sycl::nd_item<1> item) {
+       const auto sg = item.get_sub_group();
+       if (item.get_local_id(0) == 0) {
+         *maxLocalRange = sg.get_group_range()[0];
+       }
+     });
+   }).wait();
   {
     const sycl::range<3> r3D{1, 1, 1};
     const auto subSGSize = kernel.template ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::num_sub_groups>(q, r3D);
 
-    static_assert(std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
-                  "num_sub_groups query must return uint32_t");
+    static_assert(
+        std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
+        "num_sub_groups query must return uint32_t");
     assert(subSGSize == *maxLocalRange);
   }
   {
@@ -67,8 +68,9 @@ int main() {
     const auto subSGSize = kernel.template ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::num_sub_groups>(q, r2D);
 
-    static_assert(std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
-                  "num_sub_groups query must return uint32_t");
+    static_assert(
+        std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
+        "num_sub_groups query must return uint32_t");
     assert(subSGSize == *maxLocalRange);
   }
   {
@@ -76,8 +78,9 @@ int main() {
     const auto subSGSize = kernel.template ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::num_sub_groups>(q, r1D);
 
-    static_assert(std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
-                  "num_sub_groups query must return uint32_t");
+    static_assert(
+        std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
+        "num_sub_groups query must return uint32_t");
     assert(subSGSize == *maxLocalRange);
   }
   sycl::free(maxLocalRange, q);

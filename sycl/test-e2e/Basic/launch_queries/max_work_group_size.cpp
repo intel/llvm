@@ -31,7 +31,7 @@ public:
 private:
   sycl_global_accessor<value_type, 1> acc_;
 };
-}
+} // namespace kernel
 
 int main() {
   sycl::queue q{};
@@ -39,19 +39,20 @@ int main() {
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   auto kernel = bundle.template get_kernel<kernels::TestKernel>();
 
-  const size_t maxWorkGroupSizeActual =
-    kernel.template get_info<sycl::info::kernel_device_specific::work_group_size>(q.get_device());
+  const size_t maxWorkGroupSizeActual = kernel.template get_info<
+      sycl::info::kernel_device_specific::work_group_size>(q.get_device());
   const auto maxWorkGroupSize = kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_work_group_size>(q);
   sycl::buffer<value_type, 1> buf{sycl::range<1>{maxWorkGroupSizeActual}};
-  static_assert(std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupSize)>, size_t>,
-                "max_work_group_size query must return size_t");
+  static_assert(
+      std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupSize)>, size_t>,
+      "max_work_group_size query must return size_t");
   assert(maxWorkGroupSizeActual == maxWorkGroupSize);
-   // Run the kernel
+  // Run the kernel
   auto launch_range = sycl::nd_range<1>{sycl::range<1>{maxWorkGroupSizeActual},
                                         sycl::range<1>{maxWorkGroupSize}};
   q.submit([&](sycl::handler &cgh) {
-       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-       cgh.parallel_for(launch_range, kernels::TestKernel{acc});
+     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     cgh.parallel_for(launch_range, kernels::TestKernel{acc});
    }).wait();
 }

@@ -119,11 +119,14 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
 
-#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc, ReturnT, UrCode) \
-template <int Dimensions>                                                                              \
-struct is_##Desctype##_info_desc<Namespace::info::Desctype::Desc<Dimensions>>: std::true_type {        \
-  using return_type = typename Namespace::info::Desctype::Desc<Dimensions>::return_type;               \
-};
+#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
+                                                  ReturnT, UrCode)             \
+  template <int Dimensions>                                                    \
+  struct is_##Desctype##_info_desc<                                            \
+      Namespace::info::Desctype::Desc<Dimensions>> : std::true_type {          \
+    using return_type =                                                        \
+        typename Namespace::info::Desctype::Desc<Dimensions>::return_type;     \
+  };
 
 #include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC

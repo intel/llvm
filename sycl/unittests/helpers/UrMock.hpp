@@ -568,8 +568,7 @@ public:
                          mock_urCommandBufferAppendKernelLaunchExp);
     ADD_DEFAULT_OVERRIDE(urCommandBufferGetInfoExp,
                          mock_urCommandBufferGetInfoExp);
-    ADD_DEFAULT_OVERRIDE(urKernelGetSubGroupInfo,
-                         mock_urKernelGetSubGroupInfo);
+    ADD_DEFAULT_OVERRIDE(urKernelGetSubGroupInfo, mock_urKernelGetSubGroupInfo);
 #undef ADD_DEFAULT_OVERRIDE
 
     ur_loader_config_handle_t UrLoaderConfig = nullptr;
