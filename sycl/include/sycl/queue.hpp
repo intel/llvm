@@ -2244,11 +2244,49 @@ public:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<1> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2266,11 +2304,50 @@ public:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2290,6 +2367,26 @@ public:
   ///
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
@@ -2302,11 +2399,52 @@ public:
   ///
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2329,12 +2467,54 @@ public:
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<2> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
