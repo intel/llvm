@@ -21,23 +21,8 @@
  */
 
 #include <clc/clc.h>
-#include <clc/clcmacro.h>
-#include <spirv/spirv.h>
+#include <clc/common/clc_degrees.h>
 
-_CLC_OVERLOAD _CLC_DEF float degrees(float radians) {
-  return __spirv_ocl_degrees(radians);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, degrees, float);
-
-
-#ifdef cl_khr_fp64
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_OVERLOAD _CLC_DEF double degrees(double radians) {
-  return __spirv_ocl_degrees(radians);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, degrees, double);
-
-#endif
+#define FUNCTION degrees
+#define __CLC_BODY <clc/common/unary_def.inc>
+#include <clc/math/gentype.inc>

@@ -192,12 +192,13 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE)                                                    \
-  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
-  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
-                                                std::size(NAME##_init) - 1);
+#define OPTTABLE_STR_TABLE_CODE
 #include "LinkerWrapperOpts.inc"
-#undef PREFIX
+#undef OPTTABLE_STR_TABLE_CODE
+
+#define OPTTABLE_PREFIXES_TABLE_CODE
+#include "LinkerWrapperOpts.inc"
+#undef OPTTABLE_PREFIXES_TABLE_CODE
 
 static constexpr OptTable::Info InfoTable[] = {
 #define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
@@ -207,7 +208,8 @@ static constexpr OptTable::Info InfoTable[] = {
 
 class WrapperOptTable : public opt::GenericOptTable {
 public:
-  WrapperOptTable() : opt::GenericOptTable(InfoTable) {}
+  WrapperOptTable()
+      : opt::GenericOptTable(OptionStrTable, OptionPrefixesTable, InfoTable) {}
 };
 
 const OptTable &getOptTable() {
@@ -1537,7 +1539,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
         {"-Xlinker",
          Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
 
-  if (!Triple.isNVPTX())
+  if (!Triple.isNVPTX() && !Triple.isSPIRV())
     CmdArgs.push_back("-Wl,--no-undefined");
 
   if (IsSYCLKind && Triple.isNVPTX())
@@ -1546,7 +1548,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back(InputFile);
 
   // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isAMDGPU() && !Triple.isNVPTX()) {
+  if (!Triple.isAMDGPU() && !Triple.isNVPTX() && !Triple.isSPIRV()) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
@@ -1671,6 +1673,8 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     // Return empty file
     return StringRef("");
   }
+  case Triple::loongarch64:
+    return generic::clang(InputFiles, Args);
   default:
     return createStringError(Triple.getArchName() +
                              " linking is not supported");

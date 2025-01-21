@@ -1322,7 +1322,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
-  auto DL = M.getDataLayout();
+  const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
@@ -1333,18 +1333,32 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
 
   if (!HasESIMD)
     for (Function &F : M) {
-      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-        continue;
-
       if (!F.hasFnAttribute(Attribute::SanitizeAddress) ||
           F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+        continue;
+
+      if (F.getName().contains("__sycl_service_kernel__")) {
+        F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+        continue;
+      }
+
+      // Skip referenced-indirectly function as we insert access to shared
+      // local memory (SLM) __AsanLaunchInfo and access to SLM in
+      // referenced-indirectly function isn't supported yet in
+      // intel-graphics-compiler.
+      if (F.hasFnAttribute("referenced-indirectly")) {
+        F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+        continue;
+      }
+
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
         continue;
 
       SpirFixupKernels.emplace_back(&F);
 
       auto KernelName = F.getName();
       auto *KernelNameGV = GetOrCreateGlobalString(
-          M, "__asan_kernel", KernelName, kSpirOffloadGlobalAS);
+          M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
           StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
           ConstantInt::get(IntptrTy, KernelName.size())));
@@ -1379,7 +1393,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+    Types.push_back(llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1623,7 +1637,8 @@ static TargetExtType *getTargetExtType(Type *Ty) {
 // store float %1, ptr %call, align 4
 // clang-format on
 static bool isJointMatrixAccess(Value *V) {
-  if (auto *CI = dyn_cast<CallInst>(V)) {
+  auto *ActualV = V->stripInBoundsOffsets();
+  if (auto *CI = dyn_cast<CallInst>(ActualV)) {
     for (Value *Op : CI->args()) {
       if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
         if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
@@ -1704,7 +1719,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // SPIR constant address space
   PointerType *ConstASPtrTy =
-      Type::getInt8Ty(C)->getPointerTo(kSpirOffloadConstantAS);
+      llvm::PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
@@ -1863,9 +1878,9 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
   // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
   // this step
   initializeCallbacks(TLI);
-  IRB.CreateStore(
-      ConstantPointerNull::get(IntptrTy->getPointerTo(kSpirOffloadGlobalAS)),
-      AsanLaunchInfo);
+  IRB.CreateStore(ConstantPointerNull::get(
+                      llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
+                  AsanLaunchInfo);
 }
 
 // Instrument memset/memmove/memcpy
@@ -3457,7 +3472,7 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
       // )
       if (TargetTriple.isSPIROrSPIRV()) {
         auto *Int8PtrTy =
-            Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
+            llvm::PointerType::get(Type::getInt8Ty(*C), kSpirOffloadConstantAS);
 
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
@@ -3574,9 +3589,10 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
                               IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
-        "__AsanLaunchInfo", IntptrTy->getPointerTo(kSpirOffloadGlobalAS), [&] {
+        "__AsanLaunchInfo",
+        llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), [&] {
           return new GlobalVariable(
-              M, IntptrTy->getPointerTo(kSpirOffloadGlobalAS), false,
+              M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
               GlobalVariable::ExternalLinkage, nullptr, "__AsanLaunchInfo",
               nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
         });
@@ -3682,16 +3698,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (F.getName().starts_with("__asan_")) return false;
   if (F.isPresplitCoroutine())
     return false;
-
-  if (TargetTriple.isSPIROrSPIRV()) {
-    if (F.getName().contains("__sycl_service_kernel__"))
-      return false;
-    // Skip referenced-indirectly function as we insert access to shared local
-    // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
-    // function isn't supported yet in intel-graphics-compiler.
-    if (F.hasFnAttribute("referenced-indirectly"))
-      return false;
-  }
 
   bool FunctionModified = false;
 

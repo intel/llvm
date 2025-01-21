@@ -99,11 +99,11 @@ int main() {
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(false, true, false);
 
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
   ExecuteGraphAndVerifyResults(false, true, false);
 
-  DynamicCG.set_active_cgf(2);
+  DynamicCG.set_active_index(2);
   // Should be ignored as DynParam1 not used in active node
   DynParam1.update(PtrA);
   ExecGraph.update(DynamicCGNode);
