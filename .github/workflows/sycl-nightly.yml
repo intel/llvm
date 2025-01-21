@@ -124,7 +124,6 @@ jobs:
     with:
       name: Intel PVC L0 oneAPI
       runner: '["Linux", "pvc"]'
-      use_oneapi: true
       target_devices: level_zero:gpu
       extra_lit_opts: -j 50
       image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
