@@ -148,12 +148,6 @@ kernel::ext_oneapi_get_info(queue Queue, const range<1> &WG) const
   return impl->ext_oneapi_get_info<Param>(Queue, WG);
 }
 
-template __SYCL_EXPORT typename ext::oneapi::experimental::info::
-    kernel_queue_specific::max_num_work_group_sync::return_type
-    kernel::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(queue Queue) const;
-
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
 kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
