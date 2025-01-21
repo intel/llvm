@@ -2,25 +2,14 @@ import lit
 import lit.formats
 import platform
 
-from lit.BooleanExpression import BooleanExpression
 from lit.TestRunner import (
     ParserKind,
     IntegratedTestKeywordParser,
-    # parseIntegratedTestScript,
 )
+from TriStateExpr import E2EExpr
 
 import os
 import re
-
-
-def get_triple(backend):
-    if backend == "cuda":
-        return "nvptx64-nvidia-cuda"
-    if backend == "hip":
-        return "amdgcn-amd-amdhsa"
-    if backend == "native_cpu":
-        return "native_cpu"
-    return "spir64"
 
 
 def parse_min_intel_driver_req(line_number, line, output):
@@ -87,19 +76,60 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         return script
 
-    def getMatchedFromList(self, features, alist):
+    def getMissingRequiredFeaturesFromList(
+        self, features, requires, build_only_mode=False
+    ):
         try:
             return [
-                item for item in alist if BooleanExpression.evaluate(item, features)
+                item
+                for item in requires
+                if not E2EExpr.evaluate(item, features, build_only_mode)
+            ]
+        except ValueError as e:
+            raise ValueError("Error in REQUIRES list:\n%s" % str(e))
+
+    def getMatchedFromList(self, features, alist, build_only_mode=False):
+        try:
+            return [
+                item
+                for item in alist
+                if E2EExpr.evaluate(item, features, build_only_mode, False)
             ]
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
+
+    def select_triples_for_test(self, test):
+        supported_triples = set()
+        for t in test.config.sycl_triples:
+            features = test.config.available_features.union({t})
+            if self.getMissingRequiredFeaturesFromList(features, test.requires, build_only_mode=True):
+                continue
+            if self.getMatchedFromList(features, test.unsupported, build_only_mode=True):
+                continue
+            supported_triples.add(t)
+
+        if len(supported_triples) <= 1:
+            return supported_triples
+        # Treat XFAIL as UNSUPPORTED if the test is to be compiled for multiple
+        # triples.
+        if "*" in test.xfails:
+            return []
+
+        triples_without_xfail = [
+            t
+            for t in supported_triples
+            if not self.getMatchedFromList(
+                test.config.available_features.union({t}), test.xfails
+            )
+        ]
+
+        return triples_without_xfail
 
     def select_devices_for_test(self, test):
         devices = []
         for d in test.config.sycl_devices:
             features = test.config.sycl_dev_features[d]
-            if test.getMissingRequiredFeaturesFromList(features):
+            if self.getMissingRequiredFeaturesFromList(features, test.requires):
                 continue
 
             if self.getMatchedFromList(features, test.unsupported):
@@ -154,11 +184,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
-            if "build-and-run-mode" in test.requires or "true" in test.unsupported:
+            triples = self.select_triples_for_test(test)
+            if not triples:
                 return lit.Test.Result(
-                    lit.Test.UNSUPPORTED, "Test unsupported for this environment"
+                    lit.Test.UNSUPPORTED, "No supported triple to build for"
                 )
-            triples = {"spir64"}
+            triples = set(map(lambda t: test.config.target_to_triple[t], triples))
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
@@ -168,14 +199,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             for sycl_device in devices_for_test:
                 (backend, _) = sycl_device.split(":")
-                triples.add(get_triple(backend))
+                triples.add(test.config.backend_to_triple[backend])
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
 
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
 
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
-        if get_triple("hip") in triples:
+        if test.config.backend_to_triple["hip"] in triples:
             hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(
                     test.config.amd_arch
@@ -184,7 +215,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
         if (
-            get_triple("spir64") in triples
+            "spir64" in triples
             and "spirv-backend" in test.config.available_features
         ):
             sycl_target_opts += " -fsycl-use-spirv-backend-for-spirv-gen"
@@ -239,6 +270,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         run_unfiltered_substitution += test.config.run_launcher
 
         substitutions.append(("%{run-unfiltered-devices}", run_unfiltered_substitution))
+
+        for triple in triples:
+            test.config.available_features.add(test.config.triple_to_target[triple])
 
         new_script = []
         for directive in script:
@@ -323,19 +357,18 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if len(devices_for_test) > 1 or test.config.test_mode == "build-only":
-            return result
+        # Single triple/device - might be an XFAIL.
+        def map_result(features, code):
+            if "*" in test.xfails or self.getMatchedFromList(features, test.xfails):
+                if code is lit.Test.PASS:
+                    code = lit.Test.XPASS
+                elif code is lit.Test.FAIL:
+                    code = lit.Test.XFAIL
+            return code
 
-        # Single device - might be an XFAIL.
-        device = devices_for_test[0]
-        if "*" in test.xfails or self.getMatchedFromList(
-            test.config.sycl_dev_features[device], test.xfails
-        ):
-            if result.code is lit.Test.PASS:
-                result.code = lit.Test.XPASS
-            # fail -> expected fail
-            elif result.code is lit.Test.FAIL:
-                result.code = lit.Test.XFAIL
-            return result
-
+        if len(triples) == 1 and len(devices_for_test) == 0:
+            result.code = map_result(test.config.available_features, result.code)
+        if len(devices_for_test) == 1:
+            device = devices_for_test[0]
+            result.code = map_result(test.config.sycl_dev_features[device], result.code)
         return result

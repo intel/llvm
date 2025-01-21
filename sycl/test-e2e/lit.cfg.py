@@ -15,6 +15,23 @@ from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
 # Configuration file for the 'lit' test runner.
+config.backend_to_target = {
+    "level_zero": "target-spir",
+    "opencl": "target-spir",
+    "cuda": "target-nvidia",
+    "hip": "target-amd",
+    "native_cpu": "target-native_cpu",
+}
+config.target_to_triple = {
+    "target-spir": "spir64",
+    "target-nvidia":"nvptx64-nvidia-cuda",
+    "target-amd":"amdgcn-amd-amdhsa",
+    "target-native_cpu":"native_cpu",
+}
+config.triple_to_target = {v:k for k,v in config.target_to_triple.items()}
+config.backend_to_triple = {
+    k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
+}
 
 # name: The name of this test suite.
 config.name = "SYCL"
@@ -43,15 +60,20 @@ config.fallback_build_run_only = False
 if config.test_mode == "full":
     config.available_features.add("run-mode")
     config.available_features.add("build-and-run-mode")
+    config.sycl_triples = set()
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
+    config.sycl_triples = set()
     if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
         config.available_features.add("build-and-run-mode")
         config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
+    config.sycl_triples = set(map(lambda x: "target-" + x, config.sycl_triples))
+    if not config.amd_arch:
+        config.amd_arch = "gfx1031"
 else:
     lit_config.error("Invalid argument for test-mode")
 
@@ -826,6 +848,10 @@ for sycl_device in config.sycl_devices:
     features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
+    # Add corresponding target feature
+    target = config.backend_to_target[be]
+    features.add(target)
+    config.sycl_triples.add(target)
 
     if be == "hip":
         if not config.amd_arch:

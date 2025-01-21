@@ -1,5 +1,4 @@
 // REQUIRES: opencl-aot, cpu
-// REQUIRES: build-and-run-mode
 // UNSUPPORTED: windows
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}

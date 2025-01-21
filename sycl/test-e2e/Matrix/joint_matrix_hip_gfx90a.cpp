@@ -10,7 +10,6 @@
 // RUN: %{run} %t.out
 
 // REQUIRES: arch-amd_gpu_gfx90a
-// REQUIRES: build-and-run-mode
 
 #include "joint_matrix_hip_apply.hpp"
 #include "joint_matrix_hip_copy.hpp"
