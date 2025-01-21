@@ -6,6 +6,8 @@
 using namespace sycl;
 
 int main() {
+#if (defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI != 0) ||        \
+    !defined(_GLIBCXX_USE_CXX11_ABI) || TEST_ERRORS
   try {
     // Test get_backend_info for sycl::platform
     std::vector<platform> platform_list = platform::get_platforms();
@@ -105,6 +107,8 @@ int main() {
     }
     assert(has_non_opencl_backend && "unexpected error code");
   }
-  std::cout << "  Backend info query tests passed" << std::endl;
+  std::cout << "  Deprecation warning tests for get_backend_info() passed"
+            << std::endl;
+#endif
   return 0;
 }
