@@ -499,6 +499,8 @@ jobs:
     - name: Run compute-benchmarks
       if: inputs.tests_selector == 'benchmark'
       run: |
+        pwd
+        ls
         export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
         export CMPLR_ROOT=$PWD/toolchain
         sycl-ls
@@ -506,17 +508,16 @@ jobs:
     - name: Push compute-benchmarks results
       if: inputs.tests_selector == 'benchmark'
       env:
-        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       run: |
         # TODO -- waiting on security clearance
-        mkdir -p .ssh
-        echo "$SSH_KEY" > .ssh/id_rsa
-        chmod 600 .ssh/id_rsa
-        eval "$(ssh-agent -s)"
-        ssh-add -k .ssh/id_rsa
+        pwd
+        ls
+        echo $GITHUB_WORKSPACE
+        ls $GITHUB_WORKSPACE
         cd llvm-ci-perf-results
-        git config --global user.name "iclsrc"
-        git config --global user.email "ia.compiler.tools.git@intel.com"
-        git add .
-        git commit -m "Update results"
-        git push
+        git config --global user.name "SYCL Benchmarking Bot"
+        git config --global user.email "sys_sycl_benchmarks@intel.com"
+        # git add .
+        # git commit -m "Update results"
+        # git push
