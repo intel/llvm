@@ -193,6 +193,11 @@ permissions:
   packages: read
 
 jobs:
+  benchmark_aggregate:
+    if: inputs.test_selector == 'benchmark'
+    name: Aggregate compute-benchmark historical average (TODO reconsider)
+    uses: ./.github/workflows/sycl-benchmark-aggregate.yml
+
   run:
     if: ${{ always() && ( github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false' ) }}
     needs: benchmark_aggregate
@@ -515,8 +520,3 @@ jobs:
         git add .
         git commit -m "Update results"
         git push
-
-  benchmark_aggregate:
-    if: inputs.test_selector == 'benchmark'
-    name: Aggregate compute-benchmark historical average (TODO reconsider)
-    uses: ./.github/workflows/sycl-benchmark-aggregate.yml

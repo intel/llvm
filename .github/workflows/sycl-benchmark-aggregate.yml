@@ -22,7 +22,6 @@ jobs:
   aggregate:
     name: Aggregate average value for all metrics (median)
     runs-on: ubuntu-latest
-    if: github.repository == 'intel/llvm'
     steps:
     - uses: actions/checkout@v4
       with:
