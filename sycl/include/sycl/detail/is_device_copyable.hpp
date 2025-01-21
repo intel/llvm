@@ -90,29 +90,24 @@ template <typename T>
 inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
 namespace detail {
 #ifdef __SYCL_DEVICE_ONLY__
-// Checks that the fields of the type T with indices 0 to (NumFieldsToCheck -
-// 1) are device copyable.
-template <typename T, unsigned NumFieldsToCheck>
-struct CheckFieldsAreDeviceCopyable
-    : CheckFieldsAreDeviceCopyable<T, NumFieldsToCheck - 1> {
-  using FieldT = decltype(__builtin_field_type(T, NumFieldsToCheck - 1));
-  static_assert(is_device_copyable_v<FieldT>,
-                "The specified type is not device copyable");
+template <typename T, typename> struct CheckFieldsAreDeviceCopyable;
+template <typename T, typename> struct CheckBasesAreDeviceCopyable;
+
+template <typename T, unsigned... FieldIds>
+struct CheckFieldsAreDeviceCopyable<T, std::index_sequence<FieldIds...>> {
+  static_assert(
+      ((is_device_copyable_v<decltype(__builtin_field_type(T, FieldIds))> &&
+        ...)),
+      "The specified type is not device copyable");
 };
 
-template <typename T> struct CheckFieldsAreDeviceCopyable<T, 0> {};
-
-// Checks that the base classes of the type T with indices 0 to
-// (NumFieldsToCheck - 1) are device copyable.
-template <typename T, unsigned NumBasesToCheck>
-struct CheckBasesAreDeviceCopyable
-    : CheckBasesAreDeviceCopyable<T, NumBasesToCheck - 1> {
-  using BaseT = decltype(__builtin_base_type(T, NumBasesToCheck - 1));
-  static_assert(is_device_copyable_v<BaseT>,
-                "The specified type is not device copyable");
+template <typename T, unsigned... BaseIds>
+struct CheckBasesAreDeviceCopyable<T, std::index_sequence<BaseIds...>> {
+  static_assert(
+      ((is_device_copyable_v<decltype(__builtin_base_type(T, BaseIds))> &&
+        ...)),
+      "The specified type is not device copyable");
 };
-
-template <typename T> struct CheckBasesAreDeviceCopyable<T, 0> {};
 
 // All the captures of a lambda or functor of type FuncT passed to a kernel
 // must be is_device_copyable, which extends to bases and fields of FuncT.
@@ -127,8 +122,10 @@ template <typename T> struct CheckBasesAreDeviceCopyable<T, 0> {};
 // is currently/temporarily supported only to not break older SYCL programs.
 template <typename FuncT>
 struct CheckDeviceCopyable
-    : CheckFieldsAreDeviceCopyable<FuncT, __builtin_num_fields(FuncT)>,
-      CheckBasesAreDeviceCopyable<FuncT, __builtin_num_bases(FuncT)> {};
+    : CheckFieldsAreDeviceCopyable<
+          FuncT, std::make_index_sequence<__builtin_num_fields(FuncT)>>,
+      CheckBasesAreDeviceCopyable<
+          FuncT, std::make_index_sequence<__builtin_num_bases(FuncT)>> {};
 
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;

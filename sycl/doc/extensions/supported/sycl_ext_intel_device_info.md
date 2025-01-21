@@ -397,8 +397,7 @@ Beware that when other processes or threads are using this device when this call
 is made, the value it returns may be stale even before it is returned to the
 caller.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform. NOTE: one may need to set
-ZES_ENABLE_SYSMAN=1 to fully enable this extension.
+This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
