@@ -74,7 +74,7 @@ Then, using the device image contents and backend specific API,
 it should create a Level Zero or OpenCL kernel object corresponding to the kernel. 
 Using interoperability API such as `sycl::make_kernel`, this kernel object can be made into a high-level SYCL kernel object.
 The test, therefore, has two versions of the same SYCL kernel, one of which is constructed directly from the source code kernel using only SYCL API and the other constructed using the`sycl_ext_oneapi_device_image_backend_content` API, backend specific API and the SYCL interoperability API.
-The test should run both kernels and verify that they have the same effect, for example, by having the kernel write the same value to two distinct memory locations and checking that after both kernels have run, both memory locations have the same value. 
+The test should run both kernels and verify that they have the same effect, for example, by having the kernel write a specific value to a memory location passed as a kernel argument and checking that after both kernels have run, both memory locations have the same value. 
 
 The test requires either Level Zero or OpenCL backend and development kits to be available
 in the testing environment. 
