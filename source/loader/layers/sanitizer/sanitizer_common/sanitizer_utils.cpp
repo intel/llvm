@@ -157,10 +157,9 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     // asan_shadow.cpp)
     auto Type = DeviceType::UNKNOWN;
 
-    // ((Ptr >> 48) & 0xff00U) is because I have seen a DeviceUSM of PVC having
-    // 0xff01xxxx addr. We need to confirm this with L0 team later about the
-    // address space mapping.
-    if (((Ptr >> 48) & 0xff00U) == 0xff00U) {
+    // L0 changes their VA layout.
+    // TODO: update our shadow memory layout/algorithms to accordingly.
+    if (((Ptr >> 52) & 0xff0U) == 0xff0U) {
       Type = DeviceType::GPU_PVC;
     } else {
       Type = DeviceType::GPU_DG2;
