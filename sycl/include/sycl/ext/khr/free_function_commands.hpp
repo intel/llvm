@@ -1,11 +1,3 @@
-//==------ enqueue_functions.hpp ------- SYCL enqueue free functions -------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #pragma once
 
 #include <utility>
@@ -21,7 +13,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi::experimental {
+namespace khr {
 
 namespace detail {
 // Trait for identifying sycl::range and sycl::nd_range.
@@ -41,22 +33,23 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess;
 template <typename T>
 struct NoPropertyHasCompileTimeKernelEffect : std::false_type {};
 template <typename... Ts>
-struct NoPropertyHasCompileTimeKernelEffect<properties_t<Ts...>> {
+struct NoPropertyHasCompileTimeKernelEffect<
+    ext::oneapi::experimental::detail::properties_t<Ts...>> {
   static constexpr bool value =
-      !(HasCompileTimeEffect<Ts>::value || ... || false);
+      !(ext::oneapi::experimental::detail::HasCompileTimeEffect<Ts>::value ||
+        ... || false);
 };
 } // namespace detail
 
 // Available only when Range is range or nd_range
-template <
-    typename RangeT, typename PropertiesT = empty_properties_t,
-    typename = std::enable_if_t<
-        ext::oneapi::experimental::detail::is_range_or_nd_range_v<RangeT>>>
+template <typename RangeT,
+          typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
+          typename = std::enable_if_t<detail::is_range_or_nd_range_v<RangeT>>>
 class launch_config {
-  static_assert(ext::oneapi::experimental::detail::
-                    NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
-                "launch_config does not allow properties with compile-time "
-                "kernel effects.");
+  static_assert(
+      detail::NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+      "launch_config does not allow properties with compile-time "
+      "kernel effects.");
 
 public:
   launch_config(RangeT Range, PropertiesT Properties = {})
@@ -77,8 +70,8 @@ private:
 #ifdef __cpp_deduction_guides
 // CTAD work-around to avoid warning from GCC when using default deduction
 // guidance.
-launch_config(detail::AllowCTADTag)
-    -> launch_config<void, empty_properties_t, void>;
+launch_config(sycl::detail::AllowCTADTag)
+    -> launch_config<void, ext::oneapi::experimental::empty_properties_t, void>;
 #endif // __cpp_deduction_guides
 
 namespace detail {
@@ -96,35 +89,27 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
   }
 };
 
-template <typename CommandGroupFunc, typename PropertiesT>
-void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
-                 const sycl::detail::code_location &CodeLoc) {
+// template <typename CommandGroupFunc, typename PropertiesT>
+// void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+//                  const sycl::detail::code_location &CodeLoc) {
 
-  Q.submit_without_event(Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
-}
+//   Q.submit_without_event(Props, std::forward<CommandGroupFunc>(CGF),
+//   CodeLoc);
+// }
 
-template <typename CommandGroupFunc, typename PropertiesT>
-event submit_with_event_impl(queue &Q, PropertiesT Props,
-                             CommandGroupFunc &&CGF,
-                             const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_with_event(Props, std::forward<CommandGroupFunc>(CGF),
-                             nullptr, CodeLoc);
-}
-} // namespace detail
-
+// template <typename CommandGroupFunc, typename PropertiesT>
+// event submit_with_event_impl(queue &Q, PropertiesT Props,
+//                              CommandGroupFunc &&CGF,
+//                              const sycl::detail::code_location &CodeLoc) {
+//   return Q.submit_with_event(Props, std::forward<CommandGroupFunc>(CGF),
+//                              nullptr, CodeLoc);
+// }
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::detail::submit_impl(
       Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
-}
-
-template <typename CommandGroupFunc>
-void submit(queue Q, CommandGroupFunc &&CGF,
-            const sycl::detail::code_location &CodeLoc =
-                sycl::detail::code_location::current()) {
-  submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -135,38 +120,49 @@ event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
       Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
+} // namespace detail
+
+template <typename CommandGroupFunc>
+void submit(queue Q, CommandGroupFunc &&CGF,
+            const sycl::detail::code_location &CodeLoc =
+                sycl::detail::code_location::current()) {
+  detail::submit(Q, ext::oneapi::experimental::empty_properties_t{},
+                 std::forward<CommandGroupFunc>(CGF), CodeLoc);
+}
+
 template <typename CommandGroupFunc>
 event submit_with_event(queue Q, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
-  return submit_with_event(Q, empty_properties_t{},
-                           std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  return detail::submit_with_event(
+      Q, ext::oneapi::experimental::empty_properties_t{},
+      std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
-void single_task(handler &CGH, const KernelType &KernelObj) {
+void launch_task(handler &CGH, const KernelType &KernelObj) {
   CGH.single_task<KernelName>(KernelObj);
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
-void single_task(queue Q, const KernelType &KernelObj,
+void launch_task(queue Q, const KernelType &KernelObj,
                  const sycl::detail::code_location &CodeLoc =
                      sycl::detail::code_location::current()) {
   submit(
-      Q, [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); },
+      Q, [&](handler &CGH) { launch_task<KernelName>(CGH, KernelObj); },
       CodeLoc);
 }
 
 template <typename... ArgsT>
-void single_task(handler &CGH, const kernel &KernelObj, ArgsT &&...Args) {
+void launch_task(handler &CGH, const kernel &KernelObj, ArgsT &&...Args) {
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
   CGH.single_task(KernelObj);
 }
 
 template <typename... ArgsT>
-void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
+void launch_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   submit(Q, [&](handler &CGH) {
-    single_task(CGH, KernelObj, std::forward<ArgsT>(Args)...);
+    launch_task(CGH, KernelObj, std::forward<ArgsT>(Args)...);
   });
 }
 
@@ -194,9 +190,8 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
 void parallel_for(handler &CGH,
                   launch_config<range<Dimensions>, Properties> Config,
                   const KernelType &KernelObj, ReductionsT &&...Reductions) {
-  ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
+  detail::LaunchConfigAccess<range<Dimensions>, Properties> ConfigAccess(
+      Config);
   CGH.parallel_for<KernelName>(
       ConfigAccess.getRange(), ConfigAccess.getProperties(),
       std::forward<ReductionsT>(Reductions)..., KernelObj);
@@ -231,9 +226,8 @@ template <int Dimensions, typename Properties, typename... ArgsT>
 void parallel_for(handler &CGH,
                   launch_config<range<Dimensions>, Properties> Config,
                   const kernel &KernelObj, ArgsT &&...Args) {
-  ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
+  detail::LaunchConfigAccess<range<Dimensions>, Properties> ConfigAccess(
+      Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
   sycl::detail::HandlerAccess::parallelForImpl(
       CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
@@ -271,9 +265,8 @@ void nd_launch(handler &CGH,
                launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
 
-  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
+  detail::LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(
+      Config);
   CGH.parallel_for<KernelName>(
       ConfigAccess.getRange(), ConfigAccess.getProperties(),
       std::forward<ReductionsT>(Reductions)..., KernelObj);
@@ -308,9 +301,8 @@ template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
                launch_config<nd_range<Dimensions>, Properties> Config,
                const kernel &KernelObj, ArgsT &&...Args) {
-  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
+  detail::LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(
+      Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
   sycl::detail::HandlerAccess::parallelForImpl(
       CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
@@ -399,17 +391,17 @@ inline void partial_barrier(queue Q, const std::vector<event> &Events,
   submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
 }
 
-inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
-                          const sycl::detail::code_location &CodeLoc =
-                              sycl::detail::code_location::current()) {
-  Q.ext_oneapi_graph(G, CodeLoc);
-}
+// inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
+//                           const sycl::detail::code_location &CodeLoc =
+//                               sycl::detail::code_location::current()) {
+//   Q.ext_oneapi_graph(G, CodeLoc);
+// }
 
-inline void execute_graph(handler &CGH,
-                          command_graph<graph_state::executable> &G) {
-  CGH.ext_oneapi_graph(G);
-}
+// inline void execute_graph(handler &CGH,
+//                           command_graph<graph_state::executable> &G) {
+//   CGH.ext_oneapi_graph(G);
+// }
 
-} // namespace ext::oneapi::experimental
+} // namespace khr
 } // namespace _V1
 } // namespace sycl
