@@ -155,19 +155,13 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
     EnqueueResultT Res;
     bool Enqueued;
 
-    auto CleanUp = [&]() {
-      if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (NewEvent) {
-          NewEvent->setCommand(nullptr);
-        }
-        delete NewCmd;
-      }
-    };
+    auto CleanUp = [&]() { cleanupCommands(ToCleanUp); };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd,
-                                                Blocking);
       try {
+        Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp,
+                                                  Cmd, Blocking);
+
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw exception(make_error_code(errc::runtime),
                           "Auxiliary enqueue process failed.");
