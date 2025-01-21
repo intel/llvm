@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 
 // The test checks issuing diagnostics for registered kernel names.
 
@@ -42,7 +42,6 @@ constexpr const char *str = "foo";
 )]];
 
 template <typename T>
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void func1();
 
@@ -59,8 +58,7 @@ namespace {
 )]];
 }
 
-// expected-error@+3 {{free function kernel has already been registered with 'reg1'; cannot register with 'reg2'}}
-__attribute__((sycl_device))
+// expected-error@+2 {{free function kernel has already been registered with 'reg1'; cannot register with 'reg2'}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void good1() {
 }
@@ -77,7 +75,6 @@ struct S1 {
 };
 
 template <typename T>
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void func_with_S1_param(T s) {
 }

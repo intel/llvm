@@ -3,32 +3,26 @@
 // This test checks if the sycl_registered_kernels named metadata and
 // associated entries are generated for registered kernel names.
 
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void foo() {
 }
 
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void bar();
 
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
 void ff_4() {
 }
 
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void iota(int, int *) {
 }
 
 template <typename T>
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void tempfoo(T pt);
 
 template <typename T>
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void tempfoo2(T pt) {
   T t;
@@ -43,7 +37,6 @@ template <>
 void tempfoo2(short) { }
 
 template <int N>
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void tempfoo3() {
   (void)N;
@@ -67,36 +60,36 @@ namespace N {
 // are defined or declared as appropriate, that the kernels are generated
 // for these functions and are called from the generated kernels.
 
-// Check that the definitions for the functions foo, ff_4, iota,
-// tempfoo2 explicitly instantiated with int, and tempfoo2 specialized
-// with float are generated.
-// CHECK: define {{.*}} void @[[FOO:[_A-Za-z0-9]+]]()
-// CHECK: define {{.*}} void @[[FF_4:[_A-Za-z0-9]+]]()
-// CHECK: define {{.*}} void @[[IOTA:[_A-Za-z0-9]+]](i32 {{.*}} %0, ptr addrspace(4) {{.*}} %1)
-// CHECK: define {{.*}} void @[[TEMPFOO2INT:[_A-Za-z0-9]+]](i32 {{.*}} %pt)
-// CHECK: define {{.*}} void @[[TEMPFOO2SHORT:[_A-Za-z0-9]+]](i16 {{.*}} %0)
-
-// Check generation of the SYCL kernel for foo, and the call to foo.
+// Check generation of the SYCL kernel for foo, the call to foo, and definition
+// of foo.
 // CHECK: define {{.*}} void @_Z17__sycl_kernel_foov()
-// CHECK:   call {{.*}} void @[[FOO]]()
+// CHECK:   call {{.*}} void @[[FOO:[_A-Za-z0-9]+]]()
+// CHECK: define {{.*}} void @[[FOO:[_A-Za-z0-9]+]]()
 
-// Check generation of the SYCL kernel for ff_4, and the call to ff_4.
+// Check generation of the SYCL kernel for ff_4, the call to ff_4, and the
+// definition of ff_4.
 // CHECK: define {{.*}} void @_Z18__sycl_kernel_ff_4v()
-// CHECK:   call {{.*}} void @[[FF_4]]()
+// CHECK:   call {{.*}} void @[[FF_4:[_A-Za-z0-9]+]]()
+// CHECK: define {{.*}} void @[[FF_4]]()
 
-// Check generation of the SYCL kernel for iota, and the call to iota.
+// Check generation of the SYCL kernel for iota, the call to iota, and the
+// definition of iota.
 // CHECK: define {{.*}} void @_Z18__sycl_kernel_iotaiPi(i32 {{.*}} %__arg_, ptr addrspace(1) {{.*}} %__arg_1)
-// CHECK:   call {{.*}} void @[[IOTA]](i32 {{.*}} %0, ptr addrspace(4) {{.*}} %2)
+// CHECK:   call {{.*}} void @[[IOTA:[_A-Za-z0-9]+]](i32 {{.*}} %0, ptr addrspace(4) {{.*}} %2)
+// CHECK: define {{.*}} void @[[IOTA]](i32 {{.*}} %0, ptr addrspace(4) {{.*}} %1)
 
-// Check generation of the SYCL kernel for tempfoo2<int>, and the call to
-// tempfoo2<int>.
+// Check generation of the SYCL kernel for tempfoo2<int>, the call to
+// tempfoo2<int> and the definition of tempfoo2 explicitly instantiated
+// with int.
 // CHECK: define {{.*}} void @_Z22__sycl_kernel_tempfoo2IiEvT_(i32 {{.*}} %__arg_pt)
-// CHECK:   call {{.*}} void @[[TEMPFOO2INT]](i32 {{.*}} %0)
+// CHECK:   call {{.*}} void @[[TEMPFOO2INT:[_A-Za-z0-9]+]](i32 {{.*}} %0)
+// CHECK: define {{.*}} void @[[TEMPFOO2INT]](i32 {{.*}} %pt)
 
-// Check generation of the SYCL kernel for tempfoo2<short>, and the call to
-// tempfoo2<short>.
+// Check generation of the SYCL kernel for tempfoo2<short>, the call to
+// tempfoo2<short> and the definition of tempfoo2 specialized with short.
 // CHECK: define {{.*}} void @_Z22__sycl_kernel_tempfoo2IsEvT_(i16 {{.*}} %__arg_)
-// CHECK:   call {{.*}} void @[[TEMPFOO2SHORT]](i16 {{.*}} %0)
+// CHECK:   call {{.*}} void @[[TEMPFOO2SHORT:[_A-Za-z0-9]+]](i16 {{.*}} %0)
+// CHECK: define {{.*}} void @[[TEMPFOO2SHORT]](i16 {{.*}} %0)
 
 // Check generation of the SYCL kernel for tempfoo<int>, the call to
 // tempfoo<int>, and its declaration.
