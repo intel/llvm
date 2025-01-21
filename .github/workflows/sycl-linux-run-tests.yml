@@ -23,7 +23,7 @@ on:
       extra_cmake_args:
         type: string
         required: False
-      tests_selector:
+      nests_selector:
         description: |
           Three possible options: "e2e", "cts", and "benchmark".
         type: string
@@ -194,6 +194,7 @@ permissions:
 
 jobs:
   benchmark_aggregate:
+    if: ${{ inputs.tests_selector == 'benchmark' }}
     name: Aggregate compute-benchmark historical average (TODO reconsider)
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
 
