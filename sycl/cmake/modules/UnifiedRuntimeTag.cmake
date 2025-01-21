@@ -1,7 +1,8 @@
-# commit eaea885d5477c8936209175a5b00062ca44f5765
-# Merge: af4ab49c 2a03334c
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 16 14:30:47 2025 +0000
-#     Merge pull request #2569 from zhaomaosu/asan-only-warn-host-ptr
-#     [DevASAN] Only report warning if passing host ptr to kernel
-set(UNIFIED_RUNTIME_TAG eaea885d5477c8936209175a5b00062ca44f5765)
+# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
+# Merge: 71a5eab0 128ea023
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 21 11:21:50 2025 +0000
+#     Merge pull request #2539 from RossBrunton/ross/specconst
+#
+#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
+set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
