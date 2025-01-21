@@ -4,4 +4,4 @@
 # Date:   Mon Jan 20 09:27:22 2025 +0000
 #     Merge pull request #2582 from przemektmalon/przemek/intel-host-usm-support
 #     Enable Host USM backed images on Level Zero
-set(UNIFIED_RUNTIME_TAG cccfdba4b2508e7a485115de8f64994ccfda50a5)
+set(UNIFIED_RUNTIME_TAG b1b0c60c42466e1e76666b1c9475d56d952e3f59)
