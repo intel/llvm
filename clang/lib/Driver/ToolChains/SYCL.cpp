@@ -302,8 +302,9 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
                              bool &UseNative) {
 
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
-      "intel_gpu_pvc", "intel_gpu_acm_g10", "intel_gpu_acm_g11",
-      "intel_gpu_acm_g12", "intel_gpu_bmg_g21"};
+      "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
+      "intel_gpu_acm_g12", "intel_gpu_dg2_10",  "intel_gpu_dg2_11",
+      "intel_dg2_g12",     "intel_gpu_bmg_g21"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
