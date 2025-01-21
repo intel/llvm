@@ -464,9 +464,9 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
-        GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                                     EmitExportedSymbols, EmitImportedSymbols,
-                                     DeviceGlobals};
+      GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
+                                   EmitExportedSymbols, EmitImportedSymbols,
+                                   DeviceGlobals};
       CopyTriple.Prop = saveModuleProperties(MD, Props, I, Suffix,
                                              OutputFile.Target, IsDeviceLib);
     }
