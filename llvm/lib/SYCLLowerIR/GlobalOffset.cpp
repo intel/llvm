@@ -250,7 +250,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
           /* Func= */ CalleeWithImplicitParam,
           /* Args= */ ImplicitOffsets,
           /* NameStr= */ Twine(),
-          /* InsertBefore= */ CallToOld);
+          /* InsertBefore= */ CallToOld->getIterator());
       NewCallInst->setTailCallKind(CallToOld->getTailCallKind());
       NewCallInst->copyMetadata(*CallToOld);
       CallToOld->replaceAllUsesWith(NewCallInst);
