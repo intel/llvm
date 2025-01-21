@@ -17,6 +17,8 @@
 #endif // SYCL_EXT_JIT_ENABLE
 
 #include <functional>
+#include <memory>
+#include <mutex>
 #include <unordered_map>
 
 namespace jit_compiler {
@@ -53,6 +55,8 @@ public:
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
       const std::vector<std::string> &RegisteredKernelNames);
 
+  void destroyDeviceBinaries(sycl_device_binaries Binaries);
+
   bool isAvailable() { return Available; }
 
   static jit_compiler &get_instance() {
@@ -73,8 +77,8 @@ private:
                        ::jit_compiler::BinaryFormat Format);
 
   sycl_device_binaries
-  createDeviceBinaryImage(const ::jit_compiler::RTCBundleInfo &BundleInfo,
-                          const std::string &OffloadEntryPrefix);
+  createDeviceBinaries(const ::jit_compiler::RTCBundleInfo &BundleInfo,
+                       const std::string &OffloadEntryPrefix);
 
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
@@ -87,6 +91,14 @@ private:
 
   // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+  // Manages the lifetime of the UR structs for device binaries for SYCL-RTC.
+  std::unordered_map<sycl_device_binaries,
+                     std::unique_ptr<DeviceBinariesCollection>>
+      RTCDeviceBinaries;
+
+  // Protects access to map above.
+  std::mutex RTCDeviceBinariesMutex;
 
 #if SYCL_EXT_JIT_ENABLE
   // Handles to the entry points of the lazily loaded JIT library.

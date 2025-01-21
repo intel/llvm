@@ -380,7 +380,8 @@ public:
   // program manager integration, only for sycl_jit language
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
-                     std::vector<std::string> KNames, std::string Pfx,
+                     std::vector<std::string> KNames,
+                     sycl_device_binaries Binaries, std::string Pfx,
                      syclex::source_language Lang)
       : kernel_bundle_impl(Ctx, Devs, KernelIDs, bundle_state::executable) {
     assert(Lang == syclex::source_language::sycl_jit);
@@ -391,6 +392,7 @@ public:
     // from the (unprefixed) kernel name.
     MIsInterop = true;
     KernelNames = KNames;
+    DeviceBinaries = Binaries;
     Prefix = Pfx;
     Language = Lang;
   }
@@ -518,8 +520,9 @@ public:
         }
       }
 
-      return std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, KernelNames, Prefix, Language);
+      return std::make_shared<kernel_bundle_impl>(MContext, MDevices, KernelIDs,
+                                                  KernelNames, Binaries, Prefix,
+                                                  Language);
     }
 
     ur_program_handle_t UrProgram = nullptr;
@@ -927,6 +930,13 @@ public:
     return true;
   }
 
+  ~kernel_bundle_impl() {
+    if (DeviceBinaries) {
+      ProgramManager::getInstance().removeImages(DeviceBinaries);
+      syclex::detail::SYCL_JIT_destroy(DeviceBinaries);
+    }
+  }
+
 private:
   void fillUniqueDeviceImages() {
     assert(MUniqueDeviceImages.empty());
@@ -958,6 +968,7 @@ private:
   const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
+  sycl_device_binaries DeviceBinaries = nullptr;
   std::string Prefix;
   include_pairs_t IncludePairs;
 };

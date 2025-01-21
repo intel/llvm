@@ -1990,6 +1990,77 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   }
 }
 
+void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
+  for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
+    sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
+    const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
+    const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
+    // Treat the image as empty one
+    if (EntriesB == EntriesE)
+      continue;
+
+    // Retrieve raw image by looking up the first offload entry
+    kernel_id FirstKernelID = getSYCLKernelID(RawImg->EntriesBegin->name);
+    auto RawImages = getRawDeviceImages({FirstKernelID});
+    assert(RawImages.size() == 1);
+
+    RTDeviceBinaryImage *Img = *RawImages.begin();
+
+    // Drop the kernel argument mask map
+    // TODO: Why is this not protected by a mutex?
+    m_EliminatedKernelArgMasks.erase(Img);
+
+    // Acquire lock to modify maps for kernel bundles
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+    // Unmap the unique kernel IDs for the offload entries
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         ++EntriesIt) {
+
+      // Drop entry for service kernel
+      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->name);
+        continue;
+      }
+
+      // Exported device functions won't have a kernel ID
+      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
+          m_ExportedSymbolImages.end()) {
+        continue;
+      }
+
+      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      assert(It != m_KernelName2KernelIDs.end());
+      m_KernelName2KernelIDs.erase(It);
+      m_KernelIDs2BinImage.erase(It->second);
+    }
+
+    // Drop reverse mapping
+    m_BinImg2KernelIDs.erase(Img);
+
+    // Unregister exported symbols (needs to happen after the ID unmap loop)
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
+      m_ExportedSymbolImages.erase(ESProp->Name);
+    }
+
+    // TODO: Handle other runtime info that was set up by `addImages`
+    assert(Img->getVirtualFunctions().empty());
+    assert(Img->getAssertUsed().empty());
+    assert(!Img->getProperty("sanUsed"));
+    assert(Img->getImplicitLocalArg().empty());
+    assert(Img->getDeviceGlobals().empty());
+    assert(Img->getHostPipes().empty());
+
+    // Finally, destroy the image by erasing the associated unique ptr
+    auto It =
+        std::find_if(m_DeviceImages.begin(), m_DeviceImages.end(),
+                     [Img](const auto &UPtr) { return UPtr.get() == Img; });
+    assert(It != m_DeviceImages.end());
+    m_DeviceImages.erase(It);
+  }
+}
+
 void ProgramManager::debugPrintBinaryImages() const {
   for (const auto &ImgIt : m_BinImg2KernelIDs) {
     ImgIt.first->print();

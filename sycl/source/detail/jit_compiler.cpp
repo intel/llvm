@@ -1130,10 +1130,10 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   return JITDeviceBinaries.back().getPIDeviceStruct();
 }
 
-sycl_device_binaries jit_compiler::createDeviceBinaryImage(
+sycl_device_binaries jit_compiler::createDeviceBinaries(
     const ::jit_compiler::RTCBundleInfo &BundleInfo,
     const std::string &OffloadEntryPrefix) {
-  DeviceBinariesCollection Collection;
+  auto Collection = std::make_unique<DeviceBinariesCollection>();
 
   for (const auto &DevImgInfo : BundleInfo) {
     DeviceBinaryContainer Binary;
@@ -1164,17 +1164,25 @@ sycl_device_binaries jit_compiler::createDeviceBinaryImage(
       Binary.addProperty(std::move(PropSet));
     }
 
-    Collection.addDeviceBinary(std::move(Binary),
-                               DevImgInfo.BinaryInfo.BinaryStart,
-                               DevImgInfo.BinaryInfo.BinarySize,
-                               (DevImgInfo.BinaryInfo.AddressBits == 64)
-                                   ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
-                                   : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
-                               SYCL_DEVICE_BINARY_TYPE_SPIRV);
+    Collection->addDeviceBinary(std::move(Binary),
+                                DevImgInfo.BinaryInfo.BinaryStart,
+                                DevImgInfo.BinaryInfo.BinarySize,
+                                (DevImgInfo.BinaryInfo.AddressBits == 64)
+                                    ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
+                                    : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
+                                SYCL_DEVICE_BINARY_TYPE_SPIRV);
   }
 
-  JITDeviceBinaries.push_back(std::move(Collection));
-  return JITDeviceBinaries.back().getPIDeviceStruct();
+  sycl_device_binaries Binaries = Collection->getPIDeviceStruct();
+
+  std::lock_guard<std::mutex> Guard{RTCDeviceBinariesMutex};
+  RTCDeviceBinaries[Binaries] = std::move(Collection);
+  return Binaries;
+}
+
+void jit_compiler::destroyDeviceBinaries(sycl_device_binaries Binaries) {
+  std::lock_guard<std::mutex> Guard{RTCDeviceBinariesMutex};
+  RTCDeviceBinaries.erase(Binaries);
 }
 
 std::vector<uint8_t> jit_compiler::encodeArgUsageMask(
@@ -1270,8 +1278,8 @@ sycl_device_binaries jit_compiler::compileSYCL(
     throw sycl::exception(sycl::errc::build, Result.getBuildLog());
   }
 
-  return createDeviceBinaryImage(Result.getBundleInfo(),
-                                 /*OffloadEntryPrefix=*/CompilationID + '$');
+  return createDeviceBinaries(Result.getBundleInfo(),
+                              /*OffloadEntryPrefix=*/CompilationID + '$');
 }
 
 } // namespace detail
