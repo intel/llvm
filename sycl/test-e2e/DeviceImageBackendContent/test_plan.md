@@ -49,7 +49,7 @@ The test needs to check that `ext_oneapi_get_backend` returns the
 same value as `sycl::kernel_bundle::get_backend` on the kernel bundle
 that contains the image.
 
-#### Consistency of backend contents and a view of the backend contents
+#### Consistency of image contents and a view of the image contents
 
 The test needs to check that the values returned by `ext_oneapi_get_backend_content` and
 `ext_oneapi_get_backend_content_view` have the same contents.
