@@ -2052,6 +2052,19 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     assert(Img->getDeviceGlobals().empty());
     assert(Img->getHostPipes().empty());
 
+    // Purge references to the image in native programs map
+    {
+      std::lock_guard<std::mutex> NativeProgramsGuard(MNativeProgramsMutex);
+
+      // The map does not keep references to program handles; we can erase the
+      // entry without calling UR release
+      for (auto It = NativePrograms.begin(); It != NativePrograms.end();) {
+        auto CurIt = It++;
+        if (CurIt->second == Img)
+          NativePrograms.erase(CurIt);
+      }
+    }
+
     // Finally, destroy the image by erasing the associated unique ptr
     auto It =
         std::find_if(m_DeviceImages.begin(), m_DeviceImages.end(),
