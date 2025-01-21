@@ -288,7 +288,13 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
   assert(!QueueImpl->getCommandGraph() &&
          "Should not be called in on graph recording.");
 
-  return QueueImpl->getLastEvent();
+  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent();
+  if (LastEvent)
+    return *LastEvent;
+
+  // If there was no last event, we create an empty one.
+  return detail::createSyclObjFromImpl<event>(
+      std::make_shared<detail::event_impl>(std::nullopt));
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -406,16 +412,22 @@ bool queue::device_has(aspect Aspect) const {
 // TODO(#15184) Remove this function in the next ABI-breaking window.
 bool queue::ext_codeplay_supports_fusion() const { return false; }
 
-event queue::ext_oneapi_get_last_event() const {
+sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
   if (!is_in_order())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "ext_oneapi_get_last_event() can only be called on in-order queues.");
 
-  event LastEvent = impl->getLastEvent();
+  sycl::detail::optional<event> LastEvent = impl->getLastEvent();
+
+  // If there was no last event, the queue is yet to have any work submitted and
+  // we return a std::nullopt.
+  if (!LastEvent)
+    return std::nullopt;
+
   // If the last event was discarded or a NOP, we insert a marker to represent
   // an event at end.
-  auto LastEventImpl = detail::getSyclObjImpl(LastEvent);
+  auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
   if (LastEventImpl->isDiscarded() || LastEventImpl->isNOP())
     LastEvent =
         detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));

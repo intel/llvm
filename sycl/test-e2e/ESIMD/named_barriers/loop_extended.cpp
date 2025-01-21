@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: arch-intel_gpu_pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16598
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

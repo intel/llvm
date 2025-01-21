@@ -1,8 +1,8 @@
-# commit 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f
-# Merge: 9c652ffb b78cfa71
+# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
+# Merge: 71a5eab0 128ea023
 # Author: Ross Brunton <ross@codeplay.com>
-# Date:   Thu Jan 9 17:28:00 2025 +0000
-# Merge pull request #2048 from RossBrunton/ross/refc
+# Date:   Tue Jan 21 11:21:50 2025 +0000
+#     Merge pull request #2539 from RossBrunton/ross/specconst
 #
-# Use reference counting on factories
-set(UNIFIED_RUNTIME_TAG 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f)
+#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
+set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
