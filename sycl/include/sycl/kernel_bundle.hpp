@@ -32,7 +32,7 @@
 #include <functional> // for function
 #include <iterator>   // for distance
 #include <memory>     // for shared_ptr, operator==, hash
-#ifdef __cpp_lib_span
+#if __has_include(<span>)
 #include <span> // for span
 #endif
 #include <string>      // for string
