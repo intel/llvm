@@ -256,8 +256,7 @@ class CudaTargetInfo<string targetName, list<Aspect> aspectList, int subGroupSiz
 }
 
 defvar CudaUSMAspects = [
-    AspectUsm_device_allocations,
-    AspectUsm_shared_allocations, AspectUsm_atomic_host_allocations,
+    AspectUsm_device_allocations, AspectUsm_shared_allocations,
     AspectUsm_atomic_shared_allocations
 ];
 
