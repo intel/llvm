@@ -378,7 +378,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         pLocalWorkSize, hKernel, HIPFunc, ThreadsPerBlock, BlocksPerGrid));
 
     // Set node param structure with the kernel related data
-    auto &ArgIndices = hKernel->getArgIndices();
+    auto &ArgPointers = hKernel->getArgPointers();
     hipKernelNodeParams NodeParams;
     NodeParams.func = HIPFunc;
     NodeParams.gridDim.x = BlocksPerGrid[0];
@@ -388,7 +388,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     NodeParams.blockDim.y = ThreadsPerBlock[1];
     NodeParams.blockDim.z = ThreadsPerBlock[2];
     NodeParams.sharedMemBytes = LocalSize;
-    NodeParams.kernelParams = const_cast<void **>(ArgIndices.data());
+    NodeParams.kernelParams = const_cast<void **>(ArgPointers.data());
     NodeParams.extra = nullptr;
 
     // Create and add an new kernel node to the HIP graph
@@ -1098,7 +1098,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   Params.blockDim.z = ThreadsPerBlock[2];
   Params.sharedMemBytes = hCommand->Kernel->getLocalSize();
   Params.kernelParams =
-      const_cast<void **>(hCommand->Kernel->getArgIndices().data());
+      const_cast<void **>(hCommand->Kernel->getArgPointers().data());
 
   hipGraphNode_t Node = hCommand->Node;
   hipGraphExec_t HipGraphExec = CommandBuffer->HIPGraphExec;

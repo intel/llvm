@@ -492,7 +492,7 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    auto &ArgIndices = hKernel->getArgIndices();
+    auto &ArgIndices = hKernel->getArgPointers();
     UR_CHECK_ERROR(cuLaunchKernel(
         CuFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2], LocalSize,
@@ -680,7 +680,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    auto &ArgIndices = hKernel->getArgIndices();
+    auto &ArgPointers = hKernel->getArgPointers();
 
     CUlaunchConfig launch_config;
     launch_config.gridDimX = BlocksPerGrid[0];
@@ -696,7 +696,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     launch_config.numAttrs = launch_attribute.size();
 
     UR_CHECK_ERROR(cuLaunchKernelEx(&launch_config, CuFunc,
-                                    const_cast<void **>(ArgIndices.data()),
+                                    const_cast<void **>(ArgPointers.data()),
                                     nullptr));
 
     if (phEvent) {
