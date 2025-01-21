@@ -499,8 +499,6 @@ jobs:
     - name: Run compute-benchmarks
       if: inputs.tests_selector == 'benchmark'
       run: |
-        pwd
-        ls
         export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
         export CMPLR_ROOT=$PWD/toolchain
         sycl-ls
@@ -511,13 +509,10 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       run: |
         # TODO -- waiting on security clearance
-        pwd
-        ls
-        echo $GITHUB_WORKSPACE
-        ls $GITHUB_WORKSPACE
-        cd llvm-ci-perf-results
+        # TODO -- reload with loading from sanitized results after
+        cd llvm-ci-perf-res
         git config --global user.name "SYCL Benchmarking Bot"
         git config --global user.email "sys_sycl_benchmarks@intel.com"
-        # git add .
-        # git commit -m "Update results"
-        # git push
+        git add .
+        git commit -m "[GHA] Upload compute-benchmarks results from ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        #git push https://$GITHUB_TOKEN@github.com/

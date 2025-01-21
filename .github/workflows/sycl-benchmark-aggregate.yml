@@ -1,12 +1,22 @@
-name: Aggregate benchmark averages
+name: Aggregate compute-benchmark averages from historical data
+
+# The benchmarking workflow in sycl-linux-run-tests.yml passes or fails based on
+# how the benchmark results compare to a historical average: This historical
+# average is calculated in this workflow, which aggregates historical data and
+# produces measures of central tendency (median in this case) used for this
+# purpose.
 
 on:
-  schedule:
-  - cron: 0 1 * * *
   workflow_dispatch:
     inputs:
       cutoff_timestamp:
-        description: "Timestamp "
+        description: |
+          Timestamp indicating the age limit of data used in average calculation:
+          Any benchmark results created before this timestamp is excluded from
+          being aggregated. 
+          
+          Any valid date string supported by GNU coreutils is valid here:
+          https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html
         type: string
         required: false
   workflow_call:
@@ -20,7 +30,7 @@ permissions:
 
 jobs:
   aggregate:
-    name: Aggregate average value for all metrics (median)
+    name: Aggregate average (median) value for all metrics
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -30,15 +40,24 @@ jobs:
           devops/scripts/benchmarking
     - name: Load benchmarking configuration
       run: |
+        # Load default values from configuration file
+        #
         # TODO isolate sanitation from benchmark.sh different script
         # use sanitation here
+
         . llvm/devops/scripts/benchmarking/benchmark-ci.conf;
         echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
         echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
         echo "PERF_RES_PATH=$PERF_RES_PATH" >> $GITHUB_ENV
 
+        # Determine a "cutoff timestamp" used by the aggregator script
+        #
+        # This timestamp controls which historical results are used to compute
+        # measures of central tendency: Any files timestamped *before* this time
+        # will be *excluded* from the central tendency calculation.
+
         if [ -z '${{ inputs.cutoff_timestamp }}' ]; then
-          # No time given, use default time period
+          # No time given, use default time period from config file
           echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" +"$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
         else
           # If the provided time is a unix `date` timestamp, convert the time to our format
@@ -52,11 +71,16 @@ jobs:
             echo 'CUTOFF_TIMESTAMP=${{ inputs.cutoff_timestamp }}' >> $GITHUB_ENV
           fi
         fi
-    - name: Checkout performance results repository
+    - name: Checkout historical performance results repository
       run: |
         git clone -b $PERF_RES_BRANCH $PERF_RES_GIT_REPO $PERF_RES_PATH
-    - name: Run aggregator on cloned data
+    - name: Run aggregator on historical results
       run: |
+        # The current format of the historical results respository is:
+        # /<runner type>/<test case name>
+        # Thus, a min/max depth of 2 is used to enumerate all test cases in the
+        # repository. Runner type and testcase name is also extracted from this
+        # path.
         for dir in $(find "$PERF_RES_PATH" -mindepth 2 -maxdepth 2 -type d ! -path '*.git*'); do
           _runner="$(basename $(dirname $dir))"
           _testcase="$(basename $dir)"
@@ -64,17 +88,12 @@ jobs:
         done
     - name: Upload average to the repo
       env:
-        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       run: |
         # TODO -- waiting on security clearance
-        mkdir -p ~/.ssh
-        echo "$SSH_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        eval "$(ssh-agent -s)"
-        ssh-add -k ~/.ssh/id_rsa
-        cd $PERF_RES_PATH
-        git config --global user.name "iclsrc"
-        git config --global user.email "ia.compiler.tools.git@intel.com"
+        cd llvm-ci-perf-res
+        git config --global user.name "SYCL Benchmarking Bot"
+        git config --global user.email "sys_sycl_benchmarks@intel.com"
         git add .
-        git commit -m "Average aggregate $(date "+%m/%d/%y %H:%M")" -s
-        git push
+        git commit -m "[GHA] Aggregate median data from $CUTOFF_TIMESTAMP to $(date +%Y%m%d_%H%M%S)"
+        #git push https://$GITHUB_TOKEN@github.com/
