@@ -332,6 +332,8 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
   ASSERT_NE(Cmd, nullptr);
   Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  // for the test functionality, depenent task HostTaskEvent must be treated as incompleted
+  HostTaskEventImpl->setStateIncomplete();
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
@@ -341,6 +343,8 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
       detail::getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
 
+  // make HostTaskEvent completed, so SingleTaskEvent can be enqueued
+  HostTaskEventImpl->setComplete();
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
 
@@ -374,6 +378,7 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
   ASSERT_NE(Cmd, nullptr);
   Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  HostTaskEventImpl->setStateIncomplete();
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
@@ -383,6 +388,7 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
       detail::getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
 
+  HostTaskEventImpl->setComplete();
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
 
