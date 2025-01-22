@@ -1,8 +1,7 @@
-# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
-# Merge: 71a5eab0 128ea023
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 11:21:50 2025 +0000
-#     Merge pull request #2539 from RossBrunton/ross/specconst
-#
-#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
-set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
+# commit 871061f1aa3b8ade57e0a2ed63d8000e257548cc
+# Merge: 262ec93e 7cca93f9
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Jan 21 13:26:45 2025 +0000
+#     Merge pull request #2588 from kbenzie/benie/ci-delete-prerelease
+#     Remove the prerelease.yml job
+set(UNIFIED_RUNTIME_TAG 871061f1aa3b8ade57e0a2ed63d8000e257548cc)
