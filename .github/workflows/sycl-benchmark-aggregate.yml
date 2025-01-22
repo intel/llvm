@@ -40,11 +40,14 @@ jobs:
           devops/scripts/benchmarking
     - name: Load benchmarking configuration
       run: |
-        CONFIG_FILE="$GITHUB_WORKSPACE/devops/scripts/benchmarking/benchmark-ci.conf"
+        CONFIG_FILE="./devops/scripts/benchmarking/benchmark-ci.conf"
 
         # Load default values from configuration file
 
-        . $GITHUB_WORKSPACE/devops/scripts/benchmarking/utils.sh
+        ls
+        pwd
+        ls $GITHUB_WORKSPACE/devops/scripts/benchmarking/
+        . ./devops/scripts/benchmarking/utils.sh
         # utils.sh contains functions to sanitize config file settings
         echo "PERF_RES_GIT_REPO=$(load_single_config $CONFIG_FILE PERF_RES_GIT_REPO)" >> $GITHUB_ENV
         echo "PERF_RES_BRANCH=$(load_single_config $CONFIG_FILE PERF_RES_BRANCH)" >> $GITHUB_ENV
@@ -94,9 +97,9 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       run: |
         # TODO -- waiting on security clearance
-        cd llvm-ci-perf-res
-        git config --global user.name "SYCL Benchmarking Bot"
-        git config --global user.email "sys_sycl_benchmarks@intel.com"
+        cd "$PERF_RES_PATH"
+        git config user.name "SYCL Benchmarking Bot"
+        git config user.email "sys_sycl_benchmarks@intel.com"
         git add .
         git commit -m "[GHA] Aggregate median data from $CUTOFF_TIMESTAMP to $(date +"$TIMESTAMP_FORMAT")"
         git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"

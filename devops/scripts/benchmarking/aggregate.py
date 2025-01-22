@@ -86,4 +86,5 @@ if __name__ == "__main__":
 		print(f"Bad cutoff timestamp, please use YYYYMMDD_HHMMSS.")
 		exit(1)
 	common.load_configs()
+	#                <runner>,    <test case>, <cutoff>
 	aggregate_median(sys.argv[1], sys.argv[2], sys.argv[3])
