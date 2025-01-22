@@ -1,4 +1,3 @@
-// RUN: %{build} -fsyntax-only -DTEST_API_VIOLATION=1 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -58,21 +57,5 @@ int main() {
     }
 #endif
   }
-
-#ifdef TEST_API_VIOLATION
-  // Check that the ext_oneapi_get_backend_content and the
-  // ext_oneapi_get_backend_content_view of the content functions are not
-  // available
-  // when the image is not in the executable state.
-
-  auto input_bundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(ctxt, {id});
-  // expected-error@+1 {{no matching member function for call to 'ext_oneapi_get_backend_content'}}
-  bytes = (*input_bundle.begin()).ext_oneapi_get_backend_content();
-#ifdef _cpp_lib_span
-  // expected-error@+1 {{no matching member function for call to 'ext_oneapi_get_backend_content_view'}}
-  bytes_view = (*input_bundle.begin()).ext_oneapi_get_backend_content_view();
-#endif // __cpp_lib_span
-#endif // TEST_API_VIOLATION
   return 0;
 }

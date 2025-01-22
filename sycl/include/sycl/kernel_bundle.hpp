@@ -33,7 +33,7 @@
 #include <iterator>   // for distance
 #include <memory>     // for shared_ptr, operator==, hash
 #if __has_include(<span>)
-#include <span> // for span
+#include <span>
 #endif
 #include <string>      // for string
 #include <type_traits> // for enable_if_t, remove_refer...
@@ -122,9 +122,8 @@ public:
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   std::vector<std::byte> ext_oneapi_get_backend_content() const;
 
-#ifdef __cpp_lib_span
-  std::span<std::byte> ext_oneapi_get_backend_content_view() const;
-#endif // __cpp_lib_span
+  std::pair<const std::byte *, const std::byte *>
+  ext_oneapi_get_backend_content_view() const;
 
 #endif // HAS_STD_BYTE
 
@@ -174,7 +173,9 @@ public:
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
   std::span<std::byte> ext_oneapi_get_content_backend_view() const {
-    return device_image_plain::ext_oneapi_get_backend_content_view();
+    return std::span<std::byte>{
+        device_image_plain::ext_oneapi_get_backend_content_view().first,
+        device_image_plain::ext_oneapi_get_backend_content_view().second};
   }
 #endif // __cpp_lib_span
 #endif // _HAS_STD_BYTE

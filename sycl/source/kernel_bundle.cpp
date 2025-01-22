@@ -57,15 +57,14 @@ device_image_plain::ext_oneapi_get_backend_content() const {
                          impl->get_bin_image_ref()->getRawData().BinaryEnd));
 }
 
-#ifdef __cpp_lib_span
-std::span<std::byte>
+std::pair<const std::byte *, const std::byte *>
 device_image_plain::ext_oneapi_get_backend_content_view() const {
-  return std::span(reinterpret_cast<const std::byte *>(
-                       impl->get_bin_image_ref()->getRawData().BinaryStart),
-                   reinterpret_cast<const std::byte *>(
-                       impl->get_bin_image_ref()->getRawData().BinaryEnd));
+  return std::make_pair(
+      reinterpret_cast<const std::byte *>(
+          impl->get_bin_image_ref()->getRawData().BinaryStart),
+      reinterpret_cast<const std::byte *>(
+          impl->get_bin_image_ref()->getRawData().BinaryEnd));
 }
-#endif
 
 ////////////////////////////
 ///// kernel_bundle_plain
