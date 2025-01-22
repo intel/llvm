@@ -6,7 +6,7 @@ from lit.TestRunner import (
     ParserKind,
     IntegratedTestKeywordParser,
 )
-from TriStateExpr import E2EExpr
+from E2EExpr import E2EExpr
 
 import os
 import re
