@@ -88,12 +88,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         except ValueError as e:
             raise ValueError("Error in REQUIRES list:\n%s" % str(e))
 
-    def getMatchedFromList(self, features, alist, build_only_mode=False):
+    def getMatchedFromList(
+        self, features, alist, build_only_mode=False, final_unknown_value=False
+    ):
         try:
             return [
                 item
                 for item in alist
-                if E2EExpr.evaluate(item, features, build_only_mode, False)
+                if E2EExpr.evaluate(item, features, build_only_mode, final_unknown_value)
             ]
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
