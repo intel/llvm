@@ -494,7 +494,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
           std::vector<EventImplPtr> ExpandedDepEventImplPtrs;
           ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
           for (const event &DepEvent : ExpandedDepEvents)
-            ExpandedDepEventImplPtrs.push_back(detail::getSyclObjImpl(DepEvent));
+            ExpandedDepEventImplPtrs.push_back(
+                detail::getSyclObjImpl(DepEvent));
 
           EventImpl->getPreparedDepsEvents() = ExpandedDepEventImplPtrs;
           EventImpl->cleanDepEventsThroughOneLevel();
