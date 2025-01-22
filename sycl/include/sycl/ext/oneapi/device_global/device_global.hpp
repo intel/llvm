@@ -10,7 +10,8 @@
 
 #include <sycl/access/access.hpp>                       // for address_space
 #include <sycl/exception.hpp>                           // for make_error_code
-#include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image... , for properties_t
+#include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image...
+#include <sycl/ext/oneapi/properties/properties.hpp>    // for properties_t
 #include <sycl/multi_ptr.hpp>                           // for multi_ptr
 #include <sycl/pointers.hpp>                            // for decorated_gl...
 
@@ -58,8 +59,8 @@ template <typename T> struct IsDeviceGlobalOrBaseRef : std::false_type {};
 template <typename T, typename PropertyListT>
 struct IsDeviceGlobalOrBaseRef<device_global_base<T, PropertyListT, void> &>
     : std::true_type {};
-template <typename T, typename PropertyListT>
-struct IsDeviceGlobalOrBaseRef<device_global<T, PropertyListT> &>
+template <typename T, typename PropertyListT, typename Cond>
+struct IsDeviceGlobalOrBaseRef<device_global<T, PropertyListT, Cond> &>
     : std::true_type {};
 
 // Base class for device_global.
@@ -138,10 +139,10 @@ public:
 
 // Specialization of device_global base class for when device_image_scope is in
 // the property list.
-template <typename T, typename... Props>
+template <typename T, typename Props>
 class device_global_base<
-    T, properties_t<Props...>,
-    std::enable_if_t<properties_t<Props...>::template has_property<
+    T, Props,
+    std::enable_if_t<Props::template has_property<
         device_image_scope_key>()>> {
 protected:
   T val{};
@@ -189,7 +190,7 @@ public:
 
 } // namespace detail
 
-template <typename T, typename PropertyListT, typename>
+template <typename T, typename PropertyListT = empty_properties_t, typename Cond = void>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     // FIXME: Temporary work-around. Remove when fixed.
@@ -201,8 +202,17 @@ class
                 "Property list is invalid.");
 };
 
+// Common code for device_global with and without
+// __sycl_detail__::device_constant attribute
 // Inherit the base class' constructors
-#define DEVICE_GLOBAL_COMMON_METHODS()                                         \
+#define DEVICE_GLOBAL_COMMON()                                                 \
+  using property_list_t = detail::properties_t<Props...>;                      \
+  using base_t = detail::device_global_base<T, property_list_t>;               \
+  using element_type = std::remove_extent_t<T>;                                \
+  static_assert(std::is_trivially_destructible_v<T>,                           \
+                "Type T must be trivially destructible.");                     \
+  static_assert(is_property_list<property_list_t>::value,                      \
+                "Property list is invalid.");                                  \
   using detail::device_global_base<T, property_list_t>::device_global_base;    \
                                                                                \
   constexpr device_global(const device_global &DG)                             \
@@ -222,16 +232,16 @@ class
                                                                                \
   template <class RelayT = T>                                                  \
   std::remove_reference_t<                                                     \
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &      \
-  operator[](std::ptrdiff_t idx) noexcept {                                    \
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>        \
+      &operator[](std::ptrdiff_t idx) noexcept {                               \
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")                            \
     return (*this->get_ptr())[idx];                                            \
   }                                                                            \
                                                                                \
   template <class RelayT = T>                                                  \
   const std::remove_reference_t<                                               \
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &      \
-  operator[](std::ptrdiff_t idx) const noexcept {                              \
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>        \
+      &operator[](std::ptrdiff_t idx) const noexcept {                         \
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")                            \
     return (*this->get_ptr())[idx];                                            \
   }                                                                            \
@@ -239,8 +249,8 @@ class
   template <class RelayT = T>                                                  \
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||                  \
                        std::is_pointer_v<RelayT>,                              \
-                   RelayT> &                                                   \
-  operator->() noexcept {                                                      \
+                   RelayT>                                                     \
+      &operator->() noexcept {                                                 \
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")                 \
     return *this->get_ptr();                                                   \
   }                                                                            \
@@ -248,8 +258,8 @@ class
   template <class RelayT = T>                                                  \
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||                  \
                        std::is_pointer_v<RelayT>,                              \
-                   const RelayT> &                                             \
-  operator->() const noexcept {                                                \
+                   const RelayT>                                               \
+      &operator->() const noexcept {                                           \
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")                 \
     return *this->get_ptr();                                                   \
   }                                                                            \
@@ -273,28 +283,17 @@ class
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>,
-                  typename std::enable_if_t<detail::properties_t<
-                      Props...>::template has_property<device_constant_key>(), class DeviceConstantAddrSp>>
+                  std::enable_if_t<detail::properties_t<
+                      Props...>::template has_property<device_constant_key>()>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
-
-  using property_list_t = detail::properties_t<Props...>;
-  using base_t = detail::device_global_base<T, property_list_t>;
-
 public:
-  using element_type = std::remove_extent_t<T>;
-
 #if !__cpp_consteval
   static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
 #endif // !__cpp_consteval
-  static_assert(std::is_trivially_destructible_v<T>,
-                "Type T must be trivially destructible.");
 
-  static_assert(is_property_list<property_list_t>::value,
-                "Property list is invalid.");
-
-  DEVICE_GLOBAL_COMMON_METHODS()
+  DEVICE_GLOBAL_COMMON()
 };
 
 template <typename T, typename... Props>
@@ -308,28 +307,17 @@ class
 #endif
     device_global<
         T, detail::properties_t<Props...>,
-        typename std::enable_if_t<!(detail::properties_t<Props...>::
-                               template has_property<device_constant_key>()), class DeviceDefaultAddrSp>>
+        std::enable_if_t<!(detail::properties_t<Props...>::
+                               template has_property<device_constant_key>())>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
-
-  using property_list_t = detail::properties_t<Props...>;
-  using base_t = detail::device_global_base<T, property_list_t>;
-
 public:
-  using element_type = std::remove_extent_t<T>;
-
 #if !__cpp_consteval
   static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
 #endif // !__cpp_consteval
-  static_assert(std::is_trivially_destructible_v<T>,
-                "Type T must be trivially destructible.");
 
-  static_assert(is_property_list<property_list_t>::value,
-                "Property list is invalid.");
-
-  DEVICE_GLOBAL_COMMON_METHODS()
+  DEVICE_GLOBAL_COMMON()
 
   T &get() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get()")
