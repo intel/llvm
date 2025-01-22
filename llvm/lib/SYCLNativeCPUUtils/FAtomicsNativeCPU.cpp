@@ -37,6 +37,7 @@ PreservedAnalyses FAtomicsNativeCPU::run(Module &M,
       continue;
     }
 
+    ModuleChanged = true;
     BasicBlock *BB = BasicBlock::Create(Ctx, "entry", &F);
     IRBuilder<> Builder(BB);
     // Currently we drop arguments 1 and 2 (scope and memory ordering),
