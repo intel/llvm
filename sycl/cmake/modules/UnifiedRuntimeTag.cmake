@@ -1,4 +1,4 @@
-# commit 01c0c0eb1a66681c216af7a7c6b0470c769fe11d
+# commit 38da1bd8c0262eeabbea24e74536af4ab13ec0e3
 # Author: Przemek Malon <przemek.malon@codeplay.com>
 # Date:   Wed Jan 8 19:53:17 2025 +0000
 # Enable creation of images backed by host USM
@@ -14,4 +14,4 @@
 #   Passing a `CU_MEMHOSTALLOC_WRITECOMBINED` flag to the host USM
 #   allocation will enhance performance in certain scenarios, however, an
 #   extension allowing this is not yet available.
-set(UNIFIED_RUNTIME_TAG 01c0c0eb1a66681c216af7a7c6b0470c769fe11d)
+set(UNIFIED_RUNTIME_TAG 38da1bd8c0262eeabbea24e74536af4ab13ec0e3)
