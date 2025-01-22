@@ -45,11 +45,11 @@ def aggregate_median(runner: str, benchmark: str, cutoff: str):
 
 	def csv_samples() -> list[str]:
 		# TODO check that the path below is valid directory
-		with Path(f"{common.PERF_RES_PATH}/{runner}/{benchmark}") as cache_dir:
-			# TODO check for time range; What time range do I want?
-			return filter(lambda f: f.is_file() and
-						  common.valid_timestamp(str(f)[-19:-4]) and str(f)[-19:-4] > cutoff,
-						  cache_dir.glob(f"{benchmark}-*_*.csv"))
+		cache_dir = Path(f"{common.PERF_RES_PATH}/{runner}/{benchmark}")
+		# TODO check for time range; What time range do I want?
+		return filter(lambda f: f.is_file() and
+						common.valid_timestamp(str(f)[-19:-4]) and str(f)[-19:-4] > cutoff,
+						cache_dir.glob(f"{benchmark}-*_*.csv"))
 	
 	# Calculate median of every desired metric:
 	aggregate_s = dict()

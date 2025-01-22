@@ -56,6 +56,6 @@ def load_configs():
 def valid_timestamp(timestamp: str) -> bool:
     timestamp_re = re.compile(
         # YYYYMMDD_HHMMSS
-        '^\d{4}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])[0-5][0-9][0-5][0-9]$'
+        r'^\d{4}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])[0-5][0-9][0-5][0-9]$'
     )
     return timestamp_re.match(timestamp) is not None
