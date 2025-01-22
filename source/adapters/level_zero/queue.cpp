@@ -2293,6 +2293,10 @@ ur_result_t ur_queue_handle_t_::createCommandList(
     IsInOrderList = true;
   }
 
+  logger::debug(
+      "create command list ordinal: {}, type: regular, device: {}, inOrder: {}",
+      QueueGroupOrdinal, Device->ZeDevice, IsInOrderList);
+
   ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
                                    &ZeCommandListDesc, &ZeCommandList));
 
@@ -2459,6 +2463,10 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
                   "(round robin in [{}, {}]) priority = {}",
                   ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
                   LowerIndex, UpperIndex, Priority);
+    logger::debug("create command list ordinal: {}, type: immediate, device: "
+                  "{}, inOrder: {}",
+                  ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice,
+                  isInOrderList);
 
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,

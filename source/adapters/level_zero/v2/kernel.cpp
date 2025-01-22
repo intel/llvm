@@ -287,8 +287,12 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
              (hZeKernel, groupSizeX, groupSizeY, groupSizeZ));
 
   for (auto &pending : pending_allocations) {
-    auto zePtr = pending.hMem->getDevicePtr(hDevice, pending.mode, 0,
-                                            pending.hMem->getSize(), migrate);
+    void *zePtr = nullptr;
+    if (pending.hMem) {
+      // NULL is a valid value
+      zePtr = pending.hMem->getDevicePtr(hDevice, pending.mode, 0,
+                                         pending.hMem->getSize(), migrate);
+    }
     UR_CALL(setArgPointer(pending.argIndex, nullptr, zePtr));
   }
   pending_allocations.clear();
