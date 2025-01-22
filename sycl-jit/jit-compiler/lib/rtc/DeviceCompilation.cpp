@@ -247,6 +247,9 @@ Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
   // linking).
   DAL.eraseArg(OPT_fsycl_device_lib_EQ);
   DAL.eraseArg(OPT_fno_sycl_device_lib_EQ);
+  DAL.eraseArg(OPT_ftime_trace_EQ);
+  DAL.eraseArg(OPT_ftime_trace_granularity_EQ);
+  DAL.eraseArg(OPT_ftime_trace_verbose);
 
   SmallVector<std::string> CommandLine;
   for (auto *Arg : DAL) {
@@ -386,6 +389,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList,
                                         std::string &BuildLog) {
   TimeTraceScope TTS{"linkDeviceLibraries"};
+
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
     return createStringError("Could not locate DPCPP root directory");
@@ -462,11 +466,11 @@ static IRSplitMode getDeviceCodeSplitMode(const InputArgList &UserArgList) {
 Expected<PostLinkResult>
 jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
                               const InputArgList &UserArgList) {
+  TimeTraceScope TTS{"performPostLink"};
+
   // This is a simplified version of `processInputModule` in
   // `llvm/tools/sycl-post-link.cpp`. Assertions/TODOs point to functionality
   // left out of the algorithm for now.
-
-  TimeTraceScope TTS{"performPostLink"};
 
   const auto SplitMode = getDeviceCodeSplitMode(UserArgList);
 

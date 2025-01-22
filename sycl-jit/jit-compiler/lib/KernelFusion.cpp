@@ -18,6 +18,7 @@
 #include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
 
+#include <llvm/ADT/StringExtras.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TimeProfiler.h>
 
@@ -242,6 +243,8 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
 extern "C" KF_EXPORT_SYMBOL RTCResult
 compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
             View<const char *> UserArgs) {
+  std::string BuildLog;
+
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
     return errorTo<RTCResult>(UserArgListOrErr.takeError(),
@@ -253,12 +256,21 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   if (auto *Arg =
           UserArgList.getLastArg(clang::driver::options::OPT_ftime_trace_EQ)) {
     TraceFileName = Arg->getValue();
-    llvm::timeTraceProfilerInitialize(
-        /*TimeTraceGranularity=*/100, /*ProcName=*/"clang",
-        /*TimeTraceVerbose=*/false);
-  }
+    int Granularity =
+        500; // microseconds. Same default as in `clang::FrontendOptions`.
+    if (auto *Arg = UserArgList.getLastArg(
+            clang::driver::options::OPT_ftime_trace_granularity_EQ)) {
+      if (!llvm::to_integer(Arg->getValue(), Granularity)) {
+        BuildLog += "warning: ignoring malformed argument: '" +
+                    Arg->getAsString(UserArgList) + "'\n";
+      }
+    }
+    bool Verbose =
+        UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_verbose);
 
-  std::string BuildLog;
+    llvm::timeTraceProfilerInitialize(Granularity, /*ProcName=*/"sycl-rtc",
+                                      Verbose);
+  }
 
   auto ModuleOrErr =
       compileDeviceCode(SourceFile, IncludeFiles, UserArgList, BuildLog);

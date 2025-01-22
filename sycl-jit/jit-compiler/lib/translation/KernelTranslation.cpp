@@ -227,6 +227,7 @@ llvm::Expected<RTCDevImgBinaryInfo>
 KernelTranslator::translateDevImgToSPIRV(llvm::Module &Mod,
                                          JITContext &JITCtx) {
   llvm::TimeTraceScope TTS{"translateDevImgToSPIRV"};
+
   llvm::Expected<KernelBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
   if (auto Error = BinaryOrError.takeError()) {
     return Error;
