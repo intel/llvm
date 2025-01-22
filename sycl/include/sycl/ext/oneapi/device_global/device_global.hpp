@@ -190,7 +190,8 @@ public:
 
 } // namespace detail
 
-template <typename T, typename PropertyListT = empty_properties_t, typename Cond = void>
+template <typename T, typename PropertyListT = empty_properties_t,
+          typename Cond = void>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     // FIXME: Temporary work-around. Remove when fixed.
