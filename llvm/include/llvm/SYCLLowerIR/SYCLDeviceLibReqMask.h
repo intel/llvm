@@ -39,5 +39,5 @@ enum class DeviceLibExt : std::uint32_t {
 };
 
 uint32_t getSYCLDeviceLibReqMask(const Module &M);
-
+bool isSYCLDeviceLibBF16Used(const Module &M);
 } // namespace llvm

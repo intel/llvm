@@ -10998,6 +10998,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                               const JobAction &JA,
                                               const llvm::opt::ArgList &TCArgs,
                                               ArgStringList &PostLinkArgs) {
+
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
@@ -11023,6 +11024,39 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
+
+  bool DeviceLibDisable = false;
+  Arg *DeviceLibArg = TCArgs.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                                        options::OPT_fno_sycl_device_lib_EQ);
+  if (DeviceLibArg &&
+      DeviceLibArg->getOption().matches(options::OPT_fno_sycl_device_lib_EQ)) {
+    for (StringRef Val : DeviceLibArg->getValues()) {
+      if (Val == "all") {
+        DeviceLibDisable = true;
+        break;
+      }
+    }
+  }
+
+  // Fallback spv is NOT involved in AOT compilation or
+  // '-fno-sycl-device-lib=all' is applied by user explicitly.
+  if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT() &&
+      !DeviceLibDisable) {
+    SYCLInstallationDetector SYCLInstall(TC.getDriver());
+    SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
+    SmallString<128> NativeBfloat16Name("libsycl-native-bfloat16.bc");
+    SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
+    for (const auto &DeviceLibLoc : DeviceLibLocCandidates) {
+      SmallString<128> FullLibName(DeviceLibLoc);
+      llvm::sys::path::append(FullLibName, NativeBfloat16Name);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+        SYCLDeviceLibDir += DeviceLibLoc.str();
+        addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
+        break;
+      }
+    }
+  }
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,
