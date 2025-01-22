@@ -224,19 +224,6 @@ class
     __SYCL_HOST_NOT_SUPPORTED("get()")                                         \
     return *this->get_ptr();                                                   \
   }                                                                            \
-  T &get() noexcept {                                                          \
-    __SYCL_HOST_NOT_SUPPORTED("get()")                                         \
-    return *this->get_ptr();                                                   \
-  }                                                                            \
-  operator T &() noexcept {                                                    \
-    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")     \
-    return get();                                                              \
-  }                                                                            \
-  device_global &operator=(const T &newValue) noexcept {                       \
-    __SYCL_HOST_NOT_SUPPORTED("Assignment operator")                           \
-    *this->get_ptr() = newValue;                                               \
-    return *this;                                                              \
-  }                                                                            \
                                                                                \
   operator const T &() const noexcept {                                        \
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")     \
@@ -302,7 +289,7 @@ class
 
 public:
 #if !__cpp_consteval
-  static_assert(std::is_trivially_default_constructible_v<U>,
+  static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
 #endif // !__cpp_consteval
@@ -332,6 +319,20 @@ public:
 #endif // !__cpp_consteval
 
   DEVICE_GLOBAL_COMMON()
+
+  T &get() noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get()")
+    return *this->get_ptr();
+  }
+  operator T &() noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
+    return get();
+  }
+  device_global &operator=(const T &newValue) noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("Assignment operator")
+    *this->get_ptr() = newValue;
+    return *this;
+  }
 };
 
 } // namespace ext::oneapi::experimental

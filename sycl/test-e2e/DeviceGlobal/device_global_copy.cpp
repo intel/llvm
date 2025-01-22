@@ -40,7 +40,7 @@ int main() {
 
   int ReadVals[12] = {0, 0};
   {
-    sycl::buffer<int, 1> ReadValsBuff{ReadVals, 10};
+    sycl::buffer<int, 1> ReadValsBuff{ReadVals, 12};
 
     Q.submit([&](sycl::handler &CGH) {
        sycl::accessor ReadValsAcc{ReadValsBuff, CGH, sycl::write_only};
