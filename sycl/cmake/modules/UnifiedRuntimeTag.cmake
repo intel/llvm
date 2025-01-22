@@ -1,7 +1,7 @@
-# commit 222e4b1d51536bb38e03e2000a79679af0a44a6d
-# Merge: 30d183a0 28108a7e
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Fri Jan 17 10:28:34 2025 +0000
-#     Merge pull request #2561 from Bensuo/ben/cmd-buffer-l0-fence
-#     [L0][CMDBUF] Optimize fence/event waits during update
-set(UNIFIED_RUNTIME_TAG review/yang/fix_kernel_release)
+# commit f058cb230c65fe8094f74043d0c9afd5ba0e8325
+# Merge: 871061f1 3bf76246
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 21 15:49:41 2025 +0000
+#     Merge pull request #2593 from RossBrunton/ross/formatall
+#     Ensure all files are clang formatted
+set(UNIFIED_RUNTIME_TAG f058cb230c65fe8094f74043d0c9afd5ba0e8325)
