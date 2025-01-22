@@ -489,6 +489,16 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                   EventImpl);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
+        // connect returned event with dependent events
+        if (!isInOrder()) {
+          std::vector<EventImplPtr> ExpandedDepEventImplPtrs;
+          ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
+          for (const event &DepEvent : ExpandedDepEvents)
+            ExpandedDepEventImplPtrs.push_back(detail::getSyclObjImpl(DepEvent));
+
+          EventImpl->getPreparedDepsEvents() = ExpandedDepEventImplPtrs;
+          EventImpl->cleanDepEventsThroughOneLevel();
+        }
       }
 
       if (isInOrder()) {
