@@ -286,7 +286,7 @@ class
         T, detail::properties_t<Props...>,
         std::enable_if_t<detail::properties_t<Props...>::template has_property<
                              device_constant_key>(),
-                         class is_dev_const>>
+                         int>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
 public:
@@ -311,8 +311,7 @@ class
     device_global<
         T, detail::properties_t<Props...>,
         std::enable_if_t<!(detail::properties_t<Props...>::
-                               template has_property<device_constant_key>()),
-                         class is_not_dev_const>>
+                               template has_property<device_constant_key>())>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 public:
 #if !__cpp_consteval
