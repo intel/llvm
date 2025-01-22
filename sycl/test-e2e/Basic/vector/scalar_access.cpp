@@ -17,7 +17,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/stream.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 typedef float float4_t __attribute__((ext_vector_type(4)));
 

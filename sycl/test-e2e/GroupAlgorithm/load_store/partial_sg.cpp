@@ -3,6 +3,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <numeric>
 

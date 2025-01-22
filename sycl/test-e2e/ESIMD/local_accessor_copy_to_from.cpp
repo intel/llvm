@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
-//
+// XFAIL: igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16388
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
@@ -96,7 +97,8 @@ int main() {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
 
   bool passed = true;
   passed &= test<char, 1>(q);

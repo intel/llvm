@@ -6,6 +6,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/marray.hpp>
+#include <sycl/sub_group.hpp>
 
 static constexpr size_t NumElems = 5;
 static constexpr size_t NumWorkItems = 64;

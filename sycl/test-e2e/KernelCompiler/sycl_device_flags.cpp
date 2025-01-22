@@ -29,6 +29,7 @@
 // clang-format on
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 // TODO: remove SYCL_EXTERNAL once it is no longer needed.
