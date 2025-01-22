@@ -177,7 +177,7 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
               ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false),
               NFA,
           },
-          /* NameStr= */ Twine{NFA->getName()}, InsertBefore);
+          /* NameStr= */ Twine{NFA->getName()}, InsertBefore->getIterator());
       // Then create a bitcast to make sure the new pointer is the same type
       // as the old one. This will only ever be a `i8 addrspace(3)*` to `i32
       // addrspace(3)*` type of cast.
