@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Intel Corporation
+# Copyright (C) 2022-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -32,10 +32,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # Tagger: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-    # Date:   Fri Jan 10 13:30:49 2025 +0100
-    # 0.10.1 release
-    set(UMF_TAG v0.10.1)
+    # commit 6709535de92933d6bfc1e1d19a324f17afec3877
+    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
+    # Date:   Mon Jan 27 10:57:57 2025 +0100
+    # Merge pull request #1056 from lukaszstolarczuk/hwloc-revert-examples-win
+    set(UMF_TAG 6709535de92933d6bfc1e1d19a324f17afec3877)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
