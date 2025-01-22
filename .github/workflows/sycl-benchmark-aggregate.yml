@@ -50,7 +50,7 @@ jobs:
         load_single_config $CONFIG_FILE PERF_RES_PATH
         echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
         echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
-        echo "PERF_RES_PATH=$PERF_RES_PATH >> $GITHUB_ENV
+        echo "PERF_RES_PATH=$PERF_RES_PATH" >> $GITHUB_ENV
 
         # Determine a "cutoff timestamp" used by the aggregator script
         #
