@@ -440,7 +440,7 @@ inline ur_result_t mock_urVirtualMemReserve(void *pParams) {
 }
 
 inline ur_result_t mock_urKernelGetSubGroupInfo(void *pParams) {
-  auto params = reinterpret_cast<ur_kernel_get_group_info_params_t *>(pParams);
+  auto params = reinterpret_cast<ur_kernel_get_sub_group_info_params_t *>(pParams);
   switch (*params->ppropName) {
   case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE:
   case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {

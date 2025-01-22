@@ -13,6 +13,16 @@
 ??$create_sub_devices@$0BAIH@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@_KV?$allocator@_K@std@@@4@@Z
 ??$create_sub_devices@$0BAII@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
 ??$create_sub_devices@$0BAIJ@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
+??$ext_oneapi_get_info@Umax_work_group_size@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@@Z
+??$ext_oneapi_get_info@U?$max_work_item_sizes@$00@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$id@$00@12@Vqueue@12@@Z
+??$ext_oneapi_get_info@Umax_sub_group_size@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBAIVqueue@12@AEBV?$range@$01@12@@Z
+??$ext_oneapi_get_info@U?$max_work_item_sizes@$02@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$id@$02@12@Vqueue@12@@Z
+??$ext_oneapi_get_info@U?$max_work_item_sizes@$01@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$id@$01@12@Vqueue@12@@Z
+??$ext_oneapi_get_info@Umax_sub_group_size@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBAIVqueue@12@AEBV?$range@$00@12@@Z
+??$ext_oneapi_get_info@Unum_sub_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBAIVqueue@12@AEBV?$range@$01@12@@Z
+??$ext_oneapi_get_info@Unum_sub_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBAIVqueue@12@AEBV?$range@$00@12@@Z
+??$ext_oneapi_get_info@Umax_sub_group_size@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBAIVqueue@12@AEBV?$range@$02@12@@Z
+??$ext_oneapi_get_info@Unum_sub_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBAIVqueue@12@AEBV?$range@$02@12@@Z
 ??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@@Z
 ??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$02@12@_K@Z
 ??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$00@12@_K@Z
