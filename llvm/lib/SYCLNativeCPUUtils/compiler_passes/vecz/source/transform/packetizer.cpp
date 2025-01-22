@@ -2642,12 +2642,14 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
         auto *gather =
             createGather(Ctx, packetVecTy, ptrPacket[i], maskPacket[i], EVL,
                          op.getAlignment(), name);
+        PACK_FAIL_IF(!gather);
         gather->insertBefore(op.getInstr()->getIterator());
         results.push_back(gather);
       } else {
         auto *scatter =
             createScatter(Ctx, dataPacket[i], ptrPacket[i], maskPacket[i], EVL,
                           op.getAlignment(), name);
+        PACK_FAIL_IF(!scatter);
         scatter->insertBefore(op.getInstr()->getIterator());
         results.push_back(scatter);
       }
