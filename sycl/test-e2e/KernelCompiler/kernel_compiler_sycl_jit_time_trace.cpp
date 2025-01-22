@@ -45,12 +45,10 @@ int test_tracing() {
   // CHECK: {"traceEvents":
 
   std::string log;
-  auto props2 =
-      syclex::properties{syclex::build_options{std::vector<std::string>{
-                             "-ftime-trace=-",
-                             "-ftime-trace-granularity=invalid_int",
-                         }},
-                         syclex::save_log{&log}};
+  auto props2 = syclex::properties{
+      syclex::build_options{std::vector<std::string>{
+          "-ftime-trace=-", "-ftime-trace-granularity=invalid_int"}},
+      syclex::save_log{&log}};
   syclex::build(kbSrc, props2);
   std::cout << log << std::endl;
   // CHECK: {"traceEvents":
