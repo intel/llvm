@@ -110,8 +110,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         if len(supported_targets) <= 1:
             return supported_targets
+
         # Treat XFAIL as UNSUPPORTED if the test is to be compiled for multiple
         # triples.
+
         if "*" in test.xfails:
             return []
 
@@ -366,7 +368,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     code = lit.Test.XFAIL
             return code
 
-        if len(triples) == 1 and len(devices_for_test) == 0:
+        if len(triples) == 1 and test.config.test_mode == "build-only":
             result.code = map_result(test.config.available_features, result.code)
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
