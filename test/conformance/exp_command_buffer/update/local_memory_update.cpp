@@ -1180,15 +1180,6 @@ struct LocalMemoryUpdateTestOutOfOrder : LocalMemoryUpdateTestBaseOutOfOrder {
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
   }
 
-  void TearDown() override {
-    if (command_handle) {
-      EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(command_handle));
-    }
-
-    UUR_RETURN_ON_FATAL_FAILURE(
-        LocalMemoryUpdateTestBaseOutOfOrder::TearDown());
-  }
-
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 

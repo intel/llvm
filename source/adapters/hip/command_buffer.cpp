@@ -263,12 +263,6 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   if (hCommandBuffer->decrementReferenceCount() == 0) {
-    // Ref count has reached zero, release of created commands
-    // commands.
-    for (auto Command : hCommandBuffer->CommandHandles) {
-      delete Command;
-    }
-
     delete hCommandBuffer;
   }
   return UR_RESULT_SUCCESS;
@@ -374,17 +368,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       *pSyncPoint = SyncPoint;
     }
 
-    auto NewCommand = new ur_exp_command_buffer_command_handle_t_{
-        hCommandBuffer,      hKernel,        GraphNode,
-        NodeParams,          workDim,        pGlobalWorkOffset,
-        pGlobalWorkSize,     pLocalWorkSize, numKernelAlternatives,
-        phKernelAlternatives};
-
-    hCommandBuffer->CommandHandles.push_back(NewCommand);
+    auto NewCommand = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+        hCommandBuffer, hKernel, GraphNode, NodeParams, workDim,
+        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+        numKernelAlternatives, phKernelAlternatives);
 
     if (phCommand) {
-      *phCommand = NewCommand;
+      *phCommand = NewCommand.get();
     }
+
+    hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
 
   } catch (ur_result_t Err) {
     return Err;

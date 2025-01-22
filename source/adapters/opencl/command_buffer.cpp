@@ -86,10 +86,6 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   if (hCommandBuffer->decrementReferenceCount() == 0) {
-    for (auto Command : hCommandBuffer->CommandHandles) {
-      delete Command;
-    }
-
     delete hCommandBuffer;
   }
 
@@ -159,15 +155,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       pSyncPointWaitList, pSyncPoint, OutCommandHandle));
 
   try {
-    auto URCommandHandle =
-        std::make_unique<ur_exp_command_buffer_command_handle_t_>(
-            hCommandBuffer, CommandHandle, hKernel, workDim,
-            pLocalWorkSize != nullptr);
-    ur_exp_command_buffer_command_handle_t Handle = URCommandHandle.release();
-    hCommandBuffer->CommandHandles.push_back(Handle);
+    auto Handle = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
+        hCommandBuffer, CommandHandle, hKernel, workDim,
+        pLocalWorkSize != nullptr);
     if (phCommandHandle) {
-      *phCommandHandle = Handle;
+      *phCommandHandle = Handle.get();
     }
+
+    hCommandBuffer->CommandHandles.push_back(std::move(Handle));
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }

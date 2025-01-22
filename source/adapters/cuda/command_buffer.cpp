@@ -36,8 +36,8 @@ commandBufferDestroy(ur_exp_command_buffer_handle_t CommandBuffer) try {
   return Err;
 }
 
-ur_result_t
-commandHandleDestroy(ur_exp_command_buffer_command_handle_t Command) try {
+ur_result_t commandHandleDestroy(
+    std::unique_ptr<ur_exp_command_buffer_command_handle_t_> &Command) try {
   // We create the ur_event_t returned to the user for a signal node using
   // `makeWithNative` which sets `HasOwnership` to false. Therefore destruction
   // of the `ur_event_t` object doesn't free the underlying CuEvent_t object and
@@ -49,7 +49,6 @@ commandHandleDestroy(ur_exp_command_buffer_command_handle_t Command) try {
     UR_CHECK_ERROR(cuEventDestroy(SignalEvent));
   }
 
-  delete Command;
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -336,13 +335,14 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
   std::vector<CUgraphNode> WaitNodes =
       NumEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new T(CommandBuffer, GraphNode, SignalNode, WaitNodes,
-                          std::move(DecomposedNodes));
-  CommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<T>(CommandBuffer, GraphNode, SignalNode,
+                                        WaitNodes, std::move(DecomposedNodes));
   if (RetCommand) {
-    *RetCommand = NewCommand;
+    *RetCommand = NewCommand.get();
   }
+
+  CommandBuffer->CommandHandles.push_back(std::move(NewCommand));
+
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -384,7 +384,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   if (hCommandBuffer->decrementReferenceCount() == 0) {
     // Ref count has reached zero, release of created commands
-    for (auto Command : hCommandBuffer->CommandHandles) {
+    for (auto &Command : hCommandBuffer->CommandHandles) {
       commandHandleDestroy(Command);
     }
 
@@ -535,15 +535,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
     std::vector<CUgraphNode> WaitNodes =
         numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-    auto NewCommand = new kernel_command_handle(
+    auto NewCommand = std::make_unique<kernel_command_handle>(
         hCommandBuffer, hKernel, GraphNode, NodeParams, workDim,
         pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numKernelAlternatives, phKernelAlternatives, SignalNode, WaitNodes);
-    hCommandBuffer->CommandHandles.push_back(NewCommand);
 
     if (phCommand) {
-      *phCommand = NewCommand;
+      *phCommand = NewCommand.get();
     }
+
+    hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -591,13 +592,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new usm_memcpy_command_handle(hCommandBuffer, GraphNode,
-                                                  SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<usm_memcpy_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -656,13 +657,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_copy_command_handle(hCommandBuffer, GraphNode,
-                                                   SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
+  auto NewCommand = std::make_unique<buffer_copy_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
 
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -718,13 +720,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_copy_rect_command_handle(
+  auto NewCommand = std::make_unique<buffer_copy_rect_command_handle>(
       hCommandBuffer, GraphNode, SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
 
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -776,13 +779,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_write_command_handle(hCommandBuffer, GraphNode,
-                                                    SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<buffer_write_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -833,13 +836,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_read_command_handle(hCommandBuffer, GraphNode,
-                                                   SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<buffer_read_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -894,13 +897,14 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_write_rect_command_handle(
+  auto NewCommand = std::make_unique<buffer_write_rect_command_handle>(
       hCommandBuffer, GraphNode, SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
 
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -955,13 +959,14 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_read_rect_command_handle(
+  auto NewCommand = std::make_unique<buffer_read_rect_command_handle>(
       hCommandBuffer, GraphNode, SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
 
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -1008,13 +1013,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new usm_prefetch_command_handle(hCommandBuffer, GraphNode,
-                                                    SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
+  auto NewCommand = std::make_unique<usm_prefetch_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
 
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -1061,13 +1067,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new usm_advise_command_handle(hCommandBuffer, GraphNode,
-                                                  SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
+  auto NewCommand = std::make_unique<usm_advise_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
 
   if (phCommand) {
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
 
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {

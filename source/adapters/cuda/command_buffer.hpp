@@ -347,5 +347,6 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
 
   // Handles to individual commands in the command-buffer
-  std::vector<ur_exp_command_buffer_command_handle_t> CommandHandles;
+  std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
+      CommandHandles;
 };
