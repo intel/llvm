@@ -39,7 +39,15 @@ load_all_configs() {
 }
 
 # Sanitize + load a single configuration value
-# Usage: <config name>=$(load_single_config <config file> <config name>)
+# Usage: load_single_config <config file> <config name>
 load_single_config() {
-    _sanitize_configs "$(grep "^$2=" "$1" | sed "s/^$2=//")"
+    _val="$(_sanitize_configs "$(grep "^$2=" "$1" | sed "s/^$2=//")")"
+    export "$2=$_val"
 }
+
+# TODO: Do I want this?
+# # Print a single configuration value
+# # Usage: print_single_config <config file> <config name>
+# print_single_config() {
+#     _sanitize_configs "$(grep "^$2=" "$1" | sed "s/^$2=//")"
+# }

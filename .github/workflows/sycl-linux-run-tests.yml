@@ -513,9 +513,9 @@ jobs:
         # Load configuration values
         . "./devops/scripts/benchmarking/utils.sh"
         CONFIG_FILE="./devops/scripts/benchmarking/benchmark-ci.conf"
-        PERF_RES_PATH="$(load_single_config "$CONFIG_FILE" PERF_RES_PATH)"
-        PERF_RES_GIT_REPO="$(load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO)"
-        PERF_RES_BRANCH="$(load_single_config "$CONFIG_FILE" PERF_RES_BRANCH)"
+        load_single_config "$CONFIG_FILE" PERF_RES_PATH
+        load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO
+        load_single_config "$CONFIG_FILE" PERF_RES_BRANCH
 
         cd "$PERF_RES_PATH"
         git config user.name "SYCL Benchmarking Bot"
