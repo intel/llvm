@@ -49,7 +49,8 @@ struct ur_exp_command_buffer_handle_t_ {
   /// Set to true if the command-buffer has been finalized, false otherwise
   bool IsFinalized;
   /// List of commands in the command-buffer.
-  std::vector<ur_exp_command_buffer_command_handle_t> CommandHandles;
+  std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
+      CommandHandles;
   /// Object reference count
   std::atomic_uint32_t RefCount;
 

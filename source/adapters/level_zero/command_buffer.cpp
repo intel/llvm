@@ -466,10 +466,6 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
     ReleaseIndirectMem(AssociatedKernel);
     ur::level_zero::urKernelRelease(AssociatedKernel);
   }
-
-  for (auto Command : CommandHandles) {
-    delete Command;
-  }
 }
 
 void ur_exp_command_buffer_handle_t_::registerSyncPoint(
@@ -924,7 +920,7 @@ createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
                     ur_kernel_handle_t Kernel, uint32_t WorkDim,
                     const size_t *LocalWorkSize, uint32_t NumKernelAlternatives,
                     ur_kernel_handle_t *KernelAlternatives,
-                    ur_exp_command_buffer_command_handle_t &Command) {
+                    ur_exp_command_buffer_command_handle_t *Command) {
 
   assert(CommandBuffer->IsUpdatable);
 
@@ -992,16 +988,18 @@ createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
   DEBUG_LOG(CommandId);
 
   try {
-    Command = new kernel_command_handle(
+    auto NewCommand = std::make_unique<kernel_command_handle>(
         CommandBuffer, Kernel, CommandId, WorkDim, LocalWorkSize != nullptr,
         NumKernelAlternatives, KernelAlternatives);
+
+    *Command = NewCommand.get();
+
+    CommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-
-  CommandBuffer->CommandHandles.push_back(Command);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1070,7 +1068,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   if (Command) {
     UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, LocalWorkSize,
                                 NumKernelAlternatives, KernelAlternatives,
-                                *Command));
+                                Command));
   }
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
