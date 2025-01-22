@@ -37,6 +37,20 @@ jobs:
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
+  ubuntu2404_oneapi_build:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: oneapi
+      build_artifact_suffix: oneapi
+      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" --cmake-opt=-DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
+      cc: icx
+      cxx: icpx
+
+      artifact_archive_name: sycl_linux_oneapi.tar.zst
+
   ubuntu2204_test:
     needs: [ubuntu2204_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
@@ -102,6 +116,23 @@ jobs:
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+  ubuntu2404_oneapi_test:
+    needs: [ubuntu2404_oneapi_build]
+    if: ${{ always() && !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Intel PVC L0 oneAPI
+      runner: '["Linux", "pvc"]'
+      target_devices: level_zero:gpu
+      extra_lit_opts: -j 50
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      ref: ${{ github.sha }}
+      merge_ref: ''
+      sycl_toolchain_artifact: sycl_linux_oneapi
+      sycl_toolchain_archive: ${{ needs.ubuntu2404_oneapi_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2404_oneapi_build.outputs.artifact_decompress_command }}
 
   build-win:
     uses: ./.github/workflows/sycl-windows-build.yml
@@ -186,14 +217,12 @@ jobs:
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
-            tests_selector: cts
 
           - name: SYCL-CTS on L0 gen12
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            tests_selector: cts
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -202,9 +231,8 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      tests_selector: ${{ matrix.tests_selector }}
+      tests_selector: cts
       ref: ${{ github.sha }}
-      merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -245,7 +273,7 @@ jobs:
         body: "Daily build ${{ steps.tag.outputs.TAG }}"
         target_commitish: ${{ github.sha }}
 
-  ubuntu2204_docker_build_push:
+  docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: [Linux, build]
     permissions:
@@ -257,42 +285,16 @@ jobs:
       with:
         name: sycl_linux_default
         path: devops/
-    - name: Build and Push Container (with drivers)
+    - name: Build and Push Container
       uses: ./devops/actions/build_container
       with:
         push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
+        file: nightly
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
         build-args: |
           base_image=ghcr.io/intel/llvm/ubuntu2404_intel_drivers
-          base_tag=latest
+          base_tag=alldeps
         tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:latest
-    - name: Build and Push Container (no drivers)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_base
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
-    - name: Build and Push Container (Build image)
-      uses: ./devops/actions/build_container
-      with:
-        push: ${{ github.ref_name == 'sycl' }}
-        file: ubuntu2204_preinstalled
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        build-args: |
-          base_image=ghcr.io/intel/llvm/ubuntu2204_build
-          base_tag=latest
-        tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2404_nightly:${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2404_nightly:latest

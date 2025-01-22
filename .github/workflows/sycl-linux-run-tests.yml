@@ -127,12 +127,9 @@ on:
           - '["cts-cpu"]'
           - '["Linux", "build"]'
       image:
-        description: |
-          Use option ending with ":build" for AMDGPU, ":latest" for the rest.
         type: choice
         options:
-          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest'
-          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build'
+          - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
       image_options:
         description: |
           Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
@@ -222,7 +219,7 @@ jobs:
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
     - name: Checkout SYCL CTS tests
-      if: inputs.tests_selector == 'cts'
+      if: inputs.tests_selector == 'cts' && inputs.cts_testing_mode != 'run-only'
       uses: ./devops/actions/cached_checkout
       with:
         path: khronos_sycl_cts
@@ -231,7 +228,7 @@ jobs:
         default_branch: 'main'
         cache_path: "/__w/repo_cache/"
     - name: SYCL CTS GIT submodules init
-      if: inputs.tests_selector == 'cts'
+      if: inputs.tests_selector == 'cts' && inputs.cts_testing_mode != 'run-only'
       run: |
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
@@ -361,7 +358,9 @@ jobs:
         cts_exclude_filter=""
         # If CTS_TESTS_TO_BUILD is null - use filter
         if [ -z "$CTS_TESTS_TO_BUILD" ]; then
-          if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
+          if [ "${{ contains(inputs.cts_testing_mode, 'build-only')  }}" = "true" ]; then
+            cts_exclude_filter=$PWD/devops/cts_exclude_filter_compfails
+          elif [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
             cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
           elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
             cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU

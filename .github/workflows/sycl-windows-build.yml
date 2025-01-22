@@ -7,9 +7,6 @@ on:
         type: string
         required: false
         default: "default"
-      build_ref:
-        type: string
-        required: false
       build_configure_extra_args:
         type: string
         required: false
@@ -18,6 +15,15 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
+      ref:
+        type: string
+        required: False
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
+        type: string
+        default: 'FETCH_HEAD'
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.gz
@@ -99,7 +105,8 @@ jobs:
     - uses: ./devops/actions/cached_checkout
       with:
         path: src
-        ref: ${{ inputs.build_ref || github.sha }}
+        ref: ${{ inputs.ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Configure
       shell: cmd
@@ -142,7 +149,7 @@ jobs:
       shell: bash
       run: |
          if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_FILTER_OUT="host_tanpi_double_accuracy"
+           export LIT_XFAIL="regression\host_tanpi_double_accuracy.cpp"
          fi
          cmake --build build --target check-sycl
     - name: check-sycl-unittests

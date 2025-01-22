@@ -50,9 +50,6 @@ on:
         description: 'Artifacts retention period'
         type: string
         default: 3
-      ref:
-        type: string
-        required: false
 
     outputs:
       build_conclusion:
@@ -146,7 +143,6 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.ref || github.sha }}
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
@@ -156,11 +152,13 @@ jobs:
         ref: ${{ inputs.build_ref || github.sha }}
         merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
+    - name: Setup oneAPI env
+      if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
+      uses: ./devops/actions/setup_linux_oneapi_env
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
-        ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
         mkdir -p $CCACHE_DIR
@@ -168,7 +166,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults $ARGS \
+          --ci-defaults ${{ inputs.build_configure_extra_args }} \
           --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \

@@ -1,7 +1,7 @@
-# commit b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf
-# Merge: 3472b5bd ead3d07d
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 8 10:49:59 2025 +0000
-#     Merge pull request #2462 from Bensuo/cmd-buf_update_errors
-#     Improve specification of command-buffer update errors
-set(UNIFIED_RUNTIME_TAG b2ac58f27c63b8ff714e8b0c39b79aaab05a3faf)
+# commit f058cb230c65fe8094f74043d0c9afd5ba0e8325
+# Merge: 871061f1 3bf76246
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 21 15:49:41 2025 +0000
+#     Merge pull request #2593 from RossBrunton/ross/formatall
+#     Ensure all files are clang formatted
+set(UNIFIED_RUNTIME_TAG f058cb230c65fe8094f74043d0c9afd5ba0e8325)
