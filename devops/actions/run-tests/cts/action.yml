@@ -128,9 +128,6 @@ runs:
     if: (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
     env:
       ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
-    # This job takes ~100min usually. But sometimes some test isn't
-    # responding, so the job reaches the 360min limit. Setting a lower one.
-    timeout-minutes: 150
     # By-default GitHub actions execute the "run" shell script with -e option,
     # so the execution terminates if any command returns a non-zero status.
     # Since we're using a loop to run all test-binaries separately, some test
