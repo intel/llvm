@@ -98,18 +98,18 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
 
-    def select_triples_for_test(self, test):
-        supported_triples = set()
-        for t in test.config.sycl_triples:
+    def select_build_targets_for_test(self, test):
+        supported_targets = set()
+        for t in test.config.sycl_build_targets:
             features = test.config.available_features.union({t})
             if self.getMissingRequiredFeaturesFromList(features, test.requires, build_only_mode=True):
                 continue
             if self.getMatchedFromList(features, test.unsupported, build_only_mode=True):
                 continue
-            supported_triples.add(t)
+            supported_targets.add(t)
 
-        if len(supported_triples) <= 1:
-            return supported_triples
+        if len(supported_targets) <= 1:
+            return supported_targets
         # Treat XFAIL as UNSUPPORTED if the test is to be compiled for multiple
         # triples.
         if "*" in test.xfails:
@@ -117,7 +117,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         triples_without_xfail = [
             t
-            for t in supported_triples
+            for t in supported_targets
             if not self.getMatchedFromList(
                 test.config.available_features.union({t}), test.xfails
             )
@@ -184,12 +184,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
-            triples = self.select_triples_for_test(test)
-            if not triples:
+            build_targets = self.select_build_targets_for_test(test)
+            if not build_targets:
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "No supported triple to build for"
                 )
-            triples = set(map(lambda t: test.config.target_to_triple[t], triples))
+            triples = set(test.config.target_to_triple[t] for t in build_targets)
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:

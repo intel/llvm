@@ -31,7 +31,7 @@ config.igc_tag_file = os.path.join("/usr/local/lib/igc/", 'IGCTAG.txt')
 config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARGETS@").split(';')
 
 # FIXME: current test markup only supports spir in build-only
-config.sycl_triples = lit_config.params.get("sycl_triples", "spir").split(';')
+config.sycl_build_targets = lit_config.params.get("sycl_build_targets", "spir").split(';')
 
 config.amd_arch = lit_config.params.get("amd_arch", "@AMD_ARCH@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
