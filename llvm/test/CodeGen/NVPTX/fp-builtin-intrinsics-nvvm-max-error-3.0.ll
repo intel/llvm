@@ -15,7 +15,7 @@ entry:
 }
 
 ; CHECK-LABEL: @test_fdiv_fast
-; CHECK: %{{.*}} = call fast float @llvm.nvvm.div.approx.ftz.f(float %{{.*}}, float %{{.*}})
+; CHECK: %{{.*}} = call fast float @llvm.nvvm.div.approx.f(float %{{.*}}, float %{{.*}})
 ; CHECK: %{{.*}} = fdiv fast <2 x float> %{{.*}}, %{{.*}}
 define void @test_fdiv_fast(float %d1, <2 x float> %v2d1,
                             float %d2, <2 x float> %v2d2) {
@@ -49,16 +49,6 @@ define void @test_sqrt(float %d, <2 x float> %v2d, <4 x float> %v4d) {
 entry:
   %t0 = call float @llvm.fpbuiltin.sqrt.f32(float %d) #0
   %t1 = call <2 x float> @llvm.fpbuiltin.sqrt.v2f32(<2 x float> %v2d) #0
-  ret void
-}
-
-; CHECK-LABEL: @test_sqrt_fast
-; CHECK: %{{.*}} = call fast float @llvm.nvvm.sqrt.approx.ftz.f(float %{{.*}})
-; CHECK: %{{.*}} = call fast <2 x float> @llvm.sqrt.v2f32(<2 x float> %{{.*}})
-define void @test_sqrt_fast(float %d, <2 x float> %v2d, <4 x float> %v4d) {
-entry:
-  %t0 = call fast float @llvm.fpbuiltin.sqrt.f32(float %d) #0
-  %t1 = call fast <2 x float> @llvm.fpbuiltin.sqrt.v2f32(<2 x float> %v2d) #0
   ret void
 }
 

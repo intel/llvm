@@ -107,12 +107,12 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
   return true;
 }
 
-static bool replaceWithNVPTXCalls(FPBuiltinIntrinsic &BuiltinCall) {
+// This function lowers llvm.fpbuiltin. intrinsic functions with 3.0 max-error
+// attribute to the appropriate nvvm approximate intrinsics if it's possible.
+static bool replaceWithApproxNVPTXCalls(FPBuiltinIntrinsic &BuiltinCall) {
   IRBuilder<> IRBuilder(&BuiltinCall);
   SmallVector<Value *> Args(BuiltinCall.args());
   Value *Replacement = nullptr;
-  // To chose between ftz and non-ftz intrinsic.
-  FastMathFlags FMF = BuiltinCall.getFastMathFlags();
   auto *Type = BuiltinCall.getType();
   // For now only add lowering for fdiv and sqrt. Yet nvvm intrinsics have
   // approximate variants for sin, cos, exp2 and log2.
@@ -124,19 +124,14 @@ static bool replaceWithNVPTXCalls(FPBuiltinIntrinsic &BuiltinCall) {
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
       return replaceWithLLVMIR(BuiltinCall);
     Replacement =
-        IRBuilder.CreateIntrinsic(Type,
-                                  FMF.isFast()
-                                  ? Intrinsic::nvvm_div_approx_ftz_f
-                                  : Intrinsic::nvvm_div_approx_f, Args);
+        IRBuilder.CreateIntrinsic(Type, Intrinsic::nvvm_div_approx_f, Args);
     break;
   case Intrinsic::fpbuiltin_sqrt:
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
       return replaceWithLLVMIR(BuiltinCall);
     Replacement =
         IRBuilder.CreateIntrinsic(BuiltinCall.getType(),
-                                  FMF.isFast()
-                                  ? Intrinsic::nvvm_sqrt_approx_ftz_f
-                                  : Intrinsic::nvvm_sqrt_approx_f, Args);
+                                  Intrinsic::nvvm_sqrt_approx_f, Args);
     break;
   default:
     return false;
@@ -201,7 +196,7 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
   // Lets map them on NVPTX intrinsics. If no appropriate intrinsics are known
   // - skip to replaceWithAltMathFunction.
   if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() == 3.0) {
-    if (replaceWithNVPTXCalls(BuiltinCall))
+    if (replaceWithApproxNVPTXCalls(BuiltinCall))
       return true;
   }
 
