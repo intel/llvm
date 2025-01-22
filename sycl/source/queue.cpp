@@ -40,6 +40,15 @@ const std::shared_ptr<detail::queue_impl> &
 SubmissionInfo::SecondaryQueue() const {
   return impl->MSecondaryQueue;
 }
+
+ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
+  return impl->MEventMode;
+}
+
+const ext::oneapi::experimental::event_mode_enum &
+SubmissionInfo::EventMode() const {
+  return impl->MEventMode;
+}
 } // namespace detail
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
@@ -190,12 +199,12 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 /// TODO: Unused. Remove these when ABI-break window is open.
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
-  return submit_with_event_impl(CGH, {}, CodeLoc, true);
+  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, true);
 }
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc,
                          bool IsTopCodeLoc) {
-  return submit_with_event_impl(CGH, {}, CodeLoc, IsTopCodeLoc);
+  return submit_with_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
@@ -210,12 +219,12 @@ event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
 
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::code_location &CodeLoc) {
-  submit_without_event_impl(CGH, {}, CodeLoc, true);
+  submit_without_event_impl(std::move(CGH), {}, CodeLoc, true);
 }
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::code_location &CodeLoc,
                                       bool IsTopCodeLoc) {
-  submit_without_event_impl(CGH, {}, CodeLoc, IsTopCodeLoc);
+  submit_without_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl_and_postprocess(
@@ -223,14 +232,14 @@ event queue::submit_impl_and_postprocess(
     const detail::SubmitPostProcessF &PostProcess) {
   detail::SubmissionInfo SI{};
   SI.PostProcessorFunc() = std::move(PostProcess);
-  return submit_with_event_impl(CGH, SI, CodeLoc, true);
+  return submit_with_event_impl(std::move(CGH), SI, CodeLoc, true);
 }
 event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc) {
   detail::SubmissionInfo SI{};
   SI.PostProcessorFunc() = std::move(PostProcess);
-  return submit_with_event_impl(CGH, SI, CodeLoc, IsTopCodeLoc);
+  return submit_with_event_impl(std::move(CGH), SI, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl_and_postprocess(
@@ -279,7 +288,13 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
   assert(!QueueImpl->getCommandGraph() &&
          "Should not be called in on graph recording.");
 
-  return QueueImpl->getLastEvent();
+  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent();
+  if (LastEvent)
+    return *LastEvent;
+
+  // If there was no last event, we create an empty one.
+  return detail::createSyclObjFromImpl<event>(
+      std::make_shared<detail::event_impl>(std::nullopt));
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -397,16 +412,22 @@ bool queue::device_has(aspect Aspect) const {
 // TODO(#15184) Remove this function in the next ABI-breaking window.
 bool queue::ext_codeplay_supports_fusion() const { return false; }
 
-event queue::ext_oneapi_get_last_event() const {
+sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
   if (!is_in_order())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "ext_oneapi_get_last_event() can only be called on in-order queues.");
 
-  event LastEvent = impl->getLastEvent();
+  sycl::detail::optional<event> LastEvent = impl->getLastEvent();
+
+  // If there was no last event, the queue is yet to have any work submitted and
+  // we return a std::nullopt.
+  if (!LastEvent)
+    return std::nullopt;
+
   // If the last event was discarded or a NOP, we insert a marker to represent
   // an event at end.
-  auto LastEventImpl = detail::getSyclObjImpl(LastEvent);
+  auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
   if (LastEventImpl->isDiscarded() || LastEventImpl->isNOP())
     LastEvent =
         detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));

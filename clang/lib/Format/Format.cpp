@@ -839,6 +839,18 @@ template <> struct ScalarEnumerationTraits<FormatStyle::UseTabStyle> {
   }
 };
 
+template <>
+struct ScalarEnumerationTraits<
+    FormatStyle::WrapNamespaceBodyWithEmptyLinesStyle> {
+  static void
+  enumeration(IO &IO,
+              FormatStyle::WrapNamespaceBodyWithEmptyLinesStyle &Value) {
+    IO.enumCase(Value, "Never", FormatStyle::WNBWELS_Never);
+    IO.enumCase(Value, "Always", FormatStyle::WNBWELS_Always);
+    IO.enumCase(Value, "Leave", FormatStyle::WNBWELS_Leave);
+  }
+};
+
 template <> struct MappingTraits<FormatStyle> {
   static void mapping(IO &IO, FormatStyle &Style) {
     // When reading, read the language first, we need it for getPredefinedStyle.
@@ -975,6 +987,8 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.AllowShortLambdasOnASingleLine);
     IO.mapOptional("AllowShortLoopsOnASingleLine",
                    Style.AllowShortLoopsOnASingleLine);
+    IO.mapOptional("AllowShortNamespacesOnASingleLine",
+                   Style.AllowShortNamespacesOnASingleLine);
     IO.mapOptional("AlwaysBreakAfterDefinitionReturnType",
                    Style.AlwaysBreakAfterDefinitionReturnType);
     IO.mapOptional("AlwaysBreakBeforeMultilineStrings",
@@ -1052,6 +1066,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("JavaScriptQuotes", Style.JavaScriptQuotes);
     IO.mapOptional("JavaScriptWrapImports", Style.JavaScriptWrapImports);
     IO.mapOptional("KeepEmptyLines", Style.KeepEmptyLines);
+    IO.mapOptional("KeepFormFeed", Style.KeepFormFeed);
     IO.mapOptional("LambdaBodyIndentation", Style.LambdaBodyIndentation);
     IO.mapOptional("LineEnding", Style.LineEnding);
     IO.mapOptional("MacroBlockBegin", Style.MacroBlockBegin);
@@ -1163,10 +1178,13 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("TypeNames", Style.TypeNames);
     IO.mapOptional("TypenameMacros", Style.TypenameMacros);
     IO.mapOptional("UseTab", Style.UseTab);
+    IO.mapOptional("VariableTemplates", Style.VariableTemplates);
     IO.mapOptional("VerilogBreakBetweenInstancePorts",
                    Style.VerilogBreakBetweenInstancePorts);
     IO.mapOptional("WhitespaceSensitiveMacros",
                    Style.WhitespaceSensitiveMacros);
+    IO.mapOptional("WrapNamespaceBodyWithEmptyLines",
+                   Style.WrapNamespaceBodyWithEmptyLines);
 
     // If AlwaysBreakAfterDefinitionReturnType was specified but
     // BreakAfterReturnType was not, initialize the latter from the former for
@@ -1479,6 +1497,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.AllowShortIfStatementsOnASingleLine = FormatStyle::SIS_Never;
   LLVMStyle.AllowShortLambdasOnASingleLine = FormatStyle::SLS_All;
   LLVMStyle.AllowShortLoopsOnASingleLine = false;
+  LLVMStyle.AllowShortNamespacesOnASingleLine = false;
   LLVMStyle.AlwaysBreakAfterDefinitionReturnType = FormatStyle::DRTBS_None;
   LLVMStyle.AlwaysBreakBeforeMultilineStrings = false;
   LLVMStyle.AttributeMacros.push_back("__capability");
@@ -1567,6 +1586,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
       /*AtStartOfBlock=*/true,
       /*AtStartOfFile=*/true,
   };
+  LLVMStyle.KeepFormFeed = false;
   LLVMStyle.LambdaBodyIndentation = FormatStyle::LBI_Signature;
   LLVMStyle.Language = Language;
   LLVMStyle.LineEnding = FormatStyle::LE_DeriveLF;
@@ -1633,6 +1653,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.WhitespaceSensitiveMacros.push_back("NS_SWIFT_NAME");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("PP_STRINGIZE");
   LLVMStyle.WhitespaceSensitiveMacros.push_back("STRINGIZE");
+  LLVMStyle.WrapNamespaceBodyWithEmptyLines = FormatStyle::WNBWELS_Leave;
 
   LLVMStyle.PenaltyBreakAssignment = prec::Assignment;
   LLVMStyle.PenaltyBreakBeforeFirstCallParameter = 19;
@@ -1927,6 +1948,7 @@ FormatStyle getGNUStyle() {
   Style.ColumnLimit = 79;
   Style.Cpp11BracedListStyle = false;
   Style.FixNamespaceComments = false;
+  Style.KeepFormFeed = true;
   Style.SpaceBeforeParens = FormatStyle::SBPO_Always;
   return Style;
 }
@@ -1968,6 +1990,7 @@ FormatStyle getClangFormatStyle() {
   Style.IntegerLiteralSeparator.DecimalMinDigits = 5;
   Style.LineEnding = FormatStyle::LE_LF;
   Style.RemoveBracesLLVM = true;
+  Style.RemoveEmptyLinesInUnwrappedLines = true;
   Style.RemoveParentheses = FormatStyle::RPS_ReturnStatement;
   Style.RemoveSemicolon = true;
   return Style;
@@ -2175,7 +2198,8 @@ private:
                     tooling::Replacements &Result) {
     const auto &SourceMgr = Env.getSourceManager();
     for (auto *Line : Lines) {
-      removeParens(Line->Children, Result);
+      if (!Line->Children.empty())
+        removeParens(Line->Children, Result);
       if (!Line->Affected)
         continue;
       for (const auto *Token = Line->First; Token && !Token->Finalized;
@@ -2220,7 +2244,8 @@ private:
     const auto &SourceMgr = Env.getSourceManager();
     int OpeningBraceSurplus = 0;
     for (AnnotatedLine *Line : Lines) {
-      insertBraces(Line->Children, Result);
+      if (!Line->Children.empty())
+        insertBraces(Line->Children, Result);
       if (!Line->Affected && OpeningBraceSurplus == 0)
         continue;
       for (FormatToken *Token = Line->First; Token && !Token->Finalized;
@@ -2271,20 +2296,21 @@ private:
   void removeBraces(SmallVectorImpl<AnnotatedLine *> &Lines,
                     tooling::Replacements &Result) {
     const auto &SourceMgr = Env.getSourceManager();
-    const auto End = Lines.end();
-    for (auto I = Lines.begin(); I != End; ++I) {
-      const auto Line = *I;
-      removeBraces(Line->Children, Result);
+    const auto *End = Lines.end();
+    for (const auto *I = Lines.begin(); I != End; ++I) {
+      const auto &Line = *I;
+      if (!Line->Children.empty())
+        removeBraces(Line->Children, Result);
       if (!Line->Affected)
         continue;
-      const auto NextLine = I + 1 == End ? nullptr : I[1];
-      for (auto Token = Line->First; Token && !Token->Finalized;
+      const auto *NextLine = I + 1 == End ? nullptr : I[1];
+      for (const auto *Token = Line->First; Token && !Token->Finalized;
            Token = Token->Next) {
         if (!Token->Optional)
           continue;
         if (!Token->isOneOf(tok::l_brace, tok::r_brace))
           continue;
-        auto Next = Token->Next;
+        auto *Next = Token->Next;
         assert(Next || Token == Line->Last);
         if (!Next && NextLine)
           Next = NextLine->First;
@@ -2295,7 +2321,7 @@ private:
         } else {
           Start = Token->WhitespaceRange.getBegin();
         }
-        const auto Range =
+        const auto &Range =
             CharSourceRange::getCharRange(Start, Token->Tok.getEndLoc());
         cantFail(Result.add(tooling::Replacement(SourceMgr, Range, "")));
       }
@@ -2330,21 +2356,22 @@ private:
       return LBrace && LBrace->is(TT_FunctionLBrace);
     };
     const auto &SourceMgr = Env.getSourceManager();
-    const auto End = Lines.end();
-    for (auto I = Lines.begin(); I != End; ++I) {
-      const auto Line = *I;
-      removeSemi(Annotator, Line->Children, Result);
+    const auto *End = Lines.end();
+    for (const auto *I = Lines.begin(); I != End; ++I) {
+      const auto &Line = *I;
+      if (!Line->Children.empty())
+        removeSemi(Annotator, Line->Children, Result);
       if (!Line->Affected)
         continue;
       Annotator.calculateFormattingInformation(*Line);
-      const auto NextLine = I + 1 == End ? nullptr : I[1];
-      for (auto Token = Line->First; Token && !Token->Finalized;
+      const auto *NextLine = I + 1 == End ? nullptr : I[1];
+      for (const auto *Token = Line->First; Token && !Token->Finalized;
            Token = Token->Next) {
         if (Token->isNot(tok::semi) ||
             (!Token->Optional && !PrecededByFunctionRBrace(*Token))) {
           continue;
         }
-        auto Next = Token->Next;
+        auto *Next = Token->Next;
         assert(Next || Token == Line->Last);
         if (!Next && NextLine)
           Next = NextLine->First;
@@ -2355,7 +2382,7 @@ private:
         } else {
           Start = Token->WhitespaceRange.getBegin();
         }
-        const auto Range =
+        const auto &Range =
             CharSourceRange::getCharRange(Start, Token->Tok.getEndLoc());
         cantFail(Result.add(tooling::Replacement(SourceMgr, Range, "")));
       }
@@ -3058,8 +3085,8 @@ static bool affectsRange(ArrayRef<tooling::Range> Ranges, unsigned Start,
 // its current line.
 // If `Cursor` is not on any #include, `Index` will be UINT_MAX.
 static std::pair<unsigned, unsigned>
-FindCursorIndex(const SmallVectorImpl<IncludeDirective> &Includes,
-                const SmallVectorImpl<unsigned> &Indices, unsigned Cursor) {
+FindCursorIndex(const ArrayRef<IncludeDirective> &Includes,
+                const ArrayRef<unsigned> &Indices, unsigned Cursor) {
   unsigned CursorIndex = UINT_MAX;
   unsigned OffsetToEOL = 0;
   for (int i = 0, e = Includes.size(); i != e; ++i) {
@@ -3108,7 +3135,7 @@ std::string replaceCRLF(const std::string &Code) {
 // provided and put on a deleted #include, it will be moved to the remaining
 // #include in the duplicate #includes.
 static void sortCppIncludes(const FormatStyle &Style,
-                            const SmallVectorImpl<IncludeDirective> &Includes,
+                            const ArrayRef<IncludeDirective> &Includes,
                             ArrayRef<tooling::Range> Ranges, StringRef FileName,
                             StringRef Code, tooling::Replacements &Replaces,
                             unsigned *Cursor) {
@@ -3238,8 +3265,15 @@ tooling::Replacements sortCppIncludes(const FormatStyle &Style, StringRef Code,
   SmallVector<StringRef, 2> RawStringMatches;
   std::string RawStringTermination = ")\"";
 
-  for (;;) {
-    auto Pos = Code.find('\n', SearchFrom);
+  for (const auto Size = Code.size(); SearchFrom < Size;) {
+    size_t Pos = SearchFrom;
+    if (Code[SearchFrom] != '\n') {
+      do { // Search for the first newline while skipping line splices.
+        ++Pos;
+        Pos = Code.find('\n', Pos);
+      } while (Pos != StringRef::npos && Code[Pos - 1] == '\\');
+    }
+
     StringRef Line =
         Code.substr(Prev, (Pos != StringRef::npos ? Pos : Code.size()) - Prev);
 
@@ -3344,7 +3378,7 @@ static unsigned findJavaImportGroup(const FormatStyle &Style,
 // import group, a newline is inserted, and within each import group, a
 // lexicographic sort based on ASCII value is performed.
 static void sortJavaImports(const FormatStyle &Style,
-                            const SmallVectorImpl<JavaImportDirective> &Imports,
+                            const ArrayRef<JavaImportDirective> &Imports,
                             ArrayRef<tooling::Range> Ranges, StringRef FileName,
                             StringRef Code, tooling::Replacements &Replaces) {
   unsigned ImportsBeginOffset = Imports.front().Offset;
@@ -3942,6 +3976,7 @@ static FormatStyle::LanguageKind getLanguageByFileName(StringRef FileName) {
     return FormatStyle::LK_Java;
   if (FileName.ends_with_insensitive(".js") ||
       FileName.ends_with_insensitive(".mjs") ||
+      FileName.ends_with_insensitive(".cjs") ||
       FileName.ends_with_insensitive(".ts")) {
     return FormatStyle::LK_JavaScript; // (module) JavaScript or TypeScript.
   }

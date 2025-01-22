@@ -5,9 +5,14 @@
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir env -u XDG_CACHE_HOME env -u HOME %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-BUILD
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir env -u XDG_CACHE_HOME env -u HOME %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-CACHE
 
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 // Test checks that persistent cache works correctly with multiple devices.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 

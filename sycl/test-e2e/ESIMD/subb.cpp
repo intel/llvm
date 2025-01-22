@@ -19,68 +19,99 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
-template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
+template <typename T, int N, bool AIsVector, bool BIsVector>
+bool test(sycl::queue Q) {
   static_assert(AIsVector || BIsVector || N == 1,
                 "(Scalar - Scalar) case must have N==1");
 
-  uint32_t ValuesToTryHost[] = {0,
-                                1,
-                                static_cast<uint32_t>(-1),
-                                0x7f,
-                                static_cast<uint32_t>(-0x7f),
-                                0x7fff,
-                                static_cast<uint32_t>(-0x7fff),
-                                0x7ffff,
-                                static_cast<uint32_t>(-0x7ffff),
-                                0x7ffffff,
-                                0x80,
-                                static_cast<uint32_t>(-0x80),
-                                0x8000,
-                                static_cast<uint32_t>(-0x8000),
-                                0x800000,
-                                static_cast<uint32_t>(-0x800000),
-                                0x80000000};
-  ;
-  uint32_t ValuesToTrySize = sizeof(ValuesToTryHost) / sizeof(uint32_t);
+  uint32_t ValuesToTryHost32[] = {0,
+                                  1,
+                                  static_cast<uint32_t>(-1),
+                                  0x7f,
+                                  static_cast<uint32_t>(-0x7f),
+                                  0x7fff,
+                                  static_cast<uint32_t>(-0x7fff),
+                                  0x7ffff,
+                                  static_cast<uint32_t>(-0x7ffff),
+                                  0x7ffffff,
+                                  0x80,
+                                  static_cast<uint32_t>(-0x80),
+                                  0x8000,
+                                  static_cast<uint32_t>(-0x8000),
+                                  0x800000,
+                                  static_cast<uint32_t>(-0x800000),
+                                  0x80000000};
 
-  std::cout << "Running case:  N=" << N << ", AIsVector=" << AIsVector
-            << ", BIsVector=" << BIsVector << std::endl;
+  uint64_t ValuesToTryHost64[] = {0,
+                                  1,
+                                  static_cast<uint64_t>(-1),
+                                  0x7f,
+                                  static_cast<uint64_t>(-0x7f),
+                                  0x7fff,
+                                  static_cast<uint64_t>(-0x7fff),
+                                  0x7ffff,
+                                  static_cast<uint64_t>(-0x7ffff),
+                                  0x7ffffff,
+                                  static_cast<uint64_t>(-0x7ffffff),
+                                  0x7ffffffff,
+                                  static_cast<uint64_t>(-0x7ffffffff),
+                                  0x80,
+                                  static_cast<uint64_t>(-0x80),
+                                  0x8000,
+                                  static_cast<uint64_t>(-0x8000),
+                                  0x800000,
+                                  static_cast<uint64_t>(-0x800000),
+                                  0x80000000,
+                                  static_cast<uint64_t>(-0x80000000),
+                                  0x8000000000,
+                                  static_cast<uint64_t>(-0x8000000000)};
 
-  auto ValuesToTryUPtr =
-      esimd_test::usm_malloc_shared<uint32_t>(Q, ValuesToTrySize);
-  uint32_t *ValuesToTryPtr = ValuesToTryUPtr.get();
-  memcpy(ValuesToTryPtr, ValuesToTryHost, ValuesToTrySize * sizeof(uint32_t));
+  uint32_t ValuesToTrySize = 0;
+  if constexpr (sizeof(T) == 4) {
+    ValuesToTrySize = sizeof(ValuesToTryHost32) / sizeof(T);
+  } else if constexpr (sizeof(T) == 8) {
+    ValuesToTrySize = sizeof(ValuesToTryHost64) / sizeof(T);
+  }
 
-  auto ResultsMatrixUPtr = esimd_test::usm_malloc_shared<uint32_t>(
+  std::cout << "Running case: T=" << esimd_test::type_name<T>() << " N = " << N
+            << ", AIsVector = " << AIsVector << ", BIsVector=" << BIsVector
+            << std::endl;
+
+  auto ValuesToTryUPtr = esimd_test::usm_malloc_shared<T>(Q, ValuesToTrySize);
+  T *ValuesToTryPtr = ValuesToTryUPtr.get();
+  if constexpr (sizeof(T) == 4) {
+    memcpy(ValuesToTryPtr, ValuesToTryHost32, ValuesToTrySize * sizeof(T));
+  } else if constexpr (sizeof(T) == 8) {
+    memcpy(ValuesToTryPtr, ValuesToTryHost64, ValuesToTrySize * sizeof(T));
+  }
+
+  auto ResultsMatrixUPtr = esimd_test::usm_malloc_shared<T>(
       Q, ValuesToTrySize * ValuesToTrySize * N);
-  auto BorrowMatrixUPtr = esimd_test::usm_malloc_shared<uint32_t>(
+  auto BorrowMatrixUPtr = esimd_test::usm_malloc_shared<T>(
       Q, ValuesToTrySize * ValuesToTrySize * N);
-  uint32_t *ResultsMatrixPtr = ResultsMatrixUPtr.get();
-  uint32_t *BorrowMatrixPtr = BorrowMatrixUPtr.get();
+  T *ResultsMatrixPtr = ResultsMatrixUPtr.get();
+  T *BorrowMatrixPtr = BorrowMatrixUPtr.get();
 
   try {
     Q.single_task([=]() SYCL_ESIMD_KERNEL {
-       simd<uint32_t, N> VecInc(0, 1);
+       simd<T, N> VecInc(0, 1);
        for (int AI = 0; AI < ValuesToTrySize; AI++) {
-         using AType =
-             std::conditional_t<AIsVector, simd<uint32_t, N>, uint32_t>;
-         uint32_t AScalar = simd<uint32_t, 1>(
-             reinterpret_cast<uint32_t *>(ValuesToTryPtr) + AI)[0];
+         using AType = std::conditional_t<AIsVector, simd<T, N>, T>;
+         T AScalar = simd<T, 1>(reinterpret_cast<T *>(ValuesToTryPtr) + AI)[0];
          AType A = AScalar;
          if constexpr (AIsVector)
            A += VecInc;
 
          for (int BI = 0; BI < ValuesToTrySize; BI++) {
-           using BType =
-               std::conditional_t<BIsVector, simd<uint32_t, N>, uint32_t>;
-           uint32_t BScalar = simd<uint32_t, 1>(
-               reinterpret_cast<uint32_t *>(ValuesToTryPtr) + BI)[0];
+           using BType = std::conditional_t<BIsVector, simd<T, N>, T>;
+           T BScalar =
+               simd<T, 1>(reinterpret_cast<T *>(ValuesToTryPtr) + BI)[0];
            BType B = BScalar;
            if constexpr (BIsVector)
              B += VecInc;
 
-           using ResType = std::conditional_t<AIsVector || BIsVector,
-                                              simd<uint32_t, N>, uint32_t>;
+           using ResType =
+               std::conditional_t<AIsVector || BIsVector, simd<T, N>, T>;
            ResType Borrow = 0;
            ResType Res = subb(Borrow, A, B);
 
@@ -88,35 +119,37 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
              Borrow.copy_to(BorrowMatrixPtr + (ValuesToTrySize * AI + BI) * N);
              Res.copy_to(ResultsMatrixPtr + (ValuesToTrySize * AI + BI) * N);
            } else {
-             simd<uint32_t, 1> Borrow1 = Borrow;
-             simd<uint32_t, 1> Res1 = Res;
+             simd<T, 1> Borrow1 = Borrow;
+             simd<T, 1> Res1 = Res;
              Borrow1.copy_to(BorrowMatrixPtr + (ValuesToTrySize * AI + BI) * N);
              Res1.copy_to(ResultsMatrixPtr + (ValuesToTrySize * AI + BI) * N);
            }
 
          } // end for BI
-       }   // end for AI
+       } // end for AI
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return 1;
+    return 0;
   }
 
-  using Result64T = uint64_t;
+  using ResultT = std::conditional_t<
+      2 * sizeof(T) == 8, uint64_t,
+      std::conditional_t<2 * sizeof(T) == 16, __uint128_t, T>>;
   int NumErrors = 0;
   for (int AI = 0; AI < ValuesToTrySize; AI++) {
     for (int BI = 0; BI < ValuesToTrySize; BI++) {
       for (int I = 0; I < N; I++) {
-        uint32_t A = ValuesToTryHost[AI];
+        T A = ValuesToTryPtr[AI];
         if constexpr (AIsVector)
           A += I;
-        uint32_t B = ValuesToTryHost[BI];
+        T B = ValuesToTryPtr[BI];
         if constexpr (BIsVector)
           B += I;
-        Result64T R = static_cast<uint32_t>(A);
-        R -= static_cast<uint32_t>(B);
+        ResultT R = static_cast<T>(A);
+        R -= static_cast<T>(B);
 
-        uint32_t ExpectedRes = R & 0xffffffff;
+        uint32_t ExpectedRes = R & ~(T)(0);
         uint32_t ExpectedBorrow = A < B;
         uint32_t ComputedRes =
             ResultsMatrixPtr[(AI * ValuesToTrySize + BI) * N + I];
@@ -127,7 +160,7 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
           std::cout << "Error for (" << AI << "," << BI << "): " << std::hex
                     << A << " - " << B << " is Computed(" << ComputedBorrow
                     << "," << ComputedRes << ") != Expected (" << ExpectedBorrow
-                    << "," << ExpectedRes << "), R = " << R << std::dec << "\n";
+                    << "," << ExpectedRes << ")" << std::dec << "\n";
           NumErrors++;
         }
       }
@@ -137,23 +170,30 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
   return NumErrors == 0;
 }
 
-int main() {
-  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-  auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>() << "\n";
-
+template <typename T> bool test(sycl::queue Q) {
   constexpr bool AIsVector = true;
   constexpr bool BIsVector = true;
   bool Pass = true;
-  Pass &= test<16, AIsVector, BIsVector>(Q);
-  Pass &= test<8, AIsVector, !BIsVector>(Q);
-  Pass &= test<4, !AIsVector, BIsVector>(Q);
+  Pass &= test<T, 16, AIsVector, BIsVector>(Q);
+  Pass &= test<T, 8, AIsVector, !BIsVector>(Q);
+  Pass &= test<T, 4, !AIsVector, BIsVector>(Q);
 
-  Pass &= test<1, AIsVector, BIsVector>(Q);
-  Pass &= test<1, AIsVector, !BIsVector>(Q);
-  Pass &= test<1, !AIsVector, BIsVector>(Q);
+  Pass &= test<T, 1, AIsVector, BIsVector>(Q);
+  Pass &= test<T, 1, AIsVector, !BIsVector>(Q);
+  Pass &= test<T, 1, !AIsVector, BIsVector>(Q);
 
-  Pass &= test<1, !AIsVector, !BIsVector>(Q);
+  Pass &= test<T, 1, !AIsVector, !BIsVector>(Q);
+  return Pass;
+}
+
+int main() {
+  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  auto D = Q.get_device();
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>() << "\n";
+
+  bool Pass = true;
+  Pass &= test<uint32_t>(Q);
+  Pass &= test<uint64_t>(Q);
 
   std::cout << (Pass > 0 ? "Passed\n" : "FAILED\n");
   return Pass ? 0 : 1;

@@ -23,9 +23,8 @@
 ; CHECK-SPIRV: Constant [[#IntTy]] [[#Const1:]] 1 
 ; CHECK-SPIRV: TypeUntypedPointerKHR [[#UntypedPtrTy:]] 7
 ; CHECK-SPIRV: TypeStruct [[#StructTy:]] [[#IntTy]] [[#IntTy]]
-; CHECK-SPIRV: TypePointer [[#PtrStructTy:]] 7 [[#StructTy]]
 
-; CHECK-SPIRV: Variable [[#PtrStructTy]] [[#StructVarId:]] 7
+; CHECK-SPIRV: UntypedVariableKHR [[#UntypedPtrTy]] [[#StructVarId:]] 7 [[#StructTy]]
 ; CHECK-SPIRV: UntypedInBoundsPtrAccessChainKHR [[#UntypedPtrTy]] [[#]] [[#StructTy]] [[#StructVarId]] [[#Const0]] [[#Const1]]
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

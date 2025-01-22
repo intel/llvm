@@ -409,7 +409,7 @@ private:
   std::pair<Constant *, Constant *>
   addStructArrayToModule(ArrayRef<Constant *> ArrayData, Type *ElemTy) {
 
-    auto *PtrTy = ElemTy->getPointerTo();
+    auto *PtrTy = llvm::PointerType::getUnqual(C);
 
     if (ArrayData.size() == 0) {
       auto *NullPtr = Constant::getNullValue(PtrTy);
@@ -917,8 +917,7 @@ private:
       PropRegistry = MySymPropReader->getPropRegistry();
     } else {
       if (PropRegistryFile.empty()) {
-        auto *NullPtr =
-            Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
+        auto *NullPtr = Constant::getNullValue(llvm::PointerType::getUnqual(C));
         return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
       }
       // load the property registry file

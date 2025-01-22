@@ -18,7 +18,7 @@ __kernel void test_legacy_atomics(__global int *p, int val) {
   atomic_add(p, val);   // from OpenCL C 1.1
 }
 
-// CHECK-SPIRV: EntryPoint [[#]] [[TEST:[0-9]+]] "test_legacy_atomics"
+// CHECK-SPIRV: Name [[TEST:[0-9]+]] "test_legacy_atomics"
 // CHECK-SPIRV-DAG: TypeInt [[UINT:[0-9]+]] 32 0
 // CHECK-SPIRV-TYPED-PTRS-DAG: TypePointer [[UINT_PTR:[0-9]+]] 5 [[UINT]]
 // CHECK-SPIRV-UNTYPED-PTRS-DAG: TypeUntypedPointerKHR [[UINT_PTR:[0-9]+]] 5

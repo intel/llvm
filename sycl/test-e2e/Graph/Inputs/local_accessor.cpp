@@ -10,20 +10,18 @@ int main() {
 
   const size_t LocalSize = 128;
 
-  std::vector<T> DataA(Size), DataB(Size), DataC(Size);
+  std::vector<T> HostData(Size);
 
-  std::iota(DataA.begin(), DataA.end(), 10);
-
-  std::vector<T> ReferenceA(DataA);
+  std::iota(HostData.begin(), HostData.end(), 10);
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   T *PtrA = malloc_device<T>(Size, Queue);
 
-  Queue.copy(DataA.data(), PtrA, Size);
+  Queue.copy(HostData.data(), PtrA, Size);
   Queue.wait_and_throw();
 
-  auto node = add_node(Graph, Queue, [&](handler &CGH) {
+  auto Node = add_node(Graph, Queue, [&](handler &CGH) {
     local_accessor<T, 1> LocalMem(LocalSize, CGH);
 
     CGH.parallel_for(nd_range({Size}, {LocalSize}), [=](nd_item<1> Item) {
@@ -40,14 +38,14 @@ int main() {
 
   Queue.wait_and_throw();
 
-  Queue.copy(PtrA, DataA.data(), Size);
+  Queue.copy(PtrA, HostData.data(), Size);
   Queue.wait_and_throw();
 
   free(PtrA, Queue);
 
   for (size_t i = 0; i < Size; i++) {
-    T Ref = 10 + i + (i * 2);
-    check_value(i, Ref, ReferenceA[i], "PtrA");
+    T Ref = 10 + i + (Iterations * (i * 2));
+    assert(check_value(i, Ref, HostData[i], "PtrA"));
   }
 
   return 0;

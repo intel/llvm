@@ -8,6 +8,9 @@
 // RUN: %{build} %O0 -o %t_O0.out
 // RUN: %{run} %t_O0.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+
 /*
     test performs a lattice reduction.
     sycl::vec<float> is sensitive to .get_size() vs .size() in SYCL headers

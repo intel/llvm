@@ -21,9 +21,8 @@
  */
 
 #include <clc/clc.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <libspirv/spirv.h>
 
 #define SMOOTH_STEP_DEF(edge_type, x_type, impl)                               \
   _CLC_OVERLOAD _CLC_DEF x_type smoothstep(edge_type edge0, edge_type edge1,   \

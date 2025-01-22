@@ -16,6 +16,7 @@
 #include <KernelFusion.h>
 #endif // SYCL_EXT_JIT_ENABLE
 
+#include <functional>
 #include <unordered_map>
 
 namespace jit_compiler {
@@ -23,9 +24,11 @@ enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
+struct RTCDevImgInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
+using RTCBundleInfo = DynArray<RTCDevImgInfo>;
 } // namespace jit_compiler
 
 namespace sycl {
@@ -44,8 +47,8 @@ public:
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
-  std::vector<uint8_t> compileSYCL(
-      const std::string &Id, const std::string &SYCLSource,
+  sycl_device_binaries compileSYCL(
+      const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
       const std::vector<std::string> &RegisteredKernelNames);
@@ -69,6 +72,10 @@ private:
   createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                        ::jit_compiler::BinaryFormat Format);
 
+  sycl_device_binaries
+  createDeviceBinaryImage(const ::jit_compiler::RTCBundleInfo &BundleInfo,
+                          const std::string &OffloadEntryPrefix);
+
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
 
@@ -76,7 +83,7 @@ private:
       const ::jit_compiler::SYCLKernelAttribute &Attr) const;
 
   // Indicate availability of the JIT compiler
-  bool Available;
+  bool Available = false;
 
   // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
@@ -94,6 +101,8 @@ private:
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
+  static std::function<void(void *)> CustomDeleterForLibHandle;
+  std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryHandle;
 #endif // SYCL_EXT_JIT_ENABLE
 };
 
