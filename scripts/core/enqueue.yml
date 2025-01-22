@@ -51,7 +51,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_KERNEL
@@ -96,7 +96,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -137,7 +137,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -190,7 +190,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -245,7 +245,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -316,7 +316,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -394,7 +394,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -454,7 +454,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -520,7 +520,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -581,7 +581,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -647,7 +647,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -708,7 +708,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -761,7 +761,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -819,7 +819,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -897,7 +897,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
     - type: void**
       name: ppRetMap
       desc: "[out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
@@ -969,7 +969,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1011,7 +1011,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1057,7 +1057,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1108,7 +1108,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1156,7 +1156,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1196,7 +1196,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
+            [out][optional][alloc] return an event object that identifies this particular command instance.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1245,7 +1245,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_SIZE:
       - "`pitch == 0`"
@@ -1309,7 +1309,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_SIZE:
       - "`srcPitch == 0`"
@@ -1368,7 +1368,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
@@ -1415,7 +1415,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
@@ -1462,7 +1462,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] returns an event object that identifies this read command
+            [out][optional][alloc] returns an event object that identifies this read command
             and can be used to query or queue a wait for this command to complete. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -1510,7 +1510,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] returns an event object that identifies this write command
+            [out][optional][alloc] returns an event object that identifies this write command
             and can be used to query or queue a wait for this command to complete. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:

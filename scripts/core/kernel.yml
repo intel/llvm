@@ -30,7 +30,7 @@ params:
       desc: "[in] pointer to null-terminated string."
     - type: $x_kernel_handle_t*
       name: phKernel
-      desc: "[out] pointer to handle of kernel object created."
+      desc: "[out][alloc] pointer to handle of kernel object created."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_NAME:
         - "If `pKernelName` wasn't found in `hProgram`."
@@ -551,7 +551,7 @@ params:
     - type: "$x_kernel_handle_t*"
       name: phKernel
       desc: |
-            [out] pointer to the handle of the kernel object created.
+            [out][alloc] pointer to the handle of the kernel object created.
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

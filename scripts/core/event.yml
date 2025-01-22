@@ -317,7 +317,7 @@ params:
     - type: "$x_event_handle_t*"
       name: phEvent
       desc: |
-            [out] pointer to the handle of the event object created.
+            [out][alloc] pointer to the handle of the event object created.
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

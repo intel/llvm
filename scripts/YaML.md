@@ -621,12 +621,13 @@ class ur_name_t(Structure):
       - `out` is used for params that are write-only; if the param is a pointer, then the memory being pointed to is also write-only
       - `in,out` is used for params that are both read and write; typically this is used for pointers to other data structures that contain both read and write params
       - `nocheck` is used to specify that no additional validation checks will be generated.
-    + `desc` may include one the following annotations: {`"[optional]"`, `"[range(start,end)]"`, `"[retain]"`, `"[release]"`, `"[typename(typeVarName)]"`, `"[bounds(offset,size)]"`}
+    + `desc` may include one or more of the following annotations: {`"[optional]"`, `"[range(start,end)]"`, `"[alloc]"`, `"[retain]"`, `"[release]"`, `"[typename(typeVarName)]"`, `"[bounds(offset,size)]"`}
       - `optional` is used for params that are handles or pointers where it is legal for the value to be `nullptr`
       - `range` is used for params that are array pointers to specify the valid range that the is valid to read
         + `start` and `end` must be an ISO-C standard identifier or literal
         + `start` is inclusive and `end` is exclusive
-      - `retain` is used for params that are handles or pointers to handles where the function will increment the reference counter associated with the handle(s).
+      - `alloc` is used for output params that are handles or pointers to handles where the function will either increase the reference count by one or create a new handle with an initial reference count of one.
+      - `retain` is used for params that are handles or pointers to handles where the function will increment the reference counter associated with the handle(s). The handle will not be created and must be valid.
       - `release` is used for params that are handles or pointers to handles where the function will decrement the handle's reference count, potentially leaving it in an invalid state if the reference count reaches zero.
       - `typename` is used to denote the type enum for params that are opaque pointers to values of tagged data types.
       - `bounds` is used for params that are memory objects or USM allocations. It specifies the range within the memory allocation represented by the param that will be accessed by the operation.

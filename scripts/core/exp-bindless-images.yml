@@ -429,7 +429,7 @@ params:
       desc: "[in] pointer to image description"
     - type: $x_exp_image_mem_native_handle_t*
       name: phImageMem
-      desc: "[out] pointer to handle of image memory allocated"
+      desc: "[out][alloc] pointer to handle of image memory allocated"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -484,7 +484,7 @@ params:
       desc: "[in] pointer to image description"
     - type: $x_exp_image_native_handle_t*
       name: phImage
-      desc: "[out] pointer to handle of image object created"
+      desc: "[out][alloc] pointer to handle of image object created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -522,7 +522,7 @@ params:
       desc: "[in] sampler to be used"
     - type: $x_exp_image_native_handle_t*
       name: phImage
-      desc: "[out] pointer to handle of image object created"
+      desc: "[out][alloc] pointer to handle of image object created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -583,7 +583,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -699,7 +699,7 @@ params:
       desc: "[in] the external memory descriptor"
     - type: $x_exp_external_mem_handle_t*
       name: phExternalMem
-      desc: "[out] external memory handle to the external memory"
+      desc: "[out][alloc] external memory handle to the external memory"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -812,7 +812,7 @@ params:
       desc: "[in] the external semaphore descriptor"
     - type: $x_exp_external_semaphore_handle_t*
       name: phExternalSemaphore
-      desc: "[out] external semaphore handle to the external semaphore"
+      desc: "[out][alloc] external semaphore handle to the external semaphore"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -872,7 +872,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -911,7 +911,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE

@@ -934,7 +934,7 @@ typedef enum ur_device_init_flag_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phLoaderConfig`
 UR_APIEXPORT ur_result_t UR_APICALL urLoaderConfigCreate(
-    /// [out] Pointer to handle of loader config object created.
+    /// [out][alloc] Pointer to handle of loader config object created.
     ur_loader_config_handle_t *phLoaderConfig);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1207,8 +1207,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
     /// will be returned.
     uint32_t NumEntries,
-    /// [out][optional][range(0, NumEntries)] array of handle of adapters.
-    /// If NumEntries is less than the number of adapters available, then
+    /// [out][optional][range(0, NumEntries)][alloc] array of handle of
+    /// adapters. If NumEntries is less than the number of adapters available,
+    /// then
     /// ::urAdapterGet shall only retrieve that number of adapters.
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
@@ -1639,7 +1640,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_adapter_handle_t hAdapter,
     /// [in][optional] pointer to native platform properties struct.
     const ur_platform_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the platform object created.
+    /// [out][alloc] pointer to the handle of the platform object created.
     ur_platform_handle_t *phPlatform);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1849,7 +1850,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
     /// Otherwise ::UR_RESULT_ERROR_INVALID_SIZE
     /// will be returned.
     uint32_t NumEntries,
-    /// [out][optional][range(0, NumEntries)] array of handle of devices.
+    /// [out][optional][range(0, NumEntries)][alloc] array of handle of devices.
     /// If NumEntries is less than the number of devices available, then
     /// platform shall only retrieve that number of devices.
     ur_device_handle_t *phDevices,
@@ -2725,7 +2726,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_adapter_handle_t hAdapter,
     /// [in][optional] pointer to native device properties struct.
     const ur_device_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the device object created.
+    /// [out][alloc] pointer to the handle of the device object created.
     ur_device_handle_t *phDevice);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2893,7 +2894,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     const ur_device_handle_t *phDevices,
     /// [in][optional] pointer to context creation properties.
     const ur_context_properties_t *pProperties,
-    /// [out] pointer to handle of context object created
+    /// [out][alloc] pointer to handle of context object created
     ur_context_handle_t *phContext);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3110,7 +3111,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     const ur_device_handle_t *phDevices,
     /// [in][optional] pointer to native context properties struct
     const ur_context_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the context object created.
+    /// [out][alloc] pointer to the handle of the context object created.
     ur_context_handle_t *phContext);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3432,7 +3433,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     const ur_image_desc_t *pImageDesc,
     /// [in][optional] pointer to the buffer data
     void *pHost,
-    /// [out] pointer to handle of image object created
+    /// [out][alloc] pointer to handle of image object created
     ur_mem_handle_t *phMem);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3537,7 +3538,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     size_t size,
     /// [in][optional] pointer to buffer creation properties
     const ur_buffer_properties_t *pProperties,
-    /// [out] pointer to handle of the memory buffer created
+    /// [out][alloc] pointer to handle of the memory buffer created
     ur_mem_handle_t *phBuffer);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3731,7 +3732,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native memory creation properties.
     const ur_mem_native_properties_t *pProperties,
-    /// [out] pointer to handle of buffer memory object created.
+    /// [out][alloc] pointer to handle of buffer memory object created.
     ur_mem_handle_t *phMem);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3766,7 +3767,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     const ur_image_desc_t *pImageDesc,
     /// [in][optional] pointer to native memory creation properties.
     const ur_mem_native_properties_t *pProperties,
-    /// [out] pointer to handle of image memory object created.
+    /// [out][alloc pointer to handle of image memory object created.
     ur_mem_handle_t *phMem);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3979,7 +3980,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
     ur_context_handle_t hContext,
     /// [in] pointer to the sampler description
     const ur_sampler_desc_t *pDesc,
-    /// [out] pointer to handle of sampler object created
+    /// [out][alloc] pointer to handle of sampler object created
     ur_sampler_handle_t *phSampler);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4138,7 +4139,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native sampler properties struct.
     const ur_sampler_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the sampler object created.
+    /// [out][alloc] pointer to the handle of the sampler object created.
     ur_sampler_handle_t *phSampler);
 
 #if !defined(__GNUC__)
@@ -4643,7 +4644,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
     /// [in] pointer to USM pool descriptor. Can be chained with
     /// ::ur_usm_pool_limits_desc_t
     ur_usm_pool_desc_t *pPoolDesc,
-    /// [out] pointer to USM memory pool
+    /// [out][alloc] pointer to USM memory pool
     ur_usm_pool_handle_t *ppPool);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5044,7 +5045,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
     size_t size,
     /// [in][optional] pointer to physical memory creation properties.
     const ur_physical_mem_properties_t *pProperties,
-    /// [out] pointer to handle of physical memory object created.
+    /// [out][alloc] pointer to handle of physical memory object created.
     ur_physical_mem_handle_t *phPhysicalMem);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5243,7 +5244,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     size_t length,
     /// [in][optional] pointer to program creation properties.
     const ur_program_properties_t *pProperties,
-    /// [out] pointer to handle of program object created.
+    /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5302,7 +5303,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     const uint8_t **ppBinaries,
     /// [in][optional] pointer to program creation properties.
     const ur_program_properties_t *pProperties,
-    /// [out] pointer to handle of Program object created.
+    /// [out][alloc] pointer to handle of Program object created.
     ur_program_handle_t *phProgram);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5417,7 +5418,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     const ur_program_handle_t *phPrograms,
     /// [in][optional] pointer to linker options null-terminated string.
     const char *pOptions,
-    /// [out] pointer to handle of program object created.
+    /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5853,7 +5854,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native program properties struct.
     const ur_program_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the program object created.
+    /// [out][alloc] pointer to the handle of the program object created.
     ur_program_handle_t *phProgram);
 
 #if !defined(__GNUC__)
@@ -5887,7 +5888,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
     ur_program_handle_t hProgram,
     /// [in] pointer to null-terminated string.
     const char *pKernelName,
-    /// [out] pointer to handle of kernel object created.
+    /// [out][alloc] pointer to handle of kernel object created.
     ur_kernel_handle_t *phKernel);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6535,7 +6536,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_program_handle_t hProgram,
     /// [in][optional] pointer to native kernel properties struct
     const ur_kernel_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the kernel object created.
+    /// [out][alloc] pointer to the handle of the kernel object created.
     ur_kernel_handle_t *phKernel);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6775,7 +6776,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_device_handle_t hDevice,
     /// [in][optional] pointer to queue creation properties.
     const ur_queue_properties_t *pProperties,
-    /// [out] pointer to handle of queue object created
+    /// [out][alloc] pointer to handle of queue object created
     ur_queue_handle_t *phQueue);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6926,7 +6927,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_device_handle_t hDevice,
     /// [in][optional] pointer to native queue properties struct
     const ur_queue_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the queue object created.
+    /// [out][alloc] pointer to the handle of the queue object created.
     ur_queue_handle_t *phQueue);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7350,7 +7351,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native event properties struct
     const ur_event_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the event object created.
+    /// [out][alloc] pointer to the handle of the event object created.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7486,9 +7487,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7533,9 +7535,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7582,9 +7584,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7641,9 +7643,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7700,9 +7702,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7786,9 +7788,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7873,9 +7875,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7928,9 +7930,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8005,9 +8007,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8066,9 +8068,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8131,9 +8133,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8196,9 +8198,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8253,9 +8255,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8348,9 +8350,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent,
     /// [out] return mapped pointer.  TODO: move it before
     /// numEventsInWaitList?
@@ -8399,9 +8401,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8452,9 +8454,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8502,9 +8504,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8556,9 +8558,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8598,8 +8600,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
     size_t size,
     /// [in] USM memory advice
     ur_usm_advice_flags_t advice,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8659,9 +8661,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8722,9 +8725,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8770,9 +8774,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8818,9 +8823,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8866,10 +8872,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] returns an event object that identifies this read
-    /// command and can be used to query or queue a wait for this command to
-    /// complete. If phEventWaitList and phEvent are not NULL, phEvent must not
-    /// refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] returns an event object that identifies this
+    /// read command
+    /// and can be used to query or queue a wait for this command to complete.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8916,10 +8923,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] returns an event object that identifies this write
-    /// command and can be used to query or queue a wait for this command to
-    /// complete. If phEventWaitList and phEvent are not NULL, phEvent must not
-    /// refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] returns an event object that identifies this
+    /// write command
+    /// and can be used to query or queue a wait for this command to complete.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -9313,7 +9321,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [out] pointer to handle of image memory allocated
+    /// [out][alloc] pointer to handle of image memory allocated
     ur_exp_image_mem_native_handle_t *phImageMem);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9378,7 +9386,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [out] pointer to handle of image object created
+    /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9422,7 +9430,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] sampler to be used
     ur_sampler_handle_t hSampler,
-    /// [out] pointer to handle of image object created
+    /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9489,9 +9497,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9619,7 +9627,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_exp_external_mem_type_t memHandleType,
     /// [in] the external memory descriptor
     ur_exp_external_mem_desc_t *pExternalMemDesc,
-    /// [out] external memory handle to the external memory
+    /// [out][alloc] external memory handle to the external memory
     ur_exp_external_mem_handle_t *phExternalMem);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9751,7 +9759,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_exp_external_semaphore_type_t semHandleType,
     /// [in] the external semaphore descriptor
     ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
-    /// [out] external semaphore handle to the external semaphore
+    /// [out][alloc] external semaphore handle to the external semaphore
     ur_exp_external_semaphore_handle_t *phExternalSemaphore);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9817,9 +9825,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9860,9 +9868,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -10119,7 +10127,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_device_handle_t hDevice,
     /// [in][optional] command-buffer descriptor.
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
-    /// [out] Pointer to command-Buffer handle.
+    /// [out][alloc] Pointer to command-Buffer handle.
     ur_exp_command_buffer_handle_t *phCommandBuffer);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10253,11 +10261,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command. Only available if the
+    /// [out][optional][alloc] Handle to this command. Only available if the
     /// command-buffer is updatable.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
@@ -10316,11 +10324,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10382,11 +10390,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10444,11 +10452,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10505,11 +10513,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10566,11 +10574,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10636,11 +10644,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10710,11 +10718,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10848,11 +10856,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10916,11 +10924,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10984,11 +10992,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11023,10 +11031,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
     /// events.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command-buffer execution instance. If phEventWaitList and phEvent are
-    /// not NULL, phEvent must not refer to an element of the phEventWaitList
-    /// array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command-buffer execution instance. If phEventWaitList and
+    /// phEvent are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11139,7 +11147,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
     /// [in] Handle of the command-buffer command to update.
     ur_exp_command_buffer_command_handle_t hCommand,
-    /// [out] Event to be signaled.
+    /// [out][alloc] Event to be signaled.
     ur_event_handle_t *phSignalEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11284,9 +11292,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11519,10 +11528,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     /// events that must be complete before the kernel execution. If nullptr,
     /// the numEventsInWaitList must be 0, indicating that no wait event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList
-    /// array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -11663,7 +11672,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     const ur_program_handle_t *phPrograms,
     /// [in][optional] pointer to linker options null-terminated string.
     const char *pOptions,
-    /// [out] pointer to handle of program object created.
+    /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram);
 
 #if !defined(__GNUC__)
@@ -11970,9 +11979,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -12059,7 +12068,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
     /// events.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies the work that has
+    /// [out][optional][alloc] return an event object that identifies the work
+    /// that has
     /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.

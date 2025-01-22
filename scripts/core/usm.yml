@@ -424,7 +424,7 @@ params:
       desc: "[in] pointer to USM pool descriptor. Can be chained with $x_usm_pool_limits_desc_t"
     - type: $x_usm_pool_handle_t*
       name: ppPool
-      desc: "[out] pointer to USM memory pool"
+      desc: "[out][alloc] pointer to USM memory pool"
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_VALUE
