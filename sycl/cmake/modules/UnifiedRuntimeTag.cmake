@@ -1,17 +1,7 @@
-# commit d49c8cd9e4b911444c9abc124a9e6fb0b097c074
-# Author: Przemek Malon <przemek.malon@codeplay.com>
-# Date:   Wed Jan 8 19:53:17 2025 +0000
-# Enable creation of images backed by host USM
-#
-#   Small patch to enable bindless images backed by host USM in the CUDA
-#   adapter.
-#
-#   Host and Device USM pointers are usable across the host and device
-#   for all versions of CUDA that we support. There is no need to provide
-#   the `CU_MEMHOSTALLOC_DEVICEMAP` flag during allocation, or calling
-#   `cuMemHostGetDevicePointer` to retrieve a device usable address.
-#
-#   Passing a `CU_MEMHOSTALLOC_WRITECOMBINED` flag to the host USM
-#   allocation will enhance performance in certain scenarios, however, an
-#   extension allowing this is not yet available.
-set(UNIFIED_RUNTIME_TAG d49c8cd9e4b911444c9abc124a9e6fb0b097c074)
+# commit 871061f1aa3b8ade57e0a2ed63d8000e257548cc
+# Merge: 262ec93e 7cca93f9
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Jan 21 13:26:45 2025 +0000
+#     Merge pull request #2588 from kbenzie/benie/ci-delete-prerelease
+#     Remove the prerelease.yml job
+set(UNIFIED_RUNTIME_TAG 871061f1aa3b8ade57e0a2ed63d8000e257548cc)
