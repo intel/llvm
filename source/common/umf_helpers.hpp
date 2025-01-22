@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023-2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions. See LICENSE.TXT
@@ -168,7 +168,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
   UMF_ASSIGN_OP(ops, T, get_recommended_page_size, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_min_page_size, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_name, "");
-  UMF_ASSIGN_OP(ops.ext, T, free, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP(ops, T, free, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops.ext, T, purge_lazy, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops.ext, T, purge_force, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops.ext, T, allocation_merge, UMF_RESULT_ERROR_UNKNOWN);
