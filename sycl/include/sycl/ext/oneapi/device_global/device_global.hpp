@@ -285,7 +285,7 @@ class
     return property_list_t::template get_property<propertyT>();                \
   }
 
-template <typename U, typename... Props>
+template <typename T, typename... Props>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
@@ -295,12 +295,10 @@ class
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::name..., sizeof(T),
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
-    device_global<const std::remove_const_t<U>, detail::properties_t<Props...>,
+    device_global<T, detail::properties_t<Props...>,
                   std::enable_if_t<detail::properties_t<
                       Props...>::template has_property<device_constant_key>()>>
-    : public detail::device_global_base<const std::remove_const_t<U>,
-                                        detail::properties_t<Props...>> {
-  using T = const std::remove_const_t<U>;
+    : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
 public:
 #if !__cpp_consteval
@@ -334,22 +332,6 @@ public:
 #endif // !__cpp_consteval
 
   DEVICE_GLOBAL_COMMON()
-
-  T &get() noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("get()")
-    return *this->get_ptr();
-  }
-
-  operator T &() noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
-    return get();
-  }
-
-  device_global &operator=(const T &newValue) noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Assignment operator")
-    *this->get_ptr() = newValue;
-    return *this;
-  }
 };
 
 } // namespace ext::oneapi::experimental
