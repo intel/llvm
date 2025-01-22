@@ -9,7 +9,7 @@ usage () {
   -t  Specify runner type -- Required
   -B  Path to clone and build compute-benchmarks on
   -p  Path to compute-benchmarks (or directory to build compute-benchmarks in)
-  -r  Git repo url to use for compute-benchmarks origin
+  -r  Github repo to use for compute-benchmarks origin, in format <org>/<name>
   -b  Git branch to use within compute-benchmarks
   -f  Compile flags passed into building compute-benchmarks
   -c  Clean up working directory
@@ -23,7 +23,7 @@ This script builds and runs benchmarks from compute-benchmarks."
 clone_perf_res() {
     echo "### Cloning llvm-ci-perf-res ($PERF_RES_GIT_REPO:$PERF_RES_BRANCH) ###"
     mkdir -p "$(dirname $PERF_RES_PATH)"
-    git clone -b $PERF_RES_BRANCH $PERF_RES_GIT_REPO $PERF_RES_PATH
+    git clone -b $PERF_RES_BRANCH https://github.com/$PERF_RES_GIT_REPO $PERF_RES_PATH
     [ "$?" -ne 0 ] && exit $? 
 }
 
@@ -31,7 +31,7 @@ clone_compute_bench() {
     echo "### Cloning compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
     mkdir -p "$(dirname $COMPUTE_BENCH_PATH)"
     git clone -b $COMPUTE_BENCH_BRANCH \
-              --recurse-submodules $COMPUTE_BENCH_GIT_REPO \
+              --recurse-submodules https://github.com/$COMPUTE_BENCH_GIT_REPO \
               $COMPUTE_BENCH_PATH
     [ "$?" -ne 0 ] && exit $? 
 }
@@ -176,10 +176,6 @@ cleanup() {
     [ ! -z "$_exit_after_cleanup" ] && exit
 }
 
-_sanitize_configs() {
-    echo "$1" | sed 's/[^a-zA-Z0-9_.,:/%-]//g'
-}
-
 load_configs() {
     # This script needs to know where the "BENCHMARKING_ROOT" directory is,
     # containing all the configuration files and the compare script.
@@ -200,30 +196,8 @@ load_configs() {
         fi
     done
 
-    # Strict loading of configuration options:
-    while IFS='=' read -r key value; do
-        sanitized_value=$(_sanitize_configs "$value")
-        case "$key" in
-            'PERF_RES_GIT_REPO') export PERF_RES_GIT_REPO="$sanitized_value" ;;
-            'PERF_RES_BRANCH') export PERF_RES_BRANCH="$sanitized_value" ;;
-            'PERF_RES_PATH') export PERF_RES_PATH="$sanitized_value" ;;
-            'COMPUTE_BENCH_GIT_REPO') export COMPUTE_BENCH_GIT_REPO="$sanitized_value" ;;
-            'COMPUTE_BENCH_BRANCH') export COMPUTE_BENCH_BRANCH="$sanitized_value" ;;
-            'COMPUTE_BENCH_PATH') export COMPUTE_BENCH_PATH="$sanitized_value" ;;
-            'COMPUTE_BENCH_COMPILE_FLAGS') export COMPUTE_BENCH_COMPILE_FLAGS="$sanitized_value" ;;
-            'COMPUTE_BENCH_ITERATIONS') export COMPUTE_BENCH_ITERATIONS="$sanitized_value" ;;
-            'OUTPUT_PATH') export OUTPUT_PATH="$sanitized_value" ;;
-            # 'METRICS_VARIANCE') export METRICS_VARIANCE="$sanitized_value" ;;
-            # 'METRICS_RECORDED') export METRICS_RECORDED="$sanitized_value" ;;
-            'AVERAGE_THRESHOLD') export AVERAGE_THRESHOLD="$sanitized_value" ;;
-            'AVERAGE_CUTOFF_RANGE') export AVERAGE_CUTOFF_RANGE="$sanitized_value" ;;
-            'TIMESTAMP_FORMAT') export TIMESTAMP_FORMAT="$sanitized_value" ;;
-            'BENCHMARK_SLOW_LOG') export BENCHMARK_SLOW_LOG="$sanitized_value" ;;
-            'BENCHMARK_ERROR_LOG') export BENCHMARK_ERROR_LOG="$sanitized_value" ;;
-            'RUNNER_TYPES') export RUNNER_TYPES="$sanitized_value" ;;
-            # *) echo "Unknown key: $sanitized_key" ;;
-        esac
-    done < "$BENCHMARK_CI_CONFIG"
+    . $BENCHMARKING_ROOT/utils.sh
+    load_all_configs "$BENCHMARK_CI_CONFIG"
 
     # Debug
     # echo "PERF_RES_GIT_REPO: $PERF_RES_GIT_REPO"
@@ -241,7 +215,7 @@ load_configs() {
     # echo "TIMESTAMP_FORMAT: $TIMESTAMP_FORMAT"
     # echo "BENCHMARK_SLOW_LOG: $BENCHMARK_SLOW_LOG"
     # echo "BENCHMARK_ERROR_LOG: $BENCHMARK_ERROR_LOG"
-	echo "RUNNER_TYPES: $RUNNER_TYPES"
+	echo "Configured runner types: $RUNNER_TYPES"
 }
 
 load_configs

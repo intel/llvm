@@ -40,15 +40,15 @@ jobs:
           devops/scripts/benchmarking
     - name: Load benchmarking configuration
       run: |
-        # Load default values from configuration file
-        #
-        # TODO isolate sanitation from benchmark.sh different script
-        # use sanitation here
+        CONFIG_FILE="$GITHUB_WORKSPACE/devops/scripts/benchmarking/benchmark-ci.conf"
 
-        . llvm/devops/scripts/benchmarking/benchmark-ci.conf;
-        echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
-        echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
-        echo "PERF_RES_PATH=$PERF_RES_PATH" >> $GITHUB_ENV
+        # Load default values from configuration file
+
+        . $GITHUB_WORKSPACE/devops/scripts/benchmarking/utils.sh
+        # utils.sh contains functions to sanitize config file settings
+        echo "PERF_RES_GIT_REPO=$(load_single_config $CONFIG_FILE PERF_RES_GIT_REPO)" >> $GITHUB_ENV
+        echo "PERF_RES_BRANCH=$(load_single_config $CONFIG_FILE PERF_RES_BRANCH)" >> $GITHUB_ENV
+        echo "PERF_RES_PATH=$(load_single_config $CONFIG_FILE PERF_RES_PATH)" >> $GITHUB_ENV
 
         # Determine a "cutoff timestamp" used by the aggregator script
         #
@@ -56,7 +56,10 @@ jobs:
         # measures of central tendency: Any files timestamped *before* this time
         # will be *excluded* from the central tendency calculation.
 
+        TIMESTAMP_FORMAT="$(load_single_config $CONFIG_FILE TIMESTAMP_FORMAT)"
+        echo "TIMESTAMP_FORMAT=$TIMESTAMP_FORMAT" >> $GITHUB_ENV
         if [ -z '${{ inputs.cutoff_timestamp }}' ]; then
+          AVERAGE_CUTOFF_RANGE="$(load_single_config $CONFIG_FILE AVERAGE_CUTOFF_RANGE)"
           # No time given, use default time period from config file
           echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" +"$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
         else
@@ -73,7 +76,7 @@ jobs:
         fi
     - name: Checkout historical performance results repository
       run: |
-        git clone -b $PERF_RES_BRANCH $PERF_RES_GIT_REPO $PERF_RES_PATH
+        git clone -b $PERF_RES_BRANCH https://github.com/$PERF_RES_GIT_REPO $PERF_RES_PATH
     - name: Run aggregator on historical results
       run: |
         # The current format of the historical results respository is:
@@ -95,5 +98,5 @@ jobs:
         git config --global user.name "SYCL Benchmarking Bot"
         git config --global user.email "sys_sycl_benchmarks@intel.com"
         git add .
-        git commit -m "[GHA] Aggregate median data from $CUTOFF_TIMESTAMP to $(date +%Y%m%d_%H%M%S)"
-        #git push https://$GITHUB_TOKEN@github.com/
+        git commit -m "[GHA] Aggregate median data from $CUTOFF_TIMESTAMP to $(date +"$TIMESTAMP_FORMAT")"
+        git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"

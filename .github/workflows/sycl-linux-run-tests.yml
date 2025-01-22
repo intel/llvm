@@ -509,10 +509,17 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       run: |
         # TODO -- waiting on security clearance
-        # TODO -- reload with loading from sanitized results after
-        cd llvm-ci-perf-res
+
+        # Load configuration values
+        . "./devops/scripts/benchmarking/utils.sh"
+        CONFIG_FILE="./devops/scripts/benchmarking/benchmark-ci.conf"
+        PERF_RES_PATH="$(load_single_config "$CONFIG_FILE" PERF_RES_PATH)"
+        PERF_RES_GIT_REPO="$(load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO)"
+        PERF_RES_BRANCH="$(load_single_config "$CONFIG_FILE" PERF_RES_BRANCH)"
+
+        cd "$PERF_RES_PATH"
         git config --global user.name "SYCL Benchmarking Bot"
         git config --global user.email "sys_sycl_benchmarks@intel.com"
         git add .
         git commit -m "[GHA] Upload compute-benchmarks results from ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        #git push https://$GITHUB_TOKEN@github.com/
+        git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
