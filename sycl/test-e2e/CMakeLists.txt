@@ -14,6 +14,12 @@ if(SYCL_TEST_E2E_STANDALONE)
   if( NOT OpenCL_LIBRARY )
     find_package(OpenCL)
   endif()
+else()
+  if( NOT OpenCL_LIBRARY )
+    set(OpenCL_LIBRARY "${LLVM_BINARY_DIR}/lib")
+  endif()
+  set(LEVEL_ZERO_INCLUDE "${LLVM_BINARY_DIR}/_deps/level-zero-loader-src/include")
+  set(LEVEL_ZERO_LIBS_DIR "${LLVM_BINARY_DIR}/lib")
 endif() # Standalone.
 
 if(SYCL_TEST_E2E_STANDALONE)
