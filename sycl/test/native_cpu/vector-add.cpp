@@ -15,6 +15,13 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -mllvm -sycl-native-cpu-vecz-width=4 %s -g -o %t-vec
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-vec
 
+// Ensure coverage options work in the compiler invocations.
+// For builds with asserts enabled we also need to pass the option
+// -mllvm -system-headers-coverage
+// We need to also check if clang-rt is built and then run the executable and
+// verify the (profiling) outputs.
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -fprofile-instr-generate -fcoverage-mapping -mllvm -system-headers-coverage -c -o %t
+
 #include <sycl/sycl.hpp>
 
 #include <array>

@@ -12,16 +12,33 @@
 #include "Kernel.h"
 #include "View.h"
 
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Option/ArgList.h>
 #include <llvm/Support/Error.h>
 
 #include <memory>
+#include <string>
 
 namespace jit_compiler {
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-                  View<const char *> UserArgs);
+                  const llvm::opt::InputArgList &UserArgList,
+                  std::string &BuildLog);
+
+llvm::Error linkDeviceLibraries(llvm::Module &Module,
+                                const llvm::opt::InputArgList &UserArgList,
+                                std::string &BuildLog);
+
+using PostLinkResult =
+    std::pair<RTCBundleInfo, llvm::SmallVector<std::unique_ptr<llvm::Module>>>;
+llvm::Expected<PostLinkResult>
+performPostLink(std::unique_ptr<llvm::Module> Module,
+                const llvm::opt::InputArgList &UserArgList);
+
+llvm::Expected<llvm::opt::InputArgList>
+parseUserArgs(View<const char *> UserArgs);
 
 } // namespace jit_compiler
 

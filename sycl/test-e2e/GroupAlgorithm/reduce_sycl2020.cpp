@@ -1,11 +1,10 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 
-// Disabled on PVC without igc-dev due to timeout.
-// https://github.com/intel/llvm/issues/14826
-// UNSUPPORTED: arch-intel_gpu_pvc && !igc-dev
-
 #include "support.h"
+
+#include <sycl/sub_group.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <complex>

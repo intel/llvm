@@ -145,10 +145,12 @@ static AssertHappened ExpectedToOutput = {
 };
 
 static constexpr int KernelLaunchCounterBase = 0;
-static int KernelLaunchCounter = KernelLaunchCounterBase;
 static constexpr int MemoryMapCounterBase = 1000;
 static int MemoryMapCounter = MemoryMapCounterBase;
+#ifndef _WIN32
+static int KernelLaunchCounter = KernelLaunchCounterBase;
 static constexpr int PauseWaitOnIdx = KernelLaunchCounterBase + 1;
+#endif
 
 // Mock redifinitions
 static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
@@ -167,6 +169,7 @@ static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+#ifndef _WIN32
 static ur_result_t redefinedEnqueueKernelLaunchAfter(void *pParams) {
   auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
   static ur_event_handle_t UserKernelEvent = **params.pphEvent;
@@ -197,6 +200,7 @@ static ur_result_t redefinedEventWaitPositive(void *pParams) {
   printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
   return UR_RESULT_SUCCESS;
 }
+#endif
 
 static ur_result_t redefinedEventWaitNegative(void *pParams) {
   auto params = *static_cast<ur_enqueue_events_wait_params_t *>(pParams);
@@ -223,6 +227,7 @@ static ur_result_t redefinedEnqueueMemBufferMapAfter(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+#ifndef _WIN32
 static void setupMock(sycl::unittest::UrMock<> &Mock) {
   using namespace sycl::detail;
   mock::getCallbacks().set_after_callback("urKernelGetGroupInfo",
@@ -234,6 +239,7 @@ static void setupMock(sycl::unittest::UrMock<> &Mock) {
   mock::getCallbacks().set_before_callback("urEventWait",
                                            &redefinedEventWaitPositive);
 }
+#endif
 
 namespace TestInteropKernel {
 const sycl::context *Context = nullptr;
@@ -315,6 +321,18 @@ static ur_result_t redefinedProgramGetInfo(void *pParams) {
       memcpy(*params.ppPropValue, &Dev, sizeof(Dev));
     if (*params.ppPropSizeRet)
       **params.ppPropSizeRet = sizeof(Dev);
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Required if program cache eviction is enabled.
+  if (UR_PROGRAM_INFO_BINARY_SIZES == *params.ppropName) {
+    size_t BinarySize = 1;
+
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &BinarySize, sizeof(size_t));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(size_t);
 
     return UR_RESULT_SUCCESS;
   }

@@ -2021,6 +2021,7 @@ public:
   ///
   /// If no module is given via \p M, it is take from the insertion point basic
   /// block.
+  LLVM_DEPRECATED("Use CreateGlobalString instead", "CreateGlobalString")
   Constant *CreateGlobalStringPtr(StringRef Str, const Twine &Name = "",
                                   unsigned AddressSpace = 0,
                                   Module *M = nullptr, bool AddNull = true) {
@@ -2130,20 +2131,21 @@ public:
     return CreateCast(Instruction::SIToFP, V, DestTy, Name);
   }
 
-  Value *CreateFPTrunc(Value *V, Type *DestTy,
-                       const Twine &Name = "") {
+  Value *CreateFPTrunc(Value *V, Type *DestTy, const Twine &Name = "",
+                       MDNode *FPMathTag = nullptr) {
     if (IsFPConstrained)
       return CreateConstrainedFPCast(
-          Intrinsic::experimental_constrained_fptrunc, V, DestTy, nullptr,
-          Name);
-    return CreateCast(Instruction::FPTrunc, V, DestTy, Name);
+          Intrinsic::experimental_constrained_fptrunc, V, DestTy, nullptr, Name,
+          FPMathTag);
+    return CreateCast(Instruction::FPTrunc, V, DestTy, Name, FPMathTag);
   }
 
-  Value *CreateFPExt(Value *V, Type *DestTy, const Twine &Name = "") {
+  Value *CreateFPExt(Value *V, Type *DestTy, const Twine &Name = "",
+                     MDNode *FPMathTag = nullptr) {
     if (IsFPConstrained)
       return CreateConstrainedFPCast(Intrinsic::experimental_constrained_fpext,
-                                     V, DestTy, nullptr, Name);
-    return CreateCast(Instruction::FPExt, V, DestTy, Name);
+                                     V, DestTy, nullptr, Name, FPMathTag);
+    return CreateCast(Instruction::FPExt, V, DestTy, Name, FPMathTag);
   }
 
   Value *CreatePtrToInt(Value *V, Type *DestTy,
@@ -2191,12 +2193,15 @@ public:
   }
 
   Value *CreateCast(Instruction::CastOps Op, Value *V, Type *DestTy,
-                    const Twine &Name = "") {
+                    const Twine &Name = "", MDNode *FPMathTag = nullptr) {
     if (V->getType() == DestTy)
       return V;
     if (Value *Folded = Folder.FoldCast(Op, V, DestTy))
       return Folded;
-    return Insert(CastInst::Create(Op, V, DestTy), Name);
+    Instruction *Cast = CastInst::Create(Op, V, DestTy);
+    if (isa<FPMathOperator>(Cast))
+      setFPAttrs(Cast, FPMathTag, FMF);
+    return Insert(Cast, Name);
   }
 
   Value *CreatePointerCast(Value *V, Type *DestTy,
@@ -2246,12 +2251,13 @@ public:
     return CreateBitCast(V, DestTy, Name);
   }
 
-  Value *CreateFPCast(Value *V, Type *DestTy, const Twine &Name = "") {
+  Value *CreateFPCast(Value *V, Type *DestTy, const Twine &Name = "",
+                      MDNode *FPMathTag = nullptr) {
     Instruction::CastOps CastOp =
         V->getType()->getScalarSizeInBits() > DestTy->getScalarSizeInBits()
             ? Instruction::FPTrunc
             : Instruction::FPExt;
-    return CreateCast(CastOp, V, DestTy, Name);
+    return CreateCast(CastOp, V, DestTy, Name, FPMathTag);
   }
 
   CallInst *CreateConstrainedFPCast(

@@ -747,11 +747,8 @@ inline constexpr auto decoration_space = Space;
 } // namespace detail
 
 // Legacy specialization of multi_ptr.
-// TODO: Add deprecation warning here when possible.
 template <typename ElementType, access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<ElementType, Space, access::decorated::legacy> {
+class multi_ptr<ElementType, Space, access::decorated::legacy> {
   static constexpr auto DecorationSpace = detail::decoration_space<Space>;
 
 public:
@@ -1101,11 +1098,8 @@ private:
 };
 
 // Legacy specialization of multi_ptr for void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<void, Space, access::decorated::legacy> {
+class multi_ptr<void, Space, access::decorated::legacy> {
   static constexpr auto DecorationSpace = detail::decoration_space<Space>;
 
 public:
@@ -1264,11 +1258,8 @@ private:
 };
 
 // Legacy specialization of multi_ptr for const void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<const void, Space, access::decorated::legacy> {
+class multi_ptr<const void, Space, access::decorated::legacy> {
   static constexpr auto DecorationSpace = detail::decoration_space<Space>;
 
 public:

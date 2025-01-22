@@ -222,6 +222,18 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE
       -Winstantiation-after-specialization)
   endif()
+
+  # When building using icx on Windows, the VERSION file
+  # produced by cmake is used in source code
+  # when including '<version>' because Windows is
+  # case-insensitive and icx adds the build directory
+  # to the system header search path.
+  if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
+    set(VERSION_FILE "${CMAKE_BINARY_DIR}/VERSION")
+    if(EXISTS ${VERSION_FILE})
+      file(REMOVE ${VERSION_FILE})
+    endif()
+  endif()
 endfunction(add_sycl_rt_library)
 
 set(SYCL_COMMON_SOURCES

@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-amd-gfx90a
-// RUN: %{build} -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx90a -o %t.out
+// REQUIRES: arch-amd_gpu_gfx90a
+// REQUIRES: build-and-run-mode
+// RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

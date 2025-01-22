@@ -1622,6 +1622,16 @@ private:
   SPIRVId Matrix;
 };
 
+class SPIRVSizeOfInstBase : public SPIRVInstTemplateBase {
+protected:
+  VersionNumber getRequiredSPIRVVersion() const override {
+    return VersionNumber::SPIRV_1_1;
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVSizeOfInstBase, OpSizeOf, true, 4, false>
+    SPIRVSizeOf;
+
 class SPIRVUnary : public SPIRVInstTemplateBase {
 protected:
   void validate() const override {
@@ -1727,6 +1737,16 @@ public:
            OpCode == OpUntypedInBoundsAccessChainKHR ||
            OpCode == OpUntypedPtrAccessChainKHR ||
            OpCode == OpUntypedInBoundsPtrAccessChainKHR;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    if (isUntyped())
+      return getVec(CapabilityUntypedPointersKHR);
+    return {};
+  }
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    if (isUntyped())
+      return ExtensionID::SPV_KHR_untyped_pointers;
+    return {};
   }
 };
 
@@ -2244,10 +2264,15 @@ protected:
   }
 
   void validate() const override {
-    assert((getValueType(Id) == getValueType(Source)) && "Inconsistent type");
-    assert(getValueType(Id)->isTypePointer() && "Invalid type");
-    assert(!(getValueType(Id)->getPointerElementType()->isTypeVoid()) &&
-           "Invalid type");
+    assert(getValueType(Target)->isTypePointer() && "Invalid Target type");
+    assert(getValueType(Source)->isTypePointer() && "Invalid Source type");
+    assert(!(getValueType(Target)->getPointerElementType()->isTypeVoid()) &&
+           "Invalid Target element type");
+    assert(!(getValueType(Source)->getPointerElementType()->isTypeVoid()) &&
+           "Invalid Source element type");
+    assert(getValueType(Target)->getPointerElementType() ==
+               getValueType(Source)->getPointerElementType() &&
+           "Mismatching Target and Source element types");
     SPIRVInstruction::validate();
   }
 
@@ -2922,6 +2947,24 @@ public:
     if (OpCode == OpAtomicCompareExchangeWeak)
       assert(this->getModule()->getSPIRVVersion() < VersionNumber::SPIRV_1_4 &&
              "OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4");
+  }
+
+  // This method is needed for correct translation of atomic instructions when
+  // SPV_KHR_untyped_pointers is enabled.
+  // The interpreted data type for untyped pointers is specified by the Result
+  // Type if it exists, or from the type of the object being stored in other
+  // case.
+  SPIRVType *getSemanticType() {
+    switch (OpCode) {
+    case OpAtomicStore:
+      // Get type of Value operand
+      return getOperand(3)->getType();
+    default: {
+      if (hasType())
+        return getType();
+      return nullptr;
+    }
+    }
   }
 };
 
@@ -3662,6 +3705,26 @@ _SPIRV_OP(CooperativeMatrixStoreChecked, false, 8, true, 8)
 _SPIRV_OP(CooperativeMatrixConstructChecked, true, 8)
 #undef _SPIRV_OP
 
+class SPIRVCooperativeMatrixOffsetInstructionsINTELInstBase
+    : public SPIRVInstTemplateBase {
+protected:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_joint_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityCooperativeMatrixOffsetInstructionsINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<                                                   \
+      SPIRVCooperativeMatrixOffsetInstructionsINTELInstBase,                   \
+      internal::Op##x##INTEL, __VA_ARGS__>                                     \
+      SPIRV##x##INTEL;
+_SPIRV_OP(CooperativeMatrixLoadOffset, true, 8, true, 5)
+_SPIRV_OP(CooperativeMatrixStoreOffset, false, 7, true, 6)
+#undef _SPIRV_OP
+
 class SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase
     : public SPIRVInstTemplateBase {
 protected:
@@ -4199,6 +4262,104 @@ _SPIRV_OP(ConvertHandleToImageINTEL)
 _SPIRV_OP(ConvertHandleToSamplerINTEL)
 _SPIRV_OP(ConvertHandleToSampledImageINTEL)
 #undef _SPIRV_OP
+
+class SPIRVUntypedPrefetchKHR : public SPIRVInstruction {
+public:
+  static const Op OC = OpUntypedPrefetchKHR;
+  static const SPIRVWord FixedWordCount = 3;
+
+  SPIRVUntypedPrefetchKHR(SPIRVType *Ty, std::vector<SPIRVWord> &TheArgs,
+                          SPIRVBasicBlock *BB)
+      : SPIRVInstruction(FixedWordCount, OC, BB) {
+    setHasNoId();
+    setHasNoType();
+    PtrTy = TheArgs[0];
+    NumBytes = TheArgs[1];
+    if (TheArgs.size() > 2)
+      RW.push_back(TheArgs[2]);
+    if (TheArgs.size() > 3)
+      Locality.push_back(TheArgs[3]);
+    if (TheArgs.size() > 4)
+      CacheTy.push_back(TheArgs[4]);
+    assert(BB && "Invalid BB");
+    validate();
+  }
+
+  SPIRVUntypedPrefetchKHR()
+      : SPIRVInstruction(OC), PtrTy(SPIRVID_INVALID),
+        NumBytes(SPIRVID_INVALID) {
+    setHasNoId();
+    setHasNoType();
+  }
+
+  void validate() const override {
+    SPIRVInstruction::validate();
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    std::string InstName = "OpUntypedPrefetchKHR";
+    SPVErrLog.checkError(getValueType(PtrTy)->isTypePointer(),
+                         SPIRVEC_InvalidInstruction,
+                         InstName + "\nFirst argument must be a pointer\n");
+    SPVErrLog.checkError(
+        getValueType(PtrTy)->getPointerStorageClass() ==
+            StorageClassCrossWorkgroup,
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nFirst argument must be a pointer in CrossWorkgroup "
+                   "storage class\n");
+    SPVErrLog.checkError(
+        getValueType(NumBytes)->isTypeInt(), SPIRVEC_InvalidInstruction,
+        InstName + "\nSecond argument (Num Bytes) must be an integer\n");
+    SPVErrLog.checkError(
+        RW.empty() || (RW.size() == 1 && getValueType(RW[0])->isTypeInt()),
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nThird argument (RW) must be an integer\n");
+    SPVErrLog.checkError(
+        Locality.empty() ||
+            (Locality.size() == 1 && getValueType(Locality[0])->isTypeInt()),
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nFourth argument (Locality) must be an integer\n");
+    SPVErrLog.checkError(
+        CacheTy.empty() ||
+            (CacheTy.size() == 1 && getValueType(CacheTy[0])->isTypeInt()),
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nFifth argument (Cache Type) must be an integer\n");
+  }
+
+  void setWordCount(SPIRVWord TheWordCount) override {
+    SPIRVEntry::setWordCount(TheWordCount);
+    if (TheWordCount > 3)
+      RW.resize(1);
+    if (TheWordCount > 4)
+      Locality.resize(1);
+    if (TheWordCount > 5)
+      CacheTy.resize(1);
+  }
+  const std::vector<SPIRVWord> getArguments() const {
+    std::vector<SPIRVWord> Args;
+    Args.push_back(PtrTy);
+    Args.push_back(NumBytes);
+    if (!RW.empty())
+      Args.push_back(RW[0]);
+    if (!Locality.empty())
+      Args.push_back(Locality[0]);
+    if (!CacheTy.empty())
+      Args.push_back(CacheTy[0]);
+    return Args;
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityUntypedPointersKHR);
+  }
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_untyped_pointers;
+  }
+  _SPIRV_DEF_ENCDEC5(PtrTy, NumBytes, RW, Locality, CacheTy)
+protected:
+  SPIRVId PtrTy;
+  SPIRVId NumBytes;
+  std::vector<SPIRVId> RW;
+  std::vector<SPIRVId> Locality;
+  std::vector<SPIRVId> CacheTy;
+};
 
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

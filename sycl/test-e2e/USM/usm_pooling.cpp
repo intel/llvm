@@ -1,8 +1,8 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
-// https://github.com/intel/llvm/issues/12397
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12397
 
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
@@ -88,11 +88,11 @@ int main(int argc, char *argv[]) {
   context C = Q.get_context();
 
   const char *devType = D.is_cpu() ? "CPU" : "GPU";
-  std::string pluginName =
+  std::string adapterName =
       D.get_platform().get_info<sycl::info::platform::name>();
   std::cout << "Running on device " << devType << " ("
-            << D.get_info<sycl::info::device::name>() << ") " << pluginName
-            << " plugin\n";
+            << D.get_info<sycl::info::device::name>() << ") " << adapterName
+            << " adapter\n";
 
   if (*argv[1] == 'h') {
     std::cerr << "Test zeMemAllocHost\n";

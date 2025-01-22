@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
@@ -55,38 +53,6 @@ class platform_impl;
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
-template <typename ParamT> auto convert_to_abi_neutral(ParamT &&Info) {
-  using ParamNoRef = std::remove_reference_t<ParamT>;
-  if constexpr (std::is_same_v<ParamNoRef, std::string>) {
-    return detail::string{Info};
-  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<std::string>>) {
-    std::vector<detail::string> Res;
-    Res.reserve(Info.size());
-    for (std::string &Str : Info) {
-      Res.push_back(detail::string{Str});
-    }
-    return Res;
-  } else {
-    return std::forward<ParamT>(Info);
-  }
-}
-
-template <typename ParamT> auto convert_from_abi_neutral(ParamT &&Info) {
-  using ParamNoRef = std::remove_reference_t<ParamT>;
-  if constexpr (std::is_same_v<ParamNoRef, detail::string>) {
-    return Info.c_str();
-  } else if constexpr (std::is_same_v<ParamNoRef,
-                                      std::vector<detail::string>>) {
-    std::vector<std::string> Res;
-    Res.reserve(Info.size());
-    for (detail::string &Str : Info) {
-      Res.push_back(Str.c_str());
-    }
-    return Res;
-  } else {
-    return std::forward<ParamT>(Info);
-  }
-}
 } // namespace detail
 namespace ext::oneapi {
 // Forward declaration
@@ -183,7 +149,12 @@ public:
   /// Queries this SYCL platform for SYCL backend-specific info.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<platform, Param>()
+#endif
+            >
   typename detail::is_backend_info_desc<Param>::return_type
   get_backend_info() const;
 
