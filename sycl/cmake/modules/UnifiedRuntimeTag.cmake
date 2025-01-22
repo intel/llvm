@@ -1,7 +1,17 @@
-# commit f058cb230c65fe8094f74043d0c9afd5ba0e8325
-# Merge: 871061f1 3bf76246
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 15:49:41 2025 +0000
-#     Merge pull request #2593 from RossBrunton/ross/formatall
-#     Ensure all files are clang formatted
-set(UNIFIED_RUNTIME_TAG f058cb230c65fe8094f74043d0c9afd5ba0e8325)
+# commit 01c0c0eb1a66681c216af7a7c6b0470c769fe11d
+# Author: Przemek Malon <przemek.malon@codeplay.com>
+# Date:   Wed Jan 8 19:53:17 2025 +0000
+# Enable creation of images backed by host USM
+#
+#   Small patch to enable bindless images backed by host USM in the CUDA
+#   adapter.
+#
+#   Host and Device USM pointers are usable across the host and device
+#   for all versions of CUDA that we support. There is no need to provide
+#   the `CU_MEMHOSTALLOC_DEVICEMAP` flag during allocation, or calling
+#   `cuMemHostGetDevicePointer` to retrieve a device usable address.
+#
+#   Passing a `CU_MEMHOSTALLOC_WRITECOMBINED` flag to the host USM
+#   allocation will enhance performance in certain scenarios, however, an
+#   extension allowing this is not yet available.
+set(UNIFIED_RUNTIME_TAG 01c0c0eb1a66681c216af7a7c6b0470c769fe11d)
