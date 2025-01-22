@@ -247,7 +247,7 @@ params:
       desc: "[in][optional] pointer to the buffer data"
     - type: $x_mem_handle_t*
       name: phMem
-      desc: "[out] pointer to handle of image object created"
+      desc: "[out][alloc] pointer to handle of image object created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -337,7 +337,7 @@ params:
       desc: "[in][optional] pointer to buffer creation properties"
     - type: $x_mem_handle_t*
       name: phBuffer
-      desc: "[out] pointer to handle of the memory buffer created"
+      desc: "[out][alloc] pointer to handle of the memory buffer created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -507,7 +507,7 @@ params:
       desc: "[in][optional] pointer to native memory creation properties."
     - type: $x_mem_handle_t*
       name: phMem
-      desc: "[out] pointer to handle of buffer memory object created."
+      desc: "[out][alloc] pointer to handle of buffer memory object created."
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."
@@ -540,7 +540,7 @@ params:
       desc: "[in][optional] pointer to native memory creation properties."
     - type: $x_mem_handle_t*
       name: phMem
-      desc: "[out] pointer to handle of image memory object created."
+      desc: "[out][alloc pointer to handle of image memory object created."
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

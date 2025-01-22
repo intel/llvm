@@ -136,7 +136,7 @@ params:
     - type: "$x_device_handle_t*"
       name: phDevices
       desc: |
-            [out][optional][range(0, NumEntries)] array of handle of devices.
+            [out][optional][range(0, NumEntries)][alloc] array of handle of devices.
             If NumEntries is less than the number of devices available, then platform shall only retrieve that number of devices.
     - type: "uint32_t*"
       name: pNumDevices
@@ -834,7 +834,7 @@ params:
       desc: "[in][optional] pointer to native device properties struct."
     - type: "$x_device_handle_t*"
       name: phDevice
-      desc: "[out] pointer to the handle of the device object created."
+      desc: "[out][alloc] pointer to the handle of the device object created."
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

@@ -34,7 +34,7 @@ params:
     - type: "$x_adapter_handle_t*"
       name: phAdapters
       desc: |
-            [out][optional][range(0, NumEntries)] array of handle of adapters.
+            [out][optional][range(0, NumEntries)][alloc] array of handle of adapters.
             If NumEntries is less than the number of adapters available, then $xAdapterGet shall only retrieve that number of adapters.
     - type: "uint32_t*"
       name: "pNumAdapters"

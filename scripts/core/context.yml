@@ -59,7 +59,7 @@ params:
             [in][optional] pointer to context creation properties.
     - type: $x_context_handle_t*
       name: phContext
-      desc: "[out] pointer to handle of context object created"
+      desc: "[out][alloc] pointer to handle of context object created"
 returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
@@ -243,7 +243,7 @@ params:
     - type: "$x_context_handle_t*"
       name: phContext
       desc: |
-            [out] pointer to the handle of the context object created.
+            [out][alloc] pointer to the handle of the context object created.
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

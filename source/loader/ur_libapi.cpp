@@ -27,7 +27,7 @@ extern "C" {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phLoaderConfig`
 ur_result_t UR_APICALL urLoaderConfigCreate(
-    /// [out] Pointer to handle of loader config object created.
+    /// [out][alloc] Pointer to handle of loader config object created.
     ur_loader_config_handle_t *phLoaderConfig) try {
   return ur_lib::urLoaderConfigCreate(phLoaderConfig);
 } catch (...) {
@@ -297,8 +297,9 @@ ur_result_t UR_APICALL urAdapterGet(
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
     /// will be returned.
     uint32_t NumEntries,
-    /// [out][optional][range(0, NumEntries)] array of handle of adapters.
-    /// If NumEntries is less than the number of adapters available, then
+    /// [out][optional][range(0, NumEntries)][alloc] array of handle of
+    /// adapters. If NumEntries is less than the number of adapters available,
+    /// then
     /// ::urAdapterGet shall only retrieve that number of adapters.
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
@@ -686,7 +687,7 @@ ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_adapter_handle_t hAdapter,
     /// [in][optional] pointer to native platform properties struct.
     const ur_platform_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the platform object created.
+    /// [out][alloc] pointer to the handle of the platform object created.
     ur_platform_handle_t *phPlatform) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Platform.pfnCreateWithNativeHandle;
@@ -784,7 +785,7 @@ ur_result_t UR_APICALL urDeviceGet(
     /// Otherwise ::UR_RESULT_ERROR_INVALID_SIZE
     /// will be returned.
     uint32_t NumEntries,
-    /// [out][optional][range(0, NumEntries)] array of handle of devices.
+    /// [out][optional][range(0, NumEntries)][alloc] array of handle of devices.
     /// If NumEntries is less than the number of devices available, then
     /// platform shall only retrieve that number of devices.
     ur_device_handle_t *phDevices,
@@ -1146,7 +1147,7 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_adapter_handle_t hAdapter,
     /// [in][optional] pointer to native device properties struct.
     const ur_device_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the device object created.
+    /// [out][alloc] pointer to the handle of the device object created.
     ur_device_handle_t *phDevice) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Device.pfnCreateWithNativeHandle;
@@ -1235,7 +1236,7 @@ ur_result_t UR_APICALL urContextCreate(
     const ur_device_handle_t *phDevices,
     /// [in][optional] pointer to context creation properties.
     const ur_context_properties_t *pProperties,
-    /// [out] pointer to handle of context object created
+    /// [out][alloc] pointer to handle of context object created
     ur_context_handle_t *phContext) try {
   auto pfnCreate = ur_lib::getContext()->urDdiTable.Context.pfnCreate;
   if (nullptr == pfnCreate)
@@ -1439,7 +1440,7 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     const ur_device_handle_t *phDevices,
     /// [in][optional] pointer to native context properties struct
     const ur_context_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the context object created.
+    /// [out][alloc] pointer to the handle of the context object created.
     ur_context_handle_t *phContext) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Context.pfnCreateWithNativeHandle;
@@ -1557,7 +1558,7 @@ ur_result_t UR_APICALL urMemImageCreate(
     const ur_image_desc_t *pImageDesc,
     /// [in][optional] pointer to the buffer data
     void *pHost,
-    /// [out] pointer to handle of image object created
+    /// [out][alloc] pointer to handle of image object created
     ur_mem_handle_t *phMem) try {
   auto pfnImageCreate = ur_lib::getContext()->urDdiTable.Mem.pfnImageCreate;
   if (nullptr == pfnImageCreate)
@@ -1615,7 +1616,7 @@ ur_result_t UR_APICALL urMemBufferCreate(
     size_t size,
     /// [in][optional] pointer to buffer creation properties
     const ur_buffer_properties_t *pProperties,
-    /// [out] pointer to handle of the memory buffer created
+    /// [out][alloc] pointer to handle of the memory buffer created
     ur_mem_handle_t *phBuffer) try {
   auto pfnBufferCreate = ur_lib::getContext()->urDdiTable.Mem.pfnBufferCreate;
   if (nullptr == pfnBufferCreate)
@@ -1811,7 +1812,7 @@ ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native memory creation properties.
     const ur_mem_native_properties_t *pProperties,
-    /// [out] pointer to handle of buffer memory object created.
+    /// [out][alloc] pointer to handle of buffer memory object created.
     ur_mem_handle_t *phMem) try {
   auto pfnBufferCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
@@ -1856,7 +1857,7 @@ ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     const ur_image_desc_t *pImageDesc,
     /// [in][optional] pointer to native memory creation properties.
     const ur_mem_native_properties_t *pProperties,
-    /// [out] pointer to handle of image memory object created.
+    /// [out][alloc pointer to handle of image memory object created.
     ur_mem_handle_t *phMem) try {
   auto pfnImageCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Mem.pfnImageCreateWithNativeHandle;
@@ -2018,7 +2019,7 @@ ur_result_t UR_APICALL urSamplerCreate(
     ur_context_handle_t hContext,
     /// [in] pointer to the sampler description
     const ur_sampler_desc_t *pDesc,
-    /// [out] pointer to handle of sampler object created
+    /// [out][alloc] pointer to handle of sampler object created
     ur_sampler_handle_t *phSampler) try {
   auto pfnCreate = ur_lib::getContext()->urDdiTable.Sampler.pfnCreate;
   if (nullptr == pfnCreate)
@@ -2203,7 +2204,7 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native sampler properties struct.
     const ur_sampler_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the sampler object created.
+    /// [out][alloc] pointer to the handle of the sampler object created.
     ur_sampler_handle_t *phSampler) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Sampler.pfnCreateWithNativeHandle;
@@ -2515,7 +2516,7 @@ ur_result_t UR_APICALL urUSMPoolCreate(
     /// [in] pointer to USM pool descriptor. Can be chained with
     /// ::ur_usm_pool_limits_desc_t
     ur_usm_pool_desc_t *pPoolDesc,
-    /// [out] pointer to USM memory pool
+    /// [out][alloc] pointer to USM memory pool
     ur_usm_pool_handle_t *ppPool) try {
   auto pfnPoolCreate = ur_lib::getContext()->urDdiTable.USM.pfnPoolCreate;
   if (nullptr == pfnPoolCreate)
@@ -2914,7 +2915,7 @@ ur_result_t UR_APICALL urPhysicalMemCreate(
     size_t size,
     /// [in][optional] pointer to physical memory creation properties.
     const ur_physical_mem_properties_t *pProperties,
-    /// [out] pointer to handle of physical memory object created.
+    /// [out][alloc] pointer to handle of physical memory object created.
     ur_physical_mem_handle_t *phPhysicalMem) try {
   auto pfnCreate = ur_lib::getContext()->urDdiTable.PhysicalMem.pfnCreate;
   if (nullptr == pfnCreate)
@@ -3047,7 +3048,7 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
     size_t length,
     /// [in][optional] pointer to program creation properties.
     const ur_program_properties_t *pProperties,
-    /// [out] pointer to handle of program object created.
+    /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram) try {
   auto pfnCreateWithIL =
       ur_lib::getContext()->urDdiTable.Program.pfnCreateWithIL;
@@ -3115,7 +3116,7 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
     const uint8_t **ppBinaries,
     /// [in][optional] pointer to program creation properties.
     const ur_program_properties_t *pProperties,
-    /// [out] pointer to handle of Program object created.
+    /// [out][alloc] pointer to handle of Program object created.
     ur_program_handle_t *phProgram) try {
   auto pfnCreateWithBinary =
       ur_lib::getContext()->urDdiTable.Program.pfnCreateWithBinary;
@@ -3256,7 +3257,7 @@ ur_result_t UR_APICALL urProgramLink(
     const ur_program_handle_t *phPrograms,
     /// [in][optional] pointer to linker options null-terminated string.
     const char *pOptions,
-    /// [out] pointer to handle of program object created.
+    /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram) try {
   if (nullptr != phProgram) {
     *phProgram = nullptr;
@@ -3659,7 +3660,7 @@ ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native program properties struct.
     const ur_program_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the program object created.
+    /// [out][alloc] pointer to the handle of the program object created.
     ur_program_handle_t *phProgram) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Program.pfnCreateWithNativeHandle;
@@ -3696,7 +3697,7 @@ ur_result_t UR_APICALL urKernelCreate(
     ur_program_handle_t hProgram,
     /// [in] pointer to null-terminated string.
     const char *pKernelName,
-    /// [out] pointer to handle of kernel object created.
+    /// [out][alloc] pointer to handle of kernel object created.
     ur_kernel_handle_t *phKernel) try {
   auto pfnCreate = ur_lib::getContext()->urDdiTable.Kernel.pfnCreate;
   if (nullptr == pfnCreate)
@@ -4268,7 +4269,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_program_handle_t hProgram,
     /// [in][optional] pointer to native kernel properties struct
     const ur_kernel_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the kernel object created.
+    /// [out][alloc] pointer to the handle of the kernel object created.
     ur_kernel_handle_t *phKernel) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Kernel.pfnCreateWithNativeHandle;
@@ -4424,7 +4425,7 @@ ur_result_t UR_APICALL urQueueCreate(
     ur_device_handle_t hDevice,
     /// [in][optional] pointer to queue creation properties.
     const ur_queue_properties_t *pProperties,
-    /// [out] pointer to handle of queue object created
+    /// [out][alloc] pointer to handle of queue object created
     ur_queue_handle_t *phQueue) try {
   auto pfnCreate = ur_lib::getContext()->urDdiTable.Queue.pfnCreate;
   if (nullptr == pfnCreate)
@@ -4574,7 +4575,7 @@ ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_device_handle_t hDevice,
     /// [in][optional] pointer to native queue properties struct
     const ur_queue_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the queue object created.
+    /// [out][alloc] pointer to the handle of the queue object created.
     ur_queue_handle_t *phQueue) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Queue.pfnCreateWithNativeHandle;
@@ -4918,7 +4919,7 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_context_handle_t hContext,
     /// [in][optional] pointer to native event properties struct
     const ur_event_native_properties_t *pProperties,
-    /// [out] pointer to the handle of the event object created.
+    /// [out][alloc] pointer to the handle of the event object created.
     ur_event_handle_t *phEvent) try {
   auto pfnCreateWithNativeHandle =
       ur_lib::getContext()->urDdiTable.Event.pfnCreateWithNativeHandle;
@@ -5037,9 +5038,10 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnKernelLaunch =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
@@ -5095,9 +5097,9 @@ ur_result_t UR_APICALL urEnqueueEventsWait(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnEventsWait = ur_lib::getContext()->urDdiTable.Enqueue.pfnEventsWait;
   if (nullptr == pfnEventsWait)
@@ -5152,9 +5154,9 @@ ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnEventsWaitWithBarrier =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
@@ -5221,9 +5223,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferRead(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemBufferRead =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferRead;
@@ -5290,9 +5292,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemBufferWrite =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferWrite;
@@ -5386,9 +5388,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemBufferReadRect =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferReadRect;
@@ -5485,9 +5487,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemBufferWriteRect =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferWriteRect;
@@ -5552,9 +5554,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemBufferCopy =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferCopy;
@@ -5639,9 +5641,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemBufferCopyRect =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferCopyRect;
@@ -5712,9 +5714,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferFill(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemBufferFill =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemBufferFill;
@@ -5787,9 +5789,9 @@ ur_result_t UR_APICALL urEnqueueMemImageRead(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemImageRead =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemImageRead;
@@ -5863,9 +5865,9 @@ ur_result_t UR_APICALL urEnqueueMemImageWrite(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemImageWrite =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemImageWrite;
@@ -5931,9 +5933,9 @@ ur_result_t UR_APICALL urEnqueueMemImageCopy(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemImageCopy =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnMemImageCopy;
@@ -6004,9 +6006,9 @@ ur_result_t UR_APICALL urEnqueueMemBufferMap(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent,
     /// [out] return mapped pointer.  TODO: move it before
     /// numEventsInWaitList?
@@ -6066,9 +6068,9 @@ ur_result_t UR_APICALL urEnqueueMemUnmap(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnMemUnmap = ur_lib::getContext()->urDdiTable.Enqueue.pfnMemUnmap;
   if (nullptr == pfnMemUnmap)
@@ -6128,9 +6130,9 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnUSMFill = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMFill;
   if (nullptr == pfnUSMFill)
@@ -6187,9 +6189,9 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnUSMMemcpy = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
   if (nullptr == pfnUSMMemcpy)
@@ -6250,9 +6252,9 @@ ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that this
     /// command does not wait on any event to complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnUSMPrefetch = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMPrefetch;
   if (nullptr == pfnUSMPrefetch)
@@ -6301,8 +6303,8 @@ ur_result_t UR_APICALL urEnqueueUSMAdvise(
     size_t size,
     /// [in] USM memory advice
     ur_usm_advice_flags_t advice,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
     ur_event_handle_t *phEvent) try {
   auto pfnUSMAdvise = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMAdvise;
   if (nullptr == pfnUSMAdvise)
@@ -6370,9 +6372,10 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnUSMFill2D = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMFill2D;
   if (nullptr == pfnUSMFill2D)
@@ -6442,9 +6445,10 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnUSMMemcpy2D = ur_lib::getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
   if (nullptr == pfnUSMMemcpy2D)
@@ -6499,9 +6503,10 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnDeviceGlobalVariableWrite =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
@@ -6558,9 +6563,10 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnDeviceGlobalVariableRead =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
@@ -6617,10 +6623,11 @@ ur_result_t UR_APICALL urEnqueueReadHostPipe(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] returns an event object that identifies this read
-    /// command and can be used to query or queue a wait for this command to
-    /// complete. If phEventWaitList and phEvent are not NULL, phEvent must not
-    /// refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] returns an event object that identifies this
+    /// read command
+    /// and can be used to query or queue a wait for this command to complete.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnReadHostPipe =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnReadHostPipe;
@@ -6677,10 +6684,11 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] returns an event object that identifies this write
-    /// command and can be used to query or queue a wait for this command to
-    /// complete. If phEventWaitList and phEvent are not NULL, phEvent must not
-    /// refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] returns an event object that identifies this
+    /// write command
+    /// and can be used to query or queue a wait for this command to complete.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnWriteHostPipe =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnWriteHostPipe;
@@ -6874,7 +6882,7 @@ ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [out] pointer to handle of image memory allocated
+    /// [out][alloc] pointer to handle of image memory allocated
     ur_exp_image_mem_native_handle_t *phImageMem) try {
   auto pfnImageAllocateExp =
       ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
@@ -6958,7 +6966,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [out] pointer to handle of image object created
+    /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) try {
   auto pfnUnsampledImageCreateExp =
       ur_lib::getContext()
@@ -7013,7 +7021,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] sampler to be used
     ur_sampler_handle_t hSampler,
-    /// [out] pointer to handle of image object created
+    /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) try {
   auto pfnSampledImageCreateExp =
       ur_lib::getContext()
@@ -7091,9 +7099,9 @@ ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnImageCopyExp =
       ur_lib::getContext()->urDdiTable.BindlessImagesExp.pfnImageCopyExp;
@@ -7262,7 +7270,7 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_exp_external_mem_type_t memHandleType,
     /// [in] the external memory descriptor
     ur_exp_external_mem_desc_t *pExternalMemDesc,
-    /// [out] external memory handle to the external memory
+    /// [out][alloc] external memory handle to the external memory
     ur_exp_external_mem_handle_t *phExternalMem) try {
   auto pfnImportExternalMemoryExp =
       ur_lib::getContext()
@@ -7436,7 +7444,7 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_exp_external_semaphore_type_t semHandleType,
     /// [in] the external semaphore descriptor
     ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
-    /// [out] external semaphore handle to the external semaphore
+    /// [out][alloc] external semaphore handle to the external semaphore
     ur_exp_external_semaphore_handle_t *phExternalSemaphore) try {
   auto pfnImportExternalSemaphoreExp =
       ur_lib::getContext()
@@ -7524,9 +7532,9 @@ ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnWaitExternalSemaphoreExp =
       ur_lib::getContext()
@@ -7579,9 +7587,9 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnSignalExternalSemaphoreExp =
       ur_lib::getContext()
@@ -7627,7 +7635,7 @@ ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_device_handle_t hDevice,
     /// [in][optional] command-buffer descriptor.
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
-    /// [out] Pointer to command-Buffer handle.
+    /// [out][alloc] Pointer to command-Buffer handle.
     ur_exp_command_buffer_handle_t *phCommandBuffer) try {
   auto pfnCreateExp =
       ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnCreateExp;
@@ -7797,11 +7805,11 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command. Only available if the
+    /// [out][optional][alloc] Handle to this command. Only available if the
     /// command-buffer is updatable.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendKernelLaunchExp =
@@ -7874,11 +7882,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendUSMMemcpyExp =
       ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
@@ -7952,11 +7960,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendUSMFillExp =
       ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMFillExp;
@@ -8026,11 +8034,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendMemBufferCopyExp =
       ur_lib::getContext()
@@ -8100,11 +8108,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendMemBufferWriteExp =
       ur_lib::getContext()
@@ -8174,11 +8182,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendMemBufferReadExp =
       ur_lib::getContext()
@@ -8257,11 +8265,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendMemBufferCopyRectExp =
       ur_lib::getContext()
@@ -8345,11 +8353,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendMemBufferWriteRectExp =
       ur_lib::getContext()
@@ -8511,11 +8519,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendMemBufferFillExp =
       ur_lib::getContext()
@@ -8592,11 +8600,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendUSMPrefetchExp =
       ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMPrefetchExp;
@@ -8672,11 +8680,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     const ur_event_handle_t *phEventWaitList,
     /// [out][optional] sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
-    /// [out][optional] return an event object that will be signaled by the
-    /// completion of this command in the next execution of the
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
     /// command-buffer.
     ur_event_handle_t *phEvent,
-    /// [out][optional] Handle to this command.
+    /// [out][optional][alloc] Handle to this command.
     ur_exp_command_buffer_command_handle_t *phCommand) try {
   auto pfnAppendUSMAdviseExp =
       ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
@@ -8723,10 +8731,10 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
     /// events.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command-buffer execution instance. If phEventWaitList and phEvent are
-    /// not NULL, phEvent must not refer to an element of the phEventWaitList
-    /// array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command-buffer execution instance. If phEventWaitList and
+    /// phEvent are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnEnqueueExp =
       ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
@@ -8859,7 +8867,7 @@ ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
     /// [in] Handle of the command-buffer command to update.
     ur_exp_command_buffer_command_handle_t hCommand,
-    /// [out] Event to be signaled.
+    /// [out][alloc] Event to be signaled.
     ur_event_handle_t *phSignalEvent) try {
   auto pfnUpdateSignalEventExp =
       ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnUpdateSignalEventExp;
@@ -9018,9 +9026,10 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnCooperativeKernelLaunchExp =
       ur_lib::getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
@@ -9209,10 +9218,10 @@ ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     /// events that must be complete before the kernel execution. If nullptr,
     /// the numEventsInWaitList must be 0, indicating that no wait event.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// kernel execution instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList
-    /// array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnKernelLaunchCustomExp =
       ur_lib::getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
@@ -9367,7 +9376,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
     const ur_program_handle_t *phPrograms,
     /// [in][optional] pointer to linker options null-terminated string.
     const char *pOptions,
-    /// [out] pointer to handle of program object created.
+    /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram) try {
   if (nullptr != phProgram) {
     *phProgram = nullptr;
@@ -9657,9 +9666,9 @@ ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this particular
-    /// command instance. If phEventWaitList and phEvent are not NULL, phEvent
-    /// must not refer to an element of the phEventWaitList array.
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance. If phEventWaitList and phEvent are not
+    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) try {
   auto pfnEventsWaitWithBarrierExt =
       ur_lib::getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrierExt;
@@ -9712,7 +9721,8 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
     /// events.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies the work that has
+    /// [out][optional][alloc] return an event object that identifies the work
+    /// that has
     /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
