@@ -428,6 +428,15 @@ The second way to allocate image memory is to use USM allocations. SYCL already
 provides a number of USM allocation functions. This proposal would add another,
 pitched memory allocation, through `pitched_alloc_device`.
 
+Bindless images can be backed by device, host, or shared USM memory allocations.
+
+[NOTE]
+====
+Image memory backed by USM device and host allocations is generally supported,
+whereas shared USM allocations depend on the SYCL backend as well as the device
+capabilities.
+====
+
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
@@ -2328,4 +2337,5 @@ These features still need to be handled:
 |6.4|2024-10-15| - Fix bindless spec examples and include examples in bindless
                    spec using asciidoc include.
 |6.5|2024-10-22| - Allow 3-channel image formats on some backends.
+|6.6|2025-01-20| - Clarify support for the specific types of USM allocations.
 |======================

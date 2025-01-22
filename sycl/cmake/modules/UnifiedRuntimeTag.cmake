@@ -1,7 +1,7 @@
-# commit 029a977bc76d1216783c69bfdb18d0db465ea399
-# Merge: 222e4b1d 041179a3
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Fri Jan 17 16:36:13 2025 +0000
-#     Merge pull request #1536 from ldrumm/unified-clang-format
-#     Unified clang format
+# commit f058cb230c65fe8094f74043d0c9afd5ba0e8325
+# Merge: 871061f1 3bf76246
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 21 15:49:41 2025 +0000
+#     Merge pull request #2593 from RossBrunton/ross/formatall
+#     Ensure all files are clang formatted
 set(UNIFIED_RUNTIME_TAG uwe/tbb_integration)
