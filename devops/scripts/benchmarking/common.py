@@ -8,10 +8,10 @@ BENCHMARK_SLOW_LOG, BENCHMARK_ERROR_LOG = None, None
 
 
 def sanitize(stat: str) -> float:
-	# Get rid of %
-	if stat[-1] == '%':
-		stat = stat[:-1]
-	return float(stat)
+    # Get rid of %
+    if stat[-1] == '%':
+        stat = stat[:-1]
+    return float(stat)
 
 
 def load_configs():
@@ -26,11 +26,11 @@ def load_configs():
 
     global PERF_RES_PATH, metrics_variance, metrics_recorded
     global BENCHMARK_ERROR_LOG, BENCHMARK_SLOW_LOG
-    perf_res_re   = re.compile(r'^PERF_RES_PATH=(.*)$', re.M)
+    perf_res_re = re.compile(r'^PERF_RES_PATH=(.*)$', re.M)
     m_variance_re = re.compile(r'^METRICS_VARIANCE=(.*)$', re.M)
     m_recorded_re = re.compile(r'^METRICS_RECORDED=(.*)$', re.M)
-    b_slow_re     = re.compile(r'^BENCHMARK_SLOW_LOG=(.*)$', re.M)
-    b_error_re    = re.compile(r'^BENCHMARK_ERROR_LOG=(.*)$', re.M)
+    b_slow_re = re.compile(r'^BENCHMARK_SLOW_LOG=(.*)$', re.M)
+    b_error_re = re.compile(r'^BENCHMARK_ERROR_LOG=(.*)$', re.M)
 
     with open(benchmarking_ci_conf_path, 'r') as configs_file:
         configs_str = configs_file.read()
