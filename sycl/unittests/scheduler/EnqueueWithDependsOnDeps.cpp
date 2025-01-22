@@ -332,7 +332,8 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
   ASSERT_NE(Cmd, nullptr);
   Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  // for the test functionality, depenent task HostTaskEvent must be treated as incompleted
+  // for the test functionality, depenent task HostTaskEvent must be treated as
+  // incompleted
   HostTaskEventImpl->setStateIncomplete();
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
