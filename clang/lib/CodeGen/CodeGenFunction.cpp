@@ -642,6 +642,12 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   llvm::LLVMContext &Context = getLLVMContext();
 
+  if (getLangOpts().SYCLIsDevice)
+    if (FD->hasAttr<SYCLRegisteredKernelNameAttr>())
+      CGM.SYCLAddRegKernelNamePairs(
+          FD->getAttr<SYCLRegisteredKernelNameAttr>()->getRegName(),
+          FD->getNameAsString());
+
   if (FD->hasAttr<OpenCLKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>())
     CGM.GenKernelArgMetadata(Fn, FD, this);
 

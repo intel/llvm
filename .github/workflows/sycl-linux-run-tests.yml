@@ -127,12 +127,9 @@ on:
           - '["cts-cpu"]'
           - '["Linux", "build"]'
       image:
-        description: |
-          Use option ending with ":build" for AMDGPU, ":latest" for the rest.
         type: choice
         options:
-          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest'
-          - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build'
+          - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
       image_options:
         description: |
           Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.

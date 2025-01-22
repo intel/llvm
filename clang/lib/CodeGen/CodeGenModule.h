@@ -500,6 +500,9 @@ private:
   /// handled differently than regular annotations so they cannot share map.
   llvm::DenseMap<unsigned, llvm::Constant *> SYCLAnnotationArgs;
 
+  typedef std::pair<llvm::Metadata *, llvm::Metadata *> MetadataPair;
+  SmallVector<MetadataPair, 4> SYCLRegKernelNames;
+
   llvm::StringMap<llvm::GlobalVariable *> CFConstantStringMap;
 
   llvm::DenseMap<llvm::Constant *, llvm::GlobalVariable *> ConstantStringMap;
@@ -1526,6 +1529,12 @@ public:
   /// Emit additional args of the annotation.
   llvm::Constant *EmitSYCLAnnotationArgs(
       SmallVectorImpl<std::pair<std::string, std::string>> &Pairs);
+
+  void SYCLAddRegKernelNamePairs(StringRef First, StringRef Second) {
+    SYCLRegKernelNames.push_back(
+        std::make_pair(llvm::MDString::get(getLLVMContext(), First),
+                       llvm::MDString::get(getLLVMContext(), Second)));
+  }
 
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.
   void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
