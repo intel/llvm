@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: level_zero
+// REQUIRES: aspect-usm_device_allocations
+
 // UNSUPPORTED: windows
 // UNSUPPORTED-INTENDED:  IGC shader dump not available on Windows.
 

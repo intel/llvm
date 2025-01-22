@@ -1,5 +1,4 @@
-//==- sycl_and_cache.cpp - cache works with kernel_compiler sycl support
-//----==//
+//==- sycl_and_cache.cpp - cache works with kernel_compiler sycl  ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
+// REQUIRES: aspect-usm_device_allocations
+
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
