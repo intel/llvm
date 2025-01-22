@@ -89,6 +89,8 @@ STATUS_SUCCESS=0
 STATUS_ERROR=1
 ###
 
+# Check if the number of samples for a given test case is less than a threshold
+# set in benchmark-ci.conf
 samples_under_threshold () {
     mkdir -p $1
     file_count="$(find $1 -maxdepth 1 -type f | wc -l )"
@@ -104,6 +106,7 @@ check_regression() {
     return $?
 }
 
+# Move the results of our benchmark into the git repo
 cache() {
     mv "$2" "$PERF_RES_PATH/$RUNNER/$1/"
 }
@@ -123,6 +126,7 @@ check_and_cache() {
     fi
 }
 
+# Run and process the results of each enabled benchmark in enabled_tests.conf
 process_benchmarks() {
     mkdir -p "$PERF_RES_PATH"
     
@@ -138,9 +142,9 @@ process_benchmarks() {
 
             test_csv_output="$OUTPUT_PATH/$RUNNER/$testcase-$TIMESTAMP.csv"
 			mkdir -p "$OUTPUT_PATH/$RUNNER/"
-
             $COMPUTE_BENCH_PATH/build/bin/$testcase --csv --iterations="$COMPUTE_BENCH_ITERATIONS" | tail +8 > "$test_csv_output"
             # The tail +8 filters out initial debug prints not in csv format
+
             if [ "$?" -eq 0 ] && [ -s "$test_csv_output" ]; then 
                 check_and_cache $testcase $test_csv_output
             else
@@ -152,6 +156,7 @@ process_benchmarks() {
     fi
 }
 
+# Handle failures + produce a report on what failed
 process_results() {
     fail=0
     if [ -s "$BENCHMARK_SLOW_LOG" ]; then

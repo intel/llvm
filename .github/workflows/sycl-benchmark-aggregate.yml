@@ -61,16 +61,17 @@ jobs:
         load_single_config $CONFIG_FILE TIMESTAMP_FORMAT
         echo "TIMESTAMP_FORMAT=$TIMESTAMP_FORMAT" >> $GITHUB_ENV
         if [ -z '${{ inputs.cutoff_timestamp }}' ]; then
+          # No time given, use default time period from config file:
           load_single_config $CONFIG_FILE AVERAGE_CUTOFF_RANGE
-          # No time given, use default time period from config file
           echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" +"$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
         else
-          # If the provided time is a unix `date` timestamp, convert the time to our format
+          # If the provided time is a valid GNU coreutils date string, convert
+          # the time to our format:
           _converted_timestamp="$(date --date '${{ inputs.cutoff_timestamp }}' +"$TIMESTAMP_FORMAT" 2> /dev/null)"
           if [ -n "$_converted_timestamp" ]; then
             echo "CUTOFF_TIMESTAMP=$_converted_timestamp" >> $GITHUB_ENV
           else
-            # If not a valid unix `date` timestamp, it could be in our timestamp format already.
+            # If not a valid GNU date string, it could be in our timestamp format already.
             # aggregate.py will ensure the timestamp is in the proper format, so we can pass the
             # time forward regardless: 
             echo 'CUTOFF_TIMESTAMP=${{ inputs.cutoff_timestamp }}' >> $GITHUB_ENV

@@ -2,14 +2,36 @@ import csv
 import sys
 from pathlib import Path
 import heapq
+import statistics
 
 import common
 
+# Simple median calculation
+class SimpleMedian:
+
+	def __init__(self):
+		self.elements = []
+
+	def add(self, n: float):
+		self.elements.append(n)
+
+	def get_median(self) -> float:
+		return statistics.median(elements)
+
+
 # Calculate medians incrementally using a heap: Useful for when dealing with
 # large number of samples.
+#
+# TODO how many samples are we going to realistically get? I had written this
+# with precommit in mind, but if this only runs nightly, it would actually be
+# faster to do a normal median calculation.
 class StreamingMedian:
 	
     def __init__(self):
+		# Gist: we keep a minheap and a maxheap, and store the median as the top
+		# of the minheap. When a new element comes it gets put into the heap
+		# based on if the element is bigger than the current median. Then, the
+		# heaps are heapified and the median is repopulated by heapify.
         self.minheap_larger = []
         self.maxheap_smaller = []
 		# Note: numbers on maxheap should be negative, as heapq
@@ -43,6 +65,7 @@ class StreamingMedian:
 
 def aggregate_median(runner: str, benchmark: str, cutoff: str):
 
+	# Get all .csv benchmark samples for the requested runner + benchmark
 	def csv_samples() -> list[str]:
 		# TODO check that the path below is valid directory
 		cache_dir = Path(f"{common.PERF_RES_PATH}/{runner}/{benchmark}")
@@ -61,7 +84,7 @@ def aggregate_median(runner: str, benchmark: str, cutoff: str):
 				# exist already:
 				if test_case not in aggregate_s:
 					aggregate_s[test_case] = \
-				 		{ metric: StreamingMedian() for metric in common.metrics_variance }
+				 		{ metric: SimpleMedian() for metric in common.metrics_variance }
 
 				for metric in common.metrics_variance:
 					aggregate_s[test_case][metric].add(common.sanitize(s[metric]))
@@ -79,7 +102,7 @@ def aggregate_median(runner: str, benchmark: str, cutoff: str):
 		
 if __name__ == "__main__":
 	if len(sys.argv) < 4:
-		print(f"Usage: {sys.argv[0]} <runner name> <test case name> <cutoff date YYMMDD_HHMMSS>")
+		print(f"Usage: {sys.argv[0]} <runner name> <test case name> <cutoff date YYYYMMDD_HHMMSS>")
 		exit(1)
 	if not common.valid_timestamp(sys.argv[3]):
 		print(sys.argv)

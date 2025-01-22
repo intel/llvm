@@ -2,8 +2,10 @@ import os
 import re
 import ast
 
+# Globals definition
 PERF_RES_PATH, metrics_variance, metrics_recorded = None, None, None
 BENCHMARK_SLOW_LOG, BENCHMARK_ERROR_LOG = None, None
+
 
 def sanitize(stat: str) -> float:
 	# Get rid of %
