@@ -1,0 +1,77 @@
+# This workflow builds SYCL-CTS with -fsycl-use-spirv-backend-for-spirv-gen and
+# runs it with opencl:cpu & gen12 and level_zero:gpu & PVC on Sundays.
+
+name: SYCL-CTS with SPIR-V backend
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 7'
+
+permissions: read-all
+
+jobs:
+  ubuntu2204_build:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_artifact_suffix: default
+      build_configure_extra_args: '--hip --cuda'
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      merge_ref: ''
+
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
+      artifact_archive_name: sycl_linux.tar.gz
+
+  build-sycl-cts:
+    needs: ubuntu2204_build
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Build SYCL-CTS
+      runner: '["Linux", "build"]'
+      cts_testing_mode: 'build-only'
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+      tests_selector: cts
+      ref: ${{ github.sha }}
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      extra_cmake_args: -DDPCPP_FLAGS=-fsycl-use-spirv-backend-for-spirv-gen
+
+  run-sycl-cts:
+    needs: [ubuntu2204_build, build-sycl-cts]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SYCL-CTS on OCL CPU w/ LLVM SPIR-V Backend
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+
+          - name: SYCL-CTS on L0 PVC w/ LLVM SPIR-V Backend
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      cts_testing_mode: 'run-only'
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: cts
+      ref: ${{ github.sha }}
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      sycl_cts_artifact: sycl_cts_bin
