@@ -1,109 +1,11 @@
 #pragma once
 
-#include <utility>
-
-#include <sycl/detail/common.hpp>
-#include <sycl/event.hpp>
-#include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/handler.hpp>
-#include <sycl/nd_range.hpp>
-#include <sycl/queue.hpp>
-#include <sycl/range.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace khr {
-
 namespace detail {
-// Trait for identifying sycl::range and sycl::nd_range.
-template <typename RangeT> struct is_range_or_nd_range : std::false_type {};
-template <int Dimensions>
-struct is_range_or_nd_range<range<Dimensions>> : std::true_type {};
-template <int Dimensions>
-struct is_range_or_nd_range<nd_range<Dimensions>> : std::true_type {};
-
-template <typename RangeT>
-constexpr bool is_range_or_nd_range_v = is_range_or_nd_range<RangeT>::value;
-
-template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess;
-
-// Checks that none of the properties in the property list has compile-time
-// effects on the kernel.
-template <typename T>
-struct NoPropertyHasCompileTimeKernelEffect : std::false_type {};
-template <typename... Ts>
-struct NoPropertyHasCompileTimeKernelEffect<
-    ext::oneapi::experimental::detail::properties_t<Ts...>> {
-  static constexpr bool value =
-      !(ext::oneapi::experimental::detail::HasCompileTimeEffect<Ts>::value ||
-        ... || false);
-};
-} // namespace detail
-
-// Available only when Range is range or nd_range
-template <typename RangeT,
-          typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
-          typename = std::enable_if_t<detail::is_range_or_nd_range_v<RangeT>>>
-class launch_config {
-  static_assert(
-      detail::NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
-      "launch_config does not allow properties with compile-time "
-      "kernel effects.");
-
-public:
-  launch_config(RangeT Range, PropertiesT Properties = {})
-      : MRange{Range}, MProperties{Properties} {}
-
-private:
-  RangeT MRange;
-  PropertiesT MProperties;
-
-  const RangeT &getRange() const noexcept { return MRange; }
-
-  const PropertiesT &getProperties() const noexcept { return MProperties; }
-
-  template <typename LCRangeT, typename LCPropertiesT>
-  friend struct detail::LaunchConfigAccess;
-};
-
-#ifdef __cpp_deduction_guides
-// CTAD work-around to avoid warning from GCC when using default deduction
-// guidance.
-launch_config(sycl::detail::AllowCTADTag)
-    -> launch_config<void, ext::oneapi::experimental::empty_properties_t, void>;
-#endif // __cpp_deduction_guides
-
-namespace detail {
-// Helper for accessing the members of launch_config.
-template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
-  LaunchConfigAccess(const launch_config<LCRangeT, LCPropertiesT> &LaunchConfig)
-      : MLaunchConfig{LaunchConfig} {}
-
-  const launch_config<LCRangeT, LCPropertiesT> &MLaunchConfig;
-
-  const LCRangeT &getRange() const noexcept { return MLaunchConfig.getRange(); }
-
-  const LCPropertiesT &getProperties() const noexcept {
-    return MLaunchConfig.getProperties();
-  }
-};
-
-// template <typename CommandGroupFunc, typename PropertiesT>
-// void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
-//                  const sycl::detail::code_location &CodeLoc) {
-
-//   Q.submit_without_event(Props, std::forward<CommandGroupFunc>(CGF),
-//   CodeLoc);
-// }
-
-// template <typename CommandGroupFunc, typename PropertiesT>
-// event submit_with_event_impl(queue &Q, PropertiesT Props,
-//                              CommandGroupFunc &&CGF,
-//                              const sycl::detail::code_location &CodeLoc) {
-//   return Q.submit_with_event(Props, std::forward<CommandGroupFunc>(CGF),
-//                              nullptr, CodeLoc);
-// }
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
@@ -119,7 +21,6 @@ event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
   return sycl::ext::oneapi::experimental::detail::submit_with_event_impl(
       Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
-
 } // namespace detail
 
 template <typename CommandGroupFunc>
@@ -187,11 +88,14 @@ void parallel_for(queue Q, range<Dimensions> Range, const KernelType &KernelObj,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void parallel_for(handler &CGH,
-                  launch_config<range<Dimensions>, Properties> Config,
-                  const KernelType &KernelObj, ReductionsT &&...Reductions) {
-  detail::LaunchConfigAccess<range<Dimensions>, Properties> ConfigAccess(
-      Config);
+void parallel_for(
+    handler &CGH,
+    ext::oneapi::experimental::launch_config<range<Dimensions>, Properties>
+        Config,
+    const KernelType &KernelObj, ReductionsT &&...Reductions) {
+  ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
   CGH.parallel_for<KernelName>(
       ConfigAccess.getRange(), ConfigAccess.getProperties(),
       std::forward<ReductionsT>(Reductions)..., KernelObj);
@@ -199,8 +103,11 @@ void parallel_for(handler &CGH,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
-                  const KernelType &KernelObj, ReductionsT &&...Reductions) {
+void parallel_for(
+    queue Q,
+    ext::oneapi::experimental::launch_config<range<Dimensions>, Properties>
+        Config,
+    const KernelType &KernelObj, ReductionsT &&...Reductions) {
   submit(Q, [&](handler &CGH) {
     parallel_for<KernelName>(CGH, Config, KernelObj,
                              std::forward<ReductionsT>(Reductions)...);
@@ -223,19 +130,25 @@ void parallel_for(queue Q, range<Dimensions> Range, const kernel &KernelObj,
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
-void parallel_for(handler &CGH,
-                  launch_config<range<Dimensions>, Properties> Config,
-                  const kernel &KernelObj, ArgsT &&...Args) {
-  detail::LaunchConfigAccess<range<Dimensions>, Properties> ConfigAccess(
-      Config);
+void parallel_for(
+    handler &CGH,
+    ext::oneapi::experimental::launch_config<range<Dimensions>, Properties>
+        Config,
+    const kernel &KernelObj, ArgsT &&...Args) {
+  ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
   sycl::detail::HandlerAccess::parallelForImpl(
       CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
-void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
-                  const kernel &KernelObj, ArgsT &&...Args) {
+void parallel_for(
+    queue Q,
+    ext::oneapi::experimental::launch_config<range<Dimensions>, Properties>
+        Config,
+    const kernel &KernelObj, ArgsT &&...Args) {
   submit(Q, [&](handler &CGH) {
     parallel_for(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
   });
@@ -261,12 +174,15 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void nd_launch(handler &CGH,
-               launch_config<nd_range<Dimensions>, Properties> Config,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+void nd_launch(
+    handler &CGH,
+    ext::oneapi::experimental::launch_config<nd_range<Dimensions>, Properties>
+        Config,
+    const KernelType &KernelObj, ReductionsT &&...Reductions) {
 
-  detail::LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(
-      Config);
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
   CGH.parallel_for<KernelName>(
       ConfigAccess.getRange(), ConfigAccess.getProperties(),
       std::forward<ReductionsT>(Reductions)..., KernelObj);
@@ -274,8 +190,11 @@ void nd_launch(handler &CGH,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+void nd_launch(
+    queue Q,
+    ext::oneapi::experimental::launch_config<nd_range<Dimensions>, Properties>
+        Config,
+    const KernelType &KernelObj, ReductionsT &&...Reductions) {
   submit(Q, [&](handler &CGH) {
     nd_launch<KernelName>(CGH, Config, KernelObj,
                           std::forward<ReductionsT>(Reductions)...);
@@ -298,19 +217,25 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
-void nd_launch(handler &CGH,
-               launch_config<nd_range<Dimensions>, Properties> Config,
-               const kernel &KernelObj, ArgsT &&...Args) {
-  detail::LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(
-      Config);
+void nd_launch(
+    handler &CGH,
+    ext::oneapi::experimental::launch_config<nd_range<Dimensions>, Properties>
+        Config,
+    const kernel &KernelObj, ArgsT &&...Args) {
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
   sycl::detail::HandlerAccess::parallelForImpl(
       CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
-void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               const kernel &KernelObj, ArgsT &&...Args) {
+void nd_launch(
+    queue Q,
+    ext::oneapi::experimental::launch_config<nd_range<Dimensions>, Properties>
+        Config,
+    const kernel &KernelObj, ArgsT &&...Args) {
   submit(Q, [&](handler &CGH) {
     nd_launch(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
   });
