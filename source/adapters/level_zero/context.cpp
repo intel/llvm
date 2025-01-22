@@ -159,7 +159,7 @@ ur_result_t urContextCreateWithNativeHandle(
     const ur_context_native_properties_t *Properties,
     /// [out] pointer to the handle of the context object created.
     ur_context_handle_t *Context) {
-  bool OwnNativeHandle = Properties->isNativeHandleOwned;
+  bool OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
   try {
     ze_context_handle_t ZeContext =
         reinterpret_cast<ze_context_handle_t>(NativeContext);

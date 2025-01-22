@@ -1615,9 +1615,9 @@ typedef struct ur_platform_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not
-  /// transfer the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_platform_native_properties_t;
@@ -2699,9 +2699,9 @@ typedef struct ur_device_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not
-  /// transfer the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_device_native_properties_t;
@@ -3079,9 +3079,9 @@ typedef struct ur_context_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not transfer
-  /// the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_context_native_properties_t;
@@ -3700,9 +3700,9 @@ typedef struct ur_mem_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not
-  /// transfer the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_mem_native_properties_t;
@@ -4106,9 +4106,9 @@ typedef struct ur_sampler_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not
-  /// transfer the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_sampler_native_properties_t;
@@ -5821,9 +5821,9 @@ typedef struct ur_program_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not
-  /// transfer the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_program_native_properties_t;
@@ -6490,9 +6490,9 @@ typedef struct ur_kernel_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not transfer
-  /// the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_kernel_native_properties_t;
@@ -6885,9 +6885,9 @@ typedef struct ur_queue_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not transfer
-  /// the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_queue_native_properties_t;
@@ -7311,9 +7311,9 @@ typedef struct ur_event_native_properties_t {
   ur_structure_type_t stype;
   /// [in,out][optional] pointer to extension-specific structure
   void *pNext;
-  /// [in] Indicates UR owns the native handle or if it came from an
-  /// interoperability operation in the application that asked to not transfer
-  /// the ownership to the unified-runtime.
+  /// [in] If true then ownership of the native handle is transferred to
+  /// the resultant object. This means the object will be responsible for
+  /// releasing the native resources at the end of its lifetime.
   bool isNativeHandleOwned;
 
 } ur_event_native_properties_t;

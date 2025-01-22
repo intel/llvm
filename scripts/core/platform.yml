@@ -202,10 +202,10 @@ base: $x_base_properties_t
 members:
     - type: bool
       name: isNativeHandleOwned
-      desc: >
-          [in] Indicates UR owns the native handle or if it came from an
-          interoperability operation in the application that asked to not
-          transfer the ownership to the unified-runtime.
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime platform object from native platform handle."
