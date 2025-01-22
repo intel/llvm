@@ -141,13 +141,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
   logger::debug("ZE ---> {}{}", ZeName, ZeArgs);
 
-  if (ZeResult == ZE_RESULT_SUCCESS) {
-    if (UrL0LeaksDebug) {
-      ++(*ZeCallCount)[ZeName];
-    }
-    return ZE_RESULT_SUCCESS;
-  }
-
   if (TraceError) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);

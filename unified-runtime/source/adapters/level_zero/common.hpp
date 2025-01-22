@@ -218,6 +218,12 @@ const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
   if (!UrRet)
     return 0;
+
+  if (std::atoi(UrRet)) {
+    setenv("ZE_ENABLE_VALIDATION_LAYER", "1", 1);
+    setenv("ZEL_ENABLE_BASIC_LEAK_CHECKER", "1", 1);
+  }
+
   return std::atoi(UrRet);
 }();
 
