@@ -71,6 +71,8 @@ enum QueueOrder { Ordered, OOO };
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
 };
 
 class queue_impl {
@@ -178,7 +180,7 @@ public:
 #endif
   }
 
-  event getLastEvent();
+  sycl::detail::optional<event> getLastEvent();
 
 private:
   void queue_impl_interop(ur_queue_handle_t UrQueue) {

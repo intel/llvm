@@ -302,6 +302,48 @@ void exec_graph_impl::makePartitions() {
   }
 }
 
+static void checkGraphPropertiesAndThrow(const property_list &Properties) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
+    default:
+      return false;
+    }
+  };
+  // No properties with data for graph now.
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  sycl::detail::PropertyValidator::checkPropsAndThrow(
+      Properties, CheckDataLessProperties, NoAllowedPropertiesCheck);
+}
+
+graph_impl::graph_impl(const sycl::context &SyclContext,
+                       const sycl::device &SyclDevice,
+                       const sycl::property_list &PropList)
+    : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
+      MEventsMap(), MInorderQueueMap() {
+  checkGraphPropertiesAndThrow(PropList);
+  if (PropList.has_property<property::graph::no_cycle_check>()) {
+    MSkipCycleChecks = true;
+  }
+  if (PropList.has_property<property::graph::assume_buffer_outlives_graph>()) {
+    MAllowBuffers = true;
+  }
+
+  if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
+      !SyclDevice.has(aspect::ext_oneapi_graph)) {
+    std::stringstream Stream;
+    Stream << SyclDevice.get_backend();
+    std::string BackendString = Stream.str();
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        BackendString + " backend is not supported by SYCL Graph extension.");
+  }
+}
+
 graph_impl::~graph_impl() {
   try {
     clearQueues();
@@ -872,7 +914,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
       MEnableProfiling(
           PropList.has_property<property::graph::enable_profiling>()) {
-
+  checkGraphPropertiesAndThrow(PropList);
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
   // have support for graph update.
@@ -1011,10 +1053,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // If we have no requirements or dependent events for the command buffer,
       // enqueue it directly
       if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
-        if (NewEvent != nullptr) {
-          NewEvent->setSubmissionTime();
-          NewEvent->setHostEnqueueTime();
-        }
+        NewEvent->setSubmissionTime();
+        NewEvent->setHostEnqueueTime();
         ur_result_t Res =
             Queue->getAdapter()
                 ->call_nocheck<
@@ -1639,7 +1679,7 @@ node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DynCGFImpl, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
@@ -1651,7 +1691,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
@@ -1664,7 +1704,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
+  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
 
 void modifiable_command_graph::addGraphLeafDependencies(node Node) {
@@ -1701,7 +1741,9 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
 
 void modifiable_command_graph::begin_recording(
     queue &RecordingQueue, const sycl::property_list &PropList) {
-  std::ignore = PropList;
+  // No properties is handled here originally, just check that properties are
+  // related to graph at all.
+  checkGraphPropertiesAndThrow(PropList);
 
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
@@ -1767,7 +1809,7 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
   std::string path{pathstr.data()};
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
-    impl->printGraphAsDot(path, verbose);
+    impl->printGraphAsDot(std::move(path), verbose);
   } else {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
@@ -1784,6 +1826,34 @@ std::vector<node> modifiable_command_graph::get_root_nodes() const {
 
   std::copy(Roots.begin(), Roots.end(), std::back_inserter(Impls));
   return createNodesFromImpls(Impls);
+}
+
+void modifiable_command_graph::checkNodePropertiesAndThrow(
+    const property_list &Properties) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/node_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/node_properties.def>
+    default:
+      return false;
+    }
+  };
+  sycl::detail::PropertyValidator::checkPropsAndThrow(
+      Properties, CheckDataLessProperties, CheckPropertiesWithData);
 }
 
 executable_command_graph::executable_command_graph(
@@ -1989,8 +2059,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     // shared_ptr<detail::CGExecKernel> to store
     sycl::detail::CG *RawCGPtr = Handler.impl->MGraphNodeCG.release();
     auto RawCGExecPtr = static_cast<sycl::detail::CGExecKernel *>(RawCGPtr);
-    auto CGExecSP = std::shared_ptr<sycl::detail::CGExecKernel>(RawCGExecPtr);
-    MKernels.push_back(CGExecSP);
+    MKernels.push_back(
+        std::shared_ptr<sycl::detail::CGExecKernel>(RawCGExecPtr));
 
     // Track dynamic_parameter usage in command-list
     auto &DynamicParams = Handler.impl->MDynamicParameters;

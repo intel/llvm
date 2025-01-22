@@ -24,6 +24,10 @@ _SPIRV_OP_INTERNAL(CooperativeMatrixStoreCheckedINTEL,
                    internal::OpCooperativeMatrixStoreCheckedINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixConstructCheckedINTEL,
                    internal::OpCooperativeMatrixConstructCheckedINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixLoadOffsetINTEL,
+                   internal::OpCooperativeMatrixLoadOffsetINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixStoreOffsetINTEL,
+                   internal::OpCooperativeMatrixStoreOffsetINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixApplyFunctionINTEL,
                    internal::OpCooperativeMatrixApplyFunctionINTEL)
 _SPIRV_OP_INTERNAL(ComplexFMulINTEL, internal::ComplexFMulINTEL)

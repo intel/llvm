@@ -29,17 +29,9 @@ TEST(GetLastEventEmptyQueue, CheckEmptyQueueLastEvent) {
   unittest::UrMock<> Mock;
   platform Plt = sycl::platform();
 
-  MarkerEventLatest = nullptr;
-  mock::getCallbacks().set_after_callback("urEnqueueEventsWait",
-                                          &redefinedEnqueueEventsWaitAfter);
-  mock::getCallbacks().set_before_callback("urEventRelease",
-                                           &redefinedEventRelease);
-
   queue Q{property::queue::in_order{}};
-  event E = Q.ext_oneapi_get_last_event();
-  ur_event_handle_t UREvent = detail::getSyclObjImpl(E)->getHandle();
-  ASSERT_NE(MarkerEventLatest, ur_event_handle_t{nullptr});
-  ASSERT_EQ(UREvent, MarkerEventLatest);
+  std::optional<event> E = Q.ext_oneapi_get_last_event();
+  ASSERT_FALSE(E.has_value());
 }
 
 TEST(GetLastEventEmptyQueue, CheckEventlessWorkQueue) {
@@ -57,8 +49,9 @@ TEST(GetLastEventEmptyQueue, CheckEventlessWorkQueue) {
   // The following single_task does not return an event, so it is expected that
   // the last event query creates a new marker event.
   sycl::ext::oneapi::experimental::single_task<TestKernel<>>(Q, []() {});
-  event E = Q.ext_oneapi_get_last_event();
-  ur_event_handle_t UREvent = detail::getSyclObjImpl(E)->getHandle();
+  std::optional<event> E = Q.ext_oneapi_get_last_event();
+  ASSERT_TRUE(E.has_value());
+  ur_event_handle_t UREvent = detail::getSyclObjImpl(*E)->getHandle();
   ASSERT_NE(MarkerEventLatest, ur_event_handle_t{nullptr});
   ASSERT_EQ(UREvent, MarkerEventLatest);
 }

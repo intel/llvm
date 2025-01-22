@@ -5,6 +5,8 @@ FROM $base_image:$base_tag
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+USER root
+
 RUN apt update && apt install -yqq libllvm14
 
 COPY scripts/get_release.py /
@@ -20,7 +22,7 @@ RUN --mount=type=secret,id=github_token \
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 
-USER sycl
+USER sycl_ci
 
 ENTRYPOINT ["/bin/bash", "/drivers_entrypoint.sh"]
 

@@ -1,7 +1,7 @@
-# commit e37f75ffad5ad22e96c46eb70ab1757be7cc5afc
-# Merge: daa0b110464c 323b37c55504
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Dec 6 18:03:11 2024 +0000
-#     Merge pull request #2379 from Bensuo/ben/coverity-fixes
-#     Fix command_buffer coverity issues
-set(UNIFIED_RUNTIME_TAG e37f75ffad5ad22e96c46eb70ab1757be7cc5afc)
+# commit 871061f1aa3b8ade57e0a2ed63d8000e257548cc
+# Merge: 262ec93e 7cca93f9
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Jan 21 13:26:45 2025 +0000
+#     Merge pull request #2588 from kbenzie/benie/ci-delete-prerelease
+#     Remove the prerelease.yml job
+set(UNIFIED_RUNTIME_TAG 871061f1aa3b8ade57e0a2ed63d8000e257548cc)

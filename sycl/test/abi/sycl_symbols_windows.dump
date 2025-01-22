@@ -648,6 +648,8 @@
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
+?EventMode@SubmissionInfo@detail@_V1@sycl@@QEAAAEAW4event_mode_enum@experimental@oneapi@ext@34@XZ
+?EventMode@SubmissionInfo@detail@_V1@sycl@@QEBAAEBW4event_mode_enum@experimental@oneapi@ext@34@XZ
 ?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
@@ -3747,6 +3749,7 @@
 ?build_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?cancel_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
+?checkNodePropertiesAndThrow@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@KAXAEBVproperty_list@67@@Z
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
 ?compile_impl@?$online_compiler@$00@experimental@intel@ext@_V1@sycl@@CA?AV?$vector@EV?$allocator@E@std@@@std@@Vstring_view@detail@56@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@8@U?$pair@HH@8@W4device_type@info@56@Vdevice_arch@23456@_N0AEAPEAX6@Z
@@ -3844,7 +3847,8 @@
 ?ext_oneapi_get_graph@queue@_V1@sycl@@QEBA?AV?$command_graph@$0A@@experimental@oneapi@ext@23@XZ
 ?ext_oneapi_get_kernel@kernel_bundle_plain@detail@_V1@sycl@@AEAA?AVkernel@34@Vstring_view@234@@Z
 ?ext_oneapi_get_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA?AVkernel@34@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
-?ext_oneapi_get_last_event@queue@_V1@sycl@@QEBA?AVevent@23@XZ
+?ext_oneapi_get_last_event_impl@queue@_V1@sycl@@AEBA?AV?$optional@Vevent@_V1@sycl@@@detail@23@XZ
+?ext_oneapi_get_last_event@queue@_V1@sycl@@QEBA?AV?$optional@Vevent@_V1@sycl@@@std@@XZ
 ?ext_oneapi_get_state@queue@_V1@sycl@@QEBA?AW4queue_state@experimental@oneapi@ext@23@XZ
 ?ext_oneapi_graph@handler@_V1@sycl@@QEAAXV?$command_graph@$00@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@AEBUcode_location@detail@23@@Z

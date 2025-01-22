@@ -157,6 +157,6 @@ _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_exp10, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN(half, __clc_exp10, __builtin_exp10, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __clc_exp10, __builtin_exp10, half)
 
 #endif

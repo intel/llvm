@@ -712,12 +712,17 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
     {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
     {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
+    {0x07800000, oneapi_exp_arch::intel_gpu_ptl_h},   // A0
+    {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
+    {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
+    {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
 };
 
 // Only for Intel CPU architectures
 constexpr std::pair<const int, oneapi_exp_arch> IntelCPUArchitectures[] = {
     {8, oneapi_exp_arch::intel_cpu_spr},
     {9, oneapi_exp_arch::intel_cpu_gnr},
+    {10, oneapi_exp_arch::intel_cpu_dmr},
 };
 
 template <>
@@ -837,6 +842,23 @@ struct get_device_info_impl<
           {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if (architecture::intel_cpu_dmr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 16, 0, 0, 0, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||

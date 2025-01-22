@@ -24,6 +24,7 @@
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
+#include "llvm/CodeGen/GlobalMergeFunctions.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/OptimizationLevel.h"
@@ -133,6 +134,7 @@
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/CountVisits.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
+#include "llvm/Transforms/Utils/ExtraPassManager.h"
 #include "llvm/Transforms/Utils/InjectTLIMappings.h"
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
@@ -676,7 +678,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
     LPM2.addPass(IndVarSimplifyPass());
 
   {
-    ExtraSimpleLoopUnswitchPassManager ExtraPasses;
+    ExtraLoopPassManager<ShouldRunExtraSimpleLoopUnswitch> ExtraPasses;
     ExtraPasses.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
                                                OptimizationLevel::O3));
     LPM2.addPass(std::move(ExtraPasses));
@@ -1007,8 +1009,7 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
 
   if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
     MainCGPipeline.addPass(CoroSplitPass(Level != OptimizationLevel::O0));
-    MainCGPipeline.addPass(
-        createCGSCCToFunctionPassAdaptor(CoroAnnotationElidePass()));
+    MainCGPipeline.addPass(CoroAnnotationElidePass());
   }
 
   // Make sure we don't affect potential future NoRerun CGSCC adaptors.
@@ -1059,7 +1060,8 @@ PassBuilder::buildModuleInlinerPipeline(OptimizationLevel Level,
   if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
     MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(
         CoroSplitPass(Level != OptimizationLevel::O0)));
-    MPM.addPass(createModuleToFunctionPassAdaptor(CoroAnnotationElidePass()));
+    MPM.addPass(
+        createModuleToPostOrderCGSCCPassAdaptor(CoroAnnotationElidePass()));
   }
 
   return MPM;
@@ -1329,7 +1331,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   FPM.addPass(InstCombinePass());
 
   if (Level.getSpeedupLevel() > 1 && ExtraVectorizerPasses) {
-    ExtraVectorPassManager ExtraPasses;
+    ExtraFunctionPassManager<ShouldRunExtraVectorPasses> ExtraPasses;
     // At higher optimization levels, try to clean up any runtime overlap and
     // alignment checks inserted by the vectorizer. We want to track correlated
     // runtime checks for two inner loops in the same outer loop, fold any
@@ -2187,6 +2189,19 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   if (PGOOpt && PGOOpt->DebugInfoForProfiling)
     MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
+
+  if (PGOOpt && PGOOpt->Action == PGOOptions::SampleUse) {
+    // Explicitly disable sample loader inlining and use flattened profile in O0
+    // pipeline.
+    MPM.addPass(SampleProfileLoaderPass(PGOOpt->ProfileFile,
+                                        PGOOpt->ProfileRemappingFile,
+                                        ThinOrFullLTOPhase::None, nullptr,
+                                        /*DisableSampleProfileInlining=*/true,
+                                        /*UseFlattenedProfile=*/true));
+    // Cache ProfileSummaryAnalysis once to avoid the potential need to insert
+    // RequireAnalysisPass for PSI before subsequent non-module passes.
+    MPM.addPass(RequireAnalysisPass<ProfileSummaryAnalysis, Module>());
+  }
 
   invokePipelineEarlySimplificationEPCallbacks(MPM, Level, Phase);
 

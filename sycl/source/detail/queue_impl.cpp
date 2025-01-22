@@ -277,7 +277,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 }
 
-event queue_impl::getLastEvent() {
+sycl::detail::optional<event> queue_impl::getLastEvent() {
   {
     // The external event is required to finish last if set, so it is considered
     // the last event if present.
@@ -287,12 +287,12 @@ event queue_impl::getLastEvent() {
   }
 
   std::lock_guard<std::mutex> Lock{MMutex};
+  if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)
+    return std::nullopt;
   if (MDiscardEvents)
     return createDiscardedEvent();
   if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
     return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
-  if (!MDefaultGraphDeps.LastEventPtr)
-    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
   return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
@@ -358,6 +358,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+  auto HandlerImpl = detail::getSyclObjImpl(Handler);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -368,12 +369,14 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = detail::getSyclObjImpl(Handler)->MCGType;
+  const CGType Type = HandlerImpl->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
+
+  HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
   if (SubmitInfo.PostProcessorFunc()) {
     auto &PostProcess = *SubmitInfo.PostProcessorFunc();
