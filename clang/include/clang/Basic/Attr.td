@@ -732,12 +732,6 @@ class Attr {
   // SYCL specification. This bit only applies to the [[]] spelling of an
   // attribute and has no effect on any other spellings.
   bit SupportsNonconformingLambdaSyntax = 0;
-  // Set to true if deserialization of this attribute must be deferred until 
-  // the parent Decl is fully deserialized (during header module file
-  // deserialization). E.g., this is the case for the preferred_name attribute,
-  // since its type deserialization depends on its target Decl type.
-  // (See https://github.com/llvm/llvm-project/issues/56490 for details).
-  bit DeferDeserialization = 0;
 }
 
 /// Used to define a set of mutually exclusive attributes.
@@ -4300,11 +4294,6 @@ def PreferredName : InheritableAttr {
   let InheritEvenIfAlreadyPresent = 1;
   let MeaningfulToClassTemplateDefinition = 1;
   let TemplateDependent = 1;
-  // Type of this attribute depends on the target Decl type.
-  // Therefore, its deserialization must be deferred until
-  // deserialization of the target Decl is complete
-  // (for header modules).
-  let DeferDeserialization = 1;
 }
 
 def PreserveMost : DeclOrTypeAttr {
