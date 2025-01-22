@@ -6,7 +6,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
 
     # Date: Jul 25, 2024
     # Support MMX removal in LLVM upstream
-    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
+    set(LLVMGenXIntrinsics_GIT_TAG 4e51b2467104a257c22788e343dafbdde72e28bb)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -73,6 +73,8 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
+
+  SanitizerKernelMetadata.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

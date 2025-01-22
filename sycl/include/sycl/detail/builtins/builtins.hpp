@@ -93,8 +93,7 @@ template <typename T> auto convert_arg(T &&x) {
     using result_type = std::conditional_t<N == 1, converted_elem_type,
                                            converted_elem_type
                                            __attribute__((ext_vector_type(N)))>;
-    // TODO: We should have this bit_cast impl inside vec::convert.
-    return bit_cast<result_type>(static_cast<typename no_cv_ref::vector_t>(x));
+    return bit_cast<result_type>(x);
   } else if constexpr (is_swizzle_v<no_cv_ref>) {
     return convert_arg(simplify_if_swizzle_t<no_cv_ref>{x});
   } else {
@@ -102,14 +101,6 @@ template <typename T> auto convert_arg(T &&x) {
                   is_multi_ptr_v<no_cv_ref> || std::is_pointer_v<no_cv_ref> ||
                   std::is_same_v<no_cv_ref, half>);
     return convertToOpenCLType(std::forward<T>(x));
-  }
-}
-
-template <typename RetTy, typename T> auto convert_result(T &&x) {
-  if constexpr (is_vec_v<RetTy>) {
-    return bit_cast<typename RetTy::vector_t>(x);
-  } else {
-    return std::forward<T>(x);
   }
 }
 #endif
@@ -130,7 +121,8 @@ auto builtin_marray_impl(FuncTy F, const Ts &...x) {
       else
         return F(to_vec2(x, I * 2)...);
     }();
-    std::memcpy(&Res[I * 2], &PartialRes, sizeof(decltype(PartialRes)));
+    sycl::detail::memcpy_no_adl(&Res[I * 2], &PartialRes,
+                                sizeof(decltype(PartialRes)));
   }
   if (N % 2)
     Res[N - 1] = F(x[N - 1]...);

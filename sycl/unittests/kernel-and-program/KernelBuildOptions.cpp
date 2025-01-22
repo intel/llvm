@@ -110,13 +110,39 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});
+  try {
+    // unsupported property
+    auto ExecBundle = sycl::build(KernelBundle, sycl::property::no_init{});
+    FAIL();
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+  }
   auto ExecBundle = sycl::build(KernelBundle);
   EXPECT_EQ(BuildOpts,
             "-compile-img -vc-codegen -disable-finalizer-msg -link-img");
-
+  try {
+    auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices(),
+                                   sycl::property::no_init{});
+    FAIL();
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+  }
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen -disable-finalizer-msg");
 
+  try {
+    auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices(),
+                                 sycl::property::no_init{});
+    FAIL();
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+  }
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   EXPECT_EQ(BuildOpts, "-link-img");
 }

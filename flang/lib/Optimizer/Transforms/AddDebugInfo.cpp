@@ -121,9 +121,9 @@ void AddDebugInfoPass::handleDeclareOp(fir::cg::XDeclareOp declOp,
   // constant attribute of [hl]fir.declare/fircg.ext_declare operation that has
   // a dummy_scope operand).
   unsigned argNo = 0;
-  if (fir::isDummyArgument(declOp.getMemref())) {
-    auto arg = llvm::cast<mlir::BlockArgument>(declOp.getMemref());
-    argNo = arg.getArgNumber() + 1;
+  if (declOp.getDummyScope()) {
+    if (auto arg = llvm::dyn_cast<mlir::BlockArgument>(declOp.getMemref()))
+      argNo = arg.getArgNumber() + 1;
   }
 
   auto tyAttr = typeGen.convertType(fir::unwrapRefType(declOp.getType()),
@@ -211,10 +211,7 @@ void AddDebugInfoPass::handleGlobalOp(fir::GlobalOp globalOp,
   if (result.first != fir::NameUniquer::NameKind::VARIABLE)
     return;
 
-  // Discard entries that describe a derived type. Usually start with '.c.',
-  // '.dt.' or '.n.'. It would be better if result of the deconstruct had a flag
-  // for such values so that we dont have to look at string values.
-  if (!result.second.name.empty() && result.second.name[0] == '.')
+  if (fir::NameUniquer::isSpecialSymbol(result.second.name))
     return;
 
   unsigned line = getLineFromLoc(globalOp.getLoc());

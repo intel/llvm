@@ -16,6 +16,7 @@
 
 // Sub-group size 32 support for this test is not currently available in IGC
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-4181
 
 #include "../common.hpp"
 

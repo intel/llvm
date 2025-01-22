@@ -70,9 +70,8 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   // entry point introduced for the now deleted ESIMD adapter. All calls to this
   // entry point returned a similar error code to INVALID_OPERATION and would
   // have resulted in a similar throw to this one
-  throw exception(
-      make_error_code(errc::feature_not_supported),
-      "This operation is not supported by any existing backends.");
+  throw exception(make_error_code(errc::feature_not_supported),
+                  "This operation is not supported by any existing backends.");
   return nullptr;
 }
 
@@ -142,7 +141,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
-  if(!LoaderConfig) {
+  if (!LoaderConfig) {
     CHECK_UR_SUCCESS(loaderConfigCreate(&LoaderConfig))
     OwnLoaderConfig = true;
   }
@@ -168,23 +167,18 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   CHECK_UR_SUCCESS(loaderConfigSetCodeLocationCallback(
       LoaderConfig, codeLocationCallback, nullptr));
 
-  if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      loaderConfigRelease(LoaderConfig);
-      std::cerr << "Failed to enable ASAN layer\n";
-      return;
-    }
-  }
-
-  loaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
-                                      nullptr);
-
-  if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      loaderConfigRelease(LoaderConfig);
-      std::cerr << "Failed to enable ASAN layer\n";
-      return;
-    }
+  switch (ProgramManager::getInstance().kernelUsesSanitizer()) {
+  case SanitizerType::AddressSanitizer:
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
+    break;
+  case SanitizerType::MemorySanitizer:
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_MSAN"));
+    break;
+  case SanitizerType::ThreadSanitizer:
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TSAN"));
+    break;
+  default:
+    break;
   }
 
   ur_device_init_flags_t device_flags = 0;

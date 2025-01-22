@@ -131,6 +131,15 @@ def ext: GICombineRule <
   (apply [{ applyEXT(*${root}, ${matchinfo}); }])
 >;
 
+def fullrev: GICombineRule <
+  (defs root:$root, shuffle_matchdata:$matchinfo),
+  (match (G_IMPLICIT_DEF $src2),
+         (G_SHUFFLE_VECTOR $src, $src1, $src2, $mask):$root,
+         [{ return ShuffleVectorInst::isReverseMask(${mask}.getShuffleMask(),
+                                                    ${mask}.getShuffleMask().size()); }]),
+  (apply [{ applyFullRev(*${root}, MRI); }])
+>;
+
 def insertelt_nonconst: GICombineRule <
   (defs root:$root, shuffle_matchdata:$matchinfo),
   (match (wip_match_opcode G_INSERT_VECTOR_ELT):$root,
@@ -163,7 +172,7 @@ def form_duplane : GICombineRule <
   (apply [{ applyDupLane(*${root}, MRI, B, ${matchinfo}); }])
 >;
 
-def shuffle_vector_lowering : GICombineGroup<[dup, rev, ext, zip, uzp, trn,
+def shuffle_vector_lowering : GICombineGroup<[dup, rev, ext, zip, uzp, trn, fullrev,
                                               form_duplane, shuf_to_ins]>;
 
 // Turn G_UNMERGE_VALUES -> G_EXTRACT_VECTOR_ELT's
@@ -322,8 +331,8 @@ def AArch64PostLegalizerCombiner
                         extractvecelt_pairwise_add, redundant_or,
                         mul_const, redundant_sext_inreg,
                         form_bitfield_extract, rotate_out_of_range,
-                        icmp_to_true_false_known_bits, merge_unmerge,
-                        select_combines, fold_merge_to_zext,
+                        icmp_to_true_false_known_bits, overflow_combines,
+                        select_combines, fold_merge_to_zext, merge_combines,
                         constant_fold_binops, identity_combines,
                         ptr_add_immed_chain, overlapping_and,
                         split_store_zero_128, undef_combines,

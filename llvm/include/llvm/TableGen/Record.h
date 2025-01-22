@@ -401,9 +401,7 @@ public:
   /// variables which may not be defined at the time the expression is formed.
   /// If a value is set for the variable later, this method will be called on
   /// users of the value to allow the value to propagate out.
-  virtual const Init *resolveReferences(Resolver &R) const {
-    return const_cast<Init *>(this);
-  }
+  virtual const Init *resolveReferences(Resolver &R) const { return this; }
 
   /// Get the \p Init value of the specified bit.
   virtual const Init *getBit(unsigned Bit) const = 0;
@@ -450,7 +448,7 @@ public:
 };
 
 /// '?' - Represents an uninitialized value.
-class UnsetInit : public Init {
+class UnsetInit final : public Init {
   friend detail::RecordKeeperImpl;
 
   /// The record keeper that initialized this Init.
@@ -475,9 +473,7 @@ public:
   const Init *getCastTo(const RecTy *Ty) const override;
   const Init *convertInitializerTo(const RecTy *Ty) const override;
 
-  const Init *getBit(unsigned Bit) const override {
-    return const_cast<UnsetInit*>(this);
-  }
+  const Init *getBit(unsigned Bit) const override { return this; }
 
   /// Is this a complete value with no unset (uninitialized) subvalues?
   bool isComplete() const override { return false; }
@@ -490,7 +486,7 @@ public:
 
 // Represent an argument.
 using ArgAuxType = std::variant<unsigned, const Init *>;
-class ArgumentInit : public Init, public FoldingSetNode {
+class ArgumentInit final : public Init, public FoldingSetNode {
 public:
   enum Kind {
     Positional,
@@ -579,7 +575,7 @@ public:
 
   const Init *getBit(unsigned Bit) const override {
     assert(Bit < 1 && "Bit index out of range!");
-    return const_cast<BitInit*>(this);
+    return this;
   }
 
   bool isConcrete() const override { return true; }
@@ -642,7 +638,7 @@ public:
 };
 
 /// '7' - Represent an initialization by a literal integer value.
-class IntInit : public TypedInit {
+class IntInit final : public TypedInit {
   int64_t Value;
 
   explicit IntInit(RecordKeeper &RK, int64_t V)
@@ -673,7 +669,7 @@ public:
 };
 
 /// "anonymous_n" - Represent an anonymous record name
-class AnonymousNameInit : public TypedInit {
+class AnonymousNameInit final : public TypedInit {
   unsigned Value;
 
   explicit AnonymousNameInit(RecordKeeper &RK, unsigned V)
@@ -703,7 +699,7 @@ public:
 };
 
 /// "foo" - Represent an initialization by a string value.
-class StringInit : public TypedInit {
+class StringInit final : public TypedInit {
 public:
   enum StringFormat {
     SF_String, // Format as "text"
@@ -849,7 +845,7 @@ public:
 
 /// !op (X) - Transform an init.
 ///
-class UnOpInit : public OpInit, public FoldingSetNode {
+class UnOpInit final : public OpInit, public FoldingSetNode {
 public:
   enum UnaryOp : uint8_t {
     TOLOWER,
@@ -864,6 +860,7 @@ public:
     LOG2,
     REPR,
     LISTFLATTEN,
+    INITIALIZED,
   };
 
 private:
@@ -911,7 +908,7 @@ public:
 };
 
 /// !op (X, Y) - Combine two inits.
-class BinOpInit : public OpInit, public FoldingSetNode {
+class BinOpInit final : public OpInit, public FoldingSetNode {
 public:
   enum BinaryOp : uint8_t {
     ADD,
@@ -998,7 +995,7 @@ public:
 };
 
 /// !op (X, Y, Z) - Combine two inits.
-class TernOpInit : public OpInit, public FoldingSetNode {
+class TernOpInit final : public OpInit, public FoldingSetNode {
 public:
   enum TernaryOp : uint8_t {
     SUBST,
@@ -1147,7 +1144,7 @@ public:
 };
 
 /// !foldl (a, b, expr, start, lst) - Fold over a list.
-class FoldOpInit : public TypedInit, public FoldingSetNode {
+class FoldOpInit final : public TypedInit, public FoldingSetNode {
 private:
   const Init *Start, *List, *A, *B, *Expr;
 
@@ -1182,7 +1179,7 @@ public:
 };
 
 /// !isa<type>(expr) - Dynamically determine the type of an expression.
-class IsAOpInit : public TypedInit, public FoldingSetNode {
+class IsAOpInit final : public TypedInit, public FoldingSetNode {
 private:
   const RecTy *CheckType;
   const Init *Expr;
@@ -1216,7 +1213,7 @@ public:
 
 /// !exists<type>(expr) - Dynamically determine if a record of `type` named
 /// `expr` exists.
-class ExistsOpInit : public TypedInit, public FoldingSetNode {
+class ExistsOpInit final : public TypedInit, public FoldingSetNode {
 private:
   const RecTy *CheckType;
   const Init *Expr;
@@ -1249,7 +1246,7 @@ public:
 };
 
 /// 'Opcode' - Represent a reference to an entire variable object.
-class VarInit : public TypedInit {
+class VarInit final : public TypedInit {
   const Init *VarName;
 
   explicit VarInit(const Init *VN, const RecTy *T)
@@ -1318,12 +1315,12 @@ public:
 
   const Init *getBit(unsigned B) const override {
     assert(B < 1 && "Bit index out of range!");
-    return const_cast<VarBitInit*>(this);
+    return this;
   }
 };
 
 /// AL - Represent a reference to a 'def' in the description
-class DefInit : public TypedInit {
+class DefInit final : public TypedInit {
   friend class Record;
 
   const Record *Def;
@@ -1359,11 +1356,11 @@ class VarDefInit final
       public FoldingSetNode,
       public TrailingObjects<VarDefInit, const ArgumentInit *> {
   SMLoc Loc;
-  Record *Class;
+  const Record *Class;
   const DefInit *Def = nullptr; // after instantiation
   unsigned NumArgs;
 
-  explicit VarDefInit(SMLoc Loc, Record *Class, unsigned N);
+  explicit VarDefInit(SMLoc Loc, const Record *Class, unsigned N);
 
   const DefInit *instantiate();
 
@@ -1377,7 +1374,7 @@ public:
   static bool classof(const Init *I) {
     return I->getKind() == IK_VarDefInit;
   }
-  static const VarDefInit *get(SMLoc Loc, Record *Class,
+  static const VarDefInit *get(SMLoc Loc, const Record *Class,
                                ArrayRef<const ArgumentInit *> Args);
 
   void Profile(FoldingSetNodeID &ID) const;
@@ -1412,7 +1409,7 @@ public:
 };
 
 /// X.Y - Represent a reference to a subfield of a variable
-class FieldInit : public TypedInit {
+class FieldInit final : public TypedInit {
   const Init *Rec;             // Record we are referring to
   const StringInit *FieldName; // Field we are accessing
 
@@ -2004,7 +2001,7 @@ public:
   const GlobalMap &getGlobals() const { return ExtraGlobals; }
 
   /// Get the class with the specified name.
-  Record *getClass(StringRef Name) const {
+  const Record *getClass(StringRef Name) const {
     auto I = Classes.find(Name);
     return I == Classes.end() ? nullptr : I->second.get();
   }

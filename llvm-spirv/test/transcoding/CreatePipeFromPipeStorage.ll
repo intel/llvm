@@ -31,11 +31,12 @@
 
 ; CHECK-SPIRV: TypePipe [[READ_PIPE:[0-9]+]] 0
 ; CHECK-SPIRV: TypeStruct [[READ_PIPE_WRAPPER:[0-9]+]] [[READ_PIPE]]
-; CHECK-SPIRV: TypePointer [[READ_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[READ_PIPE_WRAPPER]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[READ_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[READ_PIPE_WRAPPER]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[PTR:[0-9]+]] 7
 ; CHECK-SPIRV: TypePipe [[WRITE_PIPE:[0-9]+]] 1
 ; CHECK-SPIRV: TypeStruct [[WRITE_PIPE_WRAPPER:[0-9]+]] [[WRITE_PIPE]]
 
-; CHECK-SPIRV: TypePointer [[WRITE_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[WRITE_PIPE_WRAPPER]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[WRITE_PIPE_WRAPPER_PTR:[0-9]+]] 7 [[WRITE_PIPE_WRAPPER]]
 
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -56,8 +57,10 @@ entry:
   ; CHECK-SPV-IR: %myrpipe = alloca %"[[CL_READ_PIPE_NAME]]", align 4
   ; CHECK-SPV-IR: %mywpipe = alloca %"[[CL_WRITE_PIPE_NAME]]", align 4
 
-  ; CHECK-SPIRV: Variable [[READ_PIPE_WRAPPER_PTR]] [[READ_PIPE_WRAPPER_ID]] 7
-  ; CHECK-SPIRV: Variable [[WRITE_PIPE_WRAPPER_PTR]] [[WRITE_PIPE_WRAPPER_ID]] 7
+  ; CHECK-SPIRV-TYPED-PTR: Variable [[READ_PIPE_WRAPPER_PTR]] [[READ_PIPE_WRAPPER_ID]] 7
+  ; CHECK-SPIRV-TYPED-PTR: Variable [[WRITE_PIPE_WRAPPER_PTR]] [[WRITE_PIPE_WRAPPER_ID]] 7
+  ; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[PTR]] [[READ_PIPE_WRAPPER_ID]] 7 [[READ_PIPE_WRAPPER]]
+  ; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[PTR]] [[WRITE_PIPE_WRAPPER_ID]] 7 [[WRITE_PIPE_WRAPPER]]
 
   %myrpipe = alloca %"class.cl::pipe<int __attribute__((ext_vector_type(4))), cl::pipe_access::read>", align 4
   %mywpipe = alloca %"class.cl::pipe<int __attribute__((ext_vector_type(4))), cl::pipe_access::write>", align 4

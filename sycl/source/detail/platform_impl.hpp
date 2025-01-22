@@ -33,8 +33,7 @@ class device_impl;
 // TODO: implement parameters treatment for host device
 class platform_impl {
 public:
-  /// Constructs platform_impl from a plug-in interoperability platform
-  /// handle.
+  /// Constructs platform_impl from a UR platform handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
   /// \param AAdapter is a plug-in handle.
@@ -107,7 +106,7 @@ public:
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 
-  /// Returns raw underlying plug-in platform handle.
+  /// Returns raw underlying UR platform handle.
   ///
   /// Unlike get() method, this method does not retain handler. It is caller
   /// responsibility to make sure that platform stays alive while raw handle
