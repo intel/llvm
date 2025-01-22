@@ -1,7 +1,14 @@
-# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
-# Merge: e370a2b9 eeff9f4a
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 27 10:40:02 2025 +0000
-#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
-#     Enable creation of bindless images backed by host USM
-set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)
+set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+# commit 431e7dc702d0b69cc143b176c9d7daebe9e6fc46
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Wed Jan 8 16:08:16 2025 +0000
+#     Make profiling info optional and update tests
+#
+#     This patch turns all of the values returned by urEventGetProfilingInfo
+#     to be optional and updates adapters to handle this by returning the
+#     appropriate enum when it is not supported.
+#
+#     The tests have also been updated, to ensure that returning a counter of
+#     "0" or values equal to the previous profiling event is no longer
+#     considered a failure.
+set(UNIFIED_RUNTIME_TAG 431e7dc702d0b69cc143b176c9d7daebe9e6fc46)
