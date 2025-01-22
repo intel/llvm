@@ -1,7 +1,14 @@
-# commit d03f19a88e42cb98be9604ff24b61190d1e48727
-# Merge: 3ce6fcc9 84454b0e
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Feb 13 11:43:34 2025 +0000
-#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
-#     Do not fetch cudart from gitlab for UMF
-set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)
+set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+# commit 431e7dc702d0b69cc143b176c9d7daebe9e6fc46
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Wed Jan 8 16:08:16 2025 +0000
+#     Make profiling info optional and update tests
+#
+#     This patch turns all of the values returned by urEventGetProfilingInfo
+#     to be optional and updates adapters to handle this by returning the
+#     appropriate enum when it is not supported.
+#
+#     The tests have also been updated, to ensure that returning a counter of
+#     "0" or values equal to the previous profiling event is no longer
+#     considered a failure.
+set(UNIFIED_RUNTIME_TAG 431e7dc702d0b69cc143b176c9d7daebe9e6fc46)
