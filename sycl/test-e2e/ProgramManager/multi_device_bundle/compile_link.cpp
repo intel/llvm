@@ -1,11 +1,12 @@
 // REQUIRES: gpu && linux && (opencl || level_zero)
 
 // RUN: %{build} -o %t.out
-// RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_UR_TRACE=2 %{run} %t.out
+// RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 %{run} %t.out
 
 // Test to check that we can compile and link a kernel bundle for multiple
 // devices and run the kernel on each device.
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class Kernel;
 

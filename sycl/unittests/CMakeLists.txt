@@ -25,13 +25,7 @@ include(AddSYCLUnitTest)
 
 add_custom_target(check-sycl-unittests)
 
-# TODO UR tests require real hardware and must be moved to sycl/test-e2e.
-option(SYCL_UR_TESTS "Enable UR-specific unit tests" OFF)
-
-if (SYCL_UR_TESTS)
-    add_subdirectory(ur)
-endif()
-
+add_subdirectory(ur)
 add_subdirectory(allowlist)
 add_subdirectory(config)
 add_subdirectory(misc)

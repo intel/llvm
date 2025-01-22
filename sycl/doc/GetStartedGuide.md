@@ -49,15 +49,10 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * C++ compiler
   * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
-Alternatively, you can use a Docker image that has everything you need for
-building pre-installed:
+Alternatively, you can create a Docker image that has everything you need for
+building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
 
-```bash
-docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2204_build /bin/bash
-```
-
-This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on
+See [Docker BKMs](developer/DockerBKMs.md) for more info on
 Docker commands.
 
 ### Create DPC++ workspace
@@ -256,24 +251,22 @@ instruction on how to install this refer to
 
 The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it is
 installed somewhere else, the directory must be provided through the CMake
-variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed using the
+variable `UR_HIP_ROCM_DIR` which can be passed using the
 `--cmake-opt` option of `configure.py` as follows:
 
 ```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
-  --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
+  --cmake-opt=-DUR_HIP_ROCM_DIR=/usr/local/rocm
 ```
 If further customization is required — for instance when the layout of
-individual directories can not be inferred from `SYCL_BUILD_PI_HIP_ROCM_DIR` —
+individual directories can not be inferred from `UR_HIP_ROCM_DIR` —
 it is possible to specify the location of HIP include, HSA include and HIP
 library directories, using the following CMake variables:
-* `SYCL_BUILD_PI_HIP_INCLUDE_DIR`,
-* `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`,
-* `SYCL_BUILD_PI_HIP_LIB_DIR`.
-Please note that a similar customization would also be required for Unified
-Runtime, see [the list of options provided by its
-CMake](https://github.com/oneapi-src/unified-runtime#cmake-standard-options)
-for details.
+* `UR_HIP_INCLUDE_DIR`,
+* `UR_HIP_HSA_INCLUDE_DIR`,
+* `UR_HIP_LIB_DIR`.
+These options are all passed through to Unified Runtime, more detail about them
+can be found [here](https://github.com/oneapi-src/unified-runtime#cmake-standard-options).
 
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU
 compilation chain. The AMDGPU backend generates a standard ELF relocatable code
@@ -355,7 +348,7 @@ under the hood to provide implementations of various SYCL backends. By default
 the source code for the Unified Runtime will be acquired using CMake's
 [FetchCotent](https://cmake.org/cmake/help/latest/module/FetchContent.html). The
 specific repository URL and revision tag used can be found in the file
-`sycl/plugins/unified_runtime/CMakeLists.txt` searching for the variables
+`sycl/cmake/modules/FetchUnifiedRuntime.cmake` searching for the variables
 `UNIFIED_RUNTIME_REPO` and `UNIFIED_RUNTIME_TAG`.
 
 In order to enable developers, a number of CMake variables are available to
@@ -373,7 +366,7 @@ control which revision of Unified Runtime should be used when building DPC++:
   * The path specified by variable `SYCL_UR_SOURCE_DIR` will be used with
     `add_directory()`. This can be used to point at an adjacent directory
     containing a clone of the Unified Runtime repository.
-  * The path `sycl/plugins/unified_runtime/unified-runtime` will be used, if it
+  * The path `sycl/unified-runtime` will be used, if it
     exists. This can be used as-if an in-tree build.
 * `SYCL_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
   Runtime repository when `SYCL_UR_USE_FETCH_CONTENT` is set of `OFF`.

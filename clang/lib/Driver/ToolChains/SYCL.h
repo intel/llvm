@@ -1,4 +1,4 @@
-//===--- SYCL.h - SYCL ToolChain Implementations -----------------*- C++ -*-===//
+//===--- SYCL.h - SYCL ToolChain Implementations ----------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -158,8 +158,8 @@ SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
                                                bool IsSpirvAOT);
 
 // Populates the SYCL device traits macros.
-void populateSYCLDeviceTraitsMacrosArgs(Compilation &C,
-    const llvm::opt::ArgList &Args,
+void populateSYCLDeviceTraitsMacrosArgs(
+    Compilation &C, const llvm::opt::ArgList &Args,
     const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
 
 bool shouldDoPerObjectFileLinking(const Compilation &C);
@@ -180,11 +180,11 @@ public:
 private:
   /// \return llvm-link output file name.
   const char *constructLLVMLinkCommand(Compilation &C, const JobAction &JA,
-                             const InputInfo &Output,
-                             const llvm::opt::ArgList &Args,
-                             llvm::StringRef SubArchName,
-                             llvm::StringRef OutputFilePrefix,
-                             const InputInfoList &InputFiles) const;
+                                       const InputInfo &Output,
+                                       const llvm::opt::ArgList &Args,
+                                       llvm::StringRef SubArchName,
+                                       llvm::StringRef OutputFilePrefix,
+                                       const InputInfoList &InputFiles) const;
 };
 
 /// Directly call FPGA Compiler and Linker
@@ -241,7 +241,7 @@ template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   if (Target.starts_with(GPUArh)) {
     return resolveGenDevice(Target);
   }
-  return  std::nullopt;
+  return std::nullopt;
 }
 
 } // end namespace gen
@@ -280,9 +280,10 @@ public:
   llvm::opt::DerivedArgList *
   TranslateArgs(const llvm::opt::DerivedArgList &Args, StringRef BoundArch,
                 Action::OffloadKind DeviceOffloadKind) const override;
-  void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
-                         llvm::opt::ArgStringList &CC1Args,
-                         Action::OffloadKind DeviceOffloadKind) const override;
+  void
+  addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
+                        llvm::opt::ArgStringList &CC1Args,
+                        Action::OffloadKind DeviceOffloadKind) const override;
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
@@ -324,7 +325,8 @@ public:
   CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
   void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
-  void AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+  void
+  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;
   void AddClangCXXStdlibIncludeArgs(
       const llvm::opt::ArgList &Args,
@@ -357,7 +359,8 @@ inline bool isSYCLNativeCPU(const llvm::opt::ArgList &Args) {
   return false;
 }
 
-inline bool isSYCLNativeCPU(const llvm::Triple &HostT, const llvm::Triple &DevT) {
+inline bool isSYCLNativeCPU(const llvm::Triple &HostT,
+                            const llvm::Triple &DevT) {
   return HostT == DevT;
 }
 

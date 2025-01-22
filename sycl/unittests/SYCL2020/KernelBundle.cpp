@@ -10,8 +10,8 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -24,33 +24,33 @@ MOCK_INTEGRATION_HEADER(TestKernel)
 MOCK_INTEGRATION_HEADER(TestKernelExeOnly)
 MOCK_INTEGRATION_HEADER(TestKernelWithAspects)
 
-static sycl::unittest::UrImage
+static sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
                      sycl_device_binary_type BinaryType,
                      const char *DeviceTargetSpec,
                      const std::vector<sycl::aspect> &Aspects = {}) {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   if (!Aspects.empty())
     addDeviceRequirementsProps(PropSet, Aspects);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  UrImage Img{BinaryType, // Format
-              DeviceTargetSpec,
-              "", // Compile options
-              "", // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{BinaryType, // Format
+                      DeviceTargetSpec,
+                      "", // Compile options
+                      "", // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-static sycl::unittest::UrImage Imgs[] = {
+static sycl::unittest::MockDeviceImage Imgs[] = {
     generateDefaultImage({"TestKernel"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"TestKernelExeOnly"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
@@ -61,7 +61,7 @@ static sycl::unittest::UrImage Imgs[] = {
     generateDefaultImage(
         {"TestKernelWithAspects"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
         __SYCL_DEVICE_BINARY_TARGET_SPIRV64, {sycl::aspect::gpu})};
-static sycl::unittest::UrImageArray<std::size(Imgs)> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 
 static ur_result_t redefinedDeviceGetInfoCPU(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);

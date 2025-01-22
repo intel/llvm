@@ -369,6 +369,7 @@ const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
 const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
 const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
 const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
+const static char EntrypointPrefix[] = "__spirv_entry_";
 const static char ConvertHandleToImageINTEL[] = "ConvertHandleToImageINTEL";
 const static char ConvertHandleToSamplerINTEL[] = "ConvertHandleToSamplerINTEL";
 const static char ConvertHandleToSampledImageINTEL[] =
@@ -552,6 +553,19 @@ template <typename Container>
 inline unsigned findFirstPtr(const Container &Args) {
   auto PtArg = std::find_if(Args.begin(), Args.end(), [](Value *V) {
     return V->getType()->isPointerTy();
+  });
+  return PtArg - Args.begin();
+}
+
+// Utility function to check if a type is a TypedPointerType
+inline bool isTypedPointerType(llvm::Type *Ty) {
+  return llvm::isa<llvm::TypedPointerType>(Ty);
+}
+
+template <typename Container>
+inline unsigned findFirstPtrType(const Container &Args) {
+  auto PtArg = std::find_if(Args.begin(), Args.end(), [](Type *T) {
+    return T->isPointerTy() || isTypedPointerType(T);
   });
   return PtArg - Args.begin();
 }

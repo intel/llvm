@@ -3,9 +3,11 @@
 
 // UNSUPPORTED: hip || cuda
 
-// TODO: Remove XFAIL after fixing
-// https://github.com/intel/intel-graphics-compiler/issues/330
 // XFAIL: gpu
+// XFAIL-TRACKER: https://github.com/intel/intel-graphics-compiler/issues/330
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16318, CMPLRLLVM-62187
 
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir

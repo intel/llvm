@@ -3,6 +3,7 @@
 
 // This property is not yet supported by all UR adapters
 // XFAIL: level_zero, opencl, hip
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16403
 
 #include <sycl/detail/core.hpp>
 
@@ -57,17 +58,15 @@ template <size_t I> struct KernelFunctorWithMaxWGSizeProp {
   }
 };
 
-template <Variant KernelVariant, size_t I, typename PropertiesT,
-          typename KernelType>
-int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
+template <Variant KernelVariant, size_t I, typename KernelType>
+int test(queue &Q, KernelType KernelFunc) {
   constexpr size_t Dims = 1;
 
   // Positive test case: Specify local size that matches required size.
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<MaxLinearWGSizePositive<KernelVariant, false, I>>(
-          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(I)), Props,
-          KernelFunc);
+          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(I)), KernelFunc);
     });
     Q.wait_and_throw();
   } catch (exception &E) {
@@ -80,8 +79,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   // Same as above but using the queue shortcuts.
   try {
     Q.parallel_for<MaxLinearWGSizePositive<KernelVariant, true, I>>(
-        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(I)), Props,
-        KernelFunc);
+        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(I)), KernelFunc);
     Q.wait_and_throw();
   } catch (exception &E) {
     std::cerr
@@ -96,7 +94,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<MaxLinearWGSizeNoLocalPositive<KernelVariant, false, I>>(
-          repeatRange<Dims>(16), Props, KernelFunc);
+          repeatRange<Dims>(16), KernelFunc);
     });
     Q.wait_and_throw();
   } catch (exception &E) {
@@ -108,7 +106,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
 
   try {
     Q.parallel_for<MaxLinearWGSizeNoLocalPositive<KernelVariant, true, I>>(
-        repeatRange<Dims>(16), Props, KernelFunc);
+        repeatRange<Dims>(16), KernelFunc);
     Q.wait_and_throw();
   } catch (exception &E) {
     std::cerr << "Test case MaxLinearWGSizeNoLocalPositive shortcut failed: "
@@ -121,7 +119,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<MaxLinearWGSizeNegative<KernelVariant, false, I>>(
-          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
+          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
           KernelFunc);
     });
     Q.wait_and_throw();
@@ -146,7 +144,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   // Same as above but using the queue shortcuts.
   try {
     Q.parallel_for<MaxLinearWGSizeNegative<KernelVariant, true, I>>(
-        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
+        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
         KernelFunc);
     Q.wait_and_throw();
     std::cerr
@@ -173,17 +171,10 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
 }
 
 template <size_t I> int test_max(queue &Q) {
-  auto Props = ext::oneapi::experimental::properties{
-      ext::oneapi::experimental::max_linear_work_group_size<I>};
-  auto KernelFunction = [](auto) {};
-
-  auto EmptyProps = ext::oneapi::experimental::properties{};
   KernelFunctorWithMaxWGSizeProp<I> KernelFunctor;
 
   int Res = 0;
-  Res += test<Variant::Function, I>(Q, Props, KernelFunction);
-  Res += test<Variant::Functor, I>(Q, EmptyProps, KernelFunctor);
-  Res += test<Variant::FunctorAndProperty, I>(Q, Props, KernelFunctor);
+  Res += test<Variant::Functor, I>(Q, KernelFunctor);
   return Res;
 }
 

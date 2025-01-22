@@ -40,6 +40,23 @@ if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
           list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_FILE_OFFSET_BITS=64")
 endif()
 
+# Newer POSIX functions aren't available without the appropriate defines.
+# Usually those are set by the use of -std=gnuXX, but one can also use the
+# newer functions with -std=c(++)XX, i.e. without the GNU language extensions.
+# Keep this at the top to make sure we don't add _GNU_SOURCE dependent checks
+# before adding it.
+check_symbol_exists(__GLIBC__ stdio.h LLVM_USING_GLIBC)
+if(LLVM_USING_GLIBC)
+  add_compile_definitions(_GNU_SOURCE)
+  list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
+
+  # enable 64bit off_t on 32bit systems using glibc
+  if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_compile_definitions(_FILE_OFFSET_BITS=64)
+    list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_FILE_OFFSET_BITS=64")
+  endif()
+endif()
+
 # include checks
 check_include_file(dlfcn.h HAVE_DLFCN_H)
 check_include_file(errno.h HAVE_ERRNO_H)
@@ -161,6 +178,10 @@ endif()
 # If LLVM_USE_STATIC_ZSTD is specified, make sure we enable zstd only if static
 # libraries are found.
 if(LLVM_USE_STATIC_ZSTD AND NOT TARGET zstd::libzstd_static)
+  # Fail if LLVM_ENABLE_ZSTD is FORCE_ON.
+  if(LLVM_ENABLE_ZSTD STREQUAL FORCE_ON)
+      message(FATAL_ERROR "Failed to find static zstd libraries, but LLVM_USE_STATIC_ZSTD=ON and LLVM_ENABLE_ZSTD=FORCE_ON.")
+  endif()
 set(LLVM_ENABLE_ZSTD OFF)
 else()
 set(LLVM_ENABLE_ZSTD ${zstd_FOUND})
@@ -341,17 +362,6 @@ if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
 else()
   CHECK_STRUCT_HAS_MEMBER("struct stat" st_mtim.tv_nsec
       "sys/types.h;sys/stat.h" HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC)
-endif()
-
-check_symbol_exists(__GLIBC__ stdio.h LLVM_USING_GLIBC)
-if( LLVM_USING_GLIBC )
-  add_compile_definitions(_GNU_SOURCE)
-  list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
-# enable 64bit off_t on 32bit systems using glibc
-  if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-    add_compile_definitions(_FILE_OFFSET_BITS=64)
-    list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_FILE_OFFSET_BITS=64")
-  endif()
 endif()
 
 # This check requires _GNU_SOURCE.

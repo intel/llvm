@@ -1,4 +1,5 @@
 // REQUIRES: windows
+// REQUIRES: build-and-run-mode
 
 // RUN: %clangxx --driver-mode=cl -fsycl /MDd -c %s -o %t.obj
 // RUN: %clangxx --driver-mode=cl -fsycl %t.obj -Wno-unused-command-line-argument -o %t.out

@@ -1,6 +1,3 @@
-// TODO: fpga emu crashes when querying sub_group_independent_forward_progress
-// XFAIL: accelerator
-// XFAIL-TRACKER: URT-697
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

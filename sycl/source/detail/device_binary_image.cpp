@@ -182,6 +182,7 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
   AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
+  ImplicitLocalArg.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG);
   ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
   // Convert ProgramMetadata into the UR format
   for (const auto &Prop : ProgramMetadata) {

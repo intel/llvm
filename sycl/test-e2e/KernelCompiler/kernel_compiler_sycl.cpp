@@ -9,10 +9,44 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// Flaky timeout on CPU. Enable when fixed.
+// Depends on SPIR-V Backend & run-time drivers version.
+// UNSUPPORTED: spirv-backend && cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
+
+// -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
+
+// Note: this 'invoking clang++' version for SYCL language support is temporary,
+// and will be replaced by the SYCL_JIT version soon.
+
 // RUN: %{run} %t.out
+// RUN: %{l0_leak_check} %{run} %t.out
+
+// -- Test again, with caching.
+// 'reading-from-cache' is just a string we pass to differentiate between the
+// two runs.
+
+// DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
+// RUN: rm -rf %t/cache_dir
+// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN:  %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+
+// -- Add leak check.
+// RUN: rm -rf %t/cache_dir
+// RUN: %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{l0_leak_check} %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+
+// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
+// CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
+// CHECK-WRITTEN-TO-CACHE: [kernel_compiler Persistent Cache]: binary has been cached
+
+// CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
+// CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
+// CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 auto constexpr AddEmH = R"===(
@@ -115,7 +149,7 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   sycl::free(usmPtr, Queue);
 }
 
-void test_build_and_run() {
+void test_build_and_run(bool readingFromCache) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
@@ -157,8 +191,13 @@ void test_build_and_run() {
       kbSrc, devs,
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
-  assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
-         std::string::npos);
+
+  // If the kernel was restored from cache, there will not have been
+  // any warning issued by the compilation of the kernel.
+  if (!readingFromCache) {
+    assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
+           std::string::npos);
+  }
 
   // clang-format off
 
@@ -271,10 +310,24 @@ void test_esimd() {
   sycl::free(C, q);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  bool readingFromCache = false;
+
+  // Check if the argument is present
+  if (argc > 1) {
+    std::string argument(argv[1]);
+    if (argument == "reading-from-cache") {
+      readingFromCache = true;
+    } else if (argument == "available") {
+      sycl::device d;
+      bool avail = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+      return avail;
+    }
+  }
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  test_build_and_run();
+  test_build_and_run(readingFromCache);
   test_error();
   test_esimd();
 #else

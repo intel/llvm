@@ -1,7 +1,5 @@
-// TODO: Despite using a supported required subgroup size compile_sub_group_size 
-// reports as 0 on fpga emu, cuda and hip
-// XFAIL: accelerator
-// XFAIL-TRACKER: URT-697
+// TODO: Despite using a supported required subgroup size compile_sub_group_size
+// reports as 0 on cuda and hip
 // XFAIL: cuda || hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14357
 

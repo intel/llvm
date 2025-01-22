@@ -1,7 +1,4 @@
-# These two take too much time
-kernel_bundle
-marray
-# fix: https://github.com/KhronosGroup/SYCL-CTS/pull/964
-accessor_legacy
-# CMPLRLLVM-62822
-multi_ptr
+# Please use "#" to add comments here.
+# Do not delete the file even if it's empty.
+# CMPLRTST-26179
+device

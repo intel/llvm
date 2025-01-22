@@ -27,7 +27,7 @@ _sycl_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
                                     EntryFlags, EntryReserved};
 }
 
-PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
+PropertyContainer::PropertyContainer(const std::string &Name, const void *Data,
                                      size_t Size, uint32_t Type)
     : PropName{new char[Name.length() + 1]}, Value{new unsigned char[Size]},
       ValueSize{Size}, PropType{Type} {

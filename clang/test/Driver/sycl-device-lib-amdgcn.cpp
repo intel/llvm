@@ -7,7 +7,7 @@
 // Check if internal libraries are still linked against when linkage of all
 // device libs is manually excluded.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -fsycl -fno-sycl-device-lib=all --sysroot=%S/Inputs/SYCL \
-// RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
+// RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 -fsycl-instrument-device-code %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-NO-DEVLIB %s
 
 // CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)

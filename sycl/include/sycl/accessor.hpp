@@ -22,7 +22,6 @@
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
-#include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
@@ -808,7 +807,7 @@ public:
 
   char padding[sizeof(detail::AccessorImplDevice<AdjustedDim>) +
                sizeof(PtrType) - sizeof(detail::AccessorBaseHost) -
-               sizeof(MAccData)];
+               sizeof(MAccData)] = {0};
 
   PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
@@ -2193,7 +2192,7 @@ protected:
       : detail::LocalAccessorBaseHost{Impl} {}
 
   char padding[sizeof(detail::LocalAccessorBaseDevice<AdjustedDim>) +
-               sizeof(PtrType) - sizeof(detail::LocalAccessorBaseHost)];
+               sizeof(PtrType) - sizeof(detail::LocalAccessorBaseHost)] = {0};
   using detail::LocalAccessorBaseHost::getSize;
 
   PtrType getQualifiedPtr() const {

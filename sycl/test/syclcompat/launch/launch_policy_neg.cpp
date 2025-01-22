@@ -20,18 +20,18 @@
  *     Negative tests for new launch_policy.
  **************************************************************************/
 
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK1 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK1
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK2 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK2
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK3 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK3
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK4 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK4
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK5 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK5
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK6 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK6
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK7 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK7
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK8 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK8
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK9 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK9
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK10 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK10
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK11 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK11
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DCHECK12 -o %t.out 2>&1 | FileCheck -vv %s --check-prefixes=CHECK12
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK1 2>&1 | FileCheck -vv %s --check-prefixes=CHECK1
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK2 2>&1 | FileCheck -vv %s --check-prefixes=CHECK2
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK3 2>&1 | FileCheck -vv %s --check-prefixes=CHECK3
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK4 2>&1 | FileCheck -vv %s --check-prefixes=CHECK4
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK5 2>&1 | FileCheck -vv %s --check-prefixes=CHECK5
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK6 2>&1 | FileCheck -vv %s --check-prefixes=CHECK6
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK7 2>&1 | FileCheck -vv %s --check-prefixes=CHECK7
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK8 2>&1 | FileCheck -vv %s --check-prefixes=CHECK8
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK9 2>&1 | FileCheck -vv %s --check-prefixes=CHECK9
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK10 2>&1 | FileCheck -vv %s --check-prefixes=CHECK10
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK11 2>&1 | FileCheck -vv %s --check-prefixes=CHECK11
+// RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK12 2>&1 | FileCheck -vv %s --check-prefixes=CHECK12
 
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/detail/core.hpp>

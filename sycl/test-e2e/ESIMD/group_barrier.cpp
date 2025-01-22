@@ -8,9 +8,6 @@
 // REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // REQUIRES-INTEL-DRIVER: lin: 31155
 
-// XFAIL: linux && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15812
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -21,13 +18,12 @@
 static constexpr int WorkGroupSize = 16;
 
 static constexpr int VL = 16;
-int main() {
+template <bool UseThisWorkItemAPI> bool test(sycl::queue &q) {
   bool Pass = true;
-  sycl::queue q;
-  esimd_test::printTestLabel(q);
   const auto MaxWGs = 8;
   size_t WorkItemCount = MaxWGs * WorkGroupSize * VL;
-
+  std::cout << "Test case UseThisWorkItemAPI="
+            << std::to_string(UseThisWorkItemAPI) << std::endl;
   const auto Props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> DataBuf{sycl::range{WorkItemCount}};
@@ -40,13 +36,13 @@ int main() {
        // Write data to another kernel's data to verify the barrier works.
        __ESIMD_NS::block_store(
            Data, (WorkItemCount * sizeof(int)) - (ID * sizeof(int) * VL), V);
-       if (ID % 2 == 1) {
-         auto Root = it.ext_oneapi_get_root_group();
-         sycl::group_barrier(Root);
-       } else {
+       if constexpr (UseThisWorkItemAPI) {
          auto Root =
              sycl::ext::oneapi::experimental::this_work_item::get_root_group<
                  1>();
+         sycl::group_barrier(Root);
+       } else {
+         auto Root = it.ext_oneapi_get_root_group();
          sycl::group_barrier(Root);
        }
        __ESIMD_NS::simd<int, VL> VOther(ID * VL, 1);
@@ -63,6 +59,14 @@ int main() {
                   << "] != " << std::to_string(I) << "\n";
     }
   }
+  return Pass;
+}
+int main() {
+  sycl::queue q;
+  esimd_test::printTestLabel(q);
+  bool Pass = true;
+  Pass &= test<true>(q);
+  Pass &= test<false>(q);
   if (Pass)
     std::cout << "Passed\n";
   else
