@@ -224,6 +224,19 @@ class
     __SYCL_HOST_NOT_SUPPORTED("get()")                                         \
     return *this->get_ptr();                                                   \
   }                                                                            \
+  T &get() noexcept {                                                          \
+    __SYCL_HOST_NOT_SUPPORTED("get()")                                         \
+    return *this->get_ptr();                                                   \
+  }                                                                            \
+  operator T &() noexcept {                                                    \
+    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")     \
+    return get();                                                              \
+  }                                                                            \
+  device_global &operator=(const T &newValue) noexcept {                       \
+    __SYCL_HOST_NOT_SUPPORTED("Assignment operator")                           \
+    *this->get_ptr() = newValue;                                               \
+    return *this;                                                              \
+  }                                                                            \
                                                                                \
   operator const T &() const noexcept {                                        \
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")     \
@@ -272,7 +285,7 @@ class
     return property_list_t::template get_property<propertyT>();                \
   }
 
-template <typename T, typename... Props>
+template <typename U, typename... Props>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
@@ -282,13 +295,16 @@ class
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::name..., sizeof(T),
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
-    device_global<T, detail::properties_t<Props...>,
+    device_global<const std::remove_const_t<U>, detail::properties_t<Props...>,
                   std::enable_if_t<detail::properties_t<
                       Props...>::template has_property<device_constant_key>()>>
-    : public detail::device_global_base<T, detail::properties_t<Props...>> {
+    : public detail::device_global_base<const std::remove_const_t<U>,
+                                        detail::properties_t<Props...>> {
+  using T = const std::remove_const_t<U>;
+
 public:
 #if !__cpp_consteval
-  static_assert(std::is_trivially_default_constructible_v<T>,
+  static_assert(std::is_trivially_default_constructible_v<U>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
 #endif // !__cpp_consteval
