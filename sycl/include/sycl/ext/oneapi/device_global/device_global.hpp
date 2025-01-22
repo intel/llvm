@@ -282,9 +282,11 @@ class
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::name..., sizeof(T),
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
-    device_global<T, detail::properties_t<Props...>,
-                  std::enable_if_t<detail::properties_t<
-                      Props...>::template has_property<device_constant_key>()>>
+    device_global<
+        T, detail::properties_t<Props...>,
+        std::enable_if_t<detail::properties_t<Props...>::template has_property<
+                             device_constant_key>(),
+                         class is_dev_const>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
 public:
@@ -309,7 +311,8 @@ class
     device_global<
         T, detail::properties_t<Props...>,
         std::enable_if_t<!(detail::properties_t<Props...>::
-                               template has_property<device_constant_key>())>>
+                               template has_property<device_constant_key>()),
+                         class is_not_dev_const>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 public:
 #if !__cpp_consteval
