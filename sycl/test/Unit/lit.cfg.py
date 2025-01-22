@@ -92,3 +92,6 @@ lit_config.note("Using Mock Adapter.")
 
 config.environment["SYCL_CACHE_DIR"] = config.llvm_obj_root + "/sycl_cache"
 lit_config.note("SYCL cache directory: {}".format(config.environment["SYCL_CACHE_DIR"]))
+
+# Disable persistent cache by default in unit tests.
+config.environment["SYCL_CACHE_PERSISTENT"] = "0"
