@@ -1,3 +1,4 @@
+// UNSUPPORTED: cuda
 // REQUIRES: sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

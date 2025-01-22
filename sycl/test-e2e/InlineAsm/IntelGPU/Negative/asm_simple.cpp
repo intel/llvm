@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../include/asmhelper.h"
+#include "include/asmhelper.h"
 #include <sycl/detail/core.hpp>
 
 struct KernelFunctor {
@@ -15,7 +15,7 @@ struct KernelFunctor {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile(".decl tmp1 v_type=G type=d num_elts=16 align=GRF\n"
                        ".decl tmp2 v_type=G type=d num_elts=16 align=GRF\n"
-                       "mov (M1_NM, 16) tmp1(0,1)<1>  tmp2(0,0)\n");
+                       "@@\n");
 #endif
         });
   }
