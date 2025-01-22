@@ -39,6 +39,7 @@
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+#include "llvm/SYCLLowerIR/SYCLSqrtFDivMaxErrorCleanUp.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
@@ -809,6 +810,11 @@ processInputModule(std::unique_ptr<Module> M) {
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
   Modified |= runModulePass<SYCLJointMatrixTransformPass>(*M);
+
+  // Remove llvm.fpbuiltin.[sqrt/fdiv] intrinsic functions if they all have
+  // max-error attribute with values 3.0 and 2.5 appropriately and no other
+  // sqrt or fdiv present in the module.
+  Modified |= runModulePass<SYCLSqrtFDivMaxErrorCleanUpPass>(*M);
 
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)
