@@ -1,9 +1,6 @@
 // UNSUPPORTED: hip
 // REQUIRES: aspect-ext_intel_legacy_image
 //
-// XFAIL: linux && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15812
-//
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out image
