@@ -6,7 +6,7 @@ name: SYCL-CTS with SPIR-V backend
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 7'
+    - cron: '0 0 * * 0'
 
 permissions: read-all
 
@@ -18,13 +18,8 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
-      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      build_configure_extra_args: ''
       merge_ref: ''
-
-      # We upload the build for people to download/use, override its name and
-      # prefer widespread gzip compression.
-      artifact_archive_name: sycl_linux.tar.gz
 
   build-sycl-cts:
     needs: ubuntu2204_build
@@ -50,13 +45,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: SYCL-CTS on OCL CPU w/ LLVM SPIR-V Backend
-            runner: '["Linux", "gen12"]'
+          - name: SYCL-CTS on OCL CPU PVC w/ LLVM SPIR-V Backend
+            runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
 
-          - name: SYCL-CTS on L0 PVC w/ LLVM SPIR-V Backend
+          - name: SYCL-CTS on L0 GPU PVC w/ LLVM SPIR-V Backend
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
