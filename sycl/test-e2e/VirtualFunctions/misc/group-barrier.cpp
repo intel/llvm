@@ -108,7 +108,7 @@ template <typename T1, typename T2, typename T3> struct KernelFunctor {
   KernelFunctor(T1 DeviceStorage, T2 DataAcc, T3 LocalAcc)
       : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc), mLocalAcc(LocalAcc) {}
 
-  void operator()(sycl::item<1> It) const {
+  void operator()(sycl::nd_item<1> It) const {
     auto *Ptr = mDeviceStorage->template getAs<BaseOp>();
     mDataAcc[It.get_global_id()] = Ptr->apply(
         mLocalAcc.template get_multi_ptr<sycl::access::decorated::no>().get(),
