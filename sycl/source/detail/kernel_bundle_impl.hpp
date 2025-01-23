@@ -353,16 +353,16 @@ public:
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::string &Src, include_pairs_t IncludePairsVec)
       : MContext(Context), MDevices(Context.get_devices()),
-        MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src),
-        IncludePairs(IncludePairsVec) {}
+        MState(bundle_state::ext_oneapi_source), MLanguage(Lang), MSource(Src),
+        MIncludePairs(IncludePairsVec) {}
 
   // oneapi_ext_kernel_compiler
   // construct from source bytes
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::vector<std::byte> &Bytes)
       : MContext(Context), MDevices(Context.get_devices()),
-        MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Bytes) {
-  }
+        MState(bundle_state::ext_oneapi_source), MLanguage(Lang),
+        MSource(Bytes) {}
 
   // oneapi_ext_kernel_compiler
   // interop constructor
@@ -372,8 +372,8 @@ public:
                      syclex::source_language Lang)
       : kernel_bundle_impl(Ctx, Devs, DevImage) {
     MState = bundle_state::executable;
-    KernelNames = KNames;
-    Language = Lang;
+    MKernelNames = KNames;
+    MLanguage = Lang;
   }
 
   // oneapi_ext_kernel_compiler
@@ -382,7 +382,8 @@ public:
                      const std::vector<kernel_id> &KernelIDs,
                      std::vector<std::string> KNames, std::string Pfx,
                      syclex::source_language Lang)
-      : kernel_bundle_impl(Ctx, Devs, KernelIDs, bundle_state::executable) {
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), KernelIDs,
+                           bundle_state::executable) {
     assert(Lang == syclex::source_language::sycl_jit);
     // Mark this bundle explicitly as "interop" to ensure that its kernels are
     // enqueued with the info from the kernel object passed by the application,
@@ -390,9 +391,9 @@ public:
     // loaded via the program manager have `kernel_id`s, they can't be looked up
     // from the (unprefixed) kernel name.
     MIsInterop = true;
-    KernelNames = KNames;
-    Prefix = Pfx;
-    Language = Lang;
+    MKernelNames = std::move(KNames);
+    MPrefix = std::move(Pfx);
+    MLanguage = Lang;
   }
 
   std::string trimXsFlags(std::string &str) {
@@ -493,13 +494,14 @@ public:
       DeviceVec.push_back(Dev);
     }
 
-    if (Language == syclex::source_language::sycl_jit) {
+    if (MLanguage == syclex::source_language::sycl_jit) {
       // Build device images via the program manager.
       // TODO: Support persistent caching.
 
-      const std::string &SourceStr = std::get<std::string>(this->Source);
+      const std::string &SourceStr = std::get<std::string>(MSource);
       auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
-          SourceStr, IncludePairs, BuildOptions, LogPtr, RegisteredKernelNames);
+          SourceStr, MIncludePairs, BuildOptions, LogPtr,
+          RegisteredKernelNames);
 
       auto &PM = detail::ProgramManager::getInstance();
       PM.addImages(Binaries);
@@ -511,20 +513,20 @@ public:
       std::string Prefix = CompilationID + '$';
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
-        if (KernelName.find(Prefix) == 0) {
+        if (KernelName.find(MPrefix) == 0) {
           KernelIDs.push_back(KernelID);
-          KernelName.remove_prefix(Prefix.length());
+          KernelName.remove_prefix(MPrefix.length());
           KernelNames.emplace_back(KernelName);
         }
       }
 
       return std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, KernelNames, Prefix, Language);
+          MContext, MDevices, KernelIDs, KernelNames, MPrefix, MLanguage);
     }
 
     ur_program_handle_t UrProgram = nullptr;
     // SourceStrPtr will be null when source is Spir-V bytes.
-    const std::string *SourceStrPtr = std::get_if<std::string>(&this->Source);
+    const std::string *SourceStrPtr = std::get_if<std::string>(&MSource);
     bool FetchedFromCache = false;
     if (PersistentDeviceCodeCache::isEnabled() && SourceStrPtr) {
       FetchedFromCache = extKernelCompilerFetchFromCache(
@@ -533,7 +535,7 @@ public:
 
     if (!FetchedFromCache) {
       const auto spirv = [&]() -> std::vector<uint8_t> {
-        if (Language == syclex::source_language::opencl) {
+        if (MLanguage == syclex::source_language::opencl) {
           // if successful, the log is empty. if failed, throws an error with
           // the compilation log.
           std::vector<uint32_t> IPVersionVec(Devices.size());
@@ -548,17 +550,16 @@ public:
           return syclex::detail::OpenCLC_to_SPIRV(*SourceStrPtr, IPVersionVec,
                                                   BuildOptions, LogPtr);
         }
-        if (Language == syclex::source_language::spirv) {
-          const auto &SourceBytes =
-              std::get<std::vector<std::byte>>(this->Source);
+        if (MLanguage == syclex::source_language::spirv) {
+          const auto &SourceBytes = std::get<std::vector<std::byte>>(MSource);
           std::vector<uint8_t> Result(SourceBytes.size());
           std::transform(SourceBytes.cbegin(), SourceBytes.cend(),
                          Result.begin(),
                          [](std::byte B) { return static_cast<uint8_t>(B); });
           return Result;
         }
-        if (Language == syclex::source_language::sycl) {
-          return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, IncludePairs,
+        if (MLanguage == syclex::source_language::sycl) {
+          return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, MIncludePairs,
                                                BuildOptions, LogPtr,
                                                RegisteredKernelNames);
         }
@@ -623,7 +624,7 @@ public:
     }
 
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
-                                                KernelNames, Language);
+                                                MKernelNames, MLanguage);
   }
 
   std::string adjust_kernel_name(const std::string &Name,
@@ -638,29 +639,29 @@ public:
   }
 
   bool ext_oneapi_has_kernel(const std::string &Name) {
-    auto it = std::find(KernelNames.begin(), KernelNames.end(),
-                        adjust_kernel_name(Name, Language));
-    return it != KernelNames.end();
+    auto it = std::find(MKernelNames.begin(), MKernelNames.end(),
+                        adjust_kernel_name(Name, MLanguage));
+    return it != MKernelNames.end();
   }
 
   kernel
   ext_oneapi_get_kernel(const std::string &Name,
                         const std::shared_ptr<kernel_bundle_impl> &Self) {
-    if (KernelNames.empty())
+    if (MKernelNames.empty())
       throw sycl::exception(make_error_code(errc::invalid),
                             "'ext_oneapi_get_kernel' is only available in "
                             "kernel_bundles successfully built from "
                             "kernel_bundle<bundle_state:ext_oneapi_source>.");
 
-    std::string AdjustedName = adjust_kernel_name(Name, Language);
+    std::string AdjustedName = adjust_kernel_name(Name, MLanguage);
     if (!ext_oneapi_has_kernel(Name))
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel '" + AdjustedName +
                                 "' not found in kernel_bundle");
 
-    if (Language == syclex::source_language::sycl_jit) {
+    if (MLanguage == syclex::source_language::sycl_jit) {
       auto &PM = ProgramManager::getInstance();
-      auto KID = PM.getSYCLKernelID(Prefix + AdjustedName);
+      auto KID = PM.getSYCLKernelID(MPrefix + AdjustedName);
 
       for (const auto &DevImgWithDeps : MDeviceImages) {
         const auto &DevImg = DevImgWithDeps.getMain();
@@ -954,12 +955,12 @@ private:
 
   // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames, IncludePairs
   // Language is for both state::source and state::executable.
-  syclex::source_language Language = syclex::source_language::opencl;
-  const std::variant<std::string, std::vector<std::byte>> Source;
+  syclex::source_language MLanguage = syclex::source_language::opencl;
+  const std::variant<std::string, std::vector<std::byte>> MSource;
   // only kernel_bundles created from source have KernelNames member.
-  std::vector<std::string> KernelNames;
-  std::string Prefix;
-  include_pairs_t IncludePairs;
+  std::vector<std::string> MKernelNames;
+  std::string MPrefix;
+  include_pairs_t MIncludePairs;
 };
 
 } // namespace detail
