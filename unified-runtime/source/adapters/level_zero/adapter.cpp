@@ -295,7 +295,7 @@ Behavior Summary:
   SysMan initialization is skipped.
 */
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("level_zero")) {
+    : ur_handle_base_t_(), logger(logger::get_logger("level_zero")) {
   ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;

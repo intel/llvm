@@ -343,7 +343,7 @@ ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
-    : Context(Context) {
+    : ur_handle_t_(), Context(Context) {
 
   const void *pNext = PoolDesc->pNext;
   while (pNext != nullptr) {
