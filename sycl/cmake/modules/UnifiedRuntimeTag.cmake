@@ -1,17 +1,7 @@
-# commit 38da1bd8c0262eeabbea24e74536af4ab13ec0e3
-# Author: Przemek Malon <przemek.malon@codeplay.com>
-# Date:   Wed Jan 8 19:53:17 2025 +0000
-# Enable creation of images backed by host USM
-#
-#   Small patch to enable bindless images backed by host USM in the CUDA
-#   adapter.
-#
-#   Host and Device USM pointers are usable across the host and device
-#   for all versions of CUDA that we support. There is no need to provide
-#   the `CU_MEMHOSTALLOC_DEVICEMAP` flag during allocation, or calling
-#   `cuMemHostGetDevicePointer` to retrieve a device usable address.
-#
-#   Passing a `CU_MEMHOSTALLOC_WRITECOMBINED` flag to the host USM
-#   allocation will enhance performance in certain scenarios, however, an
-#   extension allowing this is not yet available.
-set(UNIFIED_RUNTIME_TAG 38da1bd8c0262eeabbea24e74536af4ab13ec0e3)
+# commit 3f6dbf3e4bec2ba7bfe7e4cebe998b51852baadc
+# Merge: bf7a6548 dc294e4a
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 22 15:54:22 2025 +0000
+#     Merge pull request #2193 from aarongreig/aaron/clarifyIsNativeHandleOwned
+#     Clarify spec around isNativeHandleOwned.
+set(UNIFIED_RUNTIME_TAG 3f6dbf3e4bec2ba7bfe7e4cebe998b51852baadc)

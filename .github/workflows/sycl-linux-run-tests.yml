@@ -210,27 +210,6 @@ jobs:
           devops
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
-    - name: Checkout E2E tests
-      if: inputs.tests_selector == 'e2e'
-      uses: ./devops/actions/cached_checkout
-      with:
-        path: llvm
-        ref: ${{ inputs.ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
-        cache_path: "/__w/repo_cache/"
-    - name: Checkout SYCL CTS tests
-      if: inputs.tests_selector == 'cts' && inputs.cts_testing_mode != 'run-only'
-      uses: ./devops/actions/cached_checkout
-      with:
-        path: khronos_sycl_cts
-        repository: 'KhronosGroup/SYCL-CTS'
-        ref: 'main'
-        default_branch: 'main'
-        cache_path: "/__w/repo_cache/"
-    - name: SYCL CTS GIT submodules init
-      if: inputs.tests_selector == 'cts' && inputs.cts_testing_mode != 'run-only'
-      run: |
-        git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
       if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
@@ -312,178 +291,26 @@ jobs:
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
 
-    - name: Download E2E Binaries
-      if: inputs.e2e_binaries_artifact != ''
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ inputs.e2e_binaries_artifact }}
-    - name: Extract E2E Binaries
-      if: inputs.e2e_binaries_artifact != ''
-      run: |
-        mkdir build-e2e
-        tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
-
-    - name: Deduce E2E CMake options
-      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact == ''
-      id: cmake_opts
-      shell: bash
-      env:
-        CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
-      run: |
-        if [ -n "$CMAKE_EXTRA_ARGS" ]; then
-          echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
-        fi
-    - name: Configure E2E tests
-      if: inputs.tests_selector == 'e2e' && inputs.e2e_binaries_artifact == ''
-      run: |
-        cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
-    - name: SYCL End-to-end tests
-      shell: bash {0}
+    - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
-      env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
-      run: |
-        ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
-        exit_code=$?
-        cat e2e.log
-        if [ $exit_code -ne 0 ]; then
-          awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
-        fi
-        exit $exit_code
-    - name: Build SYCL CTS tests
-      if: inputs.tests_selector == 'cts' && inputs.sycl_cts_artifact == ''
-      env:
-        CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
-      run: |
-        cts_exclude_filter=""
-        # If CTS_TESTS_TO_BUILD is null - use filter
-        if [ -z "$CTS_TESTS_TO_BUILD" ]; then
-          if [ "${{ contains(inputs.cts_testing_mode, 'build-only')  }}" = "true" ]; then
-            cts_exclude_filter=$PWD/devops/cts_exclude_filter_compfails
-          elif [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-            cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
-          elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-            cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
-          fi
-
-          # List excluded SYCL CTS categories:
-          # SYCL_CTS_EXCLUDE_TEST_CATEGORIES - Optional file specifying a list
-          # of test categories to be excluded from the build.
-          echo "::group::Excluded test categories"
-          cat $cts_exclude_filter
-          echo "::endgroup::"
-        fi
-
-        cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
-        -DSYCL_IMPLEMENTATION=DPCPP \
-        -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
-        -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
-        -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
-        $CMAKE_EXTRA_ARGS
-        # Ignore errors so that if one category build fails others still have a
-        # chance to finish and be executed at the run stage. Note that
-        # "test_conformance" target skips building "test_all" executable.
-        ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
-
-    - name: Pack SYCL-CTS binaries
-      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
-      run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
-
-    - name: Upload SYCL-CTS binaries
-      if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
-      uses: actions/upload-artifact@v4
+      uses: ./devops/actions/run-tests/e2e
       with:
-        name: sycl_cts_bin
-        path: sycl_cts_bin.tar.zst
+        ref: ${{ inputs.ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
+        e2e_binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        e2e_testing_mode: ${{ inputs.e2e_testing_mode }}
+        target_devices: ${{ inputs.target_devices }}
+        extra_lit_opts: ${{ inputs.extra_lit_opts }}
+        artifact_suffix: ${{ inputs.artifact_suffix }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Download SYCL-CTS binaries
-      if: inputs.sycl_cts_artifact != ''
-      uses: actions/download-artifact@v4
+    - name: Run SYCL CTS Tests
+      if: inputs.tests_selector == 'cts'
+      uses: ./devops/actions/run-tests/cts
       with:
-        name: ${{ inputs.sycl_cts_artifact }}
-
-    - name: Extract SYCL-CTS binaries
-      if: inputs.sycl_cts_artifact != ''
-      run: |
-        mkdir -p build-cts/bin
-        tar -I 'zstd' -xf sycl_cts_bin.tar.zst -C build-cts/bin
-
-    - name: SYCL CTS List devices
-      # Proceed with execution even if the 'build' step did not succeed.
-      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
-      env:
-        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
-      run: |
-        ./build-cts/bin/* --list-devices
-
-    # If the suite was built on another machine then the build contains the full
-    # set of tests. We have special files to filter out some test categories,
-    # see "devops/cts_exclude_filter_*". Each configuration has its own file, e.g.
-    # there is "cts_exclude_filter_OCL_CPU" for opencl:cpu device. Therefore,
-    # these files may differ from each other, so when there is a pre-built set of
-    # tests, we need to filter it according to the filter-file.
-    - name: Filter SYCL CTS test categories
-      if: inputs.sycl_cts_artifact != ''
-      shell: bash
-      run: |
-        cts_exclude_filter=""
-        if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
-        elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
-        fi
-
-        while IFS= read -r line; do
-          if [[ $line != \#* ]]; then
-            rm "./build-cts/bin/test_$line"
-          fi
-        done < "$cts_exclude_filter"
-
-    - name: Run SYCL CTS tests
-      # Proceed with execution even if the previous two steps did not succeed.
-      if: inputs.tests_selector == 'cts' && (always() && !cancelled()) && inputs.cts_testing_mode != 'build-only'
-      env:
-        ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
-      # This job takes ~100min usually. But sometimes some test isn't
-      # responding, so the job reaches the 360min limit. Setting a lower one.
-      timeout-minutes: 150
-      # By-default GitHub actions execute the "run" shell script with -e option,
-      # so the execution terminates if any command returns a non-zero status.
-      # Since we're using a loop to run all test-binaries separately, some test
-      # may fail and terminate the execution. Setting "shell" value to override
-      # the default behavior.
-      # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#custom-shell
-      shell: bash {0}
-      run: |
-        # Run each test category separately so that
-        #  - crash on one would not affect others
-        #  - multiple tests could be run in parallel
-        mkdir logs
-        find build-cts/bin/ -type f -print | \
-          xargs -t -I % -P 8 sh -c 'log=logs/$(basename %).log ; echo % >$log ; date >>$log ; timeout 60m % >>$log 2>&1 ; ret=$? ; echo "exit code: $ret" >>$log ; date >>$log  ; exit $ret'
-        ret=$?
-
-        for f in logs/* ; do
-          echo "::group::$f"
-          cat $f
-          echo "::endgroup::"
-        done
-
-        echo "::group::Fails:"
-        grep 'exit code: [^0]' -r logs
-        echo "::endgroup::"
-
-        grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
-
-        exit $ret
-    - name: Pack E2E binaries
-      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
-      run: tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
-    - name: Upload E2E binaries
-      if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
-      uses: actions/upload-artifact@v4
-      with:
-        name: sycl_e2e_bin_${{ inputs.artifact_suffix }}
-        path: e2e_binaries.tar.zst
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        cts_testing_mode: ${{ inputs.cts_testing_mode }}
+        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
+        target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
