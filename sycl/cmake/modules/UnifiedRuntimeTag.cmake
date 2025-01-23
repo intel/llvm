@@ -1,7 +1,7 @@
-# commit 3f6dbf3e4bec2ba7bfe7e4cebe998b51852baadc
-# Merge: bf7a6548 dc294e4a
+# commit d3e97040b67ee6b45655eccdfca19185bd9115b6
+# Merge: 2ef69591 37ad03a7
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 22 15:54:22 2025 +0000
-#     Merge pull request #2193 from aarongreig/aaron/clarifyIsNativeHandleOwned
-#     Clarify spec around isNativeHandleOwned.
-set(UNIFIED_RUNTIME_TAG 3f6dbf3e4bec2ba7bfe7e4cebe998b51852baadc)
+# Date:   Thu Jan 23 10:23:08 2025 +0000
+#     Merge pull request #2605 from yingcong-wu/yc/0123-ur-quick-fix
+#     [DeviceASAN] Bugfix for GetDeviceType
+set(UNIFIED_RUNTIME_TAG d3e97040b67ee6b45655eccdfca19185bd9115b6)
