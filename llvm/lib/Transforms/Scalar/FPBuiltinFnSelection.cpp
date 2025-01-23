@@ -109,8 +109,8 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
 
 // This function lowers llvm.fpbuiltin. intrinsic functions with 3.0 max-error
 // attribute to the appropriate nvvm approximate intrinsics if it's possible.
-// If it's not possible - fallback to standard C/C++ library LLVM intrinsic or
-// instruction.
+// If it's not possible - fallback to instruction or standard C/C++ library LLVM
+// intrinsic.
 static bool replaceWithApproxNVPTXCallsOrFallback(
     FPBuiltinIntrinsic &BuiltinCall) {
   IRBuilder<> IRBuilder(&BuiltinCall);
@@ -119,9 +119,10 @@ static bool replaceWithApproxNVPTXCallsOrFallback(
   auto *Type = BuiltinCall.getType();
   // For now only add lowering for fdiv and sqrt. Yet nvvm intrinsics have
   // approximate variants for sin, cos, exp2 and log2.
-  // For vector fpbuiltins for NVPTX target we don't have nvvm intrinsics, use
-  // standart for LLVM math operations. Also nvvm fdiv and sqrt intrisics
-  // support only float type.
+  // For vector fpbuiltins for NVPTX target we don't have nvvm intrinsics,
+  // fallback to instruction or standard C/C++ library LLVM intrinsic. Also
+  // nvvm fdiv and sqrt intrisics support only float type, so fallback in this
+  // case as well.
   switch (BuiltinCall.getIntrinsicID()) {
   case Intrinsic::fpbuiltin_fdiv:
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
