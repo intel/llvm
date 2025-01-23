@@ -111,8 +111,8 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
 // attribute to the appropriate nvvm approximate intrinsics if it's possible.
 // If it's not possible - fallback to instruction or standard C/C++ library LLVM
 // intrinsic.
-static bool replaceWithApproxNVPTXCallsOrFallback(
-    FPBuiltinIntrinsic &BuiltinCall) {
+static bool
+replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall) {
   IRBuilder<> IRBuilder(&BuiltinCall);
   SmallVector<Value *> Args(BuiltinCall.args());
   Value *Replacement = nullptr;
