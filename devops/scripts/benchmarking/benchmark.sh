@@ -228,13 +228,11 @@ load_configs() {
 
 #####
 
+load_configs
+
 COMPUTE_BENCH_COMPILE_FLAGS=""
 CACHE_RESULTS="0"
 TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
-
-echo "Timestamp: $TIMESTAMP"
-
-load_configs
 
 # CLI flags + overrides to configuration options:
 while getopts "p:b:r:f:n:cCs" opt; do
