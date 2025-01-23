@@ -12,7 +12,7 @@
 #include "common.hpp"
 #include "ur_api.h"
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur::native_cpu::handle_base {
   std::atomic<uint32_t> RefCount = 0;
   logger::Logger &logger = logger::get_logger("native_cpu");
 } Adapter;
