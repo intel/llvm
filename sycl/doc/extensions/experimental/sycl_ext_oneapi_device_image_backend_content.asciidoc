@@ -99,9 +99,7 @@ class device_image {
   backend ext_oneapi_get_backend() const noexcept;
   std::vector<std::byte> ext_oneapi_get_backend_content() const;
 
-#if defined(__cpp_lib_span)
-  std::span<const std::byte> ext_oneapi_get_backend_content_view() const;
-#endif
+  std::span<const std::byte> ext_oneapi_get_backend_content_view() const; // Requires C++20
 
   /*...*/
 };
