@@ -14,7 +14,7 @@
 #include "logger/ur_logger.hpp"
 #include "tracing.hpp"
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
   struct cuda_tracing_context_t_ *TracingCtx = nullptr;
@@ -41,7 +41,8 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(logger::get_logger("cuda",
+    : ur_handle_t_(),
+      logger(logger::get_logger("cuda",
                                 /*default_log_level*/ logger::Level::ERR)) {
 
   if (std::getenv("UR_LOG_CUDA") != nullptr)

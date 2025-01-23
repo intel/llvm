@@ -156,6 +156,11 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *Message,
                                       ur_result_t ErrorCode);
+
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using ur_handle_t_ = ur_handle_base_t_<cl_adapter::ddi_getter>;
 } // namespace cl_adapter
 
 namespace cl_ext {

@@ -752,7 +752,7 @@ ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandBarrierWithWaitListKHR)>(
           CLContext,
-          cl_ext::ExtFuncPtrCache->clCommandBarrierWithWaitListKHRCache,
+          ur::cl::getExtFnPtrCache().clCommandBarrierWithWaitListKHRCache,
           cl_ext::CommandBarrierWithWaitListName,
           &clCommandBarrierWithWaitListKHR));
 
