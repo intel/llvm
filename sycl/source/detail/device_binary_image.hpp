@@ -215,6 +215,7 @@ public:
     return SpecConstDefaultValuesMap;
   }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getDeviceLibBF16Type() const { return DeviceLibBF16Type; }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
@@ -248,6 +249,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  RTDeviceBinaryImage::PropertyRange DeviceLibBF16Type;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
