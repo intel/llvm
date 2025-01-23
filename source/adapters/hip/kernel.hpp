@@ -61,8 +61,10 @@ struct ur_kernel_handle_t_ {
     args_t Storage;
     /// Aligned size of each parameter, including padding.
     args_size_t ParamSizes;
-    /// Byte offset into /p Storage allocation for each parameter.
-    args_index_t Indices;
+    /// Byte offset into /p Storage allocation for each argument.
+    args_index_t ArgPointers;
+    /// Position in the Storage array where the next argument should added.
+    size_t InsertPos = 0;
     /// Aligned size in bytes for each local memory parameter after padding has
     /// been added. Zero if the argument at the index isn't a local memory
     /// argument.
@@ -85,32 +87,41 @@ struct ur_kernel_handle_t_ {
 
     arguments() {
       // Place the implicit offset index at the end of the indicies collection
-      Indices.emplace_back(&ImplicitOffsetArgs);
+      ArgPointers.emplace_back(&ImplicitOffsetArgs);
     }
 
     /// Add an argument to the kernel.
     /// If the argument existed before, it is replaced.
     /// Otherwise, it is added.
     /// Gaps are filled with empty arguments.
-    /// Implicit offset argument is kept at the back of the indices collection.
+    /// Implicit offset argument is kept at the back of the ArgPointers
+    /// collection.
     void addArg(size_t Index, size_t Size, const void *Arg,
                 size_t LocalSize = 0) {
-      if (Index + 2 > Indices.size()) {
-        // Move implicit offset argument Index with the end
-        Indices.resize(Index + 2, Indices.back());
+      // Expand storage to accommodate this Index if needed.
+      if (Index + 2 > ArgPointers.size()) {
+        // Move implicit offset argument index with the end
+        ArgPointers.resize(Index + 2, ArgPointers.back());
         // Ensure enough space for the new argument
         ParamSizes.resize(Index + 1);
         AlignedLocalMemSize.resize(Index + 1);
         OriginalLocalMemSize.resize(Index + 1);
       }
-      ParamSizes[Index] = Size;
-      // calculate the insertion point on the array
-      size_t InsertPos = std::accumulate(std::begin(ParamSizes),
-                                         std::begin(ParamSizes) + Index, 0);
-      // Update the stored value for the argument
-      std::memcpy(&Storage[InsertPos], Arg, Size);
-      Indices[Index] = &Storage[InsertPos];
-      AlignedLocalMemSize[Index] = LocalSize;
+
+      // Copy new argument to storage if it hasn't been added before.
+      if (ParamSizes[Index] == 0) {
+        ParamSizes[Index] = Size;
+        std::memcpy(&Storage[InsertPos], Arg, Size);
+        ArgPointers[Index] = &Storage[InsertPos];
+        AlignedLocalMemSize[Index] = LocalSize;
+        InsertPos += Size;
+      }
+      // Otherwise, update the existing argument.
+      else {
+        std::memcpy(ArgPointers[Index], Arg, Size);
+        AlignedLocalMemSize[Index] = LocalSize;
+        assert(Size == ParamSizes[Index]);
+      }
     }
 
     /// Returns the padded size and offset of a local memory argument.
@@ -122,7 +133,7 @@ struct ur_kernel_handle_t_ {
     std::pair<size_t, size_t> calcAlignedLocalArgument(size_t Index,
                                                        size_t Size) {
       // Store the unpadded size of the local argument
-      if (Index + 2 > Indices.size()) {
+      if (Index + 2 > ArgPointers.size()) {
         AlignedLocalMemSize.resize(Index + 1);
         OriginalLocalMemSize.resize(Index + 1);
       }
@@ -151,20 +162,12 @@ struct ur_kernel_handle_t_ {
       return std::make_pair(AlignedLocalSize, AlignedLocalOffset);
     }
 
-    void addLocalArg(size_t Index, size_t Size) {
-      // Get the aligned argument size and offset into local data
-      auto [AlignedLocalSize, AlignedLocalOffset] =
-          calcAlignedLocalArgument(Index, Size);
-
-      // Store argument details
-      addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
-             AlignedLocalSize);
-
-      // For every existing local argument which follows at later argument
-      // indices, update the offset and pointer into the kernel local memory.
-      // Required as padding will need to be recalculated.
-      const size_t NumArgs = Indices.size() - 1; // Accounts for implicit arg
-      for (auto SuccIndex = Index + 1; SuccIndex < NumArgs; SuccIndex++) {
+    // Iterate over each existing local argument which follows StartIndex
+    // index, update the offset and pointer into the kernel local memory.
+    void updateLocalArgOffset(size_t StartIndex) {
+      const size_t NumArgs =
+          ArgPointers.size() - 1; // Accounts for implicit arg
+      for (auto SuccIndex = StartIndex; SuccIndex < NumArgs; SuccIndex++) {
         const size_t OriginalLocalSize = OriginalLocalMemSize[SuccIndex];
         if (OriginalLocalSize == 0) {
           // Skip if successor argument isn't a local memory arg
@@ -179,12 +182,24 @@ struct ur_kernel_handle_t_ {
         AlignedLocalMemSize[SuccIndex] = SuccAlignedLocalSize;
 
         // Store new offset into local data
-        const size_t InsertPos =
-            std::accumulate(std::begin(ParamSizes),
-                            std::begin(ParamSizes) + SuccIndex, size_t{0});
-        std::memcpy(&Storage[InsertPos], &SuccAlignedLocalOffset,
+        std::memcpy(ArgPointers[SuccIndex], &SuccAlignedLocalOffset,
                     sizeof(size_t));
       }
+    }
+
+    void addLocalArg(size_t Index, size_t Size) {
+      // Get the aligned argument size and offset into local data
+      auto [AlignedLocalSize, AlignedLocalOffset] =
+          calcAlignedLocalArgument(Index, Size);
+
+      // Store argument details
+      addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
+             AlignedLocalSize);
+
+      // For every existing local argument which follows at later argument
+      // indices, update the offset and pointer into the kernel local memory.
+      // Required as padding will need to be recalculated.
+      updateLocalArgOffset(Index + 1);
     }
 
     void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
@@ -206,7 +221,7 @@ struct ur_kernel_handle_t_ {
       std::memcpy(ImplicitOffsetArgs, ImplicitOffset, Size);
     }
 
-    const args_index_t &getIndices() const noexcept { return Indices; }
+    const args_index_t &getArgPointers() const noexcept { return ArgPointers; }
 
     uint32_t getLocalSize() const {
       return std::accumulate(std::begin(AlignedLocalMemSize),
@@ -263,7 +278,7 @@ struct ur_kernel_handle_t_ {
   /// offset. Note this only returns the current known number of arguments,
   /// not the real one required by the kernel, since this cannot be queried
   /// from the HIP Driver API
-  uint32_t getNumArgs() const noexcept { return Args.Indices.size() - 1; }
+  uint32_t getNumArgs() const noexcept { return Args.ArgPointers.size() - 1; }
 
   void setKernelArg(int Index, size_t Size, const void *Arg) {
     Args.addArg(Index, Size, Arg);
@@ -277,8 +292,8 @@ struct ur_kernel_handle_t_ {
     return Args.setImplicitOffset(Size, ImplicitOffset);
   }
 
-  const arguments::args_index_t &getArgIndices() const {
-    return Args.getIndices();
+  const arguments::args_index_t &getArgPointers() const {
+    return Args.getArgPointers();
   }
 
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
