@@ -102,7 +102,7 @@ regenerate the source.
 Generating Source
 =================
 
-The specification and many other components in the Unified Runtime repository
+The specification and many other components in the Unified Runtime project
 are generated from a set of YAML_ files which are used as inputs to a Mako_
 based templating system. The YAML file syntax is defined in `YAML syntax`_. To
 generate the outputs of the Mako templates a build directory must be
@@ -182,7 +182,7 @@ targeting ``intel/llvm:sycl``.
 Please ensure you include the ``[UR]`` tag in the title of your pull request.
 
 When making changes to the specification you *must* commit all changes to files
-in the repository as a result of `Generating Source`_.
+in the project as a result of `Generating Source`_.
 
 Before your pull request is merged it *must* pass all jobs in the GitHub
 Actions workflow and *must* be reviewed by all reviewer teams tagged as
