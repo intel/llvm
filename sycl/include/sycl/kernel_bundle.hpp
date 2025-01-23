@@ -132,7 +132,7 @@ protected:
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   std::vector<std::byte> ext_oneapi_get_backend_content_impl() const;
 
-  std::pair<std::byte *, std::byte *>
+  std::pair<const std::byte *, const std::byte *>
   ext_oneapi_get_backend_content_view_impl() const;
 #endif // HAS_STD_BYTE
 };
@@ -171,10 +171,10 @@ public:
 #ifdef __cpp_lib_span
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
-  std::span<std::byte> ext_oneapi_get_backend_content_view() const {
+  std::span<const std::byte> ext_oneapi_get_backend_content_view() const {
     const auto view =
         device_image_plain::ext_oneapi_get_backend_content_view_impl();
-    return std::span<std::byte>{view.first, view.second};
+    return std::span<const std::byte>{view.first, view.second};
   }
 #endif // __cpp_lib_span
 #endif // _HAS_STD_BYTE
