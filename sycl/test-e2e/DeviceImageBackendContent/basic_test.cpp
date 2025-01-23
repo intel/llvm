@@ -7,7 +7,10 @@
 
 class kernel;
 
-void define_kernel(sycl::queue &q) {
+int main() {
+  sycl::device d;
+  sycl::queue q{d};
+  sycl::context ctxt = q.get_context();
   int data;
   sycl::buffer<int> data_buf(&data, 1);
   q.submit([&](sycl::handler &cgh) {
@@ -16,12 +19,6 @@ void define_kernel(sycl::queue &q) {
         sycl::nd_range{{1}, {1}},
         [=](sycl::nd_item<> it) { data_acc[0] = 42; });
   });
-}
-
-int main() {
-  sycl::device d;
-  sycl::queue q{d};
-  sycl::context ctxt = q.get_context();
   sycl::kernel_id id = sycl::get_kernel_id<kernel>();
   auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {id});
