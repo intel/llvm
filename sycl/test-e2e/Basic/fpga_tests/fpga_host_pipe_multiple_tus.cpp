@@ -1,5 +1,5 @@
 // REQUIRES: accelerator
-// RUN: %clangxx -fsycl -fintelfpga %s %S/kernel.cpp -I%S -o %t.out
+// RUN: %clangxx -fsycl -fintelfpga %s %S/Inputs/kernel.cpp -I%S/Inputs -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
 // Test checks that host pipe initialization doesn't fail if pipe is used in
