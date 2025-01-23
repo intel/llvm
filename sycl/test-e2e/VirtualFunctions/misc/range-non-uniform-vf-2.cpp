@@ -44,6 +44,25 @@ public:
   virtual int bar(int V) { return V / 2; }
 };
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mDeviceStorage;
+  T2 mDataAcc;
+  KernelFunctor(T1 DeviceStorage, T2 DataAcc)
+      : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
+
+  void operator()(sycl::id<1> It) const {
+    // Select method that corresponds to this work-item
+    auto *Ptr = mDeviceStorage->template getAs<BaseOp>();
+    if (It % 2)
+      mDataAcc[It] = Ptr->foo(mDataAcc[It]);
+    else
+      mDataAcc[It] = Ptr->bar(mDataAcc[It]);
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
+
 int main() try {
   using storage_t = obj_storage_t<OpA, OpB>;
 
@@ -54,7 +73,6 @@ int main() try {
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
   sycl::range R{1024};
 
-  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (size_t TestCase = 0; TestCase < 2; ++TestCase) {
     std::vector<int> HostData(R.size());
     std::iota(HostData.begin(), HostData.end(), 0);
@@ -69,14 +87,7 @@ int main() try {
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.parallel_for(R, props, [=](auto It) {
-        // Select method that corresponds to this work-item
-        auto *Ptr = DeviceStorage->template getAs<BaseOp>();
-        if (It % 2)
-          DataAcc[It] = Ptr->foo(DataAcc[It]);
-        else
-          DataAcc[It] = Ptr->bar(DataAcc[It]);
-      });
+      CGH.parallel_for(R, KernelFunctor(DeviceStorage, DataAcc));
     });
 
     BaseOp *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);

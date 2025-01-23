@@ -101,6 +101,24 @@ public:
   }
 };
 
+template <typename T1, typename T2, typename T3> struct KernelFunctor {
+  T1 mDeviceStorage;
+  T2 mDataAcc;
+  T3 mLocalAcc;
+  KernelFunctor(T1 DeviceStorage, T2 DataAcc, T3 LocalAcc)
+      : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc), mLocalAcc(LocalAcc) {}
+
+  void operator()(sycl::nd_item<1> It) const {
+    auto *Ptr = mDeviceStorage->template getAs<BaseOp>();
+    mDataAcc[It.get_global_id()] = Ptr->apply(
+        mLocalAcc.template get_multi_ptr<sycl::access::decorated::no>().get(),
+        It.get_group());
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
+
 int main() try {
   using storage_t = obj_storage_t<SumOp, MultiplyOp>;
 
@@ -113,7 +131,6 @@ int main() try {
   sycl::range G{16};
   sycl::range L{4};
 
-  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 2; ++TestCase) {
     sycl::buffer<int> DataStorage(G);
 
@@ -126,12 +143,8 @@ int main() try {
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
       sycl::local_accessor<int> LocalAcc(L, CGH);
-      CGH.parallel_for(sycl::nd_range{G, L}, props, [=](auto It) {
-        auto *Ptr = DeviceStorage->getAs<BaseOp>();
-        DataAcc[It.get_global_id()] = Ptr->apply(
-            LocalAcc.get_multi_ptr<sycl::access::decorated::no>().get(),
-            It.get_group());
-      });
+      CGH.parallel_for(sycl::nd_range{G, L},
+                       KernelFunctor(DeviceStorage, DataAcc, LocalAcc));
     }).wait_and_throw();
 
     auto *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);

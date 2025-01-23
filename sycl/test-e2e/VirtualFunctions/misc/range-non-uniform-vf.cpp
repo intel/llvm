@@ -41,6 +41,23 @@ public:
   virtual float apply(float V) { return sycl::round(V); }
 };
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mDeviceStorage;
+  T2 mDataAcc;
+  KernelFunctor(T1 DeviceStorage, T2 DataAcc)
+      : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
+
+  void operator()(sycl::id<1> It) const {
+    // Select an object that corresponds to this work-item
+    auto Ind = It % 3;
+    auto *Ptr = mDeviceStorage[Ind].template getAs<BaseOp>();
+    mDataAcc[It] = Ptr->apply(mDataAcc[It]);
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
+
 int main() try {
   using storage_t = obj_storage_t<FloorOp, CeilOp, RoundOp>;
 
@@ -51,7 +68,6 @@ int main() try {
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(3, q);
   sycl::range R{1024};
 
-  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   {
     std::vector<float> HostData(R.size());
     for (size_t I = 1; I < HostData.size(); ++I)
@@ -69,12 +85,7 @@ int main() try {
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.parallel_for(R, props, [=](auto it) {
-        // Select an object that corresponds to this work-item
-        auto Ind = it % 3;
-        auto *Ptr = DeviceStorage[Ind].template getAs<BaseOp>();
-        DataAcc[it] = Ptr->apply(DataAcc[it]);
-      });
+      CGH.parallel_for(R, KernelFunctor(DeviceStorage, DataAcc));
     });
 
     BaseOp *Ptr[] = {HostStorage[0].construct</* ret type = */ BaseOp>(0),

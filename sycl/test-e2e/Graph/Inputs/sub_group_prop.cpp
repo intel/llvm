@@ -39,45 +39,9 @@ void test(queue &Queue, const std::vector<size_t> SupportedSGSizes) {
     return;
   }
 
-  auto Props = ext::oneapi::experimental::properties{
-      ext::oneapi::experimental::sub_group_size<SGSize>};
-
   nd_range<1> NdRange(SGSize * 4, SGSize * 2);
 
   size_t ReadSubGroupSize = 0;
-  {
-    buffer ReadSubGroupSizeBuf(&ReadSubGroupSize, range(1));
-    ReadSubGroupSizeBuf.set_write_back(false);
-
-    {
-      exp_ext::command_graph Graph{
-          Queue.get_context(),
-          Queue.get_device(),
-          {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
-
-      add_node(Graph, Queue, [&](handler &CGH) {
-        accessor ReadSubGroupSizeBufAcc{ReadSubGroupSizeBuf, CGH,
-                                        sycl::write_only, sycl::no_init};
-
-        CGH.parallel_for<SubGroupKernel<Variant::Function, SGSize>>(
-            NdRange, Props, [=](nd_item<1> NdItem) {
-              auto SG = NdItem.get_sub_group();
-              if (NdItem.get_global_linear_id() == 0)
-                ReadSubGroupSizeBufAcc[0] = SG.get_local_linear_range();
-            });
-      });
-
-      auto ExecGraph = Graph.finalize();
-      Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
-      Queue.wait_and_throw();
-    }
-
-    host_accessor HostAcc(ReadSubGroupSizeBuf);
-    ReadSubGroupSize = HostAcc[0];
-  }
-  assert(ReadSubGroupSize == SGSize && "Failed check for function.");
-
-  ReadSubGroupSize = 0;
   {
     buffer ReadSubGroupSizeBuf(&ReadSubGroupSize, range(1));
     ReadSubGroupSizeBuf.set_write_back(false);
@@ -107,38 +71,6 @@ void test(queue &Queue, const std::vector<size_t> SupportedSGSizes) {
     ReadSubGroupSize = HostAcc[0];
   }
   assert(ReadSubGroupSize == SGSize && "Failed check for functor.");
-
-  ReadSubGroupSize = 0;
-  {
-    buffer ReadSubGroupSizeBuf(&ReadSubGroupSize, range(1));
-    ReadSubGroupSizeBuf.set_write_back(false);
-
-    {
-      exp_ext::command_graph Graph{
-          Queue.get_context(),
-          Queue.get_device(),
-          {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
-
-      add_node(Graph, Queue, [&](handler &CGH) {
-        accessor ReadSubGroupSizeBufAcc{ReadSubGroupSizeBuf, CGH,
-                                        sycl::write_only, sycl::no_init};
-        KernelFunctorWithSGSizeProp<SGSize> KernelFunctor{
-            ReadSubGroupSizeBufAcc};
-
-        CGH.parallel_for<SubGroupKernel<Variant::Functor, SGSize>>(
-            NdRange, Props, KernelFunctor);
-      });
-
-      auto ExecGraph = Graph.finalize();
-      Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
-      Queue.wait_and_throw();
-    }
-
-    host_accessor HostAcc(ReadSubGroupSizeBuf);
-    ReadSubGroupSize = HostAcc[0];
-  }
-  assert(ReadSubGroupSize == SGSize &&
-         "Failed check for functor and properties.");
 }
 
 int main() {
