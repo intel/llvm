@@ -511,8 +511,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       run: |
         # TODO -- waiting on security clearance
-        find ./
-
         # Load configuration values
         . "./devops/scripts/benchmarking/utils.sh"
         CONFIG_FILE="./devops/scripts/benchmarking/benchmark-ci.conf"
@@ -526,3 +524,9 @@ jobs:
         git add .
         git commit -m "[GHA] Upload compute-benchmarks results from ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
+    - name: Archive uncached compute-benchmark results
+      if: inputs.tests_selector == 'benchmark' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Uncached compute-benchmark results (${{runner.name}})
+        path: ./uncached_res
