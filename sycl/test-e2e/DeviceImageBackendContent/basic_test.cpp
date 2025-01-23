@@ -21,7 +21,7 @@ int main() {
   });
   sycl::kernel_id id = sycl::get_kernel_id<kernel>();
   auto bundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {id});
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {d}, {id});
   assert(!bundle.empty());
   sycl::backend backend;
   std::vector<std::byte> bytes;
