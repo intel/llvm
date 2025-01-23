@@ -12,11 +12,12 @@
 
 template <int Dim, typename T> struct KernelFunctor {
   int *mCorrectResultFlag;
-  T mClusterDims;
+  T mClusterLaunchProperty;
   sycl::range<Dim> mClusterRange;
-  KernelFunctor(int *CorrectResultFlag, T ClusterDims,
+  KernelFunctor(int *CorrectResultFlag, T ClusterLaunchProperty,
                 sycl::range<Dim> ClusterRange)
-      : mCorrectResultFlag(CorrectResultFlag), mClusterDims(ClusterDims),
+      : mCorrectResultFlag(CorrectResultFlag),
+        mClusterLaunchProperty(ClusterLaunchProperty),
         mClusterRange(ClusterRange) {}
 
   void operator()(sycl::nd_item<Dim> It) const {
@@ -48,7 +49,7 @@ template <int Dim, typename T> struct KernelFunctor {
     }
   }
   auto get(sycl::ext::oneapi::experimental::properties_tag) const {
-    return sycl::ext::oneapi::experimental::properties{mClusterDims};
+    return mClusterLaunchProperty;
   }
 };
 
@@ -60,6 +61,7 @@ int test_cluster_launch_parallel_for(sycl::queue &Queue,
   using namespace sycl::ext::oneapi::experimental;
 
   cuda::cluster_size ClusterDims(ClusterRange);
+  properties ClusterLaunchProperty{ClusterDims};
 
   int *CorrectResultFlag = sycl::malloc_device<int>(1, Queue);
   Queue.memset(CorrectResultFlag, 0, sizeof(int)).wait();
@@ -68,7 +70,8 @@ int test_cluster_launch_parallel_for(sycl::queue &Queue,
       .submit([&](sycl::handler &CGH) {
         CGH.parallel_for(
             sycl::nd_range<Dim>(GlobalRange, LocalRange),
-            KernelFunctor<Dim>(CorrectResultFlag, ClusterDims, ClusterRange));
+            KernelFunctor<Dim, decltype(ClusterLaunchProperty)>(
+                CorrectResultFlag, ClusterLaunchProperty, ClusterRange));
       })
       .wait_and_throw();
 

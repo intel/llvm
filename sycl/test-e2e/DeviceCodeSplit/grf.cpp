@@ -67,7 +67,7 @@ bool checkResult(const std::vector<float> &A, int Inc) {
   return true;
 }
 
-template <typename T1, Typename T2> struct KernelFunctor {
+template <typename T1, typename T2> struct KernelFunctor {
   T1 mPA;
   T2 mProp;
   KernelFunctor(T1 PA, T2 Prop) : mPA(PA), mProp(Prop) {}
