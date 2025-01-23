@@ -27,7 +27,7 @@ def generate_markdown_details(results: list[Result]):
 
     markdown_sections.append(f"""
 <details>
-<summary>Benchmark details - environment, command, output...</summary>
+<summary>Benchmark details - environment, command...</summary>
 """)
 
     for res in results:
@@ -41,9 +41,6 @@ def generate_markdown_details(results: list[Result]):
 
 #### Command:
 {' '.join(res.command)}
-
-#### Output:
-{res.stdout}
 
 </details>
 """)
