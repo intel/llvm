@@ -11,6 +11,8 @@
 #include <string>
 
 template <int Dim> struct KernelFunctor {
+  using namespace sycl::ext::oneapi::experimental;
+
   int *mCorrectResultFlag;
   cuda::cluster_size mClusterDims;
   sycl::range<Dim> mClusterRange;
