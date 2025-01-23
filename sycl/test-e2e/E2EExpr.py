@@ -21,11 +21,11 @@ class E2EExpr(BooleanExpression):
         "false",
     }
 
-    def __init__(self, string, variables, build_only_mode, findal_unknown_value):
+    def __init__(self, string, variables, build_only_mode, final_unknown_value):
         BooleanExpression.__init__(self, string, variables)
         self.build_only_mode = build_only_mode
         self.unknown = False
-        self.findal_unknown_value = findal_unknown_value
+        self.final_unknown_value = final_unknown_value
 
     @staticmethod
     def evaluate(string, variables, build_only_mode, final_unknown_value=True):
@@ -33,7 +33,7 @@ class E2EExpr(BooleanExpression):
         string: Expression to evaluate
         variables: variables that evaluate to true
         build_only_mode: if true enables unknown values
-        findal_unknown_value: findal boolean result if evaluation results in `unknown`
+        final_unknown_value: final boolean result if evaluation results in `unknown`
         """
         try:
             parser = E2EExpr(
@@ -87,7 +87,7 @@ class E2EExpr(BooleanExpression):
         self.token = next(self.tokens)
         self.parseOR()
         self.expect(BooleanExpression.END)
-        return self.findal_unknown_value if self.unknown else self.value
+        return self.final_unknown_value if self.unknown else self.value
 
 
 import unittest
