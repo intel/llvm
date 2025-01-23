@@ -47,7 +47,7 @@ template <typename T1, typename T2> struct KernelFunctor {
   KernelFunctor(T1 DeviceStorage, T2 DataAcc)
       : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
 
-  void operator()(sycl::id<1> It) const {
+  void operator()(sycl::item<1> It) const {
     // Select an object that corresponds to this work-item
     auto Ind = It % 3;
     auto *Ptr = mDeviceStorage[Ind].template getAs<BaseOp>();

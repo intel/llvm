@@ -10,12 +10,11 @@
 
 #include <string>
 
-template <int Dim> struct KernelFunctor {
+template <int Dim, typename T> struct KernelFunctor {
   int *mCorrectResultFlag;
-  sycl::ext::oneapi::experimental::cuda::cluster_size mClusterDims;
+  T mClusterDims;
   sycl::range<Dim> mClusterRange;
-  KernelFunctor(int *CorrectResultFlag,
-                sycl::ext::oneapi::experimental::cuda::cluster_size ClusterDims,
+  KernelFunctor(int *CorrectResultFlag, T ClusterDims,
                 sycl::range<Dim> ClusterRange)
       : mCorrectResultFlag(CorrectResultFlag), mClusterDims(ClusterDims),
         mClusterRange(ClusterRange) {}

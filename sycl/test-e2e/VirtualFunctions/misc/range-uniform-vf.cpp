@@ -48,7 +48,7 @@ template <typename T1, typename T2> struct KernelFunctor {
       : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
 
   void operator()(sycl::id<1> It) const {
-    auto *Ptr = mDeviceStorage->getAs<BaseOp>();
+    auto *Ptr = mDeviceStorage->template getAs<BaseOp>();
     mDataAcc[It] = Ptr->apply(mDataAcc[It]);
   }
   auto get(oneapi::properties_tag) const {

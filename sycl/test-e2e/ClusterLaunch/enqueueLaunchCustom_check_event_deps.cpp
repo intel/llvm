@@ -24,11 +24,10 @@ template <typename T> void dummy_kernel(T *Input, int N, sycl::nd_item<1> It) {
 #endif
 }
 
-template <typename T> struct KernelFunctor {
-  T mAcc;
-  sycl::ext::oneapi::experimental::properties mClusterLaunchProperty;
-  KernelFunctor(
-      sycl::ext::oneapi::experimental::properties ClusterLaunchProperty, T Acc)
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mAcc;
+  T2 mClusterLaunchProperty;
+  KernelFunctor(T2 ClusterLaunchProperty, T1 Acc)
       : mClusterLaunchProperty(ClusterLaunchProperty), mAcc(Acc) {}
 
   void operator()(sycl::nd_item<1> It) const {
