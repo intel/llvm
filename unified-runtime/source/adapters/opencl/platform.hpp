@@ -14,12 +14,13 @@
 
 #include <vector>
 
-struct ur_platform_handle_t_ {
+struct ur_platform_handle_t_ : cl_adapter::ur_handle_t_ {
   using native_type = cl_platform_id;
   native_type CLPlatform = nullptr;
   std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
 
-  ur_platform_handle_t_(native_type Plat) : CLPlatform(Plat) {}
+  ur_platform_handle_t_(native_type Plat)
+      : cl_adapter::ur_handle_t_(), CLPlatform(Plat) {}
 
   ~ur_platform_handle_t_() {
     for (auto &Dev : Devices) {

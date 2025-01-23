@@ -13,7 +13,7 @@
 
 #include <vector>
 
-struct ur_event_handle_t_ {
+struct ur_event_handle_t_ : cl_adapter::ur_handle_t_ {
   using native_type = cl_event;
   native_type CLEvent;
   ur_context_handle_t Context;
@@ -23,7 +23,7 @@ struct ur_event_handle_t_ {
 
   ur_event_handle_t_(native_type Event, ur_context_handle_t Ctx,
                      ur_queue_handle_t Queue)
-      : CLEvent(Event), Context(Ctx), Queue(Queue) {
+      : cl_adapter::ur_handle_t_(), CLEvent(Event), Context(Ctx), Queue(Queue) {
     RefCount = 1;
     urContextRetain(Context);
     if (Queue) {
