@@ -63,18 +63,18 @@ class StreamingMedian:
             return -self.maxheap_smaller[0]
 
 
-def aggregate_median(runner: str, benchmark: str, cutoff: str):
+def aggregate_median(test_name: str, test_dir: str, cutoff: str):
 
-    # Get all .csv benchmark samples for the requested runner + benchmark
+    # Get all .csv samples for the requested test folder
     def csv_samples() -> list[str]:
         # TODO check that the path below is valid directory
-        cache_dir = Path(f"{common.PERF_RES_PATH}/{runner}/{benchmark}")
+        cache_dir = Path(f"{test_dir}")
         # TODO check for time range; What time range do I want?
         return filter(
             lambda f: f.is_file()
             and common.valid_timestamp(str(f)[-19:-4])
             and str(f)[-19:-4] > cutoff,
-            cache_dir.glob(f"{benchmark}-*_*.csv"),
+            cache_dir.glob(f"{test_name}-*_*.csv"),
         )
 
     # Calculate median of every desired metric:
@@ -95,7 +95,7 @@ def aggregate_median(runner: str, benchmark: str, cutoff: str):
 
     # Write calculated median (aggregate_s) as a new .csv file:
     with open(
-        f"{common.PERF_RES_PATH}/{runner}/{benchmark}/{benchmark}-median.csv", "w"
+        f"{test_dir}/{test_name}-median.csv", "w"
     ) as output_csv:
         writer = csv.DictWriter(
             output_csv, fieldnames=["TestCase", *common.metrics_variance.keys()]
@@ -114,7 +114,7 @@ def aggregate_median(runner: str, benchmark: str, cutoff: str):
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         print(
-            f"Usage: {sys.argv[0]} <runner name> <test case name> <cutoff date YYYYMMDD_HHMMSS>"
+            f"Usage: {sys.argv[0]} <test name> <absolute path to test directory> <cutoff timestamp YYYYMMDD_HHMMSS>"
         )
         exit(1)
     if not common.valid_timestamp(sys.argv[3]):
@@ -122,5 +122,5 @@ if __name__ == "__main__":
         print(f"Bad cutoff timestamp, please use YYYYMMDD_HHMMSS.")
         exit(1)
     common.load_configs()
-    #                <runner>,    <test case>, <cutoff>
+
     aggregate_median(sys.argv[1], sys.argv[2], sys.argv[3])

@@ -83,14 +83,14 @@ jobs:
     - name: Run aggregator on historical results
       run: |
         # The current format of the historical results respository is:
-        # /<runner type>/<test case name>
-        # Thus, a min/max depth of 2 is used to enumerate all test cases in the
-        # repository. Runner type and testcase name is also extracted from this
-        # path.
-        for dir in $(find "$PERF_RES_PATH" -mindepth 2 -maxdepth 2 -type d ! -path '*.git*'); do
-          _runner="$(basename $(dirname $dir))"
-          _testcase="$(basename $dir)"
-          python llvm/devops/scripts/benchmarking/aggregate.py "$_runner" "$_testcase" "$CUTOFF_TIMESTAMP"
+        #
+        # /<ONEAPI_DEVICE_SELECTOR>/<runner>/<test name>
+        #
+        # Thus, a min/max depth of 3 is used to enumerate all test cases in the
+        # repository. Test name is also derived from here.
+        for dir in $(find "$PERF_RES_PATH" -mindepth 3 -maxdepth 3 -type d ! -path '*.git*'); do
+          test_name="$(basename $dir)"
+          python llvm/devops/scripts/benchmarking/aggregate.py "$test_name" "$dir" "$CUTOFF_TIMESTAMP"
         done
     - name: Upload average to the repo
       env:

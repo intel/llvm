@@ -6,7 +6,7 @@
 
 usage () {
     >&2 echo "Usage: $0 <compute-benchmarks git repo> -t <runner type> [-B <compute-benchmarks build path>]
-  -t  Specify runner type -- Required
+  -n  Github runner name -- Required
   -B  Path to clone and build compute-benchmarks on
   -p  Path to compute-benchmarks (or directory to build compute-benchmarks in)
   -r  Github repo to use for compute-benchmarks origin, in format <org>/<name>
@@ -84,45 +84,51 @@ build_compute_bench() {
 #         | tee -a $3   # Print to summary file
 # }
 
-###
-STATUS_SUCCESS=0
-STATUS_ERROR=1
-###
-
 # Check if the number of samples for a given test case is less than a threshold
 # set in benchmark-ci.conf
+#
+# Usage: <relative path of directory containing test case results>
 samples_under_threshold () {
-    mkdir -p $1
-    file_count="$(find $1 -maxdepth 1 -type f | wc -l )"
+    [ ! -d "$PERF_RES_PATH/$1" ] && return 1 # Directory doesn't exist
+    file_count="$(find "$PERF_RES_PATH/$1" -maxdepth 1 -type f | wc -l )"
     [ "$file_count" -lt "$AVERAGE_THRESHOLD" ]
 }
 
+# Check for a regression via compare.py
+#
+# Usage: check_regression <relative path of output csv>
 check_regression() {
-    if samples_under_threshold "$PERF_RES_PATH/$RUNNER/$1"; then
-        echo "Not enough samples to construct an average, performance check skipped!"
-        return $STATUS_SUCCESS
+    csv_relpath="$(dirname $1)"
+    csv_name="$(basename $1)"
+    if samples_under_threshold "$csv_relpath"; then
+        echo "Not enough samples to construct a good average, performance\
+ check skipped!"
+        return 0 # Success status
     fi
-    BENCHMARKING_ROOT="$BENCHMARKING_ROOT" python "$BENCHMARKING_ROOT/compare.py" "$RUNNER" "$1" "$2"
+    BENCHMARKING_ROOT="$BENCHMARKING_ROOT" \
+        python "$BENCHMARKING_ROOT/compare.py" "$csv_relpath" "$csv_name"
     return $?
 }
 
 # Move the results of our benchmark into the git repo
+#
+# Usage: cache <relative path of output csv>
 cache() {
-    mv "$2" "$PERF_RES_PATH/$RUNNER/$1/"
+    mv "$OUTPUT_PATH/$1" "$PERF_RES_PATH/$1"
 }
 
-# Check for a regression, and cache if no regression found
+# Check for a regression + cache if no regression found
+#
+# Usage: check_and_cache <relative path of output csv>
 check_and_cache() {
-    echo "Checking $testcase..."
-    if check_regression $1 $2; then
+    echo "Checking $1..."
+    if check_regression $1; then
         if [ "$CACHE_RESULTS" -eq "1" ]; then
-            echo "Caching $testcase..."
-            cache $1 $2
+            echo "Caching $1..."
+            cache $1
         fi
     else
-        if [ "$CACHE_RESULTS" -eq "1" ]; then
-            echo "Not caching!"
-        fi
+        [ "$CACHE_RESULTS" -eq "1" ] && echo "Regression found -- Not caching!"
     fi
 }
 
@@ -133,24 +139,39 @@ process_benchmarks() {
     echo "### Running and processing selected benchmarks ###"
     if [ -z "$TESTS_CONFIG" ]; then
         echo "Setting tests to run via cli is not currently supported."
-        exit $STATUS_ERROR
+        exit 1
     else
         rm "$BENCHMARK_ERROR_LOG" "$BENCHMARK_SLOW_LOG" 2> /dev/null
-        # Ignore lines in the test config starting with #'s
+        # Loop through each line of enabled_tests.conf, but ignore lines in the
+        # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
             echo "# Running $testcase..."
 
-            test_csv_output="$OUTPUT_PATH/$RUNNER/$testcase-$TIMESTAMP.csv"
-			mkdir -p "$OUTPUT_PATH/$RUNNER/"
-            $COMPUTE_BENCH_PATH/build/bin/$testcase --csv --iterations="$COMPUTE_BENCH_ITERATIONS" | tail +8 > "$test_csv_output"
-            # The tail +8 filters out initial debug prints not in csv format
+            # The benchmark results git repo and this script's output both share
+            # the following directory structure:
+            #
+            # /<device selector>/<runner>/<test name>
+            #
+            # Figure out the relative path of our testcase result in both
+            # directories: 
+            test_dir_relpath="$DEVICE_SELECTOR_DIRNAME/$RUNNER/$testcase"
+			mkdir -p "$OUTPUT_PATH/$test_dir_relpath" # Ensure directory exists
+            # TODO generate runner config txt if not exist
+            output_csv_relpath="$test_dir_relpath/$testcase-$TIMESTAMP.csv"
 
-            if [ "$?" -eq 0 ] && [ -s "$test_csv_output" ]; then 
-                check_and_cache $testcase $test_csv_output
+            output_csv="$OUTPUT_PATH/$output_csv_relpath" # Real output path
+            $COMPUTE_BENCH_PATH/build/bin/$testcase --csv \
+                --iterations="$COMPUTE_BENCH_ITERATIONS" \
+                    | tail +8 > "$output_csv"
+                    # The tail +8 filters out header lines not in csv format
+
+            exit_status="$?"
+            if [ "$exit_status" -eq 0 ] && [ -s "$output_csv" ]; then 
+                check_and_cache $output_csv_relpath
             else
-                # TODO consider capturing error for logging
-                echo "ERROR @ $test_case"
-                echo "-- $testcase: error $?" >> "$BENCHMARK_ERROR_LOG"
+                # TODO consider capturing stderr for logging
+                echo "[ERROR] $testcase returned exit status $exit_status"
+                echo "-- $testcase: error $exit_status" >> "$BENCHMARK_ERROR_LOG"
             fi
         done
     fi
@@ -163,13 +184,13 @@ process_results() {
         printf "\n### Tests performing over acceptable range of average: ###\n"
         cat "$BENCHMARK_SLOW_LOG"
         echo ""
-        fail=1
+        fail=2
     fi
     if [ -s "$BENCHMARK_ERROR_LOG" ]; then
         printf "\n### Tests that failed to run: ###\n"
         cat "$BENCHMARK_ERROR_LOG"
         echo ""
-        fail=2
+        fail=1
     fi
     exit $fail
 }
@@ -203,40 +224,24 @@ load_configs() {
 
     . $BENCHMARKING_ROOT/utils.sh
     load_all_configs "$BENCHMARK_CI_CONFIG"
-
-    # Debug
-    # echo "PERF_RES_GIT_REPO: $PERF_RES_GIT_REPO"
-    # echo "PERF_RES_BRANCH: $PERF_RES_BRANCH"
-    # echo "PERF_RES_PATH: $PERF_RES_PATH"
-    # echo "COMPUTE_BENCH_GIT_REPO: $COMPUTE_BENCH_GIT_REPO"
-    # echo "COMPUTE_BENCH_BRANCH: $COMPUTE_BENCH_BRANCH"
-    # echo "COMPUTE_BENCH_PATH: $COMPUTE_BENCH_PATH"
-    # echo "COMPUTE_BENCH_COMPILE_FLAGS: $COMPUTE_BENCH_COMPILE_FLAGS"
-    # echo "OUTPUT_PATH: $OUTPUT_PATH"
-    # echo "METRICS_VARIANCE: $METRICS_VARIANCE"
-    # echo "METRICS_RECORDED: $METRICS_RECORDED"
-    # echo "AVERAGE_THRESHOLD: $AVERAGE_THRESHOLD"
-    # echo "AVERAGE_CUTOFF_RANGE: $AVERAGE_CUTOFF_RANGE"
-    # echo "TIMESTAMP_FORMAT: $TIMESTAMP_FORMAT"
-    # echo "BENCHMARK_SLOW_LOG: $BENCHMARK_SLOW_LOG"
-    # echo "BENCHMARK_ERROR_LOG: $BENCHMARK_ERROR_LOG"
-	echo "Configured runner types: $RUNNER_TYPES"
 }
 
-load_configs
+#####
 
 COMPUTE_BENCH_COMPILE_FLAGS=""
 CACHE_RESULTS="0"
 TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
 
-# CLI overrides to configuration options
-while getopts "p:b:r:f:t:cCs" opt; do
+load_configs
+
+# CLI flags + overrides to configuration options:
+while getopts "p:b:r:f:n:cCs" opt; do
     case $opt in
         p) COMPUTE_BENCH_PATH=$OPTARG ;;
         r) COMPUTE_BENCH_GIT_REPO=$OPTARG ;;
         b) COMPUTE_BENCH_BRANCH=$OPTARG ;;
         f) COMPUTE_BENCH_COMPILE_FLAGS=$OPTARG ;;
-		t) RUNNER_TYPE=$OPTARG ;;
+		n) RUNNER=$OPTARG ;;
         # Cleanup status is saved in a var to ensure all arguments are processed before
         # performing cleanup
         c) _cleanup=1 ;;
@@ -246,28 +251,40 @@ while getopts "p:b:r:f:t:cCs" opt; do
     esac
 done
 
+# Check all necessary variables exist:
 if [ -z "$CMPLR_ROOT" ]; then
     echo "Please set \$CMPLR_ROOT first; it is needed by compute-benchmarks to build."
     exit 1
-fi
-if [ -z "$RUNNER_TYPE" ]; then
-    echo "Please specify runner type using -t first; it is needed for comparing benchmark results"
+elif [ -z "$ONEAPI_DEVICE_SELECTOR" ]; then
+    echo "Please set \$ONEAPI_DEVICE_SELECTOR first to specify which device to use."
     exit 1
-else
-	# Identify runner being used
-	runner_regex="$(printf "$RUNNER_TYPES" | sed 's/,/|/g')"
-	RUNNER="$(printf "$RUNNER_TYPE" | grep -o -E "\b($runner_regex)\b")"
-	if [ -z "$RUNNER" ]; then
-		echo "Unknown runner type! Configured runners: $RUNNER_TYPES"
-		exit 1
-	fi
-	echo "Chosen runner: $RUNNER"
+elif [ -z "$RUNNER" ]; then
+    echo "Please specify runner name using -n first; it is needed for storing/comparing benchmark results."
+    exit 1
 fi
 
-[ ! -z "$_cleanup" ] && cleanup
+# Make sure ONEAPI_DEVICE_SELECTOR doesn't try to enable multiple devices at the
+# same time, or use specific device id's
+_dev_sel_backend_re="$(sed 's/,/|/g' <<< "$DEVICE_SELECTOR_ENABLED_BACKENDS")"
+_dev_sel_device_re="$(sed 's/,/|/g' <<< "$DEVICE_SELECTOR_ENABLED_DEVICES")"
+_dev_sel_re="s/($_dev_sel_backend_re):($_dev_sel_device_re)//"
+if [ -n "$(sed -E "$_dev_sel_re" <<< "$ONEAPI_DEVICE_SELECTOR" )" ]; then
+    echo "Unsupported \$ONEAPI_DEVICE_SELECTOR value: please ensure only one \
+device is selected, and devices are not selected by indices."
+    echo "Enabled backends: $DEVICE_SELECTOR_ENABLED_BACKENDS"
+    echo "Enabled device types: $DEVICE_SELECTOR_ENABLED_DEVICES"
+    exit 1
+fi
+# ONEAPI_DEVICE_SELECTOR values are not valid directory names in unix: this 
+# value lets us use ONEAPI_DEVICE_SELECTOR as actual directory names 
+DEVICE_SELECTOR_DIRNAME="$(sed 's/:/-/' <<< "$ONEAPI_DEVICE_SELECTOR")"
 
+# Clean up and delete all cached files if specified:
+[ ! -z "$_cleanup" ] && cleanup
+# Clone and build only if they aren't already cached/deleted:
 [ ! -d "$PERF_RES_PATH"            ] && clone_perf_res
 [ ! -d "$COMPUTE_BENCH_PATH"       ] && clone_compute_bench
 [ ! -d "$COMPUTE_BENCH_PATH/build" ] && build_compute_bench
+# Process benchmarks:
 process_benchmarks
 process_results

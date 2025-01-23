@@ -16,23 +16,44 @@ load_all_configs() {
     while IFS='=' read -r key value; do
         sanitized_value=$(_sanitize_configs "$value")
         case "$key" in
-            'PERF_RES_GIT_REPO') export PERF_RES_GIT_REPO="$sanitized_value" ;;
-            'PERF_RES_BRANCH') export PERF_RES_BRANCH="$sanitized_value" ;;
-            'PERF_RES_PATH') export PERF_RES_PATH="$sanitized_value" ;;
-            'COMPUTE_BENCH_GIT_REPO') export COMPUTE_BENCH_GIT_REPO="$sanitized_value" ;;
-            'COMPUTE_BENCH_BRANCH') export COMPUTE_BENCH_BRANCH="$sanitized_value" ;;
-            'COMPUTE_BENCH_PATH') export COMPUTE_BENCH_PATH="$sanitized_value" ;;
-            'COMPUTE_BENCH_COMPILE_FLAGS') export COMPUTE_BENCH_COMPILE_FLAGS="$sanitized_value" ;;
-            'COMPUTE_BENCH_ITERATIONS') export COMPUTE_BENCH_ITERATIONS="$sanitized_value" ;;
-            'OUTPUT_PATH') export OUTPUT_PATH="$sanitized_value" ;;
-            'METRICS_VARIANCE') export METRICS_VARIANCE="$sanitized_value" ;;
-            'METRICS_RECORDED') export METRICS_RECORDED="$sanitized_value" ;;
-            'AVERAGE_THRESHOLD') export AVERAGE_THRESHOLD="$sanitized_value" ;;
-            'AVERAGE_CUTOFF_RANGE') export AVERAGE_CUTOFF_RANGE="$sanitized_value" ;;
-            'TIMESTAMP_FORMAT') export TIMESTAMP_FORMAT="$sanitized_value" ;;
-            'BENCHMARK_SLOW_LOG') export BENCHMARK_SLOW_LOG="$sanitized_value" ;;
-            'BENCHMARK_ERROR_LOG') export BENCHMARK_ERROR_LOG="$sanitized_value" ;;
-            'RUNNER_TYPES') export RUNNER_TYPES="$sanitized_value" ;;
+            'PERF_RES_GIT_REPO')
+                export PERF_RES_GIT_REPO="$sanitized_value" ;;
+            'PERF_RES_BRANCH')
+                export PERF_RES_BRANCH="$sanitized_value" ;;
+            'PERF_RES_PATH')
+                export PERF_RES_PATH="$sanitized_value" ;;
+            'COMPUTE_BENCH_GIT_REPO')
+                export COMPUTE_BENCH_GIT_REPO="$sanitized_value" ;;
+            'COMPUTE_BENCH_BRANCH')
+                export COMPUTE_BENCH_BRANCH="$sanitized_value" ;;
+            'COMPUTE_BENCH_PATH')
+                export COMPUTE_BENCH_PATH="$sanitized_value" ;;
+            'COMPUTE_BENCH_COMPILE_FLAGS')
+                export COMPUTE_BENCH_COMPILE_FLAGS="$sanitized_value" ;;
+            'COMPUTE_BENCH_ITERATIONS')
+                export COMPUTE_BENCH_ITERATIONS="$sanitized_value" ;;
+            'OUTPUT_PATH')
+                export OUTPUT_PATH="$sanitized_value" ;;
+            'METRICS_VARIANCE')
+                export METRICS_VARIANCE="$sanitized_value" ;;
+            'METRICS_RECORDED')
+                export METRICS_RECORDED="$sanitized_value" ;;
+            'AVERAGE_THRESHOLD')
+                export AVERAGE_THRESHOLD="$sanitized_value" ;;
+            'AVERAGE_CUTOFF_RANGE')
+                export AVERAGE_CUTOFF_RANGE="$sanitized_value" ;;
+            'TIMESTAMP_FORMAT')
+                export TIMESTAMP_FORMAT="$sanitized_value" ;;
+            'BENCHMARK_SLOW_LOG')
+                export BENCHMARK_SLOW_LOG="$sanitized_value" ;;
+            'BENCHMARK_ERROR_LOG')
+                export BENCHMARK_ERROR_LOG="$sanitized_value" ;;
+            'RUNNER_TYPES')
+                export RUNNER_TYPES="$sanitized_value" ;;
+            'DEVICE_SELECTOR_ENABLED_BACKENDS')
+                export DEVICE_SELECTOR_ENABLED_BACKENDS="$sanitized_value" ;;
+            'DEVICE_SELECTOR_ENABLED_DEVICES')
+                export DEVICE_SELECTOR_ENABLED_DEVICES="$sanitized_value" ;;
             #*) echo "Unknown key: $sanitized_key" ;;
         esac
     done < "$1"
