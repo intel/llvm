@@ -17,14 +17,14 @@ int main() {
         sycl::nd_range{{1}, {1}},
         [=](sycl::nd_item<> it) { data_acc[0] = 42; });
   });
-  sycl::kernel_id id = sycl::get_kernel_id<kernel>();
+  sycl::kernel_id id = sycl::get_kernel_id<class kernel>();
   auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {d}, {id});
   assert(!bundle.empty());
   sycl::backend backend;
   std::vector<std::byte> bytes;
 #ifdef __cpp_lib_span
-  std::span<std::byte> bytes_view;
+  std::span<const std::byte> bytes_view;
 #endif
   for (const auto &img : bundle) {
     // Check that all 3 functions of the api return correct types and compile.
