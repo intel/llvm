@@ -186,14 +186,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             return script
 
         devices_for_test = []
-        triples = set()
+        build_targets = set()
         if test.config.test_mode == "build-only":
             build_targets = self.select_build_targets_for_test(test)
             if not build_targets:
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "No supported triple to build for"
                 )
-            triples = set(test.config.target_to_triple[t] for t in build_targets)
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
@@ -203,14 +202,16 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             for sycl_device in devices_for_test:
                 (backend, _) = sycl_device.split(":")
-                triples.add(test.config.backend_to_triple[backend])
+                build_targets.add(test.config.backend_to_target[backend])
+
+        triples = set(test.config.target_to_triple[t] for t in build_targets)
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
 
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
 
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
-        if test.config.backend_to_triple["hip"] in triples:
+        if "target-amd" in build_targets:
             hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(
                     test.config.amd_arch
@@ -219,7 +220,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
         if (
-            "spir64" in triples
+            "target-spir" in build_targets
             and "spirv-backend" in test.config.available_features
         ):
             sycl_target_opts += " -fsycl-use-spirv-backend-for-spirv-gen"
@@ -275,8 +276,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions.append(("%{run-unfiltered-devices}", run_unfiltered_substitution))
 
-        for triple in triples:
-            test.config.available_features.add(test.config.triple_to_target[triple])
+        for target in build_targets:
+            test.config.available_features.add(target)
 
         new_script = []
         for directive in script:
