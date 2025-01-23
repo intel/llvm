@@ -13,24 +13,6 @@
 
 #include "context.hpp"
 
-#if CUDA_VERSION < 12000
-UR_APIEXPORT ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
-    ur_device_handle_t, ur_exp_tensor_map_data_type_flags_t, uint32_t, void *,
-    const uint64_t *, const uint64_t *, const int *, const int *, uint32_t,
-    uint32_t, const uint32_t *, ur_exp_tensor_map_interleave_flags_t,
-    ur_exp_tensor_map_swizzle_flags_t, ur_exp_tensor_map_l2_promotion_flags_t,
-    ur_exp_tensor_map_oob_fill_flags_t, ur_exp_tensor_map_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-UR_APIEXPORT ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
-    ur_device_handle_t, ur_exp_tensor_map_data_type_flags_t, uint32_t, void *,
-    const uint64_t *, const uint64_t *, const uint32_t *, const uint32_t *,
-    ur_exp_tensor_map_interleave_flags_t, ur_exp_tensor_map_swizzle_flags_t,
-    ur_exp_tensor_map_l2_promotion_flags_t, ur_exp_tensor_map_oob_fill_flags_t,
-    ur_exp_tensor_map_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-#else
 struct ur_exp_tensor_map_handle_t_ {
   CUtensorMap Map;
 };
@@ -158,4 +140,3 @@ UR_APIEXPORT ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
   }
   return UR_RESULT_SUCCESS;
 }
-#endif
