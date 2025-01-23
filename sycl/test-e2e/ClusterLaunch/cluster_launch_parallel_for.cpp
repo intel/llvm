@@ -10,6 +10,46 @@
 
 #include <string>
 
+template <int Dim> struct KernelFunctor {
+  int *mCorrectResultFlag;
+  cuda::cluster_size mClusterDims;
+  sycl::range<Dim> mClusterRange;
+  KernelFunctor(int *CorrectResultFlag, cuda::cluster_size ClusterDims,
+                sycl::range<Dim> ClusterRange)
+      : mCorrectResultFlag(CorrectResultFlag), mClusterDims(ClusterDims),
+        mClusterRange(ClusterRange) {}
+
+  void operator()(sycl::nd_item<Dim> It) const {
+    uint32_t ClusterDimX, ClusterDimY, ClusterDimZ;
+// Temporary solution till cluster group class is implemented
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) &&            \
+    (__SYCL_CUDA_ARCH__ >= 900)
+    asm volatile("\n\t"
+                 "mov.u32 %0, %%cluster_nctaid.x; \n\t"
+                 "mov.u32 %1, %%cluster_nctaid.y; \n\t"
+                 "mov.u32 %2, %%cluster_nctaid.z; \n\t"
+                 : "=r"(ClusterDimZ), "=r"(ClusterDimY), "=r"(ClusterDimX));
+#endif
+    if constexpr (Dim == 1) {
+      if (ClusterDimZ == mClusterRange[0] && ClusterDimY == 1 &&
+          ClusterDimX == 1) {
+        *mCorrectResultFlag = 1;
+      }
+    } else if constexpr (Dim == 2) {
+      if (ClusterDimZ == mClusterRange[1] && ClusterDimY == mClusterRange[0] &&
+          ClusterDimX == 1) {
+        *mCorrectResultFlag = 1;
+      }
+    } else {
+      if (ClusterDimZ == mClusterRange[2] && ClusterDimY == mClusterRange[1] &&
+          ClusterDimX == mClusterRange[0]) {
+        *mCorrectResultFlag = 1;
+      }
+    }
+  }
+  auto get(properties_tag) const { return properties{mClusterDims}; }
+};
+
 template <int Dim>
 int test_cluster_launch_parallel_for(sycl::queue &Queue,
                                      sycl::range<Dim> GlobalRange,
@@ -18,45 +58,15 @@ int test_cluster_launch_parallel_for(sycl::queue &Queue,
   using namespace sycl::ext::oneapi::experimental;
 
   cuda::cluster_size ClusterDims(ClusterRange);
-  properties ClusterLaunchProperty{ClusterDims};
 
   int *CorrectResultFlag = sycl::malloc_device<int>(1, Queue);
   Queue.memset(CorrectResultFlag, 0, sizeof(int)).wait();
 
   Queue
       .submit([&](sycl::handler &CGH) {
-        CGH.parallel_for(sycl::nd_range<Dim>(GlobalRange, LocalRange),
-                         ClusterLaunchProperty, [=](sycl::nd_item<Dim> It) {
-                           uint32_t ClusterDimX, ClusterDimY, ClusterDimZ;
-// Temporary solution till cluster group class is implemented
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) &&            \
-    (__SYCL_CUDA_ARCH__ >= 900)
-                           asm volatile("\n\t"
-                                        "mov.u32 %0, %%cluster_nctaid.x; \n\t"
-                                        "mov.u32 %1, %%cluster_nctaid.y; \n\t"
-                                        "mov.u32 %2, %%cluster_nctaid.z; \n\t"
-                                        : "=r"(ClusterDimZ), "=r"(ClusterDimY),
-                                          "=r"(ClusterDimX));
-#endif
-                           if constexpr (Dim == 1) {
-                             if (ClusterDimZ == ClusterRange[0] &&
-                                 ClusterDimY == 1 && ClusterDimX == 1) {
-                               *CorrectResultFlag = 1;
-                             }
-                           } else if constexpr (Dim == 2) {
-                             if (ClusterDimZ == ClusterRange[1] &&
-                                 ClusterDimY == ClusterRange[0] &&
-                                 ClusterDimX == 1) {
-                               *CorrectResultFlag = 1;
-                             }
-                           } else {
-                             if (ClusterDimZ == ClusterRange[2] &&
-                                 ClusterDimY == ClusterRange[1] &&
-                                 ClusterDimX == ClusterRange[0]) {
-                               *CorrectResultFlag = 1;
-                             }
-                           }
-                         });
+        CGH.parallel_for(
+            sycl::nd_range<Dim>(GlobalRange, LocalRange),
+            KernelFunctor<Dim>(CorrectResultFlag, ClusterDims, ClusterRange));
       })
       .wait_and_throw();
 

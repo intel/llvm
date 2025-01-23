@@ -44,30 +44,9 @@ void test(queue &Queue, const std::vector<size_t> SupportedSGSizes) {
     return;
   }
 
-  auto Props = ext::oneapi::experimental::properties{
-      ext::oneapi::experimental::sub_group_size<SGSize>};
-
   nd_range<1> NdRange(SGSize * 4, SGSize * 2);
 
   size_t ReadSubGroupSize = 0;
-  {
-    buffer ReadSubGroupSizeBuf(&ReadSubGroupSize, range(1));
-
-    Queue.submit([&](handler &CGH) {
-      accessor ReadSubGroupSizeBufAcc{ReadSubGroupSizeBuf, CGH,
-                                      sycl::write_only, sycl::no_init};
-
-      CGH.parallel_for<SubGroupKernel<Variant::Function, SGSize>>(
-          NdRange, Props, [=](nd_item<1> NdItem) {
-            auto SG = NdItem.get_sub_group();
-            if (NdItem.get_global_linear_id() == 0)
-              ReadSubGroupSizeBufAcc[0] = SG.get_local_linear_range();
-          });
-    });
-  }
-  assert(ReadSubGroupSize == SGSize && "Failed check for function.");
-
-  ReadSubGroupSize = 0;
   {
     buffer ReadSubGroupSizeBuf(&ReadSubGroupSize, range(1));
 
@@ -81,22 +60,6 @@ void test(queue &Queue, const std::vector<size_t> SupportedSGSizes) {
     });
   }
   assert(ReadSubGroupSize == SGSize && "Failed check for functor.");
-
-  ReadSubGroupSize = 0;
-  {
-    buffer ReadSubGroupSizeBuf(&ReadSubGroupSize, range(1));
-
-    Queue.submit([&](handler &CGH) {
-      accessor ReadSubGroupSizeBufAcc{ReadSubGroupSizeBuf, CGH,
-                                      sycl::write_only, sycl::no_init};
-      KernelFunctorWithSGSizeProp<SGSize> KernelFunctor{ReadSubGroupSizeBufAcc};
-
-      CGH.parallel_for<SubGroupKernel<Variant::Functor, SGSize>>(NdRange, Props,
-                                                                 KernelFunctor);
-    });
-  }
-  assert(ReadSubGroupSize == SGSize &&
-         "Failed check for functor and properties.");
 }
 
 int main() {
