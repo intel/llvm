@@ -1,16 +1,16 @@
 name: SYCL Post Commit
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
     - sycl
-    - sycl-devops-pr/**
     - sycl-rel-**
 
   pull_request:
     branches:
     - sycl
-    - sycl-devops-pr/**
     paths:
     - .github/workflows/sycl-post-commit.yml
     - .github/workflows/sycl-linux-build.yml

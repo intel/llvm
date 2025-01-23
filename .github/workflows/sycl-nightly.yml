@@ -37,6 +37,20 @@ jobs:
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
+  ubuntu2404_oneapi_build:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: oneapi
+      build_artifact_suffix: oneapi
+      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" --cmake-opt=-DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
+      cc: icx
+      cxx: icpx
+
+      artifact_archive_name: sycl_linux_oneapi.tar.zst
+
   ubuntu2204_test:
     needs: [ubuntu2204_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
@@ -102,6 +116,23 @@ jobs:
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+  ubuntu2404_oneapi_test:
+    needs: [ubuntu2404_oneapi_build]
+    if: ${{ always() && !cancelled() && needs.ubuntu2404_oneapi_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: Intel PVC L0 oneAPI
+      runner: '["Linux", "pvc"]'
+      target_devices: level_zero:gpu
+      extra_lit_opts: -j 50
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      ref: ${{ github.sha }}
+      merge_ref: ''
+      sycl_toolchain_artifact: sycl_linux_oneapi
+      sycl_toolchain_archive: ${{ needs.ubuntu2404_oneapi_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2404_oneapi_build.outputs.artifact_decompress_command }}
 
   build-win:
     uses: ./.github/workflows/sycl-windows-build.yml
@@ -206,15 +237,20 @@ jobs:
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
       sycl_cts_artifact: sycl_cts_bin
+
+  aggregate_benchmark_results:
+    if: always() && !cancelled()
+    name: Aggregate benchmark results and produce historical averages
+    uses: ./.github/workflows/sycl-benchmark-aggregate.yml
       
   run-sycl-benchmarks:
-    needs: ubuntu2204_build
+    needs: [ubuntu2204_build, aggregate_benchmark_results]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Compute-benchmarks on L0 Gen12
+          - name: Run compute-benchmarks on L0 Gen12
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN

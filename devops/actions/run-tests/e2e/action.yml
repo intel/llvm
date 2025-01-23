@@ -1,0 +1,86 @@
+name: 'Run SYCL E2E tests'
+
+inputs:
+  ref:
+    required: false
+  merge_ref:
+    required: false
+  e2e_binaries_artifact:
+    required: false
+  extra_cmake_args:
+    required: false
+  e2e_testing_mode:
+    required: true
+  target_devices:
+    required: true
+  extra_lit_opts:
+    required: false
+  artifact_suffix:
+    required: false
+  retention-days:
+    required: false
+
+
+runs:
+  using: "composite"
+  steps:
+  - name: Checkout E2E tests
+    uses: ./devops/actions/cached_checkout
+    with:
+      path: llvm
+      ref: ${{ inputs.ref || github.sha }}
+      merge_ref: ${{ inputs.merge_ref }}
+      cache_path: "/__w/repo_cache/"
+
+  - name: Download E2E Binaries
+    if: inputs.e2e_binaries_artifact != ''
+    uses: actions/download-artifact@v4
+    with:
+      name: ${{ inputs.e2e_binaries_artifact }}
+  - name: Extract E2E Binaries
+    if: inputs.e2e_binaries_artifact != ''
+    shell: bash
+    run: |
+      mkdir build-e2e
+      tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
+
+  - name: Deduce E2E CMake options
+    if: inputs.e2e_binaries_artifact == ''
+    id: cmake_opts
+    shell: bash
+    env:
+      CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
+    run: |
+      if [ -n "$CMAKE_EXTRA_ARGS" ]; then
+        echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
+      fi
+  - name: Configure E2E tests
+    if: inputs.e2e_binaries_artifact == ''
+    shell: bash
+    run: |
+      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+  - name: SYCL End-to-end tests
+    shell: bash {0}
+    env:
+      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+    run: |
+      ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
+      exit_code=$?
+      cat e2e.log
+      if [ $exit_code -ne 0 ]; then
+        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+      fi
+      exit $exit_code
+
+  - name: Pack E2E binaries
+    if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
+    shell: bash
+    run: |
+      tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
+  - name: Upload E2E binaries
+    if: ${{ always() && !cancelled() && inputs.e2e_testing_mode == 'build-only'}}
+    uses: actions/upload-artifact@v4
+    with:
+      name: sycl_e2e_bin_${{ inputs.artifact_suffix }}
+      path: e2e_binaries.tar.zst
+      retention-days: ${{ inputs.retention-days }}

@@ -1,0 +1,46 @@
+name: 'Run compute-benchmarks'
+
+# Run compute-benchmarks on SYCL
+# 
+# This action assumes SYCL is in $PWD/toolchain, and that /devops has been
+# checked out in $PWD/devops
+
+inputs:
+  target_devices:
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+  - name: Run compute-benchmarks
+    run: |
+      export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
+      export CMPLR_ROOT=$PWD/toolchain
+      sycl-ls
+      ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
+  - name: Push compute-benchmarks results
+    env:
+      GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
+    run: |
+      # TODO -- waiting on security clearance
+      # Load configuration values
+      . "$PWD/devops/scripts/benchmarking/utils.sh"
+      CONFIG_FILE="$PWD/devops/scripts/benchmarking/benchmark-ci.conf"
+      load_single_config "$CONFIG_FILE" PERF_RES_PATH
+      load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO
+      load_single_config "$CONFIG_FILE" PERF_RES_BRANCH
+
+      cd "$PERF_RES_PATH"
+      git config user.name "SYCL Benchmarking Bot"
+      git config user.email "sys_sycl_benchmarks@intel.com"
+      git add .
+      git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+      git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
+  - name: Archive compute-benchmark results
+    if: inputs.tests_selector == 'benchmark' && always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: Compute-benchmark results (${{ runner.name }})
+      path: |
+        ./uncached_res
+        ./success
