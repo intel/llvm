@@ -16,7 +16,6 @@ EXPORTS
 	urGetProgramExpProcAddrTable
 	urGetQueueProcAddrTable
 	urGetSamplerProcAddrTable
-	urGetTensorMapExpProcAddrTable
 	urGetUSMProcAddrTable
 	urGetUSMExpProcAddrTable
 	urGetUsmP2PExpProcAddrTable
