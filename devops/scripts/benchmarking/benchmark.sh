@@ -265,10 +265,10 @@ fi
 
 # Make sure ONEAPI_DEVICE_SELECTOR doesn't try to enable multiple devices at the
 # same time, or use specific device id's
-_dev_sel_backend_re="$(sed 's/,/|/g' <<< "$DEVICE_SELECTOR_ENABLED_BACKENDS")"
-_dev_sel_device_re="$(sed 's/,/|/g' <<< "$DEVICE_SELECTOR_ENABLED_DEVICES")"
+_dev_sel_backend_re="$(echo "$DEVICE_SELECTOR_ENABLED_BACKENDS" | sed 's/,/|/g')"
+_dev_sel_device_re="$(echo "$DEVICE_SELECTOR_ENABLED_DEVICES" | sed 's/,/|/g')"
 _dev_sel_re="s/($_dev_sel_backend_re):($_dev_sel_device_re)//"
-if [ -n "$(sed -E "$_dev_sel_re" <<< "$ONEAPI_DEVICE_SELECTOR" )" ]; then
+if [ -n "$(echo "$ONEAPI_DEVICE_SELECTOR" | sed -E "$_dev_sel_re")" ]; then
     echo "Unsupported \$ONEAPI_DEVICE_SELECTOR value: please ensure only one \
 device is selected, and devices are not selected by indices."
     echo "Enabled backends: $DEVICE_SELECTOR_ENABLED_BACKENDS"
@@ -277,7 +277,7 @@ device is selected, and devices are not selected by indices."
 fi
 # ONEAPI_DEVICE_SELECTOR values are not valid directory names in unix: this 
 # value lets us use ONEAPI_DEVICE_SELECTOR as actual directory names 
-DEVICE_SELECTOR_DIRNAME="$(sed 's/:/-/' <<< "$ONEAPI_DEVICE_SELECTOR")"
+DEVICE_SELECTOR_DIRNAME="$(echo "$ONEAPI_DEVICE_SELECTOR" | sed 's/:/-/')"
 
 # Clean up and delete all cached files if specified:
 [ ! -z "$_cleanup" ] && cleanup
