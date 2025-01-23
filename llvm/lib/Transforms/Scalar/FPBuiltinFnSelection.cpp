@@ -109,7 +109,9 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
 
 // This function lowers llvm.fpbuiltin. intrinsic functions with 3.0 max-error
 // attribute to the appropriate nvvm approximate intrinsics if it's possible.
-static bool replaceWithApproxNVPTXCalls(FPBuiltinIntrinsic &BuiltinCall) {
+// If it's not possible - fallback to standart LLVM intrinsic or instruction.
+static bool replaceWithApproxNVPTXCallsOrFallback(
+    FPBuiltinIntrinsic &BuiltinCall) {
   IRBuilder<> IRBuilder(&BuiltinCall);
   SmallVector<Value *> Args(BuiltinCall.args());
   Value *Replacement = nullptr;
@@ -195,7 +197,7 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
   // Lets map them on NVPTX intrinsics. If no appropriate intrinsics are known
   // - skip to replaceWithAltMathFunction.
   if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() == 3.0) {
-    if (replaceWithApproxNVPTXCalls(BuiltinCall))
+    if (replaceWithApproxNVPTXCallsOrFallback(BuiltinCall))
       return true;
   }
 
