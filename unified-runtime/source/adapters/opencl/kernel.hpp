@@ -15,7 +15,7 @@
 
 #include <vector>
 
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : cl_adapter::ur_handle_t_ {
   using native_type = cl_kernel;
   native_type CLKernel;
   ur_program_handle_t Program;
@@ -25,7 +25,8 @@ struct ur_kernel_handle_t_ {
 
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t Program,
                       ur_context_handle_t Context)
-      : CLKernel(Kernel), Program(Program), Context(Context) {
+      : cl_adapter::ur_handle_t_(), CLKernel(Kernel), Program(Program),
+        Context(Context) {
     RefCount = 1;
     if (Program) {
       urProgramRetain(Program);

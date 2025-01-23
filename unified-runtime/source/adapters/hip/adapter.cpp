@@ -15,7 +15,7 @@
 #include <atomic>
 #include <ur_api.h>
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   logger::Logger &logger;
   ur_adapter_handle_t_();
@@ -40,8 +40,8 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : logger(
-          logger::get_logger("hip", /*default_log_level*/ logger::Level::ERR)) {
+    : ur_handle_t_(), logger(logger::get_logger(
+                          "hip", /*default_log_level*/ logger::Level::ERR)) {
 
   if (std::getenv("UR_LOG_HIP") != nullptr)
     return;
