@@ -17,7 +17,7 @@ class SimpleMedian:
         self.elements.append(n)
 
     def get_median(self) -> float:
-        return statistics.median(elements)
+        return statistics.median(self.elements)
 
 
 # Calculate medians incrementally using a heap: Useful for when dealing with
