@@ -103,3 +103,9 @@ jobs:
         git add .
         git commit -m "[GHA] Aggregate median data from $CUTOFF_TIMESTAMP to $(date +"$TIMESTAMP_FORMAT")"
         git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
+    - name: Archive new medians
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: llvm-ci-perf-results new medians
+        path: ${{ env.PERF_RES_PATH }}/**/*-median.csv

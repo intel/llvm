@@ -110,10 +110,13 @@ check_regression() {
     return $?
 }
 
-# Move the results of our benchmark into the git repo
+# Move the results of our benchmark into the git repo, and save benchmark
+# results to artifact archive
 #
 # Usage: cache <relative path of output csv>
 cache() {
+    mkdir -p "$(dirname "./success/$1")"
+    cp "$OUTPUT_PATH/$1" "./success/$1"
     mv "$OUTPUT_PATH/$1" "$PERF_RES_PATH/$1"
 }
 
