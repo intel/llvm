@@ -56,9 +56,9 @@ if __name__ == "__main__":
     # This relative path is sys.argv[1], while the name of the csv file we are
     # comparing against is sys.argv[2].
     common.load_configs()
-    test_name = os.path.basename(test_dir_relpath)
-    median_path = f"{common.PERF_RES_PATH}/{sys.argv[1]}/{test_name}-median.csv"
+    test_name = os.path.basename(sys.argv[1])
     test_csv_path = f"{common.OUTPUT_PATH}/{sys.argv[1]}/{sys.argv[2]}"
+    median_path = f"{common.PERF_RES_PATH}/{sys.argv[1]}/{test_name}-median.csv"
 
     if not os.path.isfile(test_csv_path):
         print("Invalid test file provided: " + test_csv_path)
