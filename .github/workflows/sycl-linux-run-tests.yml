@@ -511,6 +511,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       run: |
         # TODO -- waiting on security clearance
+        find ./
 
         # Load configuration values
         . "./devops/scripts/benchmarking/utils.sh"
