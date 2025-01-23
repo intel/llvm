@@ -1,7 +1,7 @@
-# commit f058cb230c65fe8094f74043d0c9afd5ba0e8325
-# Merge: 871061f1 3bf76246
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 15:49:41 2025 +0000
-#     Merge pull request #2593 from RossBrunton/ross/formatall
-#     Ensure all files are clang formatted
-set(UNIFIED_RUNTIME_TAG f058cb230c65fe8094f74043d0c9afd5ba0e8325)
+# commit d3e97040b67ee6b45655eccdfca19185bd9115b6
+# Merge: 2ef69591 37ad03a7
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 23 10:23:08 2025 +0000
+#     Merge pull request #2605 from yingcong-wu/yc/0123-ur-quick-fix
+#     [DeviceASAN] Bugfix for GetDeviceType
+set(UNIFIED_RUNTIME_TAG d3e97040b67ee6b45655eccdfca19185bd9115b6)
