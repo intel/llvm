@@ -17,6 +17,6 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
 
-#include "../common.hpp"
+#include "common.hpp"
 #define SG_SZ 32
-#include "../joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"
+#include "joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"
