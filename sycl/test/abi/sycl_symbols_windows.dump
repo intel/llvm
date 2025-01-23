@@ -3842,9 +3842,9 @@
 ?ext_oneapi_empty@queue@_V1@sycl@@QEBA_NXZ
 ?ext_oneapi_enable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
 ?ext_oneapi_fill2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
-?ext_oneapi_get_backend_impl@device_image_plain@detail@_V1@sycl@@QEBA?AW4backend@34@XZ
-?ext_oneapi_get_backend_content_impl@device_image_plain@detail@_V1@sycl@@QEBA?AV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@XZ
-?ext_oneapi_get_backend_content_view_impl@device_image_plain@detail@_V1@sycl@@QEBA?AU?$pair@PEBW4byte@std@@PEBW412@@std@@XZ
+?ext_oneapi_get_backend_impl@device_image_plain@detail@_V1@sycl@@IEBA?AW4backend@34@XZ
+?ext_oneapi_get_backend_content_impl@device_image_plain@detail@_V1@sycl@@IEBA?AV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@XZ
+?ext_oneapi_get_backend_content_view_impl@device_image_plain@detail@_V1@sycl@@IEBA?AU?$pair@PEAW4byte@std@@PEAW412@@std@@XZ
 ?ext_oneapi_get_composite_devices@platform@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?ext_oneapi_get_graph@queue@_V1@sycl@@QEBA?AV?$command_graph@$0A@@experimental@oneapi@ext@23@XZ
