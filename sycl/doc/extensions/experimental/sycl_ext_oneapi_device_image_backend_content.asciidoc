@@ -100,7 +100,7 @@ class device_image {
   std::vector<std::byte> ext_oneapi_get_backend_content() const;
 
 #if defined(__cpp_lib_span)
-  std::span<std::byte> ext_oneapi_get_backend_content_view() const;
+  std::span<const std::byte> ext_oneapi_get_backend_content_view() const;
 #endif
 
   /*...*/
@@ -148,7 +148,7 @@ See below for a description of the formats used by {dpcpp}.
 a@
 [source,c++]
 ----
-std::span<std::byte> ext_oneapi_get_content_backend_view() const;
+std::span<const std::byte> ext_oneapi_get_content_backend_view() const;
 ----
 !====
 
@@ -157,7 +157,7 @@ Available only when the compiler defines the `__cpp_lib_span` feature-test macro
 
 _Constraints:_ Available only when `State` is `bundle_state::executable`.
 
-_Returns:_ A view of the raw backend content for this device image.
+_Returns:_ An immutable view of the raw backend content for this device image.
 The data behind this view has the same lifetime as the `device_image` object.
 The format of this data is implementation-defined.
 See below for a description of the formats used by {dpcpp}.
