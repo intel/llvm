@@ -20,6 +20,7 @@
 
 namespace llvm {
 
+class Function;
 class Module;
 
 // DeviceLibExt is shared between sycl-post-link tool and sycl runtime.
@@ -40,4 +41,5 @@ enum class DeviceLibExt : std::uint32_t {
 
 uint32_t getSYCLDeviceLibReqMask(const Module &M);
 bool isSYCLDeviceLibBF16Used(const Module &M);
+bool isBF16DeviceLibFuncDecl(const Function &F);
 } // namespace llvm

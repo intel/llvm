@@ -26,6 +26,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -1402,6 +1403,12 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
+
+  // We use sycl dynamic library mechanism to involve bf16 devicelib when
+  // necessary, all __devicelib_* functions from native or fallback bf16
+  // devicelib will be treated as imported function to user's device image.
+  if (llvm::isBF16DeviceLibFuncDecl(F))
+    return true;
   // It may be theoretically possible to determine what is importable
   // based solely on function F, but the "SYCL/imported symbols"
   // property list MUST NOT have any imported symbols that are not supplied

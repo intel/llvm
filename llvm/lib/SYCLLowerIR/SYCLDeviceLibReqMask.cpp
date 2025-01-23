@@ -16,6 +16,7 @@
 
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/TargetParser/Triple.h"
 
@@ -776,6 +777,17 @@ bool llvm::isSYCLDeviceLibBF16Used(const Module &M) {
   for (auto Fn : BF16DeviceLibFuncs) {
     Function *BF16Func = M.getFunction(Fn);
     if (BF16Func && BF16Func->isDeclaration())
+      return true;
+  }
+
+  return false;
+}
+
+bool llvm::isBF16DeviceLibFuncDecl(const Function &F) {
+  if (!F.isDeclaration() || !F.getName().starts_with(DEVICELIB_FUNC_PREFIX))
+    return false;
+  for (auto BFunc : BF16DeviceLibFuncs) {
+    if (!F.getName().compare(BFunc))
       return true;
   }
 
