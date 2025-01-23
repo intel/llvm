@@ -6,7 +6,7 @@
 // CHECK-DAG: README.md
 // CHECK-DAG: lit.cfg.py
 //
-// CHECK-NUM-MATCHES: 5
+// CHECK-NUM-MATCHES: 6
 //
 // This test verifies that `<sycl/sycl.hpp>` isn't used in E2E tests. Instead,
 // fine-grained includes should used, see
