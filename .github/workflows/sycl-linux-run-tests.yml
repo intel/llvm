@@ -504,7 +504,7 @@ jobs:
         export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
         export CMPLR_ROOT=$PWD/toolchain
         sycl-ls
-        ./devops/scripts/benchmarking/benchmark.sh -t '${{ inputs.runner }}' -s
+        ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
     - name: Push compute-benchmarks results
       if: inputs.tests_selector == 'benchmark'
       env:
