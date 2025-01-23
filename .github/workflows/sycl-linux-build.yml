@@ -200,6 +200,8 @@ jobs:
     - name: check-llvm-spirv
       if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
       run: |
+        # Temporary workaround to disable running tests requiring spriv-tools.
+        export LIT_OPTS="--param disable-spriv-tools=True"
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
       if: always() && !cancelled() && contains(inputs.changes, 'xptifw')
