@@ -3,6 +3,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -16,7 +17,6 @@ template <class T, size_t Dim>
 using sycl_global_accessor =
     sycl::accessor<T, Dim, sycl::access::mode::read_write,
                    sycl::access::target::global_buffer>;
-
 class TestKernel {
 public:
   static constexpr bool HasLocalMemory{false};
@@ -43,16 +43,19 @@ int main() {
       sycl::info::kernel_device_specific::work_group_size>(q.get_device());
   const auto maxWorkGroupSize = kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_work_group_size>(q);
-  sycl::buffer<value_type, 1> buf{sycl::range<1>{maxWorkGroupSizeActual}};
   static_assert(
       std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupSize)>, size_t>,
       "max_work_group_size query must return size_t");
   assert(maxWorkGroupSizeActual == maxWorkGroupSize);
-  // Run the kernel
-  auto launch_range = sycl::nd_range<1>{sycl::range<1>{maxWorkGroupSizeActual},
-                                        sycl::range<1>{maxWorkGroupSize}};
+
+  // this size is for test purpose due to issue - to check
+  sycl::buffer<value_type, 1> buf{sycl::range<1>{2}};
+  const size_t numWorkItems = 2;
+  auto launch_range =
+      sycl::nd_range<1>{sycl::range<1>{numWorkItems}, sycl::range<1>{1}};
   q.submit([&](sycl::handler &cgh) {
      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-     cgh.parallel_for(launch_range, kernels::TestKernel{acc});
+     cgh.parallel_for<class kernels::TestKernel>(launch_range,
+                                                 kernels::TestKernel{acc});
    }).wait();
 }

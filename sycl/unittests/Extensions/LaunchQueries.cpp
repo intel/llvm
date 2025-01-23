@@ -42,15 +42,11 @@ inline ur_result_t redefine_urKernelGetGroupInfo_Success(void *pParams) {
   }
 }
 
-inline ur_result_t redefine_urKernelGetGroupInfo_Unsupported(void *pParams) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 inline ur_result_t redefine_urKernelGetGroupInfo_Exception(void *pParams) {
   return UR_RESULT_ERROR_INVALID_ARGUMENT;
 }
 
-const auto getQueue() {
+auto getQueue() {
   sycl::platform Plt = sycl::platform();
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -59,7 +55,7 @@ const auto getQueue() {
   return Queue;
 }
 
-const auto getKernel(const sycl::queue &Q) {
+auto getKernel(const sycl::queue &Q) {
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       Q.get_context(), std::vector<sycl::kernel_id>{KernelID});
   return KernelBundle.get_kernel(KernelID);
@@ -76,18 +72,7 @@ TEST(LaunchQueries, GetWorkGroupSizeSuccess) {
   const auto result =
       std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupSize)>, size_t>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(maxWorkGroupSize, 123);
-}
-
-TEST(LaunchQueries, GetWorkGroupSizeUnsupported) {
-  sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback(
-      "urKernelGetGroupInfo", &redefine_urKernelGetGroupInfo_Unsupported);
-  const auto Queue = getQueue();
-  const auto Kernel = getKernel(Queue);
-  const auto maxWorkGroupSize = Kernel.template ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_work_group_size>(Queue);
-  ASSERT_EQ(maxWorkGroupSize, 0);
+  ASSERT_EQ(maxWorkGroupSize, static_cast<size_t>(123));
 }
 
 TEST(LaunchQueries, GetWorkGroupSizeExceptionCode) {
@@ -153,19 +138,6 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes1DSuccess) {
   ASSERT_EQ(maxWorkGroupItemSizes[0], 123);
 }
 
-TEST(LaunchQueries, GetMaxWorkGroupItemSizesUnsupported) {
-  sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback(
-      "urKernelGetGroupInfo", &redefine_urKernelGetGroupInfo_Unsupported);
-  const auto Queue = getQueue();
-  const auto Kernel = getKernel(Queue);
-  const auto maxWorkGroupItemSizes = Kernel.template ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_work_item_sizes<3>>(Queue);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], 0);
-  ASSERT_EQ(maxWorkGroupItemSizes[1], 0);
-  ASSERT_EQ(maxWorkGroupItemSizes[2], 0);
-}
-
 TEST(LaunchQueries, GetMaxWorkGroupItemSizesExceptionCode) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_replace_callback(
@@ -188,7 +160,7 @@ TEST(LaunchQueries, GetMaxSubGroupSize3DSuccess) {
   const auto result =
       std::is_same_v<std::remove_cv_t<decltype(maxSubGroupSize)>, uint32_t>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(maxSubGroupSize, 123);
+  ASSERT_EQ(maxSubGroupSize, static_cast<uint32_t>(123));
 }
 
 TEST(LaunchQueries, GetMaxSubGroupSize2DSuccess) {
@@ -201,7 +173,7 @@ TEST(LaunchQueries, GetMaxSubGroupSize2DSuccess) {
   const auto result =
       std::is_same_v<std::remove_cv_t<decltype(maxSubGroupSize)>, uint32_t>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(maxSubGroupSize, 123);
+  ASSERT_EQ(maxSubGroupSize, static_cast<uint32_t>(123));
 }
 
 TEST(LaunchQueries, GetMaxSubGroupSize1DSuccess) {
@@ -214,33 +186,7 @@ TEST(LaunchQueries, GetMaxSubGroupSize1DSuccess) {
   const auto result =
       std::is_same_v<std::remove_cv_t<decltype(maxSubGroupSize)>, uint32_t>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(maxSubGroupSize, 123);
-}
-
-TEST(LaunchQueries, GetMaxSubGroupSizeUnsupported) {
-  sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback(
-      "urKernelGetSubGroupInfo", &redefine_urKernelGetGroupInfo_Unsupported);
-  const auto Queue = getQueue();
-  const auto Kernel = getKernel(Queue);
-  {
-    const auto maxSubGroupSize = Kernel.template ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_sub_group_size>(
-        Queue, sycl::range<3>{1, 1, 1});
-    ASSERT_EQ(maxSubGroupSize, 0);
-  }
-  {
-    const auto maxSubGroupSize = Kernel.template ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_sub_group_size>(
-        Queue, sycl::range<2>{1, 1});
-    ASSERT_EQ(maxSubGroupSize, 0);
-  }
-  {
-    const auto maxSubGroupSize = Kernel.template ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_sub_group_size>(
-        Queue, sycl::range<1>{1});
-    ASSERT_EQ(maxSubGroupSize, 0);
-  }
+  ASSERT_EQ(maxSubGroupSize, static_cast<uint32_t>(123));
 }
 
 TEST(LaunchQueries, GetMaxSubGroupSizeExceptionCode) {
@@ -291,7 +237,7 @@ TEST(LaunchQueries, GetNumSubGroups3DSuccess) {
   const auto result =
       std::is_same_v<std::remove_cv_t<decltype(NumSubGroups)>, uint32_t>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(NumSubGroups, 123);
+  ASSERT_EQ(NumSubGroups, static_cast<uint32_t>(123));
 }
 
 TEST(LaunchQueries, GetNumSubGroups2DSuccess) {
@@ -304,7 +250,7 @@ TEST(LaunchQueries, GetNumSubGroups2DSuccess) {
   const auto result =
       std::is_same_v<std::remove_cv_t<decltype(NumSubGroups)>, uint32_t>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(NumSubGroups, 123);
+  ASSERT_EQ(NumSubGroups, static_cast<uint32_t>(123));
 }
 
 TEST(LaunchQueries, GetNumSubGroups1DSuccess) {
@@ -317,33 +263,7 @@ TEST(LaunchQueries, GetNumSubGroups1DSuccess) {
   const auto result =
       std::is_same_v<std::remove_cv_t<decltype(NumSubGroups)>, uint32_t>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(NumSubGroups, 123);
-}
-
-TEST(LaunchQueries, GetNumSubGroupsUnsupported) {
-  sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback(
-      "urKernelGetSubGroupInfo", &redefine_urKernelGetGroupInfo_Unsupported);
-  const auto Queue = getQueue();
-  const auto Kernel = getKernel(Queue);
-  {
-    const auto NumSubGroups = Kernel.template ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::num_sub_groups>(
-        Queue, sycl::range<3>{1, 1, 1});
-    ASSERT_EQ(NumSubGroups, 0);
-  }
-  {
-    const auto NumSubGroups = Kernel.template ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::num_sub_groups>(
-        Queue, sycl::range<2>{1, 1});
-    ASSERT_EQ(NumSubGroups, 0);
-  }
-  {
-    const auto NumSubGroups = Kernel.template ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::num_sub_groups>(Queue,
-                                                             sycl::range<1>{1});
-    ASSERT_EQ(NumSubGroups, 0);
-  }
+  ASSERT_EQ(NumSubGroups, static_cast<uint32_t>(123));
 }
 
 TEST(LaunchQueries, GetNumSubGroupsExceptionCode) {
