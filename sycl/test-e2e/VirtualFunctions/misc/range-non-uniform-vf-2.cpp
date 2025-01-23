@@ -50,7 +50,7 @@ template <typename T1, typename T2> struct KernelFunctor {
   KernelFunctor(T1 DeviceStorage, T2 DataAcc)
       : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
 
-  void operator()(sycl::item<1> It) const {
+  template <typename T> void operator()(T It) const {
     // Select method that corresponds to this work-item
     auto *Ptr = mDeviceStorage->template getAs<BaseOp>();
     if (It % 2)
