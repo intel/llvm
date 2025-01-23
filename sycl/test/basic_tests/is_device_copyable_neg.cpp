@@ -1,5 +1,4 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only \
-// RUN: %s -I %sycl_include 2>&1 | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=warning,note %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // a struct with type that is not device copyable as SYCL kernel parameter.
@@ -57,6 +56,7 @@ void test() {
   B IamAlsoBad{0};
   marray<B, 2> MarrayForNotCopyable;
   queue Q;
+  // expected-error@*:* {{static assertion failed due to requirement 'is_device_copyable_v<A>': The specified type is not device copyable}}
   Q.single_task<class TestA>([=] {
     int A = IamBad.i;
     int B = IamAlsoBad.i;
@@ -64,23 +64,10 @@ void test() {
   });
 
   FunctorA FA;
+  // expected-error@*:* {{static assertion failed due to requirement 'is_device_copyable_v<C>': The specified type is not device copyable}}
   Q.single_task<class TestB>(FA);
 
   FunctorB FB;
+  // expected-error@*:* {{static assertion failed due to requirement 'is_device_copyable_v<D>': The specified type is not device copyable}}
   Q.single_task<class TestC>(FB);
 }
-
-// CHECK: static assertion failed due to requirement 'is_device_copyable_v<A>
-// CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
-
-// CHECK: static assertion failed due to requirement 'is_device_copyable_v<B>
-// CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
-
-// CHECK: static assertion failed due to requirement 'is_device_copyable_v<sycl::marray<B, 2>>
-// CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
-
-// CHECK: static assertion failed due to requirement 'is_device_copyable_v<C>
-// CHECK: is_device_copyable_neg.cpp:67:5: note: in instantiation of function
-
-// CHECK: static assertion failed due to requirement 'is_device_copyable_v<D>
-// CHECK: is_device_copyable_neg.cpp:70:5: note: in instantiation of function

@@ -1,8 +1,7 @@
-# commit 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f
-# Merge: 9c652ffb b78cfa71
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Thu Jan 9 17:28:00 2025 +0000
-# Merge pull request #2048 from RossBrunton/ross/refc
-#
-# Use reference counting on factories
-set(UNIFIED_RUNTIME_TAG 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f)
+# commit d3e97040b67ee6b45655eccdfca19185bd9115b6
+# Merge: 2ef69591 37ad03a7
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 23 10:23:08 2025 +0000
+#     Merge pull request #2605 from yingcong-wu/yc/0123-ur-quick-fix
+#     [DeviceASAN] Bugfix for GetDeviceType
+set(UNIFIED_RUNTIME_TAG d3e97040b67ee6b45655eccdfca19185bd9115b6)
