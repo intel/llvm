@@ -25,11 +25,10 @@ template <typename T> void dummy_kernel(T *Input, int N, sycl::nd_item<1> It) {
 }
 
 template <typename T> struct KernelFunctor {
-  using namespace sycl::ext::oneapi::experimental;
-
   T mAcc;
-  properties mClusterLaunchProperty;
-  KernelFunctor(properties ClusterLaunchProperty, T Acc)
+  sycl::ext::oneapi::experimental::properties mClusterLaunchProperty;
+  KernelFunctor(
+      sycl::ext::oneapi::experimental::properties ClusterLaunchProperty, T Acc)
       : mClusterLaunchProperty(ClusterLaunchProperty), mAcc(Acc) {}
 
   void operator()(sycl::nd_item<1> It) const {
@@ -37,7 +36,9 @@ template <typename T> struct KernelFunctor {
         mAcc.template get_multi_ptr<sycl::access::decorated::yes>().get(), 4096,
         It);
   }
-  auto get(properties_tag) const { return mClusterLaunchProperty; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return mClusterLaunchProperty;
+  }
 };
 
 int main() {

@@ -11,12 +11,11 @@
 #include <string>
 
 template <int Dim> struct KernelFunctor {
-  using namespace sycl::ext::oneapi::experimental;
-
   int *mCorrectResultFlag;
-  cuda::cluster_size mClusterDims;
+  sycl::ext::oneapi::experimental::cuda::cluster_size mClusterDims;
   sycl::range<Dim> mClusterRange;
-  KernelFunctor(int *CorrectResultFlag, cuda::cluster_size ClusterDims,
+  KernelFunctor(int *CorrectResultFlag,
+                sycl::ext::oneapi::experimental::cuda::cluster_size ClusterDims,
                 sycl::range<Dim> ClusterRange)
       : mCorrectResultFlag(CorrectResultFlag), mClusterDims(ClusterDims),
         mClusterRange(ClusterRange) {}
@@ -49,7 +48,9 @@ template <int Dim> struct KernelFunctor {
       }
     }
   }
-  auto get(properties_tag) const { return properties{mClusterDims}; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{mClusterDims};
+  }
 };
 
 template <int Dim>
