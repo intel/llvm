@@ -56,7 +56,7 @@ void test() {
   B IamAlsoBad{0};
   marray<B, 2> MarrayForNotCopyable;
   queue Q;
-  // expected-error@*:* {{static assertion failed due to requirement 'is_device_copyable_v<A>': The specified type is not device copyable}}
+  // expected-error@*:* {{static assertion failed due to requirement 'is_deprecated_device_copyable_v<A>': The specified type is not device copyable}}
   Q.single_task<class TestA>([=] {
     int A = IamBad.i;
     int B = IamAlsoBad.i;
@@ -64,10 +64,10 @@ void test() {
   });
 
   FunctorA FA;
-  // expected-error@*:* {{static assertion failed due to requirement 'is_device_copyable_v<C>': The specified type is not device copyable}}
+  // expected-error@*:* {{static assertion failed due to requirement 'is_deprecated_device_copyable_v<C>': The specified type is not device copyable}}
   Q.single_task<class TestB>(FA);
 
   FunctorB FB;
-  // expected-error@*:* {{static assertion failed due to requirement 'is_device_copyable_v<D>': The specified type is not device copyable}}
+  // expected-error@*:* {{static assertion failed due to requirement 'is_deprecated_device_copyable_v<D>': The specified type is not device copyable}}
   Q.single_task<class TestC>(FB);
 }
