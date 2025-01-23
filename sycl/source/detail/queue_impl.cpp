@@ -277,7 +277,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 }
 
-event queue_impl::getLastEvent() {
+sycl::detail::optional<event> queue_impl::getLastEvent() {
   {
     // The external event is required to finish last if set, so it is considered
     // the last event if present.
@@ -287,12 +287,12 @@ event queue_impl::getLastEvent() {
   }
 
   std::lock_guard<std::mutex> Lock{MMutex};
+  if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)
+    return std::nullopt;
   if (MDiscardEvents)
     return createDiscardedEvent();
   if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
     return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
-  if (!MDefaultGraphDeps.LastEventPtr)
-    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
   return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
@@ -349,7 +349,7 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
+event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
                               const std::shared_ptr<queue_impl> &PrimaryQueue,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
@@ -402,10 +402,13 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
     // finishes execution.
-    event FlushEvent = submit_impl(
-        [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
-        Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
-        IsTopCodeLoc, {});
+    auto L = [&](handler &ServiceCGH) {
+      Stream->generateFlushCommand(ServiceCGH);
+    };
+    detail::type_erased_cgfo_ty CGF{L};
+    event FlushEvent =
+        submit_impl(CGF, Self, PrimaryQueue, SecondaryQueue,
+                    /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
@@ -419,21 +422,19 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
   SubmissionInfo SI{};
+  auto L = [&](handler &CGH) {
+    CGH.depends_on(DepEvents);
+    HandlerFunc(CGH);
+  };
+  detail::type_erased_cgfo_ty CGF{L};
+
   if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
-    submit_without_event(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          HandlerFunc(CGH);
-        },
-        Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+    submit_without_event(CGF, Self, SI,
+                         /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
     return createDiscardedEvent();
   }
-  return submit_with_event(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        HandlerFunc(CGH);
-      },
-      Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+  return submit_with_event(CGF, Self, SI,
+                           /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
