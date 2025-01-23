@@ -111,7 +111,7 @@ CreateHostMemoryProviderPool(ur_device_handle_t_ *DeviceHandle,
   return UR_RESULT_SUCCESS;
 }
 
-struct ur_context_handle_t_ {
+struct ur_context_handle_t_ : ur_handle_t_ {
 
   struct deleter_data {
     ur_context_extended_deleter_t Function;
@@ -129,7 +129,7 @@ struct ur_context_handle_t_ {
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
+      : ur_handle_t_(), Devices{Devs, Devs + NumDevices}, RefCount{1} {
     for (auto &Dev : Devices) {
       urDeviceRetain(Dev);
     }

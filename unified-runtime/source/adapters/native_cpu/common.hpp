@@ -53,17 +53,24 @@ namespace ur {
 } // namespace ur
 } // namespace detail
 
+namespace native_cpu {
+struct native_cpu_ddi_getter {
+  static const ur_dditable_t *value();
+};
+using handle_base = ur_handle_base_t_<native_cpu_ddi_getter>;
+} // namespace native_cpu
+
 // Base class to store common data
-struct _ur_object {
+struct _ur_object : native_cpu::handle_base {
   ur_shared_mutex Mutex;
 };
 
 // Todo: replace this with a common helper once it is available
-struct RefCounted {
+struct RefCounted : native_cpu::handle_base {
   std::atomic_uint32_t _refCount;
   uint32_t incrementReferenceCount() { return ++_refCount; }
   uint32_t decrementReferenceCount() { return --_refCount; }
-  RefCounted() : _refCount{1} {}
+  RefCounted() : native_cpu::handle_base(), _refCount{1} {}
   uint32_t getReferenceCount() const { return _refCount; }
 };
 

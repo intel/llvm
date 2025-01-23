@@ -34,7 +34,7 @@
 /// A compiler pass converts the UR API local memory model into the
 /// CUDA shared model. This object simply calculates the total of
 /// shared memory, and the initial offsets of each parameter.
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : ur_handle_t_ {
   using native_type = CUfunction;
 
   native_type Function;
@@ -250,8 +250,9 @@ struct ur_kernel_handle_t_ {
   ur_kernel_handle_t_(CUfunction Func, CUfunction FuncWithOffsetParam,
                       const char *Name, ur_program_handle_t Program,
                       ur_context_handle_t Context)
-      : Function{Func}, FunctionWithOffsetParam{FuncWithOffsetParam},
-        Name{Name}, Context{Context}, Program{Program}, RefCount{1} {
+      : ur_handle_t_(), Function{Func},
+        FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name},
+        Context{Context}, Program{Program}, RefCount{1} {
     urProgramRetain(Program);
     urContextRetain(Context);
     /// Note: this code assumes that there is only one device per context

@@ -193,6 +193,12 @@ template <class T> struct ZeCache : private T {
   if (!(condition))                                                            \
     return error;
 
+struct ur_dditable_t;
+template <typename getddi> struct ur_handle_base_t_ {
+  ur_handle_base_t_() { ddi_table = getddi::value(); };
+  const ur_dditable_t *ddi_table = nullptr;
+};
+
 // TODO: populate with target agnostic handling of UR platforms
 struct _ur_platform {};
 
