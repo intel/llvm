@@ -18,7 +18,7 @@
 #include <dlfcn.h>
 #endif
 
-ur_adapter_handle_t_::ur_adapter_handle_t_() {
+ur_adapter_handle_t_::ur_adapter_handle_t_() : cl_adapter::ur_handle_t_() {
 #ifdef _MSC_VER
 
   // Loading OpenCL.dll increments the libraries internal reference count.

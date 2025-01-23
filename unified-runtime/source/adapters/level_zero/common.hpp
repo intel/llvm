@@ -26,6 +26,7 @@
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 struct _ur_platform_handle_t;
 
@@ -410,7 +411,7 @@ private:
 };
 
 // Base class to store common data
-struct _ur_object {
+struct _ur_object : ur_handle_base_t_<ur::level_zero::ddi_getter> {
   _ur_object() : RefCount{} {}
 
   // Must be atomic to prevent data race when incrementing/decrementing.

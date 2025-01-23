@@ -13,7 +13,7 @@
 #include "CL/cl.h"
 #include "logger/ur_logger.hpp"
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : cl_adapter::ur_handle_t_ {
   ur_adapter_handle_t_();
 
   std::atomic<uint32_t> RefCount = 0;
