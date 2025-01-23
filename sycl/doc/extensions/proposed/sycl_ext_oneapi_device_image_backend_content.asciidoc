@@ -101,9 +101,7 @@ class device_image {
   backend ext_oneapi_get_backend() const noexcept;
   std::vector<std::byte> ext_oneapi_get_backend_content() const;
 
-#if defined(__cpp_lib_span)
-  std::span<std::byte> ext_oneapi_get_backend_content_view() const;
-#endif
+  std::span<std::byte> ext_oneapi_get_backend_content_view() const; // Requires C++20
 
   /*...*/
 };
@@ -154,8 +152,7 @@ std::span<std::byte> ext_oneapi_get_content_backend_view() const;
 ----
 !====
 
-Available only when the compiler defines the `__cpp_lib_span` feature-test macro
-(which is defined in {cpp}20 and higher).
+Minimum C++ Version: {cpp}20
 
 _Constraints:_ Available only when `State` is `bundle_state::executable`.
 

@@ -73,6 +73,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 queue_impl::get_backend_info<info::platform::version>() const {
@@ -83,7 +84,9 @@ queue_impl::get_backend_info<info::platform::version>() const {
   }
   return get_device().get_platform().get_info<info::platform::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 queue_impl::get_backend_info<info::device::version>() const {
@@ -94,7 +97,9 @@ queue_impl::get_backend_info<info::device::version>() const {
   }
   return get_device().get_info<info::device::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 queue_impl::get_backend_info<info::device::backend_version>() const {
@@ -108,6 +113,7 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
@@ -349,7 +355,7 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
+event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
                               const std::shared_ptr<queue_impl> &PrimaryQueue,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
@@ -402,10 +408,13 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
     // finishes execution.
-    event FlushEvent = submit_impl(
-        [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
-        Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
-        IsTopCodeLoc, {});
+    auto L = [&](handler &ServiceCGH) {
+      Stream->generateFlushCommand(ServiceCGH);
+    };
+    detail::type_erased_cgfo_ty CGF{L};
+    event FlushEvent =
+        submit_impl(CGF, Self, PrimaryQueue, SecondaryQueue,
+                    /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
@@ -419,21 +428,19 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
   SubmissionInfo SI{};
+  auto L = [&](handler &CGH) {
+    CGH.depends_on(DepEvents);
+    HandlerFunc(CGH);
+  };
+  detail::type_erased_cgfo_ty CGF{L};
+
   if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
-    submit_without_event(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          HandlerFunc(CGH);
-        },
-        Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+    submit_without_event(CGF, Self, SI,
+                         /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
     return createDiscardedEvent();
   }
-  return submit_with_event(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        HandlerFunc(CGH);
-      },
-      Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+  return submit_with_event(CGF, Self, SI,
+                           /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
