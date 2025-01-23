@@ -69,11 +69,11 @@ ur_result_t redefinedEnqueueWriteHostPipe(void *pParams) {
 ur_result_t after_urDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
   constexpr char MockSupportedExtensions[] =
-      "cl_khr_il_program cl_intel_program_scope_host_pipe";
+      "cl_khr_fp64 cl_khr_il_program ur_exp_command_buffer "
+      "cl_intel_program_scope_host_pipe";
   switch (*params.ppropName) {
   case UR_DEVICE_INFO_EXTENSIONS:
     if (*params.ppPropValue) {
-      std::ignore = *params.ppropSize;
       assert(*params.ppropSize >= sizeof(MockSupportedExtensions));
       std::memcpy(*params.ppPropValue, MockSupportedExtensions,
                   sizeof(MockSupportedExtensions));
