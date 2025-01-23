@@ -109,7 +109,8 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
 
 // This function lowers llvm.fpbuiltin. intrinsic functions with 3.0 max-error
 // attribute to the appropriate nvvm approximate intrinsics if it's possible.
-// If it's not possible - fallback to standart LLVM intrinsic or instruction.
+// If it's not possible - fallback to standard C/C++ library LLVM intrinsic or
+// instruction.
 static bool replaceWithApproxNVPTXCallsOrFallback(
     FPBuiltinIntrinsic &BuiltinCall) {
   IRBuilder<> IRBuilder(&BuiltinCall);
