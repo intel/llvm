@@ -152,8 +152,7 @@ std::span<const std::byte> ext_oneapi_get_content_backend_view() const;
 ----
 !====
 
-Available only when the compiler defines the `__cpp_lib_span` feature-test macro
-(which is defined in {cpp}20 and higher).
+Minimum C++ Version: {cpp}20
 
 _Constraints:_ Available only when `State` is `bundle_state::executable`.
 

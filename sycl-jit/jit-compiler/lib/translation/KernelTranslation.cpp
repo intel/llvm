@@ -17,6 +17,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
@@ -225,6 +226,8 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
 llvm::Expected<RTCDevImgBinaryInfo>
 KernelTranslator::translateDevImgToSPIRV(llvm::Module &Mod,
                                          JITContext &JITCtx) {
+  llvm::TimeTraceScope TTS{"translateDevImgToSPIRV"};
+
   llvm::Expected<KernelBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
   if (auto Error = BinaryOrError.takeError()) {
     return Error;
