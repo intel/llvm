@@ -49,8 +49,8 @@ bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   return DGEntry && !DGEntry->MImageIdentifiers.empty();
 }
 
-ur_exp_image_copy_flags_t getUrImageCopyFlags(sycl::usm::alloc SrcPtrType,
-                                              sycl::usm::alloc DstPtrType) {
+static ur_exp_image_copy_flags_t
+getUrImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
   if (DstPtrType == sycl::usm::alloc::device) {
     // Dest is on device
     if (SrcPtrType == sycl::usm::alloc::device)
@@ -85,7 +85,7 @@ void *getValueFromDynamicParameter(
 // Bindless image helpers
 
 // Fill image type and return depth or array_size
-unsigned int
+static unsigned int
 fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
                 ur_image_desc_t &UrDesc) {
   if (Desc.array_size > 1) {
@@ -100,16 +100,16 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
             : UrDesc.type;
 
     return Desc.array_size;
-  } else {
-    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
-                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                    : UR_MEM_TYPE_IMAGE1D);
-    return Desc.depth;
   }
+
+  UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
+                               : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                  : UR_MEM_TYPE_IMAGE1D);
+  return Desc.depth;
 }
 
 // Fill image format
-ur_image_format_t
+static ur_image_format_t
 fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
   ur_image_format_t PiFormat;
 
@@ -122,9 +122,9 @@ fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
   return PiFormat;
 }
 
-void verify_copy(
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
+static void
+verify_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+            const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
 
   if (SrcImgDesc.width != DestImgDesc.width ||
       SrcImgDesc.height != DestImgDesc.height ||
@@ -141,11 +141,11 @@ void verify_copy(
   }
 }
 
-void verify_sub_copy(
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> DestOffset, sycl::range<3> CopyExtent) {
+static void
+verify_sub_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+                sycl::range<3> SrcOffset,
+                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+                sycl::range<3> DestOffset, sycl::range<3> CopyExtent) {
 
   auto isOutOfRange = [](const sycl::range<3> &range,
                          const sycl::range<3> &offset,
@@ -175,7 +175,7 @@ void verify_sub_copy(
   }
 }
 
-ur_image_desc_t
+static ur_image_desc_t
 fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
   ur_image_desc_t UrDesc = {};
   UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
@@ -186,15 +186,16 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
   return UrDesc;
 }
 
-void fill_copy_args(
-    std::shared_ptr<detail::handler_impl> impl,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch, size_t DestPitch,
-    sycl::range<3> SrcOffset = {0, 0, 0}, sycl::range<3> SrcExtent = {0, 0, 0},
-    sycl::range<3> DestOffset = {0, 0, 0},
-    sycl::range<3> DestExtent = {0, 0, 0},
-    sycl::range<3> CopyExtent = {0, 0, 0}) {
+static void
+fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
+               const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+               const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+               ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
+               size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
   SrcImgDesc.verify();
   DestImgDesc.verify();
 
@@ -252,42 +253,45 @@ void fill_copy_args(
   }
 }
 
-void fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
-                    const ext::oneapi::experimental::image_descriptor &Desc,
-                    ur_exp_image_copy_flags_t ImageCopyFlags,
-                    sycl::range<3> SrcOffset = {0, 0, 0},
-                    sycl::range<3> SrcExtent = {0, 0, 0},
-                    sycl::range<3> DestOffset = {0, 0, 0},
-                    sycl::range<3> DestExtent = {0, 0, 0},
-                    sycl::range<3> CopyExtent = {0, 0, 0}) {
+static void
+fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
+               const ext::oneapi::experimental::image_descriptor &Desc,
+               ur_exp_image_copy_flags_t ImageCopyFlags,
+               sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
 
   fill_copy_args(impl, Desc, Desc, ImageCopyFlags, 0 /*SrcPitch*/,
                  0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
                  CopyExtent);
 }
 
-void fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
-                    const ext::oneapi::experimental::image_descriptor &Desc,
-                    ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
-                    size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
-                    sycl::range<3> SrcExtent = {0, 0, 0},
-                    sycl::range<3> DestOffset = {0, 0, 0},
-                    sycl::range<3> DestExtent = {0, 0, 0},
-                    sycl::range<3> CopyExtent = {0, 0, 0}) {
+static void
+fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
+               const ext::oneapi::experimental::image_descriptor &Desc,
+               ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
+               size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
 
   fill_copy_args(impl, Desc, Desc, ImageCopyFlags, SrcPitch, DestPitch,
                  SrcOffset, SrcExtent, DestOffset, DestExtent, CopyExtent);
 }
 
-void fill_copy_args(
-    std::shared_ptr<detail::handler_impl> impl,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    ur_exp_image_copy_flags_t ImageCopyFlags,
-    sycl::range<3> SrcOffset = {0, 0, 0}, sycl::range<3> SrcExtent = {0, 0, 0},
-    sycl::range<3> DestOffset = {0, 0, 0},
-    sycl::range<3> DestExtent = {0, 0, 0},
-    sycl::range<3> CopyExtent = {0, 0, 0}) {
+static void
+fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
+               const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+               const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+               ur_exp_image_copy_flags_t ImageCopyFlags,
+               sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
 
   fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags, 0 /*SrcPitch*/,
                  0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
