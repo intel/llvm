@@ -31,22 +31,16 @@ enum class Scope {
   Invocation = 4
 };
 
-enum class CompareRes {
-  BIGGER = 0,
-  SMALLER = 1,
-  EQUAL = 2,
-  UNKNOWN = 3
-};
+enum class CompareRes { BIGGER = 0, SMALLER = 1, EQUAL = 2, UNKNOWN = 3 };
 
 // This map is added in case of any future scopes are added to SPIR-V and/or
 // SYCL.
 const std::unordered_map<uint64_t, uint64_t> ScopeWeights = {
-  {static_cast<uint64_t>(Scope::CrossDevice), 1000},
-  {static_cast<uint64_t>(Scope::Device), 800},
-  {static_cast<uint64_t>(Scope::Workgroup), 600},
-  {static_cast<uint64_t>(Scope::Subgroup), 400},
-  {static_cast<uint64_t>(Scope::Invocation), 10}
-};
+    {static_cast<uint64_t>(Scope::CrossDevice), 1000},
+    {static_cast<uint64_t>(Scope::Device), 800},
+    {static_cast<uint64_t>(Scope::Workgroup), 600},
+    {static_cast<uint64_t>(Scope::Subgroup), 400},
+    {static_cast<uint64_t>(Scope::Invocation), 10}};
 
 inline CompareRes compareScopesWithWeights(const uint64_t LHS,
                                            const uint64_t RHS) {
@@ -113,8 +107,8 @@ bool processControlBarrier(Function *F) {
             const auto ConstScopeCand =
                 cast<ConstantInt>(ExecutionScopeCand)->getZExtValue();
             // Pick ControlBarrier with the 'bigger' execution scope.
-            const auto Compare = compareScopesWithWeights(ConstScopeCI,
-                                                          ConstScopeCand);
+            const auto Compare =
+                compareScopesWithWeights(ConstScopeCI, ConstScopeCand);
             if (Compare == CompareRes::SMALLER)
               CIToRemove = CI;
             else if (Compare == CompareRes::UNKNOWN)
