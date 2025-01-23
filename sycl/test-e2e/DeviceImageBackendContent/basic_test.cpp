@@ -1,9 +1,6 @@
-// RUN: %{build} -o %t.out
+// RUN: %clangxx -fsycl -std=c++20 %s -o %t.out
 // RUN: %{run} %t.out
 
-#if __has_include(<span>)
-#include <span>
-#endif
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <type_traits>
@@ -48,7 +45,7 @@ int main() {
     bytes = img.ext_oneapi_get_backend_content();
 #ifdef __cpp_lib_span
     static_assert(
-        std ::is_same_v<decltype(img.ext_oneapi.get_backend_content_view()),
+        std ::is_same_v<decltype(img.ext_oneapi_get_backend_content_view()),
                         decltype(bytes_view)>);
     bytes_view = img.ext_oneapi_get_backend_content_view();
     assert(bytes_view.size() == bytes.size());

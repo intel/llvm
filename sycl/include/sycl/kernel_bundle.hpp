@@ -117,16 +117,6 @@ public:
 
   ur_native_handle_t getNative() const;
 
-  backend ext_oneapi_get_backend() const noexcept;
-
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-  std::vector<std::byte> ext_oneapi_get_backend_content() const;
-
-  std::pair<const std::byte *, const std::byte *>
-  ext_oneapi_get_backend_content_view() const;
-
-#endif // HAS_STD_BYTE
-
 protected:
   detail::DeviceImageImplPtr impl;
 
@@ -136,6 +126,15 @@ protected:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  backend ext_oneapi_get_backend_impl() const noexcept;
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  std::vector<std::byte> ext_oneapi_get_backend_content_impl() const;
+
+  std::pair<std::byte *, std::byte *>
+  ext_oneapi_get_backend_content_view_impl() const;
+#endif // HAS_STD_BYTE
 };
 } // namespace detail
 
@@ -159,23 +158,23 @@ public:
   }
 
   backend ext_oneapi_get_backend() const noexcept {
-    return device_image_plain::ext_oneapi_get_backend();
+    return device_image_plain::ext_oneapi_get_backend_impl();
   }
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
   std::vector<std::byte> ext_oneapi_get_backend_content() const {
-    return device_image_plain::ext_oneapi_get_backend_content();
+    return device_image_plain::ext_oneapi_get_backend_content_impl();
   }
 
 #ifdef __cpp_lib_span
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
-  std::span<std::byte> ext_oneapi_get_content_backend_view() const {
-    return std::span<std::byte>{
-        device_image_plain::ext_oneapi_get_backend_content_view().first,
-        device_image_plain::ext_oneapi_get_backend_content_view().second};
+  std::span<std::byte> ext_oneapi_get_backend_content_view() const {
+    const auto view =
+        device_image_plain::ext_oneapi_get_backend_content_view_impl();
+    return std::span<std::byte>{view.first, view.second};
   }
 #endif // __cpp_lib_span
 #endif // _HAS_STD_BYTE
