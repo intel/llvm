@@ -95,7 +95,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             return [
                 item
                 for item in alist
-                if E2EExpr.evaluate(item, features, build_only_mode, final_unknown_value)
+                if E2EExpr.evaluate(
+                    item, features, build_only_mode, final_unknown_value
+                )
             ]
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
@@ -104,9 +106,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         supported_targets = set()
         for t in test.config.sycl_build_targets:
             features = test.config.available_features.union({t})
-            if self.getMissingRequiredFeaturesFromList(features, test.requires, build_only_mode=True):
+            if self.getMissingRequiredFeaturesFromList(
+                features, test.requires, build_only_mode=True
+            ):
                 continue
-            if self.getMatchedFromList(features, test.unsupported, build_only_mode=True):
+            if self.getMatchedFromList(
+                features, test.unsupported, build_only_mode=True
+            ):
                 continue
             supported_targets.add(t)
 

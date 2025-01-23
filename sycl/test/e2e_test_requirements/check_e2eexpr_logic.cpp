@@ -1,5 +1,5 @@
-// E2E tests use a modified expression parser that allows for a third "unknown" 
-// boolean state to handle missing run-time features in REQUIRES/UNSUPPORTED 
+// E2E tests use a modified expression parser that allows for a third "unknown"
+// boolean state to handle missing run-time features in REQUIRES/UNSUPPORTED
 // statements. This test runs the unit tests related to these expressions.
 //
 // REQUIRES: linux

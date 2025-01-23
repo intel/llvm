@@ -24,11 +24,11 @@ config.backend_to_target = {
 }
 config.target_to_triple = {
     "target-spir": "spir64",
-    "target-nvidia":"nvptx64-nvidia-cuda",
-    "target-amd":"amdgcn-amd-amdhsa",
-    "target-native_cpu":"native_cpu",
+    "target-nvidia": "nvptx64-nvidia-cuda",
+    "target-amd": "amdgcn-amd-amdhsa",
+    "target-native_cpu": "native_cpu",
 }
-config.triple_to_target = {v:k for k,v in config.target_to_triple.items()}
+config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
 config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
