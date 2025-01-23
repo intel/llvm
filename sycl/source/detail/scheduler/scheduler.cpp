@@ -155,7 +155,15 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
     EnqueueResultT Res;
     bool Enqueued;
 
-    auto CleanUp = [&]() { cleanupCommands(ToCleanUp); };
+    auto CleanUp = [&]() {
+      if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
+        if (NewEvent) {
+          NewEvent->setCommand(nullptr);
+        }
+        delete NewCmd;
+      }
+      cleanupCommands(ToCleanUp);
+    };
 
     for (Command *Cmd : AuxiliaryCmds) {
       try {
