@@ -42,6 +42,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
+      merge_ref: ''
 
   e2e:
     needs: build
@@ -55,3 +56,4 @@ jobs:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      merge_ref: ''
