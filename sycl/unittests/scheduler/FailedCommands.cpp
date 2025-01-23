@@ -86,3 +86,41 @@ TEST_F(SchedulerTest, FailedCopyBackException) {
                                            &failingUrCall);
   RunWithFailedCommandsAndCheck(false, 1);
 }
+
+bool DummyEventReturned = false;
+ur_event_handle_t DummyEvent = mock::createDummyHandle<ur_event_handle_t>();
+inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
+  DummyEventReturned = true;
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  **params.pphEvent = DummyEvent;
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+
+bool DummyEventReleaseAttempt = false;
+inline ur_result_t customEventRelease(void *pParams) {
+  auto params = static_cast<ur_event_handle_t>(pParams);
+  DummyEventReleaseAttempt = params == DummyEvent;
+  return UR_RESULT_SUCCESS;
+}
+
+//Checks that in case of failed command and "valid" event assigned to output event var, RT ignores it and do not call release since its usage is undefined behavior.
+TEST(FailedCommands, CheckUREventRelease) {
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback("urEventRelease",
+                                           &customEventRelease);
+  platform Plt = sycl::platform();
+  queue Queue(context(Plt), default_selector_v);
+  {
+    try {
+      Queue.submit([&](sycl::handler &CGH) {
+        CGH.single_task<TestKernel<1>>([]() {});
+      });
+    } catch (...) {
+    }
+  }
+  Queue.wait();
+  ASSERT_TRUE(DummyEventReturned);
+  ASSERT_FALSE(DummyEventReleaseAttempt);
+}
