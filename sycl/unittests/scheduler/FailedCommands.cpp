@@ -112,7 +112,9 @@ inline ur_result_t failedEnqueueBarrierWithDummy(void *pParams) {
   return UR_RESULT_ERROR_UNKNOWN;
 }
 
-//Checks that in case of failed command and "valid" event assigned to output event var, RT ignores it and do not call release since its usage is undefined behavior.
+// Checks that in case of failed command and "valid" event assigned to output
+// event var, RT ignores it and do not call release since its usage is undefined
+// behavior.
 TEST(FailedCommandsTest, CheckUREventReleaseWithKernel) {
   DummyEventReleaseAttempt = false;
   DummyEventReturned = false;
@@ -125,9 +127,8 @@ TEST(FailedCommandsTest, CheckUREventReleaseWithKernel) {
   queue Queue(context(Plt), default_selector_v);
   {
     try {
-      Queue.submit([&](sycl::handler &CGH) {
-        CGH.single_task<TestKernel<1>>([]() {});
-      });
+      Queue.submit(
+          [&](sycl::handler &CGH) { CGH.single_task<TestKernel<1>>([]() {}); });
     } catch (...) {
     }
   }
