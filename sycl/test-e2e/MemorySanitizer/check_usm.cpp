@@ -7,6 +7,9 @@
 // UNSUPPORTED: cpu
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64618
 
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
