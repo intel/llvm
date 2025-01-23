@@ -1,7 +1,7 @@
-# commit d3e97040b67ee6b45655eccdfca19185bd9115b6
-# Merge: 2ef69591 37ad03a7
+# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
+# Merge: d3e97040 b1b0c60c
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 10:23:08 2025 +0000
-#     Merge pull request #2605 from yingcong-wu/yc/0123-ur-quick-fix
-#     [DeviceASAN] Bugfix for GetDeviceType
-set(UNIFIED_RUNTIME_TAG d3e97040b67ee6b45655eccdfca19185bd9115b6)
+# Date:   Thu Jan 23 13:59:15 2025 +0000
+#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
+#     Fix potential deadlock in the WaitEvent path of CmdBuffers
+set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
