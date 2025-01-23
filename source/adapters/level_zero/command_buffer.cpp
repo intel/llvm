@@ -1721,8 +1721,8 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
+ur_result_t urEnqueueCommandBufferExp(
+    ur_queue_handle_t UrQueue, ur_exp_command_buffer_handle_t CommandBuffer,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *Event) {
 
@@ -1743,7 +1743,7 @@ ur_result_t urCommandBufferEnqueueExp(
       nullptr /*ForcedCmdQueue*/));
 
   UR_CALL(createEventAndAssociateQueue(
-      UrQueue, OutEvent, UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
+      UrQueue, OutEvent, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP,
       ZeCommandListHelper, IsInternal, false, std::nullopt));
 
   if (CommandBuffer->UseImmediateAppendPath) {

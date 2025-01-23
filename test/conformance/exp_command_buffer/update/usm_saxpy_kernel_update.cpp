@@ -94,7 +94,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMSaxpyKernelTest);
 
 TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -155,7 +155,7 @@ TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -191,7 +191,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultiSaxpyKernelTest);
 
 TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -253,7 +253,7 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
   for (auto &handle : command_handles) {
     ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -267,7 +267,7 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
 // Checks that passing nullptr to hNewKernel even when kernel binary updates
 // is not supported by the adapter.
 TEST_P(USMMultiSaxpyKernelTest, UpdateNullptrKernel) {
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -307,7 +307,7 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateNullptrKernel) {
   for (auto &handle : command_handles) {
     ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -367,14 +367,14 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateWithoutBlocking) {
   };
 
   // Run command-buffer prior to update without doing a blocking wait after
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Update kernel and enqueue command-buffer again
   for (auto &handle : command_handles) {
     ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
