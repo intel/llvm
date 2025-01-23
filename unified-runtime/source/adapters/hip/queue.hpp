@@ -18,7 +18,7 @@ using ur_stream_guard = std::unique_lock<std::mutex>;
 
 /// UR queue mapping on to hipStream_t objects.
 ///
-struct ur_queue_handle_t_ {
+struct ur_queue_handle_t_ : ur_handle_t_ {
   using native_type = hipStream_t;
   static constexpr int DefaultNumComputeStreams = 64;
   static constexpr int DefaultNumTransferStreams = 16;
@@ -66,7 +66,7 @@ struct ur_queue_handle_t_ {
                      ur_context_handle_t Context, ur_device_handle_t Device,
                      unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
                      bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)},
+      : ur_handle_t_(), ComputeStreams{std::move(ComputeStreams)},
         TransferStreams{std::move(TransferStreams)},
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),

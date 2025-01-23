@@ -25,7 +25,7 @@
 /// |     4 3 2      | addressing mode 1
 /// |       1        | filter mode
 /// |       0        | normalize coords
-struct ur_sampler_handle_t_ {
+struct ur_sampler_handle_t_ : ur_handle_t_ {
   std::atomic_uint32_t RefCount;
   uint32_t Props;
   float MinMipmapLevelClamp;
@@ -34,7 +34,7 @@ struct ur_sampler_handle_t_ {
   ur_context_handle_t Context;
 
   ur_sampler_handle_t_(ur_context_handle_t Context)
-      : RefCount(1), Props(0), Context(Context) {}
+      : ur_handle_t_(), RefCount(1), Props(0), Context(Context) {}
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
