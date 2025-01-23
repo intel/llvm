@@ -13,7 +13,7 @@
 
 #include <vector>
 
-struct ur_sampler_handle_t_ {
+struct ur_sampler_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_sampler;
   native_type CLSampler;
   ur_context_handle_t Context;
@@ -21,7 +21,7 @@ struct ur_sampler_handle_t_ {
   bool IsNativeHandleOwned = false;
 
   ur_sampler_handle_t_(native_type Sampler, ur_context_handle_t Ctx)
-      : CLSampler(Sampler), Context(Ctx) {
+      : handle_base(), CLSampler(Sampler), Context(Ctx) {
     RefCount = 1;
     urContextRetain(Context);
   }

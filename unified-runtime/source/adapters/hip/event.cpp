@@ -19,7 +19,7 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        hipEvent_t EvEnd, hipEvent_t EvQueued,
                                        hipEvent_t EvStart, hipStream_t Stream,
                                        uint32_t StreamToken)
-    : CommandType{Type}, RefCount{1}, HasOwnership{true},
+    : handle_base(), CommandType{Type}, RefCount{1}, HasOwnership{true},
       HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
       StreamToken{StreamToken}, EventId{0}, EvEnd{EvEnd}, EvStart{EvStart},
       EvQueued{EvQueued}, Queue{Queue}, Stream{Stream}, Context{Context} {
@@ -29,11 +29,12 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
 
 ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
                                        hipEvent_t EventNative)
-    : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
-      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
-      IsInterop{true}, StreamToken{std::numeric_limits<uint32_t>::max()},
-      EventId{0}, EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr},
-      Queue{nullptr}, Stream{nullptr}, Context{Context} {
+    : handle_base(), CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1},
+      HasOwnership{false}, HasBeenWaitedOn{false}, IsRecorded{false},
+      IsStarted{false}, IsInterop{true},
+      StreamToken{std::numeric_limits<uint32_t>::max()}, EventId{0},
+      EvEnd{EventNative}, EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr},
+      Stream{nullptr}, Context{Context} {
   urContextRetain(Context);
 }
 

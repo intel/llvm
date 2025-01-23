@@ -14,7 +14,7 @@
 
 /// UR Event mapping to hipEvent_t
 ///
-struct ur_event_handle_t_ {
+struct ur_event_handle_t_ : ur::hip::handle_base {
 public:
   using native_type = hipEvent_t;
 

@@ -18,6 +18,8 @@ from templates import helper as th
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
+
 #include <${n}_api.h>
 #include <${n}_ddi.h>
 
@@ -36,4 +38,8 @@ ${x}_result_t ${th.make_func_name(n, tags, obj)}(
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
+
+struct ddi_getter {
+  const static ${x}_dditable_t *value();
+};
 }

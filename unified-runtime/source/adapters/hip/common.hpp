@@ -146,3 +146,10 @@ inline static unsigned getMemoryType(hipPointerAttribute_t hipPointerAttrs) {
   return hipPointerAttrs.memoryType;
 #endif
 }
+
+namespace ur::hip {
+struct ddi_getter {
+  static const ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::hip

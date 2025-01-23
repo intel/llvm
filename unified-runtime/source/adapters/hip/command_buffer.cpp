@@ -23,8 +23,9 @@
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, bool IsUpdatable)
-    : Context(hContext), Device(hDevice), IsUpdatable(IsUpdatable),
-      HIPGraph{nullptr}, HIPGraphExec{nullptr}, RefCount{1}, NextSyncPoint{0} {
+    : handle_base(), Context(hContext), Device(hDevice),
+      IsUpdatable(IsUpdatable), HIPGraph{nullptr}, HIPGraphExec{nullptr},
+      RefCount{1}, NextSyncPoint{0} {
   urContextRetain(hContext);
 }
 
@@ -50,8 +51,8 @@ ur_exp_command_buffer_command_handle_t_::
         const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
         const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
         ur_kernel_handle_t *KernelAlternatives)
-    : CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node), Params(Params),
-      WorkDim(WorkDim) {
+    : handle_base(), CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node),
+      Params(Params), WorkDim(WorkDim) {
   const size_t CopySize = sizeof(size_t) * WorkDim;
   std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
   std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);

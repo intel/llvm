@@ -17,7 +17,7 @@
 #include "common.hpp"
 #include "logger/ur_logger.hpp"
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   ur_adapter_handle_t_();
   ~ur_adapter_handle_t_();
 

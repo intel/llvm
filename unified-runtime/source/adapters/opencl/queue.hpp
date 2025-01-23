@@ -15,7 +15,7 @@
 
 #include <vector>
 
-struct ur_queue_handle_t_ {
+struct ur_queue_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_command_queue;
   native_type CLQueue;
   ur_context_handle_t Context;
@@ -27,7 +27,7 @@ struct ur_queue_handle_t_ {
 
   ur_queue_handle_t_(native_type Queue, ur_context_handle_t Ctx,
                      ur_device_handle_t Dev)
-      : CLQueue(Queue), Context(Ctx), Device(Dev) {
+      : handle_base(), CLQueue(Queue), Context(Ctx), Device(Dev) {
     RefCount = 1;
     urDeviceRetain(Device);
     urContextRetain(Context);

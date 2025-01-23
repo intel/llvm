@@ -78,3 +78,10 @@ inline umf_result_t setCUMemoryProviderParams(
 }
 
 } // namespace umf
+
+namespace ur::cuda {
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::cuda

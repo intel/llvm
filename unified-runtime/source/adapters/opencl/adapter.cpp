@@ -23,7 +23,7 @@
 // it.
 static ur_adapter_handle_t liveAdapter = nullptr;
 
-ur_adapter_handle_t_::ur_adapter_handle_t_() {
+ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #ifdef _MSC_VER
 
   // Loading OpenCL.dll increments the libraries internal reference count.

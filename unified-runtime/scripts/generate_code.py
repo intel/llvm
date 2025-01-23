@@ -223,25 +223,6 @@ def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
         "make_loader_cpp path %s namespace %s version %s\n" % (path, namespace, version)
     )
     loc = 0
-    template = "ldrddi.hpp.mako"
-    fin = os.path.join(templates_dir, template)
-
-    name = "%s_ldrddi" % (namespace)
-    filename = "%s.hpp" % (name)
-    fout = os.path.join(path, filename)
-
-    print("Generating %s..." % fout)
-    loc += util.makoWrite(
-        fin,
-        fout,
-        name=name,
-        ver=version,
-        namespace=namespace,
-        tags=tags,
-        specs=specs,
-        meta=meta,
-    )
-
     template = "ldrddi.cpp.mako"
     fin = os.path.join(templates_dir, template)
 

@@ -100,7 +100,7 @@ struct fill_command_data {
 // Command handle that can be returned from command append entry-points.
 // The type of the command is specified by a CommandType field, with
 // additional command-type-specific data stored in the CommandData enum.
-struct ur_exp_command_buffer_command_handle_t_ {
+struct ur_exp_command_buffer_command_handle_t_ : ur::cuda::handle_base {
   using command_data_type_t =
       std::variant<null_command_data, kernel_command_data, fill_command_data>;
 
@@ -109,8 +109,9 @@ struct ur_exp_command_buffer_command_handle_t_ {
       CUgraphNode Node, CUgraphNode SignalNode,
       const std::vector<CUgraphNode> &WaitNodes,
       command_data_type_t Data = null_command_data{})
-      : CommandBuffer(CommandBuffer), Node(Node), SignalNode(SignalNode),
-        WaitNodes(WaitNodes), Type(Type), CommandData(Data) {}
+      : handle_base(), CommandBuffer(CommandBuffer), Node(Node),
+        SignalNode(SignalNode), WaitNodes(WaitNodes), Type(Type),
+        CommandData(Data) {}
 
   // Parent UR command-buffer.
   ur_exp_command_buffer_handle_t CommandBuffer;

@@ -77,7 +77,7 @@ typedef void (*ur_context_extended_deleter_t)(void *UserData);
 ///  between native allocations for devices in the same \c ur_context_handle_t_
 ///  if necessary.
 ///
-struct ur_context_handle_t_ {
+struct ur_context_handle_t_ : ur::hip::handle_base {
 
   struct deleter_data {
     ur_context_extended_deleter_t Function;
@@ -91,7 +91,7 @@ struct ur_context_handle_t_ {
   std::atomic_uint32_t RefCount;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
+      : handle_base(), Devices{Devs, Devs + NumDevices}, RefCount{1} {
     UR_CHECK_ERROR(urAdapterRetain(ur::hip::adapter));
   };
 

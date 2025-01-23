@@ -15,14 +15,14 @@
 
 struct ur_device_handle_t_;
 
-struct ur_platform_handle_t_ {
+struct ur_platform_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_platform_id;
   native_type CLPlatform = nullptr;
   std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
   std::map<cl_device_id, ur_device_handle_t> SubDevices;
   std::mutex SubDevicesLock;
 
-  ur_platform_handle_t_(native_type Plat) : CLPlatform(Plat) {}
+  ur_platform_handle_t_(native_type Plat) : handle_base(), CLPlatform(Plat) {}
 
   ~ur_platform_handle_t_() {
     for (auto &Dev : Devices) {
