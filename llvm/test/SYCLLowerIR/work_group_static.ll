@@ -38,5 +38,5 @@ attributes #1 = { convergent norecurse }
 !2 = !{i32 4, i32 100000}
 !3 = !{!"clang version 13.0.0"}
 !4 = !{}
-; ![[ADDR_SPACE_MD]] = !{i32 1, i32 3}
+; CHECK: ![[ADDR_SPACE_MD]] = !{i32 1, i32 3}
 !5 = !{i32 1}

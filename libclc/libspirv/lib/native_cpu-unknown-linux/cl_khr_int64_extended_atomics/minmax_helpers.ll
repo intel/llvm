@@ -28,15 +28,15 @@ entry:
   ret i64 %0
 }
 
-define i64 @__clc__sync_fetch_and_min_generic_8(i64 addrspace(1)* nocapture %ptr, i64 %value) nounwind alwaysinline {
+define i64 @__clc__sync_fetch_and_min_generic_8(i64* nocapture %ptr, i64 %value) nounwind alwaysinline {
 entry:
-  %0 = atomicrmw volatile min i64 addrspace(1)* %ptr, i64 %value seq_cst
+  %0 = atomicrmw volatile min i64* %ptr, i64 %value seq_cst
   ret i64 %0
 }
 
-define i64 @__clc__sync_fetch_and_umin_generic_8(i64 addrspace(1)* nocapture %ptr, i64 %value) nounwind alwaysinline {
+define i64 @__clc__sync_fetch_and_umin_generic_8(i64* nocapture %ptr, i64 %value) nounwind alwaysinline {
 entry:
-  %0 = atomicrmw volatile umin i64 addrspace(1)* %ptr, i64 %value seq_cst
+  %0 = atomicrmw volatile umin i64* %ptr, i64 %value seq_cst
   ret i64 %0
 }
 
@@ -64,14 +64,14 @@ entry:
   ret i64 %0
 }
 
-define i64 @__clc__sync_fetch_and_max_generic_8(i64 addrspace(1)* nocapture %ptr, i64 %value) nounwind alwaysinline {
+define i64 @__clc__sync_fetch_and_max_generic_8(i64* nocapture %ptr, i64 %value) nounwind alwaysinline {
 entry:
-  %0 = atomicrmw volatile max i64 addrspace(1)* %ptr, i64 %value seq_cst
+  %0 = atomicrmw volatile max i64* %ptr, i64 %value seq_cst
   ret i64 %0
 }
 
-define i64 @__clc__sync_fetch_and_umax_generic_8(i64 addrspace(1)* nocapture %ptr, i64 %value) nounwind alwaysinline {
+define i64 @__clc__sync_fetch_and_umax_generic_8(i64* nocapture %ptr, i64 %value) nounwind alwaysinline {
 entry:
-  %0 = atomicrmw volatile umax i64 addrspace(1)* %ptr, i64 %value seq_cst
+  %0 = atomicrmw volatile umax i64* %ptr, i64 %value seq_cst
   ret i64 %0
 }
