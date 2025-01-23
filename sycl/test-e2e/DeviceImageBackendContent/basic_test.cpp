@@ -1,11 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -std=c++20 %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <type_traits>
-
-class kernel;
 
 int main() {
   sycl::device d;
