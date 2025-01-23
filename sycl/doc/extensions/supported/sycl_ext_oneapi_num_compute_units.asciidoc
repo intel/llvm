@@ -44,7 +44,7 @@ SYCL specification refer to that revision.
 
 == Status
 
-This extension is implemented and fully supported by DPC++.
+This extension is implemented and fully supported by {dpcpp}.
 
 == Overview
 
