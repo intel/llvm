@@ -1,7 +1,6 @@
-# commit b841691699393dd2375e987c3d38d5f59c3e35cf
-# Merge: c6859445 9de10cd9
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 16:07:06 2025 +0000
-#     Merge pull request #2559 from Bensuo/fix_kernel_arg_indices
-#     [CUDA][HIP] Fix kernel arguments being overwritten when added out of order
-set(UNIFIED_RUNTIME_TAG b841691699393dd2375e987c3d38d5f59c3e35cf)
+# commit d193046de592482c47d87fdfaf92c7b8c59c9b66 (HEAD -> bump-umf-0.11, origin/bump-umf-0.11)
+# Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+# Date:   Wed Jan 22 11:06:11 2025 +0100
+# [common] Bump UMF to early 0.11 version, from main
+# It includes i.a. MacOS fix for compiler.
+set(UNIFIED_RUNTIME_TAG d193046de592482c47d87fdfaf92c7b8c59c9b66)
