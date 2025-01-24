@@ -437,6 +437,8 @@ template <int D> inline sycl::id<D> generate_id(const size_t *sizes) {
   sycl::id<D> ret;
   for (int i = 0; i < D; i++) {
     ret[i] = sizes[i];
+    std::cout << "ret[" << i << "] = " << ret[i] << std::endl;
+    std::cout << "sizes[" << i << "] = " << sizes[i] << std::endl;
   }
   return ret;
 }
@@ -455,6 +457,9 @@ template <int D> inline sycl::id<D> generate_id(const size_t *sizes) {
     Adapter->call<UrApiKind::urKernelGetGroupInfo>(                            \
         MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE,    \
         sizeof(size_t) * 3, KernelWGSize, nullptr);                            \
+    std::cout << "KernelWGSize: {" << KernelWGSize[0] << ", "                  \
+              << KernelWGSize[1] << ", " << KernelWGSize[2] << "}"             \
+              << std::endl;                                                    \
     return generate_id<Num>(KernelWGSize);                                     \
   }
 
