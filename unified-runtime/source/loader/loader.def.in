@@ -31,6 +31,7 @@ EXPORTS
 	urCommandBufferAppendMemBufferReadRectExp
 	urCommandBufferAppendMemBufferWriteExp
 	urCommandBufferAppendMemBufferWriteRectExp
+	urCommandBufferAppendNativeCommandExp
 	urCommandBufferAppendUSMAdviseExp
 	urCommandBufferAppendUSMFillExp
 	urCommandBufferAppendUSMMemcpyExp
@@ -38,6 +39,7 @@ EXPORTS
 	urCommandBufferCreateExp
 	urCommandBufferFinalizeExp
 	urCommandBufferGetInfoExp
+	urCommandBufferGetNativeHandleExp
 	urCommandBufferReleaseExp
 	urCommandBufferRetainExp
 	urCommandBufferUpdateKernelLaunchExp
@@ -213,6 +215,7 @@ EXPORTS
 	urPrintCommandBufferAppendMemBufferReadRectExpParams
 	urPrintCommandBufferAppendMemBufferWriteExpParams
 	urPrintCommandBufferAppendMemBufferWriteRectExpParams
+	urPrintCommandBufferAppendNativeCommandExpParams
 	urPrintCommandBufferAppendUsmAdviseExpParams
 	urPrintCommandBufferAppendUsmFillExpParams
 	urPrintCommandBufferAppendUsmMemcpyExpParams
@@ -220,6 +223,7 @@ EXPORTS
 	urPrintCommandBufferCreateExpParams
 	urPrintCommandBufferFinalizeExpParams
 	urPrintCommandBufferGetInfoExpParams
+	urPrintCommandBufferGetNativeHandleExpParams
 	urPrintCommandBufferReleaseExpParams
 	urPrintCommandBufferRetainExpParams
 	urPrintCommandBufferUpdateKernelLaunchExpParams
