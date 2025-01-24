@@ -6,42 +6,20 @@ namespace sycl {
 inline namespace _V1 {
 namespace khr {
 
-namespace detail {
-
-using empty_properties_t = ext::oneapi::experimental::empty_properties_t;
-
-template <typename CommandGroupFunc, typename PropertiesT>
-void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
-            const sycl::detail::code_location &CodeLoc =
-                sycl::detail::code_location::current()) {
-  sycl::ext::oneapi::experimental::detail::submit_impl(
-      Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
-}
-
-template <typename CommandGroupFunc, typename PropertiesT>
-event submit_tracked(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
-                     const sycl::detail::code_location &CodeLoc =
-                         sycl::detail::code_location::current()) {
-  return sycl::ext::oneapi::experimental::detail::submit_with_event_impl(
-      Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
-}
-
-} // namespace detail
-
 template <typename CommandGroupFunc>
 void submit(queue q, CommandGroupFunc &&cgf,
             const sycl::detail::code_location &code_loc =
                 sycl::detail::code_location::current()) {
-  detail::submit(q, detail::empty_properties_t{},
-                 std::forward<CommandGroupFunc>(cgf), code_loc);
+  sycl::ext::oneapi::experimental::submit(
+      q, std::forward<CommandGroupFunc>(cgf), code_loc );
 }
 
 template <typename CommandGroupFunc>
 event submit_tracked(queue q, CommandGroupFunc &&cgf,
                      const sycl::detail::code_location &code_loc =
                          sycl::detail::code_location::current()) {
-  return detail::submit_tracked(q, detail::empty_properties_t{},
-                                std::forward<CommandGroupFunc>(cgf), code_loc);
+  return sycl::ext::oneapi::experimental::submit_with_event(
+      q, std::forward<CommandGroupFunc>(cgf), code_loc);
 }
 
 template <typename KernelType>
