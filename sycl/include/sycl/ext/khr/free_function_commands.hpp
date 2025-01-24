@@ -131,19 +131,19 @@ void launch_reduce(queue q, range<3> r, const KernelType &k,
 template <typename KernelType>
 void launch_grouped(handler &h, range<1> r, range<1> size,
                     const KernelType &k) {
-  h.parallel_for<sycl::detail::auto_name>(nd_range<1>(r, size), k);
+  h.parallel_for<KernelType>(nd_range<1>(r, size), k);
 }
 
 template <typename KernelType>
 void launch_grouped(handler &h, range<2> r, range<2> size,
                     const KernelType &k) {
-  h.parallel_for<sycl::detail::auto_name>(nd_range<2>(r, size), k);
+  h.parallel_for<KernelType>(nd_range<2>(r, size), k);
 }
 
 template <typename KernelType>
 void launch_grouped(handler &h, range<3> r, range<3> size,
                     const KernelType &k) {
-  h.parallel_for<sycl::detail::auto_name>(nd_range<3>(r, size), k);
+  h.parallel_for<KernelType>(nd_range<3>(r, size), k);
 }
 
 template <typename KernelType>
