@@ -12,7 +12,8 @@ on:
         required: True
       image:
         type: string
-        required: True
+        default: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
+        required: False
       image_options:
         type: string
         required: True
@@ -114,25 +115,29 @@ on:
           - '["Linux", "pvc"]'
           - '["cts-cpu"]'
           - '["Linux", "build"]'
+          - '["cuda"]'
       image:
         type: choice
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+          - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options:
         description: |
           Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
         type: choice
         options:
-          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --gpus all --cap-add SYS_ADMIN'
       target_devices:
         type: choice
         options:
+          - 'level_zero:gpu'
           - 'opencl:cpu'
           - 'opencl:gpu'
           - 'opencl:fpga'
-          - 'level_zero:gpu'
           - 'hip:gpu'
+          - 'cuda:gpu'
       tests_selector:
         type: choice
         options:

@@ -1,4 +1,4 @@
-// REQUIRES: opencl, opencl_icd
+// REQUIRES: opencl, opencl_icd, target-spir
 
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib
 // RUN: %{run} %t.out
