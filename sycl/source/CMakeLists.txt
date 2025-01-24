@@ -152,7 +152,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_compile_definitions(${LIB_NAME} PRIVATE LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING=1)
   # LLVM headers are not as pedantic about unused parameters, so we forcefully
   # disable warnings about these.
-  target_compile_options(${LIB_NAME} private -Wno-unused-parameter)
+  target_compile_options(${LIB_NAME} PRIVATE -Wno-unused-parameter)
 
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
