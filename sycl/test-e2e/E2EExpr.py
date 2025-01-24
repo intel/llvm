@@ -50,6 +50,8 @@ class E2EExpr(BooleanExpression):
             self.unknown = True
         else:
             self.unknown = False
+        if self.value and self.unknown:
+            raise ValueError("Runtime feature \"" + token +"\" evaluated to True in build-only")
 
     def parseAND(self):
         self.parseNOT()
@@ -95,124 +97,43 @@ import unittest
 
 class TestE2EExpr(unittest.TestCase):
     def test_basic(self):
+        BuildOnly = True
+        BuildAndRun = False
+        RequiresDirective = True
+        UnsupportedDirective = False
+        RegularEval= lambda expr, features: E2EExpr.evaluate(expr, features, BuildAndRun)
+        RequiresBuildEval = lambda expr, features: E2EExpr.evaluate(expr, features, BuildOnly, RequiresDirective)
+        UnsupportedBuildEval = lambda expr, features: E2EExpr.evaluate(expr, features, BuildOnly, UnsupportedDirective)
         # Non build-only expressions should work the same
-        self.assertTrue(E2EExpr.evaluate("linux", {"linux", "rt_feature"}, False))
-        self.assertTrue(E2EExpr.evaluate("rt_feature", {"linux", "rt_feature"}, False))
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "another_aspect && rt_feature", {"linux", "rt_feature"}, False
-            )
-        )
+        self.assertTrue(RegularEval("linux", {"linux", "rt_feature"}))
+        self.assertTrue(RegularEval("rt_feature", {"linux", "rt_feature"}))
+        self.assertFalse(RegularEval("rt_feature1 && rt_feature2", {"linux", "rt_feature1"}))
         # build-only expressions with no unknowns should work the same
-        self.assertTrue(
-            E2EExpr.evaluate("linux", {"linux"}, True, final_unknown_value=False)
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "linux && windows", {"linux"}, True, final_unknown_value=True
-            )
-        )
-        self.assertTrue(
-            E2EExpr.evaluate(
-                "!(windows || zstd)", {"linux"}, True, final_unknown_value=False
-            )
-        )
+        self.assertTrue(UnsupportedBuildEval("linux", {"linux"}))
+        self.assertFalse(RequiresBuildEval("linux && windows", {"linux"}))
+        self.assertTrue(UnsupportedBuildEval("!(windows || zstd)", {"linux"}))
         # build-only expressions where unknown affects the resulting value
-        self.assertTrue(
-            E2EExpr.evaluate("rt_feature", {}, True, final_unknown_value=True)
-        )
-        self.assertFalse(
-            E2EExpr.evaluate("rt_feature", {}, True, final_unknown_value=False)
-        )
-        self.assertTrue(
-            E2EExpr.evaluate(
-                "rt_feature", {"rt_feature"}, True, final_unknown_value=True
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "rt_feature", {"rt_feature"}, True, final_unknown_value=False
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate("!rt_feature", {}, True, final_unknown_value=False)
-        )
-        self.assertFalse(
-            E2EExpr.evaluate("!!rt_feature", {}, True, final_unknown_value=False)
-        )
-        self.assertTrue(
-            E2EExpr.evaluate(
-                "windows || rt_feature", {"linux"}, True, final_unknown_value=True
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "windows || rt_feature", {"linux"}, True, final_unknown_value=False
-            )
-        )
-        self.assertTrue(
-            E2EExpr.evaluate(
-                "linux && rt_feature", {"linux"}, True, final_unknown_value=True
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "linux && rt_feature", {"linux"}, True, final_unknown_value=False
-            )
-        )
-        self.assertTrue(
-            E2EExpr.evaluate(
-                "linux && !(windows || rt_feature)",
-                {"linux"},
-                True,
-                final_unknown_value=True,
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "linux && !(windows || rt_feature)",
-                {"linux"},
-                True,
-                final_unknown_value=False,
-            )
-        )
+        self.assertTrue(RequiresBuildEval("rt_feature", {}))
+        self.assertFalse(UnsupportedBuildEval("rt_feature", {}))
+        self.assertFalse(UnsupportedBuildEval("!rt_feature", {}))
+        self.assertTrue(RequiresBuildEval("windows || rt_feature", {"linux"}))
+        self.assertFalse(UnsupportedBuildEval("windows || rt_feature", {"linux"}))
+        self.assertTrue(RequiresBuildEval("linux && rt_feature", {"linux"}))
+        self.assertFalse(UnsupportedBuildEval("linux && rt_feature", {"linux"}))
+        self.assertTrue(RequiresBuildEval("linux && !(zstd || rt_feature)", {"linux"}))
+        self.assertFalse(UnsupportedBuildEval("linux && !(zstd || rt_feature)", {"linux"}))
         # build-only expressions where unknown does not affect the resulting value
-        self.assertTrue(
-            E2EExpr.evaluate(
-                "linux || rt_feature", {"linux"}, True, final_unknown_value=True
-            )
-        )
-        self.assertTrue(
-            E2EExpr.evaluate(
-                "linux || rt_feature", {"linux"}, True, final_unknown_value=False
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "windows && rt_feature", {"linux"}, True, final_unknown_value=True
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "windows && rt_feature", {"linux"}, True, final_unknown_value=False
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "linux && (windows && rt_feature)",
-                {"linux"},
-                True,
-                final_unknown_value=True,
-            )
-        )
-        self.assertFalse(
-            E2EExpr.evaluate(
-                "linux && (windows && rt_feature)",
-                {"linux"},
-                True,
-                final_unknown_value=False,
-            )
-        )
+        self.assertTrue(RequiresBuildEval("linux || rt_feature", {"linux"}))
+        self.assertTrue(UnsupportedBuildEval("linux || rt_feature", {"linux"}))
+        self.assertFalse(RequiresBuildEval("windows && rt_feature", {"linux"}))
+        self.assertFalse(UnsupportedBuildEval("windows && rt_feature", {"linux"}))
+        self.assertFalse(RequiresBuildEval("linux && (vulkan && rt_feature)", {"linux"}))
+        self.assertFalse(UnsupportedBuildEval("linux && (vulkan && rt_feature)", {"linux"}))
+        # runtime feature is present in build-only
+        with self.assertRaises(ValueError):
+            RequiresBuildEval("rt_feature", {"rt_feature"})
+        with self.assertRaises(ValueError):
+            UnsupportedBuildEval("rt_feature", {"rt_feature"})
 
 
 if __name__ == "__main__":
