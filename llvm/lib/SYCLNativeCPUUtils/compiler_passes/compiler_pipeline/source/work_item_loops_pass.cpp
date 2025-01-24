@@ -292,9 +292,8 @@ struct ScheduleGenerator {
       // Create intrinsic
 #if LLVM_VERSION_GREATER_EQUAL(19, 0)
       if (!module.IsNewDbgInfoFormat) {
-        auto *const DII = DIB.insertDeclare(barrier.getDebugAddr(), new_var,
-                                            expr, wrapperDbgLoc, block)
-                              .get<Instruction *>();
+        auto *const DII = cast<Instruction *>(DIB.insertDeclare(
+            barrier.getDebugAddr(), new_var, expr, wrapperDbgLoc, block));
 
         // Bit of a HACK to produce the same debug output as the Mem2Reg
         // pass used to do.
@@ -302,9 +301,8 @@ struct ScheduleGenerator {
         ConvertDebugDeclareToDebugValue(DVIntrinsic, SI, DIB);
       } else {
         auto *const DVR = static_cast<DbgVariableRecord *>(
-            DIB.insertDeclare(barrier.getDebugAddr(), new_var, expr,
-                              wrapperDbgLoc, block)
-                .get<DbgRecord *>());
+            cast<DbgRecord *>(DIB.insertDeclare(barrier.getDebugAddr(), new_var,
+                                                expr, wrapperDbgLoc, block)));
 
         // This is nasty, but LLVM errors out on trailing debug info, we need a
         // subsequent instruction even if we delete it immediately afterwards.
