@@ -9,14 +9,14 @@ int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
   sycl::buffer<int> buf(sycl::range<1>(1));
-  sycl::kernel_id id = sycl::get_kernel_id<class kernel>();
+  sycl::kernel_id k_id = sycl::get_kernel_id<class mykernel>();
   auto bundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {id});
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {k_id});
   assert(!bundle.empty());
-  sycl::kernel krn = bundle.get_kernel(id);
+  sycl::kernel krn = bundle.get_kernel(k_id);
   q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc(buf, cgh);
-    cgh.single_task<class kernel>(krn, [=]() { acc[0] = 42; });
+    cgh.single_task<class mykernel>(krn, [=]() { acc[0] = 42; });
   });
   sycl::backend backend;
   std::vector<std::byte> bytes;
