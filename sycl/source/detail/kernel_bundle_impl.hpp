@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 #include "split_string.hpp"
@@ -523,7 +524,7 @@ public:
 
       // Determine IDs of all device globals referenced by this bundle's
       // kernels. These IDs are also prefixed.
-      std::set<std::string> DeviceGlobalIDSet;
+      std::unordered_set<std::string> DeviceGlobalIDSet;
       std::vector<std::string> DeviceGlobalIDVec;
       std::vector<std::string> DeviceGlobalNames;
       for (const auto &RawImg : PM.getRawDeviceImages(KernelIDs)) {
