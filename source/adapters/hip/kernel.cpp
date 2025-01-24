@@ -234,6 +234,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                        hKernel->get()));
     return ReturnValue(static_cast<uint32_t>(NumRegs));
   }
+  case UR_KERNEL_INFO_SPILL_MEM_SIZE:
   default:
     break;
   }
