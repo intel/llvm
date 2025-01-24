@@ -126,7 +126,7 @@ etors:
     - name: NUM_REGS
       desc: "[uint32_t][optional-query] Return the number of registers used by the compiled kernel."
     - name: SPILL_MEM_SIZE
-      desc: "[uint32_t][optional-query] Return the spill memory size allocated by the compiler."
+      desc: "[uint32_t[]][optional-query] Return the spill memory size allocated by the compiler."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel Work Group information"
