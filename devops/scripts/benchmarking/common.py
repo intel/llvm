@@ -15,14 +15,14 @@ def sanitize(stat: str) -> float:
 
 
 def load_configs():
-    BENCHMARKING_ROOT = os.getenv("BENCHMARKING_ROOT")
-    if BENCHMARKING_ROOT is None:
-        # Try to predict where BENCHMARKING_ROOT is based on executable
-        BENCHMARKING_ROOT = os.path.dirname(os.path.abspath(__file__))
+    DEVOPS_PATH = os.getenv("DEVOPS_PATH")
+    if DEVOPS_PATH is None:
+        # Try to predict where /devops is based on executable
+        DEVOPS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
-    benchmarking_ci_conf_path = f"{BENCHMARKING_ROOT}/benchmark-ci.conf"
+    benchmarking_ci_conf_path = f"{DEVOPS_PATH}/benchmarking/benchmark-ci.conf"
     if not os.path.isfile(benchmarking_ci_conf_path):
-        raise Exception(f"Please provide path to a valid BENCHMARKING_ROOT.")
+        raise Exception(f"Please provide path to a valid DEVOPS_PATH.")
 
     global PERF_RES_PATH, OUTPUT_CACHE, metrics_variance, metrics_recorded
     global BENCHMARK_ERROR_LOG, BENCHMARK_SLOW_LOG

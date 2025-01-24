@@ -38,12 +38,13 @@ jobs:
         path: llvm
         sparse-checkout: |
           devops/scripts/benchmarking
+          devops/benchmarking
     - name: Load benchmarking configuration
       run: |
-        CONFIG_FILE="$GITHUB_WORKSPACE/llvm/devops/scripts/benchmarking/benchmark-ci.conf"
+        CONFIG_FILE="$PWD/llvm/devops/benchmarking/benchmark-ci.conf"
 
         # Load default values from configuration file
-        . "$GITHUB_WORKSPACE/llvm/devops/scripts/benchmarking/utils.sh"
+        . "$PWD/llvm/devops/scripts/benchmarking/utils.sh"
         # utils.sh contains functions to sanitize config file settings
         load_single_config $CONFIG_FILE PERF_RES_GIT_REPO
         load_single_config $CONFIG_FILE PERF_RES_BRANCH

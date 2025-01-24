@@ -105,8 +105,9 @@ check_regression() {
  check skipped!"
         return 0 # Success status
     fi
-    BENCHMARKING_ROOT="$BENCHMARKING_ROOT" \
-        python "$BENCHMARKING_ROOT/compare.py" "$csv_relpath" "$csv_name"
+    DEVOPS_PATH="$DEVOPS_PATH" \
+        python "$DEVOPS_PATH/scripts/benchmarking/compare.py" \
+            "$csv_relpath" "$csv_name"
     return $?
 }
 
@@ -210,26 +211,35 @@ cleanup() {
 }
 
 load_configs() {
-    # This script needs to know where the "BENCHMARKING_ROOT" directory is,
+    # This script needs to know where the intel/llvm "/devops" directory is,
     # containing all the configuration files and the compare script.
     #
     # If this is not provided, this function tries to guess where the files
     # are based on how the script is called, and verifies that all necessary
     # configs and scripts are reachable. 
-    [ -z "$BENCHMARKING_ROOT" ] && BENCHMARKING_ROOT="$(dirname "$0")"
 
-    BENCHMARK_CI_CONFIG="$(realpath $BENCHMARKING_ROOT/benchmark-ci.conf)"
-    TESTS_CONFIG="$(realpath $BENCHMARKING_ROOT/enabled_tests.conf)"
-    COMPARE_PATH="$(realpath $BENCHMARKING_ROOT/compare.py)"
+    # This benchmarking script is usually at:
+    # 
+    # /devops/scripts/benchmarking/benchmark.sh
+    #
+    # Derive /devops based on location of this script:
+    [ -z "$DEVOPS_PATH" ] && DEVOPS_PATH="$(dirname "$0")/../.."
 
-    for file in "$BENCHMARK_CI_CONFIG" "$TESTS_CONFIG" "$COMPARE_PATH"; do
+    BENCHMARK_CI_CONFIG="$(realpath $DEVOPS_PATH/benchmarking/benchmark-ci.conf)"
+    TESTS_CONFIG="$(realpath $DEVOPS_PATH/benchmarking/enabled_tests.conf)"
+    COMPARE_PATH="$(realpath $DEVOPS_PATH/scripts/benchmarking/compare.py)"
+    UTILS_PATH="$(realpath $DEVOPS_PATH/scripts/benchmarking/utils.sh)"
+
+    for file in \
+        "$BENCHMARK_CI_CONFIG" "$TESTS_CONFIG" "$COMPARE_PATH" "$UTILS_PATH"
+    do
         if [ ! -f "$file" ]; then
-            echo "$(basename $file) not found, please provide path to BENCHMARKING_ROOT."
+            echo "Please provide path to DEVOPS_PATH."
             exit -1
         fi
     done
 
-    . $BENCHMARKING_ROOT/utils.sh
+    . "$UTILS_PATH"
     load_all_configs "$BENCHMARK_CI_CONFIG"
 }
 

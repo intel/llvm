@@ -21,19 +21,18 @@ runs:
     shell: bash
     run: |
       cat << EOF
+      #
+      # NOTE TO DEVELOPERS:
+      #
 
-        #
-        # NOTE TO DEVELOPERS:
-        #
+      Check latter steps of the workflow: This job produces an artifact with:
+        - benchmark results from passing/failing tests
+        - log containing all failing (too slow) benchmarks
+        - log containing all erroring benchmarks
 
-        Check latter steps of the workflow: This job produces an artifact with:
-         - benchmark results from passing/failing tests
-         - log containing all failing (too slow) benchmarks
-         - log containing all erroring benchmarks
-
-        While this step in the workflow provides debugging output describing this
-        information, it might be easier to inspect the logs from the artifact
-        instead.
+      While this step in the workflow provides debugging output describing this
+      information, it might be easier to inspect the logs from the artifact
+      instead.
 
       EOF
       export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
@@ -46,8 +45,8 @@ runs:
     run: |
       # TODO -- waiting on security clearance
       # Load configuration values
-      . "$PWD/devops/scripts/benchmarking/utils.sh"
-      CONFIG_FILE="$PWD/devops/scripts/benchmarking/benchmark-ci.conf"
+      . "$PWD/devops/benchmarking/utils.sh"
+      CONFIG_FILE="$PWD/devops/benchmarking/benchmark-ci.conf"
       load_single_config "$CONFIG_FILE" PERF_RES_PATH
       load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO
       load_single_config "$CONFIG_FILE" PERF_RES_BRANCH
