@@ -76,43 +76,49 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         return script
 
-    def getMissingRequiredFeaturesFromList(
-        self, features, requires, build_only_mode=False
-    ):
-        try:
-            return [
-                item
-                for item in requires
-                if not E2EExpr.evaluate(item, features, build_only_mode)
-            ]
-        except ValueError as e:
-            raise ValueError("Error in REQUIRES list:\n%s" % str(e))
-
     def getMatchedFromList(
-        self, features, alist, build_only_mode=False, final_unknown_value=False
+        self, features, expression_list, build_only_mode, is_requires_directive
     ):
         try:
             return [
                 item
-                for item in alist
+                for item in expression_list
                 if E2EExpr.evaluate(
-                    item, features, build_only_mode, final_unknown_value
-                )
+                    item, features, build_only_mode, is_requires_directive
+                ) != is_requires_directive
             ]
         except ValueError as e:
-            raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
+            raise ValueError("Error in expression:\n%s" % str(e))
+
+    BuildOnly = True
+    BuildAndRun = False
+    RequiresDirective = True
+    UnsupportedDirective = False
+    def getMissingRequires(self, features, expression_list):
+        return self.getMatchedFromList(
+                    features, expression_list, self.BuildAndRun, self.RequiresDirective
+                )
+    def getMissingRequiresBuildOnly(self, features, expression_list):
+        return self.getMatchedFromList(
+                    features, expression_list, self.BuildOnly, self.RequiresDirective
+                )
+    def getMatchedUnsupported(self, features, expression_list):
+        return self.getMatchedFromList(
+                    features, expression_list, self.BuildAndRun, self.UnsupportedDirective
+                )
+    def getMatchedUnsupportedBuildOnly(self, features, expression_list):
+        return self.getMatchedFromList(
+                    features, expression_list, self.BuildOnly, self.UnsupportedDirective
+                )
+    getMatchedXFail = getMatchedUnsupported
 
     def select_build_targets_for_test(self, test):
         supported_targets = set()
         for t in test.config.sycl_build_targets:
             features = test.config.available_features.union({t})
-            if self.getMissingRequiredFeaturesFromList(
-                features, test.requires, build_only_mode=True
-            ):
+            if self.getMissingRequiresBuildOnly(features, test.requires):
                 continue
-            if self.getMatchedFromList(
-                features, test.unsupported, build_only_mode=True
-            ):
+            if self.getMatchedUnsupportedBuildOnly(features, test.unsupported):
                 continue
             supported_targets.add(t)
 
@@ -128,7 +134,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         triples_without_xfail = [
             t
             for t in supported_targets
-            if not self.getMatchedFromList(
+            if not self.getMatchedXFail(
                 test.config.available_features.union({t}), test.xfails
             )
         ]
@@ -139,10 +145,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices = []
         for d in test.config.sycl_devices:
             features = test.config.sycl_dev_features[d]
-            if self.getMissingRequiredFeaturesFromList(features, test.requires):
+            if self.getMissingRequires(features, test.requires):
                 continue
 
-            if self.getMatchedFromList(features, test.unsupported):
+            if self.getMatchedUnsupported(features, test.unsupported):
                 continue
 
             driver_ok = True
@@ -174,7 +180,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_without_xfail = [
             d
             for d in devices
-            if not self.getMatchedFromList(
+            if not self.getMatchedXFail(
                 test.config.sycl_dev_features[d], test.xfails
             )
         ]
@@ -370,7 +376,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         # Single triple/device - might be an XFAIL.
         def map_result(features, code):
-            if "*" in test.xfails or self.getMatchedFromList(features, test.xfails):
+            if "*" in test.xfails or self.getMatchedXFail(features, test.xfails):
                 if code is lit.Test.PASS:
                     code = lit.Test.XPASS
                 elif code is lit.Test.FAIL:
