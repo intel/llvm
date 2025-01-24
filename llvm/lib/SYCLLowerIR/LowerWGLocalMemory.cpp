@@ -49,12 +49,16 @@ private:
 };
 } // namespace
 
+static bool usesKernelArgForDynWGLocalMem(const Triple &TT) {
+  return TT.isSPIROrSPIRV();
+}
+
 std::vector<std::pair<StringRef, int>>
 sycl::getKernelNamesUsingImplicitLocalMem(const Module &M) {
   std::vector<std::pair<StringRef, int>> SPIRKernelNames;
   Triple TT(M.getTargetTriple());
 
-  if (TT.isSPIROrSPIRV()) {
+  if (usesKernelArgForDynWGLocalMem(TT)) {
     auto GetArgumentPos = [&](const Function &F) -> int {
       for (const Argument &Arg : F.args())
         if (F.getAttributes().hasParamAttr(Arg.getArgNo(),
@@ -129,7 +133,7 @@ lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT,
 
   Value *GVPtr = [&]() -> Value * {
     IRBuilder<> Builder(CI);
-    if (TT.isSPIROrSPIRV())
+    if (usesKernelArgForDynWGLocalMem(TT))
       return Builder.CreateLoad(CI->getType(), LocalMemPlaceholder);
 
     return Builder.CreatePointerCast(LocalMemPlaceholder, CI->getType());
@@ -188,7 +192,7 @@ static bool dynamicWGLocalMemory(Module &M) {
   if (!LocalMemArrayGV) {
     assert(DLMFunc->isDeclaration() && "should have declaration only");
     Type *LocalMemArrayTy =
-        TT.isSPIROrSPIRV()
+        usesKernelArgForDynWGLocalMem(TT)
             ? static_cast<Type *>(PointerType::get(M.getContext(), LocalAS))
             : static_cast<Type *>(
                   ArrayType::get(Type::getInt8Ty(M.getContext()), 0));
@@ -196,24 +200,25 @@ static bool dynamicWGLocalMemory(Module &M) {
         M,               // module
         LocalMemArrayTy, // type
         false,           // isConstant
-        TT.isSPIROrSPIRV() ? GlobalValue::LinkOnceODRLinkage
+        usesKernelArgForDynWGLocalMem(TT)
+            ? GlobalValue::LinkOnceODRLinkage
                            : GlobalValue::ExternalLinkage, // Linkage
-        TT.isSPIROrSPIRV() ? UndefValue::get(LocalMemArrayTy)
-                           : nullptr,   // Initializer
-        DYNAMIC_LOCALMEM_GV,            // Name prefix
-        nullptr,                        // InsertBefore
-        GlobalVariable::NotThreadLocal, // ThreadLocalMode
-        LocalAS                         // AddressSpace
+        usesKernelArgForDynWGLocalMem(TT) ? UndefValue::get(LocalMemArrayTy)
+                                          : nullptr, // Initializer
+        DYNAMIC_LOCALMEM_GV,                         // Name prefix
+        nullptr,                                     // InsertBefore
+        GlobalVariable::NotThreadLocal,              // ThreadLocalMode
+        LocalAS                                      // AddressSpace
     );
     LocalMemArrayGV->setUnnamedAddr(GlobalVariable::UnnamedAddr::Local);
     constexpr int DefaultMaxAlignment = 128;
-    if (!TT.isSPIROrSPIRV())
+    if (!usesKernelArgForDynWGLocalMem(TT))
       LocalMemArrayGV->setAlignment(Align{DefaultMaxAlignment});
   }
   lowerLocalMemCall(DLMFunc, [&](CallInst *CI) {
     lowerDynamicLocalMemCallDirect(CI, TT, LocalMemArrayGV);
   });
-  if (TT.isSPIROrSPIRV()) {
+  if (usesKernelArgForDynWGLocalMem(TT)) {
     SmallVector<Function *, 4> Kernels;
     llvm::for_each(M.functions(), [&](Function &F) {
       if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
