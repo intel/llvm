@@ -73,6 +73,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 queue_impl::get_backend_info<info::platform::version>() const {
@@ -83,7 +84,9 @@ queue_impl::get_backend_info<info::platform::version>() const {
   }
   return get_device().get_platform().get_info<info::platform::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 queue_impl::get_backend_info<info::device::version>() const {
@@ -94,7 +97,9 @@ queue_impl::get_backend_info<info::device::version>() const {
   }
   return get_device().get_info<info::device::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 queue_impl::get_backend_info<info::device::backend_version>() const {
@@ -108,6 +113,7 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
