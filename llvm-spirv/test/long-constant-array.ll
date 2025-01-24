@@ -1,8 +1,8 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 
-; Check that everything is fine if SPV_INTEL_long_constant_composite is enabled
-; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite %t.bc -o %t.spv
+; Check that everything is fine if SPV_INTEL_long_composites is enabled
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_composites %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -10,7 +10,7 @@
 ; RUNx: spirv-val %t.spv
 
 ; CHECK-SPIRV: Capability LongCompositesINTEL
-; CHECK-SPIRV: Extension "SPV_INTEL_long_constant_composite"
+; CHECK-SPIRV: Extension "SPV_INTEL_long_composites"
 ; CHECK-SPIRV: TypeInt [[TInt:[0-9]+]] 8
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[ArrSize:[0-9]+]] 78000
 ; CHECK-SPIRV: TypeArray [[TArr:[0-9]+]] [[TInt]] [[ArrSize]]
