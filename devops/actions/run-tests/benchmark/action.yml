@@ -51,6 +51,7 @@ runs:
       load_single_config "$CONFIG_FILE" PERF_RES_PATH
       load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO
       load_single_config "$CONFIG_FILE" PERF_RES_BRANCH
+      load_single_config "$CONFIG_FILE" ARTIFACT_PATH
       echo "ARTIFACT_PATH=$ARTIFACT_PATH" >> $GITHUB_ENV
 
       cd "$PERF_RES_PATH"
