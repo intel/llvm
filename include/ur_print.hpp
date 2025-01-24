@@ -6466,15 +6466,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_image_info_t value) {
   case UR_IMAGE_INFO_DEPTH:
     os << "UR_IMAGE_INFO_DEPTH";
     break;
-  case UR_IMAGE_INFO_ARRAY_SIZE:
-    os << "UR_IMAGE_INFO_ARRAY_SIZE";
-    break;
-  case UR_IMAGE_INFO_NUM_MIP_LEVELS:
-    os << "UR_IMAGE_INFO_NUM_MIP_LEVELS";
-    break;
-  case UR_IMAGE_INFO_NUM_SAMPLES:
-    os << "UR_IMAGE_INFO_NUM_SAMPLES";
-    break;
   default:
     os << "unknown enumerator";
     break;
@@ -6574,45 +6565,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     const size_t *tptr = (const size_t *)ptr;
     if (sizeof(size_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_IMAGE_INFO_ARRAY_SIZE: {
-    const size_t *tptr = (const size_t *)ptr;
-    if (sizeof(size_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_IMAGE_INFO_NUM_MIP_LEVELS: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_IMAGE_INFO_NUM_SAMPLES: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
          << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
