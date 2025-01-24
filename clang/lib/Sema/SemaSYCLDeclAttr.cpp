@@ -3162,3 +3162,68 @@ void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
           << Attr;
 }
+
+void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {
+  // Check for SYCL device compilation context.
+  if (!getLangOpts().SYCLIsDevice)
+    return;
+
+  unsigned NumArgs = A.getNumArgs();
+  // When declared, we expect at least one item in the list.
+  if (NumArgs == 0) {
+    Diag(A.getLoc(), diag::err_registered_kernels_num_of_args);
+    return;
+  }
+
+  // Traverse through the items in the list.
+  for (unsigned I = 0; I < NumArgs; I++) {
+    assert(A.isArgExpr(I) && "Expected expression argument");
+    // Each item in the list must be an initializer list expression.
+    Expr *ArgExpr = A.getArgAsExpr(I);
+    if (!isa<InitListExpr>(ArgExpr)) {
+      Diag(ArgExpr->getExprLoc(), diag::err_registered_kernels_init_list);
+      return;
+    }
+
+    auto *ArgListE = cast<InitListExpr>(ArgExpr);
+    unsigned NumInits = ArgListE->getNumInits();
+    // Each init-list expression must have a pair of values.
+    if (NumInits != 2) {
+      Diag(ArgExpr->getExprLoc(),
+           diag::err_registered_kernels_init_list_pair_values);
+      return;
+    }
+
+    // The first value of the pair must be a string.
+    Expr *FirstExpr = ArgListE->getInit(0);
+    StringRef CurStr;
+    SourceLocation Loc = FirstExpr->getExprLoc();
+    if (!SemaRef.checkStringLiteralArgumentAttr(A, FirstExpr, CurStr, &Loc))
+      return;
+
+    // Resolve the FunctionDecl from the second value of the pair.
+    Expr *SecondE = ArgListE->getInit(1);
+    FunctionDecl *FD = nullptr;
+    if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(SecondE)) {
+      FD = SemaRef.ResolveSingleFunctionTemplateSpecialization(ULE, true);
+      Loc = ULE->getExprLoc();
+    } else {
+      SecondE = SecondE->IgnoreParenCasts();
+      if (auto *DRE = dyn_cast<DeclRefExpr>(SecondE))
+        FD = dyn_cast<FunctionDecl>(DRE->getDecl());
+      Loc = SecondE->getExprLoc();
+    }
+    // Issue a diagnostic if we are unable to resolve the FunctionDecl.
+    if (!FD) {
+      Diag(Loc, diag::err_registered_kernels_resolve_function) << CurStr;
+      return;
+    }
+    // Issue a diagnostic is the FunctionDecl is not a SYCL free function.
+    if (!isFreeFunction(FD)) {
+      Diag(FD->getLocation(), diag::err_not_sycl_free_function) << CurStr;
+      return;
+    }
+    // Construct a free function kernel.
+    constructFreeFunctionKernel(FD, CurStr);
+  }
+}
