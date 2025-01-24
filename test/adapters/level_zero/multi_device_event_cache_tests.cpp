@@ -20,7 +20,7 @@ static std::shared_ptr<_zel_tracer_handle_t> tracer = [] {
   zel_core_callbacks_t prologue_callbacks{};
   prologue_callbacks.CommandList.pfnAppendWaitOnEventsCb =
       OnAppendWaitOnEventsCb;
-  return enableTracing(prologue_callbacks, {});
+  return enableTracing(std::move(prologue_callbacks), {});
 }();
 
 using urMultiQueueMultiDeviceEventCacheTest = uur::urAllDevicesTest;
