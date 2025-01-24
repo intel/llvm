@@ -23,7 +23,7 @@ class E2EExpr(BooleanExpression):
         "opencl-aot",
         "opencl_icd",
         "cm-compiler",
-        "xptifw"
+        "xptifw",
         "level_zero_dev_kit",
         "cuda_dev_kit",
         "zstd",
