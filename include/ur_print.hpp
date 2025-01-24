@@ -8876,17 +8876,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_KERNEL_INFO_SPILL_MEM_SIZE: {
+
     const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
+    os << "{";
+    size_t nelems = size / sizeof(uint32_t);
+    for (size_t i = 0; i < nelems; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << tptr[i];
     }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
+    os << "}";
   } break;
   default:
     os << "unknown enumerator";

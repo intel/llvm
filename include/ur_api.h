@@ -5997,7 +5997,7 @@ typedef enum ur_kernel_info_t {
   /// [uint32_t][optional-query] Return the number of registers used by the
   /// compiled kernel.
   UR_KERNEL_INFO_NUM_REGS = 6,
-  /// [uint32_t][optional-query] Return the spill memory size allocated by
+  /// [uint32_t[]][optional-query] Return the spill memory size allocated by
   /// the compiler.
   UR_KERNEL_INFO_SPILL_MEM_SIZE = 7,
   /// @cond
