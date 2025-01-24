@@ -46,7 +46,7 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
@@ -73,23 +73,8 @@ jobs:
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
           fi
 
-  build_e2e_tests:
-    needs: [build]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Build e2e tests
-      runner: '["Linux", "build"]'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps
-      image_options: -u 1001
-      ref: ${{ github.sha }}
-      merge_ref: ''
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_testing_mode: 'build-only'
   run_prebuilt_e2e_tests:
-    needs: [build, build_e2e_tests]
+    needs: [build]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false

@@ -19,6 +19,8 @@ inputs:
     required: false
   retention-days:
     required: false
+  cxx_compiler:
+    required: false
 
 
 runs:
@@ -58,7 +60,7 @@ runs:
     if: inputs.e2e_binaries_artifact == ''
     shell: bash
     run: |
-      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.cxx_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
   - name: SYCL End-to-end tests
     shell: bash {0}
     env:
