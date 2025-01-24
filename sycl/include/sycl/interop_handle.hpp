@@ -49,6 +49,9 @@ public:
   /// interop_handle.
   __SYCL_EXPORT backend get_backend() const noexcept;
 
+  /// Returns true if command-group is being added to a graph as a node
+  __SYCL_EXPORT bool has_graph() const noexcept;
+
   /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part
@@ -134,6 +137,26 @@ public:
 #endif
   }
 
+  using graph = ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::modifiable>;
+  template <backend Backend = backend::opencl>
+  backend_return_t<Backend, graph> get_native_graph() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
+    // with the error code 'errc::backend_mismatch' when those new exceptions
+    // are ready to be used.
+    if (Backend != get_backend())
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
+
+    // C-style cast required to allow various native types
+    return (backend_return_t<Backend, graph>)getNativeGraph();
+#else
+    // we believe this won't be ever called on device side
+    return 0;
+#endif
+  }
+
   /// Returns the SYCL application interoperability native backend object
   /// associated with the device associated with the SYCL queue that the host
   /// task was submitted to. The native backend object returned must be in
@@ -186,8 +209,9 @@ private:
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
                  const std::shared_ptr<detail::device_impl> &Device,
-                 const std::shared_ptr<detail::context_impl> &Context)
-      : MQueue(Queue), MDevice(Device), MContext(Context),
+                 const std::shared_ptr<detail::context_impl> &Context,
+                 const ur_exp_command_buffer_handle_t &Graph)
+      : MQueue(Queue), MDevice(Device), MContext(Context), MGraph(Graph),
         MMemObjs(std::move(MemObjs)) {}
 
   template <backend Backend, typename DataT, int Dims>
@@ -211,10 +235,12 @@ private:
   getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT ur_native_handle_t getNativeDevice() const;
   __SYCL_EXPORT ur_native_handle_t getNativeContext() const;
+  __SYCL_EXPORT ur_native_handle_t getNativeGraph() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;
   std::shared_ptr<detail::context_impl> MContext;
+  ur_exp_command_buffer_handle_t MGraph;
 
   std::vector<ReqToMem> MMemObjs;
 };

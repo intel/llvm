@@ -454,7 +454,7 @@ public:
                "Host task submissions should have an associated queue");
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
-                          HostTask.MQueue->getContextImplPtr()};
+                          HostTask.MQueue->getContextImplPtr(), nullptr};
         // TODO: should all the backends that support this entry point use this
         // for host task?
         auto &Queue = HostTask.MQueue;
@@ -2879,6 +2879,19 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   return Error;
 }
 
+namespace {
+
+struct CommandBufferNativeCommandData {
+  sycl::interop_handle ih;
+  std::function<void(interop_handle)> func;
+};
+
+void CommandBufferInteropFreeFunc(void *InteropData) {
+  auto *Data = reinterpret_cast<CommandBufferNativeCommandData *>(InteropData);
+  return Data->func(Data->ih);
+}
+} // namespace
+
 ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   assert(MQueue && "Command buffer enqueue should have an associated queue");
   // Wait on host command dependencies
@@ -3041,6 +3054,55 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
             &OutSyncPoint);
         Result != UR_RESULT_SUCCESS)
       return Result;
+
+    MEvent->setSyncPoint(OutSyncPoint);
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::EnqueueNativeCommand: {
+    // Queue is created by graph_impl before creating command to submit to
+    // scheduler.
+    const AdapterPtr &Adapter = MQueue->getAdapter();
+    const auto Backend = MQueue->get_device().get_backend();
+    CGHostTask *HostTask = (CGHostTask *)MCommandGroup.get();
+
+    // TODO - Doc this
+    ur_exp_command_buffer_handle_t ChildCommandBuffer = nullptr;
+    if (Backend == sycl::backend::ext_oneapi_cuda ||
+        Backend == sycl::backend::ext_oneapi_hip) {
+
+      ur_exp_command_buffer_desc_t Desc{
+          UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC /*stype*/,
+          nullptr /*pnext*/, false /* updatable */, false /* in-order */,
+          false /* profilable*/
+      };
+      auto ContextImpl = sycl::detail::getSyclObjImpl(MQueue->get_context());
+      auto DeviceImpl = sycl::detail::getSyclObjImpl(MQueue->get_device());
+      Adapter->call<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          &ChildCommandBuffer);
+    }
+
+    std::vector<interop_handle::ReqToMem> ReqToMem; // TODO work with buffers
+    interop_handle IH{ReqToMem, HostTask->MQueue,
+                      HostTask->MQueue->getDeviceImplPtr(),
+                      HostTask->MQueue->getContextImplPtr(),
+                      ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer};
+    CommandBufferNativeCommandData CustomOpData{
+        IH, HostTask->MHostTask->MInteropTask};
+
+    Adapter->call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
+        MCommandBuffer, CommandBufferInteropFreeFunc, &CustomOpData,
+        ChildCommandBuffer, MSyncPointDeps.size(),
+        MSyncPointDeps.empty() ? nullptr : MSyncPointDeps.data(),
+        &OutSyncPoint);
+
+    if (ChildCommandBuffer) {
+      ur_result_t Res = Adapter->call_nocheck<
+          sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
+          ChildCommandBuffer);
+      (void)Res;
+      assert(Res == UR_RESULT_SUCCESS);
+    }
 
     MEvent->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
@@ -3416,7 +3478,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     EnqueueNativeCommandData CustomOpData{
         interop_handle{ReqToMem, HostTask->MQueue,
                        HostTask->MQueue->getDeviceImplPtr(),
-                       HostTask->MQueue->getContextImplPtr()},
+                       HostTask->MQueue->getContextImplPtr(), nullptr},
         HostTask->MHostTask->MInteropTask};
 
     ur_bool_t NativeCommandSupport = false;
