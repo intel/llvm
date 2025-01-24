@@ -86,6 +86,7 @@ template <> inline bool isQueryOptional(ur_program_info_t query) {
 
 constexpr std::array optional_ur_kernel_info_t = {
     UR_KERNEL_INFO_NUM_REGS,
+    UR_KERNEL_INFO_SPILL_MEM_SIZE,
 };
 
 template <> inline bool isQueryOptional(ur_kernel_info_t query) {
