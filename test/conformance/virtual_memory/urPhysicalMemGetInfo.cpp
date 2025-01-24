@@ -9,10 +9,16 @@
 using urPhysicalMemGetInfoTest = uur::urPhysicalMemTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urPhysicalMemGetInfoTest);
 
+bool operator==(ur_physical_mem_properties_t lhs,
+                ur_physical_mem_properties_t rhs) {
+  return lhs.flags == rhs.flags && lhs.pNext == rhs.pNext &&
+         lhs.stype == rhs.stype;
+}
+
 TEST_P(urPhysicalMemGetInfoTest, SuccessContext) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_CONTEXT;
+  const ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_CONTEXT;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -21,17 +27,17 @@ TEST_P(urPhysicalMemGetInfoTest, SuccessContext) {
       property_name);
   ASSERT_NE(property_size, 0);
 
-  ur_context_handle_t returned_context = nullptr;
-  ASSERT_SUCCESS(urPhysicalMemGetInfo(
-      physical_mem, property_name, property_size, &returned_context, nullptr));
+  ur_context_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urPhysicalMemGetInfo(physical_mem, property_name,
+                                      property_size, &property_value, nullptr));
 
-  ASSERT_EQ(context, returned_context);
+  ASSERT_EQ(context, property_value);
 }
 
 TEST_P(urPhysicalMemGetInfoTest, SuccessDevice) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_DEVICE;
+  const ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_DEVICE;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -40,17 +46,17 @@ TEST_P(urPhysicalMemGetInfoTest, SuccessDevice) {
       property_name);
   ASSERT_NE(property_size, 0);
 
-  ur_device_handle_t returned_device = nullptr;
-  ASSERT_SUCCESS(urPhysicalMemGetInfo(
-      physical_mem, property_name, property_size, &returned_device, nullptr));
+  ur_device_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urPhysicalMemGetInfo(physical_mem, property_name,
+                                      property_size, &property_value, nullptr));
 
-  ASSERT_EQ(device, returned_device);
+  ASSERT_EQ(device, property_value);
 }
 
 TEST_P(urPhysicalMemGetInfoTest, SuccessSize) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_SIZE;
+  const ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_SIZE;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -59,17 +65,19 @@ TEST_P(urPhysicalMemGetInfoTest, SuccessSize) {
       property_name);
   ASSERT_NE(property_size, 0);
 
-  size_t returned_size = 0;
-  ASSERT_SUCCESS(urPhysicalMemGetInfo(physical_mem, property_name,
-                                      property_size, &returned_size, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urPhysicalMemGetInfo(physical_mem, property_name,
+                                                  property_size,
+                                                  &property_value, nullptr),
+                             property_value);
 
-  ASSERT_EQ(size, returned_size);
+  ASSERT_EQ(size, property_value);
 }
 
 TEST_P(urPhysicalMemGetInfoTest, SuccessProperties) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_PROPERTIES;
+  const ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_PROPERTIES;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -78,18 +86,16 @@ TEST_P(urPhysicalMemGetInfoTest, SuccessProperties) {
       property_name);
   ASSERT_NE(property_size, 0);
 
-  ur_physical_mem_properties_t returned_properties = {};
+  ur_physical_mem_properties_t property_value = {};
   ASSERT_SUCCESS(urPhysicalMemGetInfo(physical_mem, property_name,
-                                      property_size, &returned_properties,
-                                      nullptr));
+                                      property_size, &property_value, nullptr));
 
-  ASSERT_EQ(properties.stype, returned_properties.stype);
-  ASSERT_EQ(properties.pNext, returned_properties.pNext);
-  ASSERT_EQ(properties.flags, returned_properties.flags);
+  ASSERT_EQ(properties, property_value);
 }
 
 TEST_P(urPhysicalMemGetInfoTest, SuccessReferenceCount) {
-  ur_physical_mem_info_t property_name = UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT;
+  const ur_physical_mem_info_t property_name =
+      UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -98,10 +104,11 @@ TEST_P(urPhysicalMemGetInfoTest, SuccessReferenceCount) {
       property_name);
   ASSERT_NE(property_size, 0);
 
-  uint32_t returned_reference_count = 0;
-  ASSERT_SUCCESS(urPhysicalMemGetInfo(physical_mem, property_name,
-                                      property_size, &returned_reference_count,
-                                      nullptr));
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urPhysicalMemGetInfo(physical_mem, property_name,
+                                                  property_size,
+                                                  &property_value, nullptr),
+                             property_value);
 
-  ASSERT_EQ(returned_reference_count, 1);
+  ASSERT_EQ(property_value, 1);
 }

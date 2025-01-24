@@ -28,7 +28,7 @@ TEST_P(urUSMGetMemAllocInfoPoolTest, SuccessPool) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
   size_t property_size = 0;
-  ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_POOL;
+  const ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_POOL;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urUSMGetMemAllocInfo(context, ptr, property_name, 0, nullptr,
@@ -36,11 +36,11 @@ TEST_P(urUSMGetMemAllocInfoPoolTest, SuccessPool) {
       property_name);
   ASSERT_EQ(sizeof(ur_usm_pool_handle_t), property_size);
 
-  ur_usm_pool_handle_t returned_pool = nullptr;
+  ur_usm_pool_handle_t property_value = nullptr;
   ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, property_name,
-                                      property_size, &returned_pool, nullptr));
+                                      property_size, &property_value, nullptr));
 
-  ASSERT_EQ(returned_pool, pool);
+  ASSERT_EQ(property_value, pool);
 }
 
 using urUSMGetMemAllocInfoTest = uur::urUSMDeviceAllocTest;
@@ -50,7 +50,7 @@ TEST_P(urUSMGetMemAllocInfoTest, SuccessType) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   size_t property_size = 0;
-  ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_TYPE;
+  const ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_TYPE;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urUSMGetMemAllocInfo(context, ptr, property_name, 0, nullptr,
@@ -58,18 +58,18 @@ TEST_P(urUSMGetMemAllocInfoTest, SuccessType) {
       property_name);
   ASSERT_EQ(sizeof(ur_usm_type_t), property_size);
 
-  ur_usm_type_t returned_type = UR_USM_TYPE_FORCE_UINT32;
+  ur_usm_type_t property_value = UR_USM_TYPE_FORCE_UINT32;
   ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, property_name,
-                                      property_size, &returned_type, nullptr));
+                                      property_size, &property_value, nullptr));
 
-  ASSERT_EQ(returned_type, UR_USM_TYPE_DEVICE);
+  ASSERT_EQ(property_value, UR_USM_TYPE_DEVICE);
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, SuccessBasePtr) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   size_t property_size = 0;
-  ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_BASE_PTR;
+  const ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_BASE_PTR;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urUSMGetMemAllocInfo(context, ptr, property_name, 0, nullptr,
@@ -77,18 +77,18 @@ TEST_P(urUSMGetMemAllocInfoTest, SuccessBasePtr) {
       property_name);
   ASSERT_GT(property_size, 0);
 
-  void *returned_ptr = nullptr;
+  void *property_value = nullptr;
   ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, property_name,
-                                      property_size, &returned_ptr, nullptr));
+                                      property_size, &property_value, nullptr));
 
-  ASSERT_EQ(returned_ptr, ptr);
+  ASSERT_EQ(property_value, ptr);
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, SuccessSize) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   size_t property_size = 0;
-  ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_SIZE;
+  const ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_SIZE;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urUSMGetMemAllocInfo(context, ptr, property_name, 0, nullptr,
@@ -96,18 +96,20 @@ TEST_P(urUSMGetMemAllocInfoTest, SuccessSize) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t returned_size = 0;
-  ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, property_name,
-                                      property_size, &returned_size, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urUSMGetMemAllocInfo(context, ptr, property_name,
+                                                  property_size,
+                                                  &property_value, nullptr),
+                             property_value);
 
-  ASSERT_GE(returned_size, allocation_size);
+  ASSERT_GE(property_value, allocation_size);
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, SuccessDevice) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   size_t property_size = 0;
-  ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_DEVICE;
+  const ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_DEVICE;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urUSMGetMemAllocInfo(context, ptr, property_name, 0, nullptr,
@@ -115,49 +117,49 @@ TEST_P(urUSMGetMemAllocInfoTest, SuccessDevice) {
       property_name);
   ASSERT_EQ(sizeof(ur_device_handle_t), property_size);
 
-  ur_device_handle_t returned_device = nullptr;
-  ASSERT_SUCCESS(urUSMGetMemAllocInfo(
-      context, ptr, property_name, property_size, &returned_device, nullptr));
+  ur_device_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urUSMGetMemAllocInfo(context, ptr, property_name,
+                                      property_size, &property_value, nullptr));
 
-  ASSERT_EQ(returned_device, device);
+  ASSERT_EQ(property_value, device);
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, InvalidNullHandleContext) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_usm_type_t USMType = UR_USM_TYPE_FORCE_UINT32;
+  ur_usm_type_t property_value = UR_USM_TYPE_FORCE_UINT32;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_NULL_HANDLE,
       urUSMGetMemAllocInfo(nullptr, ptr, UR_USM_ALLOC_INFO_FORCE_UINT32,
-                           sizeof(ur_usm_type_t), &USMType, nullptr));
+                           sizeof(ur_usm_type_t), &property_value, nullptr));
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, InvalidNullPointerMem) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_usm_type_t USMType = UR_USM_TYPE_FORCE_UINT32;
+  ur_usm_type_t property_value = UR_USM_TYPE_FORCE_UINT32;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_NULL_POINTER,
       urUSMGetMemAllocInfo(context, nullptr, UR_USM_ALLOC_INFO_FORCE_UINT32,
-                           sizeof(ur_usm_type_t), &USMType, nullptr));
+                           sizeof(ur_usm_type_t), &property_value, nullptr));
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, InvalidEnumeration) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_usm_type_t USMType = UR_USM_TYPE_FORCE_UINT32;
+  ur_usm_type_t property_value = UR_USM_TYPE_FORCE_UINT32;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_ENUMERATION,
       urUSMGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_FORCE_UINT32,
-                           sizeof(ur_usm_type_t), &USMType, nullptr));
+                           sizeof(ur_usm_type_t), &property_value, nullptr));
 }
 
 TEST_P(urUSMGetMemAllocInfoTest, InvalidValuePropSize) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_usm_type_t USMType = UR_USM_TYPE_FORCE_UINT32;
+  ur_usm_type_t property_value = UR_USM_TYPE_FORCE_UINT32;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                    urUSMGetMemAllocInfo(context, ptr, UR_USM_ALLOC_INFO_TYPE,
-                                        sizeof(ur_usm_type_t) - 1, &USMType,
-                                        nullptr));
+                                        sizeof(ur_usm_type_t) - 1,
+                                        &property_value, nullptr));
 }
