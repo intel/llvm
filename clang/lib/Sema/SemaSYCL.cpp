@@ -1148,10 +1148,10 @@ static target getAccessTarget(QualType FieldTy,
 
 // FIXME: Free functions must have void return type and be declared at file
 // scope, outside any namespaces.
-static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
+bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
+        IRAttr->getAttributeNameValuePairs(getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
           NameValuePair.first == "sycl-single-task-kernel") {
@@ -5291,7 +5291,7 @@ void SemaSYCL::SetSYCLKernelNames() {
        SyclKernelsToOpenCLKernels) {
     std::string CalculatedName, StableName;
     StringRef KernelName;
-    if (isFreeFunction(*this, Pair.first)) {
+    if (isFreeFunction(Pair.first)) {
       std::tie(CalculatedName, StableName) =
           constructFreeFunctionKernelName(*this, Pair.first, *MangleCtx);
       KernelName = CalculatedName;
@@ -5414,24 +5414,66 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   }
 }
 
-void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
-  SyclKernelArgsSizeChecker argsSizeChecker(SemaSYCLRef, FD->getLocation(),
+static void addRegisteredKernelName(SemaSYCL &S, StringRef Str,
+                                    FunctionDecl *FD, SourceLocation Loc) {
+  if (!Str.empty())
+    FD->addAttr(SYCLRegisteredKernelNameAttr::CreateImplicit(S.getASTContext(),
+                                                             Str, Loc));
+}
+
+static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
+                                            StringRef Str) {
+  using KernelPair = std::pair<const FunctionDecl *, FunctionDecl *>;
+  for (const KernelPair &Pair : S.getKernelFDPairs()) {
+    if (Pair.first == FD) {
+      // If the current list of free function entries already contains this
+      // free function, apply the name Str as an attribute.  But if it already
+      // has an attribute name, issue a diagnostic instead.
+      if (!Str.empty()) {
+        if (!Pair.second->hasAttr<SYCLRegisteredKernelNameAttr>())
+          addRegisteredKernelName(S, Str, Pair.second, FD->getLocation());
+        else
+          S.Diag(FD->getLocation(),
+                 diag::err_registered_kernels_name_already_registered)
+              << Pair.second->getAttr<SYCLRegisteredKernelNameAttr>()
+                     ->getRegName()
+              << Str;
+      }
+      // An empty name string implies a regular free kernel construction
+      // call, so simply return.
+      return false;
+    }
+  }
+  return true;
+}
+
+void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
+                                           StringRef NameStr) {
+  if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
+    return;
+
+  SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(SemaSYCLRef, FD->getLocation(),
-                                    FD->isInlined(), false /*IsSIMDKernel */,
-                                    FD);
+  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
+                                    false /*IsSIMDKernel */, FD);
 
-  FreeFunctionKernelBodyCreator kernel_body(SemaSYCLRef, kernel_decl, FD);
+  FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
 
-  SyclKernelIntHeaderCreator int_header(
-      SemaSYCLRef, SemaSYCLRef.getSyclIntegrationHeader(), FD->getType(), FD);
+  SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                        FD->getType(), FD);
 
-  SyclKernelIntFooterCreator int_footer(SemaSYCLRef,
-                                        SemaSYCLRef.getSyclIntegrationFooter());
-  KernelObjVisitor Visitor{SemaSYCLRef};
+  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+  KernelObjVisitor Visitor{*this};
 
   Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body,
                                   int_header, int_footer);
+
+  assert(getKernelFDPairs().back().first == FD &&
+         "OpenCL Kernel not found for free function entry");
+  // Register the kernel name with the OpenCL kernel generated for the
+  // free function.
+  addRegisteredKernelName(*this, NameStr, getKernelFDPairs().back().second,
+                          FD->getLocation());
 }
 
 // Figure out the sub-group for the this function.  First we check the
@@ -5717,7 +5759,7 @@ void SemaSYCL::MarkDevices() {
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
-  if (isFreeFunction(*this, FD)) {
+  if (isFreeFunction(FD)) {
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -5736,7 +5778,7 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
     if (!FieldChecker.isValid() || !UnionChecker.isValid())
       return;
 
-    ConstructFreeFunctionKernel(*this, FD);
+    constructFreeFunctionKernel(FD);
   }
 }
 
@@ -6621,7 +6663,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
   for (const KernelDesc &K : KernelDescs) {
-    if (!isFreeFunction(S, K.SyclKernel))
+    if (!S.isFreeFunction(K.SyclKernel))
       continue;
     ++FreeFunctionCount;
     // Generate forward declaration for free function.
@@ -6739,7 +6781,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   ShimCounter = 1;
   for (const KernelDesc &K : KernelDescs) {
-    if (!isFreeFunction(S, K.SyclKernel))
+    if (!S.isFreeFunction(K.SyclKernel))
       continue;
 
     O << "\n// Definition of kernel_id of " << K.Name << "\n";

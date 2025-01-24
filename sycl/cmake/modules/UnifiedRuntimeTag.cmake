@@ -1,8 +1,7 @@
-# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
-# Merge: 71a5eab0 128ea023
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 11:21:50 2025 +0000
-#     Merge pull request #2539 from RossBrunton/ross/specconst
-#
-#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
-set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
+# commit b841691699393dd2375e987c3d38d5f59c3e35cf
+# Merge: c6859445 9de10cd9
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 23 16:07:06 2025 +0000
+#     Merge pull request #2559 from Bensuo/fix_kernel_arg_indices
+#     [CUDA][HIP] Fix kernel arguments being overwritten when added out of order
+set(UNIFIED_RUNTIME_TAG b841691699393dd2375e987c3d38d5f59c3e35cf)

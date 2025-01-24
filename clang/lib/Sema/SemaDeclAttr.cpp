@@ -7479,6 +7479,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLAddIRAnnotationsMember:
     S.SYCL().handleSYCLAddIRAnnotationsMemberAttr(D, AL);
     break;
+  case ParsedAttr::AT_SYCLRegisteredKernels:
+    S.SYCL().handleSYCLRegisteredKernels(D, AL);
+    break;
 
   // Swift attributes.
   case ParsedAttr::AT_SwiftAsyncName:

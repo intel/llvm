@@ -12546,6 +12546,20 @@ def err_sycl_special_type_num_init_method : Error<
 def warn_launch_bounds_is_cuda_specific : Warning<
   "%0 attribute ignored, only applicable when targeting Nvidia devices">,
   InGroup<IgnoredAttributes>;
+def err_registered_kernels_num_of_args : Error<
+  "'__registered_kernels__' attribute must have at least one argument">;
+def err_registered_kernels_init_list : Error<
+  "argument to the '__registered_kernels__' attribute must be an "
+  "initializer list expression">;
+def err_registered_kernels_init_list_pair_values : Error<
+  "each initializer list argument to the '__registered_kernels__' attribute "
+  "must contain a pair of values">;
+def err_registered_kernels_resolve_function : Error<
+  "unable to resolve free function kernel '%0'">;
+def err_registered_kernels_name_already_registered : Error<
+  "free function kernel has already been registered with '%0'; cannot register with '%1'">;
+def err_not_sycl_free_function : Error<
+  "attempting to register a function that is not a SYCL free function as '%0'">;
 
 def warn_cuda_maxclusterrank_sm_90 : Warning<
   "'maxclusterrank' requires sm_90 or higher, CUDA arch provided: %0, ignoring "
