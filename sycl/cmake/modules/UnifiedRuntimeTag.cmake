@@ -1,7 +1,7 @@
-# commit 9e48f543b8dd39d45563169433bb529583625dfe
-# Merge: 6a3fece6 1a1108b3
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Jan 15 14:33:29 2025 +0000
-#     Merge pull request #2540 from martygrant/martin/program-info-unswitch
-#     Move urProgramGetInfo success test from a switch to individual tests.
-set(UNIFIED_RUNTIME_TAG 9e48f543b8dd39d45563169433bb529583625dfe)
+# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
+# Merge: d3e97040 b1b0c60c
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 23 13:59:15 2025 +0000
+#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
+#     Fix potential deadlock in the WaitEvent path of CmdBuffers
+set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)

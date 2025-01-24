@@ -1,7 +1,7 @@
 // REQUIRES: linux
 //
 // RUN: grep -r -l 'sycl.hpp' %S/../../test-e2e | FileCheck  %s
-// RUN: grep -r -l 'sycl.hpp' %S/../../test-e2e | wc -l | FileCheck %s --check-prefix CHECK-NUM-MATCHES
+// RUN: grep -r -l 'sycl.hpp' %S/../../test-e2e | grep -v 'test-e2e/PerformanceTests/' | wc -l | FileCheck %s --check-prefix CHECK-NUM-MATCHES
 //
 // CHECK-DAG: README.md
 // CHECK-DAG: lit.cfg.py

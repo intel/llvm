@@ -389,7 +389,7 @@ public:
   static constexpr bool has_identity = true;
 
   ReductionIdentityContainer(const T &) {}
-  ReductionIdentityContainer() {}
+  ReductionIdentityContainer() = default;
 
   /// Returns the statically known identity value.
   static constexpr T getIdentity() {
@@ -406,6 +406,10 @@ public:
   static constexpr bool has_identity = true;
 
   ReductionIdentityContainer(const T &Identity) : MIdentity(Identity) {}
+
+  // Make it trivially copyable (need at least on of the special member
+  // functions):
+  ReductionIdentityContainer(const ReductionIdentityContainer &) = default;
 
   /// Returns the identity value given by user.
   T getIdentity() const { return MIdentity; }
