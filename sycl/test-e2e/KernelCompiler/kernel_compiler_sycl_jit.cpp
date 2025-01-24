@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
+// REQUIRES: aspect-usm_device_allocations
+
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 1
