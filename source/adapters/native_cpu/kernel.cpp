@@ -105,6 +105,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(uint32_t{hKernel->getReferenceCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
+  case UR_KERNEL_INFO_SPILL_MEM_SIZE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
