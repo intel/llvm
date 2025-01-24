@@ -624,6 +624,8 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
   case UR_KERNEL_INFO_NUM_REGS:
   case UR_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(uint32_t{hKernel->getCommonProperties().numKernelArgs});
+  case UR_KERNEL_INFO_SPILL_MEM_SIZE:
+    return ReturnValue(uint32_t{hKernel->getProperties().spillMemSize});
   case UR_KERNEL_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{hKernel->RefCount.load()});
   case UR_KERNEL_INFO_ATTRIBUTES: {

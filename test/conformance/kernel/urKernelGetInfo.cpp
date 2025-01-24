@@ -136,6 +136,22 @@ TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
                                  property_value.data(), nullptr));
 }
 
+TEST_P(urKernelGetInfoTest, SuccessSpillMemSize) {
+  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{});
+
+  ur_kernel_info_t property_name = UR_KERNEL_INFO_SPILL_MEM_SIZE;
+  size_t property_size = 0;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urKernelGetInfo(kernel, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint32_t));
+
+  std::vector<char> property_value(property_size);
+  ASSERT_SUCCESS(urKernelGetInfo(kernel, property_name, property_size,
+                                 property_value.data(), nullptr));
+}
+
 TEST_P(urKernelGetInfoTest, InvalidNullHandleKernel) {
   size_t kernel_name_length = 0;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

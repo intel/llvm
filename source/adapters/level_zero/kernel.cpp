@@ -751,6 +751,8 @@ ur_result_t urKernelGetInfo(
   case UR_KERNEL_INFO_NUM_REGS:
   case UR_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(uint32_t{Kernel->ZeKernelProperties->numKernelArgs});
+  case UR_KERNEL_INFO_SPILL_MEM_SIZE:
+    return ReturnValue(uint32_t{Kernel->ZeKernelProperties->spillMemSize});
   case UR_KERNEL_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Kernel->RefCount.load()});
   case UR_KERNEL_INFO_ATTRIBUTES:
