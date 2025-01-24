@@ -768,6 +768,8 @@ Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
 }
 
 static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
+  if (G->user_empty())
+    return true;
   // Skip instrumenting on "__MsanKernelMetadata" etc.
   if (G->getName().starts_with("__Msan"))
     return true;
