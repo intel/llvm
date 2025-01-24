@@ -57,7 +57,7 @@ if __name__ == "__main__":
     # comparing against is sys.argv[2].
     common.load_configs()
     test_name = os.path.basename(sys.argv[1])
-    test_csv_path = f"{common.OUTPUT_PATH}/{sys.argv[1]}/{sys.argv[2]}"
+    test_csv_path = f"{common.OUTPUT_CACHE}/{sys.argv[1]}/{sys.argv[2]}"
     median_path = f"{common.PERF_RES_PATH}/{sys.argv[1]}/{test_name}-median.csv"
 
     if not os.path.isfile(test_csv_path):

@@ -24,10 +24,10 @@ def load_configs():
     if not os.path.isfile(benchmarking_ci_conf_path):
         raise Exception(f"Please provide path to a valid BENCHMARKING_ROOT.")
 
-    global PERF_RES_PATH, OUTPUT_PATH, metrics_variance, metrics_recorded
+    global PERF_RES_PATH, OUTPUT_CACHE, metrics_variance, metrics_recorded
     global BENCHMARK_ERROR_LOG, BENCHMARK_SLOW_LOG
     perf_res_re = re.compile(r"^PERF_RES_PATH=(.*)$", re.M)
-    output_path_re = re.compile(r"^OUTPUT_PATH=(.*)$", re.M)
+    output_cache_re = re.compile(r"^OUTPUT_CACHE=(.*)$", re.M)
     m_variance_re = re.compile(r"^METRICS_VARIANCE=(.*)$", re.M)
     m_recorded_re = re.compile(r"^METRICS_RECORDED=(.*)$", re.M)
     b_slow_re = re.compile(r"^BENCHMARK_SLOW_LOG=(.*)$", re.M)
@@ -49,8 +49,8 @@ def load_configs():
         for perf_res in perf_res_re.findall(configs_str):
             PERF_RES_PATH = str(perf_res[1:-1])
 
-        for output_path in output_path_re.findall(configs_str):
-            OUTPUT_PATH = str(output_path[1:-1])
+        for output_cache in output_path_re.findall(configs_str):
+            OUTPUT_CACHE = str(output_cache[1:-1])
 
         for b_slow_log in b_slow_re.findall(configs_str):
             BENCHMARK_SLOW_LOG = str(b_slow_log[1:-1])

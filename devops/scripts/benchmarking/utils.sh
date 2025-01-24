@@ -32,8 +32,10 @@ load_all_configs() {
                 export COMPUTE_BENCH_COMPILE_FLAGS="$sanitized_value" ;;
             'COMPUTE_BENCH_ITERATIONS')
                 export COMPUTE_BENCH_ITERATIONS="$sanitized_value" ;;
-            'OUTPUT_PATH')
-                export OUTPUT_PATH="$sanitized_value" ;;
+            'OUTPUT_CACHE')
+                export OUTPUT_CACHE="$sanitized_value" ;;
+            'PASSING_CACHE')
+                export PASSING_CACHE="$sanitized_value" ;;
             'METRICS_VARIANCE')
                 export METRICS_VARIANCE="$sanitized_value" ;;
             'METRICS_RECORDED')
@@ -54,6 +56,8 @@ load_all_configs() {
                 export DEVICE_SELECTOR_ENABLED_BACKENDS="$sanitized_value" ;;
             'DEVICE_SELECTOR_ENABLED_DEVICES')
                 export DEVICE_SELECTOR_ENABLED_DEVICES="$sanitized_value" ;;
+            'ARTIFACT_PATH')
+                export ARTIFACT_PATH="$sanitized_value" ;;
             #*) echo "Unknown key: $sanitized_key" ;;
         esac
     done < "$1"

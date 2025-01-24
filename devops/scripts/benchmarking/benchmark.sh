@@ -115,9 +115,9 @@ check_regression() {
 #
 # Usage: cache <relative path of output csv>
 cache() {
-    mkdir -p "$(dirname "./success/$1")"
-    cp "$OUTPUT_PATH/$1" "./success/$1"
-    mv "$OUTPUT_PATH/$1" "$PERF_RES_PATH/$1"
+    mkdir -p "$(dirname "$PASSING_CACHE/$1")" "$(dirname "$PERF_RES_PATH/$1")"
+    cp "$OUTPUT_CACHE/$1" "$PASSING_CACHE/$1"
+    mv "$OUTPUT_CACHE/$1" "$PERF_RES_PATH/$1"
 }
 
 # Check for a regression + cache if no regression found
@@ -145,6 +145,7 @@ process_benchmarks() {
         exit 1
     else
         rm "$BENCHMARK_ERROR_LOG" "$BENCHMARK_SLOW_LOG" 2> /dev/null
+        mkdir -p "$(dirname $BENCHMARK_ERROR_LOG)" "$(dirname $BENCHMARK_SLOW_LOG)"
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
@@ -155,14 +156,17 @@ process_benchmarks() {
             #
             # /<device selector>/<runner>/<test name>
             #
-            # Figure out the relative path of our testcase result in both
-            # directories: 
+            # Instead of specifying 2 paths with a slightly different root
+            # folder name for every function we use, we can use a relative path
+            # to represent the file in both folders.
+            #
+            # Figure out the relative path of our testcase result:
             test_dir_relpath="$DEVICE_SELECTOR_DIRNAME/$RUNNER/$testcase"
-			mkdir -p "$OUTPUT_PATH/$test_dir_relpath" # Ensure directory exists
-            # TODO generate runner config txt if not exist
             output_csv_relpath="$test_dir_relpath/$testcase-$TIMESTAMP.csv"
+			mkdir -p "$OUTPUT_CACHE/$test_dir_relpath" # Ensure directory exists
+            # TODO generate runner config txt if not exist
 
-            output_csv="$OUTPUT_PATH/$output_csv_relpath" # Real output path
+            output_csv="$OUTPUT_CACHE/$output_csv_relpath"
             $COMPUTE_BENCH_PATH/build/bin/$testcase --csv \
                 --iterations="$COMPUTE_BENCH_ITERATIONS" \
                     | tail +8 > "$output_csv"

@@ -20,9 +20,26 @@ runs:
   - name: Run compute-benchmarks
     shell: bash
     run: |
+      cat << EOF
+
+        #
+        # NOTE TO DEVELOPERS:
+        #
+
+        Check latter steps of the workflow: This job produces an artifact with:
+         - benchmark results from passing/failing tests
+         - log containing all failing (too slow) benchmarks
+         - log containing all erroring benchmarks
+
+        While this step in the workflow provides debugging output describing this
+        information, it might be easier to inspect the logs from the artifact
+        instead.
+
+      EOF
       export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
       export CMPLR_ROOT=$PWD/toolchain
       sycl-ls
+      echo "-----"
       ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
   - name: Push compute-benchmarks results
     shell: bash
@@ -34,6 +51,7 @@ runs:
       load_single_config "$CONFIG_FILE" PERF_RES_PATH
       load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO
       load_single_config "$CONFIG_FILE" PERF_RES_BRANCH
+      echo "ARTIFACT_PATH=$ARTIFACT_PATH" >> $GITHUB_ENV
 
       cd "$PERF_RES_PATH"
       git config user.name "SYCL Benchmarking Bot"
@@ -46,6 +64,4 @@ runs:
     uses: actions/upload-artifact@v4
     with:
       name: Compute-benchmark results (${{ runner.name }})
-      path: |
-        ./uncached_res
-        ./success
+      path: ${{ env.ARTIFACT_PATH }}
