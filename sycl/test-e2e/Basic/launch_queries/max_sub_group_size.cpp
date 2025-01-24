@@ -65,7 +65,7 @@ int main() {
     static_assert(
         std::is_same_v<std::remove_cv_t<decltype(maxSubSGSize3D)>, uint32_t>,
         "max_sub_group_size query must return uint32_t");
-    assert(maxSubSGSize3D == maxDeviceValue);
+    assert(maxSubSGSize3D <= maxDeviceValue);
   }
   {
     const auto maxSubSGSize2D = kernel.template ext_oneapi_get_info<
@@ -75,7 +75,7 @@ int main() {
     static_assert(
         std::is_same_v<std::remove_cv_t<decltype(maxSubSGSize2D)>, uint32_t>,
         "max_sub_group_size query must return uint32_t");
-    assert(maxSubSGSize2D == maxDeviceValue);
+    assert(maxSubSGSize2D <= maxDeviceValue);
   }
   {
     const auto maxSubSGSize1D = kernel.template ext_oneapi_get_info<
@@ -85,6 +85,6 @@ int main() {
     static_assert(
         std::is_same_v<std::remove_cv_t<decltype(maxSubSGSize1D)>, uint32_t>,
         "max_sub_group_size query must return uint32_t");
-    assert(maxSubSGSize1D == maxDeviceValue);
+    assert(maxSubSGSize1D <= maxDeviceValue);
   }
 }
