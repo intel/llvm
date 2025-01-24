@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -std=c++20 %s -o %t.out
+// RUN: %{build} -std=c++20 -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
