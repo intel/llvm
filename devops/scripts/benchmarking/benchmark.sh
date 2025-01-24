@@ -22,14 +22,14 @@ This script builds and runs benchmarks from compute-benchmarks."
 
 clone_perf_res() {
     echo "### Cloning llvm-ci-perf-res ($PERF_RES_GIT_REPO:$PERF_RES_BRANCH) ###"
-    mkdir -p "$(dirname $PERF_RES_PATH)"
+    mkdir -p "$(dirname "$PERF_RES_PATH")"
     git clone -b $PERF_RES_BRANCH https://github.com/$PERF_RES_GIT_REPO $PERF_RES_PATH
     [ "$?" -ne 0 ] && exit $? 
 }
 
 clone_compute_bench() {
     echo "### Cloning compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
-    mkdir -p "$(dirname $COMPUTE_BENCH_PATH)"
+    mkdir -p "$(dirname "$COMPUTE_BENCH_PATH")"
     git clone -b $COMPUTE_BENCH_BRANCH \
               --recurse-submodules https://github.com/$COMPUTE_BENCH_GIT_REPO \
               $COMPUTE_BENCH_PATH
@@ -98,8 +98,8 @@ samples_under_threshold () {
 #
 # Usage: check_regression <relative path of output csv>
 check_regression() {
-    csv_relpath="$(dirname $1)"
-    csv_name="$(basename $1)"
+    csv_relpath="$(dirname "$1")"
+    csv_name="$(basename "$1")"
     if samples_under_threshold "$csv_relpath"; then
         echo "Not enough samples to construct a good average, performance\
  check skipped!"
@@ -145,7 +145,7 @@ process_benchmarks() {
         exit 1
     else
         rm "$BENCHMARK_ERROR_LOG" "$BENCHMARK_SLOW_LOG" 2> /dev/null
-        mkdir -p "$(dirname $BENCHMARK_ERROR_LOG)" "$(dirname $BENCHMARK_SLOW_LOG)"
+        mkdir -p "$(dirname "$BENCHMARK_ERROR_LOG")" "$(dirname "$BENCHMARK_SLOW_LOG")"
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
@@ -216,7 +216,7 @@ load_configs() {
     # If this is not provided, this function tries to guess where the files
     # are based on how the script is called, and verifies that all necessary
     # configs and scripts are reachable. 
-    [ -z "$BENCHMARKING_ROOT" ] && BENCHMARKING_ROOT="$(dirname $0)"
+    [ -z "$BENCHMARKING_ROOT" ] && BENCHMARKING_ROOT="$(dirname "$0")"
 
     BENCHMARK_CI_CONFIG="$(realpath $BENCHMARKING_ROOT/benchmark-ci.conf)"
     TESTS_CONFIG="$(realpath $BENCHMARKING_ROOT/enabled_tests.conf)"

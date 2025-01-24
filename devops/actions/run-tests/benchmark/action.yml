@@ -60,7 +60,7 @@ runs:
       git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
       git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
   - name: Archive compute-benchmark results
-    if: inputs.tests_selector == 'benchmark' && always()
+    if: always()
     uses: actions/upload-artifact@v4
     with:
       name: Compute-benchmark results (${{ runner.name }})

@@ -49,7 +49,7 @@ def load_configs():
         for perf_res in perf_res_re.findall(configs_str):
             PERF_RES_PATH = str(perf_res[1:-1])
 
-        for output_cache in output_path_re.findall(configs_str):
+        for output_cache in output_cache_re.findall(configs_str):
             OUTPUT_CACHE = str(output_cache[1:-1])
 
         for b_slow_log in b_slow_re.findall(configs_str):
