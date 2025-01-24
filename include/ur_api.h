@@ -5997,6 +5997,9 @@ typedef enum ur_kernel_info_t {
   /// [uint32_t][optional-query] Return the number of registers used by the
   /// compiled kernel.
   UR_KERNEL_INFO_NUM_REGS = 6,
+  /// [uint32_t][optional-query] Return the spill memory size allocated by
+  /// the compiler.
+  UR_KERNEL_INFO_SPILL_MEM_SIZE = 7,
   /// @cond
   UR_KERNEL_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -6097,7 +6100,7 @@ typedef enum ur_kernel_exec_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_INFO_NUM_REGS < propName`
+///         + `::UR_KERNEL_INFO_SPILL_MEM_SIZE < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
