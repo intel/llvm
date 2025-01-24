@@ -174,47 +174,36 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
     MemParser(Params, M);
   };
 
-  size_t MaxSize = (std::numeric_limits<size_t>::max)();
-
   // Update pool settings if specified in environment.
+  size_t MaxSize = (std::numeric_limits<size_t>::max)();
   size_t EnableBuffers = 1;
-  if (config != "") {
-    std::string Params = config;
-    size_t Pos = Params.find(';');
-    if (Pos != std::string::npos) {
-      if (Pos > 0) {
-        GetValue(Params, Pos, EnableBuffers);
+
+  bool EnableBuffersSet = false;
+  bool MaxSizeSet = false;
+  size_t Start = 0;
+  size_t End = config.find(';');
+  while (true) {
+    std::string Param = config.substr(Start, End - Start);
+    if (!EnableBuffersSet && (Param == "" || isdigit(Param[0]))) {
+      if (Param != "") {
+        GetValue(Param, Param.size(), EnableBuffers);
       }
-      Params.erase(0, Pos + 1);
-      size_t Pos = Params.find(';');
-      if (Pos != std::string::npos) {
-        if (Pos > 0) {
-          GetValue(Params, Pos, MaxSize);
-        }
-        Params.erase(0, Pos + 1);
-        do {
-          size_t Pos = Params.find(';');
-          if (Pos != std::string::npos) {
-            if (Pos > 0) {
-              std::string MemParams = Params.substr(0, Pos);
-              MemTypeParser(MemParams);
-            }
-            Params.erase(0, Pos + 1);
-            if (Params.size() == 0) {
-              break;
-            }
-          } else {
-            MemTypeParser(Params);
-            break;
-          }
-        } while (true);
-      } else {
-        // set MaxPoolSize for all configs
-        GetValue(Params, Params.size(), MaxSize);
+      EnableBuffersSet = true;
+    } else if (!MaxSizeSet && (Param == "" || isdigit(Param[0]))) {
+      if (Param != "") {
+        GetValue(Param, Param.size(), MaxSize);
       }
+      MaxSizeSet = true;
     } else {
-      GetValue(Params, Params.size(), EnableBuffers);
+      MemTypeParser(Param);
     }
+
+    if (End == std::string::npos) {
+      break;
+    }
+
+    Start = End + 1;
+    End = config.find(';', Start);
   }
 
   AllConfigs.EnableBuffers = EnableBuffers;
