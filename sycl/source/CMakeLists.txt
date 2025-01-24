@@ -30,9 +30,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (SYCL_ENABLE_STACK_PRINTING)
     if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
       (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
-        add_dependencies(${LIB_NAME} LLVMSupport)
         target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
-        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
     endif()
   endif()
 
@@ -146,6 +144,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE OpenCL-Headers
   )
+
+  # Link with LLVMSupport and LLVMObject for shared utilities.
+  add_dependencies(${LIB_NAME} LLVMSupport LLVMObject)
+  target_include_directories(${LIB_NAME} PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
+  target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport LLVMObject)
+  target_compile_definitions(${LIB_NAME} PRIVATE LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING=1)
 
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)

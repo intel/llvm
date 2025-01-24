@@ -14,6 +14,8 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -64,7 +66,8 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
+                 std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
@@ -83,7 +86,8 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernel3Image() {
   std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
-  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO,
+                 std::move(ImgKPOI));
 
   std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({EAMTestKernel3Name});
