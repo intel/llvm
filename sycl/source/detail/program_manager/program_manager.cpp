@@ -1797,8 +1797,14 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
-    if (EntriesB == EntriesE)
-      continue;
+    if (EntriesB == EntriesE) {
+      std::unique_ptr<RTDeviceBinaryImage> Img =
+          std::make_unique<RTDeviceBinaryImage>(RawImg);
+      const RTDeviceBinaryImage::PropertyRange &BF16DeviceLibType =
+          Img->getDeviceLibBF16Type();
+      if (!BF16DeviceLibType.isAvailable())
+        continue;
+    }
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
     if (isDeviceImageCompressed(RawImg))
