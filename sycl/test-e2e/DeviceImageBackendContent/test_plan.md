@@ -84,5 +84,7 @@ in the testing environment.
 Unlike above, for CUDA, there is not a portable way to retrieve a SYCL kernel from a CUBIN module. 
 This test, therefore, will simply get the contents of the CUBIN module and use `cuModuleLoadData` to create a module object out of the image contents and verify that `CUDA_SUCCESS` is returned. 
 
+The test requires CUDA backend and development kit to be available in the testing environment.
+
 [ref-link]: ../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc#level-zero-and-opencl-compatibility
 [spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_device_image_backend_content.asciidoc
