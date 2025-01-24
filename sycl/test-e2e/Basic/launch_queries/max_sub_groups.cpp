@@ -5,9 +5,10 @@
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/usm.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
+#include <sycl/sub_group.hpp>
+#include <sycl/usm.hpp>
 
 #include <cassert>
 #include <cstdint>

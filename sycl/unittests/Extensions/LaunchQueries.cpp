@@ -99,9 +99,9 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes3DSuccess) {
   const auto result = std::is_same_v<std::remove_cv_t<ret_type>, sycl::id<3>>;
   ASSERT_TRUE(result);
   ASSERT_EQ(ret_type::dimensions, 3);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<ret_type>(123));
-  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<ret_type>(213));
-  ASSERT_EQ(maxWorkGroupItemSizes[2], static_cast<ret_type>(321));
+  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<size_t>(123));
+  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(213));
+  ASSERT_EQ(maxWorkGroupItemSizes[2], static_cast<size_t>(321));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizes2DSuccess) {
@@ -116,8 +116,8 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes2DSuccess) {
   const auto result = std::is_same_v<std::remove_cv_t<ret_type>, sycl::id<2>>;
   ASSERT_TRUE(result);
   ASSERT_EQ(ret_type::dimensions, 2);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<ret_type>(123));
-  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<ret_type>(213));
+  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<size_t>(123));
+  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(213));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizes1DSuccess) {
@@ -132,7 +132,7 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes1DSuccess) {
   const auto result = std::is_same_v<std::remove_cv_t<ret_type>, sycl::id<1>>;
   ASSERT_TRUE(result);
   ASSERT_EQ(decltype(maxWorkGroupItemSizes)::dimensions, 1);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<ret_type>(123));
+  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<size_t>(123));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizesExceptionCode) {
