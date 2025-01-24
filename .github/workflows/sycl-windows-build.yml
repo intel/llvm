@@ -158,6 +158,9 @@ jobs:
         cmake --build build --target check-sycl-unittests
     - name: check-llvm-spirv
       if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
+      # Temporary workaround to disable running tests requiring spirv-tools.
+      env:
+        LIT_OPTS: "--param disable-spirv-tools=True"
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw

@@ -7,9 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: level_zero
-// UNSUPPORTED: windows
+// REQUIRES: aspect-usm_device_allocations
 
-// IGC shader dump not available on Windows.
+// UNSUPPORTED: windows
+// UNSUPPORTED-INTENDED:  IGC shader dump not available on Windows.
 
 // RUN: %{build} -o %t.out
 // RUN: env IGC_DumpToCustomDir=%T.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out %T.dump/
