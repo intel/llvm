@@ -484,12 +484,19 @@ void saveBF16DeviceLibModule(
     std::vector<std::unique_ptr<util::SimpleTable>> &OutTables, int I,
     LLVMContext &Context) {
   const std::string FallbackIR = "libsycl-fallback-bfloat16.bc";
+  const std::string NativeIR = "libsycl-native-bfloat16.bc";
   SMDiagnostic Err;
   StringRef DeviceLibLoc = DeviceLibDir;
+
   std::string FallbackIRPath = DeviceLibLoc.str() + "/" + FallbackIR;
   std::unique_ptr<Module> IRModule = parseIRFile(FallbackIRPath, Err, Context);
   llvm::module_split::ModuleDesc LibIRMD(std::move(IRModule), FallbackIR);
   saveModule(OutTables, LibIRMD, I, FallbackIR, true);
+
+  std::string NativeIRPath = DeviceLibLoc.str() + "/" + NativeIR;
+  std::unique_ptr<Module> IRModuleNative = parseIRFile(NativeIRPath, Err, Context);
+  llvm::module_split::ModuleDesc LibIRMDNative(std::move(IRModuleNative), NativeIR);
+  saveModule(OutTables, LibIRMDNative, ++I, NativeIR, true);
 }
 
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
