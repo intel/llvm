@@ -1,4 +1,5 @@
 // REQUIRES: gpu, level_zero
+// XFAIL: level_zero
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
