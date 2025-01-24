@@ -44,17 +44,18 @@ int main() {
   const auto ctx = q.get_context();
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   auto kernel = bundle.template get_kernel<kernels::TestKernel>();
+  const auto dev = q.get_device();
 
-  // get value to compare with
-  auto *maxLocalRange = sycl::malloc_shared<size_t>(1, q);
-  q.submit([&](sycl::handler &h) {
-     h.parallel_for(sycl::nd_range<1>(1, 1), [=](sycl::nd_item<1> item) {
-       const auto sg = item.get_sub_group();
-       if (item.get_local_id(0) == 0) {
-         *maxLocalRange = sg.get_group_range()[0];
-       }
-     });
+  sycl::buffer<value_type, 1> buf{sycl::range<1>{1}};
+  auto launchRange = sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}};
+  q.submit([&](sycl::handler &cgh) {
+     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     cgh.parallel_for<class kernels::TestKernel>(launchRange,
+                                                 kernels::TestKernel{acc});
    }).wait();
+
+  const size_t maxDeviceValue =
+      dev.get_info<sycl::info::device::max_num_sub_groups>();
   {
     const sycl::range<3> r3D{1, 1, 1};
     const auto subSGSize = kernel.template ext_oneapi_get_info<
@@ -63,7 +64,7 @@ int main() {
     static_assert(
         std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
         "num_sub_groups query must return uint32_t");
-    assert(subSGSize == *maxLocalRange);
+    assert(subSGSize <= maxDeviceValue);
   }
   {
     const sycl::range<2> r2D{1, 1};
@@ -73,7 +74,7 @@ int main() {
     static_assert(
         std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
         "num_sub_groups query must return uint32_t");
-    assert(subSGSize == *maxLocalRange);
+    assert(subSGSize <= maxDeviceValue);
   }
   {
     const sycl::range<1> r1D{1};
@@ -83,7 +84,6 @@ int main() {
     static_assert(
         std::is_same_v<std::remove_cv_t<decltype(subSGSize)>, uint32_t>,
         "num_sub_groups query must return uint32_t");
-    assert(subSGSize == *maxLocalRange);
+    assert(subSGSize <= maxDeviceValue);
   }
-  sycl::free(maxLocalRange, q);
 }

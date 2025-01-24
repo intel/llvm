@@ -44,45 +44,47 @@ int main() {
   const auto ctx = q.get_context();
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   auto kernel = bundle.template get_kernel<kernels::TestKernel>();
+  const auto dev = q.get_device();
 
-  // get value to compare with
-  auto *MaxLocalRange = sycl::malloc_shared<size_t>(1, q);
-  q.submit([&](sycl::handler &h) {
-     h.parallel_for(sycl::nd_range<1>(1, 1), [=](sycl::nd_item<1> item) {
-       const auto sg = item.get_sub_group();
-       *MaxLocalRange = sg.get_max_local_range()[0];
-     });
+  sycl::buffer<value_type, 1> buf{sycl::range<1>{1}};
+  auto launchRange = sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}};
+  q.submit([&](sycl::handler &cgh) {
+     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     cgh.parallel_for<class kernels::TestKernel>(launchRange,
+                                                 kernels::TestKernel{acc});
    }).wait();
 
+  auto deviceValues = dev.get_info<sycl::info::device::sub_group_sizes>();
+  uint32_t maxDeviceValue =
+      *std::max_element(deviceValues.begin(), deviceValues.end());
   {
-    const auto MaxSubSGSize3D = kernel.template ext_oneapi_get_info<
+    const auto maxSubSGSize3D = kernel.template ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_sub_group_size>(
         q, sycl::range<3>{1, 1, 1});
 
     static_assert(
-        std::is_same_v<std::remove_cv_t<decltype(MaxSubSGSize3D)>, uint32_t>,
+        std::is_same_v<std::remove_cv_t<decltype(maxSubSGSize3D)>, uint32_t>,
         "max_sub_group_size query must return uint32_t");
-    assert(MaxSubSGSize3D == *MaxLocalRange);
+    assert(maxSubSGSize3D == maxDeviceValue);
   }
   {
-    const auto MaxSubSGSize2D = kernel.template ext_oneapi_get_info<
+    const auto maxSubSGSize2D = kernel.template ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_sub_group_size>(
         q, sycl::range<2>{1, 1});
 
     static_assert(
-        std::is_same_v<std::remove_cv_t<decltype(MaxSubSGSize2D)>, uint32_t>,
+        std::is_same_v<std::remove_cv_t<decltype(maxSubSGSize2D)>, uint32_t>,
         "max_sub_group_size query must return uint32_t");
-    assert(MaxSubSGSize2D == *MaxLocalRange);
+    assert(maxSubSGSize2D == maxDeviceValue);
   }
   {
-    const auto MaxSubSGSize1D = kernel.template ext_oneapi_get_info<
+    const auto maxSubSGSize1D = kernel.template ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_sub_group_size>(
         q, sycl::range<1>{1});
 
     static_assert(
-        std::is_same_v<std::remove_cv_t<decltype(MaxSubSGSize1D)>, uint32_t>,
+        std::is_same_v<std::remove_cv_t<decltype(maxSubSGSize1D)>, uint32_t>,
         "max_sub_group_size query must return uint32_t");
-    assert(MaxSubSGSize1D == *MaxLocalRange);
+    assert(maxSubSGSize1D == maxDeviceValue);
   }
-  sycl::free(MaxLocalRange, q);
 }

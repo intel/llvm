@@ -74,6 +74,7 @@ int main() {
                                        sycl::range<1>{MaxWorkGroupSizeActual}};
   Q.submit([&](sycl::handler &cgh) {
      auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-     cgh.parallel_for(LaunchRange, kernels::TestKernel{Acc});
+     cgh.parallel_for<class kernels::TestKernel>(LaunchRange,
+                                                 kernels::TestKernel{Acc});
    }).wait();
 }
