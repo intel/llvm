@@ -10,92 +10,6 @@
 
 #include "common.hpp"
 
-#include <unordered_map>
-
-const std::unordered_map<ur_image_channel_order_t, cl_channel_order>
-    ChannelOrderMap = {
-        {UR_IMAGE_CHANNEL_ORDER_A, CL_A},
-        {UR_IMAGE_CHANNEL_ORDER_R, CL_R},
-        {UR_IMAGE_CHANNEL_ORDER_RG, CL_RG},
-        {UR_IMAGE_CHANNEL_ORDER_RA, CL_RA},
-        {UR_IMAGE_CHANNEL_ORDER_RGB, CL_RGB},
-        {UR_IMAGE_CHANNEL_ORDER_RGBA, CL_RGBA},
-        {UR_IMAGE_CHANNEL_ORDER_BGRA, CL_BGRA},
-        {UR_IMAGE_CHANNEL_ORDER_ARGB, CL_ARGB},
-        {UR_IMAGE_CHANNEL_ORDER_ABGR, CL_ABGR},
-        {UR_IMAGE_CHANNEL_ORDER_INTENSITY, CL_INTENSITY},
-        {UR_IMAGE_CHANNEL_ORDER_LUMINANCE, CL_LUMINANCE},
-        {UR_IMAGE_CHANNEL_ORDER_RX, CL_Rx},
-        {UR_IMAGE_CHANNEL_ORDER_RGX, CL_RGx},
-        {UR_IMAGE_CHANNEL_ORDER_RGBX, CL_RGBx},
-        {UR_IMAGE_CHANNEL_ORDER_SRGBA, CL_sRGBA},
-};
-
-const std::unordered_map<ur_image_channel_type_t, cl_channel_type>
-    ChannelTypeMap = {
-        {UR_IMAGE_CHANNEL_TYPE_SNORM_INT8, CL_SNORM_INT8},
-        {UR_IMAGE_CHANNEL_TYPE_SNORM_INT16, CL_SNORM_INT16},
-        {UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, CL_UNORM_INT8},
-        {UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, CL_UNORM_INT16},
-        {UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565, CL_UNORM_SHORT_565},
-        {UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555, CL_UNORM_SHORT_555},
-        {UR_IMAGE_CHANNEL_TYPE_INT_101010, CL_UNORM_INT_101010},
-        {UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8, CL_SIGNED_INT8},
-        {UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16, CL_SIGNED_INT16},
-        {UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32, CL_SIGNED_INT32},
-        {UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8, CL_UNSIGNED_INT8},
-        {UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16, CL_UNSIGNED_INT16},
-        {UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32, CL_UNSIGNED_INT32},
-        {UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT, CL_HALF_FLOAT},
-        {UR_IMAGE_CHANNEL_TYPE_FLOAT, CL_FLOAT},
-};
-
-cl_image_format mapURImageFormatToCL(const ur_image_format_t &PImageFormat) {
-  cl_image_format CLImageFormat = {UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32,
-                                   UR_IMAGE_CHANNEL_TYPE_FORCE_UINT32};
-
-  auto channelOrderIt = ChannelOrderMap.find(PImageFormat.channelOrder);
-  if (channelOrderIt != ChannelOrderMap.end()) {
-    CLImageFormat.image_channel_order = channelOrderIt->second;
-  }
-
-  auto channelTypeIt = ChannelTypeMap.find(PImageFormat.channelType);
-  if (channelTypeIt != ChannelTypeMap.end()) {
-    CLImageFormat.image_channel_data_type = channelTypeIt->second;
-  }
-
-  return CLImageFormat;
-}
-
-ur_image_format_t mapCLImageFormatToUR(const cl_image_format *PImageFormat) {
-  ur_image_format_t URImageFormat = {UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32,
-                                     UR_IMAGE_CHANNEL_TYPE_FORCE_UINT32};
-
-  auto reverseChannelOrderIt =
-      std::find_if(ChannelOrderMap.begin(), ChannelOrderMap.end(),
-                   [PImageFormat](const auto &pair) {
-                     return pair.second == PImageFormat->image_channel_order;
-                   });
-  if (reverseChannelOrderIt != ChannelOrderMap.end()) {
-    URImageFormat.channelOrder = reverseChannelOrderIt->first;
-  }
-
-  URImageFormat.channelOrder = (reverseChannelOrderIt != ChannelOrderMap.end())
-                                   ? reverseChannelOrderIt->first
-                                   : UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32;
-
-  auto reverseChannelTypeIt = std::find_if(
-      ChannelTypeMap.begin(), ChannelTypeMap.end(),
-      [PImageFormat](const auto &pair) {
-        return pair.second == PImageFormat->image_channel_data_type;
-      });
-  if (reverseChannelTypeIt != ChannelTypeMap.end()) {
-    URImageFormat.channelType = reverseChannelTypeIt->first;
-  }
-
-  return URImageFormat;
-}
-
 cl_image_format mapURImageFormatToCL(const ur_image_format_t *PImageFormat) {
   cl_image_format CLImageFormat;
   switch (PImageFormat->channelOrder) {
@@ -260,12 +174,6 @@ cl_int mapURMemImageInfoToCL(ur_image_info_t URPropName) {
     return CL_IMAGE_HEIGHT;
   case UR_IMAGE_INFO_DEPTH:
     return CL_IMAGE_DEPTH;
-  case UR_IMAGE_INFO_ARRAY_SIZE:
-    return CL_IMAGE_ARRAY_SIZE;
-  case UR_IMAGE_INFO_NUM_MIP_LEVELS:
-    return CL_IMAGE_NUM_MIP_LEVELS;
-  case UR_IMAGE_INFO_NUM_SAMPLES:
-    return CL_IMAGE_NUM_SAMPLES;
   default:
     return -1;
   }
@@ -489,14 +397,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
   CL_RETURN_ON_FAILURE(ClResult);
   if (pPropSizeRet) {
     *pPropSizeRet = CheckPropSize;
-  } else {
-    if (propName == UR_IMAGE_INFO_FORMAT) {
-      ur_image_format_t format = mapCLImageFormatToUR(
-          reinterpret_cast<const cl_image_format *>(pPropValue));
-      return ReturnValue(format);
-    }
   }
-
   return UR_RESULT_SUCCESS;
 }
 

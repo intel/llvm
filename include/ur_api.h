@@ -3324,12 +3324,6 @@ typedef enum ur_image_info_t {
   UR_IMAGE_INFO_HEIGHT = 5,
   /// [size_t] image depth
   UR_IMAGE_INFO_DEPTH = 6,
-  /// [size_t] array size
-  UR_IMAGE_INFO_ARRAY_SIZE = 7,
-  /// [uint32_t] number of MIP levels
-  UR_IMAGE_INFO_NUM_MIP_LEVELS = 8,
-  /// [uint32_t] number of samples
-  UR_IMAGE_INFO_NUM_SAMPLES = 9,
   /// @cond
   UR_IMAGE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -3843,7 +3837,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMemory`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_IMAGE_INFO_NUM_SAMPLES < propName`
+///         + `::UR_IMAGE_INFO_DEPTH < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -9505,7 +9499,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_IMAGE_INFO_NUM_SAMPLES < propName`
+///         + `::UR_IMAGE_INFO_DEPTH < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
