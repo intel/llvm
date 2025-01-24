@@ -95,14 +95,13 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes3DSuccess) {
   const auto Kernel = getKernel(Queue);
   const auto maxWorkGroupItemSizes = Kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_work_item_sizes<3>>(Queue);
-  const auto result =
-      std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupItemSizes)>,
-                     sycl::id<3>>;
+  using ret_type = decltype(maxWorkGroupItemSizes);
+  const auto result = std::is_same_v<std::remove_cv_t<ret_type>, sycl::id<3>>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(decltype(maxWorkGroupItemSizes)::dimensions, 3);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], 123);
-  ASSERT_EQ(maxWorkGroupItemSizes[1], 213);
-  ASSERT_EQ(maxWorkGroupItemSizes[2], 321);
+  ASSERT_EQ(ret_type::dimensions, 3);
+  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<ret_type>(123));
+  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<ret_type>(213));
+  ASSERT_EQ(maxWorkGroupItemSizes[2], static_cast<ret_type>(321));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizes2DSuccess) {
@@ -113,13 +112,12 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes2DSuccess) {
   const auto Kernel = getKernel(Queue);
   const auto maxWorkGroupItemSizes = Kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_work_item_sizes<2>>(Queue);
-  const auto result =
-      std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupItemSizes)>,
-                     sycl::id<2>>;
+  using ret_type = decltype(maxWorkGroupItemSizes);
+  const auto result = std::is_same_v<std::remove_cv_t<ret_type>, sycl::id<2>>;
   ASSERT_TRUE(result);
-  ASSERT_EQ(decltype(maxWorkGroupItemSizes)::dimensions, 2);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], 123);
-  ASSERT_EQ(maxWorkGroupItemSizes[1], 213);
+  ASSERT_EQ(ret_type::dimensions, 2);
+  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<ret_type>(123));
+  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<ret_type>(213));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizes1DSuccess) {
@@ -130,12 +128,11 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes1DSuccess) {
   const auto Kernel = getKernel(Queue);
   const auto maxWorkGroupItemSizes = Kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_work_item_sizes<1>>(Queue);
-  const auto result =
-      std::is_same_v<std::remove_cv_t<decltype(maxWorkGroupItemSizes)>,
-                     sycl::id<1>>;
+  using ret_type = decltype(maxWorkGroupItemSizes);
+  const auto result = std::is_same_v<std::remove_cv_t<ret_type>, sycl::id<1>>;
   ASSERT_TRUE(result);
   ASSERT_EQ(decltype(maxWorkGroupItemSizes)::dimensions, 1);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], 123);
+  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<ret_type>(123));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizesExceptionCode) {
