@@ -170,34 +170,30 @@ struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoDeviceQueueTestWithInfoParam);
 
-TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, SuccessDeviceDefault) {
-  size_t property_size = 0;
+TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, DeviceDefault) {
+  size_t size = 0;
   ur_queue_info_t property_name = UR_QUEUE_INFO_DEVICE_DEFAULT;
-
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(sizeof(ur_queue_handle_t), property_size);
+      urQueueGetInfo(queue, property_name, 0, nullptr, &size), property_name);
+  ASSERT_EQ(sizeof(ur_queue_handle_t), size);
 
   ur_queue_handle_t returned_queue = nullptr;
-  ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
-                                &returned_queue, nullptr));
+  ASSERT_SUCCESS(
+      urQueueGetInfo(queue, property_name, size, &returned_queue, nullptr));
 
   ASSERT_EQ(queue, returned_queue);
 }
 
-TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, SuccessSize) {
-  size_t property_size = 0;
+TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, Size) {
+  size_t size = 0;
   ur_queue_info_t property_name = UR_QUEUE_INFO_SIZE;
-
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(sizeof(uint32_t), property_size);
+      urQueueGetInfo(queue, property_name, 0, nullptr, &size), property_name);
+  ASSERT_EQ(sizeof(uint32_t), size);
 
   uint32_t returned_size = 0;
-  ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
-                                &returned_size, nullptr));
+  ASSERT_SUCCESS(
+      urQueueGetInfo(queue, property_name, size, &returned_size, nullptr));
 
   ASSERT_GT(returned_size, 0);
 }
