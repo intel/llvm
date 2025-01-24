@@ -215,7 +215,9 @@ public:
     return SpecConstDefaultValuesMap;
   }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
-  const PropertyRange &getDeviceLibBF16Type() const { return DeviceLibBF16Type; }
+  const PropertyRange &getDeviceLibBF16Type() const {
+    return DeviceLibBF16Type;
+  }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
