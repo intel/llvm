@@ -135,10 +135,7 @@ jobs:
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash
-      run: |
-        if [[ ${{inputs.compiler}} == 'icx' ]]; then
-          export LIT_FILTER="SYCL"
-        fi
+      run: |      
         cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
@@ -147,10 +144,7 @@ jobs:
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       shell: bash
-      run: |
-         if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_XFAIL="regression\host_tanpi_double_accuracy.cpp"
-         fi
+      run: |        
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
