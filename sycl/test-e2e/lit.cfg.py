@@ -710,7 +710,7 @@ for sycl_device in config.sycl_devices:
     config.sycl_build_targets.add(target)
 
 for target in config.sycl_build_targets:
-    config.available_features.add("any-target-is-" + target.replace("target-",""))
+    config.available_features.add("any-target-is-" + target.replace("target-", ""))
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}

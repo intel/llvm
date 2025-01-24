@@ -85,7 +85,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 for item in expression_list
                 if E2EExpr.evaluate(
                     item, features, build_only_mode, is_requires_directive
-                ) != is_requires_directive
+                )
+                != is_requires_directive
             ]
         except ValueError as e:
             raise ValueError("Error in expression:\n%s" % str(e))
@@ -94,22 +95,27 @@ class SYCLEndToEndTest(lit.formats.ShTest):
     BuildAndRun = False
     RequiresDirective = True
     UnsupportedDirective = False
+
     def getMissingRequires(self, features, expression_list):
         return self.getMatchedFromList(
-                    features, expression_list, self.BuildAndRun, self.RequiresDirective
-                )
+            features, expression_list, self.BuildAndRun, self.RequiresDirective
+        )
+
     def getMissingRequiresBuildOnly(self, features, expression_list):
         return self.getMatchedFromList(
-                    features, expression_list, self.BuildOnly, self.RequiresDirective
-                )
+            features, expression_list, self.BuildOnly, self.RequiresDirective
+        )
+
     def getMatchedUnsupported(self, features, expression_list):
         return self.getMatchedFromList(
-                    features, expression_list, self.BuildAndRun, self.UnsupportedDirective
-                )
+            features, expression_list, self.BuildAndRun, self.UnsupportedDirective
+        )
+
     def getMatchedUnsupportedBuildOnly(self, features, expression_list):
         return self.getMatchedFromList(
-                    features, expression_list, self.BuildOnly, self.UnsupportedDirective
-                )
+            features, expression_list, self.BuildOnly, self.UnsupportedDirective
+        )
+
     getMatchedXFail = getMatchedUnsupported
 
     def select_build_targets_for_test(self, test):
@@ -180,9 +186,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_without_xfail = [
             d
             for d in devices
-            if not self.getMatchedXFail(
-                test.config.sycl_dev_features[d], test.xfails
-            )
+            if not self.getMatchedXFail(test.config.sycl_dev_features[d], test.xfails)
         ]
 
         return devices_without_xfail

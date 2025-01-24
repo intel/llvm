@@ -62,7 +62,9 @@ class E2EExpr(BooleanExpression):
         else:
             self.unknown = False
         if self.value and self.unknown:
-            raise ValueError("Runtime feature \"" + token +"\" evaluated to True in build-only")
+            raise ValueError(
+                'Runtime feature "' + token + '" evaluated to True in build-only'
+            )
 
     def parseAND(self):
         self.parseNOT()
@@ -112,13 +114,21 @@ class TestE2EExpr(unittest.TestCase):
         BuildAndRun = False
         RequiresDirective = True
         UnsupportedDirective = False
-        RegularEval= lambda expr, features: E2EExpr.evaluate(expr, features, BuildAndRun)
-        RequiresBuildEval = lambda expr, features: E2EExpr.evaluate(expr, features, BuildOnly, RequiresDirective)
-        UnsupportedBuildEval = lambda expr, features: E2EExpr.evaluate(expr, features, BuildOnly, UnsupportedDirective)
+        RegularEval = lambda expr, features: E2EExpr.evaluate(
+            expr, features, BuildAndRun
+        )
+        RequiresBuildEval = lambda expr, features: E2EExpr.evaluate(
+            expr, features, BuildOnly, RequiresDirective
+        )
+        UnsupportedBuildEval = lambda expr, features: E2EExpr.evaluate(
+            expr, features, BuildOnly, UnsupportedDirective
+        )
         # Non build-only expressions should work the same
         self.assertTrue(RegularEval("linux", {"linux", "rt_feature"}))
         self.assertTrue(RegularEval("rt_feature", {"linux", "rt_feature"}))
-        self.assertFalse(RegularEval("rt_feature1 && rt_feature2", {"linux", "rt_feature1"}))
+        self.assertFalse(
+            RegularEval("rt_feature1 && rt_feature2", {"linux", "rt_feature1"})
+        )
         # build-only expressions with no unknowns should work the same
         self.assertTrue(UnsupportedBuildEval("linux", {"linux"}))
         self.assertFalse(RequiresBuildEval("linux && windows", {"linux"}))
@@ -132,14 +142,20 @@ class TestE2EExpr(unittest.TestCase):
         self.assertTrue(RequiresBuildEval("linux && rt_feature", {"linux"}))
         self.assertFalse(UnsupportedBuildEval("linux && rt_feature", {"linux"}))
         self.assertTrue(RequiresBuildEval("linux && !(zstd || rt_feature)", {"linux"}))
-        self.assertFalse(UnsupportedBuildEval("linux && !(zstd || rt_feature)", {"linux"}))
+        self.assertFalse(
+            UnsupportedBuildEval("linux && !(zstd || rt_feature)", {"linux"})
+        )
         # build-only expressions where unknown does not affect the resulting value
         self.assertTrue(RequiresBuildEval("linux || rt_feature", {"linux"}))
         self.assertTrue(UnsupportedBuildEval("linux || rt_feature", {"linux"}))
         self.assertFalse(RequiresBuildEval("windows && rt_feature", {"linux"}))
         self.assertFalse(UnsupportedBuildEval("windows && rt_feature", {"linux"}))
-        self.assertFalse(RequiresBuildEval("linux && (vulkan && rt_feature)", {"linux"}))
-        self.assertFalse(UnsupportedBuildEval("linux && (vulkan && rt_feature)", {"linux"}))
+        self.assertFalse(
+            RequiresBuildEval("linux && (vulkan && rt_feature)", {"linux"})
+        )
+        self.assertFalse(
+            UnsupportedBuildEval("linux && (vulkan && rt_feature)", {"linux"})
+        )
         # runtime feature is present in build-only
         with self.assertRaises(ValueError):
             RequiresBuildEval("rt_feature", {"rt_feature"})
