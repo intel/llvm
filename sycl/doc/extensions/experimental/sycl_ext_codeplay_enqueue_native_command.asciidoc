@@ -173,13 +173,100 @@ dependencies are satisfied.
 The SYCL command described above completes once all of the native asynchronous
 tasks it contains have completed.
 
-The call to `interopCallable` must not submit any synchronous tasks to the
-native backend object, and it must not block waiting for any tasks to complete.
-The call also must not add tasks to backend objects that underly any other
-queue, aside from the queue that is associated with this handler. If it does
-any of these things, the behavior is undefined.
+The call to `interopCallable` is done by the host thread, users should
+therefore not perform blocking or synchronization tasks inside
+`interopCallable`, as it will defer the host thread returning to SYCL user
+code.
 
-== Example
+The call to `interopCallable` must not add tasks to backend objects that underly
+any other queue, aside from the queue that is associated with this handler,
+otherwise, the behavior is undefined.
+
+=== SYCL-Graph Interaction
+
+This section defines the interaction with the
+link:../experimental/sycl_ext_oneapi_graph.asciidoc[sycl_ext_oneapi_graph]
+extension.
+
+The `interopCallable` object will be invoked during `command_graph::finalize()`
+when the backend object for the graph is available to give to the user as a
+handle. The user may then add nodes using native APIs to the backend graph
+object queried with `interop_handle::ext_codeplay_get_native_graph()`. The
+runtime will schedule the dependencies of the user added nodes such
+that they respect the graph node edges.
+
+==== Interop Handle Class Modifications
+
+```c++
+using graph = ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::executable>;
+
+class interop_handle {
+  bool ext_codeplay_has_graph() const;
+
+  template <backend Backend>
+  backend_return_t<Backend, graph> ext_codeplay_get_native_graph() const;
+};
+```
+
+Table {counter: tableNumber}. Native types for
+`template <backend Backend, class T> backend_return_t<Backend, T>` where `T` is
+instantiated as `command_graph<graph_state::executable>`.
+
+[cols="2a,a"]
+|===
+|Backend|Native graph type
+
+| `backend::opencl`
+| `cl_command_buffer_khr`
+
+| `backend::ext_oneapi_level_zero`
+| `ze_command_list_handle_t`
+
+| `backend::ext_oneapi_cuda`
+| `CUGraph`
+
+| `backend::ext_oneapi_hip`
+| `hipGraph_t`
+
+|===
+
+==== New Interop Handle Member Functions
+
+Table {counter: tableNumber}. Additional member functions of the `sycl::interop_handle` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+bool interop_handle::ext_codeplay_has_graph() const;
+----
+
+| Query if the `interop_handle` object has a native graph object available.
+
+|
+[source,c++]
+----
+template <backend Backend>
+backend_return_t<Backend, graph>
+interop_handle::ext_codeplay_get_native_graph() const;
+----
+
+| Return the native graph object associated with the `interop_handle`.
+
+Exceptions:
+
+* Throws with error code `invalid` if there is no native graph object
+  associated with the interop handle.
+
+|===
+
+
+== Examples
+
+=== HIP Native Task
 
 This example demonstrates how to use this extension to enqueue asynchronous
 native tasks on the HIP backend.
@@ -207,11 +294,30 @@ q.submit([&](sycl::handler &cgh) {
 q.wait();
 ```
 
-== Issues
+=== CUDA Stream Record Native Task
 
-=== sycl_ext_oneapi_graph
+This example demonstrates how to use this extension to add stream recorded
+native nodes to a SYCL-Graph object on the CUDA backend.
 
-`ext_codeplay_enqueue_native_command`
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
+```
+q.submit([&](sycl::handler &cgh) {
+    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle h) {
+        auto NativeStream = h.get_native_queue<cuda>();
+        if (h.ext_codeplay_has_graph())  {
+            auto NativeGraph = h.ext_codeplay_get_native_graph<cuda>();
 
+            // Start capture stream calls into graph
+            cuStreamBeginCaptureToGraph(NativeStream, NativeGraph, nullptr,
+                                        nullptr, 0,
+                                        CU_STREAM_CAPTURE_MODE_GLOBAL);
+
+            myNativeLibraryCall(NativeStream);
+
+            // Stop capturing stream calls into graph
+            cuStreamEndCapture(NativeStream, &NativeGraph);
+        } else {
+            myNativeLibraryCall(NativeStream);
+        }
+    });
+});
+```

@@ -270,6 +270,28 @@ struct {
 ```
 </td>
 </tr>
+
+<tr>
+<td>
+
+``` C++
+using syclext = sycl::ext::oneapi::experimental;
+syclext::command_graph<syclext::graph_state::executable>
+```
+
+See [sycl_ext_oneapi_graph](../experimental/sycl_ext_oneapi_graph.asciidoc)
+
+</td>
+
+<td>
+
+``` C++
+ze_command_list_handle_t
+```
+</td>
+<td></td>
+</tr>
+
 </table>
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
@@ -642,3 +664,4 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 |10|2022-08-18|Sergey Maslov|Moved free_memory device info query to be sycl_ext_intel_device_info extension
 |11|2023-03-14|Rajiv Deodhar|Added support for Level Zero immediate command lists
 |12|2023-04-06|Chris Perkins|Introduced make_image() API
+|13|2023-04-06|Ewan Crawford|Add backend_return_t for SYCL-Graph

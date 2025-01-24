@@ -420,7 +420,7 @@ public:
                "Host task submissions should have an associated queue");
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
-                          HostTask.MQueue->getContextImplPtr()};
+                          HostTask.MQueue->getContextImplPtr(), nullptr};
         // TODO: should all the backends that support this entry point use this
         // for host task?
         auto &Queue = HostTask.MQueue;
@@ -2845,6 +2845,18 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   return Error;
 }
 
+namespace {
+struct CommandBufferNativeCommandData {
+  sycl::interop_handle ih;
+  std::function<void(interop_handle)> func;
+};
+
+void CommandBufferInteropFreeFunc(void *InteropData) {
+  auto *Data = reinterpret_cast<CommandBufferNativeCommandData *>(InteropData);
+  return Data->func(Data->ih);
+}
+} // namespace
+
 ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   assert(MQueue && "Command buffer enqueue should have an associated queue");
   // Wait on host command dependencies
@@ -3007,6 +3019,92 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
             &OutSyncPoint);
         Result != UR_RESULT_SUCCESS)
       return Result;
+
+    MEvent->setSyncPoint(OutSyncPoint);
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::EnqueueNativeCommand: {
+    // Queue is created by graph_impl before creating command to submit to
+    // scheduler.
+    const AdapterPtr &Adapter = MQueue->getAdapter();
+    auto ContextImpl = MQueue->getContextImplPtr();
+    auto DeviceImpl = MQueue->getDeviceImplPtr();
+
+    // The CUDA & HIP backends don't have the equivalent of barrier
+    // commands that can be appended to the native UR command-buffer
+    // to enforce command-group predecessor and successor dependencies.
+    // Instead we create a new command-buffer to give to the user
+    // in the ext_codeplay_get_native_graph() call, which is then
+    // added to the main command-buffer in the UR cuda/hip adapter
+    // using cuGraphAddChildGraphNode/hipGraphAddChildGraphNode.
+    //
+    // As both the SYCL-RT and UR adapter need to have a handle
+    // to this child command-buffer, the SYCL-RT creates it and
+    // then passes the handle via a parameter to
+    // urCommandBufferAppendNativeCommandExp.
+    ur_bool_t DeviceHasSubgraphSupport = false;
+    Adapter->call<UrApiKind::urDeviceGetInfo>(
+        DeviceImpl->getHandleRef(),
+        UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP, sizeof(ur_bool_t),
+        &DeviceHasSubgraphSupport, nullptr);
+
+    ur_exp_command_buffer_handle_t ChildCommandBuffer = nullptr;
+    if (DeviceHasSubgraphSupport) {
+      ur_exp_command_buffer_desc_t Desc{
+          UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC /*stype*/,
+          nullptr /*pnext*/, false /* updatable */, false /* in-order */,
+          false /* profilable*/
+      };
+      Adapter->call<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          &ChildCommandBuffer);
+    }
+
+    CGHostTask *HostTask = (CGHostTask *)MCommandGroup.get();
+
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user asks for them inside the interop task scope
+    std::vector<interop_handle::ReqToMem> ReqToMem;
+    const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
+    auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
+      const std::vector<AllocaCommandBase *> &AllocaCmds =
+          Req->MSYCLMemObj->MRecord->MAllocaCommands;
+
+      for (AllocaCommandBase *AllocaCmd : AllocaCmds)
+        if (getContext(HostTask->MQueue) == getContext(AllocaCmd->getQueue())) {
+          auto MemArg =
+              reinterpret_cast<ur_mem_handle_t>(AllocaCmd->getMemAllocation());
+          ReqToMem.emplace_back(std::make_pair(Req, MemArg));
+          return;
+        }
+
+      assert(false && "Can't get memory object due to no allocation available");
+
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "Can't get memory object due to no allocation available " +
+              codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
+    };
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+
+    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
+                      ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer};
+    CommandBufferNativeCommandData CustomOpData{
+        IH, HostTask->MHostTask->MInteropTask};
+
+    Adapter->call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
+        MCommandBuffer, CommandBufferInteropFreeFunc, &CustomOpData,
+        ChildCommandBuffer, MSyncPointDeps.size(),
+        MSyncPointDeps.empty() ? nullptr : MSyncPointDeps.data(),
+        &OutSyncPoint);
+
+    if (ChildCommandBuffer) {
+      ur_result_t Res = Adapter->call_nocheck<
+          sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
+          ChildCommandBuffer);
+      (void)Res;
+      assert(Res == UR_RESULT_SUCCESS);
+    }
 
     MEvent->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
@@ -3382,7 +3480,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     EnqueueNativeCommandData CustomOpData{
         interop_handle{ReqToMem, HostTask->MQueue,
                        HostTask->MQueue->getDeviceImplPtr(),
-                       HostTask->MQueue->getContextImplPtr()},
+                       HostTask->MQueue->getContextImplPtr(), nullptr},
         HostTask->MHostTask->MInteropTask};
 
     ur_bool_t NativeCommandSupport = false;

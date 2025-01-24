@@ -199,7 +199,6 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t hContext,
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
-
 ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
                                            ur_device_handle_t hDevice,
                                            ur_usm_pool_handle_t hPool) {
