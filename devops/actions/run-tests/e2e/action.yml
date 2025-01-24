@@ -3,8 +3,6 @@ name: 'Run SYCL E2E tests'
 inputs:
   ref:
     required: false
-  merge_ref:
-    required: false
   e2e_binaries_artifact:
     required: false
   extra_cmake_args:
@@ -31,7 +29,6 @@ runs:
     with:
       path: llvm
       ref: ${{ inputs.ref || github.sha }}
-      merge_ref: ${{ inputs.merge_ref }}
       cache_path: "/__w/repo_cache/"
 
   - name: Download E2E Binaries

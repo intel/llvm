@@ -36,7 +36,6 @@ jobs:
       build_cache_suffix: default
       build_artifact_suffix: default
       build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
-      merge_ref: ''
 
   e2e-lin:
     needs: [build-lin]
@@ -90,7 +89,6 @@ jobs:
       env: ${{ matrix.env || '{}' }}
 
       ref: ${{ github.sha }}
-      merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
@@ -106,8 +104,7 @@ jobs:
       compiler: icx
       build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt=-DCMAKE_CXX_FLAGS="/fp:precise /clang:-Wno-nonportable-include-path /clang:-Wno-cast-function-type-mismatch" --cmake-opt="-DCMAKE_EXE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_MODULE_LINKER_FLAGS=/manifest:no" --cmake-opt="-DCMAKE_SHARED_LINKER_FLAGS=/manifest:no" 
       build_cache_suffix: icx
-      merge_ref: ''
-      
+
   e2e-win:
     needs: build-win
     # Continue if build was successful.
@@ -121,7 +118,6 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       compiler: icx
-      merge_ref: ''
 
   macos_default:
     name: macOS

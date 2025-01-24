@@ -40,12 +40,6 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
-      merge_ref:
-        description: |
-          Commit-ish to merge post-checkout if non-empty. Must be reachable from
-          the default_branch input paramter.
-        type: string
-        default: 'FETCH_HEAD'
       retention-days:
         description: 'Artifacts retention period'
         type: string
@@ -150,7 +144,6 @@ jobs:
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
     - name: Setup oneAPI env
       if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
@@ -281,7 +274,6 @@ jobs:
       uses: ./devops/actions/run-tests/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
         e2e_testing_mode: build-only
         target_devices: all
         artifact_suffix: default
