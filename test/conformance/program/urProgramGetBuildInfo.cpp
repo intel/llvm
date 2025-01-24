@@ -19,7 +19,7 @@ TEST_P(urProgramGetBuildInfoTest, SuccessStatus) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
-  ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_STATUS;
+  const ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_STATUS;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urProgramGetBuildInfo(program, device, property_name, 0, nullptr,
@@ -27,19 +27,18 @@ TEST_P(urProgramGetBuildInfoTest, SuccessStatus) {
       property_name);
   ASSERT_EQ(sizeof(ur_program_build_status_t), property_size);
 
-  ur_program_build_status_t returned_status =
+  ur_program_build_status_t property_value =
       UR_PROGRAM_BUILD_STATUS_FORCE_UINT32;
-  ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, property_name,
-                                       property_size, &returned_status,
-                                       nullptr));
+  ASSERT_SUCCESS(urProgramGetBuildInfo(
+      program, device, property_name, property_size, &property_value, nullptr));
 
-  ASSERT_GE(returned_status, UR_PROGRAM_BUILD_STATUS_NONE);
-  ASSERT_LE(returned_status, UR_PROGRAM_BUILD_STATUS_IN_PROGRESS);
+  ASSERT_GE(property_value, UR_PROGRAM_BUILD_STATUS_NONE);
+  ASSERT_LE(property_value, UR_PROGRAM_BUILD_STATUS_IN_PROGRESS);
 }
 
 TEST_P(urProgramGetBuildInfoTest, SuccessOptions) {
   size_t property_size = 0;
-  ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_OPTIONS;
+  const ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_OPTIONS;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urProgramGetBuildInfo(program, device, property_name, 0, nullptr,
@@ -47,21 +46,19 @@ TEST_P(urProgramGetBuildInfoTest, SuccessOptions) {
       property_name);
   ASSERT_GT(property_size, 0);
 
-  std::vector<char> returned_options(property_size);
-  returned_options[property_size - 1] = 'x';
+  std::vector<char> property_value(property_size, '\0');
   ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, property_name,
-                                       property_size, returned_options.data(),
+                                       property_size, property_value.data(),
                                        nullptr));
 
-  ASSERT_EQ(property_size, returned_options.size());
-  ASSERT_EQ(returned_options[property_size - 1], '\0');
+  ASSERT_TRUE(uur::stringPropertyIsValid(property_value.data(), property_size));
 }
 
 TEST_P(urProgramGetBuildInfoTest, SuccessLog) {
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   size_t property_size = 0;
-  ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_LOG;
+  const ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_LOG;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urProgramGetBuildInfo(program, device, property_name, 0, nullptr,
@@ -69,19 +66,18 @@ TEST_P(urProgramGetBuildInfoTest, SuccessLog) {
       property_name);
   ASSERT_GT(property_size, 0);
 
-  std::vector<char> returned_log(property_size);
-  returned_log[property_size - 1] = 'x';
+  std::vector<char> property_value(property_size, '\0');
   ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, property_name,
-                                       property_size, returned_log.data(),
+                                       property_size, property_value.data(),
                                        nullptr));
 
-  ASSERT_EQ(property_size, returned_log.size());
-  ASSERT_EQ(returned_log[property_size - 1], '\0');
+  ASSERT_TRUE(uur::stringPropertyIsValid(property_value.data(), property_size));
 }
 
 TEST_P(urProgramGetBuildInfoTest, SuccessBinaryType) {
   size_t property_size = 0;
-  ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_BINARY_TYPE;
+  const ur_program_build_info_t property_name =
+      UR_PROGRAM_BUILD_INFO_BINARY_TYPE;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urProgramGetBuildInfo(program, device, property_name, 0, nullptr,
@@ -89,38 +85,34 @@ TEST_P(urProgramGetBuildInfoTest, SuccessBinaryType) {
       property_name);
   ASSERT_EQ(sizeof(ur_program_binary_type_t), property_size);
 
-  ur_program_binary_type_t returned_binary_type =
-      UR_PROGRAM_BINARY_TYPE_FORCE_UINT32;
-  ASSERT_SUCCESS(urProgramGetBuildInfo(program, device, property_name,
-                                       property_size, &returned_binary_type,
-                                       nullptr));
+  ur_program_binary_type_t property_value = UR_PROGRAM_BINARY_TYPE_FORCE_UINT32;
+  ASSERT_SUCCESS(urProgramGetBuildInfo(
+      program, device, property_name, property_size, &property_value, nullptr));
 
-  ASSERT_GE(returned_binary_type, UR_PROGRAM_BINARY_TYPE_NONE);
-  ASSERT_LE(returned_binary_type, UR_PROGRAM_BINARY_TYPE_EXECUTABLE);
+  ASSERT_GE(property_value, UR_PROGRAM_BINARY_TYPE_NONE);
+  ASSERT_LE(property_value, UR_PROGRAM_BINARY_TYPE_EXECUTABLE);
 }
 
 TEST_P(urProgramGetBuildInfoTest, InvalidNullHandleProgram) {
-  ur_program_build_status_t programBuildStatus = UR_PROGRAM_BUILD_STATUS_ERROR;
-  ASSERT_EQ_RESULT(urProgramGetBuildInfo(nullptr, device,
-                                         UR_PROGRAM_BUILD_INFO_STATUS,
-                                         sizeof(programBuildStatus),
-                                         &programBuildStatus, nullptr),
-                   UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  ur_program_build_status_t property_value = UR_PROGRAM_BUILD_STATUS_ERROR;
+  ASSERT_EQ_RESULT(
+      urProgramGetBuildInfo(nullptr, device, UR_PROGRAM_BUILD_INFO_STATUS,
+                            sizeof(property_value), &property_value, nullptr),
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urProgramGetBuildInfoTest, InvalidNullHandleDevice) {
-  ur_program_build_status_t programBuildStatus = UR_PROGRAM_BUILD_STATUS_ERROR;
-  ASSERT_EQ_RESULT(urProgramGetBuildInfo(program, nullptr,
-                                         UR_PROGRAM_BUILD_INFO_STATUS,
-                                         sizeof(programBuildStatus),
-                                         &programBuildStatus, nullptr),
-                   UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  ur_program_build_status_t property_value = UR_PROGRAM_BUILD_STATUS_ERROR;
+  ASSERT_EQ_RESULT(
+      urProgramGetBuildInfo(program, nullptr, UR_PROGRAM_BUILD_INFO_STATUS,
+                            sizeof(property_value), &property_value, nullptr),
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urProgramGetBuildInfoTest, InvalidEnumeration) {
-  size_t propSizeOut = UR_PROGRAM_BUILD_STATUS_ERROR;
+  size_t property_size = UR_PROGRAM_BUILD_STATUS_ERROR;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                    urProgramGetBuildInfo(program, device,
                                          UR_PROGRAM_BUILD_INFO_FORCE_UINT32, 0,
-                                         nullptr, &propSizeOut));
+                                         nullptr, &property_size));
 }
