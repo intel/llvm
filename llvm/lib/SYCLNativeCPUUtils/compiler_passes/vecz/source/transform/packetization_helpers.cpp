@@ -486,7 +486,7 @@ PacketRange Packetizer::Result::getAsPacket(unsigned width) const {
   if (auto *const vecTy = dyn_cast<FixedVectorType>(vec->getType())) {
     assert(isa<FixedVectorType>(vecTy) && "Must be a fixed vector type here!");
     const unsigned scalarWidth = vecTy->getNumElements() / width;
-    if (scalarWidth > 1) {
+    if (scalarWidth > 1 || scalar->getType()->isVectorTy()) {
       auto *const undef = UndefValue::get(vec->getType());
 
       // Build shuffle mask to perform the subvector extracts.
