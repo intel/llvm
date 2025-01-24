@@ -8784,6 +8784,53 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] TODO
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  auto pfnAppendNativeCommandExp =
+      getContext()->urDdiTable.CommandBufferExp.pfnAppendNativeCommandExp;
+
+  if (nullptr == pfnAppendNativeCommandExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pfnNativeCommand)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+
+    if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+  }
+
+  ur_result_t result = pfnAppendNativeCommandExp(
+      hCommandBuffer, pfnNativeCommand, pData, hChildCommandBuffer,
+      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferEnqueueExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// [in] Handle of the command-buffer object.
@@ -8982,6 +9029,34 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   ur_result_t result = pfnGetInfoExp(hCommandBuffer, propName, propSize,
                                      pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] a pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) {
+  auto pfnGetNativeHandleExp =
+      getContext()->urDdiTable.CommandBufferExp.pfnGetNativeHandleExp;
+
+  if (nullptr == pfnGetNativeHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == phNativeCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  ur_result_t result =
+      pfnGetNativeHandleExp(hCommandBuffer, phNativeCommandBuffer);
 
   return result;
 }
@@ -9984,6 +10059,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnAppendUSMAdviseExp =
       ur_validation_layer::urCommandBufferAppendUSMAdviseExp;
 
+  dditable.pfnAppendNativeCommandExp = pDdiTable->pfnAppendNativeCommandExp;
+  pDdiTable->pfnAppendNativeCommandExp =
+      ur_validation_layer::urCommandBufferAppendNativeCommandExp;
+
   dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
   pDdiTable->pfnEnqueueExp = ur_validation_layer::urCommandBufferEnqueueExp;
 
@@ -10001,6 +10080,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
   dditable.pfnGetInfoExp = pDdiTable->pfnGetInfoExp;
   pDdiTable->pfnGetInfoExp = ur_validation_layer::urCommandBufferGetInfoExp;
+
+  dditable.pfnGetNativeHandleExp = pDdiTable->pfnGetNativeHandleExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur_validation_layer::urCommandBufferGetNativeHandleExp;
 
   return result;
 }

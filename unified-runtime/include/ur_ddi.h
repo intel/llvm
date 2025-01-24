@@ -1591,6 +1591,15 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendNativeCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendNativeCommandExp_t)(
+    ur_exp_command_buffer_handle_t,
+    ur_exp_command_buffer_native_command_function_t, void *,
+    ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferEnqueueExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
     ur_exp_command_buffer_handle_t, ur_queue_handle_t, uint32_t,
@@ -1620,6 +1629,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetInfoExp_t)(
     void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferGetNativeHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetNativeHandleExp_t)(
+    ur_exp_command_buffer_handle_t, ur_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of CommandBufferExp functions pointers
 typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferCreateExp_t pfnCreateExp;
@@ -1639,11 +1653,13 @@ typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferAppendMemBufferFillExp_t pfnAppendMemBufferFillExp;
   ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
   ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
+  ur_pfnCommandBufferAppendNativeCommandExp_t pfnAppendNativeCommandExp;
   ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
   ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
   ur_pfnCommandBufferUpdateSignalEventExp_t pfnUpdateSignalEventExp;
   ur_pfnCommandBufferUpdateWaitEventsExp_t pfnUpdateWaitEventsExp;
   ur_pfnCommandBufferGetInfoExp_t pfnGetInfoExp;
+  ur_pfnCommandBufferGetNativeHandleExp_t pfnGetNativeHandleExp;
 } ur_command_buffer_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

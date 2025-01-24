@@ -429,6 +429,10 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
   /// Enumerator for ::urPhysicalMemGetInfo
   UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
+  /// Enumerator for ::urCommandBufferAppendNativeCommandExp
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP = 250,
+  /// Enumerator for ::urCommandBufferGetNativeHandleExp
+  UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 252,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -11001,6 +11005,51 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function adding work through the native API to be executed
+///        immediately.
+typedef void (*ur_exp_command_buffer_native_command_function_t)(
+    /// [in][out] pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append nodes through a native backend API
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] TODO
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Submit a command-buffer for execution on a queue.
 ///
 /// @returns
@@ -11225,6 +11274,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     void *pPropValue,
     /// [out][optional] bytes returned in command-buffer property
     size_t *pPropSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native command-buffer handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeCommandBuffer`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] a pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14185,6 +14258,20 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
 } ur_command_buffer_append_usm_advise_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendNativeCommandExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_native_command_exp_params_t {
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  ur_exp_command_buffer_native_command_function_t *ppfnNativeCommand;
+  void **ppData;
+  ur_exp_command_buffer_handle_t *phChildCommandBuffer;
+  uint32_t *pnumSyncPointsInWaitList;
+  const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+  ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_native_command_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferEnqueueExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14236,6 +14323,15 @@ typedef struct ur_command_buffer_get_info_exp_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_command_buffer_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_get_native_handle_exp_params_t {
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  ur_native_handle_t **pphNativeCommandBuffer;
+} ur_command_buffer_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp

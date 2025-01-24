@@ -1130,6 +1130,52 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Function adding work through the native API to be executed immediately."
+name: $x_exp_command_buffer_native_command_function_t
+return: void
+params:
+    - type: void*
+      name: pUserData
+      desc: "[in][out] pointer to data to be passed to callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Append nodes through a native backend API"
+class: $xCommandBuffer
+name: AppendNativeCommandExp
+params:
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] handle of the command-buffer object."
+    - type: $x_exp_command_buffer_native_command_function_t
+      desc: "[in] function calling the native underlying API, to be executed immediately."
+      name: pfnNativeCommand
+    - type: void*
+      name: pData
+      desc: "[in][optional] data used by pfnNativeCommand"
+    - type: $x_exp_command_buffer_handle_t
+      name: hChildCommandBuffer
+      desc: "[in][optional] TODO"
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
+    - type: "$x_exp_command_buffer_sync_point_t*"
+      name: pSyncPoint
+      desc: "[out][optional] sync point associated with this command."
+returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Submit a command-buffer for execution on a queue."
 class: $xCommandBuffer
@@ -1287,3 +1333,22 @@ returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native command-buffer handle."
+class: $xCommandBuffer
+name: GetNativeHandleExp
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+params:
+    - type: "$x_exp_command_buffer_handle_t"
+      name: hCommandBuffer
+      desc: |
+            [in] handle of the command-buffer.
+    - type: $x_native_handle_t*
+      name: phNativeCommandBuffer
+      desc: |
+            [out] a pointer to the native handle of the command-buffer.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
