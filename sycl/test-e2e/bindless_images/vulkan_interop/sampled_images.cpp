@@ -1,5 +1,6 @@
 // REQUIRES: cuda || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
+// REQUIRES: build-and-run-mode
 
 // RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
