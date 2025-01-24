@@ -19,7 +19,6 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       build_configure_extra_args: ''
-      merge_ref: ''
 
   build-sycl-cts:
     needs: ubuntu2204_build
