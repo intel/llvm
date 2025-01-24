@@ -321,3 +321,5 @@ jobs:
       uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

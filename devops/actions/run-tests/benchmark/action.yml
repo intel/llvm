@@ -3,7 +3,12 @@ name: 'Run compute-benchmarks'
 # Run compute-benchmarks on SYCL
 # 
 # This action assumes SYCL is in $PWD/toolchain, and that /devops has been
-# checked out in $PWD/devops
+# checked out in $PWD/devops. This action also assumes that GITHUB_TOKEN
+# was properly set in env, because according to Github, that's apparently the
+# recommended way to pass a secret into a github action:
+#
+# https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#accessing-your-secrets
+#
 
 inputs:
   target_devices:
@@ -13,14 +18,14 @@ runs:
   using: "composite"
   steps:
   - name: Run compute-benchmarks
+    shell: bash
     run: |
       export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
       export CMPLR_ROOT=$PWD/toolchain
       sycl-ls
       ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
   - name: Push compute-benchmarks results
-    env:
-      GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
+    shell: bash
     run: |
       # TODO -- waiting on security clearance
       # Load configuration values
