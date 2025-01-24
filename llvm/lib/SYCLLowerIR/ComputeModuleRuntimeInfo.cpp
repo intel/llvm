@@ -155,6 +155,24 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
   return std::nullopt;
 }
 
+PropSetRegTy computeBF16DeviceLibProperties(const Module &M,
+                                            std::string &BF16DeviceLibName) {
+  PropSetRegTy PropSet;
+
+  {
+    for (const auto &F : M.functions()) {
+      if (!F.getName().starts_with("__devicelib_") || F.isDeclaration())
+        continue;
+      if (F.getCallingConv() == CallingConv::SPIR_FUNC) {
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
+
+  return PropSet;
+}
+
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps) {
