@@ -9,16 +9,23 @@
 #include <clc/clcmacro.h>
 #include <libspirv/spirv.h>
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_nextafter, __builtin_nextafterf,
-                           float, float)
+_CLC_DEFINE_BINARY_BUILTIN_NO_SCALARIZE(float, __spirv_ocl_nextafter,
+                                        __clc_nextafter, float, float)
 
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_nextafter, __builtin_nextafter,
-                           double, double)
+_CLC_DEFINE_BINARY_BUILTIN_NO_SCALARIZE(double, __spirv_ocl_nextafter,
+                                        __clc_nextafter, double, double)
 
 #endif
 
-#include <libspirv/generic/math/half_nextafter.inc>
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_BINARY_BUILTIN_NO_SCALARIZE(half, __spirv_ocl_nextafter,
+                                        __clc_nextafter, half, half)
+
+#endif
