@@ -5,7 +5,6 @@
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/sycl.hpp>
 
 #include <cassert>
 #include <cstdint>

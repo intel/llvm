@@ -3,7 +3,6 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/sycl.hpp>
 
 #include <cassert>
 #include <cstdint>

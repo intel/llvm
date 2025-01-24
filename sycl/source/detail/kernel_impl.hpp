@@ -458,9 +458,9 @@ template <int D> inline sycl::id<D> generate_id(const size_t *sizes) {
     return generate_id<Num>(KernelWGSize);                                     \
   }
 
-ADD_TEMPLATE_METHOD_SPEC(1);
-ADD_TEMPLATE_METHOD_SPEC(2);
-ADD_TEMPLATE_METHOD_SPEC(3);
+ADD_TEMPLATE_METHOD_SPEC(1)
+ADD_TEMPLATE_METHOD_SPEC(2)
+ADD_TEMPLATE_METHOD_SPEC(3)
 
 #undef ADD_TEMPLATE_METHOD_SPEC
 
@@ -484,18 +484,18 @@ ADD_TEMPLATE_METHOD_SPEC(3);
   }
 
 ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 3, urKernelGetSubGroupInfo,
-                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE);
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
 ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 2, urKernelGetSubGroupInfo,
-                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE);
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
 ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 1, urKernelGetSubGroupInfo,
-                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE);
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
 
 ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 3, urKernelGetSubGroupInfo,
-                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS);
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
 ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 2, urKernelGetSubGroupInfo,
-                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS);
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
 ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 1, urKernelGetSubGroupInfo,
-                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS);
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
 
 #undef ADD_TEMPLATE_METHOD_SPEC
 } // namespace detail
