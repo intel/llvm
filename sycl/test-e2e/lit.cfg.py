@@ -69,7 +69,6 @@ elif config.test_mode == "run-only":
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
-    config.sycl_build_targets = set("target-" + t for t in config.sycl_build_targets)
     if not config.amd_arch:
         config.amd_arch = "gfx1031"
 else:
@@ -697,12 +696,21 @@ for aot_tool in aot_tools:
             "Couldn't find pre-installed AOT device compiler " + aot_tool
         )
 
+# Clear build targets when not in build-only, to populate according to devices
+if config.test_mode != "build-only":
+    config.sycl_build_targets = set()
+
 for sycl_device in config.sycl_devices:
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
     # Use short names for LIT rules.
     config.available_features.add("any-device-is-" + be)
 
+    target = config.backend_to_target[be]
+    config.sycl_build_targets.add(target)
+
+for target in config.sycl_build_targets:
+    config.available_features.add("any-target-is-" + target.replace("target-",""))
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}

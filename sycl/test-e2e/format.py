@@ -288,9 +288,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions.append(("%{run-unfiltered-devices}", run_unfiltered_substitution))
 
-        for target in build_targets:
-            test.config.available_features.add(target)
-
         new_script = []
         for directive in script:
             if not isinstance(directive, lit.TestRunner.CommandDirective):
