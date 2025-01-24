@@ -287,10 +287,10 @@ void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
   if (Blocking)
     drainThreadPool();
+#endif
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
                                                : BlockingT::NON_BLOCKING);
-#endif
 }
 
 void GlobalHandler::drainThreadPool() {
