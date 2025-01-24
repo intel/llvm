@@ -1,7 +1,8 @@
-# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
-# Merge: d3e97040 b1b0c60c
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 13:59:15 2025 +0000
-#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
-#     Fix potential deadlock in the WaitEvent path of CmdBuffers
-set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
+# commit f058cb230c65fe8094f74043d0c9afd5ba0e8325
+# Merge: 871061f1 3bf76246
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Thu Jan 9 17:28:00 2025 +0000
+# Merge pull request #2048 from RossBrunton/ross/refc
+#
+# Use reference counting on factories
+set(UNIFIED_RUNTIME_TAG msan-support-dg2)

@@ -34,21 +34,10 @@ enum ADDRESS_SPACE : uint32_t {
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
-#if defined(__SYCL_DEVICE_ONLY__)
-
-#define __USE_SPIR_BUILTIN__ 1
-
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif // SYCL_EXTERNAL
 
-#else // __SYCL_DEVICE_ONLY__
-
-#define __USE_SPIR_BUILTIN__ 0
-
-#endif // __SYCL_DEVICE_ONLY__
-
-#if __USE_SPIR_BUILTIN__
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
 
@@ -63,7 +52,6 @@ extern SYCL_EXTERNAL __attribute__((convergent)) void
 __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory, uint32_t Semantics);
 
 extern "C" SYCL_EXTERNAL void __devicelib_exit();
-#endif // __USE_SPIR_BUILTIN__
 
 __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);

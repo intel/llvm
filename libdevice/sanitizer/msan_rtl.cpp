@@ -136,6 +136,27 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
   return addr ^ 0x500000000000ULL;
 }
 
+inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
+  if (as == ADDRESS_SPACE_GENERIC) {
+    ConvertGenericPointer(addr, as);
+  }
+
+  if (as != ADDRESS_SPACE_GLOBAL || !(addr & 0xffff'0000'0000'0000ULL))
+    return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+        ->CleanShadow;
+
+  // Device USM only
+  auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+                          ->GlobalShadowOffset;
+  auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+                        ->GlobalShadowOffsetEnd;
+  if (addr < shadow_begin) {
+    return addr + (shadow_begin - 0xffff'8000'0000'0000ULL);
+  } else {
+    return addr - (0xffff'ffff'ffff'ffffULL - shadow_end);
+  }
+}
+
 inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
@@ -205,6 +226,8 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
     shadow_ptr = __msan_get_shadow_cpu(addr);
   } else if (launch_info->DeviceTy == DeviceType::GPU_PVC) {
     shadow_ptr = __msan_get_shadow_pvc(addr, as);
+  } else if (launch_info->DeviceTy == DeviceType::GPU_DG2) {
+    shadow_ptr = __msan_get_shadow_dg2(addr, as);
   } else {
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
                                   launch_info->DeviceTy));
