@@ -6,21 +6,18 @@
 #include <type_traits>
 
 int main() {
-  sycl::device d;
-  sycl::queue q{d};
+  sycl::queue q;
   sycl::context ctxt = q.get_context();
-  int data;
-  sycl::buffer<int> data_buf(&data, 1);
-  q.submit([&](sycl::handler &cgh) {
-    sycl::accessor data_acc(data_buf, cgh);
-    cgh.parallel_for<class kernel>(
-        sycl::nd_range{{1}, {1}},
-        [=](sycl::nd_item<> it) { data_acc[0] = 42; });
-  });
+  sycl::buffer<int> buf(sycl::range<1>(1));
   sycl::kernel_id id = sycl::get_kernel_id<class kernel>();
   auto bundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {d}, {id});
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {id});
   assert(!bundle.empty());
+  sycl::kernel krn = bundle.get_kernel(id);
+  q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc(buf, cgh);
+    cgh.single_task<class kernel>(krn, [=]() { acc[0] = 42; });
+  });
   sycl::backend backend;
   std::vector<std::byte> bytes;
 #ifdef __cpp_lib_span
