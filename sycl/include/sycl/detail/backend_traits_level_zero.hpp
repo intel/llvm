@@ -20,13 +20,14 @@
 #include <sycl/device.hpp>                                  // for device
 #include <sycl/event.hpp>                                   // for event
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
-#include <sycl/image.hpp>                                   // for image
-#include <sycl/kernel.hpp>                                  // for kernel
-#include <sycl/kernel_bundle.hpp>                           // for kernel_b...
-#include <sycl/kernel_bundle_enums.hpp>                     // for bundle_s...
-#include <sycl/platform.hpp>                                // for platform
-#include <sycl/property_list.hpp>                           // for property...
-#include <sycl/range.hpp>                                   // for range
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/image.hpp>               // for image
+#include <sycl/kernel.hpp>              // for kernel
+#include <sycl/kernel_bundle.hpp>       // for kernel_b...
+#include <sycl/kernel_bundle_enums.hpp> // for bundle_s...
+#include <sycl/platform.hpp>            // for platform
+#include <sycl/property_list.hpp>       // for property...
+#include <sycl/range.hpp>               // for range
 
 #include <variant> // for variant
 #include <vector>  // for vector
@@ -205,6 +206,16 @@ template <> struct BackendInput<backend::ext_oneapi_level_zero, kernel> {
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, kernel> {
   using type = ze_kernel_handle_t;
+};
+
+using graph = ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>;
+template <> struct BackendInput<backend::ext_oneapi_level_zero, graph> {
+  using type = ze_command_list_handle_t;
+};
+
+template <> struct BackendReturn<backend::ext_oneapi_level_zero, graph> {
+  using type = ze_command_list_handle_t;
 };
 
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {

@@ -173,11 +173,81 @@ dependencies are satisfied.
 The SYCL command described above completes once all of the native asynchronous
 tasks it contains have completed.
 
-The call to `interopCallable` must not submit any synchronous tasks to the
+The call to `interopCallable` should not submit any synchronous tasks to the
 native backend object, and it must not block waiting for any tasks to complete.
 The call also must not add tasks to backend objects that underly any other
 queue, aside from the queue that is associated with this handler. If it does
 any of these things, the behavior is undefined.
+
+=== sycl_ext_oneapi_graph Interaction
+
+`ext_codeplay_enqueue_native_command` can be used in the
+link:../experimental/sycl_ext_oneapi_graph.asciidoc[sycl_ext_oneapi_graph]
+extension as a graph node. The `interopCallable` object will be invoked
+during `command_graph::finalize()` when the backend object for the graph
+is available to give to the user as a handle. The user then may
+add nodes to this backend graph objects using native APIs. Note that this
+involves a synchronous API call to a native backend object, which is an
+exception to earlier advice about submitting synchronous task to native
+backend objects inside `interopCallable`.
+
+The runtime will schedule the dependencies of the user added nodes such
+that they respect the graph node edges.
+
+=== Additions to the interop_handler class
+
+TODO: Document backend return types, Move this info to main graphs spec,
+      defin interaction with host-task.
+
+* CUGraph
+* hipGraph_t
+* ze_command_list_handle_t
+* cl_command_buffer_khr
+
+
+
+```c++
+using graph = ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::executable>;
+
+class interop_handle {
+  bool ext_oneapi_has_graph() const;
+
+  template <backend Backend>
+  backend_return_t<Backend, graph> ext_oneapi_get_native_graph() const;
+
+};
+```
+
+Table {counter: tableNumber}. Additional member functions of the `sycl::interop_handle` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+bool interop_handle::ext_oneapi_has_graph() const;
+----
+
+| Query if the `interop_handle` object has a native graph object available.
+
+|
+[source,c++]
+----
+template <backend Backend>
+backend_return_t<Backend, graph> interop_handle::ext_oneapi_get_native_graph() const;
+----
+
+| Return the native graph object associated with the `interop_handle`.
+
+Exceptions:
+
+* Throws with error code `invalid` if there is no native graph object
+  associated with the interop handle.
+
+|===
+
 
 == Example
 
@@ -206,12 +276,3 @@ q.submit([&](sycl::handler &cgh) {
   });
 q.wait();
 ```
-
-== Issues
-
-=== sycl_ext_oneapi_graph
-
-`ext_codeplay_enqueue_native_command`
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
