@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Common.hpp"
+#include <sycl/backend.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
@@ -378,19 +379,6 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
                                            ImgMemUSM, Pitch, Desc);
 
   sycl::free(ImgMemUSM, Ctxt);
-}
-
-// ext_codeplay_enqueue_native_command isn't supported with SYCL graphs
-TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.add([&](sycl::handler &CGH) {
-      CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {});
-    });
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
 // sycl_ext_oneapi_work_group_scratch_memory isn't supported with SYCL graphs
@@ -883,4 +871,65 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 
   experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
   ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// interop_handle::ext_oneapi_get_native_graph() throws if not
+// used in a graph. Test throw when used in eager queue native command.
+TEST_F(CommandGraphTest, GetNativeGraphOnEagerQueue) {
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Queue.submit([&](sycl::handler &CGH) {
+      CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+        ASSERT_FALSE(IH.ext_oneapi_has_graph());
+        auto NativeGraph =
+            IH.ext_oneapi_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+        (void)NativeGraph;
+      });
+    });
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+// interop_handle::ext_oneapi_get_native_graph() throws if not
+// used in a graph. Test throw when used in eager queue host-task
+TEST_F(CommandGraphTest, GetNativeGraphInEagerHostTask) {
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Queue.submit([&](sycl::handler &CGH) {
+      auto Func = [=](interop_handle IH) {
+        ASSERT_FALSE(IH.ext_oneapi_has_graph());
+        auto NativeGraph =
+            IH.ext_oneapi_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+        (void)NativeGraph;
+      };
+
+      CGH.host_task(Func);
+    });
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+// interop_handle::ext_oneapi_get_native_graph() throws if not
+// used in a graph.Test throw when used in graph host-task
+TEST_F(CommandGraphTest, GetNativeGraphInGraphHostTask) {
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Graph.add([&](sycl::handler &CGH) {
+      auto Func = [=](interop_handle IH) {
+        ASSERT_FALSE(IH.ext_oneapi_has_graph());
+        auto NativeGraph =
+            IH.ext_oneapi_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+        (void)NativeGraph;
+      };
+
+      CGH.host_task(Func);
+    });
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }

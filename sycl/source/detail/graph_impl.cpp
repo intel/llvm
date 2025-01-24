@@ -824,6 +824,8 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
     std::shared_ptr<node_impl> Node) {
 
   // Queue which will be used for allocation operations for accessors.
+  // Will also be used in native commands to return to the user in
+  // `interop_handler::get_native_queue()` calls
   auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
       DeviceImpl, sycl::detail::getSyclObjImpl(Ctx), sycl::async_handler{},
       sycl::property_list{});

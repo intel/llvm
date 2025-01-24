@@ -21,9 +21,10 @@
 #include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
 #include <sycl/event.hpp>                 // for event
-#include <sycl/kernel.hpp>                // for kernel
-#include <sycl/kernel_bundle_enums.hpp>   // for bundle_state
-#include <sycl/platform.hpp>              // for platform
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/kernel.hpp>              // for kernel
+#include <sycl/kernel_bundle_enums.hpp> // for bundle_state
+#include <sycl/platform.hpp>            // for platform
 
 #include <vector> // for vector
 
@@ -130,6 +131,16 @@ template <> struct BackendInput<backend::opencl, kernel> {
 
 template <> struct BackendReturn<backend::opencl, kernel> {
   using type = cl_kernel;
+};
+
+using graph = ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>;
+template <> struct BackendInput<backend::opencl, graph> {
+  using type = cl_command_buffer_khr;
+};
+
+template <> struct BackendReturn<backend::opencl, graph> {
+  using type = cl_command_buffer_khr;
 };
 
 template <> struct InteropFeatureSupportMap<backend::opencl> {

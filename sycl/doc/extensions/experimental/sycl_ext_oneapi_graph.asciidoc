@@ -1925,6 +1925,75 @@ different from the one with which the dynamic_parameter was created.
 
 |===
 
+==== Interop Handle Class Modifications
+
+```c++
+using graph = ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::executable>;
+
+class interop_handle {
+  bool ext_oneapi_has_graph() const;
+
+  template <backend Backend>
+  backend_return_t<Backend, graph> ext_oneapi_get_native_graph() const;
+
+};
+```
+
+Table {counter: tableNumber}. Native types for
+`template <backend Backend, class T> backend_return_t<Backend, T>` for `T` as
+`command_graph<graph_state::executable`.
+
+[cols="2a,a"]
+|===
+|Backend|Native graph type
+
+| `backend::opencl`
+| `cl_command_buffer_khr`
+
+| `backend::ext_oneapi_level_zero`
+| `ze_command_list_handle_t`
+
+| `backend::ext_oneapi_cuda`
+| `CUGraph`
+
+| `backend::ext_oneapi_hip`
+| `hipGraph_t`
+
+|===
+
+==== New Interop Handle Member Functions
+
+Table {counter: tableNumber}. Additional member functions of the `sycl::interop_handle` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+bool interop_handle::ext_oneapi_has_graph() const;
+----
+
+| Query if the `interop_handle` object has a native graph object available.
+
+|
+[source,c++]
+----
+template <backend Backend>
+backend_return_t<Backend, graph>
+interop_handle::ext_oneapi_get_native_graph() const;
+----
+
+| Return the native graph object associated with the `interop_handle`.
+
+Exceptions:
+
+* Throws with error code `invalid` if there is no native graph object
+  associated with the interop handle.
+
+|===
+
 === Thread Safety
 
 The new functions in this extension are thread-safe, the same as member
@@ -2077,13 +2146,17 @@ extensions.
 
 ==== sycl_ext_codeplay_enqueue_native_command
 
-`ext_codeplay_enqueue_native_command`, defined in
+`ext_codeplay_enqueue_native_command` commands, defined in
 link:../experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc[sycl_ext_codeplay_enqueue_native_command]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
+can be used in graph nodes.
 
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
+The `interopCallable` object will be invoked during `command_graph::finalize()`
+when the backend object for the graph is available to give to the user as a
+handle. The user then may add nodes using native APIs to the backend graph
+object queried with `interop_handle::ext_onapi_get_native_graph()`. The
+runtime will schedule the dependencies of the user added nodes such
+that they respect the graph node edges.
+
 
 ==== sycl_ext_intel_queue_index
 
