@@ -57,11 +57,9 @@ jobs:
         # measures of central tendency: Any files timestamped *before* this time
         # will be *excluded* from the central tendency calculation.
 
-        load_single_config $CONFIG_FILE TIMESTAMP_FORMAT
         echo "TIMESTAMP_FORMAT=$TIMESTAMP_FORMAT" >> $GITHUB_ENV
         if [ -z '${{ inputs.cutoff_timestamp }}' ]; then
           # No time given, use default time period from config file:
-          load_single_config $CONFIG_FILE AVERAGE_CUTOFF_RANGE
           echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" +"$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
         else
           # If the provided time is a valid GNU coreutils date string, convert
