@@ -240,7 +240,8 @@ load_configs() {
     done
 
     . "$UTILS_PATH"
-    load_all_configs "$BENCHMARK_CI_CONFIG"
+    load_config_options "$BENCHMARK_CI_CONFIG"
+    load_config_constants "$BENCHMARK_CI_CONFIG"
 }
 
 #####
@@ -270,10 +271,10 @@ done
 
 # Check all necessary variables exist:
 if [ -z "$CMPLR_ROOT" ]; then
-    echo "Please set \$CMPLR_ROOT first; it is needed by compute-benchmarks to build."
+    echo "Please set CMPLR_ROOT first; it is needed by compute-benchmarks to build."
     exit 1
 elif [ -z "$ONEAPI_DEVICE_SELECTOR" ]; then
-    echo "Please set \$ONEAPI_DEVICE_SELECTOR first to specify which device to use."
+    echo "Please set ONEAPI_DEVICE_SELECTOR first to specify which device to use."
     exit 1
 elif [ -z "$RUNNER" ]; then
     echo "Please specify runner name using -n first; it is needed for storing/comparing benchmark results."
@@ -286,7 +287,7 @@ _dev_sel_backend_re="$(echo "$DEVICE_SELECTOR_ENABLED_BACKENDS" | sed 's/,/|/g')
 _dev_sel_device_re="$(echo "$DEVICE_SELECTOR_ENABLED_DEVICES" | sed 's/,/|/g')"
 _dev_sel_re="s/($_dev_sel_backend_re):($_dev_sel_device_re)//"
 if [ -n "$(echo "$ONEAPI_DEVICE_SELECTOR" | sed -E "$_dev_sel_re")" ]; then
-    echo "Unsupported \$ONEAPI_DEVICE_SELECTOR value: please ensure only one \
+    echo "Unsupported ONEAPI_DEVICE_SELECTOR value: please ensure only one \
 device is selected, and devices are not selected by indices."
     echo "Enabled backends: $DEVICE_SELECTOR_ENABLED_BACKENDS"
     echo "Enabled device types: $DEVICE_SELECTOR_ENABLED_DEVICES"

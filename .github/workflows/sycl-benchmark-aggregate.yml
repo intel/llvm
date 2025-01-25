@@ -46,9 +46,7 @@ jobs:
         # Load default values from configuration file
         . "$PWD/llvm/devops/scripts/benchmarking/utils.sh"
         # utils.sh contains functions to sanitize config file settings
-        load_single_config $CONFIG_FILE PERF_RES_GIT_REPO
-        load_single_config $CONFIG_FILE PERF_RES_BRANCH
-        load_single_config $CONFIG_FILE PERF_RES_PATH
+        load_config_constants "$CONFIG_FILE"
         echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
         echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
         echo "PERF_RES_PATH=$PERF_RES_PATH" >> $GITHUB_ENV

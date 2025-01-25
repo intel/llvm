@@ -45,11 +45,9 @@ runs:
     run: |
       # TODO -- waiting on security clearance
       # Load configuration values
-      . "$PWD/devops/benchmarking/utils.sh"
+      . "$PWD/devops/scripts/benchmarking/utils.sh"
       CONFIG_FILE="$PWD/devops/benchmarking/benchmark-ci.conf"
-      load_single_config "$CONFIG_FILE" PERF_RES_PATH
-      load_single_config "$CONFIG_FILE" PERF_RES_GIT_REPO
-      load_single_config "$CONFIG_FILE" PERF_RES_BRANCH
+      load_config_constants "$CONFIG_FILE"
 
       cd "$PERF_RES_PATH"
       git config user.name "SYCL Benchmarking Bot"
