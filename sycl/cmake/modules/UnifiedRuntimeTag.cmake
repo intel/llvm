@@ -1,7 +1,7 @@
-# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
-# Merge: d3e97040 b1b0c60c
+# commit b841691699393dd2375e987c3d38d5f59c3e35cf
+# Merge: c6859445 9de10cd9
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 13:59:15 2025 +0000
-#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
-#     Fix potential deadlock in the WaitEvent path of CmdBuffers
-set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
+# Date:   Thu Jan 23 16:07:06 2025 +0000
+#     Merge pull request #2559 from Bensuo/fix_kernel_arg_indices
+#     [CUDA][HIP] Fix kernel arguments being overwritten when added out of order
+set(UNIFIED_RUNTIME_TAG b841691699393dd2375e987c3d38d5f59c3e35cf)
