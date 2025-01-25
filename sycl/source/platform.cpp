@@ -87,7 +87,7 @@ platform::get_backend_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-context platform::ext_oneapi_get_default_context() const {
+context platform::khr_get_default_context() const {
   if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
     throw std::runtime_error("SYCL default contexts are not enabled");
 
@@ -107,6 +107,10 @@ context platform::ext_oneapi_get_default_context() const {
         {impl, detail::getSyclObjImpl(context{get_devices()})});
 
   return detail::createSyclObjFromImpl<context>(It->second);
+}
+
+context platform::ext_oneapi_get_default_context() const {
+  return khr_get_default_context();
 }
 
 std::vector<device> platform::ext_oneapi_get_composite_devices() const {
