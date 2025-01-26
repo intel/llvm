@@ -494,8 +494,10 @@ void saveBF16DeviceLibModule(
   saveModule(OutTables, LibIRMD, I, FallbackIR, true);
 
   std::string NativeIRPath = DeviceLibLoc.str() + "/" + NativeIR;
-  std::unique_ptr<Module> IRModuleNative = parseIRFile(NativeIRPath, Err, Context);
-  llvm::module_split::ModuleDesc LibIRMDNative(std::move(IRModuleNative), NativeIR);
+  std::unique_ptr<Module> IRModuleNative =
+      parseIRFile(NativeIRPath, Err, Context);
+  llvm::module_split::ModuleDesc LibIRMDNative(std::move(IRModuleNative),
+                                               NativeIR);
   saveModule(OutTables, LibIRMDNative, ++I, NativeIR, true);
 }
 

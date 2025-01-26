@@ -616,7 +616,7 @@ static bool selectBF16Devicelib(RTDeviceBinaryImage *BinImage,
   enum { BF16_FALLBACK = 0, BF16_NATIVE };
   std::vector<std::string> DeviceExtensions =
       Dev.get_info<info::device::extensions>();
-  std::string  NativeBF16ExtName = "cl_intel_bfloat16_conversions";
+  std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
   bool NativeBF16Supported =
       (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
                  NativeBF16ExtName) != DeviceExtensions.end());
