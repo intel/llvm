@@ -39,7 +39,6 @@ jobs:
       build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-      merge_ref: ''
       build_ref: sycl-rel-6_0_0
 
       # We upload the build for people to download/use, override its name and
@@ -109,7 +108,6 @@ jobs:
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: sycl-rel-6_0_0
-      merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -120,7 +118,6 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       ref: sycl-rel-6_0_0
-      merge_ref: ''
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
@@ -140,7 +137,6 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
       ref: sycl-rel-6_0_0
-      merge_ref: ''
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -162,7 +158,6 @@ jobs:
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
       ref: sycl-rel-6_0_0
-      merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}

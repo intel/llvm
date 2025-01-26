@@ -60,24 +60,27 @@ llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 using_spirv_tools = False
 
-if config.spirv_tools_have_spirv_as:
+# Explicitly disable using spirv tools, if requested.
+disable_spirv_tools = lit_config.params.get("disable-spirv-tools", False)
+
+if config.spirv_tools_have_spirv_as and not disable_spirv_tools:
     llvm_config.add_tool_substitutions(['spirv-as'], [config.spirv_tools_bin_dir])
     config.available_features.add('spirv-as')
     using_spirv_tools = True
 
-if config.spirv_tools_have_spirv_dis:
+if config.spirv_tools_have_spirv_dis and not disable_spirv_tools:
     llvm_config.add_tool_substitutions(['spirv-dis'], [config.spirv_tools_bin_dir])
     config.available_features.add('spirv-dis')
     using_spirv_tools = True
 
-if config.spirv_tools_have_spirv_link:
+if config.spirv_tools_have_spirv_link and not disable_spirv_tools:
     llvm_config.add_tool_substitutions(['spirv-link'], [config.spirv_tools_bin_dir])
     config.available_features.add('spirv-link')
     using_spirv_tools = True
 
 # Unlike spirv-{as,dis,link} above, running spirv-val is optional: if spirv-val is
 # not available, the test must still run and just skip any spirv-val commands.
-if config.spirv_tools_have_spirv_val:
+if config.spirv_tools_have_spirv_val and not disable_spirv_tools:
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
     using_spirv_tools = True
 else:
