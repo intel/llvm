@@ -197,7 +197,7 @@ template <int TestNumber> int test_array_th_nb_pipe(sycl::queue Queue) {
     if (readHostBuffer[i] != i) {
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
                 << readHostBuffer[i] << " Vs expected " << i << std::endl;
-    return -1;
+      return -1;
     }
   }
 
