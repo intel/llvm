@@ -1024,7 +1024,7 @@ Command *Scheduler::GraphBuilder::addCG(
   }
 
   // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
+  for (const detail::EventImplPtr &e : Events) {
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }

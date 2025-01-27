@@ -265,6 +265,14 @@ bool SPIRVType::isTypeVectorOrScalarFloat() const {
   return isTypeFloat() || isTypeVectorFloat();
 }
 
+bool SPIRVType::isSPIRVOpaqueType() const {
+  return isTypeDeviceEvent() || isTypeEvent() || isTypeImage() ||
+         isTypePipe() || isTypeReserveId() || isTypeSampler() ||
+         isTypeSampledImage() || isTypePipeStorage() ||
+         isTypeCooperativeMatrixKHR() || isTypeJointMatrixINTEL() ||
+         isTypeTaskSequenceINTEL();
+}
+
 bool SPIRVTypeStruct::isPacked() const {
   return hasDecorate(DecorationCPacked);
 }

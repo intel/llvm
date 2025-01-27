@@ -1,7 +1,7 @@
-# commit 2858a8a28d0b6524a3b2b0e25a597d1c8295ce9d
-# Merge: a5a649f3 34b66fda
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 6 16:45:49 2024 +0000
-#     Merge pull request #2276 from rafbiels/rafbiels/fix-hip-evbase
-#     Set the right HIP device before creating base event counter
+# commit b841691699393dd2375e987c3d38d5f59c3e35cf
+# Merge: c6859445 9de10cd9
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 23 16:07:06 2025 +0000
+#     Merge pull request #2559 from Bensuo/fix_kernel_arg_indices
+#     [CUDA][HIP] Fix kernel arguments being overwritten when added out of order
 set(UNIFIED_RUNTIME_TAG uwe/tbb_integration)

@@ -17,6 +17,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
@@ -220,6 +221,22 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   FusedBinaryInfo.BinaryStart = KernelBin->address();
   FusedBinaryInfo.BinarySize = KernelBin->size();
   return Error::success();
+}
+
+llvm::Expected<RTCDevImgBinaryInfo>
+KernelTranslator::translateDevImgToSPIRV(llvm::Module &Mod,
+                                         JITContext &JITCtx) {
+  llvm::TimeTraceScope TTS{"translateDevImgToSPIRV"};
+
+  llvm::Expected<KernelBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
+  if (auto Error = BinaryOrError.takeError()) {
+    return Error;
+  }
+  KernelBinary *Binary = *BinaryOrError;
+  RTCDevImgBinaryInfo DIBI{BinaryFormat::SPIRV,
+                           Mod.getDataLayout().getPointerSizeInBits(),
+                           Binary->address(), Binary->size()};
+  return DIBI;
 }
 
 llvm::Expected<KernelBinary *>

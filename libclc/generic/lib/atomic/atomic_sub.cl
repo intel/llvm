@@ -1,5 +1,5 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 #define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                                                                  \
   _CLC_OVERLOAD _CLC_DEF TYPE atomic_sub(volatile AS TYPE *p, TYPE val) {                                                         \

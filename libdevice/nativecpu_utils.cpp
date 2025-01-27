@@ -17,7 +17,7 @@
 #include "device.h"
 #include <cstdint>
 #include <sycl/__spirv/spirv_ops.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 // including state definition from Native CPU UR adapter
 #include "nativecpu_state.hpp"
@@ -31,16 +31,7 @@ using __nativecpu_state = native_cpu::state;
 
 #define OCL_LOCAL __attribute__((opencl_local))
 #define OCL_GLOBAL __attribute__((opencl_global))
-
-DEVICE_EXTERNAL OCL_LOCAL void *
-__spirv_GenericCastToPtrExplicit_ToLocal(void *p, int) {
-  return (OCL_LOCAL void *)p;
-}
-
-DEVICE_EXTERNAL OCL_GLOBAL void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(void *p, int) {
-  return (OCL_GLOBAL void *)p;
-}
+#define OCL_PRIVATE __attribute__((opencl_private))
 
 DEVICE_EXTERN_C void __mux_work_group_barrier(uint32_t id, uint32_t scope,
                                               uint32_t semantics);
@@ -61,6 +52,23 @@ __spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
 // Turning clang format off here because it reorders macro invocations
 // making the following code very difficult to read.
 // clang-format off
+
+#define DefGenericCastToPtrExplImpl(sfx, asp, cv)\
+DEVICE_EXTERNAL cv asp void *\
+__spirv_GenericCastToPtrExplicit_##sfx(cv void *p ,int) {\
+  return (cv asp void *)p;\
+}
+
+#define DefGenericCastToPtrExpl(sfx, asp)\
+  DefGenericCastToPtrExplImpl(sfx, asp, )\
+  DefGenericCastToPtrExplImpl(sfx, asp, const)\
+  DefGenericCastToPtrExplImpl(sfx, asp, volatile)\
+  DefGenericCastToPtrExplImpl(sfx, asp, const volatile)
+
+DefGenericCastToPtrExpl(ToPrivate, OCL_PRIVATE)
+DefGenericCastToPtrExpl(ToLocal, OCL_LOCAL)
+DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL)
+
 #define DefSubgroupBlockINTEL1(Type, PType)                                    \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \

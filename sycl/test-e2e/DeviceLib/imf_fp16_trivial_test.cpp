@@ -5,13 +5,17 @@
 
 // RUN: %{build} %{mathflags} -c -DSOURCE1 -o %t1.o
 // RUN: %{build} %{mathflags} -c -DSOURCE2 -o %t2.o
-// RUN: %clangxx -fsycl  %t1.o %t2.o  -o %t.out
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl  %t1.o %t2.o  -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: cuda, hip
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include "imf_utils.hpp"
 #include <cmath>

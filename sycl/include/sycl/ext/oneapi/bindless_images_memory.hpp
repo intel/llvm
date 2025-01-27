@@ -39,6 +39,9 @@ public:
                                const context &syclContext);
   __SYCL_EXPORT ~image_mem_impl();
 
+  image_mem_impl(const image_mem_impl &) = delete;
+  image_mem_impl &operator=(const image_mem_impl &) = delete;
+
   raw_handle_type get_handle() const { return handle; }
   const image_descriptor &get_descriptor() const { return descriptor; }
   sycl::device get_device() const { return syclDevice; }

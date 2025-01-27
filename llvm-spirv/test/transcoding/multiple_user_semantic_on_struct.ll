@@ -37,6 +37,17 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
+; Check the same with untyped pointers enabled
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; Check that even when FPGA memory extensions are enabled - yet we have
+; UserSemantic decoration be generated
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes,+SPV_KHR_untyped_pointers -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+
 ; CHECK-SPIRV: Decorate [[#GEP1:]] UserSemantic "ClassA"
 ; CHECK-SPIRV: Decorate [[#GEP2:]] UserSemantic "ClassA"
 ; CHECK-SPIRV: Decorate [[#GEP3:]] UserSemantic "Dec1"
@@ -45,12 +56,12 @@
 ; CHECK-SPIRV: Decorate [[#GEP4:]] UserSemantic "ClassAfieldB"
 ; CHECK-SPIRV: Decorate [[#GEP5:]] UserSemantic "ClassB"
 ; CHECK-SPIRV: Decorate [[#GEP6:]] UserSemantic "ClassB"
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#GEP1]] [[#]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#GEP2]] [[#]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#GEP3]] [[#]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#GEP4]] [[#]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#GEP5]] [[#]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#GEP6]] [[#]]
+; CHECK-SPIRV: {{(InBoundsPtrAccessChain|UntypedInBoundsPtrAccessChainKHR)}} [[#]] [[#GEP1]] [[#]]
+; CHECK-SPIRV: {{(InBoundsPtrAccessChain|UntypedInBoundsPtrAccessChainKHR)}} [[#]] [[#GEP2]] [[#]]
+; CHECK-SPIRV: {{(InBoundsPtrAccessChain|UntypedInBoundsPtrAccessChainKHR)}} [[#]] [[#GEP3]] [[#]]
+; CHECK-SPIRV: {{(InBoundsPtrAccessChain|UntypedInBoundsPtrAccessChainKHR)}} [[#]] [[#GEP4]] [[#]]
+; CHECK-SPIRV: {{(InBoundsPtrAccessChain|UntypedInBoundsPtrAccessChainKHR)}} [[#]] [[#GEP5]] [[#]]
+; CHECK-SPIRV: {{(InBoundsPtrAccessChain|UntypedInBoundsPtrAccessChainKHR)}} [[#]] [[#GEP6]] [[#]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"

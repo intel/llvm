@@ -1,0 +1,17 @@
+// Marked deprecated in SYCL 2020 spec
+__SYCL_PARAM_TRAITS_DEPRECATED(image_support, "deprecated in SYCL 2020, use device::has(aspect::ext_intel_legacy_image) to query for SYCL 1.2.1 image support")
+__SYCL_PARAM_TRAITS_DEPRECATED(max_constant_buffer_size,"deprecated in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(max_constant_args,"deprecated in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(host_unified_memory,"deprecated in SYCL 2020, use device::has() with "
+                                                    "one of the aspect::usm_* aspects instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(is_endian_little,"deprecated in SYCL 2020, check the byte order of "
+                                                "the host system instead, the host and the device "
+                                                "are required to have the same byte order")
+__SYCL_PARAM_TRAITS_DEPRECATED(is_compiler_available,"deprecated in SYCL 2020, use device::has(aspect::online_compiler) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(is_linker_available, "deprecated in SYCL 2020, use device::has(aspect::online_linker) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(queue_profiling, "deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(built_in_kernels,"deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(profile,"deprecated in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(extensions,"deprecated in SYCL 2020, use info::device::aspects instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(printf_buffer_size,"deprecated in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(preferred_interop_user_sync,"deprecated in SYCL 2020")

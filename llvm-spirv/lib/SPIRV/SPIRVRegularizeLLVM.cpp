@@ -39,6 +39,7 @@
 #include "SPIRVRegularizeLLVM.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
+#include "SPIRVMDWalker.h"
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringExtras.h" // llvm::isDigit
@@ -433,68 +434,6 @@ bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   return true;
 }
 
-// This is a temporary workaround to deal with a graphics driver failure not
-// able to support the typed pointer reverse translation of
-// getelementptr i8, ptr @__spirv_Builtin* patterns. This replaces such
-// accesses with getelementptr i32, ptr @__spirv_Builtin instead.
-static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
-  // IGC only supports:
-  // load GV
-  // load (addrspacecast GV)
-  // load (gep (addrspacecast GV))
-  // load (gep GV)
-  // Opaque pointers will cause the optimizer to use i8 geps, or to remove
-  // 0-index geps entirely (adding bitcasts to the result). Restore these to
-  // avoid bitcasts in the resulting IR.
-  if (GV->getContext().supportsTypedPointers())
-    return;
-
-  Type *Ty = GV->getValueType();
-  Type *ScalarTy = Ty->getScalarType();
-  SmallVector<Value *, 4> Users;
-  for (auto User : GV->users()) {
-    if (auto *LI = dyn_cast<LoadInst>(User)) {
-      if (LI->getType() != Ty)
-        Users.push_back(LI);
-    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
-      if (GEP->getSourceElementType() != Ty)
-        Users.push_back(GEP);
-    }
-  }
-
-  Type *Int32Ty = Type::getInt32Ty(GV->getContext());
-  auto GetGep = [&](unsigned Offset,
-                    std::optional<ConstantRange> InRange = std::nullopt) {
-    llvm::ConstantRange GepInRange(llvm::APInt(32, -Offset, true),
-                                   llvm::APInt(32, Offset, true));
-    if (InRange)
-      GepInRange = *InRange;
-    return ConstantExpr::getGetElementPtr(
-        Ty, GV,
-        ArrayRef<Constant *>(
-            {ConstantInt::get(Int32Ty, 0), ConstantInt::get(Int32Ty, Offset)}),
-        true, GepInRange);
-  };
-
-  const DataLayout &DL = GV->getParent()->getDataLayout();
-  for (auto *User : Users) {
-    if (auto *LI = dyn_cast<LoadInst>(User)) {
-      LI->setOperand(0, GetGep(0));
-    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
-      APInt Offset(64, 0);
-      GEP->accumulateConstantOffset(DL, Offset);
-      APInt Index;
-      uint64_t Remainder;
-      APInt::udivrem(Offset, ScalarTy->getScalarSizeInBits() / 8, Index,
-                     Remainder);
-      assert(Remainder == 0 && "Cannot handle misaligned access to builtins");
-      GEP->replaceAllUsesWith(GetGep(Index.getZExtValue(), GEP->getInRange()));
-      if (auto *Inst = dyn_cast<Instruction>(GEP))
-        Inst->eraseFromParent();
-    }
-  }
-}
-
 namespace {
 void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
                                        Module *M,
@@ -640,14 +579,9 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
+  addKernelEntryPoint(M);
   expandSYCLTypeUsing(M);
   cleanupConversionToNonStdIntegers(M);
-
-  for (auto &GV : M->globals()) {
-    SPIRVBuiltinVariableKind Kind;
-    if (isSPIRVBuiltinVariable(&GV, &Kind))
-      simplifyBuiltinVarAccesses(&GV);
-  }
 
   // Kernels called by other kernels
   std::vector<Function *> CalledKernels;
@@ -835,6 +769,69 @@ bool SPIRVRegularizeLLVMBase::regularize() {
   if (SPIRVDbgSaveRegularizedModule)
     saveLLVMModule(M, RegularizedModuleTmpFile);
   return true;
+}
+
+void SPIRVRegularizeLLVMBase::addKernelEntryPoint(Module *M) {
+  std::vector<Function *> Work;
+
+  // Get a list of all functions that have SPIR kernel calling conv
+  for (auto &F : *M) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      Work.push_back(&F);
+  }
+  for (auto &F : Work) {
+    // for declarations just make them into SPIR functions.
+    F->setCallingConv(CallingConv::SPIR_FUNC);
+    if (F->isDeclaration())
+      continue;
+
+    // Otherwise add a wrapper around the function to act as an entry point.
+    FunctionType *FType = F->getFunctionType();
+    std::string WrapName =
+        kSPIRVName::EntrypointPrefix + static_cast<std::string>(F->getName());
+    Function *WrapFn =
+        getOrCreateFunction(M, F->getReturnType(), FType->params(), WrapName);
+
+    auto *CallBB = BasicBlock::Create(M->getContext(), "", WrapFn);
+    IRBuilder<> Builder(CallBB);
+
+    Function::arg_iterator DestI = WrapFn->arg_begin();
+    for (const Argument &I : F->args()) {
+      DestI->setName(I.getName());
+      DestI++;
+    }
+    SmallVector<Value *, 1> Args;
+    for (Argument &I : WrapFn->args()) {
+      Args.emplace_back(&I);
+    }
+    auto *CI = CallInst::Create(F, ArrayRef<Value *>(Args), "", CallBB);
+    CI->setCallingConv(F->getCallingConv());
+    CI->setAttributes(F->getAttributes());
+
+    // copy over all the metadata (should it be removed from F?)
+    SmallVector<std::pair<unsigned, MDNode *>> MDs;
+    F->getAllMetadata(MDs);
+    WrapFn->setAttributes(F->getAttributes());
+    for (auto MD = MDs.begin(), End = MDs.end(); MD != End; ++MD) {
+      WrapFn->addMetadata(MD->first, *MD->second);
+    }
+    WrapFn->setCallingConv(CallingConv::SPIR_KERNEL);
+    WrapFn->setLinkage(llvm::GlobalValue::InternalLinkage);
+
+    Builder.CreateRet(F->getReturnType()->isVoidTy() ? nullptr : CI);
+
+    // Have to find the spir-v metadata for execution mode and transfer it to
+    // the wrapper.
+    if (auto NMD = SPIRVMDWalker(*M).getNamedMD(kSPIRVMD::ExecutionMode)) {
+      while (!NMD.atEnd()) {
+        Function *MDF = nullptr;
+        auto N = NMD.nextOp(); /* execution mode MDNode */
+        N.get(MDF);
+        if (MDF == F)
+          N.M->replaceOperandWith(0, ValueAsMetadata::get(WrapFn));
+      }
+    }
+  }
 }
 
 } // namespace SPIRV

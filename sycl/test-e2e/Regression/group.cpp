@@ -11,7 +11,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 

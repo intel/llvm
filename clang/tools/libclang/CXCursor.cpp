@@ -342,6 +342,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::SYCLUniqueStableIdExprClass:
   case Stmt::EmbedExprClass:
   case Stmt::HLSLOutArgExprClass:
+  case Stmt::OpenACCAsteriskSizeExprClass:
     K = CXCursor_UnexposedExpr;
     break;
 
@@ -888,6 +889,30 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OpenACCLoopConstructClass:
     K = CXCursor_OpenACCLoopConstruct;
+    break;
+  case Stmt::OpenACCCombinedConstructClass:
+    K = CXCursor_OpenACCCombinedConstruct;
+    break;
+  case Stmt::OpenACCDataConstructClass:
+    K = CXCursor_OpenACCDataConstruct;
+    break;
+  case Stmt::OpenACCEnterDataConstructClass:
+    K = CXCursor_OpenACCEnterDataConstruct;
+    break;
+  case Stmt::OpenACCExitDataConstructClass:
+    K = CXCursor_OpenACCExitDataConstruct;
+    break;
+  case Stmt::OpenACCHostDataConstructClass:
+    K = CXCursor_OpenACCHostDataConstruct;
+    break;
+  case Stmt::OpenACCWaitConstructClass:
+    K = CXCursor_OpenACCWaitConstruct;
+    break;
+  case Stmt::OpenACCInitConstructClass:
+    K = CXCursor_OpenACCInitConstruct;
+    break;
+  case Stmt::OpenACCShutdownConstructClass:
+    K = CXCursor_OpenACCShutdownConstruct;
     break;
   case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
     K = CXCursor_OMPTargetParallelGenericLoopDirective;

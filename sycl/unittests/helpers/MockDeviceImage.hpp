@@ -187,7 +187,8 @@ public:
   /// \param Name is a property name. See ur.hpp for list of known names.
   /// \param Prop is a property value.
   void insert(const std::string &Name, MockProperty &&Props) {
-    insert(Name, internal::LifetimeExtender{std::vector{std::move(Props)}});
+    insert(Name, internal::LifetimeExtender{
+                     std::vector<MockProperty>{std::move(Props)}});
   }
 
   /// Adds a new array of properties to the set.

@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // FIXME: Investigate OS-agnostic failures
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 
 // UNSUPPORTED: cuda || hip
 // CUDA does not support SYCL 1.2.1 images.

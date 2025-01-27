@@ -21,9 +21,8 @@
  */
 
 #include <clc/clc.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF float radians(float degrees) {
   return __spirv_ocl_radians(degrees);

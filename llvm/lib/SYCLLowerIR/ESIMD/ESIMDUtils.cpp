@@ -129,6 +129,16 @@ void UpdateUint64MetaDataToMaxValue::operator()(Function *F) const {
     Node->replaceOperandWith(Key, getMetadata(New));
   }
 }
+StringRef stripMangling(StringRef FName) {
+
+  // See if the Name represents an ESIMD intrinsic and demangle only if it
+  // does.
+  if (!FName.consume_front(ESIMD_INTRIN_PREF0))
+    return "";
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+  return FName.starts_with("__esimd") ? FName : "";
+}
 
 } // namespace esimd
 } // namespace llvm

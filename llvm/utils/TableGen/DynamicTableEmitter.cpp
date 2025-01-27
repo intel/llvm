@@ -24,7 +24,7 @@ using namespace llvm;
 
 namespace {
 
-int getAsInt(Init *B) {
+int getAsInt(const Init *B) {
   return cast<IntInit>(
              B->convertInitializerTo(IntRecTy::get(B->getRecordKeeper())))
       ->getValue();
@@ -32,7 +32,7 @@ int getAsInt(Init *B) {
 
 struct GenericField {
   std::string Name;
-  RecTy *RecType = nullptr;
+  const RecTy *RecType = nullptr;
   bool IsCode = false;
   bool IsList = false;
 
@@ -45,30 +45,30 @@ struct DynamicTable {
   std::string PreprocessorGuard;
   std::string CppTypeName;
   SmallVector<GenericField, 2> Fields;
-  std::vector<Record *> Entries;
+  std::vector<const Record *> Entries;
 };
 
 class DynamicTableEmitter {
-  RecordKeeper &Records;
+  const RecordKeeper &Records;
   std::set<std::string> PreprocessorGuards;
 
 public:
-  DynamicTableEmitter(RecordKeeper &R) : Records(R) {}
+  DynamicTableEmitter(const RecordKeeper &R) : Records(R) {}
 
   void run(raw_ostream &OS);
 
 private:
   std::string primaryRepresentation(SMLoc Loc, const GenericField &Field,
-                                    Init *I) {
-    if (StringInit *SI = dyn_cast<StringInit>(I)) {
+                                    const Init *I) {
+    if (const StringInit *SI = dyn_cast<StringInit>(I)) {
       if (Field.IsCode || SI->hasCodeFormat())
         return std::string(SI->getValue());
 
       return SI->getAsString();
     }
-    if (BitsInit *BI = dyn_cast<BitsInit>(I))
+    if (const BitsInit *BI = dyn_cast<BitsInit>(I))
       return "0x" + utohexstr(getAsInt(BI));
-    if (BitInit *BI = dyn_cast<BitInit>(I))
+    if (const BitInit *BI = dyn_cast<BitInit>(I))
       return BI->getValue() ? "true" : "false";
     if (Field.IsList) {
       if (auto LI = dyn_cast<ListInit>(I)) {
@@ -104,9 +104,9 @@ private:
   void emitDynamicTable(const DynamicTable &Table, raw_ostream &OS);
   void emitIfdef(Twine Guard, raw_ostream &OS);
 
-  bool parseFieldType(GenericField &Field, Init *II);
+  bool parseFieldType(GenericField &Field, const Init *II);
   void collectTableEntries(DynamicTable &Table,
-                           const std::vector<Record *> &Items);
+                           ArrayRef<const Record *> Items);
 };
 
 } // End anonymous namespace.
@@ -125,7 +125,7 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
      << " = {\n";
   // Iterate over the key-value pairs the dynamic table will contain.
   for (unsigned I = 0; I < Table.Entries.size(); ++I) {
-    Record *Entry = Table.Entries[I];
+    const Record *Entry = Table.Entries[I];
     // Open key-value pair
     OS << "  { ";
 
@@ -153,7 +153,8 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
   OS << "#endif\n\n";
 }
 
-bool DynamicTableEmitter::parseFieldType(GenericField &Field, Init *TypeOf) {
+bool DynamicTableEmitter::parseFieldType(GenericField &Field,
+                                         const Init *TypeOf) {
   if (auto Type = dyn_cast<StringInit>(TypeOf)) {
     if (Type->getValue() == "code") {
       Field.IsCode = true;
@@ -175,7 +176,7 @@ bool DynamicTableEmitter::parseFieldType(GenericField &Field, Init *TypeOf) {
 }
 
 void DynamicTableEmitter::collectTableEntries(
-    DynamicTable &Table, const std::vector<Record *> &Items) {
+    DynamicTable &Table, ArrayRef<const Record *> Items) {
   for (auto *EntryRec : Items) {
     for (auto &Field : Table.Fields) {
       auto TI = dyn_cast<TypedInit>(EntryRec->getValueInit(Field.Name));
@@ -188,7 +189,7 @@ void DynamicTableEmitter::collectTableEntries(
       if (!Field.RecType) {
         Field.RecType = TI->getType();
       } else {
-        RecTy *Ty = resolveTypes(Field.RecType, TI->getType());
+        const RecTy *Ty = resolveTypes(Field.RecType, TI->getType());
         if (!Ty)
           PrintFatalError(EntryRec->getValue(Field.Name),
                           Twine("Field '") + Field.Name + "' of table '" +
@@ -206,7 +207,7 @@ void DynamicTableEmitter::collectTableEntries(
 void DynamicTableEmitter::run(raw_ostream &OS) {
   // Emit tables in a deterministic order to avoid needless rebuilds.
   SmallVector<std::unique_ptr<DynamicTable>, 4> Tables;
-  DenseMap<Record *, DynamicTable *> TableMap;
+  DenseMap<const Record *, DynamicTable *> TableMap;
 
   // Collect all definitions first.
   for (auto *TableRec : Records.getAllDerivedDefinitions("DynamicTable")) {

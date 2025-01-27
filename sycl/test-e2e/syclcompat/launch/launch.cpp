@@ -19,8 +19,8 @@
  *  Description:
  *     launch<F> and launch<F> with dinamyc local memory tests
  **************************************************************************/
-// https://github.com/intel/llvm/issues/14387
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14387
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -119,7 +119,7 @@ void test_ptr_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   LaunchTest lt;
 
-  int *int_ptr;
+  int *int_ptr = nullptr;
 
   syclcompat::launch<int_ptr_kernel>(lt.range_1_, int_ptr);
   syclcompat::launch<int_ptr_kernel>(lt.range_2_, int_ptr);

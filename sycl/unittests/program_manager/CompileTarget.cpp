@@ -59,12 +59,14 @@ class NDRangeKernel;
 class RangeKernel;
 class NoDeviceKernel;
 class JITFallbackKernel;
+class SKLOnlyKernel;
 
 MOCK_INTEGRATION_HEADER(SingleTaskKernel)
 MOCK_INTEGRATION_HEADER(NDRangeKernel)
 MOCK_INTEGRATION_HEADER(RangeKernel)
 MOCK_INTEGRATION_HEADER(NoDeviceKernel)
 MOCK_INTEGRATION_HEADER(JITFallbackKernel)
+MOCK_INTEGRATION_HEADER(SKLOnlyKernel)
 
 static sycl::unittest::MockDeviceImage Img[] = {
     sycl::unittest::generateDefaultImage({"SingleTaskKernel"}),
@@ -93,7 +95,8 @@ static sycl::unittest::MockDeviceImage Img[] = {
     sycl::unittest::generateDefaultImage({"JITFallbackKernel"}),
     sycl::unittest::generateImageWithCompileTarget("JITFallbackKernel",
                                                    "intel_gpu_bdw"),
-};
+    sycl::unittest::generateImageWithCompileTarget("SKLOnlyKernel",
+                                                   "intel_gpu_skl")};
 
 static sycl::unittest::MockDeviceImageArray<std::size(Img)> ImgArray{Img};
 
@@ -335,4 +338,11 @@ TEST_F(CompileTargetTest, JITFallbackKernel) {
   EXPECT_EQ(createWithBinaryLog.size(), 0U);
   ASSERT_EQ(createWithILLog.size(), 1U);
   EXPECT_EQ(createWithILLog.back(), "JITFallbackKernel");
+}
+
+TEST_F(CompileTargetTest, IsCompatible) {
+  device Skl{archSelector(syclex::architecture::intel_gpu_skl)};
+  EXPECT_TRUE(sycl::is_compatible<SKLOnlyKernel>(Skl));
+  device Pvc{archSelector(syclex::architecture::intel_gpu_pvc)};
+  EXPECT_FALSE(sycl::is_compatible<SKLOnlyKernel>(Pvc));
 }

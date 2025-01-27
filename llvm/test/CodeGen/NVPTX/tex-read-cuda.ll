@@ -1,7 +1,7 @@
-; RUN: llc < %s -march=nvptx64 -mcpu=sm_20 -verify-machineinstrs | FileCheck %s --check-prefix=SM20
-; RUN: llc < %s -march=nvptx64 -mcpu=sm_30 -verify-machineinstrs | FileCheck %s --check-prefix=SM30
-; RUN: %if ptxas %{ llc < %s -march=nvptx64 -mcpu=sm_20 -verify-machineinstrs | %ptxas-verify %}
-; RUN: %if ptxas %{ llc < %s -march=nvptx64 -mcpu=sm_30 -verify-machineinstrs | %ptxas-verify %}
+; RUN: llc < %s -mtriple=nvptx64 -mcpu=sm_20 -verify-machineinstrs | FileCheck %s --check-prefix=SM20
+; RUN: llc < %s -mtriple=nvptx64 -mcpu=sm_30 -verify-machineinstrs | FileCheck %s --check-prefix=SM30
+; RUN: %if ptxas %{ llc < %s -mtriple=nvptx64 -mcpu=sm_20 -verify-machineinstrs | %ptxas-verify %}
+; RUN: %if ptxas %{ llc < %s -mtriple=nvptx64 -mcpu=sm_30 -verify-machineinstrs | %ptxas-verify %}
 
 
 target triple = "nvptx-unknown-cuda"
@@ -58,8 +58,8 @@ define void @baz(ptr %red, i32 %idx) {
 ; SM20: texfunc,
 ; SM30: texfunc,
   %texcall = tail call float @texfunc(i64 %texHandle)
-; SM20: ld.param.f32 %f[[TEXCALL:[0-9]+]], [[[RETVAL]]+0]
-; SM30: ld.param.f32 %f[[TEXCALL:[0-9]+]], [[[RETVAL]]+0]
+; SM20: ld.param.f32 %f[[TEXCALL:[0-9]+]], [[[RETVAL]]]
+; SM30: ld.param.f32 %f[[TEXCALL:[0-9]+]], [[[RETVAL]]]
 ; SM20: add.rn.f32 %f[[RET2:[0-9]+]], %f[[RED]], %f[[TEXCALL]]
 ; SM30: add.rn.f32 %f[[RET2:[0-9]+]], %f[[RED]], %f[[TEXCALL]]
   %ret2 = fadd float %ret, %texcall

@@ -1,9 +1,5 @@
 // RUN: %{build} -o %t.run
 // RUN: %{run} %t.run
-//
-// Returns error "Barrier is not supported on the host device
-// yet." with Nvidia.
-// XFAIL: hip_nvidia
 
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //

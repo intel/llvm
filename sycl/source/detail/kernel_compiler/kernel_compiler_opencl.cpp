@@ -14,8 +14,9 @@
 #include "../online_compiler/ocloc_api.h"
 #include "../split_string.hpp"
 
-#include <cstring> // strlen
-#include <numeric> // for std::accumulate
+#include <cstring>    // strlen
+#include <functional> // for std::function
+#include <numeric>    // for std::accumulate
 #include <regex>
 #include <sstream>
 
@@ -56,16 +57,21 @@ void checkOclocLibrary(void *OclocLibrary) {
   }
 }
 
-static void *OclocLibrary = nullptr;
+static std::unique_ptr<void, std::function<void(void *)>>
+    OclocLibrary(nullptr, [](void *StoredPtr) {
+      if (!StoredPtr)
+        return;
+      std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
+    });
 
 // load the ocloc shared library, check it.
-void *loadOclocLibrary() {
+void loadOclocLibrary() {
 #ifdef __SYCL_RT_OS_WINDOWS
   static const std::string OclocLibraryName = "ocloc64.dll";
 #else
   static const std::string OclocLibraryName = "libocloc.so";
 #endif
-  void *tempPtr = OclocLibrary;
+  void *tempPtr = OclocLibrary.get();
   if (tempPtr == nullptr) {
     tempPtr = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
 
@@ -75,10 +81,8 @@ void *loadOclocLibrary() {
 
     checkOclocLibrary(tempPtr);
 
-    OclocLibrary = tempPtr;
+    OclocLibrary.reset(tempPtr);
   }
-
-  return OclocLibrary;
 }
 
 bool OpenCLC_Compilation_Available() {
@@ -103,13 +107,13 @@ void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
     if (OclocLibrary == nullptr)
       loadOclocLibrary();
 
-    oclocInvokeHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+    oclocInvokeHandle = sycl::detail::ur::getOsLibraryFuncAddress(
+        OclocLibrary.get(), "oclocInvoke");
     if (!oclocInvokeHandle)
       throw sycl::exception(the_errc, "Cannot load oclocInvoke() function");
 
     oclocFreeOutputHandle = sycl::detail::ur::getOsLibraryFuncAddress(
-        OclocLibrary, "oclocFreeOutput");
+        OclocLibrary.get(), "oclocFreeOutput");
     if (!oclocFreeOutputHandle)
       throw sycl::exception(the_errc, "Cannot load oclocFreeOutput() function");
   }

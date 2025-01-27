@@ -177,9 +177,6 @@ struct nd_range_kernel_key {
 template<int Dims>
 inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 
-template<>
-struct is_property_key<nd_range_kernel_key> : std::true_type {};
-
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -218,9 +215,6 @@ struct single_task_kernel_key {
 };
 
 inline constexpr single_task_kernel_key::value_t single_task_kernel;
-
-template<>
-struct is_property_key<single_task_kernel_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -883,6 +877,7 @@ int main() {
 ```
 
 
+[[level-zero-and-opencl-compatibility]]
 == {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
 
 The contents of this section are non-normative and apply only to the {dpcpp}
@@ -890,8 +885,6 @@ implementation.
 Kernels written using the free function kernel syntax can be submitted to a
 device by using the Level Zero or OpenCL backends, without going through the
 SYCL host runtime APIs.
-This works only when the kernel is AOT compiled to native device code using the
-`-fsycl-targets` compiler option.
 
 The interface to the kernel in the native device code module is only guaranteed
 when the kernel adheres to the following restrictions:
@@ -904,6 +897,16 @@ when the kernel adheres to the following restrictions:
   sycl_ext_oneapi_work_group_memory]); and
 * The translation unit containing the kernel is compiled with the
   `-fno-sycl-dead-args-optimization` option.
+
+In order to invoke a kernel using Level Zero or OpenCL, the application must
+first obtain the raw backend content of the device image that contains the
+kernel.
+One way to do this is by using
+link:../proposed/sycl_ext_oneapi_device_image_backend_content.asciidoc[
+sycl_ext_oneapi_device_image_backend_content].
+It is also possible to compile the application in AOT mode via the
+`-fsycl-targets` compiler option and then extract the device image's backend
+content from the executable file.
 
 Both Level Zero and OpenCL identify a kernel via a _name_ string.
 (See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)

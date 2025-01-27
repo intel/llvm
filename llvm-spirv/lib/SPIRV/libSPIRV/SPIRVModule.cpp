@@ -493,6 +493,9 @@ public:
   SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy, SPIRVValue *Value,
                                      SPIRVValue *ExpectedValue,
                                      SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addUntypedPrefetchKHRInst(SPIRVType *Ty,
+                                              std::vector<SPIRVWord> Args,
+                                              SPIRVBasicBlock *BB) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -1830,6 +1833,11 @@ SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
                             this),
                         BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addUntypedPrefetchKHRInst(
+    SPIRVType *Ty, std::vector<SPIRVWord> Args, SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVUntypedPrefetchKHR(Ty, Args, BB), BB);
 }
 
 // Create AliasDomainDeclINTEL/AliasScopeDeclINTEL/AliasScopeListDeclINTEL

@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define __SYCL_ONLINE_COMPILER_CPP
+
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
@@ -19,9 +21,11 @@ inline namespace _V1 {
 namespace ext::intel::experimental {
 namespace detail {
 
+using namespace sycl::detail;
+
 static std::vector<const char *>
 prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
-                 bool Is64Bit, const std::string &DeviceStepping,
+                 bool Is64Bit, string_view DeviceStepping,
                  const std::string &UserArgs) {
   std::vector<const char *> Args = {"ocloc", "-q", "-spv_only", "-device"};
 
@@ -54,7 +58,7 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
 
   if (DeviceStepping != "") {
     Args.push_back("-revision_id");
-    Args.push_back(DeviceStepping.c_str());
+    Args.push_back(DeviceStepping.data());
   }
 
   Args.push_back(Is64Bit ? "-64" : "-32");
@@ -82,11 +86,11 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
 ///                                 allocated during the compilation.
 /// @param UserArgs - User's options to ocloc compiler.
 static std::vector<byte>
-compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
-               device_arch DeviceArch, bool Is64Bit,
-               const std::string &DeviceStepping, void *&CompileToSPIRVHandle,
-               void *&FreeSPIRVOutputsHandle,
+compileToSPIRV(string_view Src, sycl::info::device_type DeviceType,
+               device_arch DeviceArch, bool Is64Bit, string_view DeviceStepping,
+               void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle,
                const std::vector<std::string> &UserArgs) {
+  std::string Source{Src.data()};
 
   if (!CompileToSPIRVHandle) {
 #ifdef __SYCL_RT_OS_WINDOWS
@@ -94,12 +98,18 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 #else
     static const std::string OclocLibraryName = "libocloc.so";
 #endif
-    void *OclocLibrary = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
+    auto CustomDeleter = [](void *StoredPtr) {
+      if (!StoredPtr)
+        return;
+      std::ignore = sycl::detail::ur::unloadOsLibrary(StoredPtr);
+    };
+    std::unique_ptr<void, decltype(CustomDeleter)> OclocLibrary(
+        sycl::detail::ur::loadOsLibrary(OclocLibraryName), CustomDeleter);
     if (!OclocLibrary)
       throw online_compile_error("Cannot load ocloc library: " +
                                  OclocLibraryName);
-    void *OclocVersionHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
+    void *OclocVersionHandle = sycl::detail::ur::getOsLibraryFuncAddress(
+        OclocLibrary.get(), "oclocVersion");
     // The initial versions of ocloc library did not have the oclocVersion()
     // function. Those versions had the same API as the first version of ocloc
     // library having that oclocVersion() function.
@@ -125,18 +135,21 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
           std::to_string(CurrentVersionMajor) +
           ".N), where (N >= " + std::to_string(CurrentVersionMinor) + ").");
 
-    CompileToSPIRVHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+    CompileToSPIRVHandle = sycl::detail::ur::getOsLibraryFuncAddress(
+        OclocLibrary.get(), "oclocInvoke");
     if (!CompileToSPIRVHandle)
       throw online_compile_error("Cannot load oclocInvoke() function");
     FreeSPIRVOutputsHandle = sycl::detail::ur::getOsLibraryFuncAddress(
-        OclocLibrary, "oclocFreeOutput");
-    if (!FreeSPIRVOutputsHandle)
+        OclocLibrary.get(), "oclocFreeOutput");
+    if (!FreeSPIRVOutputsHandle) {
+      CompileToSPIRVHandle = NULL;
       throw online_compile_error("Cannot load oclocFreeOutput() function");
+    }
+    OclocLibrary.release();
   }
 
   std::string CombinedUserArgs;
-  for (auto UserArg : UserArgs) {
+  for (const auto &UserArg : UserArgs) {
     if (UserArg == "")
       continue;
     if (CombinedUserArgs != "")
@@ -198,11 +211,12 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 }
 } // namespace detail
 
-template <>
-template <>
-__SYCL_EXPORT std::vector<byte>
-online_compiler<source_language::opencl_c>::compile(
-    const std::string &Source, const std::vector<std::string> &UserArgs) {
+template <source_language Lang>
+__SYCL_EXPORT std::vector<byte> online_compiler<Lang>::compile_impl(
+    detail::string_view Src, const std::vector<detail::string_view> &Options,
+    std::pair<int, int> OutputFormatVersion, sycl::info::device_type DeviceType,
+    device_arch DeviceArch, bool Is64Bit, detail::string_view DeviceStepping,
+    void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle) {
 
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
     std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
@@ -211,29 +225,31 @@ online_compiler<source_language::opencl_c>::compile(
                                Version + ") is not supported yet");
   }
 
-  return detail::compileToSPIRV(Source, DeviceType, DeviceArch, Is64Bit,
+  std::vector<std::string> UserArgs;
+  for (auto &&Opt : Options)
+    UserArgs.emplace_back(Opt.data());
+
+  if constexpr (Lang == source_language::cm)
+    UserArgs.push_back("-cmc");
+
+  return detail::compileToSPIRV(Src, DeviceType, DeviceArch, Is64Bit,
                                 DeviceStepping, CompileToSPIRVHandle,
                                 FreeSPIRVOutputsHandle, UserArgs);
 }
 
-template <>
-template <>
-__SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
-    const std::string &Source, const std::vector<std::string> &UserArgs) {
+template __SYCL_EXPORT std::vector<byte>
+online_compiler<source_language::opencl_c>::compile_impl(
+    detail::string_view Src, const std::vector<detail::string_view> &Options,
+    std::pair<int, int> OutputFormatVersion, sycl::info::device_type DeviceType,
+    device_arch DeviceArch, bool Is64Bit, detail::string_view DeviceStepping,
+    void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle);
 
-  if (OutputFormatVersion != std::pair<int, int>{0, 0}) {
-    std::string Version = std::to_string(OutputFormatVersion.first) + ", " +
-                          std::to_string(OutputFormatVersion.second);
-    throw online_compile_error(std::string("The output format version (") +
-                               Version + ") is not supported yet");
-  }
-
-  std::vector<std::string> CMUserArgs = UserArgs;
-  CMUserArgs.push_back("-cmc");
-  return detail::compileToSPIRV(Source, DeviceType, DeviceArch, Is64Bit,
-                                DeviceStepping, CompileToSPIRVHandle,
-                                FreeSPIRVOutputsHandle, CMUserArgs);
-}
+template __SYCL_EXPORT std::vector<byte>
+online_compiler<source_language::cm>::compile_impl(
+    detail::string_view Src, const std::vector<detail::string_view> &Options,
+    std::pair<int, int> OutputFormatVersion, sycl::info::device_type DeviceType,
+    device_arch DeviceArch, bool Is64Bit, detail::string_view DeviceStepping,
+    void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle);
 } // namespace ext::intel::experimental
 
 namespace ext {

@@ -248,7 +248,8 @@ public:
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
   std::vector<ur_event_handle_t>
-  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
+  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
+                      bool HasEventMode) const;
 
   bool isHostTask() const;
 
@@ -627,7 +628,7 @@ void enqueueImpKernel(
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch,
+    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
     const RTDeviceBinaryImage *BinImage = nullptr);
 
 /// The exec CG command enqueues execution of kernel or explicit memory

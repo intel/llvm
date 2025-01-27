@@ -11,6 +11,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/ur.hpp>
+#include <sycl/context.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/image.hpp>

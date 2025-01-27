@@ -1,6 +1,5 @@
 #include <clc/clc.h>
-#include <core/clc_core.h>
-#include <spirv/spirv.h>
+#include <clc/integer/clc_abs.h>
 
 #define __CLC_BODY <abs.inc>
 #include <clc/integer/gentype.inc>

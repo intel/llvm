@@ -73,6 +73,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 queue_impl::get_backend_info<info::platform::version>() const {
@@ -83,7 +84,9 @@ queue_impl::get_backend_info<info::platform::version>() const {
   }
   return get_device().get_platform().get_info<info::platform::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 queue_impl::get_backend_info<info::device::version>() const {
@@ -94,7 +97,9 @@ queue_impl::get_backend_info<info::device::version>() const {
   }
   return get_device().get_info<info::device::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 queue_impl::get_backend_info<info::device::backend_version>() const {
@@ -108,6 +113,7 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
@@ -277,7 +283,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
 }
 
-event queue_impl::getLastEvent() {
+sycl::detail::optional<event> queue_impl::getLastEvent() {
   {
     // The external event is required to finish last if set, so it is considered
     // the last event if present.
@@ -287,12 +293,12 @@ event queue_impl::getLastEvent() {
   }
 
   std::lock_guard<std::mutex> Lock{MMutex};
+  if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)
+    return std::nullopt;
   if (MDiscardEvents)
     return createDiscardedEvent();
   if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
     return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
-  if (!MDefaultGraphDeps.LastEventPtr)
-    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
   return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
@@ -308,8 +314,9 @@ void queue_impl::addEvent(const event &Event) {
       addSharedEvent(Event);
   }
   // As long as the queue supports urQueueFinish we only need to store events
-  // for unenqueued commands and host tasks.
-  else if (MEmulateOOO || EImpl->getHandle() == nullptr) {
+  // for undiscarded, unenqueued commands and host tasks.
+  else if (MEmulateOOO ||
+           (EImpl->getHandle() == nullptr && !EImpl->isDiscarded())) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -348,15 +355,16 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
+event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const std::shared_ptr<queue_impl> &Self,
                               const std::shared_ptr<queue_impl> &PrimaryQueue,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
-                              const SubmitPostProcessF *PostProcess) {
+                              const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+  auto HandlerImpl = detail::getSyclObjImpl(Handler);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -367,14 +375,18 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = detail::getSyclObjImpl(Handler)->MCGType;
+  const CGType Type = HandlerImpl->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  if (PostProcess) {
+  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+
+  if (SubmitInfo.PostProcessorFunc()) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+
     bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;
 
@@ -385,7 +397,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                              Handler.MKernelName.c_str());
     finalizeHandler(Handler, Event);
 
-    (*PostProcess)(IsKernel, KernelUsesAssert, Event);
+    PostProcess(IsKernel, KernelUsesAssert, Event);
   } else
     finalizeHandler(Handler, Event);
 
@@ -396,10 +408,13 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
     // finishes execution.
-    event FlushEvent = submit_impl(
-        [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
-        Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
-        IsTopCodeLoc, {});
+    auto L = [&](handler &ServiceCGH) {
+      Stream->generateFlushCommand(ServiceCGH);
+    };
+    detail::type_erased_cgfo_ty CGF{L};
+    event FlushEvent =
+        submit_impl(CGF, Self, PrimaryQueue, SecondaryQueue,
+                    /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
@@ -410,13 +425,22 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        HandlerFunc(CGH);
-      },
-      Self, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+  SubmissionInfo SI{};
+  auto L = [&](handler &CGH) {
+    CGH.depends_on(DepEvents);
+    HandlerFunc(CGH);
+  };
+  detail::type_erased_cgfo_ty CGF{L};
+
+  if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+    submit_without_event(CGF, Self, SI,
+                         /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+    return createDiscardedEvent();
+  }
+  return submit_with_event(CGF, Self, SI,
+                           /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
@@ -444,7 +468,16 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
-        return createDiscardedEvent();
+
+        event DiscardedEvent = createDiscardedEvent();
+        if (isInOrder()) {
+          // Store the discarded event for proper in-order dependency tracking.
+          auto &EventToStoreIn = MGraph.expired()
+                                     ? MDefaultGraphDeps.LastEventPtr
+                                     : MExtGraphDeps.LastEventPtr;
+          EventToStoreIn = detail::getSyclObjImpl(DiscardedEvent);
+        }
+        return DiscardedEvent;
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
@@ -469,7 +502,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       return discard_or_return(ResEvent);
     }
   }
-  return submitWithHandler(Self, DepEvents, HandlerFunc);
+  return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,

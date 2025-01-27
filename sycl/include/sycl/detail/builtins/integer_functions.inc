@@ -38,8 +38,7 @@ BUILTIN_CREATE_ENABLER(builtin_enable_suint32, default_ret_type,
       NUM_ARGS, NAME, builtin_enable_integer_t, [](auto... xs) {               \
         using ret_ty =                                                         \
             detail::builtin_enable_integer_t<NUM_ARGS##_TEMPLATE_TYPE>;        \
-        return detail::builtins::convert_result<ret_ty>(                       \
-            __spirv_ocl_##NAME(xs...));                                        \
+        return bit_cast<ret_ty>(__spirv_ocl_##NAME(xs...));                    \
       })
 #else
 #define BUILTIN_GENINT(NUM_ARGS, NAME)                                         \
@@ -54,11 +53,10 @@ BUILTIN_CREATE_ENABLER(builtin_enable_suint32, default_ret_type,
       NUM_ARGS, NAME, builtin_enable_integer_t, [](auto... xs) {               \
         using ret_ty =                                                         \
             detail::builtin_enable_integer_t<NUM_ARGS##_TEMPLATE_TYPE>;        \
-        using detail::builtins::convert_result;                                \
         if constexpr (std::is_signed_v<detail::get_elem_type_t<T0>>)           \
-          return convert_result<ret_ty>(__spirv_ocl_s_##NAME(xs...));          \
+          return bit_cast<ret_ty>(__spirv_ocl_s_##NAME(xs...));                \
         else                                                                   \
-          return convert_result<ret_ty>(__spirv_ocl_u_##NAME(xs...));          \
+          return bit_cast<ret_ty>(__spirv_ocl_u_##NAME(xs...));                \
       })
 #else
 #define BUILTIN_GENINT_SU(NUM_ARGS, NAME) BUILTIN_GENINT(NUM_ARGS, NAME)
@@ -67,15 +65,14 @@ BUILTIN_CREATE_ENABLER(builtin_enable_suint32, default_ret_type,
 #if __SYCL_DEVICE_ONLY__
 DEVICE_IMPL_TEMPLATE(ONE_ARG, abs, builtin_enable_integer_t, [](auto x) {
   using ret_ty = detail::builtin_enable_integer_t<T0>;
-  using detail::builtins::convert_result;
   if constexpr (std::is_signed_v<detail::get_elem_type_t<T0>>)
     // SPIR-V builtin returns unsigned type, SYCL's return type is signed
     // with the following restriction:
     //   > The behavior is undefined if the result cannot be represented by
     //   > the return type
-    return convert_result<ret_ty>(bit_cast<T0>(__spirv_ocl_s_abs(x)));
+    return bit_cast<ret_ty>(__spirv_ocl_s_abs(x));
   else
-    return convert_result<ret_ty>(__spirv_ocl_u_abs(x));
+    return bit_cast<ret_ty>(__spirv_ocl_u_abs(x));
 })
 #else
 BUILTIN_GENINT_SU(ONE_ARG, abs)
@@ -87,25 +84,10 @@ BUILTIN_GENINT_SU(TWO_ARGS, add_sat)
 DEVICE_IMPL_TEMPLATE(
     TWO_ARGS, abs_diff, builtin_enable_integer_t, [](auto... xs) {
       using ret_ty = detail::builtin_enable_integer_t<T0>;
-      using detail::builtins::convert_result;
       if constexpr (std::is_signed_v<detail::get_elem_type_t<T0>>) {
-        // SPIRV built-in returns [vector of] unsigned type(s).
-        auto ret = __spirv_ocl_s_abs_diff(xs...);
-        if constexpr (detail::is_vec_v<T0>) {
-          // SYCL 2020 revision 8's abs_diff returns T0 (or corresponding vec in
-          // case of a swizzle). The only way to produce signed ext_vector_type
-          // from unsigned is with C-style case. Also note that element type of
-          // sycl::vec and ext_vector_type might be different, e.g.
-          // sycl::vec<char, N>::vector_t is
-          // signed char __attribute__((ext_vector_type(N))).
-          //
-          // TODO: Shouldn't be different from "abs" above.
-          return convert_result<ret_ty>((typename T0::vector_t)(ret));
-        } else {
-          return convert_result<ret_ty>(ret);
-        }
+        return bit_cast<ret_ty>(__spirv_ocl_s_abs_diff(xs...));
       } else {
-        return convert_result<ret_ty>(__spirv_ocl_u_abs_diff(xs...));
+        return bit_cast<ret_ty>(__spirv_ocl_u_abs_diff(xs...));
       }
     })
 #else

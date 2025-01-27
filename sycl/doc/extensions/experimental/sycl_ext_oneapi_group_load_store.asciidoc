@@ -99,6 +99,7 @@ in the group.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
 * Value type of `InputIteratorT` and `OutputT` must be trivially copyable
  and default constructible.
+* `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
 _Effects_: Loads single element from `in_iter` to `out` by using the `g` group
 object to identify memory location as `in_iter` + `g.get_local_linear_id()`.
@@ -129,6 +130,7 @@ in the group.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
 * Value type of `InputIteratorT` and `OutputT` must be trivially copyable
  and default constructible.
+* `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
 _Effects_: Loads `N` elements from `in_iter` to `out`
 using the `g` group object.
@@ -165,6 +167,7 @@ work-group or sub-group.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
 * Value type of `InputIteratorT` and `OutputT` must be trivially copyable
  and default constructible.
+* `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_iter` to `out`
 using the `g` group object.
@@ -204,6 +207,7 @@ in the group.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
 * `InputT` and value type of `OutputIteratorT` must be trivially copyable
  and default constructible.
+* `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
 _Effects_: Stores single element `in` to `out_iter` by using the `g` group
 object to identify memory location as `out_iter` + `g.get_local_linear_id()`
@@ -235,6 +239,7 @@ in the group.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
 * `InputT` and value type of `OutputIteratorT` must be trivially copyable
  and default constructible.
+* `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
 _Effects_: Stores `N` elements from `in` vec to `out_iter`
 using the `g` group object.
@@ -273,6 +278,7 @@ work-group or sub-group.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
 * `InputT` and value type of `OutputIteratorT` must be trivially copyable
  and default constructible.
+* `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_iter`
 using the `g` group object.
@@ -370,7 +376,7 @@ Specifies data layout used in group_load/store for `sycl::vec` or fixed-size
 arrays functions.
 
 Example:
-`group_load(g, input, output_span, data_placement_blocked);`
+`group_load(g, input, output_span, properties{data_placement_blocked});`
 
 === Optimization Properties
 
@@ -398,7 +404,7 @@ inline constexpr contiguous_memory_key::value_t contiguous_memory;
 ----
 
 For example, we can assert that `input` is a contiguous iterator:
-`group_load(g, input, output_span, contiguous_memory);`
+`group_load(g, input, output_span, properties{contiguous_memory});`
 
 If `input` isn't a contiguous iterator, the behavior is undefined.
 
@@ -432,7 +438,7 @@ inline constexpr full_group_key::value_t full_group;
 
 For example, we can assert that there is no uneven group partition,
 so the implementation can rely on `get_max_local_range()` range size:
-`group_load(sg, input, output_span, full_group);`
+`group_load(sg, input, output_span, properties{full_group});`
 
 If partition is uneven the behavior is undefined.
 
@@ -466,11 +472,13 @@ q.submit([&](sycl::handler& cgh) {
             auto offset = g.get_group_id(0) * g.get_local_range(0) *
                                        items_per_thread;
 
-            sycl_exp::group_load(g, input + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+            auto props = sycl_exp::properties{sycl_exp::contiguous_memory};
+
+            sycl_exp::group_load(g, input + offset, sycl::span{ data }, props);
 
             // Work with data...
 
-            sycl_exp::group_store(g, output + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+            sycl_exp::group_store(g, output + offset, sycl::span{ data }, props);
         });
 });
 ----
@@ -546,11 +554,13 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ g,
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+            auto props = sycl_exp::properties{sycl_exp::contiguous_memory};
+
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, props);
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, props);
         });
 });
 ----
@@ -583,11 +593,13 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ g,
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, sycl_exp::data_placement_striped);
+            auto striped = sycl_exp::properties{sycl_exp::data_placement_striped};
+
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, striped);
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, sycl_exp::data_placement_striped);
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, striped);
         });
 });
 ----

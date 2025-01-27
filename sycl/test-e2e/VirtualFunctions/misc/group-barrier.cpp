@@ -4,13 +4,13 @@
 // XFAIL: cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15080
 // UNSUPPORTED: gpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15068
 // On GPU this test (its older version which used nd_item instead of group)
 // used to fail with UR_RESULT_ERROR_PROGRAM_LINK_FAILURE.
 // SPIR-V files produced by SYCL_DUMP_IMAGES could be linked just fine (using
 // both llvm-spirv -r + llvm-link and ocloc).
 // Current version hangs and therefore it is marked as unsupported to avoid
 // wasting time in CI and potentially blocking a machine.
-// Reported in https://github.com/intel/llvm/issues/15068
 //
 // This test checks that group operations (barrier in this case) work correctly
 // inside virtual functions.
