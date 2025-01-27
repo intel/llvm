@@ -17,7 +17,7 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
 #endif
-#include <sycl/device.hpp>                     // for device
+#include <sycl/device.hpp> // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
@@ -142,6 +142,14 @@ public:
   /// Update the Range of this node if it is a kernel execution node
   template <int Dimensions> void update_range(range<Dimensions> executionRange);
 
+  /// Common Reference Semantics
+  friend bool operator==(const node &LHS, const node &RHS) {
+    return LHS.impl == RHS.impl;
+  }
+  friend bool operator!=(const node &LHS, const node &RHS) {
+    return LHS.impl != RHS.impl;
+  }
+
 private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
 
@@ -180,6 +188,16 @@ public:
 
   size_t get_active_index() const;
   void set_active_index(size_t Index);
+
+  /// Common Reference Semantics
+  friend bool operator==(const dynamic_command_group &LHS,
+                         const dynamic_command_group &RHS) {
+    return LHS.impl == RHS.impl;
+  }
+  friend bool operator!=(const dynamic_command_group &LHS,
+                         const dynamic_command_group &RHS) {
+    return LHS.impl != RHS.impl;
+  }
 
 private:
   template <class Obj>
@@ -307,6 +325,16 @@ public:
   /// Get a list of all root nodes (nodes without dependencies) in this graph.
   std::vector<node> get_root_nodes() const;
 
+  /// Common Reference Semantics
+  friend bool operator==(const modifiable_command_graph &LHS,
+                         const modifiable_command_graph &RHS) {
+    return LHS.impl == RHS.impl;
+  }
+  friend bool operator!=(const modifiable_command_graph &LHS,
+                         const modifiable_command_graph &RHS) {
+    return LHS.impl != RHS.impl;
+  }
+
 protected:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
@@ -386,6 +414,16 @@ public:
   /// @param Nodes The nodes to use for updating the graph.
   void update(const std::vector<node> &Nodes);
 
+  /// Common Reference Semantics
+  friend bool operator==(const executable_command_graph &LHS,
+                         const executable_command_graph &RHS) {
+    return LHS.impl == RHS.impl;
+  }
+  friend bool operator!=(const executable_command_graph &LHS,
+                         const executable_command_graph &RHS) {
+    return LHS.impl != RHS.impl;
+  }
+
 protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
@@ -452,6 +490,16 @@ public:
           Graph,
       size_t ParamSize, const void *Data);
 
+  /// Common Reference Semantics
+  friend bool operator==(const dynamic_parameter_base &LHS,
+                         const dynamic_parameter_base &RHS) {
+    return LHS.impl == RHS.impl;
+  }
+  friend bool operator!=(const dynamic_parameter_base &LHS,
+                         const dynamic_parameter_base &RHS) {
+    return LHS.impl != RHS.impl;
+  }
+
 protected:
   void updateValue(const void *NewValue, size_t Size);
 
@@ -512,3 +560,37 @@ command_graph(const context &SyclContext, const device &SyclDevice,
 
 } // namespace _V1
 } // namespace sycl
+
+namespace std {
+template <> struct __SYCL_EXPORT hash<sycl::ext::oneapi::experimental::node> {
+  size_t operator()(const sycl::ext::oneapi::experimental::node &Node) const;
+};
+
+template <>
+struct __SYCL_EXPORT
+    hash<sycl::ext::oneapi::experimental::dynamic_command_group> {
+  size_t operator()(const sycl::ext::oneapi::experimental::dynamic_command_group
+                        &DynamicCGH) const;
+};
+
+template <sycl::ext::oneapi::experimental::graph_state State>
+struct __SYCL_EXPORT
+    hash<sycl::ext::oneapi::experimental::command_graph<State>> {
+  size_t operator()(const sycl::ext::oneapi::experimental::command_graph<State>
+                        &Graph) const {
+    auto ID = sycl::detail::getSyclObjImpl(Graph)->getID();
+    return std::hash<decltype(ID)>()(ID);
+  }
+};
+
+template <typename ValueT>
+struct __SYCL_EXPORT
+    hash<sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>> {
+  size_t
+  operator()(const sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>
+                 &DynamicParam) const {
+    auto ID = sycl::detail::getSyclObjImpl(DynamicParam)->getID();
+    return std::hash<decltype(ID)>()(ID);
+  }
+};
+} // namespace std
