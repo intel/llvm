@@ -49,6 +49,7 @@ jobs:
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
+      e2e_binaries_artifact: sycl_e2e_bin_default
 
   determine_arc_tests:
     name: Decide which Arc tests to run

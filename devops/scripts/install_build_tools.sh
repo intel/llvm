@@ -30,7 +30,8 @@ apt update && apt install -yqq \
 # To obtain latest release of spriv-tool.
 # Same as what's done in SPRIV-LLVM-TRANSLATOR:
 # https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/cec12d6cf46306d0a015e883d5adb5a8200df1c0/.github/workflows/check-out-of-tree-build.yml#L59
+# pkg-config is required for llvm-spriv to detect spriv-tools installation.
 . /etc/os-release
 curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | apt-key add -
 echo "deb https://packages.lunarg.com/vulkan $VERSION_CODENAME main" | tee -a /etc/apt/sources.list
-apt update && apt install -yqq spirv-tools
+apt update && apt install -yqq spirv-tools pkg-config
