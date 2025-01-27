@@ -35,6 +35,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <sycl/half_type.hpp>
 #include <syclcompat/math.hpp>
 
