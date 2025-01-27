@@ -160,6 +160,12 @@ etors:
     desc: "[size_t] image height"
   - name: DEPTH
     desc: "[size_t] image depth"
+  - name: ARRAY_SIZE
+    desc: "[size_t] array size"
+  - name: NUM_MIP_LEVELS
+    desc: "[uint32_t] number of MIP levels"
+  - name: NUM_SAMPLES
+    desc: "[uint32_t] number of samples"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Image format including channel layout and data type"
