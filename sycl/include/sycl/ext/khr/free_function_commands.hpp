@@ -255,7 +255,7 @@ void launch_grouped_reduce(sycl::queue q, sycl::range<3> r, sycl::range<3> size,
 }
 
 template <typename KernelType>
-void single_task(handler &h, const KernelType &k) {
+void launch_task(handler &h, const KernelType &k) {
   h.single_task<KernelType>(k);
 }
 
@@ -263,7 +263,7 @@ template <typename KernelType>
 void launch_task(sycl::queue q, const KernelType &k,
                  const sycl::detail::code_location &code_loc =
                      sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { single_task<KernelType>(h, k); }, code_loc);
+  submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, code_loc);
 }
 
 template <typename... Args>
@@ -277,6 +277,15 @@ void launch_task(queue q, const kernel &k, Args &&...args) {
   submit(q,
          [&](handler &h) { launch_task(h, k, std::forward<Args>(args)...); });
 }
+
+inline void memcpy(handler& h, void* dest, const void* src, size_t numBytes){
+    h.memcpy(dest, src, numBytes);
+}
+inline void memcpy(queue q, void* dest, const void* src, size_t numBytes){
+     q.submit([&](handler& h) { memcpy(h, dest, src, numBytes); });
+}
+
+
 } // namespace khr
 } // namespace _V1
 } // namespace sycl
