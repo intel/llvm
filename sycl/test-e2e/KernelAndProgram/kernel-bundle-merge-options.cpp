@@ -3,6 +3,10 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 // UNSUPPORTED: hip
 
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 // Note that the UR call might be urProgramBuild OR urProgramBuildExp .
 // The same is true for Compile and Link.
 // We want the first match. Don't put parentheses after.

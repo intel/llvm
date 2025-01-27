@@ -1,4 +1,4 @@
-// RUN: %{build} -fsyntax-only -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 // TODO: launch the test if the feature is supported.
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
@@ -123,10 +123,10 @@ int main() {
   }
 
   // Non-blocking pipes
-  int Result = test_io_nb_pipe(Queue);
+  int Error = test_io_nb_pipe(Queue); // 0 if successful
 
   // Blocking pipes
-  Result &= test_io_bl_pipe(Queue);
+  Error |= test_io_bl_pipe(Queue);
 
-  return Result;
+  return Error;
 }

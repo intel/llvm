@@ -4,6 +4,9 @@
 // RUN: %clangxx -fsycl %device_asan_flags -O2 -g %t1.o %t2.o -o %t.out
 // RUN: %{run} not %t.out 2>&1 | FileCheck %s
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64059
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
