@@ -194,10 +194,11 @@ template <int TestNumber> int test_array_th_nb_pipe(sycl::queue Queue) {
 
   sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   for (size_t i = 0; i != N; ++i) {
-    if (readHostBuffer[i] != i)
+    if (readHostBuffer[i] != i) {
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
                 << readHostBuffer[i] << " Vs expected " << i << std::endl;
     return -1;
+    }
   }
 
   return 0;
@@ -309,10 +310,11 @@ template <int TestNumber> int test_array_th_bl_pipe(sycl::queue Queue) {
 
   sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   for (size_t i = 0; i != N; ++i) {
-    if (readHostBuffer[i] != i)
+    if (readHostBuffer[i] != i) {
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
                 << readHostBuffer[i] << " Vs expected " << i << std::endl;
-    return -1;
+      return -1;
+    }
   }
 
   return 0;
@@ -349,8 +351,8 @@ int main() {
   // https://github.com/intel/llvm/issues/16693 ) disabling them, rather than
   // the entire test.
 
-  // Error |= test_array_th_nb_pipe</*test number*/ 11>(Queue);
-  // Error |= test_array_th_bl_pipe</*test number*/ 12>(Queue);
+  Error |= test_array_th_nb_pipe</*test number*/ 11>(Queue);
+  Error |= test_array_th_bl_pipe</*test number*/ 12>(Queue);
 
   // TODO Remove when #14308 is closed
   std::cerr << "DEBUG: Finished with result " << Error << std::endl;
