@@ -4,4 +4,4 @@
 # Date:   Thu Jan 23 16:07:06 2025 +0000
 #     Merge pull request #2559 from Bensuo/fix_kernel_arg_indices
 #     [CUDA][HIP] Fix kernel arguments being overwritten when added out of order
-set(UNIFIED_RUNTIME_TAG b841691699393dd2375e987c3d38d5f59c3e35cf)
+set(UNIFIED_RUNTIME_TAG martin/device-cts-spec-gap-redo)
