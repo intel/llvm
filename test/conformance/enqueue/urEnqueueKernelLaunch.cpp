@@ -20,7 +20,7 @@ struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
   size_t global_offset = 0;
   size_t n_dimensions = 1;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchTest);
 
 struct urEnqueueKernelLaunchKernelWgSizeTest : uur::urKernelExecutionTest {
   void SetUp() override {
@@ -36,7 +36,7 @@ struct urEnqueueKernelLaunchKernelWgSizeTest : uur::urKernelExecutionTest {
   std::array<size_t, 3> wg_size{2, 4, 8};
   size_t n_dimensions = 3;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelWgSizeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchKernelWgSizeTest);
 
 // Note: Due to an issue with HIP, the subgroup test is not generated
 struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
@@ -53,7 +53,7 @@ struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
   std::array<size_t, 3> global_offset{0, 0, 0};
   size_t n_dimensions = 3;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelSubGroupTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchKernelSubGroupTest);
 
 struct urEnqueueKernelLaunchKernelStandardTest : uur::urKernelExecutionTest {
   void SetUp() override {
@@ -65,7 +65,7 @@ struct urEnqueueKernelLaunchKernelStandardTest : uur::urKernelExecutionTest {
   size_t global_size = 1;
   size_t offset = 0;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelStandardTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchKernelStandardTest);
 
 TEST_P(urEnqueueKernelLaunchTest, Success) {
   ur_mem_handle_t buffer = nullptr;
@@ -302,7 +302,7 @@ static std::vector<testParametersEnqueueKernel> test_cases{// 1D
                                                            {1027, 1, 19, 3},
                                                            {1, 53, 19, 3},
                                                            {256, 79, 8, 3}};
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchTestWithParam, testing::ValuesIn(test_cases),
     printKernelLaunchTestString<urEnqueueKernelLaunchTestWithParam>);
 
@@ -349,7 +349,7 @@ struct urEnqueueKernelLaunchWithUSM : uur::urKernelExecutionTest {
   size_t alloc_size = 0;
   void *usmPtr = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchWithUSM);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithUSM);
 
 TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
   size_t work_dim = 1;
@@ -438,7 +438,7 @@ struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
   ur_physical_mem_handle_t physical_mem = nullptr;
   void *virtual_ptr = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchWithVirtualMemory);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithVirtualMemory);
 
 TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
@@ -515,7 +515,7 @@ struct urEnqueueKernelLaunchMultiDeviceTest
   size_t global_offset = 0;
   size_t n_dimensions = 1;
 };
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueKernelLaunchMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueKernelLaunchMultiDeviceTest);
 
 // TODO: rewrite this test, right now it only works for a single queue
 // (the context is only created for one device)
@@ -603,7 +603,7 @@ struct urEnqueueKernelLaunchUSMLinkedList
   ur_queue_handle_t queue = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchUSMLinkedList,
     testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
     uur::deviceTestWithParamPrinter<uur::BoolTestParam>);

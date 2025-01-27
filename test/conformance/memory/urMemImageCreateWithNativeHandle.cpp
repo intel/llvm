@@ -13,7 +13,7 @@ struct urMemImageCreateWithNativeHandleTest : uur::urMemImageTest {
     UUR_RETURN_ON_FATAL_FAILURE(urMemImageTest::SetUp());
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateWithNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemImageCreateWithNativeHandleTest);
 
 TEST_P(urMemImageCreateWithNativeHandleTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::LevelZero{});

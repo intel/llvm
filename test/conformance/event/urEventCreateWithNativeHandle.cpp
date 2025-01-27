@@ -9,7 +9,7 @@
 #include "uur/raii.h"
 
 using urEventCreateWithNativeHandleTest = uur::event::urEventTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventCreateWithNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventCreateWithNativeHandleTest);
 
 TEST_P(urEventCreateWithNativeHandleTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});

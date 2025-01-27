@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urContextGetInfoTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urContextGetInfoTest);
 
 TEST_P(urContextGetInfoTest, SuccessNumDevices) {
   ur_context_info_t property_name = UR_CONTEXT_INFO_NUM_DEVICES;

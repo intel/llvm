@@ -8,7 +8,7 @@
 #include <uur/fixtures.h>
 
 using urLevelZeroProgramLinkTest = uur::urProgramTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urLevelZeroProgramLinkTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroProgramLinkTest);
 
 TEST_P(urLevelZeroProgramLinkTest, InvalidLinkOptionsPrintedInLog) {
   ur_program_handle_t linked_program = nullptr;

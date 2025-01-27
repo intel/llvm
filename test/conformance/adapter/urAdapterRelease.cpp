@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urAdapterReleaseTest = uur::urAdapterTest;
-UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(urAdapterReleaseTest);
+UUR_INSTANTIATE_ADAPTER_TEST_SUITE(urAdapterReleaseTest);
 
 TEST_P(urAdapterReleaseTest, Success) {
   uint32_t referenceCountBefore = 0;

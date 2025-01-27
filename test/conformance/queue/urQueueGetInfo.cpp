@@ -7,7 +7,7 @@
 #include <uur/known_failure.h>
 
 using urQueueGetInfoTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueGetInfoTest);
 
 TEST_P(urQueueGetInfoTest, SuccessContext) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
@@ -168,7 +168,7 @@ struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
           UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoDeviceQueueTestWithInfoParam);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueGetInfoDeviceQueueTestWithInfoParam);
 
 TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, SuccessDeviceDefault) {
   size_t property_size = 0;

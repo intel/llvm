@@ -7,7 +7,7 @@
 #include "fixtures.h"
 
 using urHipContextGetNativeHandleTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipContextGetNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urHipContextGetNativeHandleTest);
 
 TEST_P(urHipContextGetNativeHandleTest, Success) {
   ur_native_handle_t native_context = 0;

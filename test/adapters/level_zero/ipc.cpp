@@ -13,7 +13,7 @@
 #endif
 
 using urL0IpcTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urL0IpcTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urL0IpcTest);
 
 TEST_P(urL0IpcTest, SuccessHostL0Ipc) {
   ur_device_usm_access_capability_flags_t hostUSMSupport = 0;

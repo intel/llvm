@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urUSMPoolDestroyTest = uur::urUSMPoolTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMPoolDestroyTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMPoolDestroyTest);
 
 TEST_P(urUSMPoolDestroyTest, Success) {
   ASSERT_SUCCESS(urUSMPoolRelease(pool));

@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urUSMPoolGetInfoTest = uur::urUSMPoolTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMPoolGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMPoolGetInfoTest);
 
 TEST_P(urUSMPoolGetInfoTest, SuccessReferenceCount) {
   size_t property_size = 0;

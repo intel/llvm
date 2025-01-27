@@ -15,7 +15,7 @@
 
 using namespace std::chrono_literals;
 using urLevelZeroEventNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urLevelZeroEventNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroEventNativeHandleTest);
 
 #define TEST_MEMCPY_SIZE 4096
 

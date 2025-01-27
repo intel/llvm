@@ -18,7 +18,7 @@ struct urProgramGetFunctionPointerTest : uur::urProgramTest {
 
   std::string function_name;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetFunctionPointerTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetFunctionPointerTest);
 
 TEST_P(urProgramGetFunctionPointerTest, Success) {
   void *function_pointer = nullptr;

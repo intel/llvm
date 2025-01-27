@@ -160,7 +160,7 @@ TEST_P(urEventSetCallbackTest, EventAlreadyCompleted) {
   ASSERT_TRUE(didRun);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventSetCallbackTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventSetCallbackTest);
 
 /* Negative tests */
 using urEventSetCallbackNegativeTest = uur::event::urEventTest;
@@ -189,4 +189,4 @@ TEST_P(urEventSetCallbackNegativeTest, InvalidEnumeration) {
       UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventSetCallbackNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventSetCallbackNegativeTest);

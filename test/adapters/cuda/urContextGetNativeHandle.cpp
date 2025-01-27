@@ -7,7 +7,7 @@
 #include "fixtures.h"
 
 using urCudaContextGetNativeHandle = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCudaContextGetNativeHandle);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCudaContextGetNativeHandle);
 
 TEST_P(urCudaContextGetNativeHandle, Success) {
   ur_native_handle_t native_context = 0;

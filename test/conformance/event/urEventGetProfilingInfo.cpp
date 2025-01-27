@@ -44,13 +44,14 @@ TEST_P(urEventGetProfilingInfoTest, Success) {
   }
 }
 
-UUR_DEVICE_TEST_SUITE_P(urEventGetProfilingInfoTest,
-                        ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED,
-                                          UR_PROFILING_INFO_COMMAND_SUBMIT,
-                                          UR_PROFILING_INFO_COMMAND_START,
-                                          UR_PROFILING_INFO_COMMAND_END,
-                                          UR_PROFILING_INFO_COMMAND_COMPLETE),
-                        uur::deviceTestWithParamPrinter<ur_profiling_info_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEventGetProfilingInfoTest,
+    ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED,
+                      UR_PROFILING_INFO_COMMAND_SUBMIT,
+                      UR_PROFILING_INFO_COMMAND_START,
+                      UR_PROFILING_INFO_COMMAND_END,
+                      UR_PROFILING_INFO_COMMAND_COMPLETE),
+    uur::deviceTestWithParamPrinter<ur_profiling_info_t>);
 
 using urEventGetProfilingInfoWithTimingComparisonTest = uur::event::urEventTest;
 
@@ -99,7 +100,7 @@ TEST_P(urEventGetProfilingInfoWithTimingComparisonTest, Success) {
   ASSERT_LE(*end_timing, *complete_timing);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(
     urEventGetProfilingInfoWithTimingComparisonTest);
 
 using urEventGetProfilingInfoNegativeTest = uur::event::urEventTest;
@@ -142,7 +143,7 @@ TEST_P(urEventGetProfilingInfoNegativeTest, InvalidValue) {
       UR_RESULT_ERROR_INVALID_VALUE);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetProfilingInfoNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoNegativeTest);
 
 struct urEventGetProfilingInfoForWaitWithBarrier : uur::urProfilingQueueTest {
   void SetUp() override {
@@ -172,7 +173,7 @@ struct urEventGetProfilingInfoForWaitWithBarrier : uur::urProfilingQueueTest {
   std::vector<uint32_t> input;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetProfilingInfoForWaitWithBarrier);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoForWaitWithBarrier);
 
 TEST_P(urEventGetProfilingInfoForWaitWithBarrier, Success) {
   std::vector<uint8_t> submit_data(size);

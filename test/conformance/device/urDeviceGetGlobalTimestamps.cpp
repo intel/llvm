@@ -28,7 +28,7 @@ T absolute_difference(T a, T b) {
 }
 
 using urDeviceGetGlobalTimestampTest = uur::urDeviceTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceGetGlobalTimestampTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urDeviceGetGlobalTimestampTest);
 
 TEST_P(urDeviceGetGlobalTimestampTest, Success) {
   // See https://github.com/oneapi-src/unified-runtime/issues/2633

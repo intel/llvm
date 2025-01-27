@@ -8,7 +8,7 @@
 #include <uur/known_failure.h>
 
 using urKernelSetExecInfoTest = uur::urKernelTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetExecInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetExecInfoTest);
 
 TEST_P(urKernelSetExecInfoTest, SuccessIndirectAccess) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
@@ -59,7 +59,7 @@ struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
   size_t allocation_size = 16;
   void *allocation = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetExecInfoUSMPointersTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetExecInfoUSMPointersTest);
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
@@ -119,7 +119,7 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
 using urKernelSetExecInfoCacheConfigTest =
     uur::urKernelTestWithParam<ur_kernel_cache_config_t>;
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urKernelSetExecInfoCacheConfigTest,
     ::testing::Values(UR_KERNEL_CACHE_CONFIG_DEFAULT,
                       UR_KERNEL_CACHE_CONFIG_LARGE_SLM,

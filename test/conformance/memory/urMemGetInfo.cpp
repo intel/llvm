@@ -9,7 +9,7 @@
 #include <uur/known_failure.h>
 
 using urMemGetInfoTest = uur::urMemBufferTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemGetInfoTest);
 
 TEST_P(urMemGetInfoTest, SuccessSize) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
@@ -113,7 +113,7 @@ struct urMemGetInfoImageTest : uur::urMemImageTest {
     uur::urMemImageTest::SetUp();
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemGetInfoImageTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemGetInfoImageTest);
 
 TEST_P(urMemGetInfoImageTest, SuccessSize) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});

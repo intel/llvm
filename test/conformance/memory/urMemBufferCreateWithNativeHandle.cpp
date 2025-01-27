@@ -9,7 +9,7 @@
 #include <uur/raii.h>
 
 using urMemBufferCreateWithNativeHandleTest = uur::urMemBufferTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferCreateWithNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemBufferCreateWithNativeHandleTest);
 
 TEST_P(urMemBufferCreateWithNativeHandleTest, Success) {
   ur_native_handle_t hNativeMem = 0;
@@ -113,7 +113,7 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, InvalidNullPointer) {
 }
 
 using urMemBufferMultiQueueMemBufferTest = uur::urMultiDeviceMemBufferQueueTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMemBufferMultiQueueMemBufferTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMemBufferMultiQueueMemBufferTest);
 
 TEST_P(urMemBufferMultiQueueMemBufferTest, WriteBack) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});

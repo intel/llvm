@@ -92,9 +92,9 @@ static std::vector<testParametersFill> test_cases{
     {256, 16},
     {256, 32}};
 
-UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMFillTestWithParam,
-                        testing::ValuesIn(test_cases),
-                        printFillTestString<urEnqueueUSMFillTestWithParam>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEnqueueUSMFillTestWithParam, testing::ValuesIn(test_cases),
+    printFillTestString<urEnqueueUSMFillTestWithParam>);
 
 TEST_P(urEnqueueUSMFillTestWithParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
@@ -145,7 +145,7 @@ struct urEnqueueUSMFillNegativeTest : uur::urQueueTest {
   void *ptr{nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMFillNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMFillNegativeTest);
 
 TEST_P(urEnqueueUSMFillNegativeTest, InvalidNullQueueHandle) {
   ASSERT_EQ_RESULT(urEnqueueUSMFill(nullptr, ptr, pattern_size, pattern.data(),

@@ -8,7 +8,7 @@
 #include <uur/fixtures.h>
 
 using urMemGetNativeHandleTest = uur::urMemBufferTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemGetNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemGetNativeHandleTest);
 
 TEST_P(urMemGetNativeHandleTest, Success) {
   ur_native_handle_t hNativeMem = 0;

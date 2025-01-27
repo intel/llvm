@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urContextReleaseTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextReleaseTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urContextReleaseTest);
 
 TEST_P(urContextReleaseTest, Success) {
   ASSERT_SUCCESS(urContextRetain(context));

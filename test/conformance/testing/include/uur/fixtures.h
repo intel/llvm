@@ -45,7 +45,7 @@ struct urAdapterTest : ::testing::Test,
 
 // In the vein of urAdapterTest and urDeviceTest this is a parameterized
 // platform fixture which can be instantiated via
-// UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P to run tests on each discovered
+// UUR_INSTANTIATE_PLATFORM_TEST_SUITE to run tests on each discovered
 // platform.
 struct urPlatformTest : ::testing::Test,
                         ::testing::WithParamInterface<ur_platform_handle_t> {
@@ -113,7 +113,7 @@ struct urDeviceTest : ::testing::Test,
 };
 } // namespace uur
 
-#define UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(FIXTURE)                          \
+#define UUR_INSTANTIATE_ADAPTER_TEST_SUITE(FIXTURE)                            \
   INSTANTIATE_TEST_SUITE_P(                                                    \
       , FIXTURE,                                                               \
       ::testing::ValuesIn(uur::AdapterEnvironment::instance->adapters),        \
@@ -121,7 +121,7 @@ struct urDeviceTest : ::testing::Test,
         return uur::GetAdapterBackendName(info.param);                         \
       })
 
-#define UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(FIXTURE)                         \
+#define UUR_INSTANTIATE_PLATFORM_TEST_SUITE(FIXTURE)                           \
   INSTANTIATE_TEST_SUITE_P(                                                    \
       , FIXTURE,                                                               \
       ::testing::ValuesIn(uur::PlatformEnvironment::instance->platforms),      \
@@ -129,7 +129,7 @@ struct urDeviceTest : ::testing::Test,
         return uur::GetPlatformNameWithID(info.param);                         \
       })
 
-#define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
+#define UUR_INSTANTIATE_DEVICE_TEST_SUITE(FIXTURE)                             \
   INSTANTIATE_TEST_SUITE_P(                                                    \
       , FIXTURE,                                                               \
       ::testing::ValuesIn(uur::DevicesEnvironment::instance->devices),         \
@@ -301,7 +301,7 @@ struct urMemImageTest : urContextTest {
 
 } // namespace uur
 
-#define UUR_PLATFORM_TEST_SUITE_P(FIXTURE, VALUES, PRINTER)                    \
+#define UUR_PLATFORM_TEST_SUITE_WITH_PARAM(FIXTURE, VALUES, PRINTER)           \
   INSTANTIATE_TEST_SUITE_P(                                                    \
       , FIXTURE,                                                               \
       testing::Combine(                                                        \
@@ -309,7 +309,7 @@ struct urMemImageTest : urContextTest {
           VALUES),                                                             \
       PRINTER)
 
-#define UUR_DEVICE_TEST_SUITE_P(FIXTURE, VALUES, PRINTER)                      \
+#define UUR_DEVICE_TEST_SUITE_WITH_PARAM(FIXTURE, VALUES, PRINTER)             \
   INSTANTIATE_TEST_SUITE_P(                                                    \
       , FIXTURE,                                                               \
       testing::Combine(                                                        \

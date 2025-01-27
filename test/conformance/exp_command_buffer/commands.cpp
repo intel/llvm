@@ -53,7 +53,7 @@ struct urCommandBufferCommandsTest
   std::array<ur_mem_handle_t, 2> buffers = {nullptr, nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferCommandsTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferCommandsTest);
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMMemcpyExp) {
   ASSERT_SUCCESS(urCommandBufferAppendUSMMemcpyExp(
@@ -181,7 +181,7 @@ struct urCommandBufferAppendKernelLaunchExpTest
   std::array<void *, 3> shared_ptrs = {nullptr, nullptr, nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferAppendKernelLaunchExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferAppendKernelLaunchExpTest);
 TEST_P(urCommandBufferAppendKernelLaunchExpTest, Basic) {
   ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
       cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,

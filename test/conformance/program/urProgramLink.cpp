@@ -31,7 +31,7 @@ struct urProgramLinkTest : uur::urProgramTest {
 
   ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramLinkTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramLinkTest);
 
 struct urProgramLinkErrorTest : uur::urQueueTest {
   const std::string linker_error_program_name = "linker_error";
@@ -73,7 +73,7 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
   ur_program_handle_t program = nullptr;
   ur_program_handle_t linked_program = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramLinkErrorTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramLinkErrorTest);
 
 TEST_P(urProgramLinkTest, Success) {
   // This entry point isn't implemented for HIP.

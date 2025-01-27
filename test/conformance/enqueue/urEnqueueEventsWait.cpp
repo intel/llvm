@@ -36,7 +36,7 @@ struct urEnqueueEventsWaitTest : uur::urMultiQueueTest {
   std::vector<uint32_t> input;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueEventsWaitTest);
 
 TEST_P(urEnqueueEventsWaitTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});

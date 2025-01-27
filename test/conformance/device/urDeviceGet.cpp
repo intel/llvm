@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urDeviceGetTest = uur::urPlatformTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urDeviceGetTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urDeviceGetTest);
 
 TEST_P(urDeviceGetTest, Success) {
   uint32_t count = 0;
@@ -71,7 +71,7 @@ TEST_P(urDeviceGetTest, InvalidNullPointerDevices) {
 using urDeviceGetTestWithDeviceTypeParam =
     uur::urPlatformTestWithParam<ur_device_type_t>;
 
-UUR_PLATFORM_TEST_SUITE_P(
+UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     urDeviceGetTestWithDeviceTypeParam,
     ::testing::Values(UR_DEVICE_TYPE_DEFAULT, UR_DEVICE_TYPE_GPU,
                       UR_DEVICE_TYPE_CPU, UR_DEVICE_TYPE_FPGA,

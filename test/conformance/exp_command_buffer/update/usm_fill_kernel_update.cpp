@@ -75,7 +75,7 @@ struct USMFillCommandTest
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(USMFillCommandTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMFillCommandTest);
 
 // Test using a different global size to fill and larger USM output buffer
 TEST_P(USMFillCommandTest, UpdateParameters) {
@@ -314,7 +314,7 @@ struct USMMultipleFillCommandTest
       command_handles;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(USMMultipleFillCommandTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultipleFillCommandTest);
 
 // Test updating all the kernels commands in the command-buffer
 TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {

@@ -40,7 +40,7 @@ struct urEventWaitTest : uur::urQueueTest {
   ur_event_handle_t event = nullptr;
   std::vector<uint32_t> input;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventWaitTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventWaitTest);
 
 TEST_P(urEventWaitTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
@@ -64,7 +64,7 @@ TEST_P(urEventWaitTest, Success) {
 
 using urEventWaitNegativeTest = uur::urQueueTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventWaitNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventWaitNegativeTest);
 
 TEST_P(urEventWaitNegativeTest, ZeroSize) {
   ur_event_handle_t event = nullptr;

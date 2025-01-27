@@ -53,7 +53,7 @@ struct urMultiDeviceProgramCreateWithBinaryTest
   std::vector<size_t> binary_sizes;
   ur_program_handle_t binary_program = nullptr;
 };
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceProgramCreateWithBinaryTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceProgramCreateWithBinaryTest);
 
 // Create the kernel using the program created with multiple binaries and run it
 // on all devices.
@@ -301,7 +301,7 @@ struct urMultiDeviceCommandBufferExpTest
   static constexpr size_t global_size = 64;
   static constexpr size_t local_size = 4;
 };
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceCommandBufferExpTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceCommandBufferExpTest);
 
 TEST_P(urMultiDeviceCommandBufferExpTest, Enqueue) {
   for (size_t i = 0; i < devices.size(); i++) {

@@ -147,8 +147,8 @@ static ProviderParams test_cases[] = {
     //{TEST_PROVIDER_COUNTER, EVENT_COUNTER, QUEUE_IMMEDIATE},
 };
 
-UUR_DEVICE_TEST_SUITE_P(EventPoolTest, testing::ValuesIn(test_cases),
-                        printParams<EventPoolTest>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(EventPoolTest, testing::ValuesIn(test_cases),
+                                 printParams<EventPoolTest>);
 
 TEST_P(EventPoolTest, InvalidDevice) {
   auto pool = cache->borrow(MAX_DEVICES, getParam().flags);
@@ -240,8 +240,9 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
 
 using EventPoolTestWithQueue = uur::urQueueTestWithParam<ProviderParams>;
 
-UUR_DEVICE_TEST_SUITE_P(EventPoolTestWithQueue, testing::ValuesIn(test_cases),
-                        printParams<EventPoolTest>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(EventPoolTestWithQueue,
+                                 testing::ValuesIn(test_cases),
+                                 printParams<EventPoolTest>);
 
 // TODO: actual min version is unknown, retest after drivers on CI are
 // updated.

@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urPlatformGetApiVersionTest = uur::urPlatformTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetApiVersionTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urPlatformGetApiVersionTest);
 
 TEST_P(urPlatformGetApiVersionTest, Success) {
   ur_api_version_t version;

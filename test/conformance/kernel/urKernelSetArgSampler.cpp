@@ -56,7 +56,7 @@ struct urKernelSetArgSamplerTestWithParam
   ur_sampler_handle_t sampler = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urKernelSetArgSamplerTestWithParam,
     ::testing::Combine(
         ::testing::Values(true, false),
@@ -114,7 +114,7 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
   ur_sampler_handle_t sampler = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgSamplerTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgSamplerTest);
 
 TEST_P(urKernelSetArgSamplerTest, SuccessWithProps) {
   ur_kernel_arg_sampler_properties_t props{
