@@ -282,7 +282,6 @@ set(SYCL_COMMON_SOURCES
     "detail/platform_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
-    "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"

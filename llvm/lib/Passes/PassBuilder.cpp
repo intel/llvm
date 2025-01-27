@@ -163,6 +163,7 @@
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+#include "llvm/SYCLLowerIR/SYCLOptimizeBackToBackBarrier.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"

@@ -17,7 +17,7 @@ def get_latest_workflow_runs(repo, workflow_name):
         + repo
         + "/actions/workflows/"
         + workflow_name
-        + ".yml/runs?status=success"
+        + ".yml/runs"
     ).read()
     return json.loads(action_runs)["workflow_runs"][0]
 
