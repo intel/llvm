@@ -8,18 +8,18 @@ namespace khr {
 
 template <typename CommandGroupFunc>
 void submit(queue q, CommandGroupFunc &&cgf,
-            const sycl::detail::code_location &code_loc =
+            const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::submit(
-      q, std::forward<CommandGroupFunc>(cgf), code_loc);
+      q, std::forward<CommandGroupFunc>(cgf), codeLoc);
 }
 
 template <typename CommandGroupFunc>
 event submit_tracked(queue q, CommandGroupFunc &&cgf,
-                     const sycl::detail::code_location &code_loc =
+                     const sycl::detail::code_location &codeLoc =
                          sycl::detail::code_location::current()) {
   return sycl::ext::oneapi::experimental::submit_with_event(
-      q, std::forward<CommandGroupFunc>(cgf), code_loc);
+      q, std::forward<CommandGroupFunc>(cgf), codeLoc);
 }
 
 template <typename KernelType>
@@ -261,9 +261,9 @@ void launch_task(handler &h, const KernelType &k) {
 
 template <typename KernelType>
 void launch_task(sycl::queue q, const KernelType &k,
-                 const sycl::detail::code_location &code_loc =
+                 const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, code_loc);
+  submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
 }
 
 template <typename... Args>
@@ -283,6 +283,93 @@ inline void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
 }
 inline void memcpy(queue q, void *dest, const void *src, size_t numBytes) {
   q.submit([&](handler &h) { memcpy(h, dest, src, numBytes); });
+}
+
+template <typename T>
+void copy(handler &h, const T *src, T *dest, size_t count) {
+  h.copy(src, dest, count);
+}
+
+template <typename T> void copy(queue q, const T *src, T *dest, size_t count) {
+  submit(q, [&](handler &h) { copy(h, src, dest, count); });
+}
+
+template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
+void copy(handler &h, const SrcT *src,
+          accessor<DestT, DestDims, DestMode, target::device> dest) {
+  h.copy(src, dest);
+}
+
+template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
+void copy(handler &h, std::shared_ptr<SrcT> src,
+          accessor<DestT, DestDims, DestMode, target::device> dest) {
+  h.copy(src, dest);
+}
+
+template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
+void copy(queue q, const SrcT *src,
+          accessor<DestT, DestDims, DestMode, target::device> dest) {
+  q.submit([&](handler &h) {
+    h.require(dest);
+    copy(h, src, dest);
+  });
+}
+
+template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
+void copy(queue q, std::shared_ptr<SrcT> src,
+          accessor<DestT, DestDims, DestMode, target::device> dest) {
+  q.submit([&](handler &h) {
+    h.require(dest);
+    copy(h, src, dest);
+  });
+}
+
+template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
+void copy(handler &h, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+          DestT *dest) {
+  h.copy(src, dest);
+}
+
+template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
+void copy(handler &h, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+          std::shared_ptr<DestT> dest) {
+  h.copy(src, dest);
+}
+
+template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
+void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+          DestT *dest) {
+  q.submit([&](handler &h) {
+    h.require(src);
+    copy(h, src, dest);
+  });
+}
+
+template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
+void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+          std::shared_ptr<DestT> dest) {
+  q.submit([&](handler &h) {
+    h.require(src);
+    copy(h, src, dest);
+  });
+}
+
+template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT,
+          int DestDims, access_mode DestMode>
+void copy(handler &h, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+          accessor<DestT, DestDims, DestMode, target::device> dest) {
+  h.copy(src, dest);
+}
+
+template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT,
+          int DestDims, access_mode DestMode>
+void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+          accessor<DestT, DestDims, DestMode, target::device> dest) {
+  q.submit([&](handler &h) {
+    h.require(src);
+    h.require(dest);
+    copy(h, src, dest);
+  });
 }
 
 } // namespace khr
