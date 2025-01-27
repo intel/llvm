@@ -7,7 +7,7 @@
 #include <uur/known_failure.h>
 
 using urMemRetainTest = uur::urMemBufferTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemRetainTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemRetainTest);
 
 TEST_P(urMemRetainTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

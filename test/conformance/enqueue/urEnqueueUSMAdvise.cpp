@@ -18,9 +18,10 @@ struct urEnqueueUSMAdviseWithParamTest
         uur::urUSMDeviceAllocTestWithParam<ur_usm_advice_flag_t>::SetUp());
   }
 };
-UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMAdviseWithParamTest,
-                        ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
-                        uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEnqueueUSMAdviseWithParamTest,
+    ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
+    uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
 
 TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
   // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning
@@ -50,7 +51,7 @@ struct urEnqueueUSMAdviseTest : uur::urUSMDeviceAllocTest {
     uur::urUSMDeviceAllocTest::SetUp();
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMAdviseTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMAdviseTest);
 
 TEST_P(urEnqueueUSMAdviseTest, MultipleParamsSuccess) {
   // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning

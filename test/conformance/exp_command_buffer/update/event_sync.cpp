@@ -10,7 +10,7 @@
 // updated
 using CommandEventSyncUpdateTest =
     uur::command_buffer::urCommandEventSyncUpdateTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(CommandEventSyncUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandEventSyncUpdateTest);
 
 TEST_P(CommandEventSyncUpdateTest, USMMemcpyExp) {
   // Get wait event from queue fill on ptr 0

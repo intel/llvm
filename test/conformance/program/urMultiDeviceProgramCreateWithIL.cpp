@@ -9,7 +9,7 @@
 #include <uur/raii.h>
 
 using urMultiDeviceProgramTest = uur::urMultiDeviceProgramTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceProgramTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceProgramTest);
 
 // Test binary sizes and binaries obtained from urProgramGetInfo when program is
 // built for a subset of devices in the context.

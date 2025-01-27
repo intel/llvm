@@ -9,9 +9,10 @@
 using urPlatformGetBackendOptionTest =
     uur::urPlatformTestWithParam<std::string>;
 
-UUR_PLATFORM_TEST_SUITE_P(urPlatformGetBackendOptionTest,
-                          ::testing::Values("-O0", "-O1", "-O2", "-O3"),
-                          uur::platformTestWithParamPrinter<std::string>);
+UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
+    urPlatformGetBackendOptionTest,
+    ::testing::Values("-O0", "-O1", "-O2", "-O3"),
+    uur::platformTestWithParamPrinter<std::string>);
 
 TEST_P(urPlatformGetBackendOptionTest, Success) {
   const char *platformOption = nullptr;
@@ -21,7 +22,7 @@ TEST_P(urPlatformGetBackendOptionTest, Success) {
 }
 
 using urPlatformGetBackendOptionNegativeTest = uur::urPlatformTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetBackendOptionNegativeTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urPlatformGetBackendOptionNegativeTest);
 
 TEST_P(urPlatformGetBackendOptionNegativeTest, InvalidNullHandle) {
   const char *platformOption = nullptr;

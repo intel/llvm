@@ -12,7 +12,7 @@ struct urEnqueueMemImageWriteTest : uur::urMemImageQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMemImageQueueTest::SetUp());
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueMemImageWriteTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemImageWriteTest);
 
 TEST_P(urEnqueueMemImageWriteTest, Success1D) {
   std::vector<uint32_t> input(width * 4, 42);

@@ -7,7 +7,7 @@
 
 using urEnqueueReadHostPipeTest = uur::urHostPipeTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueReadHostPipeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueReadHostPipeTest);
 
 TEST_P(urEnqueueReadHostPipeTest, InvalidNullHandleQueue) {
   uint32_t numEventsInWaitList = 0;

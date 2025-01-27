@@ -52,7 +52,7 @@ struct urUSMSharedAllocTest
 // The 0 value parameters are not relevant for urUSMSharedAllocTest tests, they
 // are used below in urUSMSharedAllocAlignmentTest for allocation size and
 // alignment values
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urUSMSharedAllocTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
@@ -159,7 +159,7 @@ TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {
 
 using urUSMSharedAllocAlignmentTest = urUSMSharedAllocTest;
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urUSMSharedAllocAlignmentTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),

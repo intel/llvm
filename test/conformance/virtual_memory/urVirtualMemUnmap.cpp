@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urVirtualMemUnmapTest = uur::urVirtualMemTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urVirtualMemUnmapTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urVirtualMemUnmapTest);
 
 TEST_P(urVirtualMemUnmapTest, Success) {
   ASSERT_SUCCESS(urVirtualMemMap(context, virtual_ptr, size, physical_mem, 0,

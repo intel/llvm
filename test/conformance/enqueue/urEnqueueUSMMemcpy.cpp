@@ -174,7 +174,7 @@ TEST_P(urEnqueueUSMMemcpyTest, InvalidNullPtrEventWaitList) {
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMMemcpyTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMMemcpyTest);
 
 struct urEnqueueUSMMemcpyMultiDeviceTest : uur::urAllDevicesTest {
   void SetUp() override {
@@ -250,7 +250,7 @@ struct urEnqueueUSMMemcpyMultiDeviceTest : uur::urAllDevicesTest {
   size_t alloc_size = 64;
   uint8_t fill_pattern = 42;
 };
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueUSMMemcpyMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueUSMMemcpyMultiDeviceTest);
 
 TEST_P(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyBlocking) {
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(src_queue, true, dst_alloc, src_alloc,

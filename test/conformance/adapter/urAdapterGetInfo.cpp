@@ -10,7 +10,7 @@
 
 using urAdapterGetInfoTest = uur::urAdapterTest;
 
-UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(urAdapterGetInfoTest);
+UUR_INSTANTIATE_ADAPTER_TEST_SUITE(urAdapterGetInfoTest);
 
 TEST_P(urAdapterGetInfoTest, SuccessBackend) {
   ur_adapter_info_t property_name = UR_ADAPTER_INFO_BACKEND;

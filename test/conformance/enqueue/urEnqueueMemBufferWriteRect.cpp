@@ -72,7 +72,7 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 struct urEnqueueMemBufferWriteRectTestWithParam
     : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferWriteRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
     uur::printRectTestString<urEnqueueMemBufferWriteRectTestWithParam>);
@@ -139,7 +139,7 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
 }
 
 using urEnqueueMemBufferWriteRectTest = uur::urMemBufferQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueMemBufferWriteRectTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferWriteRectTest);
 
 TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullHandleQueue) {
   std::vector<uint32_t> src(count);

@@ -7,7 +7,7 @@
 #include "fixtures.h"
 
 using urEventGetNativeHandleTest = uur::event::urEventTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetNativeHandleTest);
 
 TEST_P(urEventGetNativeHandleTest, Success) {
   ur_native_handle_t native_event = 0;

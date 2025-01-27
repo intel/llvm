@@ -38,7 +38,7 @@ struct urCudaEnqueueNativeCommandTest : uur::urQueueTest {
   static constexpr size_t allocation_size = sizeof(val) * global_size;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCudaEnqueueNativeCommandTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCudaEnqueueNativeCommandTest);
 
 struct InteropData1 {
   void *fill_ptr;

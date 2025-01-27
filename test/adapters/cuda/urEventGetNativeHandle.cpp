@@ -8,7 +8,7 @@
 #include "uur/raii.h"
 
 using urCudaEventGetNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCudaEventGetNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCudaEventGetNativeHandleTest);
 
 TEST_P(urCudaEventGetNativeHandleTest, Success) {
   constexpr size_t buffer_size = 1024;

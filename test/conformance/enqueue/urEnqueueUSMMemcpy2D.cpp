@@ -113,7 +113,7 @@ static std::vector<uur::TestParameters2D> test_sizes{
     /* Height == 1 && Pitch == width + 1 */
     {234, 233, 1}};
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMMemcpy2DTestWithParam,
     ::testing::Combine(::testing::ValuesIn(test_sizes),
                        ::testing::Values(ur_usm_type_t::UR_USM_TYPE_DEVICE,
@@ -147,7 +147,7 @@ TEST_P(urEnqueueUSMMemcpy2DTestWithParam, SuccessNonBlocking) {
 }
 
 using urEnqueueUSMMemcpy2DNegativeTest = urEnqueueUSMMemcpy2DTestWithParam;
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMMemcpy2DNegativeTest,
     ::testing::Values(TestParametersMemcpy2D{
         {1, 1, 1},

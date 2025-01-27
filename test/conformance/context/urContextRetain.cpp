@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urContextRetainTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextRetainTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urContextRetainTest);
 
 TEST_P(urContextRetainTest, Success) {
   uint32_t prevRefCount = 0;

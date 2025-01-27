@@ -76,7 +76,7 @@ struct BufferFillCommandTest
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(BufferFillCommandTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferFillCommandTest);
 
 // Update kernel arguments to fill with a new scalar value to a new output
 // buffer.

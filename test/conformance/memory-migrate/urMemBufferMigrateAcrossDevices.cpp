@@ -144,7 +144,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
   std::vector<ur_kernel_handle_t> kernels;
   std::vector<ur_program_metadata_t> metadatas{};
 };
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceContextMemBufferTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceContextMemBufferTest);
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
   if (num_devices == 1) {

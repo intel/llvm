@@ -72,10 +72,10 @@ struct urEnqueueEventsWaitWithBarrierTest
   std::vector<uint32_t> input;
 };
 
-UUR_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierTest,
-                        ::testing::Values(BarrierType::Normal,
-                                          BarrierType::ExtLowPower),
-                        uur::deviceTestWithParamPrinter<BarrierType>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(urEnqueueEventsWaitWithBarrierTest,
+                                 ::testing::Values(BarrierType::Normal,
+                                                   BarrierType::ExtLowPower),
+                                 uur::deviceTestWithParamPrinter<BarrierType>);
 
 struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
   void SetUp() override {
@@ -101,7 +101,7 @@ struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
   ur_mem_handle_t buffer = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierOrderingTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueEventsWaitWithBarrierOrderingTest);
 
 TEST_P(urEnqueueEventsWaitWithBarrierTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});

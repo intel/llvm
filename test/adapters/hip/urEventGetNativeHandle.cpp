@@ -8,7 +8,7 @@
 #include "uur/raii.h"
 
 using urHipEventGetNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipEventGetNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urHipEventGetNativeHandleTest);
 
 TEST_P(urHipEventGetNativeHandleTest, Success) {
   constexpr size_t buffer_size = 1024;

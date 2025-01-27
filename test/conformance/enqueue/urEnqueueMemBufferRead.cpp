@@ -10,7 +10,7 @@
 using urEnqueueMemBufferReadTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferReadTestWithParam,
     ::testing::ValuesIn(uur::mem_buffer_test_parameters),
     uur::printMemBufferTestString<urEnqueueMemBufferReadTestWithParam>);
@@ -137,7 +137,7 @@ TEST_P(urEnqueueMemBufferReadTestWithParam, NonBlocking) {
 
 using urEnqueueMemBufferReadMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemBufferReadMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferReadMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferReadMultiDeviceTest, WriteReadDifferentQueues) {
   // First queue does a blocking write of 42 into the buffer.

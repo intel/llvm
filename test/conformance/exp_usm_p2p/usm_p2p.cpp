@@ -6,7 +6,7 @@
 #include "uur/fixtures.h"
 
 using urP2PTest = uur::urAllDevicesTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urP2PTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urP2PTest);
 
 TEST_P(urP2PTest, Success) {
 

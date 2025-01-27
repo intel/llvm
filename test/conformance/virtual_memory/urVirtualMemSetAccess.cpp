@@ -7,7 +7,7 @@
 
 using urVirtualMemSetAccessWithFlagsTest =
     uur::urVirtualMemMappedTestWithParam<ur_virtual_mem_access_flag_t>;
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urVirtualMemSetAccessWithFlagsTest,
     ::testing::Values(UR_VIRTUAL_MEM_ACCESS_FLAG_NONE,
                       UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE,
@@ -29,7 +29,7 @@ TEST_P(urVirtualMemSetAccessWithFlagsTest, Success) {
 }
 
 using urVirtualMemSetAccessTest = uur::urVirtualMemMappedTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urVirtualMemSetAccessTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urVirtualMemSetAccessTest);
 
 TEST_P(urVirtualMemSetAccessTest, InvalidNullHandleContext) {
   ASSERT_EQ_RESULT(urVirtualMemSetAccess(nullptr, virtual_ptr, size,

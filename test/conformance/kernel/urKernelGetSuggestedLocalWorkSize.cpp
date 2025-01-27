@@ -17,7 +17,7 @@ struct urKernelGetSuggestedLocalWorkSizeTest : uur::urKernelExecutionTest {
 
   size_t suggested_local_work_size;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetSuggestedLocalWorkSizeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelGetSuggestedLocalWorkSizeTest);
 
 TEST_P(urKernelGetSuggestedLocalWorkSizeTest, Success) {
   suggested_local_work_size = SIZE_MAX;

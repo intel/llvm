@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urQueueCreateWithNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueCreateWithNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueCreateWithNativeHandleTest);
 
 TEST_P(urQueueCreateWithNativeHandleTest, Success) {
   ur_native_handle_t native_handle = 0;

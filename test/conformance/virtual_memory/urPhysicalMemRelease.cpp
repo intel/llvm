@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urPhysicalMemReleaseTest = uur::urPhysicalMemTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urPhysicalMemReleaseTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urPhysicalMemReleaseTest);
 
 TEST_P(urPhysicalMemReleaseTest, Success) {
   uint32_t referenceCount = 0;

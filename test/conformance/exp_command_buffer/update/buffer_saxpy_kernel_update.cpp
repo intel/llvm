@@ -129,7 +129,7 @@ struct BufferSaxpyKernelTest
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(BufferSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferSaxpyKernelTest);
 
 TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output

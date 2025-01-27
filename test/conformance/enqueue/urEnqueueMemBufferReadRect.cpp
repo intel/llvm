@@ -73,7 +73,7 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 struct urEnqueueMemBufferReadRectTestWithParam
     : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferReadRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
     uur::printRectTestString<urEnqueueMemBufferReadRectTestWithParam>);
@@ -123,7 +123,7 @@ TEST_P(urEnqueueMemBufferReadRectTestWithParam, Success) {
 }
 
 using urEnqueueMemBufferReadRectTest = uur::urMemBufferQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueMemBufferReadRectTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferReadRectTest);
 TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullHandleQueue) {
   std::vector<uint32_t> dst(count);
   ur_rect_region_t region{size, 1, 1};
@@ -192,8 +192,7 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
 
 using urEnqueueMemBufferReadRectMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(
-    urEnqueueMemBufferReadRectMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferReadRectMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferReadRectMultiDeviceTest,
        WriteRectReadDifferentQueues) {
