@@ -75,6 +75,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   if (Type != AllocType::DEVICE_USM) {
     return UR_RESULT_SUCCESS;
   }
+  assert(Device);
 
   auto AI = std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
                                                           Size,
