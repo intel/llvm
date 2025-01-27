@@ -624,7 +624,7 @@ public:
     }
 
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
-                                                MKernelNames, MLanguage);
+                                                KernelNames, MLanguage);
   }
 
   std::string adjust_kernel_name(const std::string &Name,
