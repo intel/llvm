@@ -59,7 +59,11 @@ if(NATIVECPU_WITH_ONETBB)
   FetchContent_Declare(
     tbb
     GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
-    GIT_TAG bef1519a4216d77042637c3f48af2c060a5213d1
+#commit 9d4578723827f31defd79389819a5fbf659577f7 (HEAD -> master, origin/master, origin/HEAD)
+#Author: Konstantin Boyarinov <konstantin.boyarinov@intel.com>
+#Date:   Fri Jan 24 23:23:59 2025 +0200
+#    Add explicit deduction guides for blocked_nd_range (#1525)
+    GIT_TAG 9d4578723827f31defd79389819a5fbf659577f7
     CMAKE_ARGS "-DTBB_TEST:BOOL=OFF -DTBB_EXAMPLES:BOOL=OFF -DTBB_BENCH:BOOL=OFF"
     OVERRIDE_FIND_PACKAGE
   )
