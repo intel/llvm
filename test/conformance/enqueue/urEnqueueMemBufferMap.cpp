@@ -228,6 +228,20 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessMultiMaps) {
   }
 }
 
+TEST_P(urEnqueueMemBufferMapTestWithParam, MapSignalEvent) {
+  const std::vector<uint32_t> input(count, 0);
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
+                                         input.data(), 0, nullptr, nullptr));
+
+  uint32_t *map = nullptr;
+  ur_event_handle_t hEvent;
+  ASSERT_SUCCESS(urEnqueueMemBufferMap(
+      queue, buffer, true, UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE, 0, size, 0,
+      nullptr, &hEvent, (void **)&map));
+
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 1, &hEvent, nullptr));
+}
+
 TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidNullHandleQueue) {
   void *map = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

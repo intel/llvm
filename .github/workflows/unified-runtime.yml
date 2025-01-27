@@ -1,0 +1,118 @@
+name: Unified Runtime
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  source-checks:
+    name: Source Checks
+    uses: ./.github/workflows/source-checks.yml
+
+  level-zero:
+    name: Level Zero
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0
+      runner_name: L0
+
+  level-zero-v2:
+    name: Level Zero V2
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0_V2
+      runner_name: L0
+
+  level-zero-static:
+    name: Level Zero static
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0
+      runner_name: L0
+      static_loader: ON
+      static_adapter: ON
+
+  opencl:
+    name: OpenCL
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: OPENCL
+      runner_name: OPENCL
+      platform: "Intel(R) OpenCL"
+
+  cuda:
+    name: CUDA
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: CUDA
+      runner_name: CUDA
+
+  hip:
+    name: HIP
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: HIP
+      runner_name: HIP
+
+  native-cpu:
+    name: Native CPU
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: NATIVE_CPU
+      runner_name: NATIVE_CPU
+
+  # Native CPU jobs are here to force the loader to be used (UR will not use the loader if there is only one target)
+  combined-opencl-native-cpu:
+    name: OpenCL + Native CPU (Loader)
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: OPENCL
+      other_adapter_name: NATIVE_CPU
+      runner_name: OPENCL
+      platform: "OPENCL:Intel(R) OpenCL"
+
+  combined-level-zero-native-cpu:
+    name: Level Zero + Native CPU (Loader)
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0
+      other_adapter_name: NATIVE_CPU
+      runner_name: L0
+
+  macos-build:
+    name: macOS / Build
+    strategy:
+      matrix:
+        os: ['macos-13']
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+      with:
+        python-version: 3.9
+
+    - name: Install prerequisites
+      run: python3 -m pip install -r third_party/requirements.txt
+
+    - name: Install hwloc
+      run: brew install hwloc
+
+    - name: Configure CMake
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DCMAKE_BUILD_TYPE=Release
+        -DUR_BUILD_TESTS=ON
+        -DUR_FORMAT_CPP_STYLE=ON
+        -DUMF_ENABLE_POOL_TRACKING=ON
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -j $(sysctl -n hw.logicalcpu)

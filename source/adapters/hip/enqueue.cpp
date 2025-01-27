@@ -308,7 +308,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       }
     }
 
-    auto ArgIndices = hKernel->getArgIndices();
+    auto ArgPointers = hKernel->getArgPointers();
 
     // If migration of mem across buffer is needed, an event must be associated
     // with this command, implicitly if phEvent is nullptr
@@ -322,7 +322,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     UR_CHECK_ERROR(hipModuleLaunchKernel(
         HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
-        hKernel->getLocalSize(), HIPStream, ArgIndices.data(), nullptr));
+        hKernel->getLocalSize(), HIPStream, ArgPointers.data(), nullptr));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());

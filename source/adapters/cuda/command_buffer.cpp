@@ -523,7 +523,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         ThreadsPerBlock, BlocksPerGrid));
 
     // Set node param structure with the kernel related data
-    auto &ArgIndices = hKernel->getArgIndices();
+    auto &ArgPointers = hKernel->getArgPointers();
     CUDA_KERNEL_NODE_PARAMS NodeParams = {};
     NodeParams.func = CuFunc;
     NodeParams.gridDimX = BlocksPerGrid[0];
@@ -533,7 +533,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     NodeParams.blockDimY = ThreadsPerBlock[1];
     NodeParams.blockDimZ = ThreadsPerBlock[2];
     NodeParams.sharedMemBytes = LocalSize;
-    NodeParams.kernelParams = const_cast<void **>(ArgIndices.data());
+    NodeParams.kernelParams = const_cast<void **>(ArgPointers.data());
 
     // Create and add an new kernel node to the Cuda graph
     UR_CHECK_ERROR(cuGraphAddKernelNode(&GraphNode, hCommandBuffer->CudaGraph,
@@ -1398,7 +1398,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   Params.blockDimZ = ThreadsPerBlock[2];
   Params.sharedMemBytes = KernelCommandHandle->Kernel->getLocalSize();
   Params.kernelParams =
-      const_cast<void **>(KernelCommandHandle->Kernel->getArgIndices().data());
+      const_cast<void **>(KernelCommandHandle->Kernel->getArgPointers().data());
 
   CUgraphNode Node = KernelCommandHandle->Node;
   CUgraphExec CudaGraphExec = CommandBuffer->CudaGraphExec;

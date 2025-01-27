@@ -30,7 +30,7 @@ static std::shared_ptr<_zel_tracer_handle_t> tracer = [] {
   zel_core_callbacks_t prologue_callbacks{};
   prologue_callbacks.Event.pfnCreateCb = OnEnterEventCreate;
   prologue_callbacks.Event.pfnDestroyCb = OnEnterEventDestroy;
-  return enableTracing(prologue_callbacks, {});
+  return enableTracing(std::move(prologue_callbacks), {});
 }();
 
 template <typename... Args> auto combineFlags(std::tuple<Args...> tuple) {

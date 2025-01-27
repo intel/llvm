@@ -209,9 +209,9 @@ members:
     - type: bool
       name: isNativeHandleOwned
       desc: |
-            [in] Indicates UR owns the native handle or if it came from an interoperability
-            operation in the application that asked to not transfer the ownership to
-            the unified-runtime.
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime context object from native context handle."

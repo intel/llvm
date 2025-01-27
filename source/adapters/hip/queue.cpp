@@ -318,17 +318,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   std::vector<hipStream_t> ComputeHIPStreams(1, HIPStream);
   std::vector<hipStream_t> TransferHIPStreams(0);
 
+  auto isNativeHandleOwned =
+      pProperties ? pProperties->isNativeHandleOwned : false;
+
   // Create queue and set num_compute_streams to 1, as computeHIPStreams has
   // valid stream
-  *phQueue =
-      new ur_queue_handle_t_{std::move(ComputeHIPStreams),
-                             std::move(TransferHIPStreams),
-                             hContext,
-                             hDevice,
-                             HIPFlags,
-                             Flags,
-                             /*priority*/ 0,
-                             /*backend_owns*/ pProperties->isNativeHandleOwned};
+  *phQueue = new ur_queue_handle_t_{std::move(ComputeHIPStreams),
+                                    std::move(TransferHIPStreams),
+                                    hContext,
+                                    hDevice,
+                                    HIPFlags,
+                                    Flags,
+                                    /*priority*/ 0,
+                                    /*backend_owns*/ isNativeHandleOwned};
   (*phQueue)->NumComputeStreams = 1;
 
   return UR_RESULT_SUCCESS;

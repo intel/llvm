@@ -937,7 +937,8 @@ ur_result_t urProgramGetNativeHandle(
     }
   }
   if (!Module)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+    // L0 only supprts returning native handle from built programs.
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   *ZeModule = Module;
   return UR_RESULT_SUCCESS;

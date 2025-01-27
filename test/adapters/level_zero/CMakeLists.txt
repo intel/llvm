@@ -86,6 +86,14 @@ function(add_adapter_tests adapter)
             ur_umf
         )
     endif()
+
+    add_adapter_test(${adapter}_mem_buffer_map
+        FIXTURE DEVICES
+        SOURCES
+            urEnqueueMemBufferMapHostPtr.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
+        )
 endfunction()
 
 if(UR_BUILD_ADAPTER_L0)

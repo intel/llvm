@@ -533,8 +533,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         image_res_desc.resType = CU_RESOURCE_TYPE_MIPMAPPED_ARRAY;
         image_res_desc.res.mipmap.hMipmappedArray = (CUmipmappedArray)hImageMem;
       }
-    } else if (mem_type == CU_MEMORYTYPE_DEVICE) {
-      // We have a USM pointer
+    } else if (mem_type == CU_MEMORYTYPE_DEVICE ||
+               mem_type == CU_MEMORYTYPE_HOST) {
+      // We have a USM pointer.
+      // Images may be created from device or host USM.
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
         image_res_desc.resType = CU_RESOURCE_TYPE_LINEAR;
         image_res_desc.res.linear.devPtr = (CUdeviceptr)hImageMem;

@@ -57,8 +57,6 @@ struct DeviceInfo {
   // Device handles are special and alive in the whole process lifetime,
   // so we needn't retain&release here.
   explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {}
-
-  ur_result_t allocShadowMemory(ur_context_handle_t Context);
 };
 
 struct QueueInfo {
@@ -353,6 +351,9 @@ public:
 
   bool isNormalExit() { return m_NormalExit; }
 
+  std::shared_ptr<ShadowMemory>
+  getOrCreateShadowMemory(ur_device_handle_t Device, DeviceType Type);
+
 private:
   ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
                                  std::shared_ptr<DeviceInfo> &DeviceInfo,
@@ -367,9 +368,6 @@ private:
                             std::shared_ptr<DeviceInfo> &DeviceInfo,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
                             LaunchInfo &LaunchInfo);
-
-  ur_result_t allocShadowMemory(ur_context_handle_t Context,
-                                std::shared_ptr<DeviceInfo> &DeviceInfo);
 
   ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
   ur_result_t registerSpirKernels(ur_program_handle_t Program);
@@ -406,6 +404,9 @@ private:
   ur_shared_mutex m_AdaptersMutex;
 
   bool m_NormalExit = true;
+
+  std::unordered_map<DeviceType, std::shared_ptr<ShadowMemory>> m_ShadowMap;
+  ur_shared_mutex m_ShadowMapMutex;
 };
 
 } // namespace asan

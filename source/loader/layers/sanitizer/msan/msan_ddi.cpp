@@ -1320,12 +1320,12 @@ ur_result_t urKernelRelease(
   auto pfnRelease = getContext()->urDdiTable.Kernel.pfnRelease;
 
   getContext()->logger.debug("==== urKernelRelease");
-  UR_CALL(pfnRelease(hKernel));
 
   auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
   if (--KernelInfo.RefCount == 0) {
     UR_CALL(getMsanInterceptor()->eraseKernelInfo(hKernel));
   }
+  UR_CALL(pfnRelease(hKernel));
 
   return UR_RESULT_SUCCESS;
 }
