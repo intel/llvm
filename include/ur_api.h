@@ -5999,6 +5999,10 @@ typedef enum ur_kernel_info_t {
   UR_KERNEL_INFO_NUM_REGS = 6,
   /// [uint32_t[]][optional-query] Return the spill memory size allocated by
   /// the compiler.
+  /// The returned values correspond to the associated devices.
+  /// The order of the devices is guaranteed (i.e., the same as queried by
+  /// `urDeviceGet`) by the UR within a single application even if the runtime
+  /// is reinitialized.
   UR_KERNEL_INFO_SPILL_MEM_SIZE = 7,
   /// @cond
   UR_KERNEL_INFO_FORCE_UINT32 = 0x7fffffff

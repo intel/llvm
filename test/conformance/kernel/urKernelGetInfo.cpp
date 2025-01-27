@@ -147,7 +147,7 @@ TEST_P(urKernelGetInfoTest, SuccessSpillMemSize) {
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
 
-  std::vector<char> property_value(property_size);
+  std::vector<uint32_t> property_value(property_size / sizeof(uint32_t));
   ASSERT_SUCCESS(urKernelGetInfo(kernel, property_name, property_size,
                                  property_value.data(), nullptr));
 }
