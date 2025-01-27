@@ -372,7 +372,7 @@ public:
                      syclex::source_language Lang)
       : kernel_bundle_impl(Ctx, Devs, DevImage) {
     MState = bundle_state::executable;
-    MKernelNames = KNames;
+    MKernelNames = std::move(KNames);
     MLanguage = Lang;
   }
 
