@@ -25,13 +25,12 @@
 
 template <typename T, size_t TileRows, size_t TileCols> class MT;
 
-template <size_t TR, size_t TC, typename T, size_t NR, size_t NC, use Use,
-          layout LoadLayout, size_t VF>
-void matrix_transpose(T *input, T *out_col_major, queue q) {
+template <size_t TR, size_t TC, typename T, size_t NR, size_t NC, use Use>
+void matrix_transpose(T *in, T *out, queue q) {
   static_assert((NR % TR) == 0);
   static_assert((NC % TC) == 0);
   size_t sg_size = get_sg_size<class MT<T, TR, TC>>(q);
-  std::cout << "subgroup size " << sg_size << " ";
+  std::cout << "SG size " << sg_size << " ";
 
   q.submit([&](handler &cgh) {
      cgh.parallel_for<class MT<T, TR, TC>>(
@@ -41,13 +40,12 @@ void matrix_transpose(T *input, T *out_col_major, queue q) {
              [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
-           auto p_input =
+           auto in_ptr =
                address_space_cast<sycl::access::address_space::global_space,
-                                  sycl::access::decorated::no>(input);
-
-           auto p_out_col_major =
+                                  sycl::access::decorated::no>(in);
+           auto out_ptr =
                address_space_cast<sycl::access::address_space::global_space,
-                                  sycl::access::decorated::no>(out_col_major);
+                                  sycl::access::decorated::no>(out);
 
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
@@ -55,54 +53,44 @@ void matrix_transpose(T *input, T *out_col_major, queue q) {
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, T, Use, TR, TC, LoadLayout> matrix_input;
+           joint_matrix<sub_group, T, Use, TR, TC, layout::row_major>
+               matrix_row_major;
            joint_matrix<sub_group, T, Use, TR, TC, layout::col_major>
                matrix_col_major;
 
-           auto input_offset =
-               (sg_startx * TR / VF) * NC * VF + sg_starty / sg_size * TC * VF;
+           auto row_major_offset =
+               (sg_startx * TR) * NC + sg_starty / sg_size * TC;
            auto col_major_offset =
                (sg_startx * TR) + (sg_starty / sg_size * TC) * NR;
 
-           joint_matrix_load(sg, matrix_input, p_input + input_offset, NC * VF);
-           joint_matrix_copy(sg, matrix_input, matrix_col_major);
+           joint_matrix_load(sg, matrix_row_major, in_ptr + row_major_offset,
+                             NC);
+           joint_matrix_copy(sg, matrix_row_major, matrix_col_major);
            ext::intel::experimental::matrix::joint_matrix_store(
-               sg, matrix_col_major, p_out_col_major + col_major_offset, NR);
+               sg, matrix_col_major, out_ptr + col_major_offset, NR);
          }); // parallel for
    }).wait();
 }
 
-template <typename T, size_t TR, size_t TC, size_t VF, use Use,
-          layout InputLayout>
-void test() {
+template <typename T, size_t TR, size_t TC, use Use> void test() {
+  std::cout << "Test " << TR << " x " << TC << " ";
   static constexpr size_t SCALE = 2;
   static constexpr size_t MATRIX_R = TR * SCALE;
   static constexpr size_t MATRIX_C = TC * SCALE;
 
   queue q;
-
   T *in = malloc_shared<T>(MATRIX_R * MATRIX_C, q);
-  T *vnni = malloc_shared<T>(MATRIX_R * MATRIX_C, q);
   T *col_major = malloc_shared<T>(MATRIX_C * MATRIX_R, q);
   T *ref_col_major = malloc_shared<T>(MATRIX_C * MATRIX_R, q);
 
-  matrix_rand(MATRIX_R, MATRIX_C, in, (T)5.0);
-  if constexpr (VF != 1) {
-    matrix_vnni(MATRIX_R, MATRIX_C, in, vnni, VF);
-    matrix_transpose<TR, TC, T, MATRIX_R, MATRIX_C, Use, InputLayout, VF>(
-        vnni, col_major, q);
-  } else {
-    matrix_transpose<TR, TC, T, MATRIX_R, MATRIX_C, Use, InputLayout, VF>(
-        in, col_major, q);
-  }
+  matrix_rand(MATRIX_R, MATRIX_C, in, (T)5);
+  matrix_transpose<TR, TC, T, MATRIX_R, MATRIX_C, Use>(in, col_major, q);
   matrix_transpose(MATRIX_R, MATRIX_C, ref_col_major, in);
-
-  std::cout << "compare results for: " << TR << " x " << TC << std::endl;
   assert((matrix_compare<T, T, true>(MATRIX_C, MATRIX_R, col_major,
                                      ref_col_major)));
+  std::cout << "PASSED\n";
 
   free(in, q);
-  free(vnni, q);
   free(col_major, q);
   free(ref_col_major, q);
 }
@@ -117,23 +105,23 @@ int main() {
 
   for (auto &combination : combinations) {
     if (!bf16_run && combination.atype == matrix_type::bf16) {
-      std::cout << "bf16 ";
-      test<bfloat16, 8, 16, 1, use::a, layout::row_major>();
-      test<bfloat16, 16, 16, 2, use::b, layout::ext_intel_packed>();
+      std::cout << "bf16:\n";
+      test<bfloat16, 8, 16, use::a>();
+      test<bfloat16, 16, 16, use::b>();
       bf16_run = true;
     }
 
     if (!half_run && combination.atype == matrix_type::fp16) {
-      std::cout << "half ";
-      test<half, 8, 16, 1, use::a, layout::row_major>();
-      test<half, 16, 16, 2, use::b, layout::ext_intel_packed>();
+      std::cout << "half:\n";
+      test<half, 8, 16, use::a>();
+      test<half, 16, 16, use::b>();
       half_run = true;
     }
 
     if (!int8_run && combination.atype == matrix_type::sint8) {
-      std::cout << "int8 ";
-      test<int8_t, 8, 32, 1, use::a, layout::row_major>();
-      test<int8_t, 32, 16, 4, use::b, layout::ext_intel_packed>();
+      std::cout << "int8:\n";
+      test<int8_t, 8, 32, use::a>();
+      test<int8_t, 32, 16, use::b>();
       int8_run = true;
     }
 
