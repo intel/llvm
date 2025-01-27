@@ -155,6 +155,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     # LLVM headers are not as pedantic about unused parameters, so we forcefully
     # disable warnings about these.
     target_compile_options(${LIB_OBJ_NAME} PRIVATE -Wno-unused-parameter)
+    # LLVM library increases the size of the SYCL library quite significantly
+    # without the following link options.
+    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
   endif()
 
   if(SYCL_ENABLE_EXTENSION_JIT)
