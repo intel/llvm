@@ -283,7 +283,7 @@ class
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>,
-                  typename std::enable_if_t<detail::properties_t<
+                  std::enable_if_t<detail::properties_t<
                       Props...>::template has_property<device_constant_key>()>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
@@ -297,6 +297,8 @@ public:
   DEVICE_GLOBAL_COMMON()
 };
 
+typedef void abvk;
+
 template <typename T, typename... Props>
 class
 #ifdef __SYCL_DEVICE_ONLY__
@@ -307,9 +309,9 @@ class
           __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>,
-                  typename std::enable_if_t<!(
+                  std::enable_if_t<!(
                       detail::properties_t<Props...>::template has_property<
-                          device_constant_key>())>>
+                          device_constant_key>()), abvk>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 public:
 #if !__cpp_consteval
