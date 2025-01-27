@@ -110,26 +110,27 @@ void testHash(LambdaType &&objFactory) {
 
   const int NumObjects = 100;
 
-  std::unordered_map<T, bool> MapObjToBool{};
+  std::unordered_set<size_t> HashSet{};
+
   T Obj1 = objFactory();
   T Obj2 = objFactory();
   T Obj3 = objFactory();
   T Obj4 = objFactory();
 
-  ASSERT_TRUE(MapObjToBool.insert({Obj1, true}).second);
-  ASSERT_TRUE(MapObjToBool.insert({Obj2, true}).second);
+  ASSERT_TRUE(HashSet.insert(std::hash<T>{}(Obj1)).second);
+  ASSERT_TRUE(HashSet.insert(std::hash<T>{}(Obj2)).second);
 
-  // Insert objects and destroy them immediately to confirm that this doesn't
-  // create collisions with later insertions.
+  // Create objects and destroy them immediately to confirm that the
+  // hashes are unique and are not reused.
   for (int i = 0; i < NumObjects; ++i) {
     T ObjI = objFactory();
-    ASSERT_TRUE(MapObjToBool.insert({ObjI, true}).second);
+    ASSERT_TRUE(HashSet.insert(std::hash<T>{}(ObjI)).second);
   }
 
-  ASSERT_TRUE(MapObjToBool.insert({Obj3, true}).second);
-  ASSERT_TRUE(MapObjToBool.insert({Obj4, true}).second);
+  ASSERT_TRUE(HashSet.insert(std::hash<T>{}(Obj3)).second);
+  ASSERT_TRUE(HashSet.insert(std::hash<T>{}(Obj4)).second);
 
-  ASSERT_TRUE(MapObjToBool.size() == (NumObjects + 4));
+  ASSERT_TRUE(HashSet.size() == (NumObjects + 4));
 }
 
 TEST_F(CommandGraphTest, ModifiableGraphHash) {
