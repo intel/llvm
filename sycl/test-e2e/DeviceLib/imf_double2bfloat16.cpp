@@ -6,7 +6,7 @@
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t1.out
 // RUN: %{run} %t1.out
 //
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: target-nvidia || target-amd
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
