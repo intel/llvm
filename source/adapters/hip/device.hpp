@@ -13,8 +13,6 @@
 
 #include <ur/ur.hpp>
 
-#include <map>
-
 /// UR device mapping to a hipDevice_t.
 /// Includes an observer pointer to the platform,
 /// and implements the reference counting semantics since
@@ -36,7 +34,7 @@ private:
   int DeviceMaxLocalMem{0};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
-  int HardwareImageSupport{0};
+  bool HardwareImageSupport{false};
 
 public:
   ur_device_handle_t_(native_type HipDevice, hipEvent_t EvBase,
@@ -61,9 +59,11 @@ public:
         &ConcurrentManagedAccess, hipDeviceAttributeConcurrentManagedAccess,
         HIPDevice));
     // Check if texture functions are supported in the HIP host runtime.
-    UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &HardwareImageSupport, hipDeviceAttributeImageSupport, HIPDevice));
-    detail::ur::assertion(HardwareImageSupport >= 0);
+    int Ret{};
+    UR_CHECK_ERROR(
+        hipDeviceGetAttribute(&Ret, hipDeviceAttributeImageSupport, HIPDevice));
+    detail::ur::assertion(Ret == 0 || Ret == 1);
+    HardwareImageSupport = Ret == 1;
   }
 
   ~ur_device_handle_t_() noexcept(false) {}
@@ -96,12 +96,7 @@ public:
     return ConcurrentManagedAccess;
   };
 
-  bool supportsHardwareImages() const noexcept {
-    return HardwareImageSupport ? true : false;
-  }
-
-  // Used for bookkeeping for mipmapped array leaks in mapping external memory.
-  std::map<hipArray_t, hipMipmappedArray_t> ChildHipArrayFromMipmapMap;
+  bool supportsHardwareImages() const noexcept { return HardwareImageSupport; }
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
