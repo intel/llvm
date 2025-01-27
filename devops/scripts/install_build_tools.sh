@@ -23,7 +23,6 @@ apt update && apt install -yqq \
       unzip \
       jq \
       curl \
-      libhwloc-dev \
       libzstd-dev \
       time
 

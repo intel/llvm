@@ -44,10 +44,9 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `python` - [Download](https://www.python.org/downloads/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
-* `hwloc` version 2.3 or later (Linux only)
-  * libhwloc-dev or hwloc-devel package on linux
 * C++ compiler
   * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+* `automake` - [Download](https://www.gnu.org/software/automake/)
 
 Alternatively, you can create a Docker image that has everything you need for
 building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
