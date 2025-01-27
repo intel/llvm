@@ -121,7 +121,7 @@ TEST_P(urKernelGetInfoTest, SuccessAttributes) {
 }
 
 TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{});
+  UUR_KNOWN_FAILURE_ON(uur::HIP{});
 
   ur_kernel_info_t property_name = UR_KERNEL_INFO_NUM_REGS;
   size_t property_size = 0;
