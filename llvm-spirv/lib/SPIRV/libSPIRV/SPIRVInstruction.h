@@ -3557,9 +3557,9 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     SPIRVType *ResCompTy = this->getType();
     if (ResCompTy->isTypeCooperativeMatrixKHR())
-      return getVec(internal::CapabilityBfloat16ConversionINTEL,
+      return getVec(CapabilityBFloat16ConversionINTEL,
                     internal::CapabilityJointMatrixBF16ComponentTypeINTEL);
-    return getVec(internal::CapabilityBfloat16ConversionINTEL);
+    return getVec(CapabilityBFloat16ConversionINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -3613,7 +3613,7 @@ protected:
       InCompTy =
           static_cast<SPIRVTypeCooperativeMatrixKHR *>(InCompTy)->getCompType();
     }
-    if (OC == internal::OpConvertFToBF16INTEL) {
+    if (OC == OpConvertFToBF16INTEL) {
       SPVErrLog.checkError(
           ResCompTy->isTypeInt(16), SPIRVEC_InvalidInstruction,
           InstName + "\nResult value must be a scalar or vector of integer "
@@ -3641,7 +3641,7 @@ protected:
 };
 
 #define _SPIRV_OP(x)                                                           \
-  typedef SPIRVBfloat16ConversionINTELInstBase<internal::Op##x> SPIRV##x;
+  typedef SPIRVBfloat16ConversionINTELInstBase<Op##x> SPIRV##x;
 _SPIRV_OP(ConvertFToBF16INTEL)
 _SPIRV_OP(ConvertBF16ToFINTEL)
 #undef _SPIRV_OP

@@ -1893,7 +1893,7 @@ void OCLToSPIRVBase::visitCallConvertBFloat16AsUshort(CallInst *CI,
     }
   }
 
-  mutateCallInst(CI, internal::OpConvertFToBF16INTEL);
+  mutateCallInst(CI, OpConvertFToBF16INTEL);
 }
 
 void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
@@ -1936,7 +1936,7 @@ void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
     }
   }
 
-  mutateCallInst(CI, internal::OpConvertBF16ToFINTEL);
+  mutateCallInst(CI, OpConvertBF16ToFINTEL);
 }
 } // namespace SPIRV
 
