@@ -257,6 +257,7 @@ jobs:
 
     - name: Source OneAPI TBB vars.sh
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      shell: bash
       run: |
         # https://github.com/actions/runner/issues/1964 prevents us from using
         # the ENTRYPOINT in the image.
