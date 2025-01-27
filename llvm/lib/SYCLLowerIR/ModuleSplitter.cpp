@@ -816,6 +816,15 @@ void ModuleDesc::saveSplitInformationAsMetadata() {
         SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
 }
 
+ModuleDesc ModuleDesc::makeDummy() const {
+  ModuleDesc MD(CloneModule(getModule()));
+  MD.EntryPoints = EntryPoints;
+  MD.IsTopLevel = IsTopLevel;
+  MD.Reqs = Reqs;
+  MD.IsDummyImage = true;
+  return MD;
+}
+
 void EntryPointGroup::saveNames(std::vector<std::string> &Dest) const {
   Dest.reserve(Dest.size() + Functions.size());
   std::transform(Functions.begin(), Functions.end(),
