@@ -9,9 +9,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 
+// REQUIRES: target-amd
 // REQUIRES: arch-amd_gpu_gfx90a
 // REQUIRES: aspect-fp16
-// REQUIRES: build-and-run-mode
 
 #include "joint_matrix_hip_apply.hpp"
 #include "joint_matrix_hip_copy.hpp"
