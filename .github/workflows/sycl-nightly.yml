@@ -17,7 +17,6 @@ jobs:
       build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-      merge_ref: ''
       retention-days: 90
 
       # We upload the build for people to download/use, override its name and
@@ -33,7 +32,6 @@ jobs:
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
       build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
-      merge_ref: ''
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
@@ -112,7 +110,6 @@ jobs:
       extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}
-      merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -129,7 +126,6 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       ref: ${{ github.sha }}
-      merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_oneapi
       sycl_toolchain_archive: ${{ needs.ubuntu2404_oneapi_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2404_oneapi_build.outputs.artifact_decompress_command }}
@@ -175,7 +171,6 @@ jobs:
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
       ref: ${{ github.sha }}
-      merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
