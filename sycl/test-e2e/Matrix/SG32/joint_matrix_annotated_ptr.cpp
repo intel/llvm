@@ -15,9 +15,9 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-4181
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
 
-#include "../joint_matrix_annotated_ptr_impl.hpp"
+#include "joint_matrix_annotated_ptr_impl.hpp"

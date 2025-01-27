@@ -38,16 +38,17 @@ template <size_t TM, size_t TN, size_t TK> class MatMul;
 
 template <
 #if !defined(ARG_DIM) && !defined(RUNTIME_DIM)
-          size_t rowsA, size_t colsA, size_t rowsB, size_t colsB,
+    size_t rowsA, size_t colsA, size_t rowsB, size_t colsB,
 #endif // ARG_DIM, RUNTIME_DIM
-          size_t vnniFactor, typename TOperand, typename TResult, size_t TM,
-          size_t TN, size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
-          size_t MCache2, size_t NCache2, size_t KCache2>
+    size_t vnniFactor, typename TOperand, typename TResult, size_t TM,
+    size_t TN, size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
+    size_t MCache2, size_t NCache2, size_t KCache2>
 double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
 #if defined(ARG_DIM) || defined(RUNTIME_DIM)
-       , size_t rowsA, size_t colsA, size_t rowsB, size_t colsB
+                    ,
+                    size_t rowsA, size_t colsA, size_t rowsB, size_t colsB
 #endif // ARG_DIM, RUNTIME_DIM
-       ) {
+) {
 
   size_t sgSize = get_sg_size<MatMul<TM, TN, TK>>(q);
   range<2> global{rowsA / MCache1, (colsB / NCache1) * sgSize};
@@ -118,12 +119,12 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
           // pm1B and pn1B are used to identify the distribution of subgroups
           // along the workgroup prefetch for B matrix. For A matrix, sgId is
           // enough.
-          size_t pm1B = sgId / 16;   // prefetch m1 (sgId/16)
-          size_t pn1B = sgId & 0xF;  // prefetch n1 (sgId%16)
-#else                                // VNNI
+          size_t pm1B = sgId / 16;  // prefetch m1 (sgId/16)
+          size_t pn1B = sgId & 0xF; // prefetch n1 (sgId%16)
+#else                               // VNNI
           size_t pm1B = sgId / 8;   // prefetch m1 (sgId/8)
           size_t pn1B = sgId & 0x7; // prefetch n1 (sgId%8)
-#endif                               // VNNI
+#endif                              // VNNI
           constexpr size_t prefDistance = 3;
           for (int p = 0; p < prefDistance; p++)
             joint_matrix_prefetch<prefRow, prefCol>(
@@ -306,8 +307,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
                  pm1B * prefRow) *
                     (colsB)*vnniFactor +
                 (n2 * NCache2 * vnniFactor + pn1B * prefCol);
-            if ((prefetch_offsetB + (prefRow * colsB * vnniFactor) +
-                 prefCol) < (rowsB * colsB))
+            if ((prefetch_offsetB + (prefRow * colsB * vnniFactor) + prefCol) <
+                (rowsB * colsB))
               joint_matrix_prefetch<prefRow, prefCol>(
                   sg, B + prefetch_offsetB, colsB * vnniFactor,
                   layout::row_major,
@@ -395,18 +396,17 @@ void test(size_t matrix_size_input) {
   // run testIterations time, aggregate and calculate average run time
   double totalDuration = 0;
   for (unsigned int i = 0; i < testIterations; i++) {
-    double duration =
-            joint_matmul<
+    double duration = joint_matmul<
 #if !defined(ARG_DIM) && !defined(RUNTIME_DIM)
-                    matrix_size, matrix_size, matrix_size, matrix_size,
+        matrix_size, matrix_size, matrix_size, matrix_size,
 #endif // ARG_DIM, RUNTIME_DIM
-                    vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
-                    KCache1, MCache2, NCache2, KCache2>
-                    (A, B, C, q, i
+        vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1, KCache1, MCache2,
+        NCache2, KCache2>(A, B, C, q, i
 #if defined(ARG_DIM) || defined(RUNTIME_DIM)
-                    , matrix_size, matrix_size, matrix_size, matrix_size
+                          ,
+                          matrix_size, matrix_size, matrix_size, matrix_size
 #endif // ARG_DIM, RUNTIME_DIM
-                    );
+    );
 
     if (i >= recordThresh) {
       totalDuration += duration;
@@ -431,11 +431,11 @@ void test(size_t matrix_size_input) {
 
 int main(
 #ifdef RUNTIME_DIM
-  int argc, char *argv[]
-#endif //RUNTIME_DIM
-  ) {
+    int argc, char *argv[]
+#endif // RUNTIME_DIM
+) {
 
-size_t matrix_size = -1;
+  size_t matrix_size = -1;
 #ifdef RUNTIME_DIM
   if (argc == 2) {
     matrix_size = std::stoul(argv[1]);
@@ -443,7 +443,7 @@ size_t matrix_size = -1;
     std::cerr << "Usage: ./program matrix_size\n";
     return 1; // Error if no argument
   }
-#endif //RUNTIME_DIM
+#endif // RUNTIME_DIM
 
   queue q;
   std::vector<combination> combinations =
