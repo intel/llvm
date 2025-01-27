@@ -345,12 +345,6 @@ int main() {
   Error |= test_simple_bl_pipe<forward_bl_pipe, /*test number*/ 8>(Queue);
   Error |= test_simple_bl_pipe<templ_bl_pipe<0>, /*test number*/ 9>(Queue);
   Error |= test_multiple_bl_pipe</*test number*/ 10>(Queue);
-
-  // Test for an array data passing through a pipe
-  // These two tests are failing in post-commit testing (
-  // https://github.com/intel/llvm/issues/16693 ) disabling them, rather than
-  // the entire test.
-
   Error |= test_array_th_nb_pipe</*test number*/ 11>(Queue);
   Error |= test_array_th_bl_pipe</*test number*/ 12>(Queue);
 
