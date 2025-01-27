@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: accelerator
+// REQUIRES: target-spir
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
