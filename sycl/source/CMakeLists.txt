@@ -147,14 +147,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Link with LLVMSupport and LLVMObject for shared utilities.
   add_dependencies(${LIB_NAME} LLVMSupport LLVMObject)
-  target_include_directories(${LIB_NAME} PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
+  target_include_directories(${LIB_NAME} SYSTEM PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
   target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport LLVMObject)
   target_compile_definitions(${LIB_NAME} PRIVATE LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING=1)
   
   if (NOT MSVC)
-    # LLVM headers are not as pedantic about unused parameters, so we forcefully
-    # disable warnings about these.
-    target_compile_options(${LIB_NAME} PRIVATE -Wno-unused-parameter)
     # LLVM library increases the size of the SYCL library quite significantly
     # without the following link options.
     target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
