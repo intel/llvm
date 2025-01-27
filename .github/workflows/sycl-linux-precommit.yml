@@ -7,7 +7,6 @@ on:
   pull_request:
     branches:
     - sycl
-    - sycl-devops-pr/**
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
     paths-ignore:
@@ -42,15 +41,15 @@ jobs:
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
-      merge_ref: ''
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
+      e2e_binaries_artifact: sycl_e2e_bin_default
 
   determine_arc_tests:
     name: Decide which Arc tests to run
@@ -74,23 +73,8 @@ jobs:
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
           fi
 
-  build_e2e_tests:
-    needs: [build]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Build e2e tests
-      runner: '["Linux", "build"]'
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps
-      image_options: -u 1001
-      ref: ${{ github.sha }}
-      merge_ref: ''
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_testing_mode: 'build-only'
   run_prebuilt_e2e_tests:
-    needs: [build, build_e2e_tests]
+    needs: [build]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -113,7 +97,6 @@ jobs:
       extra_lit_opts: --param fallback-to-build-if-requires-build-and-run=True ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}
-      merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
@@ -195,7 +178,6 @@ jobs:
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
 
       ref: ${{ github.sha }}
-      merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
@@ -244,7 +226,6 @@ jobs:
       extra_lit_opts: -a -j 1 --param enable-perf-tests=True
 
       ref: ${{ github.sha }}
-      merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}

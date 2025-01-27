@@ -1,7 +1,7 @@
-# commit f058cb230c65fe8094f74043d0c9afd5ba0e8325
-# Merge: 871061f1 3bf76246
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 15:49:41 2025 +0000
-#     Merge pull request #2593 from RossBrunton/ross/formatall
-#     Ensure all files are clang formatted
-set(UNIFIED_RUNTIME_TAG f058cb230c65fe8094f74043d0c9afd5ba0e8325)
+# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
+# Merge: e370a2b9 eeff9f4a
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Mon Jan 27 10:40:02 2025 +0000
+#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
+#     Enable creation of bindless images backed by host USM
+set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)
