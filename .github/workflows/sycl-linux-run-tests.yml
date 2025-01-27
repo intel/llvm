@@ -12,7 +12,6 @@ on:
         required: True
       image:
         type: string
-        default: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
         required: False
       image_options:
         type: string
@@ -187,7 +186,7 @@ jobs:
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
-      image: ${{ inputs.image }}
+      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
