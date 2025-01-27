@@ -1,7 +1,7 @@
-# commit d3e97040b67ee6b45655eccdfca19185bd9115b6
-# Merge: 2ef69591 37ad03a7
+# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
+# Merge: e370a2b9 eeff9f4a
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 10:23:08 2025 +0000
-#     Merge pull request #2605 from yingcong-wu/yc/0123-ur-quick-fix
-#     [DeviceASAN] Bugfix for GetDeviceType
-set(UNIFIED_RUNTIME_TAG d3e97040b67ee6b45655eccdfca19185bd9115b6)
+# Date:   Mon Jan 27 10:40:02 2025 +0000
+#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
+#     Enable creation of bindless images backed by host USM
+set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)
