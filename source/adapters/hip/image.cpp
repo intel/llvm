@@ -128,6 +128,7 @@ hipToUrImageChannelFormat(hipArray_Format hip_format,
     *return_image_channel_type = TO;                                           \
     return UR_RESULT_SUCCESS;                                                  \
   }
+
     HIP_TO_UR_IMAGE_CHANNEL_TYPE(HIP_AD_FORMAT_UNSIGNED_INT8,
                                  UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8);
     HIP_TO_UR_IMAGE_CHANNEL_TYPE(HIP_AD_FORMAT_UNSIGNED_INT16,
@@ -144,6 +145,8 @@ hipToUrImageChannelFormat(hipArray_Format hip_format,
                                  UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT);
     HIP_TO_UR_IMAGE_CHANNEL_TYPE(HIP_AD_FORMAT_FLOAT,
                                  UR_IMAGE_CHANNEL_TYPE_FLOAT);
+
+#undef HIP_TO_UR_IMAGE_CHANNEL_TYPE
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
   }
@@ -156,7 +159,6 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
                             ur_exp_image_native_handle_t *phRetImage) {
 
   try {
-    /// pi_sampler_properties
     /// Layout of UR samplers for HIP
     ///
     /// Sampler property layout:
@@ -425,12 +427,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
   try {
     hipArray_t ImageArray = reinterpret_cast<hipArray_t>(hImageMem);
     UR_CHECK_ERROR(hipArrayDestroy(ImageArray));
-    if (auto It = hDevice->ChildHipArrayFromMipmapMap.find(ImageArray);
-        It != hDevice->ChildHipArrayFromMipmapMap.end()) {
-      UR_CHECK_ERROR(hipMipmappedArrayDestroy(
-          static_cast<hipMipmappedArray_t>(It->second)));
-      hDevice->ChildHipArrayFromMipmapMap.erase(It);
-    }
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -625,7 +621,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
         if (memType == hipMemoryTypeArray) {
           // HIP doesn not provide async copies between host and image arrays
-          // memory in versions early than 6.2.
+          // memory in versions earlier than 6.2.
 #if HIP_VERSION >= 60200000
           UR_CHECK_ERROR(
               hipMemcpyHtoAAsync(static_cast<hipArray_t>(pDst),
@@ -733,7 +729,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
         if (memType == hipMemoryTypeArray) {
           // HIP doesn not provide async copies between image arrays and host
-          // memory in versions early than 6.2.
+          // memory in versions earlier than 6.2.
 #if HIP_VERSION >= 60200000
           UR_CHECK_ERROR(hipMemcpyAtoHAsync(
               DstWithOffset, static_cast<hipArray_t>(const_cast<void *>(pSrc)),
@@ -1095,8 +1091,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
           extMemDesc.type = hipExternalMemoryHandleTypeOpaqueWin32;
           break;
         case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
-          // Memory descriptor flag values such as hipExternalMemoryDedicatedare
-          // not available before HIP 5.6, so we safely fallback to unsupported.
+          // Memory descriptor flag values such as hipExternalMemoryDedicated
+          // are not available before HIP 5.6, so we safely fallback to marking
+          // this as an unsupported.
 #if HIP_VERSION >= 50600000
           extMemDesc.type = hipExternalMemoryHandleTypeD3D12Resource;
           extMemDesc.flags = hipExternalMemoryDedicated;
@@ -1230,6 +1227,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
           extSemDesc.type = hipExternalSemaphoreHandleTypeD3D12Fence;
           break;
         case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+          [[fallthrough]];
         default:
           return UR_RESULT_ERROR_INVALID_VALUE;
         }

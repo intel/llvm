@@ -55,6 +55,8 @@ struct ur_sampler_handle_t_ {
   }
 
   ur_sampler_addressing_mode_t getAddressingModeDim(size_t i) const noexcept {
+    // valid dimensions are 0,1,2
+    assert(i < 3);
     return static_cast<ur_sampler_addressing_mode_t>((Props >> (2 + (i * 3))) &
                                                      0b111);
   }

@@ -880,27 +880,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
-    // HIP does support fetching 1D USM sampled image data.
+    // HIP supports fetching 1D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
     // HIP does not support fetching 1D non-USM sampled image data.
-    // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
-    // HIP does support fetching 2D USM sampled image data.
+    // HIP supports fetching 2D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
-    // HIP does support fetching 2D non-USM sampled image data.
+    // HIP supports fetching 2D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
-    // HIP does support fetching 3D non-USM sampled image data.
+    // HIP supports fetching 3D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
@@ -916,12 +915,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
-    // HIP does support sampling 1D USM sampled image data.
+    // HIP supports sampling 1D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
-    // HIP does support sampling 2D USM sampled image data.
+    // HIP supports sampling 2D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
