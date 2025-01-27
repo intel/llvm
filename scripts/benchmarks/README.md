@@ -9,11 +9,11 @@ Scripts for running performance tests on SYCL and Unified Runtime.
 
 ## Running
 
-`$ ./main.py ~/benchmarks_workdir/ ~/llvm/build/ ~/ur adapter_name`
+`$ ./main.py ~/benchmarks_workdir/ --sycl ~/llvm/build/ --ur ~/ur --adapter adapter_name`
 
 This will download and build everything in `~/benchmarks_workdir/` using the compiler in `~/llvm/build/`, UR source from `~/ur` and then run the benchmarks for `adapter_name` adapter. The results will be stored in `benchmark_results.md`.
 
-The scripts will try to reuse the files stored in `~/benchmarks_workdir/`, but the benchmarks will be rebuilt every time. To avoid that, use `-no-rebuild` option.
+The scripts will try to reuse the files stored in `~/benchmarks_workdir/`, but the benchmarks will be rebuilt every time. To avoid that, use `--no-rebuild` option.
 
 ## Running in CI
 
@@ -47,7 +47,27 @@ are stored [here](https://oneapi-src.github.io/unified-runtime/benchmark_results
 ### Python
 
 dataclasses-json==0.6.7
+PyYAML==6.0.2
+Mako==1.3.0
 
 ### System
 
-libopencv-dev
+Sobel Filter benchmark:
+
+`$ sudo apt-get install libopencv-dev`
+
+### Compute-runtime and IGC
+
+The scripts have an option to build compute-runtime and all related components from source:
+
+`$ ./main.py ~/benchmarks_workdir/ --compute-runtime [tag] --build-igc`
+
+For this to work, the system needs to have the appropriate dependencies installed.
+
+compute-runtime (Ubuntu):
+
+`$ sudo apt-get install cmake g++ git pkg-config`
+
+IGC (Ubuntu):
+
+`$ sudo apt-get install flex bison libz-dev cmake libc6 libstdc++6 python3-pip`

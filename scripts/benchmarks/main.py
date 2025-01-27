@@ -244,7 +244,7 @@ if __name__ == "__main__":
     parser.add_argument('--ur', type=str, help='UR install prefix path', default=None)
     parser.add_argument('--umf', type=str, help='UMF install prefix path', default=None)
     parser.add_argument('--adapter', type=str, help='Options to build the Unified Runtime as part of the benchmark', default="level_zero")
-    parser.add_argument("--no-rebuild", help='Rebuild the benchmarks from scratch.', action="store_true")
+    parser.add_argument("--no-rebuild", help='Do not rebuild the benchmarks from scratch.', action="store_true")
     parser.add_argument("--env", type=str, help='Use env variable for a benchmark run.', action="append", default=[])
     parser.add_argument("--save", type=str, help='Save the results for comparison under a specified name.')
     parser.add_argument("--compare", type=str, help='Compare results against previously saved data.', action="append", default=["baseline"])
@@ -262,6 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", help='Do not run any actual benchmarks', action="store_true", default=False)
     parser.add_argument("--compute-runtime", nargs='?', const=options.compute_runtime_tag, help="Fetch and build compute runtime")
     parser.add_argument("--iterations-stddev", type=int, help="Max number of iterations of the loop calculating stddev after completed benchmark runs", default=options.iterations_stddev)
+    parser.add_argument("--build-igc", help="Build IGC from source instead of using the OS-installed version", action="store_true", default=options.build_igc)
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -283,6 +284,10 @@ if __name__ == "__main__":
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
+    options.build_igc = args.build_igc
+
+    if args.build_igc and args.compute_runtime is None:
+        parser.error("--build-igc requires --compute-runtime to be set")
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
         options.compute_runtime_tag = args.compute_runtime
