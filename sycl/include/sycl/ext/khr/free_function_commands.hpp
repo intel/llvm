@@ -11,7 +11,7 @@ void submit(queue q, CommandGroupFunc &&cgf,
             const sycl::detail::code_location &code_loc =
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::submit(
-      q, std::forward<CommandGroupFunc>(cgf), code_loc );
+      q, std::forward<CommandGroupFunc>(cgf), code_loc);
 }
 
 template <typename CommandGroupFunc>
@@ -278,13 +278,12 @@ void launch_task(queue q, const kernel &k, Args &&...args) {
          [&](handler &h) { launch_task(h, k, std::forward<Args>(args)...); });
 }
 
-inline void memcpy(handler& h, void* dest, const void* src, size_t numBytes){
-    h.memcpy(dest, src, numBytes);
+inline void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
+  h.memcpy(dest, src, numBytes);
 }
-inline void memcpy(queue q, void* dest, const void* src, size_t numBytes){
-     q.submit([&](handler& h) { memcpy(h, dest, src, numBytes); });
+inline void memcpy(queue q, void *dest, const void *src, size_t numBytes) {
+  q.submit([&](handler &h) { memcpy(h, dest, src, numBytes); });
 }
-
 
 } // namespace khr
 } // namespace _V1
