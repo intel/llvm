@@ -584,7 +584,7 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
       assert(isa<PointerType>(T));
       auto *NewTy = Builder.getPtrTy(SPIRAS_Generic);
       if (T != NewTy) {
-        P = Builder.CreatePointerBitCastOrAddrSpaceCast(P, NewTy);
+        P = Builder.CreateAddrSpaceCast(P, NewTy);
       }
       return std::make_pair(
           P, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
