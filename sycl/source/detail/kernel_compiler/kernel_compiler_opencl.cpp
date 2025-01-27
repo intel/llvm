@@ -11,8 +11,8 @@
 
 #include "kernel_compiler_opencl.hpp"
 
-#include "../online_compiler/ocloc_api.h"
 #include "../split_string.hpp"
+#include "ocloc_api.h"
 
 #include <cstring>    // strlen
 #include <functional> // for std::function
