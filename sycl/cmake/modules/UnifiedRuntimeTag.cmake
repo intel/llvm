@@ -1,17 +1,7 @@
-# commit eeff9f4a6e0ed51ba459fd923724fb4c3dd545d7
-# Author: Przemek Malon <przemek.malon@codeplay.com>
-# Date:   Wed Jan 8 19:53:17 2025 +0000
-# Enable creation of images backed by host USM
-#
-#   Small patch to enable bindless images backed by host USM in the CUDA
-#   adapter.
-#
-#   Host and Device USM pointers are usable across the host and device
-#   for all versions of CUDA that we support. There is no need to provide
-#   the `CU_MEMHOSTALLOC_DEVICEMAP` flag during allocation, or calling
-#   `cuMemHostGetDevicePointer` to retrieve a device usable address.
-#
-#   Passing a `CU_MEMHOSTALLOC_WRITECOMBINED` flag to the host USM
-#   allocation will enhance performance in certain scenarios, however, an
-#   extension allowing this is not yet available.
-set(UNIFIED_RUNTIME_TAG eeff9f4a6e0ed51ba459fd923724fb4c3dd545d7)
+# commit b841691699393dd2375e987c3d38d5f59c3e35cf
+# Merge: c6859445 9de10cd9
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Jan 23 16:07:06 2025 +0000
+#     Merge pull request #2559 from Bensuo/fix_kernel_arg_indices
+#     [CUDA][HIP] Fix kernel arguments being overwritten when added out of order
+set(UNIFIED_RUNTIME_TAG b841691699393dd2375e987c3d38d5f59c3e35cf)
