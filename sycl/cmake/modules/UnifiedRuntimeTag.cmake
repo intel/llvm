@@ -1,7 +1,7 @@
-# commit 871061f1aa3b8ade57e0a2ed63d8000e257548cc
-# Merge: 262ec93e 7cca93f9
+# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
+# Merge: e370a2b9 eeff9f4a
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Jan 21 13:26:45 2025 +0000
-#     Merge pull request #2588 from kbenzie/benie/ci-delete-prerelease
-#     Remove the prerelease.yml job
-set(UNIFIED_RUNTIME_TAG 871061f1aa3b8ade57e0a2ed63d8000e257548cc)
+# Date:   Mon Jan 27 10:40:02 2025 +0000
+#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
+#     Enable creation of bindless images backed by host USM
+set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)
