@@ -6,9 +6,8 @@
 
 The unit tests should be launched on every supported device configuration we have.
 
-The end-to-end tests, which consist of checking the interoperability with Level Zero
-and OpenCL backends, should be run on devices that are exposed through these 
-low-level interfaces.
+The end-to-end tests, which consist of checking the interoperability with Level Zero, OpenCL and CUDA backends, 
+should be run on devices that are exposed through these low-level interfaces.
 
 ### Type coverage
 
