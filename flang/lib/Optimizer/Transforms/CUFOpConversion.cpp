@@ -172,18 +172,22 @@ struct CUFAllocateOpConversion
         isPointer = true;
 
     if (hasDoubleDescriptors(op)) {
-      if (isPointer)
-        TODO(loc, "pointer allocation with double descriptors");
       // Allocation for module variable are done with custom runtime entry point
       // so the descriptors can be synchronized.
       mlir::func::FuncOp func;
-      if (op.getSource())
-        func = fir::runtime::getRuntimeFunc<mkRTKey(
-            CUFAllocatableAllocateSourceSync)>(loc, builder);
-      else
+      if (op.getSource()) {
+        func = isPointer ? fir::runtime::getRuntimeFunc<mkRTKey(
+                               CUFPointerAllocateSourceSync)>(loc, builder)
+                         : fir::runtime::getRuntimeFunc<mkRTKey(
+                               CUFAllocatableAllocateSourceSync)>(loc, builder);
+      } else {
         func =
-            fir::runtime::getRuntimeFunc<mkRTKey(CUFAllocatableAllocateSync)>(
-                loc, builder);
+            isPointer
+                ? fir::runtime::getRuntimeFunc<mkRTKey(CUFPointerAllocateSync)>(
+                      loc, builder)
+                : fir::runtime::getRuntimeFunc<mkRTKey(
+                      CUFAllocatableAllocateSync)>(loc, builder);
+      }
       return convertOpToCall<cuf::AllocateOp>(op, rewriter, func);
     }
 
@@ -806,6 +810,7 @@ public:
             rewriter.getContext(),
             op.getCallee().getLeafReference().getValue())});
     mlir::Value clusterDimX, clusterDimY, clusterDimZ;
+    cuf::ProcAttributeAttr procAttr;
     if (auto funcOp = symTab.lookup<mlir::func::FuncOp>(
             op.getCallee().getLeafReference())) {
       if (auto clusterDimsAttr = funcOp->getAttrOfType<cuf::ClusterDimsAttr>(
@@ -817,6 +822,8 @@ public:
         clusterDimZ = rewriter.create<mlir::arith::ConstantIndexOp>(
             loc, clusterDimsAttr.getZ().getInt());
       }
+      procAttr =
+          funcOp->getAttrOfType<cuf::ProcAttributeAttr>(cuf::getProcAttrName());
     }
     llvm::SmallVector<mlir::Value> args;
     for (mlir::Value arg : op.getArgs()) {
@@ -851,6 +858,8 @@ public:
       gpuLaunchOp.getClusterSizeYMutable().assign(clusterDimY);
       gpuLaunchOp.getClusterSizeZMutable().assign(clusterDimZ);
     }
+    if (procAttr)
+      gpuLaunchOp->setAttr(cuf::getProcAttrName(), procAttr);
     rewriter.replaceOp(op, gpuLaunchOp);
     return mlir::success();
   }

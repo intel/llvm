@@ -5152,4 +5152,7 @@ def int_nvvm_cp_async_bulk_prefetch_L2
        NoCapture<ArgIndex<0>>, ReadOnly<ArgIndex<0>>,
        ImmArg<ArgIndex<3>>]>;
 
+def int_nvvm_griddepcontrol_launch_dependents: Intrinsic<[], [], [IntrNoMem, IntrHasSideEffects]>;
+def int_nvvm_griddepcontrol_wait: Intrinsic<[], [], [IntrNoMem, IntrHasSideEffects]>;
+
 } // let TargetPrefix = "nvvm"
