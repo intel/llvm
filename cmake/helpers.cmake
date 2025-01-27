@@ -30,7 +30,7 @@ function(add_cppformat name)
     else()
         # Split args into 2 parts (in Windows the list is probably too long)
         list(SUBLIST ARGN 0 250 selected_files_1)
-        list(SUBLIST ARGN 251 -1 selected_files_2)
+        list(SUBLIST ARGN 250 -1 selected_files_2)
         add_custom_target(cppformat-${name}
             COMMAND ${CLANG_FORMAT} --style=file --i ${selected_files_1}
             COMMAND ${CLANG_FORMAT} --style=file --i ${selected_files_2}

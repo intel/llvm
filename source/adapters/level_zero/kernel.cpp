@@ -1118,9 +1118,9 @@ ur_result_t urKernelCreateWithNativeHandle(
   ze_kernel_handle_t ZeKernel = ur_cast<ze_kernel_handle_t>(NativeKernel);
   ur_kernel_handle_t_ *Kernel = nullptr;
   try {
-    Kernel = new ur_kernel_handle_t_(ZeKernel, Properties->isNativeHandleOwned,
-                                     Context);
-    if (Properties->isNativeHandleOwned) {
+    auto OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
+    Kernel = new ur_kernel_handle_t_(ZeKernel, OwnNativeHandle, Context);
+    if (OwnNativeHandle) {
       // If ownership is passed to the adapter we need to pass the kernel
       // to this vector which is then used during ZeKernelRelease.
       Kernel->ZeKernels.push_back(ZeKernel);

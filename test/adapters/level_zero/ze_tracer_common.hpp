@@ -11,9 +11,9 @@
 
 #include <memory>
 
-std::shared_ptr<_zel_tracer_handle_t>
-enableTracing(zel_core_callbacks_t prologueCallbacks,
-              zel_core_callbacks_t epilogueCallbacks) {
+inline std::shared_ptr<_zel_tracer_handle_t>
+enableTracing(zel_core_callbacks_t &&prologueCallbacks,
+              zel_core_callbacks_t &&epilogueCallbacks) {
   EXPECT_EQ(zeInit(ZE_INIT_FLAG_GPU_ONLY), ZE_RESULT_SUCCESS);
 
   zel_tracer_desc_t tracer_desc = {ZEL_STRUCTURE_TYPE_TRACER_EXP_DESC, nullptr,

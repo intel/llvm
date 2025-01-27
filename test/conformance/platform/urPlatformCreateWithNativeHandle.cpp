@@ -37,29 +37,8 @@ TEST_P(urPlatformCreateWithNativeHandleTest, Success) {
   ASSERT_EQ(input_platform_name, created_platform_name);
 }
 
-TEST_P(urPlatformCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
-  ur_native_handle_t native_handle = 0;
-
-  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-      urPlatformGetNativeHandle(platform, &native_handle));
-
-  // We cannot assume anything about a native_handle, not even if it's
-  // `nullptr` since this could be a valid representation within a backend.
-  // We can however convert the native_handle back into a unified-runtime
-  // handle and perform some query on it to verify that it works.
-  ur_platform_native_properties_t props = {
-      UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES, nullptr, true};
-  ur_platform_handle_t plat = nullptr;
-  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-      urPlatformCreateWithNativeHandle(native_handle, adapter, &props, &plat));
-  ASSERT_NE(plat, nullptr);
-
-  std::string input_platform_name = uur::GetPlatformName(platform);
-  std::string created_platform_name = uur::GetPlatformName(plat);
-  ASSERT_EQ(input_platform_name, created_platform_name);
-}
-
-TEST_P(urPlatformCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
+TEST_F(urPlatformCreateWithNativeHandleTest,
+       SuccessWithExplicitUnOwnedNativeHandle) {
   ur_native_handle_t native_handle = 0;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(

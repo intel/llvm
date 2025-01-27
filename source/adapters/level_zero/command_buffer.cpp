@@ -1535,15 +1535,17 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
  * @param CommandList The command-list to append the QueryKernelTimestamps
  * command to.
  * @param SignalEvent The event that must be signaled after the profiling is
- * finished. This event will contain the profiling information.
+ * finished.
  * @param WaitEvent The event that must be waited on before starting the
  * profiling.
+ * @param ProfilingEvent The event that will contain the profiling data.
  * @return UR_RESULT_SUCCESS or an error code on failure.
  */
 ur_result_t appendProfilingQueries(ur_exp_command_buffer_handle_t CommandBuffer,
                                    ze_command_list_handle_t CommandList,
                                    ur_event_handle_t SignalEvent,
-                                   ur_event_handle_t WaitEvent) {
+                                   ur_event_handle_t WaitEvent,
+                                   ur_event_handle_t ProfilingEvent) {
   // Multiple submissions of a command buffer implies that we need to save
   // the event timestamps before resubmiting the command buffer. We
   // therefore copy these timestamps in a dedicated USM memory section
@@ -1556,12 +1558,17 @@ ur_result_t appendProfilingQueries(ur_exp_command_buffer_handle_t CommandBuffer,
   Profiling->Timestamps =
       new ze_kernel_timestamp_result_t[Profiling->NumEvents];
 
+  uint32_t NumWaitEvents = WaitEvent ? 1 : 0;
+  ze_event_handle_t *ZeWaitEventList =
+      WaitEvent ? &(WaitEvent->ZeEvent) : nullptr;
+  ze_event_handle_t ZeSignalEvent =
+      SignalEvent ? SignalEvent->ZeEvent : nullptr;
   ZE2UR_CALL(zeCommandListAppendQueryKernelTimestamps,
              (CommandList, CommandBuffer->ZeEventsList.size(),
               CommandBuffer->ZeEventsList.data(), (void *)Profiling->Timestamps,
-              0, SignalEvent->ZeEvent, 1, &(WaitEvent->ZeEvent)));
+              0, ZeSignalEvent, NumWaitEvents, ZeWaitEventList));
 
-  SignalEvent->CommandData = static_cast<void *>(Profiling);
+  ProfilingEvent->CommandData = static_cast<void *>(Profiling);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1615,8 +1622,8 @@ ur_result_t enqueueImmediateAppendPath(
 
   if (DoProfiling) {
     UR_CALL(appendProfilingQueries(CommandBuffer, CommandListHelper->first,
-                                   *Event,
-                                   CommandBuffer->ComputeFinishedEvent));
+                                   *Event, CommandBuffer->ComputeFinishedEvent,
+                                   *Event));
   }
 
   // When the current execution is finished, signal ExecutionFinishedEvent to
@@ -1694,10 +1701,15 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
         (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
   }
 
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (SignalCommandList->first, nullptr, 1,
+              &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
+
   // Reset the wait-event for the UR command-buffer that is signaled when its
   // submission dependencies have been satisfied.
   ZE2UR_CALL(zeCommandListAppendEventReset,
              (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
+
   // Reset the all-reset-event for the UR command-buffer that is signaled when
   // all events of the main command-list have been reset.
   ZE2UR_CALL(zeCommandListAppendEventReset,
@@ -1705,13 +1717,11 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
 
   if (DoProfiling) {
     UR_CALL(appendProfilingQueries(CommandBuffer, SignalCommandList->first,
-                                   *Event,
-                                   CommandBuffer->ExecutionFinishedEvent));
-  } else {
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (SignalCommandList->first, (*Event)->ZeEvent, 1,
-                &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
+                                   nullptr, nullptr, *Event));
   }
+
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (SignalCommandList->first, (*Event)->ZeEvent, 0, nullptr));
 
   UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
                                     false /*OKToBatchCommand*/));
