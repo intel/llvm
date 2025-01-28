@@ -37,7 +37,7 @@ TEST_P(urPlatformCreateWithNativeHandleTest, Success) {
   ASSERT_EQ(input_platform_name, created_platform_name);
 }
 
-TEST_F(urPlatformCreateWithNativeHandleTest,
+TEST_P(urPlatformCreateWithNativeHandleTest,
        SuccessWithExplicitUnOwnedNativeHandle) {
   ur_native_handle_t native_handle = 0;
 
