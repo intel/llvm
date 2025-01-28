@@ -728,6 +728,16 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*SYCLPostLinkPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  Arg *SYCLDeviceLibLoc = Args.getLastArg(OPT_sycl_device_library_location_EQ);
+  if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
+    std::string SYCLDeviceLibLocParam = SYCLDeviceLibLoc->getValue();
+    std::string AssertDeviceLibLoc =
+        SYCLDeviceLibLocParam + "/libsycl-fallback-cassert.bc";
+    if (llvm::sys::fs::exists(AssertDeviceLibLoc)) {
+      SYCLDeviceLibLocParam = "--device-lib-dir=" + SYCLDeviceLibLocParam;
+      CmdArgs.push_back(Args.MakeArgString(StringRef(SYCLDeviceLibLocParam)));
+    }
+  }
   getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);
   StringRef SYCLPostLinkOptions;
   if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))

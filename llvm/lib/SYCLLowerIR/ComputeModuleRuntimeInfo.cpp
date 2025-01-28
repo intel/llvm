@@ -155,6 +155,35 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
   return std::nullopt;
 }
 
+PropSetRegTy computeBF16DeviceLibProperties(const Module &M,
+                                            std::string &BF16DeviceLibName) {
+  PropSetRegTy PropSet;
+
+  {
+    for (const auto &F : M.functions()) {
+      if (!F.getName().starts_with("__devicelib_") || F.isDeclaration())
+        continue;
+      if (F.getCallingConv() == CallingConv::SPIR_FUNC) {
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
+
+  {
+    // Value '0' means fallback version and '1' means native version of
+    // bfloat16 devicelib.
+    unsigned BF16DeviceLibType = 0;
+    if (BF16DeviceLibName.find("native") != std::string::npos)
+      BF16DeviceLibType = 1;
+    std::map<StringRef, unsigned int> BF16TypeEntry = {
+        {"DeviceLibBF16Type", BF16DeviceLibType}};
+    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_BF16_TYPE, BF16TypeEntry);
+  }
+
+  return PropSet;
+}
+
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps) {

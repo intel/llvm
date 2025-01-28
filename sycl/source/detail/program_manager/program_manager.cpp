@@ -603,6 +603,30 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+// The input BinImage should be a devicelib image for bfloat16 conversions,
+// there will be 2 bfloat16 devicelib images for fallback and native version.
+// The native version must be used on platforms with bfloat16 extension.
+static bool selectBF16Devicelib(RTDeviceBinaryImage *BinImage,
+                                const device &Dev) {
+  const RTDeviceBinaryImage::PropertyRange &BF16DeviceLibTypeProp =
+      BinImage->getDeviceLibBF16Type();
+  unsigned BF16Type =
+      DeviceBinaryProperty(*(BF16DeviceLibTypeProp.begin())).asUint32();
+
+  enum { BF16_FALLBACK = 0, BF16_NATIVE };
+  std::vector<std::string> DeviceExtensions =
+      Dev.get_info<info::device::extensions>();
+  std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
+  bool NativeBF16Supported =
+      (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
+                 NativeBF16ExtName) != DeviceExtensions.end());
+  if ((NativeBF16Supported && (BF16Type == BF16_FALLBACK)) ||
+      (!NativeBF16Supported && (BF16Type == BF16_NATIVE)))
+    return false;
+
+  return true;
+}
+
 static bool checkLinkingSupport(const device &Dev,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
@@ -658,6 +682,9 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (Img->getFormat() != Format ||
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, Dev))
+        continue;
+      if (Img->getDeviceLibBF16Type().isAvailable() &&
+          !selectBF16Devicelib(Img, Dev))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -1797,8 +1824,14 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
-    if (EntriesB == EntriesE)
-      continue;
+    if (EntriesB == EntriesE) {
+      std::unique_ptr<RTDeviceBinaryImage> Img =
+          std::make_unique<RTDeviceBinaryImage>(RawImg);
+      const RTDeviceBinaryImage::PropertyRange &BF16DeviceLibType =
+          Img->getDeviceLibBF16Type();
+      if (!BF16DeviceLibType.isAvailable())
+        continue;
+    }
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
     if (isDeviceImageCompressed(RawImg))
