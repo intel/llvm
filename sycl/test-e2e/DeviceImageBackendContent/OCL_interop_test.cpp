@@ -19,9 +19,11 @@ extern "C" SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
 }
 
 int main() {
-  sycl::queue q;
+  sycl::device d([](const sycl::device &d) {
+    return d.get_backend() == sycl::backend::opencl;
+  });
+  sycl::queue q{d};
   sycl::context ctxt = q.get_context();
-  sycl::device d = ctxt.get_devices()[0];
 
   // The following ifndef is required due to a number of limitations of free
   // function kernels. See CMPLRLLVM-61498.
