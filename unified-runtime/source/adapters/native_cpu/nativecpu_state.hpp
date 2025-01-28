@@ -43,7 +43,7 @@ struct state {
   }
 
   inline void update(size_t group0, size_t group1, size_t group2, size_t local0,
-              size_t local1, size_t local2) {
+                     size_t local1, size_t local2) {
     MWorkGroup_id[0] = group0;
     MWorkGroup_id[1] = group1;
     MWorkGroup_id[2] = group2;

@@ -286,5 +286,5 @@ using threadpool_t = TBB_threadpool;
 namespace native_cpu {
 using tasksinfo_t = TasksInfo_TP;
 using threadpool_t = simple_threadpool_t;
-}
+} // namespace native_cpu
 #endif
