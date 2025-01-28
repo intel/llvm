@@ -29,6 +29,10 @@
 
 #include <vector>
 
+// CP - remove
+//#define CPOUT  std::clog
+#define CPOUT  std::clog.rdbuf(NULL); std::clog
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -76,8 +80,10 @@ private:
 };
 std::atomic_uint ObjectUsageCounter::MCounter{0};
 
-GlobalHandler::GlobalHandler() = default;
-GlobalHandler::~GlobalHandler() = default;
+  //GlobalHandler::GlobalHandler() = default;
+  //GlobalHandler::~GlobalHandler() = default;
+  GlobalHandler::GlobalHandler(){ CPOUT << "GlobalHandler constructor ---" << std::endl; }
+  GlobalHandler::~GlobalHandler() { CPOUT << "~GlobalHandler destructor  ---" << std::endl; }
 
 void GlobalHandler::InitXPTI() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -246,6 +252,7 @@ struct EarlyShutdownHandler {
       // on Windows we keep to the existing shutdown procedure
       //GlobalHandler::instance().releaseDefaultContexts();
       shutdown_early();
+      shutdown_win();
 #else
       shutdown_early();
 #endif
@@ -310,11 +317,13 @@ void GlobalHandler::drainThreadPool() {
 // we focus solely on unloading the adapters, so as to not
 // accidentally retain device handles. etc
 void shutdown_win() {
+  CPOUT  << "shutdown_win() ---" << std::endl;
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadAdapters();
 }
   //#else
 void shutdown_early() {
+  CPOUT  << "shutdown_early() ---" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -336,6 +345,7 @@ void shutdown_early() {
 }
 
 void shutdown_late() {
+  CPOUT << "shutdown_late() --- " << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -377,7 +387,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   case DLL_PROCESS_DETACH:
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
-
+    /*
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
@@ -387,12 +397,14 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 
     try {
       // CP - CLEANUP NEEDED
-      shutdown_win(); // works
+      //shutdown_early();
+      //shutdown_win(); // works
       //shutdown_late();
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
       return FALSE;
     }
+    */
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintUrTrace)

@@ -282,10 +282,10 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
  #ifdef _WIN32
   // CP - CLEANUP NEEDED
   bool hasUserData = MemObj->hasUserDataPtr();
-  //bool OkDefer =  GlobalHandler::instance().isOkToDefer();
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  bool OkDefer = Handler ? Handler->isOkToDefer() : false; 
-  std::cout << "Handler: " << Handler <<  " hasUserData: " << hasUserData << "  OkDefer: " << OkDefer << std::endl;
+  bool OkDefer =  GlobalHandler::instance().isOkToDefer();
+  //GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  //bool OkDefer = Handler ? Handler->isOkToDefer() : false; 
+  //std::cout  <<  " hasUserData: " << hasUserData << "  OkDefer: " << OkDefer << std::endl;
   bool allowWait = hasUserData || OkDefer; //MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
 #else
    bool allowWait = true;
