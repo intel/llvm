@@ -87,6 +87,11 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -110,11 +115,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2404_build:latest
