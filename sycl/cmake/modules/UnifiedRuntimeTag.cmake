@@ -4,4 +4,4 @@
 # Date:   Mon Jan 27 10:40:02 2025 +0000
 #     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
 #     Enable creation of bindless images backed by host USM
-set(UNIFIED_RUNTIME_TAG 075de4559ba2d4453e6c7b71a9318e9059b2f362)
+set(UNIFIED_RUNTIME_TAG e6b61c6768f9e12b46ed921a4bdf3283de53772f)
