@@ -1,7 +1,7 @@
-# commit 095e8464124a48c8ed4b995403e754254c072143
-# Merge: 0bb6789f 07001aa7
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 27 14:53:22 2025 +0000
-#     Merge pull request #2574 from bratpiorka/rrudnick_fix_usm_pool_config_parse
-#     fix parseDisjointPoolConfig and add tests
-set(UNIFIED_RUNTIME_TAG 095e8464124a48c8ed4b995403e754254c072143)
+# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
+# Merge: 902bb2e2 94b32ac2
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 28 11:02:44 2025 +0000
+#     Merge pull request #2624 from RossBrunton/ross/msanfix
+#     Assert that Device is valid for memory poisoning
+set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
