@@ -217,10 +217,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       }
       auto numGroups = groups.size();
       auto groupsPerThread = numGroups / numParallelThreads;
-      auto remainder = numGroups % numParallelThreads;
-      for (unsigned thread = 0; thread < numParallelThreads && groupsPerThread;
-           thread++) {
-        futures.emplace_back(
+      if (groupsPerThread) {
+        for (unsigned thread = 0; thread < numParallelThreads; thread++) {
+          futures.emplace_back(
             tp.schedule_task([groups, thread, groupsPerThread,
                               &kernel = *kernel](size_t threadId) {
               for (unsigned i = 0; i < groupsPerThread; i++) {
@@ -228,9 +227,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                 groups[index](threadId, kernel);
               }
             }));
+        }
       }
 
       // schedule the remaining tasks
+      auto remainder = numGroups % numParallelThreads;
       if (remainder) {
         futures.emplace_back(
             tp.schedule_task([groups, remainder,
