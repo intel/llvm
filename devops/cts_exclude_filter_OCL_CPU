@@ -1,3 +1,4 @@
 # These categories require patches not included in this release
 language
 multi_ptr
+header
