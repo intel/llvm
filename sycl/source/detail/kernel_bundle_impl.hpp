@@ -550,7 +550,7 @@ public:
       // Device globals are usually statically allocated and registered in the
       // integration footer, which we don't have in the RTC context. Instead, we
       // dynamically allocate storage tied to the executable kernel bundle.
-      for (auto *DeviceGlobalEntry :
+      for (DeviceGlobalMapEntry *DeviceGlobalEntry :
            PM.getDeviceGlobalEntries(DeviceGlobalIDVec)) {
 
         size_t AllocSize = DeviceGlobalEntry->MDeviceGlobalTSize; // init value
@@ -703,15 +703,8 @@ private:
 
     // Otherwise, if the device candidate is a sub-device it is also valid if
     // its parent is valid.
-    if (!getSyclObjImpl(DeviceCand)->isRootDevice()) {
-      try {
-        return is_valid_device(
-            DeviceCand.get_info<info::device::parent_device>());
-      } catch (std::exception &e) {
-        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in is_valid_device", e);
-      }
-    }
-    return false;
+    return !getSyclObjImpl(DeviceCand)->isRootDevice() &&
+           is_valid_device(DeviceCand.get_info<info::device::parent_device>());
   }
 
   DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name,
