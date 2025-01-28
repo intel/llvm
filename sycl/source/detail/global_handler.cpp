@@ -60,10 +60,11 @@ public:
 
       LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
       MCounter--;
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
-      }
+      // CP - CLEANUP NEEDED
+      // GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+      // if (RTGlobalObjHandler) {
+      //   RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
+      // }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
@@ -241,8 +242,10 @@ struct EarlyShutdownHandler {
   ~EarlyShutdownHandler() {
     try {
 #ifdef _WIN32
+      // CP - CLEANUP NEEDED
       // on Windows we keep to the existing shutdown procedure
-      GlobalHandler::instance().releaseDefaultContexts();
+      //GlobalHandler::instance().releaseDefaultContexts();
+      shutdown_early();
 #else
       shutdown_early();
 #endif
@@ -287,8 +290,6 @@ void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
   if (Blocking)
     drainThreadPool();
-#else
-  Blocking = false;
 #endif
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
@@ -300,7 +301,8 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-#ifdef _WIN32
+  // CP - CLEANUP NEEDED
+  //#ifdef _WIN32
 // because of something not-yet-understood on Windows
 // threads may be shutdown once the end of main() is reached
 // making an orderly shutdown difficult. Fortunately, Windows
@@ -311,7 +313,7 @@ void shutdown_win() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadAdapters();
 }
-#else
+  //#else
 void shutdown_early() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
@@ -355,7 +357,7 @@ void shutdown_late() {
   delete Handler;
   Handler = nullptr;
 }
-#endif
+  //#endif
 
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
@@ -384,7 +386,9 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 #endif
 
     try {
-      shutdown_win();
+      // CP - CLEANUP NEEDED
+      //shutdown_win(); // works
+      shutdown_late();
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
       return FALSE;

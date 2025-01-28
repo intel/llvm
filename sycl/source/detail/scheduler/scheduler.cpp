@@ -279,6 +279,19 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     // No operations were performed on the mem object
     return true;
 
+ #ifdef _WIN32
+  // CP - CLEANUP NEEDED
+  bool hasUserData = MemObj->hasUserDataPtr();
+  //bool OkDefer =  GlobalHandler::instance().isOkToDefer();
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
+  bool OkDefer = Handler ? Handler->isOkToDefer() : false; 
+  std::cout << "Handler: " << Handler <<  " hasUserData: " << hasUserData << "  OkDefer: " << OkDefer << std::endl;
+  bool allowWait = hasUserData || OkDefer; //MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
+#else
+   bool allowWait = true;
+ #endif
+ 
+  if(allowWait)
   {
     // This only needs a shared mutex as it only involves enqueueing and
     // awaiting for events
@@ -397,6 +410,10 @@ void Scheduler::releaseResources(BlockingT Blocking) {
   cleanupCommands({});
 
   cleanupAuxiliaryResources(Blocking);
+  // CP  - CLEANUP NEEDED
+  //#ifdef _WIN32
+  //cleanupDeferredMemObjects(Blocking);
+  //#else
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
   // existing deferred mem objects under write lock, during this process we
@@ -407,6 +424,7 @@ void Scheduler::releaseResources(BlockingT Blocking) {
   do {
     cleanupDeferredMemObjects(Blocking);
   } while (Blocking == BlockingT::BLOCKING && !isDeferredMemObjectsEmpty());
+  //#endif
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
