@@ -414,11 +414,11 @@ void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
       },
       codeLoc);
 }
-void memset(handler &h, void *ptr, int value, size_t numBytes) {
+inline void memset(handler &h, void *ptr, int value, size_t numBytes) {
   h.memset(ptr, value, numBytes);
 }
 
-void memset(queue q, void *ptr, int value, size_t numBytes,
+inline void memset(queue q, void *ptr, int value, size_t numBytes,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
   q.submit([&](handler &h) { memset(h, ptr, value, numBytes); }, codeLoc);
@@ -470,38 +470,38 @@ void update_host(queue q, accessor<T, Dims, Mode, target::device> acc,
       },
       codeLoc);
 }
-void prefetch(handler &h, void *ptr, size_t numBytes) {
+inline void prefetch(handler &h, void *ptr, size_t numBytes) {
   h.prefetch(ptr, numBytes);
 }
 
-void prefetch(queue q, void *ptr, size_t numBytes,
+inline void prefetch(queue q, void *ptr, size_t numBytes,
               const sycl::detail::code_location &codeLoc =
                   sycl::detail::code_location::current()) {
   q.submit([&](handler &h) { prefetch(h, ptr, numBytes); }, codeLoc);
 }
 
-void mem_advise(handler &h, void *ptr, size_t numBytes, int advice) {
+inline void mem_advise(handler &h, void *ptr, size_t numBytes, int advice) {
   h.mem_advise(ptr, numBytes, advice);
 }
 
-void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
+inline void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
                 const sycl::detail::code_location &codeLoc =
                     sycl::detail::code_location::current()) {
   q.submit([&](handler &h) { mem_advise(h, ptr, numBytes, advice); }, codeLoc);
 }
 
-void command_barrier(handler &h) { h.ext_oneapi_barrier(); }
+inline void command_barrier(handler &h) { h.ext_oneapi_barrier(); }
 
-void command_barrier(queue q, const sycl::detail::code_location &codeLoc =
+inline void command_barrier(queue q, const sycl::detail::code_location &codeLoc =
                                   sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { command_barrier(h); }, codeLoc);
 }
 
-void event_barrier(handler &h, const std::vector<event> &events) {
+inline void event_barrier(handler &h, const std::vector<event> &events) {
   h.ext_oneapi_barrier(events);
 }
 
-void event_barrier(queue q, const std::vector<event> &events,
+inline void event_barrier(queue q, const std::vector<event> &events,
                    const sycl::detail::code_location &codeLoc =
                        sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { event_barrier(h, events); }, codeLoc);
