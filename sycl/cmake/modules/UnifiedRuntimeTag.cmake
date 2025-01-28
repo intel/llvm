@@ -1,7 +1,7 @@
-# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
-# Merge: e370a2b9 eeff9f4a
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 27 10:40:02 2025 +0000
-#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
-#     Enable creation of bindless images backed by host USM
-set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)
+# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
+# Merge: 902bb2e2 94b32ac2
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 28 11:02:44 2025 +0000
+#     Merge pull request #2624 from RossBrunton/ross/msanfix
+#     Assert that Device is valid for memory poisoning
+set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
