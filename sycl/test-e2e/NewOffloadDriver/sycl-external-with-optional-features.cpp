@@ -6,7 +6,7 @@
 // XFAIL: cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16413
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64059
 
 #ifdef SOURCE1
