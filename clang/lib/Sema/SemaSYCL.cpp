@@ -393,6 +393,12 @@ bool SemaSYCL::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
          FD->getBuiltinID() == Builtin::BI__builtin_printf))
       return true;
 
+    // Allow to use `::printf` only for CUDA.
+    if (getLangOpts().SYCLCUDACompat) {
+      if (FD->getBuiltinID() == Builtin::BIprintf)
+        return true;
+    }
+
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
@@ -446,17 +452,7 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
-  // __int128, __int128_t, __uint128_t, long double, __float128
-  if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
-      Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
-      Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
-      Ty->isSpecificBuiltinType(BuiltinType::BFloat16) ||
-      (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
-       !S.getASTContext().getTargetInfo().hasFloat128Type())) {
-    S.DiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
-        << Ty.getUnqualifiedType().getCanonicalType();
-    Emitting = true;
-  }
+// checked in Sema::checkTypeSupport
 
   if (Emitting && UsedAtLoc.isValid())
     S.DiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_used_here);

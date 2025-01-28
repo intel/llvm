@@ -3868,10 +3868,12 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     SYCL().CheckSYCLKernelCall(FD, Args);
 
   // Diagnose variadic calls in SYCL.
+  /*
   if (FD && FD->isVariadic() && getLangOpts().SYCLIsDevice &&
       !isUnevaluatedContext() && !SYCL().isDeclAllowedInSYCLDeviceCode(FD))
     SYCL().DiagIfDeviceCode(Loc, diag::err_sycl_restrict)
         << SemaSYCL::KernelCallVariadicFunction;
+        */
 }
 
 void Sema::CheckConstrainedAuto(const AutoType *AutoT, SourceLocation Loc) {
