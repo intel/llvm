@@ -2198,9 +2198,11 @@ typedef enum ur_device_info_t {
   /// to the `USMPool` entry points and usage of the `pool` parameter of the
   /// USM alloc entry points.
   UR_DEVICE_INFO_USM_POOL_SUPPORT = 119,
+  /// [uint32_t] the number of compute units for specific backend.
+  UR_DEVICE_INFO_NUM_COMPUTE_UNITS = 120,
   /// [::ur_bool_t] support the ::urProgramSetSpecializationConstants entry
   /// point
-  UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 120,
+  UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 121,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
