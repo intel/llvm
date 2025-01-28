@@ -8,7 +8,7 @@ int main() {
   sycl::queue Q;
 
   auto Ptr = sycl::malloc_shared<int>(1, Q);
-  syclexp::annotated_ptr<int, decltype(syclexp::properties(syclexp::restrict))>
+  syclexp::annotated_ptr<int, decltype(syclexp::properties(syclexp::unaliased))>
       AnnotPtr{Ptr};
   Q.submit([&](sycl::handler &CGH) {
      CGH.single_task([=]() { *AnnotPtr = 42; });
@@ -18,4 +18,4 @@ int main() {
   return 0;
 }
 
-// CHECK-IR: spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_(ptr addrspace(1) noalias noundef align 4 "sycl-restrict"
+// CHECK-IR: spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased"
