@@ -20,6 +20,7 @@
 
 ur_adapter_handle_t_::ur_adapter_handle_t_() {
 #ifdef _MSC_VER
+
   // Loading OpenCL.dll increments the libraries internal reference count.
   auto handle = LoadLibraryA("OpenCL.dll");
 
@@ -30,17 +31,17 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() {
 
   // So we can safely decrement it here wihtout actually unloading OpenCL.dll.
   FreeLibrary(handle);
-#else
-  // Loading libOpenCL.so to get the library handle but don't dlclose it as
-  // this causes a segfault when attempting to call any OpenCL entry point.
-  auto handle = dlopen("libOpenCL.so", RTLD_LOCAL);
 
+#else // _MSC_VER
+
+  // Use the default shared object search order (RTLD_DEFAULT) since the
+  // OpenCL-ICD-Loader has already been loaded into the process.
 #define CL_CORE_FUNCTION(FUNC)                                                 \
-  FUNC = reinterpret_cast<decltype(::FUNC) *>(dlsym(handle, #FUNC));
+  FUNC = reinterpret_cast<decltype(::FUNC) *>(dlsym(RTLD_DEFAULT, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 
-#endif
+#endif // _MSC_VER
 }
 
 static ur_adapter_handle_t adapter = nullptr;
