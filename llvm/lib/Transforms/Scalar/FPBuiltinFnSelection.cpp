@@ -112,7 +112,8 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
 // If it's not possible - fallback to instruction or standard C/C++ library LLVM
 // intrinsic.
 static bool
-replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall) {
+replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall,
+                                      std::optional<float> Accuracy) {
   IRBuilder<> IRBuilder(&BuiltinCall);
   SmallVector<Value *> Args(BuiltinCall.args());
   Value *Replacement = nullptr;
@@ -198,8 +199,9 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
   // We don't have implementation for CUDA approximate precision builtins.
   // Lets map them on NVPTX intrinsics. If no appropriate intrinsics are known
   // - skip to replaceWithAltMathFunction.
-  if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() == 3.0) {
-    if (replaceWithApproxNVPTXCallsOrFallback(BuiltinCall))
+  if (T.isNVPTX())
+    if (replaceWithApproxNVPTXCallsOrFallback(
+          BuiltinCall, BuiltinCall.getRequiredAccuracy()))
       return true;
   }
 
