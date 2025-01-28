@@ -17,7 +17,7 @@ namespace v2 {
 
 static constexpr size_t EVENTS_BURST = 64;
 
-ur_pooled_event_t *event_pool::allocate() {
+ur_event_handle_t event_pool::allocate() {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<std::mutex> lock(*mutex);
@@ -42,7 +42,7 @@ ur_pooled_event_t *event_pool::allocate() {
   return event;
 }
 
-void event_pool::free(ur_pooled_event_t *event) {
+void event_pool::free(ur_event_handle_t event) {
   TRACK_SCOPE_LATENCY("event_pool::free");
 
   std::unique_lock<std::mutex> lock(*mutex);
