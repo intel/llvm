@@ -4428,5 +4428,23 @@ _SPIRV_OP(Subgroup2DBlockLoadTranspose, false, 11)
 _SPIRV_OP(Subgroup2DBlockLoadTransform, false, 11)
 #undef _SPIRV_OP
 
+class SPIRVSubgroupMatrixMultiplyAccumulateINTELInst
+    : public SPIRVInstTemplateBase {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilitySubgroupMatrixMultiplyAccumulateINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVSubgroupMatrixMultiplyAccumulateINTELInst,    \
+                            Op##x##INTEL, __VA_ARGS__>                         \
+      SPIRV##x##INTEL;
+_SPIRV_OP(SubgroupMatrixMultiplyAccumulate, true, 7, true, 4)
+#undef _SPIRV_OP
+
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H
