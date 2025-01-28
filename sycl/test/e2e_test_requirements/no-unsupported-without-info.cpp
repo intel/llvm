@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 409
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 410
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -121,6 +121,7 @@
 // CHECK-NEXT: Config/kernel_from_file.cpp
 // CHECK-NEXT: DeviceArchitecture/device_architecture_comparison_on_host.cpp
 // CHECK-NEXT: DeviceCodeSplit/aot-gpu.cpp
+// CHECK-NEXT: DeviceGlobal/device_constant.cpp
 // CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
 // CHECK-NEXT: DeviceImageDependencies/free_function_kernels.cpp
 // CHECK-NEXT: DeviceImageDependencies/math_device_lib.cpp

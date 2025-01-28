@@ -197,6 +197,11 @@ class device_global {
 
 _T_ is restricted to types that have a trivial destructor. _PropertyListT_ enables properties to be associated with a `device_global`.
 
+[NOTE]
+====
+If _T_ is `const` then implementations may choose to allocate the `device_global` in a dedicated constant address space as an optimization. When using the {dpcpp} compiler with the CUDA or HIP backend, declaring a `device_global<const T>` is equivalent to declaring a `$$__constant__$$` variable.
+====
+
 When compiling with {cpp} versions before {cpp}20, _T_ must also have a trivial default constructor. In this case, the allocation of type _T_ for a given `device_global` is zero-initialized on a given device prior to the first access to that `device_global` on that device. For the purposes of this definition an access can be a direct access of the `device_global` in kernel code or a copy to or from that `device_global` enqueued to the given device.
 
 When compiling with {cpp}20 or later, _T_ must have a constructor that can be `constexpr` evaluated, and the parameters to the `device_global` constructor are forwarded to the _T_ constructor. In this case, the allocation of type _T_ for a given `device_global` is initialized on a given device prior to the first access to that `device_global` on that device.

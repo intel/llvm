@@ -19,11 +19,17 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT> class device_global;
+template <typename T, typename PropertyListT, typename Cond>
+class device_global;
 
 struct device_image_scope_key
     : detail::compile_time_property_key<detail::PropKind::DeviceImageScope> {
   using value_t = property_value<device_image_scope_key>;
+};
+
+struct device_constant_key
+    : detail::compile_time_property_key<detail::PropKind::DeviceConstant> {
+  using value_t = property_value<device_constant_key>;
 };
 
 enum class host_access_enum : std::uint16_t { read, write, read_write, none };
@@ -54,6 +60,7 @@ struct implement_in_csr_key
 };
 
 inline constexpr device_image_scope_key::value_t device_image_scope;
+inline constexpr device_constant_key::value_t device_constant;
 
 template <host_access_enum Access>
 inline constexpr host_access_key::value_t<Access> host_access;
@@ -77,17 +84,24 @@ inline constexpr implement_in_csr_key::value_t<Enable> implement_in_csr;
 inline constexpr implement_in_csr_key::value_t<true> implement_in_csr_on;
 inline constexpr implement_in_csr_key::value_t<false> implement_in_csr_off;
 
-template <typename T, typename PropertyListT>
+template <typename T, typename PropertyListT, typename Cond>
 struct is_property_key_of<device_image_scope_key,
-                          device_global<T, PropertyListT>> : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<host_access_key, device_global<T, PropertyListT>>
+                          device_global<T, PropertyListT, Cond>>
     : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<init_mode_key, device_global<T, PropertyListT>>
+template <typename T, typename PropertyListT, typename Cond>
+struct is_property_key_of<device_constant_key,
+                          device_global<T, PropertyListT, Cond>>
     : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<implement_in_csr_key, device_global<T, PropertyListT>>
+template <typename T, typename PropertyListT, typename Cond>
+struct is_property_key_of<host_access_key,
+                          device_global<T, PropertyListT, Cond>>
+    : std::true_type {};
+template <typename T, typename PropertyListT, typename Cond>
+struct is_property_key_of<init_mode_key, device_global<T, PropertyListT, Cond>>
+    : std::true_type {};
+template <typename T, typename PropertyListT, typename Cond>
+struct is_property_key_of<implement_in_csr_key,
+                          device_global<T, PropertyListT, Cond>>
     : std::true_type {};
 
 namespace detail {

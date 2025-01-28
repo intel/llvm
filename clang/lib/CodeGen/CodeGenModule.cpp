@@ -5831,6 +5831,13 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
         Scope = RD->getAttr<SYCLScopeAttr>();
     if (Scope && Scope->isWorkGroup())
       return LangAS::sycl_local;
+
+    if (getTriple().isNVPTX() || getTriple().isAMDGPU()) {
+      const RecordDecl *RD = D->getType()->getAsRecordDecl();
+      if (RD && RD->hasAttr<SYCLDeviceConstantAttr>()) {
+        return LangAS::opencl_constant;
+      }
+    }
   }
 
   if (LangOpts.SYCLIsDevice &&
