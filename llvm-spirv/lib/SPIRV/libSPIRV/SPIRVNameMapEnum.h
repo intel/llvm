@@ -656,6 +656,9 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPMaxErrorINTEL, "FPMaxErrorINTEL");
   add(CapabilityRegisterLimitsINTEL, "RegisterLimitsINTEL");
   add(CapabilityArithmeticFenceEXT, "ArithmeticFenceEXT");
+  add(CapabilitySubgroup2DBlockIOINTEL, "Subgroup2DBlockIOINTEL");
+  add(CapabilitySubgroup2DBlockTransformINTEL, "Subgroup2DBlockTransformINTEL");
+  add(CapabilitySubgroup2DBlockTransposeINTEL, "Subgroup2DBlockTransposeINTEL");
   // From spirv_internal.hpp
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
