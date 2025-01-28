@@ -202,7 +202,7 @@ static bool dynamicWGLocalMemory(Module &M) {
         false,           // isConstant
         usesKernelArgForDynWGLocalMem(TT)
             ? GlobalValue::LinkOnceODRLinkage
-                           : GlobalValue::ExternalLinkage, // Linkage
+            : GlobalValue::ExternalLinkage, // Linkage
         usesKernelArgForDynWGLocalMem(TT) ? UndefValue::get(LocalMemArrayTy)
                                           : nullptr, // Initializer
         DYNAMIC_LOCALMEM_GV,                         // Name prefix
