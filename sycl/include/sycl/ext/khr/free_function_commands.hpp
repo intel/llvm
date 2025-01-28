@@ -419,8 +419,8 @@ inline void memset(handler &h, void *ptr, int value, size_t numBytes) {
 }
 
 inline void memset(queue q, void *ptr, int value, size_t numBytes,
-            const sycl::detail::code_location &codeLoc =
-                sycl::detail::code_location::current()) {
+                   const sycl::detail::code_location &codeLoc =
+                       sycl::detail::code_location::current()) {
   q.submit([&](handler &h) { memset(h, ptr, value, numBytes); }, codeLoc);
 }
 
@@ -475,8 +475,8 @@ inline void prefetch(handler &h, void *ptr, size_t numBytes) {
 }
 
 inline void prefetch(queue q, void *ptr, size_t numBytes,
-              const sycl::detail::code_location &codeLoc =
-                  sycl::detail::code_location::current()) {
+                     const sycl::detail::code_location &codeLoc =
+                         sycl::detail::code_location::current()) {
   q.submit([&](handler &h) { prefetch(h, ptr, numBytes); }, codeLoc);
 }
 
@@ -485,15 +485,16 @@ inline void mem_advise(handler &h, void *ptr, size_t numBytes, int advice) {
 }
 
 inline void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
-                const sycl::detail::code_location &codeLoc =
-                    sycl::detail::code_location::current()) {
+                       const sycl::detail::code_location &codeLoc =
+                           sycl::detail::code_location::current()) {
   q.submit([&](handler &h) { mem_advise(h, ptr, numBytes, advice); }, codeLoc);
 }
 
 inline void command_barrier(handler &h) { h.ext_oneapi_barrier(); }
 
-inline void command_barrier(queue q, const sycl::detail::code_location &codeLoc =
-                                  sycl::detail::code_location::current()) {
+inline void command_barrier(queue q,
+                            const sycl::detail::code_location &codeLoc =
+                                sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { command_barrier(h); }, codeLoc);
 }
 
@@ -502,8 +503,8 @@ inline void event_barrier(handler &h, const std::vector<event> &events) {
 }
 
 inline void event_barrier(queue q, const std::vector<event> &events,
-                   const sycl::detail::code_location &codeLoc =
-                       sycl::detail::code_location::current()) {
+                          const sycl::detail::code_location &codeLoc =
+                              sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { event_barrier(h, events); }, codeLoc);
 }
 
