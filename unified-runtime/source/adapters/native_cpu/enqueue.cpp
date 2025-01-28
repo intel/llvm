@@ -263,11 +263,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+template <class T> static inline
 ur_result_t withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                             uint32_t numEventsInWaitList,
                             const ur_event_handle_t *phEventWaitList,
                             ur_event_handle_t *phEvent,
-                            const std::function<ur_result_t()> &f) {
+                            T &f) {
   urEventWait(numEventsInWaitList, phEventWaitList);
   ur_event_handle_t event = nullptr;
   if (phEvent) {
