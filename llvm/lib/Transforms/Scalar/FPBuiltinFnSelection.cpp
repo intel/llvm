@@ -205,7 +205,7 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
   // - skip to replaceWithAltMathFunction.
   if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() != 0.5)
     if (replaceWithApproxNVPTXCallsOrFallback(
-          BuiltinCall, BuiltinCall.getRequiredAccuracy()))
+            BuiltinCall, BuiltinCall.getRequiredAccuracy()))
       return true;
 
   /// Call TLI to select a function implementation to call
