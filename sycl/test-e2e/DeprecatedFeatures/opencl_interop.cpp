@@ -3,6 +3,9 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend && cpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <cassert>
 #include <exception>
 #include <sycl/detail/core.hpp>
