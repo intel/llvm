@@ -36,16 +36,22 @@ void launch(handler &h, range<3> r, const KernelType &k) {
 }
 
 template <typename KernelType>
-void launch(queue q, range<1> r, const KernelType &k) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); });
+void launch(queue q, range<1> r, const KernelType &k,
+            const sycl::detail::code_location &codeLoc =
+                sycl::detail::code_location::current()) {
+  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
 }
 template <typename KernelType>
-void launch(queue q, range<2> r, const KernelType &k) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); });
+void launch(queue q, range<2> r, const KernelType &k,
+            const sycl::detail::code_location &codeLoc =
+                sycl::detail::code_location::current()) {
+  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
 }
 template <typename KernelType>
-void launch(queue q, range<3> r, const KernelType &k) {
-  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); });
+void launch(queue q, range<3> r, const KernelType &k,
+            const sycl::detail::code_location &codeLoc =
+                sycl::detail::code_location::current()) {
+  submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
 }
 
 template <typename... ArgsT>
@@ -147,16 +153,28 @@ void launch_grouped(handler &h, range<3> r, range<3> size,
 }
 
 template <typename KernelType>
-void launch_grouped(queue q, range<1> r, range<1> size, const KernelType &k) {
-  submit(q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); });
+void launch_grouped(queue q, range<1> r, range<1> size, const KernelType &k,
+                    const sycl::detail::code_location &codeLoc =
+                        sycl::detail::code_location::current()) {
+  submit(
+      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+      codeLoc);
 }
 template <typename KernelType>
-void launch_grouped(queue q, range<2> r, range<2> size, const KernelType &k) {
-  submit(q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); });
+void launch_grouped(queue q, range<2> r, range<2> size, const KernelType &k,
+                    const sycl::detail::code_location &codeLoc =
+                        sycl::detail::code_location::current()) {
+  submit(
+      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+      codeLoc);
 }
 template <typename KernelType>
-void launch_grouped(queue q, range<3> r, range<3> size, const KernelType &k) {
-  submit(q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); });
+void launch_grouped(queue q, range<3> r, range<3> size, const KernelType &k,
+                    const sycl::detail::code_location &codeLoc =
+                        sycl::detail::code_location::current()) {
+  submit(
+      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+      codeLoc);
 }
 
 template <typename... Args>
@@ -278,11 +296,13 @@ void launch_task(queue q, const kernel &k, Args &&...args) {
          [&](handler &h) { launch_task(h, k, std::forward<Args>(args)...); });
 }
 
-inline void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
+void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
   h.memcpy(dest, src, numBytes);
 }
-inline void memcpy(queue q, void *dest, const void *src, size_t numBytes) {
-  q.submit([&](handler &h) { memcpy(h, dest, src, numBytes); });
+void memcpy(queue q, void *dest, const void *src, size_t numBytes,
+            const sycl::detail::code_location &codeLoc =
+                sycl::detail::code_location::current()) {
+  q.submit([&](handler &h) { memcpy(h, dest, src, numBytes); }, codeLoc);
 }
 
 template <typename T>
@@ -290,8 +310,11 @@ void copy(handler &h, const T *src, T *dest, size_t count) {
   h.copy(src, dest, count);
 }
 
-template <typename T> void copy(queue q, const T *src, T *dest, size_t count) {
-  submit(q, [&](handler &h) { copy(h, src, dest, count); });
+template <typename T>
+void copy(queue q, const T *src, T *dest, size_t count,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  submit(q, [&](handler &h) { copy(h, src, dest, count); }, codeLoc);
 }
 
 template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
@@ -308,20 +331,28 @@ void copy(handler &h, std::shared_ptr<SrcT> src,
 
 template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
 void copy(queue q, const SrcT *src,
-          accessor<DestT, DestDims, DestMode, target::device> dest) {
-  q.submit([&](handler &h) {
-    h.require(dest);
-    copy(h, src, dest);
-  });
+          accessor<DestT, DestDims, DestMode, target::device> dest,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  q.submit(
+      [&](handler &h) {
+        h.require(dest);
+        copy(h, src, dest);
+      },
+      codeLoc);
 }
 
 template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
 void copy(queue q, std::shared_ptr<SrcT> src,
-          accessor<DestT, DestDims, DestMode, target::device> dest) {
-  q.submit([&](handler &h) {
-    h.require(dest);
-    copy(h, src, dest);
-  });
+          accessor<DestT, DestDims, DestMode, target::device> dest,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  q.submit(
+      [&](handler &h) {
+        h.require(dest);
+        copy(h, src, dest);
+      },
+      codeLoc);
 }
 
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
@@ -338,20 +369,28 @@ void copy(handler &h, accessor<SrcT, SrcDims, SrcMode, target::device> src,
 
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
 void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
-          DestT *dest) {
-  q.submit([&](handler &h) {
-    h.require(src);
-    copy(h, src, dest);
-  });
+          DestT *dest,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  q.submit(
+      [&](handler &h) {
+        h.require(src);
+        copy(h, src, dest);
+      },
+      codeLoc);
 }
 
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
 void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
-          std::shared_ptr<DestT> dest) {
-  q.submit([&](handler &h) {
-    h.require(src);
-    copy(h, src, dest);
-  });
+          std::shared_ptr<DestT> dest,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  q.submit(
+      [&](handler &h) {
+        h.require(src);
+        copy(h, src, dest);
+      },
+      codeLoc);
 }
 
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT,
@@ -364,12 +403,108 @@ void copy(handler &h, accessor<SrcT, SrcDims, SrcMode, target::device> src,
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT,
           int DestDims, access_mode DestMode>
 void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
-          accessor<DestT, DestDims, DestMode, target::device> dest) {
-  q.submit([&](handler &h) {
-    h.require(src);
-    h.require(dest);
-    copy(h, src, dest);
-  });
+          accessor<DestT, DestDims, DestMode, target::device> dest,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  q.submit(
+      [&](handler &h) {
+        h.require(src);
+        h.require(dest);
+        copy(h, src, dest);
+      },
+      codeLoc);
+}
+void memset(handler &h, void *ptr, int value, size_t numBytes) {
+  h.memset(ptr, value, numBytes);
+}
+
+void memset(queue q, void *ptr, int value, size_t numBytes,
+            const sycl::detail::code_location &codeLoc =
+                sycl::detail::code_location::current()) {
+  q.submit([&](handler &h) { memset(h, ptr, value, numBytes); }, codeLoc);
+}
+
+template <typename T>
+void fill(handler &h, T *ptr, const T &pattern, size_t count) {
+  h.fill(ptr, pattern, count);
+}
+
+template <typename T, int Dims, access_mode Mode>
+void fill(handler &h, accessor<T, Dims, Mode, target::device> dest,
+          const T &src) {
+  h.fill(dest, src);
+}
+
+template <typename T>
+void fill(queue q, T *ptr, const T &pattern, size_t count,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  q.submit([&](handler &h) { fill(h, ptr, pattern, count); }, codeLoc);
+}
+
+template <typename T, int Dims, access_mode Mode>
+void fill(queue q, accessor<T, Dims, Mode, target::device> dest, const T &src,
+          const sycl::detail::code_location &codeLoc =
+              sycl::detail::code_location::current()) {
+  q.submit(
+      [&](handler &h) {
+        h.require(dest);
+        fill(h, dest, src);
+      },
+      codeLoc);
+}
+
+template <typename T, int Dims, access_mode Mode>
+void update_host(handler &h, accessor<T, Dims, Mode, target::device> acc) {
+  h.update_host(acc);
+}
+
+template <typename T, int Dims, access_mode Mode>
+void update_host(queue q, accessor<T, Dims, Mode, target::device> acc,
+                 const sycl::detail::code_location &codeLoc =
+                     sycl::detail::code_location::current()) {
+  q.submit(
+      [&](handler &h) {
+        h.require(acc);
+        update_host(h, acc);
+      },
+      codeLoc);
+}
+void prefetch(handler &h, void *ptr, size_t numBytes) {
+  h.prefetch(ptr, numBytes);
+}
+
+void prefetch(queue q, void *ptr, size_t numBytes,
+              const sycl::detail::code_location &codeLoc =
+                  sycl::detail::code_location::current()) {
+  q.submit([&](handler &h) { prefetch(h, ptr, numBytes); }, codeLoc);
+}
+
+void mem_advise(handler &h, void *ptr, size_t numBytes, int advice) {
+  h.mem_advise(ptr, numBytes, advice);
+}
+
+void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
+                const sycl::detail::code_location &codeLoc =
+                    sycl::detail::code_location::current()) {
+  q.submit([&](handler &h) { mem_advise(h, ptr, numBytes, advice); }, codeLoc);
+}
+
+void command_barrier(handler &h) { h.ext_oneapi_barrier(); }
+
+void command_barrier(queue q, const sycl::detail::code_location &codeLoc =
+                                  sycl::detail::code_location::current()) {
+  submit(q, [&](handler &h) { command_barrier(h); }, codeLoc);
+}
+
+void event_barrier(handler &h, const std::vector<event> &events) {
+  h.ext_oneapi_barrier(events);
+}
+
+void event_barrier(queue q, const std::vector<event> &events,
+                   const sycl::detail::code_location &codeLoc =
+                       sycl::detail::code_location::current()) {
+  submit(q, [&](handler &h) { event_barrier(h, events); }, codeLoc);
 }
 
 } // namespace khr
