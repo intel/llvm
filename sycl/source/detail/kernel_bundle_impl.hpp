@@ -931,9 +931,13 @@ public:
   }
 
   ~kernel_bundle_impl() {
-    if (DeviceBinaries) {
-      ProgramManager::getInstance().removeImages(DeviceBinaries);
-      syclex::detail::SYCL_JIT_destroy(DeviceBinaries);
+    try {
+      if (DeviceBinaries) {
+        ProgramManager::getInstance().removeImages(DeviceBinaries);
+        syclex::detail::SYCL_JIT_destroy(DeviceBinaries);
+      }
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_bundle_impl", e);
     }
   }
 
