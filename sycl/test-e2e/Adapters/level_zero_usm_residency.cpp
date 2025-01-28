@@ -1,4 +1,6 @@
 // REQUIRES: gpu, level_zero
+// XFAIL: level_zero
+// v2 does not support setting USM residency
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s

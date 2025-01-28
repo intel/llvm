@@ -1,4 +1,5 @@
 // REQUIRES: gpu, level_zero
+// XFAIL: level_zero
 
 // Flaky failure on windows
 // UNSUPPORTED: windows

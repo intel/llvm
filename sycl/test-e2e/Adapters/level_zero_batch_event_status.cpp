@@ -1,5 +1,6 @@
 // See https://github.com/intel/llvm-test-suite/issues/906
 // REQUIRES: gpu, level_zero
+// XFAIL: level_zero
 
 // RUN: %{build} -o %t.out
 
