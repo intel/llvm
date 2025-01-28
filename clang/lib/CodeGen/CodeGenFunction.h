@@ -5285,6 +5285,13 @@ public:
   /// CodeGenOpts.
   void SetDivFPAccuracy(llvm::Value *Val);
 
+  bool hasAccuracyRequirement(StringRef Name);
+
+  llvm::CallInst *CreateBuiltinCallWithAttr(StringRef Name,
+                                            llvm::Function *FPBuiltinF,
+                                            ArrayRef<llvm::Value *> Args,
+                                            unsigned ID);
+
   /// Set the codegen fast-math flags.
   void SetFastMathFlags(FPOptions FPFeatures);
 

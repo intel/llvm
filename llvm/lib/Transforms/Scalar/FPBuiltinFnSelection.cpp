@@ -18,6 +18,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -106,6 +107,48 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
   return true;
 }
 
+static bool replaceWithNVPTXCalls(FPBuiltinIntrinsic &BuiltinCall) {
+  IRBuilder<> IRBuilder(&BuiltinCall);
+  SmallVector<Value *> Args(BuiltinCall.args());
+  Value *Replacement = nullptr;
+  // To chose between ftz and non-ftz intrinsic.
+  FastMathFlags FMF = BuiltinCall.getFastMathFlags();
+  auto *Type = BuiltinCall.getType();
+  // For now only add lowering for fdiv and sqrt. Yet nvvm intrinsics have
+  // approximate variants for sin, cos, exp2 and log2.
+  // For vector fpbuiltins for NVPTX target we don't have nvvm intrinsics, use
+  // standart for LLVM math operations. Also nvvm fdiv and sqrt intrisics
+  // support only float type.
+  switch (BuiltinCall.getIntrinsicID()) {
+  case Intrinsic::fpbuiltin_fdiv:
+    if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
+      return replaceWithLLVMIR(BuiltinCall);
+    Replacement =
+        IRBuilder.CreateIntrinsic(Type,
+                                  FMF.isFast()
+                                  ? Intrinsic::nvvm_div_approx_ftz_f
+                                  : Intrinsic::nvvm_div_approx_f, Args);
+    break;
+  case Intrinsic::fpbuiltin_sqrt:
+    if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
+      return replaceWithLLVMIR(BuiltinCall);
+    Replacement =
+        IRBuilder.CreateIntrinsic(BuiltinCall.getType(),
+                                  FMF.isFast()
+                                  ? Intrinsic::nvvm_sqrt_approx_ftz_f
+                                  : Intrinsic::nvvm_sqrt_approx_f, Args);
+    break;
+  default:
+    return false;
+  }
+  BuiltinCall.replaceAllUsesWith(Replacement);
+  cast<Instruction>(Replacement)->copyFastMathFlags(&BuiltinCall);
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": Replaced call to `"
+                    << BuiltinCall.getCalledFunction()->getName()
+                    << "` with equivalent IR. \n `");
+  return true;
+}
+
 static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
                                       const TargetTransformInfo &TTI,
                                       FPBuiltinIntrinsic &BuiltinCall) {
@@ -152,6 +195,14 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
     default:
       report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
     }
+  }
+
+  // We don't have implementation for CUDA approximate precision builtins.
+  // Lets map them on NVPTX intrinsics. If no appropriate intrinsics are known
+  // - skip to replaceWithAltMathFunction.
+  if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() == 3.0) {
+    if (replaceWithNVPTXCalls(BuiltinCall))
+      return true;
   }
 
   /// Call TLI to select a function implementation to call

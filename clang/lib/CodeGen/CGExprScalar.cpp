@@ -3866,6 +3866,16 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
   if (Ops.LHS->getType()->isFPOrFPVectorTy()) {
     llvm::Value *Val;
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, Ops.FPFeatures);
+    if (Ops.LHS->getType()->isFloatTy()) {
+      if (!CGF.getLangOpts().OffloadFP32PrecDiv) {
+        unsigned FPAccuracyIntrinsicID = llvm::Intrinsic::fpbuiltin_fdiv;
+        llvm::Function *Func =
+            CGF.CGM.getIntrinsic(FPAccuracyIntrinsicID, Ops.LHS->getType());
+        llvm::Value *Val = CGF.CreateBuiltinCallWithAttr(
+            "fdiv", Func, {Ops.LHS, Ops.RHS}, FPAccuracyIntrinsicID);
+        return Val;
+      }
+    }
     Val = Builder.CreateFDiv(Ops.LHS, Ops.RHS, "div");
     CGF.SetDivFPAccuracy(Val);
     return Val;
