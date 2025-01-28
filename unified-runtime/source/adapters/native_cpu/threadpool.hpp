@@ -215,7 +215,7 @@ class TasksInfo_TP {
 
 public:
   inline void schedule(FType &&f) { futures.emplace_back(std::move(f)); }
-  inline void wait() {
+  inline void wait_all() {
     for (auto &f : futures)
       f.wait();
   }
@@ -259,7 +259,7 @@ class TBB_TasksInfo {
   TBB_threadpool *tp;
 
 public:
-  inline void wait() { tp->tasks.wait(); }
+  inline void wait_all() { tp->tasks.wait(); }
   TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
 };
 

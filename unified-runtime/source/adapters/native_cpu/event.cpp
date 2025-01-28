@@ -140,7 +140,7 @@ void ur_event_handle_t_::wait() {
   if (done) {
     return;
   }
-  this->futures.wait();
+  this->futures.wait_all();
   queue->removeEvent(this);
   done = true;
   // The callback may need to acquire the lock, so we unlock it here
