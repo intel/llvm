@@ -255,7 +255,6 @@ event queue::submit_impl_and_postprocess(
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, IsTopCodeLoc,
                       &PostProcess);
 }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 event queue::submit_with_event_impl(std::function<void(handler &)> CGH,
                                     const detail::SubmissionInfo &SubmitInfo,
@@ -265,6 +264,21 @@ event queue::submit_with_event_impl(std::function<void(handler &)> CGH,
 }
 
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
+                                      const detail::SubmissionInfo &SubmitInfo,
+                                      const detail::code_location &CodeLoc,
+                                      bool IsTopCodeLoc) {
+  impl->submit_without_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                    const detail::SubmissionInfo &SubmitInfo,
+                                    const detail::code_location &CodeLoc,
+                                    bool IsTopCodeLoc) {
+  return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
+}
+
+void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                       const detail::SubmissionInfo &SubmitInfo,
                                       const detail::code_location &CodeLoc,
                                       bool IsTopCodeLoc) {
