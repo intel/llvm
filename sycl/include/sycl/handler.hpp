@@ -2292,9 +2292,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> single_task(PropertiesT Props,
                                        _KERNELFUNCPARAM(KernelFunc)) {
@@ -2304,9 +2305,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(range<1> NumWorkItems,
                                         PropertiesT Props,
@@ -2317,9 +2319,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(range<2> NumWorkItems,
                                         PropertiesT Props,
@@ -2330,9 +2333,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(range<3> NumWorkItems,
                                         PropertiesT Props,
@@ -2343,9 +2347,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT, int Dims>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(nd_range<Dims> Range,
                                         PropertiesT Properties,
@@ -2357,9 +2362,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
                    detail::AreAllButLastReductions<RestT...>::value &&
                    ext::oneapi::experimental::is_property_list<
@@ -2376,9 +2382,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
                    detail::AreAllButLastReductions<RestT...>::value &&
                    ext::oneapi::experimental::is_property_list<
@@ -2395,9 +2402,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
                    detail::AreAllButLastReductions<RestT...>::value &&
                    ext::oneapi::experimental::is_property_list<
@@ -2438,9 +2446,10 @@ public:
 
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
                    detail::AreAllButLastReductions<RestT...>::value &&
                    ext::oneapi::experimental::is_property_list<
@@ -2468,9 +2477,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
@@ -2480,9 +2490,10 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {

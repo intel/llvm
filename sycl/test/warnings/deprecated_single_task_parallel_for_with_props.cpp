@@ -15,48 +15,48 @@ int main() {
   nd_range<1> NDR1{R1, R1};
   constexpr auto Props = sycl::ext::oneapi::experimental::properties{};
 
-  // expected-warning@+1{{'single_task' is deprecated: Use sycl::ext::oneapi::experimental::single_task (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+1{{'single_task' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.single_task<class TestKernel0>(Props, []() {});
-  // expected-warning@+1{{'single_task' is deprecated: Use sycl::ext::oneapi::experimental::single_task (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+1{{'single_task' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.single_task<class TestKernel1>(Ev, Props, []() {});
-  // expected-warning@+1{{'single_task' is deprecated: Use sycl::ext::oneapi::experimental::single_task (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+1{{'single_task' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.single_task<class TestKernel2>({Ev}, Props, []() {});
 
-  // expected-warning@+1{{'parallel_for' is deprecated: Use sycl::ext::oneapi::experimental::parallel_for (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+1{{'parallel_for' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.parallel_for<class TestKernel3>(NDR1, Props, [](nd_item<1>) {});
 
-  // expected-warning@+2{{'single_task' is deprecated: Use sycl::ext::oneapi::experimental::single_task (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+2{{'single_task' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.submit([&](handler &CGH) {
     CGH.single_task<class TestKernel4>(Props, []() {});
   });
 
-  // expected-warning@+2{{'parallel_for_work_group' is deprecated: Use sycl::ext::oneapi::experimental::parallel_for (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+2{{'parallel_for_work_group' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.submit([&](handler &CGH) {
     CGH.parallel_for_work_group<class TestKernel11>(R1, Props,
                                                     [](sycl::group<1>) {});
   });
-  // expected-warning@+2{{'parallel_for_work_group' is deprecated: Use sycl::ext::oneapi::experimental::parallel_for (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+2{{'parallel_for_work_group' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.submit([&](handler &CGH) {
     CGH.parallel_for_work_group<class TestKernel12>(R2, Props,
                                                     [](sycl::group<2>) {});
   });
-  // expected-warning@+2{{'parallel_for_work_group' is deprecated: Use sycl::ext::oneapi::experimental::parallel_for (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+2{{'parallel_for_work_group' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.submit([&](handler &CGH) {
     CGH.parallel_for_work_group<class TestKernel13>(R3, Props,
                                                     [](sycl::group<3>) {});
   });
 
-  // expected-warning@+2{{'parallel_for_work_group' is deprecated: Use sycl::ext::oneapi::experimental::parallel_for (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+2{{'parallel_for_work_group' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.submit([&](handler &CGH) {
     CGH.parallel_for_work_group<class TestKernel14>(R1, R1, Props,
                                                     [](sycl::group<1>) {});
   });
-  // expected-warning@+2{{'parallel_for_work_group' is deprecated: Use sycl::ext::oneapi::experimental::parallel_for (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+2{{'parallel_for_work_group' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.submit([&](handler &CGH) {
     CGH.parallel_for_work_group<class TestKernel15>(R2, R2, Props,
                                                     [](sycl::group<2>) {});
   });
-  // expected-warning@+2{{'parallel_for_work_group' is deprecated: Use sycl::ext::oneapi::experimental::parallel_for (provided in the sycl_ext_oneapi_enqueue_functions extension) instead.}}
+  // expected-warning@+2{{'parallel_for_work_group' is deprecated: To specify properties, use a launch configuration object of type launch_config or a kernel functor with a get(sycl::ext::oneapi::experimental::properties_tag) member function instead.}}
   Q.submit([&](handler &CGH) {
     CGH.parallel_for_work_group<class TestKernel16>(R3, R3, Props,
                                                     [](sycl::group<3>) {});

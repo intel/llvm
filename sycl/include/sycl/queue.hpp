@@ -2103,9 +2103,10 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> single_task(PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
@@ -2148,9 +2149,10 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> single_task(event DepEvent, PropertiesT Properties,
@@ -2198,9 +2200,10 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> single_task(const std::vector<event> &DepEvents,
@@ -2249,9 +2252,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<1> Range, PropertiesT Properties,
@@ -2279,9 +2283,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<2> Range, PropertiesT Properties,
@@ -2309,9 +2314,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<3> Range, PropertiesT Properties,
@@ -2340,9 +2346,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<1> Range, event DepEvent,
@@ -2372,9 +2379,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<2> Range, event DepEvent,
@@ -2404,9 +2412,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<3> Range, event DepEvent,
@@ -2437,9 +2446,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<1> Range, const std::vector<event> &DepEvents,
@@ -2472,9 +2482,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<2> Range, const std::vector<event> &DepEvents,
@@ -2507,9 +2518,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event> parallel_for(range<3> Range, const std::vector<event> &DepEvents,
@@ -2632,9 +2644,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
@@ -2678,9 +2691,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
@@ -2728,9 +2742,10 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
-  __SYCL_DEPRECATED(
-      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
-      "sycl_ext_oneapi_enqueue_functions extension) instead.")
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
