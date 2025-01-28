@@ -301,7 +301,7 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
                                   ur_device_handle_t Device, bool IsUpdatable);
 
-  virtual ~ur_exp_command_buffer_handle_t_();
+  ~ur_exp_command_buffer_handle_t_();
 
   void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          CUgraphNode CuNode) {
