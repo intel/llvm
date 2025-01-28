@@ -67,9 +67,13 @@ std::vector<ur_image_format_t> all_image_formats;
 struct urMemImageCreateTestWithImageFormatParam
     : uur::urContextTestWithParam<ur_image_format_t> {
   void SetUp() {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urContextTestWithParam<ur_image_format_t>::SetUp());
+    bool image_support = false;
+    ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
+    if (!image_support) {
+      GTEST_SKIP() << "Device doesn't support images";
+    }
   }
   void TearDown() {
     UUR_RETURN_ON_FATAL_FAILURE(
