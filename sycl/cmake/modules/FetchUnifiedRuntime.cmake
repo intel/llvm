@@ -33,6 +33,9 @@ set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
+# enabling oneTBB in NativeCPU
+set(NATIVECPU_WITH_ONETBB ON CACHE BOOL "Use TBB as backend for Native CPU" FORCE)
+
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
 endif()
@@ -116,7 +119,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/uwedolinsky/unified-runtime.git")
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
