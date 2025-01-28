@@ -212,6 +212,7 @@ using simple_threadpool_t = threadpool_interface<detail::simple_thread_pool>;
 class TasksInfo_TP {
   using FType = std::future<void>;
   std::vector<FType> futures;
+
 public:
   inline void schedule(FType &&f) { futures.emplace_back(std::move(f)); }
   inline void wait() {
@@ -256,12 +257,15 @@ struct TBB_threadpool {
 
 class TBB_TasksInfo {
   TBB_threadpool *tp;
+
 public:
   inline void wait() { tp->tasks.wait(); }
   TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
 };
 
-template <> struct Scheduler<TBB_threadpool> :  Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
+template <>
+struct Scheduler<TBB_threadpool>
+    : Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
   using Scheduler_base<TBB_threadpool, TBB_TasksInfo>::Scheduler_base;
   template <class T> inline void schedule(T &&task) {
     ref.tasks.run(std::function<void()>([=]() mutable {

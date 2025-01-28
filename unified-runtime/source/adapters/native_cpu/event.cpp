@@ -11,9 +11,9 @@
 #include "ur_api.h"
 
 #include "common.hpp"
+#include "device.hpp"
 #include "event.hpp"
 #include "queue.hpp"
-#include "device.hpp"
 #include <cstdint>
 #include <mutex>
 

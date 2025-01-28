@@ -28,7 +28,7 @@ struct local_arg_info_t {
 
 struct ur_kernel_handle_t_ : RefCounted {
 
-  inline ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
+  ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
                       nativecpu_task_t subhandler)
       : hProgram(hProgram), _name{name}, _subhandler{std::move(subhandler)} {}
 
