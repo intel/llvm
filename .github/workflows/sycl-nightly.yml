@@ -159,6 +159,7 @@ jobs:
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
       ref: ${{ github.sha }}
