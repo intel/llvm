@@ -387,8 +387,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 
     try {
       // CP - CLEANUP NEEDED
-      //shutdown_win(); // works
-      shutdown_late();
+      shutdown_win(); // works
+      //shutdown_late();
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
       return FALSE;
