@@ -107,7 +107,7 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
   return true;
 }
 
-// This function lowers llvm.fpbuiltin. intrinsic functions with 3.0 max-error
+// This function lowers llvm.fpbuiltin. intrinsic functions with max-error
 // attribute to the appropriate nvvm approximate intrinsics if it's possible.
 // If it's not possible - fallback to instruction or standard C/C++ library LLVM
 // intrinsic.
@@ -126,12 +126,16 @@ replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall,
   // case as well.
   switch (BuiltinCall.getIntrinsicID()) {
   case Intrinsic::fpbuiltin_fdiv:
+    if (Accuracy.value() != 2.5)
+      return false;
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
       return replaceWithLLVMIR(BuiltinCall);
     Replacement =
         IRBuilder.CreateIntrinsic(Type, Intrinsic::nvvm_div_approx_f, Args);
     break;
   case Intrinsic::fpbuiltin_sqrt:
+    if (Accuracy.value() != 3.0)
+      return false;
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
       return replaceWithLLVMIR(BuiltinCall);
     Replacement = IRBuilder.CreateIntrinsic(
@@ -199,11 +203,10 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
   // We don't have implementation for CUDA approximate precision builtins.
   // Lets map them on NVPTX intrinsics. If no appropriate intrinsics are known
   // - skip to replaceWithAltMathFunction.
-  if (T.isNVPTX())
+  if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() != 0.5)
     if (replaceWithApproxNVPTXCallsOrFallback(
           BuiltinCall, BuiltinCall.getRequiredAccuracy()))
       return true;
-  }
 
   /// Call TLI to select a function implementation to call
   StringRef ImplName = TLI.selectFPBuiltinImplementation(&BuiltinCall);

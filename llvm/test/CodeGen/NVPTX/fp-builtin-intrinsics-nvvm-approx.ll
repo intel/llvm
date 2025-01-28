@@ -47,8 +47,8 @@ declare <2 x double> @llvm.fpbuiltin.fdiv.v2f64(<2 x double>, <2 x double>)
 ; CHECK: %{{.*}} = call <2 x float> @llvm.sqrt.v2f32(<2 x float> %{{.*}})
 define void @test_sqrt(float %d, <2 x float> %v2d, <4 x float> %v4d) {
 entry:
-  %t0 = call float @llvm.fpbuiltin.sqrt.f32(float %d) #0
-  %t1 = call <2 x float> @llvm.fpbuiltin.sqrt.v2f32(<2 x float> %v2d) #0
+  %t0 = call float @llvm.fpbuiltin.sqrt.f32(float %d) #1
+  %t1 = call <2 x float> @llvm.fpbuiltin.sqrt.v2f32(<2 x float> %v2d) #1
   ret void
 }
 
@@ -60,12 +60,13 @@ declare <2 x float> @llvm.fpbuiltin.sqrt.v2f32(<2 x float>)
 ; CHECK: %{{.*}} = call <2 x double> @llvm.sqrt.v2f64(<2 x double> %{{.*}})
 define void @test_sqrt_double(double %d, <2 x double> %v2d) {
 entry:
-  %t0 = call double @llvm.fpbuiltin.sqrt.f64(double %d) #0
-  %t1 = call <2 x double> @llvm.fpbuiltin.sqrt.v2f64(<2 x double> %v2d) #0
+  %t0 = call double @llvm.fpbuiltin.sqrt.f64(double %d) #1
+  %t1 = call <2 x double> @llvm.fpbuiltin.sqrt.v2f64(<2 x double> %v2d) #1
   ret void
 }
 
 declare double @llvm.fpbuiltin.sqrt.f64(double)
 declare <2 x double> @llvm.fpbuiltin.sqrt.v2f64(<2 x double>)
 
-attributes #0 = { "fpbuiltin-max-error"="3.0" }
+attributes #0 = { "fpbuiltin-max-error"="2.5" }
+attributes #1 = { "fpbuiltin-max-error"="3.0" }
