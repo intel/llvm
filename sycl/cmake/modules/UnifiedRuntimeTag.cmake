@@ -1,7 +1,7 @@
-# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
-# Merge: d3e97040 b1b0c60c
+# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
+# Merge: e370a2b9 eeff9f4a
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 13:59:15 2025 +0000
-#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
-#     Fix potential deadlock in the WaitEvent path of CmdBuffers
-set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
+# Date:   Mon Jan 27 10:40:02 2025 +0000
+#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
+#     Enable creation of bindless images backed by host USM
+set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)
