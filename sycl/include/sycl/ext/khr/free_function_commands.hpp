@@ -296,12 +296,12 @@ void launch_task(queue q, const kernel &k, Args &&...args) {
          [&](handler &h) { launch_task(h, k, std::forward<Args>(args)...); });
 }
 
-void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
+inline void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
   h.memcpy(dest, src, numBytes);
 }
-void memcpy(queue q, void *dest, const void *src, size_t numBytes,
-            const sycl::detail::code_location &codeLoc =
-                sycl::detail::code_location::current()) {
+inline void memcpy(queue q, void *dest, const void *src, size_t numBytes,
+                   const sycl::detail::code_location &codeLoc =
+                       sycl::detail::code_location::current()) {
   q.submit([&](handler &h) { memcpy(h, dest, src, numBytes); }, codeLoc);
 }
 
