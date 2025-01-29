@@ -201,12 +201,6 @@ public:
 
   std::vector<char> ext_oneapi_get_content();
 
-  sycl::span<char> ext_oneapi_get_content_sycl_view();
-
-#if __cplusplus >= 202002L
-  std::span<char> ext_oneapi_get_content_view();
-#endif
-
 };
 }
 ```
@@ -219,15 +213,12 @@ a!
 [source]
 ----
 std::vector<char> ext_oneapi_get_content()
-sycl::span<char> ext_oneapi_get_content_sycl_view()
-std::span<char> ext_oneapi_get_content_view() (1)
 ----
 !====
 
 _Constraints:_ Available only when `State` is not `ext_oneapi_source`.
-_Constraints (1):_ Available only when compiling for C++20 or later.
 
-_Returns:_ A container of bytes containing the data of the kernel bundle in the
+_Returns:_ A vector of bytes containing the data of the kernel bundle in the
 SYCLBIN format.
 
 [_Note:_ The data returned by these member functions is not guaranteed to be the
