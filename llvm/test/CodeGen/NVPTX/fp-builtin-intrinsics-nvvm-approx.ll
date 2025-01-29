@@ -25,6 +25,17 @@ entry:
   ret void
 }
 
+; CHECK-LABEL: @test_fdiv_max_error
+; CHECK: %{{.*}} = call float @llvm.nvvm.div.approx.f(float %{{.*}}, float %{{.*}})
+; CHECK: %{{.*}} = fdiv <2 x float> %{{.*}}, %{{.*}}
+define void @test_fdiv_max_error(float %d1, <2 x float> %v2d1,
+                                 float %d2, <2 x float> %v2d2) {
+entry:
+  %t0 = call float @llvm.fpbuiltin.fdiv.f32(float %d1, float %d2) #2
+  %t1 = call <2 x float> @llvm.fpbuiltin.fdiv.v2f32(<2 x float> %v2d1, <2 x float> %v2d2) #2
+  ret void
+}
+
 declare float @llvm.fpbuiltin.fdiv.f32(float, float)
 declare <2 x float> @llvm.fpbuiltin.fdiv.v2f32(<2 x float>, <2 x float>)
 
@@ -52,6 +63,16 @@ entry:
   ret void
 }
 
+; CHECK-LABEL: @test_sqrt_max_error
+; CHECK: %{{.*}} = call float @llvm.nvvm.sqrt.approx.f(float %{{.*}})
+; CHECK: %{{.*}} = call <2 x float> @llvm.sqrt.v2f32(<2 x float> %{{.*}})
+define void @test_sqrt_max_error(float %d, <2 x float> %v2d, <4 x float> %v4d) {
+entry:
+  %t0 = call float @llvm.fpbuiltin.sqrt.f32(float %d) #2
+  %t1 = call <2 x float> @llvm.fpbuiltin.sqrt.v2f32(<2 x float> %v2d) #2
+  ret void
+}
+
 declare float @llvm.fpbuiltin.sqrt.f32(float)
 declare <2 x float> @llvm.fpbuiltin.sqrt.v2f32(<2 x float>)
 
@@ -70,3 +91,4 @@ declare <2 x double> @llvm.fpbuiltin.sqrt.v2f64(<2 x double>)
 
 attributes #0 = { "fpbuiltin-max-error"="2.5" }
 attributes #1 = { "fpbuiltin-max-error"="3.0" }
+attributes #1 = { "fpbuiltin-max-error"="10.0" }
