@@ -24,56 +24,56 @@ int main() {
     int *a;
     int *b;
     int *c;
-    kernel<class kernel_norestrict>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_norestrict(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
+    kernel<class kernel_nounaliased>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_nounaliased(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
   }
   {
     AnnotatedIntPtr a;
     int *b;
     int *c;
-    kernel<class kernel_restrict1>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_restrict1(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
+    kernel<class kernel_unaliased1>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_unaliased1(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
   }
   {
     int *a;
     AnnotatedIntPtr b;
     int *c;
-    kernel<class kernel_restrict2>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_restrict2(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
+    kernel<class kernel_unaliased2>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_unaliased2(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
   }
   {
     int *a;
     int *b;
     AnnotatedIntPtr c;
-    kernel<class kernel_restrict3>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_restrict3(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
+    kernel<class kernel_unaliased3>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_unaliased3(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
   }
   {
     AnnotatedIntPtr a;
     AnnotatedIntPtr b;
     int *c;
-    kernel<class kernel_restrict4>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_restrict4(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
+    kernel<class kernel_unaliased4>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_unaliased4(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}})
   }
   {
     AnnotatedIntPtr a;
     int *b;
     AnnotatedIntPtr c;
-    kernel<class kernel_restrict5>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_restrict5(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
+    kernel<class kernel_unaliased5>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_unaliased5(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
   }
   {
     int *a;
     AnnotatedIntPtr b;
     AnnotatedIntPtr c;
-    kernel<class kernel_restrict6>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_restrict6(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
+    kernel<class kernel_unaliased6>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_unaliased6(ptr addrspace(1) noundef align 4 %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
   }
   {
     AnnotatedIntPtr a;
     AnnotatedIntPtr b;
     AnnotatedIntPtr c;
-    kernel<class kernel_restrict7>([a, b, c]() { c[0] = a[0] + b[0]; });
-    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_restrict7(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
+    kernel<class kernel_unaliased7>([a, b, c]() { c[0] = a[0] + b[0]; });
+    // CHECK-DAG: define {{.*}}spir_kernel {{.*}}kernel_unaliased7(ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}}, ptr addrspace(1) noalias noundef align 4 "sycl-unaliased" %{{.*}})
   }
 }
