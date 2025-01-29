@@ -22,9 +22,17 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   ur_kernel_handle_t hKernel = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClKernel);
-  Adapter->call<detail::UrApiKind::urKernelCreateWithNativeHandle>(
-      nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
-      nullptr, nullptr, &hKernel);
+  auto Err =
+      Adapter->call_nocheck<detail::UrApiKind::urKernelCreateWithNativeHandle>(
+          nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
+          nullptr, nullptr, &hKernel);
+  if (Err == UR_RESULT_ERROR_INVALID_CONTEXT ||
+      Err == UR_RESULT_ERROR_INVALID_PROGRAM) {
+    Adapter->checkUrResult<errc::invalid>(Err);
+  } else {
+    Adapter->checkUrResult(Err);
+  }
+
   impl = std::make_shared<detail::kernel_impl>(
       hKernel, detail::getSyclObjImpl(SyclContext), nullptr, nullptr);
   // This is a special interop constructor for OpenCL, so the kernel must be
