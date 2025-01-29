@@ -1067,7 +1067,8 @@ XMX hardware. Note that these can be returned using
 
 ==== Intel AMX Supported Combinations
 This is currently available in devices with the architecture
-`architecture::intel_cpu_spr`, and `architecture::intel_cpu_gnr`.
+`architecture::intel_cpu_spr`, `architecture::intel_cpu_gnr` and
+`architecture::intel_cpu_dmr`.
 In this architecture's implementation, the type of the C matrix must
 be the same as the type of the D matrix. Therefore, that common type
 is shown in a single column in the table below.
@@ -1078,21 +1079,29 @@ is shown in a single column in the table below.
 | `matrix_type::uint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |`architecture::intel_cpu_spr`, `architecture::intel_cpu_gnr`
+, `architecture::intel_cpu_dmr`
 | `matrix_type::uint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |`architecture::intel_cpu_spr`, `architecture::intel_cpu_gnr`
+, `architecture::intel_cpu_dmr`
 | `matrix_type::sint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |`architecture::intel_cpu_spr`, `architecture::intel_cpu_gnr`
+, `architecture::intel_cpu_dmr`
 | `matrix_type::sint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |`architecture::intel_cpu_spr`, `architecture::intel_cpu_gnr`
+, `architecture::intel_cpu_dmr`
 |  `matrix_type::bf16`       |  `matrix_type::bf16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 |`architecture::intel_cpu_spr`, `architecture::intel_cpu_gnr`
+, `architecture::intel_cpu_dmr`
 |  `matrix_type::fp16`       |  `matrix_type::fp16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
-|`architecture::intel_cpu_gnr`
+|`architecture::intel_cpu_gnr`, `architecture::intel_cpu_dmr`
+|  `matrix_type::tf32`       |  `matrix_type::tf32`   |
+`matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 16
+|`architecture::intel_cpu_dmr`
 |======================
 
 ==== Intel XMX Supported Combinations

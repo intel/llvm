@@ -9,15 +9,18 @@
 // Separate kernel sources and host code sources
 // RUN: %{build} -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL
 // RUN: %{build} -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.kernel.o %t.main.o -Wno-unused-command-line-argument -o %t1.fat
+// RUN: %clangxx -fsycl %{sycl_target_opts} %t.kernel.o %t.main.o -Wno-unused-command-line-argument -o %t1.fat
 // RUN: %{run} %t1.fat
 
 // Multiple sources with kernel code
 // RUN: %{build} -c -o %t.init.o -DINIT_KERNEL
 // RUN: %{build} -c -o %t.calc.o -DCALC_KERNEL
 // RUN: %{build} -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -Wno-unused-command-line-argument -o %t2.fat
+// RUN: %clangxx -fsycl %{sycl_target_opts} %t.init.o %t.calc.o %t.main.o -Wno-unused-command-line-argument -o %t2.fat
 // RUN: %{run} %t2.fat
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64059
 
 #include <sycl/detail/core.hpp>
 

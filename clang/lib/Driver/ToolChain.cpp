@@ -1640,6 +1640,8 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
   DerivedArgList *DAL = new DerivedArgList(Args.getBaseArgs());
   const OptTable &Opts = getDriver().getOpts();
   bool Modified = false;
+  auto &Triple = getTriple();
+  const bool IsSYCL = DeviceOffloadKind == Action::OFK_SYCL;
 
   // Handle -Xopenmp-target and -Xsycl-target-frontend flags
   for (auto *A : Args) {
@@ -1654,13 +1656,15 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       // to correctly set metadata in intermediate files.
       if (SameTripleAsHost ||
           A->getOption().matches(options::OPT_mcode_object_version_EQ) ||
-          (getTriple().getArch() == llvm::Triple::amdgcn &&
-           DeviceOffloadKind != Action::OFK_SYCL)) {
+          (Triple.getArch() == llvm::Triple::amdgcn && !IsSYCL)) {
         DAL->append(A);
         continue;
       }
-      // SPIR/SPIR-V special case for -mlong-double
-      if (getTriple().isSPIROrSPIRV() &&
+      // SPIR/SPIR-V and SYCL GPU special case for -mlong-double. We have to
+      // make sure that if user requested 64bit long double it is honored on
+      // both host and device.
+      if ((Triple.isSPIROrSPIRV() ||
+           (IsSYCL && (Triple.isAMDGCN() || Triple.isNVPTX()))) &&
           A->getOption().matches(options::OPT_LongDouble_Group)) {
         DAL->append(A);
         continue;
@@ -1683,7 +1687,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     // is similar, can be improved
     if (DeviceOffloadKind == Action::OFK_OpenMP) {
       XOffloadTargetNoTriple =
-        A->getOption().matches(options::OPT_Xopenmp_target);
+          A->getOption().matches(options::OPT_Xopenmp_target);
       if (A->getOption().matches(options::OPT_Xopenmp_target_EQ)) {
         llvm::Triple TT(getOpenMPTriple(A->getValue(0)));
 
@@ -1699,12 +1703,12 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         DAL->append(A);
         continue;
       }
-    } else if (DeviceOffloadKind == Action::OFK_SYCL) {
+    } else if (IsSYCL) {
       XOffloadTargetNoTriple =
-        A->getOption().matches(options::OPT_Xsycl_frontend);
+          A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (getDriver().getSYCLDeviceTriple(A->getValue(0)) == getTriple())
+        if (getDriver().getSYCLDeviceTriple(A->getValue(0)) == Triple)
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
@@ -1744,8 +1748,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
       }
-      if (DeviceOffloadKind == Action::OFK_SYCL &&
-          !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
+      if (IsSYCL && !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
         continue;

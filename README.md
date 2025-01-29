@@ -46,10 +46,10 @@ Project documentation is available at:
 
 ### How to use DPC++
 
-#### Docker containers
+#### Dockerfiles
 
-See available containers with pre-built/pre-installed DPC++ compiler at:
-[Containers](./sycl/doc/developer/DockerBKMs.md#sycl-containers-overview)
+See available Dockerfiles to create containers with pre-built/pre-installed DPC++ compiler at:
+[Containers](./sycl/doc/developer/DockerBKMs.md#sycl-dockerfiles-overview)
 
 #### Releases
 

@@ -1389,6 +1389,10 @@ with bytes selected according to a third unsigned integer argument.
 `match_all_over_sub_group` and `match_any_over_sub_group` allows comparison of
 values across work-items within a sub-group.
 
+The function `ternary_logic_op`performs bitwise logical operations on three input values of
+`a`, `b` and `c` based on the specified 8-bit truth table `lut` and return the
+result.
+
 The functions `select_from_sub_group`, `shift_sub_group_left`,
 `shift_sub_group_right` and `permute_sub_group_by_xor` provide equivalent
 functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
@@ -1418,6 +1422,8 @@ inline double cast_ints_to_double(int high32, int low32);
 
 inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
                                        unsigned int s);
+
+inline uint32_t lop3(uint32_t a, uint32_t b, uint32_t c, uint8_t lut)
 
 template <typename ValueT> inline int ffs(ValueT a);
 
@@ -2088,6 +2094,25 @@ struct sub_sat {
 };
 
 } // namespace syclcompat
+```
+
+`vectorized_binary` also supports comparison operators from the standard library (`std::equal_to`, `std::not_equal_to`, etc) 
+and the semantics can be modified by changing the comparison operator template instantiation. For example:
+
+```cpp
+unsigned int Input1;
+unsigned int Input2;
+// initialize inputs...
+
+// Performs comparison on sycl::ushort2, following sycl::vec semantics
+// Returns unsigned int containing, per vector element, 0xFFFF if true, and 0x0000 if false
+syclcompat::vectorized_binary<sycl::ushort2>(
+      Input1, Input2, std::equal_to<>());
+
+// Performs element-wise comparison on unsigned short
+// Returns unsigned int containing, per vector element, 1 if true, and 0 if false
+syclcompat::vectorized_binary<sycl::ushort2>(
+      Input1, Input2, std::equal_to<unsigned short>());
 ```
 
 The math header provides a set of functions to extend 32-bit operations

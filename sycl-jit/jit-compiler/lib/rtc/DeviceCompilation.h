@@ -12,6 +12,7 @@
 #include "Kernel.h"
 #include "View.h"
 
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Option/ArgList.h>
 #include <llvm/Support/Error.h>
@@ -30,7 +31,8 @@ llvm::Error linkDeviceLibraries(llvm::Module &Module,
                                 const llvm::opt::InputArgList &UserArgList,
                                 std::string &BuildLog);
 
-using PostLinkResult = std::pair<RTCBundleInfo, std::unique_ptr<llvm::Module>>;
+using PostLinkResult =
+    std::pair<RTCBundleInfo, llvm::SmallVector<std::unique_ptr<llvm::Module>>>;
 llvm::Expected<PostLinkResult>
 performPostLink(std::unique_ptr<llvm::Module> Module,
                 const llvm::opt::InputArgList &UserArgList);

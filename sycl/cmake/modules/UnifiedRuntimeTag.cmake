@@ -1,7 +1,7 @@
-# commit ad288bb36c45e24a35a75c665d382ce18935fcf7
-# Merge: db491abc6aba f8b04f4216e8
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Fri Jan 3 10:08:59 2025 +0000
-#     Merge pull request #2502 from ldrumm/luke/tensormap-version
-#     CUTensorMap is only in CUDA v12
-set(UNIFIED_RUNTIME_TAG ad288bb36c45e24a35a75c665d382ce18935fcf7)
+# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
+# Merge: 902bb2e2 94b32ac2
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 28 11:02:44 2025 +0000
+#     Merge pull request #2624 from RossBrunton/ross/msanfix
+#     Assert that Device is valid for memory poisoning
+set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
