@@ -1,6 +1,6 @@
 // Tests whether or not cluster launch was successful, with the correct ranges
 // that were passed via enqueue functions extension
-// REQUIRES: aspect-ext_oneapi_cuda_cluster_group
+// REQUIRES: target-nvidia, aspect-ext_oneapi_cuda_cluster_group
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
