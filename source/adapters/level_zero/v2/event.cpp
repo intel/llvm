@@ -87,17 +87,17 @@ uint64_t *event_profiling_data_t::eventEndTimestampAddr() {
   return &recordEventEndTimestamp;
 }
 
-ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
-                                       ze_event_handle_t hZeEvent,
-                                       v2::event_flags_t flags)
-    : hContext(hContext), hZeEvent(hZeEvent), flags(flags),
-      profilingData(hZeEvent) {}
+ur_event_handle_t_::ur_event_handle_t_(
+    ur_context_handle_t hContext, ur_event_handle_t_::event_variant hZeEvent,
+    v2::event_flags_t flags, v2::event_pool *pool)
+    : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
+      flags(flags), profilingData(getZeEvent()) {}
 
 void ur_event_handle_t_::resetQueueAndCommand(ur_queue_handle_t hQueue,
                                               ur_command_t commandType) {
   this->hQueue = hQueue;
   this->commandType = commandType;
-  profilingData = event_profiling_data_t(hZeEvent);
+  profilingData = event_profiling_data_t(getZeEvent());
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
@@ -123,13 +123,16 @@ void ur_event_handle_t_::reset() {
   // consider make an abstraction for regular/counter based
   // events if there's more of this type of conditions
   if (!(flags & v2::EVENT_FLAGS_COUNTER)) {
-    zeEventHostReset(hZeEvent);
+    zeEventHostReset(getZeEvent());
   }
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
-  assert(hZeEvent);
-  return hZeEvent;
+  if (event_pool) {
+    return std::get<v2::raii::cache_borrowed_event>(hZeEvent).get();
+  } else {
+    return std::get<v2::raii::ze_event_handle_t>(hZeEvent).get();
+  }
 }
 
 ur_result_t ur_event_handle_t_::retain() {
@@ -138,7 +141,7 @@ ur_result_t ur_event_handle_t_::retain() {
 }
 
 ur_result_t ur_event_handle_t_::releaseDeferred() {
-  assert(zeEventQueryStatus(hZeEvent) == ZE_RESULT_SUCCESS);
+  assert(zeEventQueryStatus(getZeEvent()) == ZE_RESULT_SUCCESS);
   assert(RefCount.load() == 0);
 
   return this->forceRelease();
@@ -176,7 +179,7 @@ bool ur_event_handle_t_::isProfilingEnabled() const {
 
 std::pair<uint64_t *, ze_event_handle_t>
 ur_event_handle_t_::getEventEndTimestampAndHandle() {
-  return {profilingData.eventEndTimestampAddr(), hZeEvent};
+  return {profilingData.eventEndTimestampAddr(), getZeEvent()};
 }
 
 ur_queue_handle_t ur_event_handle_t_::getQueue() const { return hQueue; }
@@ -185,29 +188,33 @@ ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 
 ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
 
-ur_pooled_event_t::ur_pooled_event_t(
+ur_event_handle_t_::ur_event_handle_t_(
     ur_context_handle_t hContext,
     v2::raii::cache_borrowed_event eventAllocation, v2::event_pool *pool)
-    : ur_event_handle_t_(hContext, eventAllocation.get(), pool->getFlags()),
-      zeEvent(std::move(eventAllocation)), pool(pool) {}
+    : ur_event_handle_t_(hContext, std::move(eventAllocation), pool->getFlags(),
+                         pool) {}
 
-ur_result_t ur_pooled_event_t::forceRelease() {
-  pool->free(this);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_native_event_t::ur_native_event_t(
-    ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
+ur_event_handle_t_::ur_event_handle_t_(
+    ur_context_handle_t hContext, ur_native_handle_t hNativeEvent,
     const ur_event_native_properties_t *pProperties)
     : ur_event_handle_t_(
           hContext,
-          reinterpret_cast<ze_event_handle_t>(hNativeEvent), v2::EVENT_FLAGS_PROFILING_ENABLED /* TODO: this follows legacy adapter logic, we could check this with zeEventGetPool */),
-      zeEvent(reinterpret_cast<ze_event_handle_t>(hNativeEvent),
-              pProperties ? pProperties->isNativeHandleOwned : false) {}
+          v2::raii::ze_event_handle_t{
+              reinterpret_cast<ze_event_handle_t>(hNativeEvent),
+              pProperties ? pProperties->isNativeHandleOwned : false},
+          v2::EVENT_FLAGS_PROFILING_ENABLED /* TODO: this follows legacy adapter
+                                               logic, we could check this with
+                                               zeEventGetPool */
+          ,
+          nullptr) {}
 
-ur_result_t ur_native_event_t::forceRelease() {
-  zeEvent.release();
-  delete this;
+ur_result_t ur_event_handle_t_::forceRelease() {
+  if (event_pool) {
+    event_pool->free(this);
+  } else {
+    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
+    delete this;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -389,7 +396,7 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
     *phEvent = hContext->nativeEventsPool.allocate();
     ZE2UR_CALL(zeEventHostSignal, ((*phEvent)->getZeEvent()));
   } else {
-    *phEvent = new ur_native_event_t(hNativeEvent, hContext, pProperties);
+    *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {
