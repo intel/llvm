@@ -81,6 +81,10 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
                          composite_device, sycl::device,
                         UR_DEVICE_INFO_COMPOSITE_DEVICE)
 
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi, device,
+                        num_compute_units, size_t,
+                        UR_DEVICE_INFO_NUM_COMPUTE_UNITS)
+
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
