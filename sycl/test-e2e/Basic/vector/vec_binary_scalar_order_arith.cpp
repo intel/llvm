@@ -26,25 +26,13 @@ int main() {
     CHECK_SIZES_AND_COMMON_OPS(Q, Failures, double);
   }
 
-  // Check all operators without requirements.
+  // Check operators without requirements.
   CHECK_SIZES_AND_COMMON_OPS(Q, Failures, float);
   CHECK_SIZES_AND_COMMON_OPS(Q, Failures, int8_t);
-  CHECK_SIZES_AND_COMMON_OPS(Q, Failures, int16_t);
-  CHECK_SIZES_AND_COMMON_OPS(Q, Failures, int32_t);
-  CHECK_SIZES_AND_COMMON_OPS(Q, Failures, int64_t);
-  CHECK_SIZES_AND_COMMON_OPS(Q, Failures, uint8_t);
   CHECK_SIZES_AND_COMMON_OPS(Q, Failures, uint16_t);
-  CHECK_SIZES_AND_COMMON_OPS(Q, Failures, uint32_t);
-  CHECK_SIZES_AND_COMMON_OPS(Q, Failures, uint64_t);
 
   // Check integer only operators.
-  CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, int8_t);
   CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, int16_t);
-  CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, int32_t);
-  CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, int64_t);
   CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, uint8_t);
-  CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, uint16_t);
-  CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, uint32_t);
-  CHECK_SIZES_AND_INT_ONLY_OPS(Q, Failures, uint64_t);
   return Failures;
 }

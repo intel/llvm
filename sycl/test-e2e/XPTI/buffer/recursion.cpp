@@ -65,7 +65,7 @@ int main() {
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID2]]
   // CHECK:{{[0-9]+}}|Release buffer|[[USERID1]]|[[BEID1]]
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID1]]
-  MismatchFound &= func(Queue, 2);
+  MismatchFound |= func(Queue, 2);
 
   return MismatchFound;
 }

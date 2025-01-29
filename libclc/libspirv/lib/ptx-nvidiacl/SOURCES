@@ -3,6 +3,7 @@ atomic/loadstore_helpers_release.ll
 atomic/loadstore_helpers_acquire.ll
 atomic/loadstore_helpers_seq_cst.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
+conversion/GenericCastToPtrExplicit.cl
 integer/mul24.cl
 integer/mul_hi.cl
 math/acos.cl
@@ -84,10 +85,8 @@ workitem/get_local_id.cl
 workitem/get_local_size.cl
 workitem/get_max_sub_group_size.cl
 workitem/get_num_groups.cl
-workitem/get_num_sub_groups.cl
 workitem/get_sub_group_id.cl
 workitem/get_sub_group_local_id.cl
-workitem/get_sub_group_size.cl
 images/image_helpers.ll
 images/image.cl
 group/collectives_helpers.ll

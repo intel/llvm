@@ -29,6 +29,10 @@
 // Check the case when in-memory caching of the programs is disabled.
 // RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
 
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <cmath>
 #include <complex>
 #include <sycl/detail/core.hpp>
@@ -53,7 +57,7 @@ int main() {
 
   auto res = sycl::malloc_host<int>(3, ctx);
   auto KernelLambda = [=]() {
-    res[0] = sycl::ext::intel::math::float2int_rd(4.0) + (int)sqrtf(4.0f) +
+    res[0] = sycl::ext::intel::math::float2int_rd(4.0f) + (int)sqrtf(4.0f) +
              std::exp(std::complex<float>(0.f, 0.f)).real();
   };
   // Test case 1

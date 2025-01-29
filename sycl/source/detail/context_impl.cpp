@@ -224,6 +224,7 @@ context_impl::get_info<info::context::atomic_fence_scope_capabilities>() const {
   return CapabilityList;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 context_impl::get_backend_info<info::platform::version>() const {
@@ -234,10 +235,12 @@ context_impl::get_backend_info<info::platform::version>() const {
   }
   return MDevices[0].get_platform().get_info<info::platform::version>();
 }
+#endif
 
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 context_impl::get_backend_info<info::device::version>() const {
@@ -254,7 +257,9 @@ context_impl::get_backend_info<info::device::version>() const {
   return select_device(default_selector_v, Devices)
       .get_info<info::device::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 context_impl::get_backend_info<info::device::backend_version>() const {
@@ -268,6 +273,7 @@ context_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 ur_context_handle_t &context_impl::getHandleRef() { return MContext; }
 const ur_context_handle_t &context_impl::getHandleRef() const {

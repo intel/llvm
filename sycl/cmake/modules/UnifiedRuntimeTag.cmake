@@ -1,8 +1,9 @@
-# commit 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f
-# Merge: 9c652ffb b78cfa71
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Thu Jan 9 17:28:00 2025 +0000
-# Merge pull request #2048 from RossBrunton/ross/refc
+# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
+# Merge: 4643d1c0 3ed86fae
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 29 13:55:27 2025 +0000
 #
-# Use reference counting on factories
-set(UNIFIED_RUNTIME_TAG 7eae5c80a9e969bc12fda57c9cc0a0970f0cd17f)
+#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
+#
+#    Remove command-buffer command handle ref counting
+set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)

@@ -68,7 +68,7 @@ jobs:
     - uses: ./devops/actions/cached_checkout
       with:
         path: llvm
-        ref: ${{ inputs.build_ref || github.sha }}
+        ref: ${{ inputs.ref || github.sha }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Download compiler toolchain
       uses: actions/download-artifact@v4

@@ -1,7 +1,8 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 //
-// RUN: %{build} -DTEST_ERRORS -D_GLIBCXX_USE_CXX11_ABI=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note
+
+// RUN: %{build} -DTEST_ERRORS -D_GLIBCXX_USE_CXX11_ABI=0 -fsyntax-only -Wno-deprecated-declarations -Wno-error=unused-command-line-argument -Xclang -verify -Xclang -verify-ignore-unexpected=note
 
 //==--- backend_info.cpp - SYCL backend info test---------------------------==//
 //

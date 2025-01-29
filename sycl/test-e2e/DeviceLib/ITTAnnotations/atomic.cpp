@@ -1,6 +1,9 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-instrument-device-code -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+
 #include "sycl/atomic_ref.hpp"
 #include "sycl/detail/core.hpp"
 

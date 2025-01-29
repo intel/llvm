@@ -252,8 +252,9 @@ private:
   // We need to store the list of the sycl_kernel functions and their associated
   // generated OpenCL Kernels so we can go back and re-name these after the
   // fact.
-  llvm::SmallVector<std::pair<const FunctionDecl *, FunctionDecl *>>
-      SyclKernelsToOpenCLKernels;
+  using KernelFDPairs =
+      llvm::SmallVector<std::pair<const FunctionDecl *, FunctionDecl *>>;
+  KernelFDPairs SyclKernelsToOpenCLKernels;
 
   // Used to suppress diagnostics during kernel construction, since these were
   // already emitted earlier. Diagnosing during Kernel emissions also skips the
@@ -296,10 +297,14 @@ public:
                               llvm::DenseSet<QualType> Visited,
                               ValueDecl *DeclToCheck);
 
+  const KernelFDPairs &getKernelFDPairs() { return SyclKernelsToOpenCLKernels; }
+
   void addSyclOpenCLKernel(const FunctionDecl *SyclKernel,
                            FunctionDecl *OpenCLKernel) {
     SyclKernelsToOpenCLKernels.emplace_back(SyclKernel, OpenCLKernel);
   }
+
+  void constructFreeFunctionKernel(FunctionDecl *FD, StringRef NameStr = "");
 
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
@@ -480,6 +485,7 @@ public:
   void handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Decl *D,
                                                      const ParsedAttr &AL);
   void handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &AL);
 
   void checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
 
@@ -655,6 +661,10 @@ public:
   void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E);
   void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
+
+  // Used to check whether the function represented by FD is a SYCL
+  // free function kernel or not.
+  bool isFreeFunction(const FunctionDecl *FD);
 };
 
 } // namespace clang

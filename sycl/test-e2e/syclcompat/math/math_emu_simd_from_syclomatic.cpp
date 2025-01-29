@@ -29,7 +29,7 @@ void checkResult(const string &FuncName, const vector<unsigned int> &Inputs,
   for (size_t i = 1; i < Inputs.size(); ++i) {
     cout << ", " << Inputs[i];
   }
-  cout << ") = " << DeviceResult << " (expect " << Expect << ")";
+  cout << ") = " << DeviceResult << " (expect " << Expect << ")" << endl;
   assert(DeviceResult == Expect);
 }
 
@@ -43,19 +43,24 @@ void testVabs2Cases(const vector<pair<unsigned int, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabs2(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabs2", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabs2(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabs2", {TestCase.first}, TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vabs4(unsigned int *const DeviceResult, unsigned int Input1) {
@@ -68,19 +73,24 @@ void testVabs4Cases(const vector<pair<unsigned int, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabs4(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabs4", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabs4(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabs4", {TestCase.first}, TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vabsdiffs2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -95,22 +105,27 @@ void testVabsdiffs2Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabsdiffs2(DeviceResult, TestCase_first_first_ct1,
-                       TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabsdiffs2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabsdiffs2(DeviceResult, TestCase_first_first_ct1,
+                         TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabsdiffs2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vabsdiffs4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -125,22 +140,27 @@ void testVabsdiffs4Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabsdiffs4(DeviceResult, TestCase_first_first_ct1,
-                       TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabsdiffs4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabsdiffs4(DeviceResult, TestCase_first_first_ct1,
+                         TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabsdiffs4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vabsdiffu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -155,22 +175,27 @@ void testVabsdiffu2Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabsdiffu2(DeviceResult, TestCase_first_first_ct1,
-                       TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabsdiffu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabsdiffu2(DeviceResult, TestCase_first_first_ct1,
+                         TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabsdiffu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vabsdiffu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -185,22 +210,27 @@ void testVabsdiffu4Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabsdiffu4(DeviceResult, TestCase_first_first_ct1,
-                       TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabsdiffu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabsdiffu4(DeviceResult, TestCase_first_first_ct1,
+                         TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabsdiffu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vabsss2(unsigned int *const DeviceResult, unsigned int Input1) {
@@ -214,19 +244,25 @@ void testVabsss2Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabsss2(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabsss2", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabsss2(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabsss2", {TestCase.first}, TestCase.second,
+                  *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vabsss4(unsigned int *const DeviceResult, unsigned int Input1) {
@@ -240,19 +276,25 @@ void testVabsss4Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vabsss4(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vabsss4", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vabsss4(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vabsss4", {TestCase.first}, TestCase.second,
+                  *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vadd2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -266,22 +308,27 @@ void testVadd2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vadd2(DeviceResult, TestCase_first_first_ct1,
-                  TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vadd2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vadd2(DeviceResult, TestCase_first_first_ct1,
+                    TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vadd2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vadd4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -295,22 +342,27 @@ void testVadd4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vadd4(DeviceResult, TestCase_first_first_ct1,
-                  TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vadd4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vadd4(DeviceResult, TestCase_first_first_ct1,
+                    TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vadd4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vaddss2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -324,22 +376,27 @@ void testVaddss2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vaddss2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vaddss2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vaddss2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vaddss2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vaddss4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -353,22 +410,27 @@ void testVaddss4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vaddss4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vaddss4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vaddss4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vaddss4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vaddus2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -382,22 +444,27 @@ void testVaddus2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vaddus2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vaddus2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vaddus2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vaddus2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vaddus4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -411,22 +478,27 @@ void testVaddus4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vaddus4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vaddus4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vaddus4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vaddus4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vavgs2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -440,22 +512,27 @@ void testVavgs2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vavgs2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vavgs2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vavgs2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vavgs2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vavgs4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -469,22 +546,27 @@ void testVavgs4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vavgs4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vavgs4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vavgs4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vavgs4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vavgu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -498,22 +580,27 @@ void testVavgu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vavgu2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vavgu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vavgu2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vavgu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vavgu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -527,22 +614,27 @@ void testVavgu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vavgu4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vavgu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vavgu4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vavgu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpeq2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -556,22 +648,27 @@ void testVcmpeq2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpeq2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpeq2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpeq2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpeq2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpeq4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -585,22 +682,27 @@ void testVcmpeq4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpeq4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpeq4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpeq4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpeq4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpges2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -614,22 +716,27 @@ void testVcmpges2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpges2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpges2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpges2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpges2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpges4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -643,22 +750,27 @@ void testVcmpges4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpges4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpges4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpges4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpges4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpgeu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -672,22 +784,27 @@ void testVcmpgeu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpgeu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpgeu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpgeu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpgeu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpgeu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -701,22 +818,27 @@ void testVcmpgeu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpgeu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpgeu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpgeu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpgeu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpgts2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -730,22 +852,27 @@ void testVcmpgts2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpgts2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpgts2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpgts2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpgts2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpgts4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -759,22 +886,27 @@ void testVcmpgts4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpgts4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpgts4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpgts4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpgts4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpgtu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -788,22 +920,27 @@ void testVcmpgtu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpgtu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpgtu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpgtu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpgtu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpgtu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -817,22 +954,27 @@ void testVcmpgtu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpgtu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpgtu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpgtu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpgtu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmples2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -846,22 +988,27 @@ void testVcmples2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmples2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmples2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmples2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmples2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmples4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -875,22 +1022,27 @@ void testVcmples4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmples4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmples4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmples4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmples4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpleu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -904,22 +1056,27 @@ void testVcmpleu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpleu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpleu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpleu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpleu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpleu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -933,22 +1090,27 @@ void testVcmpleu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpleu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpleu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpleu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpleu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmplts2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -962,22 +1124,27 @@ void testVcmplts2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmplts2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmplts2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmplts2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmplts2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmplts4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -991,22 +1158,27 @@ void testVcmplts4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmplts4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmplts4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmplts4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmplts4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpltu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1020,22 +1192,27 @@ void testVcmpltu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpltu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpltu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpltu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpltu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpltu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1049,22 +1226,27 @@ void testVcmpltu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpltu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpltu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpltu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpltu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpne2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1078,22 +1260,27 @@ void testVcmpne2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpne2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpne2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpne2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpne2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vcmpne4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1107,22 +1294,27 @@ void testVcmpne4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vcmpne4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vcmpne4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vcmpne4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vcmpne4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vhaddu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1136,22 +1328,27 @@ void testVhaddu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vhaddu2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vhaddu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vhaddu2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vhaddu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vhaddu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1165,22 +1362,27 @@ void testVhaddu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vhaddu4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vhaddu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vhaddu4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vhaddu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vmaxs2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1194,22 +1396,27 @@ void testVmaxs2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vmaxs2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vmaxs2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vmaxs2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vmaxs2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vmaxs4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1223,22 +1430,27 @@ void testVmaxs4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vmaxs4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vmaxs4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vmaxs4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vmaxs4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vmaxu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1252,22 +1464,27 @@ void testVmaxu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vmaxu2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vmaxu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vmaxu2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vmaxu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vmaxu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1281,22 +1498,27 @@ void testVmaxu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vmaxu4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vmaxu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vmaxu4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vmaxu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vmins2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1310,22 +1532,27 @@ void testVmins2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vmins2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vmins2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vmins2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vmins2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vmins4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1339,22 +1566,27 @@ void testVmins4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vmins4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vmins4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vmins4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vmins4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vminu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1368,22 +1600,27 @@ void testVminu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vminu2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vminu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vminu2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vminu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vminu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1397,22 +1634,27 @@ void testVminu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vminu4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vminu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vminu4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vminu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vneg2(unsigned int *const DeviceResult, unsigned int Input1) {
@@ -1425,19 +1667,24 @@ void testVneg2Cases(const vector<pair<unsigned int, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vneg2(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vneg2", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vneg2(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vneg2", {TestCase.first}, TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vneg4(unsigned int *const DeviceResult, unsigned int Input1) {
@@ -1450,19 +1697,24 @@ void testVneg4Cases(const vector<pair<unsigned int, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vneg4(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vneg4", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vneg4(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vneg4", {TestCase.first}, TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vnegss2(unsigned int *const DeviceResult, unsigned int Input1) {
@@ -1476,19 +1728,25 @@ void testVnegss2Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vnegss2(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vnegss2", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vnegss2(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vnegss2", {TestCase.first}, TestCase.second,
+                  *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vnegss4(unsigned int *const DeviceResult, unsigned int Input1) {
@@ -1502,19 +1760,25 @@ void testVnegss4Cases(
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_ct1 = TestCase.first;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_ct1 = TestCase.first;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vnegss4(DeviceResult, TestCase_first_ct1);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vnegss4", {TestCase.first}, TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vnegss4(DeviceResult, TestCase_first_ct1);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vnegss4", {TestCase.first}, TestCase.second,
+                  *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsads2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1528,22 +1792,27 @@ void testVsads2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsads2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsads2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsads2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsads2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsads4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1557,22 +1826,27 @@ void testVsads4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsads4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsads4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsads4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsads4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsadu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1586,22 +1860,27 @@ void testVsadu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsadu2(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsadu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsadu2(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsadu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsadu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1615,22 +1894,27 @@ void testVsadu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsadu4(DeviceResult, TestCase_first_first_ct1,
-                   TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsadu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsadu4(DeviceResult, TestCase_first_first_ct1,
+                     TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsadu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vseteq2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1644,22 +1928,27 @@ void testVseteq2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vseteq2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vseteq2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vseteq2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vseteq2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vseteq4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1673,22 +1962,27 @@ void testVseteq4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vseteq4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vseteq4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vseteq4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vseteq4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetges2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1702,22 +1996,27 @@ void testVsetges2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetges2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetges2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetges2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetges2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetges4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1731,22 +2030,27 @@ void testVsetges4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetges4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetges4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetges4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetges4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetgeu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1760,22 +2064,27 @@ void testVsetgeu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetgeu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetgeu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetgeu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetgeu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetgeu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1789,22 +2098,27 @@ void testVsetgeu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetgeu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetgeu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetgeu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetgeu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetgts2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1818,22 +2132,27 @@ void testVsetgts2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetgts2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetgts2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetgts2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetgts2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetgts4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1847,22 +2166,27 @@ void testVsetgts4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetgts4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetgts4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetgts4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetgts4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetgtu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1876,22 +2200,27 @@ void testVsetgtu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetgtu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetgtu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetgtu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetgtu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetgtu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1905,22 +2234,27 @@ void testVsetgtu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetgtu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetgtu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetgtu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetgtu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetles2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1934,22 +2268,27 @@ void testVsetles2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetles2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetles2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetles2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetles2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetles4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1963,22 +2302,27 @@ void testVsetles4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetles4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetles4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetles4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetles4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetleu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -1992,22 +2336,27 @@ void testVsetleu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetleu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetleu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetleu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetleu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetleu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2021,22 +2370,27 @@ void testVsetleu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetleu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetleu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetleu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetleu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetlts2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2050,22 +2404,27 @@ void testVsetlts2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetlts2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetlts2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetlts2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetlts2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetlts4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2079,22 +2438,27 @@ void testVsetlts4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetlts4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetlts4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetlts4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetlts4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetltu2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2108,22 +2472,27 @@ void testVsetltu2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetltu2(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetltu2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetltu2(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetltu2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetltu4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2137,22 +2506,27 @@ void testVsetltu4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetltu4(DeviceResult, TestCase_first_first_ct1,
-                     TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetltu4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetltu4(DeviceResult, TestCase_first_first_ct1,
+                       TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetltu4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetne2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2166,22 +2540,27 @@ void testVsetne2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetne2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetne2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetne2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetne2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsetne4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2195,22 +2574,27 @@ void testVsetne4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsetne4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsetne4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsetne4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsetne4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsub2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2224,22 +2608,27 @@ void testVsub2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsub2(DeviceResult, TestCase_first_first_ct1,
-                  TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsub2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsub2(DeviceResult, TestCase_first_first_ct1,
+                    TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsub2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsub4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2253,22 +2642,27 @@ void testVsub4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsub4(DeviceResult, TestCase_first_first_ct1,
-                  TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsub4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsub4(DeviceResult, TestCase_first_first_ct1,
+                    TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsub4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsubss2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2282,22 +2676,27 @@ void testVsubss2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsubss2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsubss2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsubss2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsubss2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsubss4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2311,22 +2710,27 @@ void testVsubss4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsubss4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsubss4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsubss4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsubss4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsubus2(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2340,22 +2744,27 @@ void testVsubus2Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsubus2(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsubus2", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsubus2(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsubus2", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 void vsubus4(unsigned int *const DeviceResult, unsigned int Input1,
@@ -2369,22 +2778,27 @@ void testVsubus4Cases(const vector<pair<Uint_pair, unsigned int>> &TestCases) {
   unsigned int *DeviceResult;
   DeviceResult =
       (unsigned int *)sycl::malloc_shared(sizeof(*DeviceResult), q_ct1);
-  for (const auto &TestCase : TestCases) {
-    q_ct1.submit([&](sycl::handler &cgh) {
-      auto TestCase_first_first_ct1 = TestCase.first.first;
-      auto TestCase_first_second_ct2 = TestCase.first.second;
+  try {
+    for (const auto &TestCase : TestCases) {
+      q_ct1.submit([&](sycl::handler &cgh) {
+        auto TestCase_first_first_ct1 = TestCase.first.first;
+        auto TestCase_first_second_ct2 = TestCase.first.second;
 
-      cgh.parallel_for(
-          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-          [=](sycl::nd_item<3> item_ct1) {
-            vsubus4(DeviceResult, TestCase_first_first_ct1,
-                    TestCase_first_second_ct2);
-          });
-    });
-    q_ct1.wait();
-    checkResult("__vsubus4", {TestCase.first.first, TestCase.first.second},
-                TestCase.second, *DeviceResult);
+        cgh.parallel_for(
+            sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+            [=](sycl::nd_item<3> item_ct1) {
+              vsubus4(DeviceResult, TestCase_first_first_ct1,
+                      TestCase_first_second_ct2);
+            });
+      });
+      q_ct1.wait_and_throw();
+      checkResult("__vsubus4", {TestCase.first.first, TestCase.first.second},
+                  TestCase.second, *DeviceResult);
+    }
+  } catch (...) {
+    // Intentionally left empty to make sure allocated memory can be freed.
   }
+  sycl::free(DeviceResult, q_ct1);
 }
 
 int main() {

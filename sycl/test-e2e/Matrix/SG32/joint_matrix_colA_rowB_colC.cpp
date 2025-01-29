@@ -14,6 +14,6 @@
 // XFAIL: gpu && run-mode
 // XFAIL-TRACKER: GSD-5768
 
-#include "../common.hpp"
+#include "common.hpp"
 #define SG_SZ 32
-#include "../joint_matrix_colA_rowB_colC_impl.hpp"
+#include "joint_matrix_colA_rowB_colC_impl.hpp"

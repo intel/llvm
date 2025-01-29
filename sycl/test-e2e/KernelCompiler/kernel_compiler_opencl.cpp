@@ -8,6 +8,7 @@
 
 // REQUIRES: ocloc && (opencl || level_zero)
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out

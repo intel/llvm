@@ -13,7 +13,7 @@
 // Temporarily disabled until the failure is addressed.
 // UNSUPPORTED: (level_zero && windows)
 
-// UNSUPPORTED: (gpu-intel-dg2 || hip_amd) && linux
+// UNSUPPORTED: (gpu-intel-dg2 || hip) && linux
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15648
 
 #include "copy2d_common.hpp"

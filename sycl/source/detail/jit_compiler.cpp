@@ -1131,39 +1131,48 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
 }
 
 sycl_device_binaries jit_compiler::createDeviceBinaryImage(
-    const ::jit_compiler::RTCBundleInfo &BundleInfo) {
-  DeviceBinaryContainer Binary;
-  for (const auto &Symbol : BundleInfo.SymbolTable) {
-    // Create an offload entry for each kernel.
-    // It seems to be OK to set zero for most of the information here, at least
-    // that is the case for compiled SPIR-V binaries.
-    OffloadEntryContainer Entry{Symbol.c_str(), /*Addr=*/nullptr, /*Size=*/0,
-                                /*Flags=*/0, /*Reserved=*/0};
-    Binary.addOffloadEntry(std::move(Entry));
-  }
-
-  for (const auto &FPS : BundleInfo.Properties) {
-    PropertySetContainer PropSet{FPS.Name.c_str()};
-    for (const auto &FPV : FPS.Values) {
-      if (FPV.IsUIntValue) {
-        PropSet.addProperty(PropertyContainer{FPV.Name.c_str(), FPV.UIntValue});
-      } else {
-        PropSet.addProperty(PropertyContainer{
-            FPV.Name.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
-            sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY});
-      }
-    }
-    Binary.addProperty(std::move(PropSet));
-  }
-
+    const ::jit_compiler::RTCBundleInfo &BundleInfo,
+    const std::string &OffloadEntryPrefix) {
   DeviceBinariesCollection Collection;
-  Collection.addDeviceBinary(std::move(Binary),
-                             BundleInfo.BinaryInfo.BinaryStart,
-                             BundleInfo.BinaryInfo.BinarySize,
-                             (BundleInfo.BinaryInfo.AddressBits == 64)
-                                 ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
-                                 : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
-                             SYCL_DEVICE_BINARY_TYPE_SPIRV);
+
+  for (const auto &DevImgInfo : BundleInfo) {
+    DeviceBinaryContainer Binary;
+    for (const auto &Symbol : DevImgInfo.SymbolTable) {
+      // Create an offload entry for each kernel. We prepend a unique prefix to
+      // support reusing the same name across multiple RTC requests. The actual
+      // entrypoints remain unchanged.
+      // It seems to be OK to set zero for most of the information here, at
+      // least that is the case for compiled SPIR-V binaries.
+      std::string PrefixedName = OffloadEntryPrefix + Symbol.c_str();
+      OffloadEntryContainer Entry{PrefixedName, /*Addr=*/nullptr, /*Size=*/0,
+                                  /*Flags=*/0, /*Reserved=*/0};
+      Binary.addOffloadEntry(std::move(Entry));
+    }
+
+    for (const auto &FPS : DevImgInfo.Properties) {
+      PropertySetContainer PropSet{FPS.Name.c_str()};
+      for (const auto &FPV : FPS.Values) {
+        if (FPV.IsUIntValue) {
+          PropSet.addProperty(
+              PropertyContainer{FPV.Name.c_str(), FPV.UIntValue});
+        } else {
+          PropSet.addProperty(PropertyContainer{
+              FPV.Name.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
+              sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY});
+        }
+      }
+      Binary.addProperty(std::move(PropSet));
+    }
+
+    Collection.addDeviceBinary(std::move(Binary),
+                               DevImgInfo.BinaryInfo.BinaryStart,
+                               DevImgInfo.BinaryInfo.BinarySize,
+                               (DevImgInfo.BinaryInfo.AddressBits == 64)
+                                   ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
+                                   : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
+                               SYCL_DEVICE_BINARY_TYPE_SPIRV);
+  }
+
   JITDeviceBinaries.push_back(std::move(Collection));
   return JITDeviceBinaries.back().getPIDeviceStruct();
 }
@@ -1217,7 +1226,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 sycl_device_binaries jit_compiler::compileSYCL(
-    const std::string &Id, const std::string &SYCLSource,
+    const std::string &CompilationID, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
     const std::vector<std::string> &RegisteredKernelNames) {
@@ -1234,7 +1243,7 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   std::string FinalSource = ss.str();
 
-  std::string SYCLFileName = Id + ".cpp";
+  std::string SYCLFileName = CompilationID + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
                                           FinalSource.c_str()};
 
@@ -1261,7 +1270,8 @@ sycl_device_binaries jit_compiler::compileSYCL(
     throw sycl::exception(sycl::errc::build, Result.getBuildLog());
   }
 
-  return createDeviceBinaryImage(Result.getBundleInfo());
+  return createDeviceBinaryImage(Result.getBundleInfo(),
+                                 /*OffloadEntryPrefix=*/CompilationID + '$');
 }
 
 } // namespace detail

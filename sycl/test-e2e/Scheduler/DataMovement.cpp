@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out %debug_option
 // RUN: %{run} %t.out
 //
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+//
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

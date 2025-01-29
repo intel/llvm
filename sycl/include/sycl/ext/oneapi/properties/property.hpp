@@ -222,10 +222,11 @@ enum PropKind : uint32_t {
   Deterministic = 77,
   InitializeToIdentity = 78,
   WorkGroupScratchSize = 79,
-  Restrict = 80,
+  Unaliased = 80,
   EventMode = 81,
+  NativeLocalBlockIO = 82,
   // PropKindSize must always be the last value.
-  PropKindSize = 82,
+  PropKindSize = 83,
 };
 
 template <typename PropertyT> struct PropertyToKind {

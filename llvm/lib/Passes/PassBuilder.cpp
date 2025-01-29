@@ -163,6 +163,7 @@
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+#include "llvm/SYCLLowerIR/SYCLOptimizeBackToBackBarrier.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
@@ -510,6 +511,9 @@ PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
   PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
 #define MACHINE_FUNCTION_PASS(NAME, CREATE_PASS)                               \
   PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define MACHINE_FUNCTION_PASS_WITH_PARAMS(NAME, CLASS, CREATE_PASS, PARSER,    \
+                                          PARAMS)                              \
+  PIC->addClassToPassName(CLASS, NAME);
 #include "llvm/Passes/MachinePassRegistry.def"
     });
   }

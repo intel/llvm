@@ -16,10 +16,10 @@
 // XFAIL:gpu
 // XFAIL-TRACKER: GSD-4181
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
 static constexpr size_t MATRIX_K = 1024 + 14;
 
-#include "../joint_matrix_out_bounds_impl.hpp"
+#include "joint_matrix_out_bounds_impl.hpp"
