@@ -1,8 +1,8 @@
 ; RUN: opt -fpbuiltin-fn-selection -S < %s | FileCheck %s
 
-; Several functions for "sycl" and "cuda" requires "0.5" accuracy levels,
+; Several functions for SYCL and CUDA requires "0.5" accuracy levels,
 ; Test if these fpbuiltins could be replaced by equivalaent IR operations
-; or llvm builtins.
+; or LLVM builtins.
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
