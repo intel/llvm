@@ -8373,69 +8373,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferRetainCommandExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
-    /// [in][retain] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable =
-      reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
-          ->dditable;
-  auto pfnRetainCommandExp = dditable->ur.CommandBufferExp.pfnRetainCommandExp;
-  if (nullptr == pfnRetainCommandExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hCommand =
-      reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
-          ->handle;
-
-  // forward to device-platform
-  result = pfnRetainCommandExp(hCommand);
-
-  // increment refcount of handle
-  context->factories.ur_exp_command_buffer_command_factory.retain(hCommand);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferReleaseCommandExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
-    /// [in][release] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable =
-      reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
-          ->dditable;
-  auto pfnReleaseCommandExp =
-      dditable->ur.CommandBufferExp.pfnReleaseCommandExp;
-  if (nullptr == pfnReleaseCommandExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hCommand =
-      reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
-          ->handle;
-
-  // forward to device-platform
-  result = pfnReleaseCommandExp(hCommand);
-
-  // release loader handle
-  context->factories.ur_exp_command_buffer_command_factory.release(hCommand);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     /// [in] Handle of the command-buffer kernel command to update.
@@ -8615,45 +8552,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   // forward to device-platform
   result = pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
                          pPropSizeRet);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferCommandGetInfoExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
-    /// [in] handle of the command-buffer command object
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] the name of the command-buffer command property to query
-    ur_exp_command_buffer_command_info_t propName,
-    /// [in] size in bytes of the command-buffer command property value
-    size_t propSize,
-    /// [out][optional][typename(propName, propSize)] value of the
-    /// command-buffer command property
-    void *pPropValue,
-    /// [out][optional] bytes returned in command-buffer command property
-    size_t *pPropSizeRet) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable =
-      reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
-          ->dditable;
-  auto pfnCommandGetInfoExp =
-      dditable->ur.CommandBufferExp.pfnCommandGetInfoExp;
-  if (nullptr == pfnCommandGetInfoExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hCommand =
-      reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
-          ->handle;
-
-  // forward to device-platform
-  result = pfnCommandGetInfoExp(hCommand, propName, propSize, pPropValue,
-                                pPropSizeRet);
 
   return result;
 }
@@ -9585,10 +9483,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       pDdiTable->pfnAppendUSMAdviseExp =
           ur_loader::urCommandBufferAppendUSMAdviseExp;
       pDdiTable->pfnEnqueueExp = ur_loader::urCommandBufferEnqueueExp;
-      pDdiTable->pfnRetainCommandExp =
-          ur_loader::urCommandBufferRetainCommandExp;
-      pDdiTable->pfnReleaseCommandExp =
-          ur_loader::urCommandBufferReleaseCommandExp;
       pDdiTable->pfnUpdateKernelLaunchExp =
           ur_loader::urCommandBufferUpdateKernelLaunchExp;
       pDdiTable->pfnUpdateSignalEventExp =
@@ -9596,8 +9490,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       pDdiTable->pfnUpdateWaitEventsExp =
           ur_loader::urCommandBufferUpdateWaitEventsExp;
       pDdiTable->pfnGetInfoExp = ur_loader::urCommandBufferGetInfoExp;
-      pDdiTable->pfnCommandGetInfoExp =
-          ur_loader::urCommandBufferCommandGetInfoExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()

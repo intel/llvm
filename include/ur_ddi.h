@@ -1597,16 +1597,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
     const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferRetainCommandExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferRetainCommandExp_t)(
-    ur_exp_command_buffer_command_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferReleaseCommandExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferReleaseCommandExp_t)(
-    ur_exp_command_buffer_command_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferUpdateKernelLaunchExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateKernelLaunchExp_t)(
     ur_exp_command_buffer_command_handle_t,
@@ -1630,12 +1620,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetInfoExp_t)(
     void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferCommandGetInfoExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferCommandGetInfoExp_t)(
-    ur_exp_command_buffer_command_handle_t,
-    ur_exp_command_buffer_command_info_t, size_t, void *, size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of CommandBufferExp functions pointers
 typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferCreateExp_t pfnCreateExp;
@@ -1656,13 +1640,10 @@ typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
   ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
   ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
-  ur_pfnCommandBufferRetainCommandExp_t pfnRetainCommandExp;
-  ur_pfnCommandBufferReleaseCommandExp_t pfnReleaseCommandExp;
   ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
   ur_pfnCommandBufferUpdateSignalEventExp_t pfnUpdateSignalEventExp;
   ur_pfnCommandBufferUpdateWaitEventsExp_t pfnUpdateWaitEventsExp;
   ur_pfnCommandBufferGetInfoExp_t pfnGetInfoExp;
-  ur_pfnCommandBufferCommandGetInfoExp_t pfnCommandGetInfoExp;
 } ur_command_buffer_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

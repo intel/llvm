@@ -1454,22 +1454,6 @@ ur_result_t urPrintCommandBufferEnqueueExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintCommandBufferRetainCommandExpParams(
-    const struct ur_command_buffer_retain_command_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintCommandBufferReleaseCommandExpParams(
-    const struct ur_command_buffer_release_command_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintCommandBufferUpdateKernelLaunchExpParams(
     const struct ur_command_buffer_update_kernel_launch_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -1497,14 +1481,6 @@ ur_result_t urPrintCommandBufferUpdateWaitEventsExpParams(
 ur_result_t urPrintCommandBufferGetInfoExpParams(
     const struct ur_command_buffer_get_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintCommandBufferCommandGetInfoExpParams(
-    const struct ur_command_buffer_command_get_info_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

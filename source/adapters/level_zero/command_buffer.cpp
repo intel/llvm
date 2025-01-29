@@ -468,18 +468,6 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   }
 }
 
-ur_exp_command_buffer_command_handle_t_::
-    ur_exp_command_buffer_command_handle_t_(
-        ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId)
-    : CommandBuffer(CommandBuffer), CommandId(CommandId) {
-  ur::level_zero::urCommandBufferRetainExp(CommandBuffer);
-}
-
-ur_exp_command_buffer_command_handle_t_::
-    ~ur_exp_command_buffer_command_handle_t_() {
-  ur::level_zero::urCommandBufferReleaseExp(CommandBuffer);
-}
-
 void ur_exp_command_buffer_handle_t_::registerSyncPoint(
     ur_exp_command_buffer_sync_point_t SyncPoint, ur_event_handle_t Event) {
   SyncPoints[SyncPoint] = Event;
@@ -932,7 +920,7 @@ createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
                     ur_kernel_handle_t Kernel, uint32_t WorkDim,
                     const size_t *LocalWorkSize, uint32_t NumKernelAlternatives,
                     ur_kernel_handle_t *KernelAlternatives,
-                    ur_exp_command_buffer_command_handle_t &Command) {
+                    ur_exp_command_buffer_command_handle_t *Command) {
 
   assert(CommandBuffer->IsUpdatable);
 
@@ -1000,9 +988,13 @@ createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
   DEBUG_LOG(CommandId);
 
   try {
-    Command = new kernel_command_handle(
+    auto NewCommand = std::make_unique<kernel_command_handle>(
         CommandBuffer, Kernel, CommandId, WorkDim, LocalWorkSize != nullptr,
         NumKernelAlternatives, KernelAlternatives);
+
+    *Command = NewCommand.get();
+
+    CommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1076,7 +1068,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   if (Command) {
     UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, LocalWorkSize,
                                 NumKernelAlternatives, KernelAlternatives,
-                                *Command));
+                                Command));
   }
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
@@ -1769,21 +1761,6 @@ ur_result_t urCommandBufferEnqueueExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urCommandBufferRetainCommandExp(
-    ur_exp_command_buffer_command_handle_t Command) {
-  Command->RefCount.increment();
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urCommandBufferReleaseCommandExp(
-    ur_exp_command_buffer_command_handle_t Command) {
-  if (!Command->RefCount.decrementAndTest())
-    return UR_RESULT_SUCCESS;
-
-  delete Command;
-  return UR_RESULT_SUCCESS;
-}
-
 /**
  * Validates contents of the update command description.
  * @param[in] Command The command which is being updated.
@@ -2222,22 +2199,4 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
-
-ur_result_t
-urCommandBufferCommandGetInfoExp(ur_exp_command_buffer_command_handle_t Command,
-                                 ur_exp_command_buffer_command_info_t PropName,
-                                 size_t PropSize, void *PropValue,
-                                 size_t *PropSizeRet) {
-  UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
-
-  switch (PropName) {
-  case UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Command->RefCount.load()});
-  default:
-    assert(!"Command-buffer command info request not implemented");
-  }
-
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
-}
-
 } // namespace ur::level_zero

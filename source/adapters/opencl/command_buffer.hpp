@@ -23,13 +23,6 @@ struct ur_exp_command_buffer_command_handle_t_ {
   cl_uint WorkDim;
   /// Set to true if the user set the local work size on command creation.
   bool UserDefinedLocalSize;
-  /// Internal & External reference counts.
-  /// We need to maintain these because in OpenCL a command-handle isn't
-  /// reference counting, but is tied to the lifetime of the parent
-  /// command-buffer. This is not the case in UR where a command-handle is
-  /// reference counted.
-  std::atomic_uint32_t RefCountInternal;
-  std::atomic_uint32_t RefCountExternal;
 
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t hCommandBuffer,
@@ -37,25 +30,7 @@ struct ur_exp_command_buffer_command_handle_t_ {
       cl_uint WorkDim, bool UserDefinedLocalSize)
       : hCommandBuffer(hCommandBuffer), CLMutableCommand(CLMutableCommand),
         Kernel(Kernel), WorkDim(WorkDim),
-        UserDefinedLocalSize(UserDefinedLocalSize), RefCountInternal(0),
-        RefCountExternal(0) {}
-
-  uint32_t incrementInternalReferenceCount() noexcept {
-    return ++RefCountInternal;
-  }
-  uint32_t decrementInternalReferenceCount() noexcept {
-    return --RefCountInternal;
-  }
-
-  uint32_t incrementExternalReferenceCount() noexcept {
-    return ++RefCountExternal;
-  }
-  uint32_t decrementExternalReferenceCount() noexcept {
-    return --RefCountExternal;
-  }
-  uint32_t getExternalReferenceCount() const noexcept {
-    return RefCountExternal;
-  }
+        UserDefinedLocalSize(UserDefinedLocalSize) {}
 };
 
 /// Handle to a command-buffer object.
@@ -74,14 +49,10 @@ struct ur_exp_command_buffer_handle_t_ {
   /// Set to true if the command-buffer has been finalized, false otherwise
   bool IsFinalized;
   /// List of commands in the command-buffer.
-  std::vector<ur_exp_command_buffer_command_handle_t> CommandHandles;
-  /// Internal & External reference counts of the command-buffer. We do this
-  /// manually rather than forward to the OpenCL retain/release APIs because
-  /// we also need to track the lifetimes of command handle objects, which
-  /// extended the lifetime of a UR command-buffer even if its reference
-  /// count is zero.
-  std::atomic_uint32_t RefCountInternal;
-  std::atomic_uint32_t RefCountExternal;
+  std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
+      CommandHandles;
+  /// Object reference count
+  std::atomic_uint32_t RefCount;
 
   ur_exp_command_buffer_handle_t_(ur_queue_handle_t hQueue,
                                   ur_context_handle_t hContext,
@@ -90,24 +61,11 @@ struct ur_exp_command_buffer_handle_t_ {
                                   bool IsUpdatable)
       : hInternalQueue(hQueue), hContext(hContext), hDevice(hDevice),
         CLCommandBuffer(CLCommandBuffer), IsUpdatable(IsUpdatable),
-        IsFinalized(false), RefCountInternal(0), RefCountExternal(0) {}
+        IsFinalized(false), RefCount(0) {}
 
   ~ur_exp_command_buffer_handle_t_();
 
-  uint32_t incrementInternalReferenceCount() noexcept {
-    return ++RefCountInternal;
-  }
-  uint32_t decrementInternalReferenceCount() noexcept {
-    return --RefCountInternal;
-  }
-
-  uint32_t incrementExternalReferenceCount() noexcept {
-    return ++RefCountExternal;
-  }
-  uint32_t decrementExternalReferenceCount() noexcept {
-    return --RefCountExternal;
-  }
-  uint32_t getExternalReferenceCount() const noexcept {
-    return RefCountExternal;
-  }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
+  uint32_t getReferenceCount() const noexcept { return RefCount; }
 };
