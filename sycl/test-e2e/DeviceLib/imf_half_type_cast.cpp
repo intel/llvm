@@ -12,6 +12,10 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
 

@@ -75,7 +75,7 @@ if(MSVC)
     add_link_options("LINKER:/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    check_linker_flag(CXX "LINKER:/OPT:REF LINKER:/OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "LINKER:/OPT:REF,/OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
       add_link_options("LINKER:/OPT:REF" "LINKER:/OPT:ICF")
     endif()
