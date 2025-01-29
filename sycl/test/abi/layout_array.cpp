@@ -5,9 +5,8 @@
 
 // clang-format off
 
-#include <sycl/id.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/nd_range.hpp>
+// TODO fix individual headers and include them instead of sycl.hpp
+#include <sycl/sycl.hpp>
 
 
 SYCL_EXTERNAL void id(sycl::id<2>) {}
@@ -31,7 +30,7 @@ SYCL_EXTERNAL void range(sycl::range<2>) {}
 //----------------------------
 
 SYCL_EXTERNAL void nd_item(sycl::nd_item<2>) {}
-// CHECK-DAG:      0 | class sycl::nd_item<> (empty)
+// CHECK-DAG:      0 | class sycl::nd_item<2> (empty)
 // CHECK-DAG-NEXT:   | [sizeof=1, dsize=0, align=1,
 // CHECK-DAG-NEXT:   |  nvsize=0, nvalign=1]
 
