@@ -7037,6 +7037,11 @@ static inline Triple::SubArchType spirvVersionToSubArch(VersionNumber VN) {
   return Triple::NoSubArch;
 }
 
+// TODO:
+// - consider exposing user facing options that are to set explicitly a Triple
+//   value and an optimization level for the LLVM SPIR-V Backend
+// - switch to the new API call: see
+//   https://github.com/llvm/llvm-project/pull/124745
 bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
                      const SPIRV::TranslatorOpts &TranslatorOpts) {
   // A list of known extensions supported by SPIR-V Backend: it's to be updated
@@ -7045,13 +7050,18 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float_add,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float16_add,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float_min_max,
+      SPIRV::ExtensionID::SPV_EXT_arithmetic_fence,
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_integers,
       SPIRV::ExtensionID::SPV_INTEL_cache_controls,
+      SPIRV::ExtensionID::SPV_INTEL_float_controls2,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_fpga_decorations,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_host_access,
       SPIRV::ExtensionID::SPV_INTEL_optnone,
       SPIRV::ExtensionID::SPV_INTEL_usm_storage_classes,
+      SPIRV::ExtensionID::SPV_INTEL_split_barrier,
       SPIRV::ExtensionID::SPV_INTEL_subgroups,
+      SPIRV::ExtensionID::SPV_INTEL_media_block_io,
+      SPIRV::ExtensionID::SPV_INTEL_joint_matrix,
       SPIRV::ExtensionID::SPV_KHR_uniform_group_instructions,
       SPIRV::ExtensionID::SPV_KHR_no_integer_wrap_decoration,
       SPIRV::ExtensionID::SPV_KHR_float_controls,
@@ -7068,13 +7078,6 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_KHR_non_semantic_info};
   // The fallback for the Triple value.
   static const std::string DefaultTriple = "spirv64-unknown-unknown";
-  // SPIR-V backend uses the following command line options to conform with
-  // Translator's way to generate SPIR-V or with requirements of the Compute
-  // flavor of SPIR-V. This list is subject to changes and may become empty
-  // eventually.
-  static const std::vector<std::string> Opts{"--avoid-spirv-capabilities",
-                                             "Shader",
-                                             "--translator-compatibility-mode"};
 
   std::function<bool(SPIRV::ExtensionID)> Filter =
       [](SPIRV::ExtensionID Ext) -> bool {
@@ -7103,7 +7106,7 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
   }
 
   // Translate the Module into SPIR-V
-  return llvm::SPIRVTranslateModule(M, Result, ErrMsg, AllowExtNames, Opts);
+  return llvm::SPIRVTranslateModule(M, Result, ErrMsg, AllowExtNames, {});
 }
 
 bool runSpirvBackend(Module *M, std::ostream *OS, std::string &ErrMsg,
