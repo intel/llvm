@@ -5,6 +5,7 @@
 
 import os
 import re
+import yaml
 
 from pathlib import Path
 from .utils import *
@@ -21,9 +22,7 @@ def replace_in_file(file_path, search_pattern, replacement):
 
 class ComputeRuntime:
     def __init__(self):
-        self.gmmlib = self.build_gmmlib()
-        self.level_zero = self.build_level_zero()
-        self.compute_runtime = self.build_compute_runtime(self.gmmlib, self.level_zero)
+        self.compute_runtime = self.build_compute_runtime()
 
         return
 
@@ -32,14 +31,15 @@ class ComputeRuntime:
             os.path.join(self.gmmlib, "lib64"),
             os.path.join(self.level_zero, "lib64"),
             os.path.join(self.compute_runtime, "bin"),
+            os.path.join(self.igc, "lib"),
         ]
 
     def env_vars(self) -> dict:
         return {"ZE_ENABLE_ALT_DRIVERS" : os.path.join(self.compute_runtime, "bin", "libze_intel_gpu.so"),
                 "OCL_ICD_FILENAMES" : os.path.join(self.compute_runtime, "bin", "libigdrcl.so")}
 
-    def build_gmmlib(self):
-        self.gmmlib_repo = git_clone(options.workdir, "gmmlib-repo", "https://github.com/intel/gmmlib.git", "9104c2090158b35d440afdf8ec940d89cc7b3c6a")
+    def build_gmmlib(self, repo, commit):
+        self.gmmlib_repo = git_clone(options.workdir, "gmmlib-repo", repo, commit)
         self.gmmlib_build = os.path.join(options.workdir, "gmmlib-build")
         self.gmmlib_install = os.path.join(options.workdir, "gmmlib-install")
         configure_command = [
@@ -54,8 +54,8 @@ class ComputeRuntime:
         run(f"cmake --install {self.gmmlib_build}")
         return self.gmmlib_install
 
-    def build_level_zero(self):
-        self.level_zero_repo = git_clone(options.workdir, "level-zero-repo", "https://github.com/oneapi-src/level-zero.git", "3969f34c16a843b943b948f8fe7081ef87deb369")
+    def build_level_zero(self, repo, commit):
+        self.level_zero_repo = git_clone(options.workdir, "level-zero-repo", repo, commit)
         self.level_zero_build = os.path.join(options.workdir, "level-zero-build")
         self.level_zero_install = os.path.join(options.workdir, "level-zero-install")
 
@@ -75,9 +75,63 @@ class ComputeRuntime:
         run(f"cmake --install {self.level_zero_build}")
         return self.level_zero_install
 
-    def build_compute_runtime(self, gmmlib, level_zero):
+
+    def build_igc(self, repo, commit):
+        self.igc_repo = git_clone(options.workdir, "igc", repo, commit)
+        self.vc_intr = git_clone(options.workdir, "vc-intrinsics", "https://github.com/intel/vc-intrinsics", "facb2076a2ce6cd6527c1e16570ba0fbaa2f1dba")
+        self.llvm_project = git_clone(options.workdir, "llvm-project", "https://github.com/llvm/llvm-project", "llvmorg-14.0.5")
+        llvm_projects = os.path.join(self.llvm_project, "llvm", "projects")
+        self.ocl = git_clone(llvm_projects, "opencl-clang", "https://github.com/intel/opencl-clang", "ocl-open-140")
+        self.translator = git_clone(llvm_projects, "llvm-spirv", "https://github.com/KhronosGroup/SPIRV-LLVM-Translator", "llvm_release_140")
+        self.spirv_tools = git_clone(options.workdir, "SPIRV-Tools", "https://github.com/KhronosGroup/SPIRV-Tools.git", "173fe3c60a8d9c7d35d7842ae267bb9df267a127")
+        self.spirv_headers = git_clone(options.workdir, "SPIRV-Headers", "https://github.com/KhronosGroup/SPIRV-Headers.git", "2b2e05e088841c63c0b6fd4c9fb380d8688738d3")
+
+        self.igc_build = os.path.join(options.workdir, "igc-build")
+        self.igc_install = os.path.join(options.workdir, "igc-install")
+        configure_command = [
+            "cmake",
+            f"-B {self.igc_build}",
+            f"-S {self.igc_repo}",
+            f"-DCMAKE_INSTALL_PREFIX={self.igc_install}",
+            f"-DCMAKE_BUILD_TYPE=Release",
+        ]
+        run(configure_command)
+
+        # set timeout to 30min. IGC takes A LONG time to build if building from scratch.
+        run(f"cmake --build {self.igc_build} -j", timeout=600 * 3)
+        # cmake --install doesn't work...
+        run("make install", cwd=self.igc_build)
+        return self.igc_install
+
+    def read_manifest(self, manifest_path):
+        with open(manifest_path, 'r') as file:
+            manifest = yaml.safe_load(file)
+        return manifest
+
+    def get_repo_info(self, manifest, component_name):
+        component = manifest['components'].get(component_name)
+        if component:
+            repo = component.get('repository')
+            revision = component.get('revision')
+            return repo, revision
+        return None, None
+
+    def build_compute_runtime(self):
         self.compute_runtime_repo = git_clone(options.workdir, "compute-runtime-repo", "https://github.com/intel/compute-runtime.git", options.compute_runtime_tag)
         self.compute_runtime_build = os.path.join(options.workdir, "compute-runtime-build")
+
+        manifest_path = os.path.join(self.compute_runtime_repo, "manifests", "manifest.yml")
+        manifest = self.read_manifest(manifest_path)
+
+        level_zero_repo, level_zero_commit = self.get_repo_info(manifest, 'level_zero')
+        self.level_zero = self.build_level_zero(level_zero_repo, level_zero_commit)
+
+        gmmlib_repo, gmmlib_commit = self.get_repo_info(manifest, 'gmmlib')
+        self.gmmlib = self.build_gmmlib(gmmlib_repo, gmmlib_commit)
+
+        if options.build_igc:
+            igc_repo, igc_commit = self.get_repo_info(manifest, 'igc')
+            self.igc = self.build_igc(igc_repo, igc_commit)
 
         cmakelists_path = os.path.join(self.compute_runtime_repo, "level_zero", "cmake", "FindLevelZero.cmake")
         # specifying custom L0 is problematic...
@@ -95,9 +149,12 @@ class ComputeRuntime:
             "-DNEO_ENABLE_i915_PRELIM_DETECTION=1",
             "-DNEO_ENABLE_I915_PRELIM_DETECTION=1",
             "-DNEO_SKIP_UNIT_TESTS=1",
-            f"-DGMM_DIR={gmmlib}",
-            f"-DLEVEL_ZERO_ROOT={level_zero}"
+            f"-DGMM_DIR={self.gmmlib}",
+            f"-DLEVEL_ZERO_ROOT={self.level_zero}"
         ]
+        if options.build_igc:
+            configure_command.append(f"-DIGC_DIR={self.igc}")
+
         run(configure_command)
         run(f"cmake --build {self.compute_runtime_build} -j")
         return self.compute_runtime_build
