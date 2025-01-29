@@ -362,7 +362,7 @@ struct ur_exp_command_buffer_handle_t_ {
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
-  // Device associated with this command buffer
+  // Device associated with this command-buffer
   ur_device_handle_t Device;
   // Whether commands in the command-buffer can be updated
   bool IsUpdatable;

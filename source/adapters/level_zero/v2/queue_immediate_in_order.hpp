@@ -19,20 +19,11 @@
 
 #include "ur/ur.hpp"
 
+#include "command_list_manager.hpp"
+
 namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
-
-struct ur_command_list_handler_t {
-  ur_command_list_handler_t(ur_context_handle_t hContext,
-                            ur_device_handle_t hDevice,
-                            const ur_queue_properties_t *pProps);
-
-  ur_command_list_handler_t(ze_command_list_handle_t hZeCommandList,
-                            bool ownZeHandle);
-
-  raii::command_list_unique_handle commandList;
-};
 
 struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
 private:
@@ -40,12 +31,7 @@ private:
   ur_device_handle_t hDevice;
   ur_queue_flags_t flags;
 
-  raii::cache_borrowed_event_pool eventPool;
-
-  ur_command_list_handler_t handler;
-
-  std::vector<ze_event_handle_t> waitList;
-
+  ur_command_list_manager commandListManager;
   std::vector<ur_event_handle_t> deferredEvents;
   std::vector<ur_kernel_handle_t> submittedKernels;
 
@@ -53,7 +39,7 @@ private:
   getWaitListView(const ur_event_handle_t *phWaitEvents,
                   uint32_t numWaitEvents);
 
-  ur_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
+  ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
 
   void deferEventFree(ur_event_handle_t hEvent) override;
@@ -77,6 +63,11 @@ private:
       const void *pPattern, size_t size, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
       ur_command_t commandType);
+
+  ur_result_t enqueueGenericCommandListsExp(
+      uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
+      ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_command_t callerCommand);
 
   ur_result_t
   enqueueEventsWaitWithBarrierImpl(uint32_t numEventsInWaitList,
@@ -276,6 +267,10 @@ public:
       const ur_exp_launch_property_t *launchPropList,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
+  ur_result_t
+  enqueueCommandBuffer(ze_command_list_handle_t commandBufferCommandList,
+                       ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
+                       const ur_event_handle_t *phEventWaitList) override;
   ur_result_t
   enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
                           uint32_t, const ur_mem_handle_t *,

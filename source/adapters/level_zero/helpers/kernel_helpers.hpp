@@ -33,7 +33,7 @@ ur_result_t calculateKernelWorkDimensions(
 
 /**
  * Sets the global offset for a kernel command that will be appended to the
- * command buffer.
+ * command-buffer.
  * @param[in] Context Context associated with the queue.
  * @param[in] Kernel The handle to the kernel that will be appended.
  * @param[in] WorkDim The number of work dimensions.

@@ -11101,7 +11101,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 ///         is not nullptr.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command buffer `hCommand` belongs to.
+///         on creation of the command-buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been
 ///         finalized.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
@@ -11154,7 +11154,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 ///         supported by the device associated with `hCommand`.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command buffer `hCommand` belongs to.
+///         on creation of the command-buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been
 ///         finalized.
 ///         + If no `phEvent` parameter was set on creation of the command
@@ -11185,7 +11185,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
 ///         supported by the device associated with `hCommand`.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command buffer `hCommand` belongs to.
+///         on creation of the command-buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been
 ///         finalized.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP

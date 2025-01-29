@@ -1313,7 +1313,7 @@ updateKernelArguments(kernel_command_handle *Command,
 }
 
 /**
- * Updates the command buffer command with new values from the update
+ * Updates the command-buffer command with new values from the update
  * description.
  * @param[in] Command The command to be updated.
  * @param[in] UpdateCommandDesc The update command description.
