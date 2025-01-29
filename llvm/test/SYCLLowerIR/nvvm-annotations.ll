@@ -2,7 +2,7 @@
 ; RUN: opt -passes=sycl-create-nvvm-annotations -S < %s | FileCheck %s
 
 define void @foo_reqd0() !reqd_work_group_size !6 {
-; CHECK-LABEL: define void @foo_reqd0(
+; CHECK-LABEL: define ptx_kernel void @foo_reqd0(
 ; CHECK-SAME: ) !reqd_work_group_size [[META18:![0-9]+]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -10,7 +10,7 @@ define void @foo_reqd0() !reqd_work_group_size !6 {
 }
 
 define void @foo_reqd1() !work_group_num_dim !1 !reqd_work_group_size !4 {
-; CHECK-LABEL: define void @foo_reqd1(
+; CHECK-LABEL: define ptx_kernel void @foo_reqd1(
 ; CHECK-SAME: ) !reqd_work_group_size [[META19:![0-9]+]] !work_group_num_dim [[META20:![0-9]+]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -18,7 +18,7 @@ define void @foo_reqd1() !work_group_num_dim !1 !reqd_work_group_size !4 {
 }
 
 define void @foo_reqd2() !work_group_num_dim !2 !reqd_work_group_size !5 {
-; CHECK-LABEL: define void @foo_reqd2(
+; CHECK-LABEL: define ptx_kernel void @foo_reqd2(
 ; CHECK-SAME: ) !reqd_work_group_size [[META21:![0-9]+]] !work_group_num_dim [[META22:![0-9]+]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -26,7 +26,7 @@ define void @foo_reqd2() !work_group_num_dim !2 !reqd_work_group_size !5 {
 }
 
 define void @foo_reqd3() !work_group_num_dim !3 !reqd_work_group_size !6 {
-; CHECK-LABEL: define void @foo_reqd3(
+; CHECK-LABEL: define ptx_kernel void @foo_reqd3(
 ; CHECK-SAME: ) !reqd_work_group_size [[META18]] !work_group_num_dim [[META23:![0-9]+]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -36,7 +36,7 @@ define void @foo_reqd3() !work_group_num_dim !3 !reqd_work_group_size !6 {
 ; Check that padding is ignored: we should only read the first dimension of the
 ; 3D metadata
 define void @foo_reqd4() !work_group_num_dim !1 !reqd_work_group_size !6 {
-; CHECK-LABEL: define void @foo_reqd4(
+; CHECK-LABEL: define ptx_kernel void @foo_reqd4(
 ; CHECK-SAME: ) !reqd_work_group_size [[META18]] !work_group_num_dim [[META20]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -44,7 +44,7 @@ define void @foo_reqd4() !work_group_num_dim !1 !reqd_work_group_size !6 {
 }
 
 define void @foo_max0() !work_group_num_dim !1 !max_work_group_size !6 {
-; CHECK-LABEL: define void @foo_max0(
+; CHECK-LABEL: define ptx_kernel void @foo_max0(
 ; CHECK-SAME: ) !work_group_num_dim [[META20]] !max_work_group_size [[META18]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -52,7 +52,7 @@ define void @foo_max0() !work_group_num_dim !1 !max_work_group_size !6 {
 }
 
 define void @foo_max1() !work_group_num_dim !2 !max_work_group_size !6 {
-; CHECK-LABEL: define void @foo_max1(
+; CHECK-LABEL: define ptx_kernel void @foo_max1(
 ; CHECK-SAME: ) !work_group_num_dim [[META22]] !max_work_group_size [[META18]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -60,7 +60,7 @@ define void @foo_max1() !work_group_num_dim !2 !max_work_group_size !6 {
 }
 
 define void @foo_max2() !work_group_num_dim !3 !max_work_group_size !6 {
-; CHECK-LABEL: define void @foo_max2(
+; CHECK-LABEL: define ptx_kernel void @foo_max2(
 ; CHECK-SAME: ) !work_group_num_dim [[META23]] !max_work_group_size [[META18]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -68,7 +68,7 @@ define void @foo_max2() !work_group_num_dim !3 !max_work_group_size !6 {
 }
 
 define void @foo_minwgpercu0() !min_work_groups_per_cu !2 {
-; CHECK-LABEL: define void @foo_minwgpercu0(
+; CHECK-LABEL: define ptx_kernel void @foo_minwgpercu0(
 ; CHECK-SAME: ) !min_work_groups_per_cu [[META22]] {
 ; CHECK-NEXT:    ret void
 ;
@@ -76,7 +76,7 @@ define void @foo_minwgpercu0() !min_work_groups_per_cu !2 {
 }
 
 define void @foo_maxwgpermp() !max_work_groups_per_mp !3 {
-; CHECK-LABEL: define void @foo_maxwgpermp(
+; CHECK-LABEL: define ptx_kernel void @foo_maxwgpermp(
 ; CHECK-SAME: ) !max_work_groups_per_mp [[META23]] {
 ; CHECK-NEXT:    ret void
 ;

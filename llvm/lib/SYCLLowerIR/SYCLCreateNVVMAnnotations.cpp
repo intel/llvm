@@ -17,17 +17,18 @@
 
 using namespace llvm;
 
-static void addNVVMMetadata(GlobalValue &GV, StringRef Name, int Operand) {
-  Module *M = GV.getParent();
+static void addNVVMMetadata(Function &F, StringRef Name, int Operand) {
+  Module *M = F.getParent();
   LLVMContext &Ctx = M->getContext();
 
   // Get "nvvm.annotations" metadata node
   NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
 
-  Metadata *MDVals[] = {ConstantAsMetadata::get(&GV), MDString::get(Ctx, Name),
+  Metadata *MDVals[] = {ConstantAsMetadata::get(&F), MDString::get(Ctx, Name),
                         ConstantAsMetadata::get(
                             ConstantInt::get(Type::getInt32Ty(Ctx), Operand))};
   // Append metadata to nvvm.annotations
+  F.setCallingConv(CallingConv::PTX_Kernel);
   MD->addOperand(MDNode::get(Ctx, MDVals));
 }
 
