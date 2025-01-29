@@ -12,7 +12,6 @@
 #include <condition_variable>
 #include <cstdlib>
 #include <forward_list>
-#include <functional>
 #include <future>
 #include <iterator>
 #include <mutex>
@@ -24,7 +23,7 @@
 
 namespace native_cpu {
 
-using worker_task_t = std::function<void(size_t)>;
+using worker_task_t = std::shared_ptr<std::packaged_task<void(size_t)>>;
 
 namespace detail {
 
@@ -55,7 +54,7 @@ public:
         lock.unlock();
 
         // Execute the task
-        task(m_threadId);
+        (*task)(m_threadId);
         --m_numTasks;
       }
     });
@@ -201,10 +200,12 @@ public:
 
   threadpool_interface() : threadpool() {}
 
-  auto schedule_task(worker_task_t &&task) {
+  template <class T> auto schedule_task(T &&task) {
     auto workerTask = std::make_shared<std::packaged_task<void(size_t)>>(
-        [task](auto &&PH1) { return task(std::forward<decltype(PH1)>(PH1)); });
-    threadpool.schedule([=](size_t threadId) { (*workerTask)(threadId); });
+        [task](auto &&PH1) mutable {
+          return task(std::forward<decltype(PH1)>(PH1));
+        });
+    threadpool.schedule(workerTask);
     return workerTask->get_future();
   }
 };
