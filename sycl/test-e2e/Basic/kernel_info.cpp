@@ -100,6 +100,9 @@ int main() {
   const cl_uint compileNumSg =
       krn.get_info<info::kernel_device_specific::compile_num_sub_groups>(dev);
   assert(compileNumSg <= maxNumSg);
+  const spillMemSz =
+      krn.get_info<ext::intel::info::kernel::spill_mem_size>(dev);
+  assert(spillMemSz >= 0);
 
   // Use ext_oneapi_get_kernel_info extension and check that answers match.
   const size_t wgSizeExt = syclex::get_kernel_info<
@@ -124,6 +127,12 @@ int main() {
       SingleTask, info::kernel_device_specific::compile_num_sub_groups>(ctx,
                                                                         dev);
   assert(compileNumSgExt == compileNumSg);
+
+  const uint32_t spillMemSizeExt =
+      syclex::get_kernel_info<SingleTask,
+                              ext::intel::info::kernel::spill_mem_size>(ctx,
+                                                                        dev);
+  assert(spillMemSizeExt == spillMemSz);
 
   // Use ext_oneapi_get_kernel_info extension with queue parameter and check the
   // result.

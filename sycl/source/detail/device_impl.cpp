@@ -786,6 +786,11 @@ bool device_impl::has(aspect Aspect) const {
                           BE == sycl::backend::opencl;
     return (is_cpu() || is_gpu()) && isCompatibleBE;
   }
+  case aspect::ext_intel_spill_mem_size: {
+    backend BE = getBackend();
+    bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero;
+    return is_gpu() && isCompatibleBE;
+  }
   }
 
   return false; // This device aspect has not been implemented yet.

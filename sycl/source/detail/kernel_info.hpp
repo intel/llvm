@@ -146,6 +146,52 @@ uint32_t get_kernel_device_specific_info_with_input(ur_kernel_handle_t Kernel,
 
   return Result;
 }
+
+template <>
+inline ext::intel::info::kernel::spill_mem_size::return_type
+get_kernel_device_specific_info<ext::intel::info::kernel::spill_mem_size>(
+    ur_kernel_handle_t Kernel, ur_device_handle_t Device,
+    const AdapterPtr &Adapter) {
+  size_t ResultSize = 0;
+  ur_kernel_info_t PropName = UR_KERNEL_INFO_SPILL_MEM_SIZE;
+
+  // First call to get the number of device images
+  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, PropName, 0, nullptr,
+                                            &ResultSize);
+
+  size_t DeviceCount = ResultSize / sizeof(uint32_t);
+
+  // Second call to retrieve the data
+  std::vector<uint32_t> Result(DeviceCount);
+  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, PropName, ResultSize,
+                                            Result.data(), nullptr);
+
+  ur_program_handle_t Program;
+  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
+                                            sizeof(ur_program_handle_t),
+                                            &Program, nullptr);
+  // Retrieve the associated device list
+  size_t URDevicesSize = 0;
+  Adapter->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
+                                             0, nullptr, &URDevicesSize);
+
+  std::vector<ur_device_handle_t> URDevices(URDevicesSize /
+                                            sizeof(ur_device_handle_t));
+  Adapter->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
+                                             URDevicesSize, URDevices.data(),
+                                             nullptr);
+  assert(Result.size() == URDevices.size());
+
+  // Map the result back to the program devices
+  for (size_t idx = 0; idx < URDevices.size(); ++idx) {
+    if (URDevices[idx] == Device)
+      return Result[idx];
+  }
+  throw exception(make_error_code(errc::runtime),
+                  "ext::intel::info::kernel::spill_mem_size failed to retrieve "
+                  "the requested value");
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
