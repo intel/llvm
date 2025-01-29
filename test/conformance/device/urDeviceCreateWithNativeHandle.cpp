@@ -29,7 +29,7 @@ TEST_P(urDeviceCreateWithNativeHandleTest, Success) {
                                  &dev_id, nullptr));
 }
 
-TEST_F(urDeviceCreateWithNativeHandleTest,
+TEST_P(urDeviceCreateWithNativeHandleTest,
        SuccessWithExplicitUnOwnedNativeHandle) {
   ur_native_handle_t native_handle = 0;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
