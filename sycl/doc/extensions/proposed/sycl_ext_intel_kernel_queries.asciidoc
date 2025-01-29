@@ -1,0 +1,114 @@
+= sycl_ext_intel_kernel_queries
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_intel_kernel_queries`.  The application must check that the device 
+has this aspect before using any of the APIs in this extension.
+If the application fails to do this, the implementation throws a synchronous
+exception with the `errc::feature_not_supported` error code when the info is
+queried.
+
+
+== Overview
+
+Some low-level information about kernels help applications to optimize and
+control the backend compilation. For example, an application may query the size
+of the memory allocated for register spilling by the GPU backend compiler and
+recompile a kernel with a different set of compilation flags to avoid associated
+overheads.
+This extension provides a way to access those details about compiled kernels for
+Intel GPUs. It is useful for developers tuning for those devices.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_KERNEL_QUERIES` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== Usage
+
+The information about a kernel can be queried through existing APIs:
+
+```c++
+namespace extinfo = ext::intel::info::kernel;
+auto kb = get_kernel_bundle<KernelName, bundle_state::executable>(ctx);
+auto ret = kb.get_kernel(kernelID).get_info<extinfo::Param>(dev);
+```
+
+_Constraints:_ Available only if `Param` is a valid information descriptor
+introduced by this extension.
+
+_Remarks:_ In addition to the default constraints and preconditions, exception
+is thrown if a device does not have an appropriate aspect.
+
+== Issues
+
+None.
