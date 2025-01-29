@@ -126,7 +126,7 @@ replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall,
   // case as well.
   switch (BuiltinCall.getIntrinsicID()) {
   case Intrinsic::fpbuiltin_fdiv:
-    if (Accuracy.value() != 2.5)
+    if (Accuracy.value() < 2.0)
       return false;
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
       return replaceWithLLVMIR(BuiltinCall);
@@ -134,7 +134,7 @@ replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall,
         IRBuilder.CreateIntrinsic(Type, Intrinsic::nvvm_div_approx_f, Args);
     break;
   case Intrinsic::fpbuiltin_sqrt:
-    if (Accuracy.value() != 3.0)
+    if (Accuracy.value() < 1.0)
       return false;
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
       return replaceWithLLVMIR(BuiltinCall);
@@ -182,10 +182,11 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
     return replaceWithLLVMIR(BuiltinCall);
 
   // Several functions for "sycl" and "cuda" requires "0.5" accuracy levels,
-  // which means correctly rounded results. For now x86 host AltMathLibrary
-  // doesn't have such ability. For such accuracy level, the fpbuiltins
-  // should be replaced by equivalent IR operation or llvmbuiltins.
-  if (T.isX86() && BuiltinCall.getRequiredAccuracy().value() == 0.5) {
+  // which means correctly rounded results. For now x86 host and NVPTX
+  // AltMathLibrary doesn't have such ability. For such accuracy level, the
+  // fpbuiltins should be replaced by equivalent IR operation or llvmbuiltins.
+  if ((T.isX86() || T.isNVPTX()) &&
+      BuiltinCall.getRequiredAccuracy().value() == 0.5) {
     switch (BuiltinCall.getIntrinsicID()) {
     case Intrinsic::fpbuiltin_fadd:
     case Intrinsic::fpbuiltin_fsub:
@@ -200,10 +201,10 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
     }
   }
 
-  // We don't have implementation for CUDA approximate precision builtins.
-  // Lets map them on NVPTX intrinsics. If no appropriate intrinsics are known
-  // - skip to replaceWithAltMathFunction.
-  if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() != 0.5)
+  // AltMathLibrary don't have implementation for CUDA approximate precision
+  // builtins. Lets map them on NVPTX intrinsics. If no appropriate intrinsics
+  // are known - skip to emit an error.
+  if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() > 0.5)
     if (replaceWithApproxNVPTXCallsOrFallback(
             BuiltinCall, BuiltinCall.getRequiredAccuracy()))
       return true;
