@@ -128,6 +128,7 @@ attributes #2 = { nounwind }
 !77 = !{!"ext_oneapi_bindless_images_sample_2d_usm", i32 79}
 !78 = !{!"ext_oneapi_atomic16", i32 80}
 !79 = !{!"ext_oneapi_virtual_functions", i32 81}
+!79 = !{!"ext_intel_spill_mem_size", i32 82}
 !80 = !{!"host", i32 0}
 !81 = !{!"int64_base_atomics", i32 7}
 !82 = !{!"int64_extended_atomics", i32 8}

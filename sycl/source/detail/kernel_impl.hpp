@@ -383,6 +383,21 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
                                DynamicLocalMemorySize);
 }
 
+template <>
+inline typename ext::intel::info::kernel::spill_mem_size::return_type
+kernel_impl::get_info<ext::intel::info::kernel::spill_mem_size>(
+    const device &Device) const {
+  if (!Device.has(aspect::ext_intel_spill_mem_size))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "This device does not have the ext_intel_spill_mem_size aspect");
+
+  return get_kernel_device_specific_info<
+      ext::intel::info::kernel::spill_mem_size>(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      getAdapter());
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
