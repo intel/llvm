@@ -97,13 +97,14 @@ jobs:
       runner_name: OPENCL
       platform: "Intel(R) OpenCL"
 
+  # TODO: temporarily change runner name to UR_CUDA, as there's already CUDA runner here
   cuda:
     name: CUDA
     needs: [source_checks]
     uses: ./.github/workflows/ur-build-hw.yml
     with:
       adapter_name: CUDA
-      runner_name: CUDA
+      runner_name: UR_CUDA
 
   hip:
     name: HIP
