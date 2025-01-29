@@ -41,10 +41,10 @@ public:
   event_pool &operator=(const event_pool &) = delete;
 
   // Allocate an event from the pool. Thread safe.
-  ur_pooled_event_t *allocate();
+  ur_event_handle_t allocate();
 
   // Free an event back to the pool. Thread safe.
-  void free(ur_pooled_event_t *event);
+  void free(ur_event_handle_t event);
 
   event_provider *getProvider() const;
   event_flags_t getFlags() const;
@@ -53,8 +53,8 @@ private:
   ur_context_handle_t hContext;
   std::unique_ptr<event_provider> provider;
 
-  std::deque<ur_pooled_event_t> events;
-  std::vector<ur_pooled_event_t *> freelist;
+  std::deque<ur_event_handle_t_> events;
+  std::vector<ur_event_handle_t> freelist;
 
   std::unique_ptr<std::mutex> mutex;
 };
