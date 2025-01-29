@@ -1,0 +1,35 @@
+# This workflow performs trivy check of docker config files.
+# It triggers only on pushs to devops/containers.
+# For more info: https://github.com/aquasecurity/trivy-action
+
+name: Trivy
+
+on:
+  push:
+    paths:
+      - 'devops/containers/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: devops
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          scan-type: 'config'
+          scan-ref: devops/containers
+          trivyignores: devops/.trivyignore.txt
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'

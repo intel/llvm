@@ -1,0 +1,3 @@
+misconfigurations:
+  - id: AVD-DS-0026
+    statement: "Our containers do not provide running services, but only preinstalled tools, there is not much value in adding HEALTHCHECK directives"
