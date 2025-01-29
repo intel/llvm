@@ -1,7 +1,14 @@
-# commit 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b
-# Merge: c270a6b8 264d0468
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Jan 28 15:16:58 2025 +0000
-#     Merge pull request #2594 from kbenzie/benie/cl-core-functions-no-dlopen
-#     Fix invalid use of dlopen()
-set(UNIFIED_RUNTIME_TAG 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b)
+set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+# commit a7cd75633517d96f87ea2172f95549a3d1e5c1bd
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 28 13:17:06 2025 +0000
+#     Don't use inheritence for L0 V2 event handles
+#
+#     In the future, we are going to require that handle objects have no
+#     vtable, so this change combines "native" and "pooled" event into one
+#     class. A variant is used to determine whether the event is native or
+#     pooled.
+#
+#     For consistency, parameter order in constructors have been changed to
+#     always start with the context.
+set(UNIFIED_RUNTIME_TAG a7cd75633517d96f87ea2172f95549a3d1e5c1bd)
