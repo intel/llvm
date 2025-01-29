@@ -66,6 +66,7 @@ int main() try {
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
   sycl::range R{1024};
 
+  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 3; ++TestCase) {
     std::vector<float> HostData(R.size());
     for (size_t I = 1; I < HostData.size(); ++I)
@@ -81,7 +82,7 @@ int main() try {
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.parallel_for(R, KernelFunctor(DeviceStorage, DataAcc));
+      CGH.parallel_for(R, props, KernelFunctor(DeviceStorage, DataAcc));
     });
 
     auto *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);
