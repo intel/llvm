@@ -34,16 +34,16 @@ endif()
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
-    set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit d983db7aa87fc1a6f7cdb46e3ced63f6f145749e
-    # Merge: 1d3a925c 2c510ca2
+    set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
+    # commit 846a5c6118826171fb1c93702dd12b004053165c
+    # Merge: 81355afb 11967b11
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Tue Oct 15 15:50:57 2024 +0100
+    # Date:   Fri Jan 24 15:41:13 2025 +0000
     # 
-    #     Merge pull request #566 from hvdijk/fix-clang-format
+    #     Merge pull request #659 from hvdijk/vec-size-1
     #     
-    #     clang-format: fix output.
-    set(OCK_GIT_INTERNAL_TAG d983db7aa87fc1a6f7cdb46e3ced63f6f145749e)
+    #     [vecz] Handle vectors of size 1.
+    set(OCK_GIT_INTERNAL_TAG 846a5c6118826171fb1c93702dd12b004053165c)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
