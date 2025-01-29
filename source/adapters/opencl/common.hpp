@@ -206,7 +206,7 @@ CONSTFIX char EnqueueReadGlobalVariableName[] =
 // Names of host pipe functions queried from OpenCL
 CONSTFIX char EnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
 CONSTFIX char EnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
-// Names of command buffer functions queried from OpenCL
+// Names of command-buffer functions queried from OpenCL
 CONSTFIX char CreateCommandBufferName[] = "clCreateCommandBufferKHR";
 CONSTFIX char RetainCommandBufferName[] = "clRetainCommandBufferKHR";
 CONSTFIX char ReleaseCommandBufferName[] = "clReleaseCommandBufferKHR";

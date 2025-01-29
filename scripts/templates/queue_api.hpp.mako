@@ -20,9 +20,12 @@ from templates import helper as th
  *
  */
 
+// Do not edit. This file is auto generated from a template: scripts/templates/queue_api.hpp.mako
+
 #pragma once
 
 #include <ur_api.h>
+#include <ze_api.h>
 
 struct ur_queue_handle_t_ {
     virtual ~ur_queue_handle_t_();
@@ -32,4 +35,8 @@ struct ur_queue_handle_t_ {
     %for obj in th.get_queue_related_functions(specs, n, tags):
     virtual ${x}_result_t ${th.transform_queue_related_function_name(n, tags, obj, format=["type"])} = 0;
     %endfor
+
+    virtual ur_result_t
+    enqueueCommandBuffer(ze_command_list_handle_t, ur_event_handle_t *,
+    uint32_t, const ur_event_handle_t *) = 0;
 };

@@ -173,7 +173,7 @@ ur_result_t getEventsFromSyncPoints(
 /**
  * If needed, creates a sync point for a given command and returns the L0
  * events associated with the sync point.
- * This operations is skipped if the command buffer is in order.
+ * This operations is skipped if the command-buffer is in order.
  * @param[in] CommandType The type of the command.
  * @param[in] CommandBuffer The CommandBuffer where the command is appended.
  * @param[in] NumSyncPointsInWaitList Number of sync points that are
@@ -252,7 +252,7 @@ ur_result_t enqueueCommandBufferMemCopyHelper(
 }
 
 // Helper function for common code when enqueuing rectangular memory operations
-// to a command buffer.
+// to a command-buffer.
 ur_result_t enqueueCommandBufferMemCopyRectHelper(
     ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
     void *Dst, const void *Src, ur_rect_offset_t SrcOrigin,
@@ -584,10 +584,10 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 }
 
 /**
- * Checks whether the command buffer can be constructed using in order
+ * Checks whether the command-buffer can be constructed using in order
  * command-lists.
- * @param[in] Context The Context associated with the command buffer.
- * @param[in] CommandBufferDesc The description of the command buffer.
+ * @param[in] Context The Context associated with the command-buffer.
+ * @param[in] CommandBufferDesc The description of the command-buffer.
  * @return Returns true if in order command-lists can be enabled.
  */
 bool canBeInOrder(ur_context_handle_t Context,
@@ -810,7 +810,7 @@ finalizeImmediateAppendPath(ur_exp_command_buffer_handle_t CommandBuffer) {
                 CommandBuffer->AllResetEvent->ZeEvent));
 
     // All the events are reset by default. So signal the all reset event for
-    // the first run of the command buffer
+    // the first run of the command-buffer
     ZE2UR_CALL(zeEventHostSignal, (CommandBuffer->AllResetEvent->ZeEvent));
   }
 
@@ -887,7 +887,7 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
 
 /**
  * Sets the kernel arguments for a kernel command that will be appended to the
- * command buffer.
+ * command-buffer.
  * @param[in] Device The Device associated with the command-buffer where the
  * kernel command will be appended.
  * @param[in,out] Arguments stored in the ur_kernel_handle_t object to be set
@@ -918,7 +918,7 @@ ur_result_t setKernelPendingArguments(
 }
 
 /**
- * Creates a new command handle to use in future updates to the command buffer.
+ * Creates a new command handle to use in future updates to the command-buffer.
  * @param[in] CommandBuffer The CommandBuffer associated with the new command.
  * @param[in] Kernel  The Kernel associated with the new command.
  * @param[in] WorkDim Dimensions of the kernel associated with the new command.
@@ -1315,7 +1315,7 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
   std::ignore = Flags;
 
   if (CommandBuffer->IsInOrderCmdList) {
-    // Add the prefetch command to the command buffer.
+    // Add the prefetch command to the command-buffer.
     // Note that L0 does not handle migration flags.
     ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
                (CommandBuffer->ZeComputeCommandList, Mem, Size));
@@ -1332,7 +1332,7 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
                   ZeEventList.data()));
     }
 
-    // Add the prefetch command to the command buffer.
+    // Add the prefetch command to the command-buffer.
     // Note that L0 does not handle migration flags.
     ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
                (CommandBuffer->ZeComputeCommandList, Mem, Size));
@@ -1463,7 +1463,7 @@ ur_result_t urCommandBufferAppendUSMFillExp(
 
 /**
  * Gets an L0 command queue that supports the chosen engine.
- * @param[in] Queue The UR queue used to submit the command buffer.
+ * @param[in] Queue The UR queue used to submit the command-buffer.
  * @param[in] UseCopyEngine Which engine to use. true for the copy engine and
  * false for the compute engine.
  * @param[out] ZeCommandQueue The L0 command queue.
@@ -1478,9 +1478,9 @@ ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
 }
 
 /**
- * Waits for the all the dependencies of the command buffer
- * @param[in] CommandBuffer The command buffer.
- * @param[in] Queue The UR queue used to submit the command buffer.
+ * Waits for the all the dependencies of the command-buffer
+ * @param[in] CommandBuffer The command-buffer.
+ * @param[in] Queue The UR queue used to submit the command-buffer.
  * @param[in] NumEventsInWaitList The number of events to wait for.
  * @param[in] EventWaitList List of events to wait for.
  * @return UR_RESULT_SUCCESS or an error code on failure
@@ -1546,10 +1546,10 @@ ur_result_t appendProfilingQueries(ur_exp_command_buffer_handle_t CommandBuffer,
                                    ur_event_handle_t SignalEvent,
                                    ur_event_handle_t WaitEvent,
                                    ur_event_handle_t ProfilingEvent) {
-  // Multiple submissions of a command buffer implies that we need to save
-  // the event timestamps before resubmiting the command buffer. We
+  // Multiple submissions of a command-buffer implies that we need to save
+  // the event timestamps before resubmiting the command-buffer. We
   // therefore copy these timestamps in a dedicated USM memory section
-  // before completing the command buffer execution, and then attach this
+  // before completing the command-buffer execution, and then attach this
   // memory to the event returned to users to allow the profiling
   // engine to recover these timestamps.
   command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
@@ -2129,9 +2129,9 @@ ur_result_t updateKernelCommand(
  */
 ur_result_t
 waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
-  // Calling function has taken a lock for the command buffer so we can safely
+  // Calling function has taken a lock for the command-buffer so we can safely
   // check and modify this value here.
-  // If command buffer was recently synchronized we can return early.
+  // If command-buffer was recently synchronized we can return early.
   if (!CommandBuffer->NeedsUpdateSynchronization) {
     return UR_RESULT_SUCCESS;
   }
@@ -2147,7 +2147,7 @@ waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
   } else if (ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence) {
     ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
   }
-  // Mark that command buffer was recently synchronized
+  // Mark that command-buffer was recently synchronized
   CommandBuffer->NeedsUpdateSynchronization = false;
   return UR_RESULT_SUCCESS;
 }
@@ -2162,7 +2162,7 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
 
   UR_ASSERT(KernelCommandHandle->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  // Lock command, kernel and command buffer for update.
+  // Lock command, kernel and command-buffer for update.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Guard(
       Command->Mutex, Command->CommandBuffer->Mutex,
       KernelCommandHandle->Kernel->Mutex);

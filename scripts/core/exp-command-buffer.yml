@@ -1211,7 +1211,7 @@ returns:
         - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET is not supported by the device but `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr."
         - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE is not supported by the device but `pUpdateKernelLaunch->hNewKernel` is not nullptr."
     - $X_RESULT_ERROR_INVALID_OPERATION:
-        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to."
+        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command-buffer `hCommand` belongs to."
         - "If the command-buffer `hCommand` belongs to has not been finalized."
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP:
         - "If `hCommand` is not a kernel execution command."
@@ -1244,7 +1244,7 @@ returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS is not supported by the device associated with `hCommand`."
     - $X_RESULT_ERROR_INVALID_OPERATION:
-        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to."
+        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command-buffer `hCommand` belongs to."
         - "If the command-buffer `hCommand` belongs to has not been finalized."
         - "If no `phEvent` parameter was set on creation of the command associated with `hCommand`."
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
@@ -1270,7 +1270,7 @@ returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS is not supported by the device associated with `hCommand`."
     - $X_RESULT_ERROR_INVALID_OPERATION:
-        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to."
+        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command-buffer `hCommand` belongs to."
         - "If the command-buffer `hCommand` belongs to has not been finalized."
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:

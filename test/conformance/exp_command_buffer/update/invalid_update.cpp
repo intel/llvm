@@ -119,7 +119,7 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
 
   // Append a kernel commands to command-buffer and close command-buffer
   // Should be an error because we are trying to get command handle but
-  // command buffer is not updatable.
+  // command-buffer is not updatable.
   ur_exp_command_buffer_command_handle_t test_command_handle = nullptr;
   ASSERT_EQ_RESULT(urCommandBufferAppendKernelLaunchExp(
                        test_cmd_buf_handle, kernel, n_dimensions,

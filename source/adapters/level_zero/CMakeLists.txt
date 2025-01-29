@@ -143,7 +143,9 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         # v2-only sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_manager.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool_cache.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool.hpp
@@ -157,7 +159,9 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_manager.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool_cache.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool.cpp

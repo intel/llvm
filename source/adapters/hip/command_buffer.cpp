@@ -1024,7 +1024,7 @@ updateKernelArguments(ur_exp_command_buffer_command_handle_t Command,
 }
 
 /**
- * Updates the command buffer command with new values from the update
+ * Updates the command-buffer command with new values from the update
  * description.
  * @param[in] Command The command to be updated.
  * @param[in] UpdateCommandDesc The update command description.
