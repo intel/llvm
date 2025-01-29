@@ -29,10 +29,6 @@
 
 #include <vector>
 
-// CP - remove
-//#define CPOUT  std::clog
-#define CPOUT  std::clog.rdbuf(NULL); std::clog
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -64,11 +60,6 @@ public:
 
       LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
       MCounter--;
-      // CP - CLEANUP NEEDED
-      // GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      // if (RTGlobalObjHandler) {
-      //   RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
-      // }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
@@ -80,10 +71,8 @@ private:
 };
 std::atomic_uint ObjectUsageCounter::MCounter{0};
 
-  //GlobalHandler::GlobalHandler() = default;
-  //GlobalHandler::~GlobalHandler() = default;
-  GlobalHandler::GlobalHandler(){ CPOUT << "GlobalHandler constructor ---" << std::endl; }
-  GlobalHandler::~GlobalHandler() { CPOUT << "~GlobalHandler destructor  ---" << std::endl; }
+GlobalHandler::GlobalHandler() = default;
+GlobalHandler::~GlobalHandler() = default;
 
 void GlobalHandler::InitXPTI() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -248,10 +237,9 @@ struct EarlyShutdownHandler {
   ~EarlyShutdownHandler() {
     try {
 #ifdef _WIN32
-      // CP - CLEANUP NEEDED
       // on Windows we keep to the existing shutdown procedure
-      //GlobalHandler::instance().releaseDefaultContexts();
-      shutdown_early();
+      GlobalHandler::instance().endDeferredRelease();
+      GlobalHandler::instance().releaseDefaultContexts();
       shutdown_win();
 #else
       shutdown_early();
@@ -308,8 +296,7 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-  // CP - CLEANUP NEEDED
-  //#ifdef _WIN32
+#ifdef _WIN32
 // because of something not-yet-understood on Windows
 // threads may be shutdown once the end of main() is reached
 // making an orderly shutdown difficult. Fortunately, Windows
@@ -317,13 +304,11 @@ void GlobalHandler::drainThreadPool() {
 // we focus solely on unloading the adapters, so as to not
 // accidentally retain device handles. etc
 void shutdown_win() {
-  CPOUT  << "shutdown_win() ---" << std::endl;
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadAdapters();
 }
-  //#else
+#else
 void shutdown_early() {
-  CPOUT  << "shutdown_early() ---" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -345,7 +330,6 @@ void shutdown_early() {
 }
 
 void shutdown_late() {
-  CPOUT << "shutdown_late() --- " << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -367,7 +351,7 @@ void shutdown_late() {
   delete Handler;
   Handler = nullptr;
 }
-  //#endif
+#endif
 
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
@@ -387,24 +371,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   case DLL_PROCESS_DETACH:
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
-    /*
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    if (xptiTraceEnabled())
-      return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents
-                   // release.
-#endif
-
-    try {
-      // CP - CLEANUP NEEDED
-      //shutdown_early();
-      //shutdown_win(); // works
-      //shutdown_late();
-    } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
-      return FALSE;
-    }
-    */
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintUrTrace)
