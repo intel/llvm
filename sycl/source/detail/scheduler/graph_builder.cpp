@@ -247,7 +247,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
 void Scheduler::GraphBuilder::updateLeaves(
     Command *NewCmd, const std::set<Command *> &Cmds, MemObjRecord *Record,
     access::mode AccessMode, const MapOfDependentCmds &DependentCmdsOfNewCmd,
-    const QueueImplPtr &/*Queue*/, std::vector<Command *> &ToCleanUp,
+    const QueueImplPtr &Queue, std::vector<Command *> &ToCleanUp,
     std::vector<Command *> &ToEnqueue) {
 
   const bool ReadOnlyReq = AccessMode == access::mode::read;
@@ -262,7 +262,7 @@ void Scheduler::GraphBuilder::updateLeaves(
     }
     if (detectDuplicates(Cmd, DependentCmdsOfNewCmd))
       commandToCleanup(NewCmd, Cmd, ToEnqueue);
-#if 0
+#if 1
     // CGType::CopyAccToAcc implementation requires that dependent command is
     // not a cleanup subject. So disable this code for now.
 
