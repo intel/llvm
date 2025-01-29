@@ -67,8 +67,11 @@ def do_configure(args):
     llvm_enable_zstd = "ON"
 
     if sys.platform != "darwin":
-        sycl_enabled_backends.append("level_zero")
-        sycl_enabled_backends.append("level_zero_v2")
+        if args.level_zero_v2:
+            sycl_enabled_backends.append("level_zero_v2")
+        else:
+            sycl_enabled_backends.append("level_zero")
+
 
     # lld is needed on Windows or for the HIP adapter on AMD
     if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
@@ -319,6 +322,9 @@ def main():
     )
     parser.add_argument(
         "--native_cpu", action="store_true", help="Enable SYCL Native CPU"
+    )
+    parser.add_argument(
+        "--level_zero_v2", action="store_true", help="Enable SYCL level_zero_v2"
     )
     parser.add_argument("--hip", action="store_true", help="switch from OpenCL to HIP")
     parser.add_argument(
