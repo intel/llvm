@@ -4,4 +4,4 @@
 # Date:   Mon Jan 13 10:41:50 2025 +0000
 #     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
 #     Parameterize CTS tests across all available adapters and devices.
-set(UNIFIED_RUNTIME_TAG 58ccaa9781af27192bb4dcab6b71193f7b016f50)
+set(UNIFIED_RUNTIME_TAG 5ce773d54b2f1f765789ac95ac37f6770ea2aaa4)
