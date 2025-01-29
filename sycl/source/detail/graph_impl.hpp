@@ -1120,7 +1120,7 @@ public:
     return MBarrierDependencyMap[Queue];
   }
 
-  unsigned long long getID() { return MID; }
+  unsigned long long getID() const { return MID; }
 
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
@@ -1202,6 +1202,7 @@ private:
       MBarrierDependencyMap;
 
   unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
@@ -1302,7 +1303,7 @@ public:
 
   void updateImpl(std::shared_ptr<node_impl> NodeImpl);
 
-  unsigned long long getID() { return MID; }
+  unsigned long long getID() const { return MID; }
 
 private:
   /// Create a command-group for the node and add it to command-buffer by going
@@ -1417,6 +1418,7 @@ private:
   std::multimap<node_impl::id_type, std::shared_ptr<node_impl>> MIDCache;
 
   unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
@@ -1505,7 +1507,7 @@ public:
                                int ArgIndex,
                                const sycl::detail::AccessorBaseHost *Acc);
 
-  unsigned long long getID() { return MID; }
+  unsigned long long getID() const { return MID; }
 
   // Weak ptrs to node_impls which will be updated
   std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
@@ -1517,6 +1519,7 @@ public:
 
 private:
   unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
@@ -1559,10 +1562,11 @@ public:
   /// List of nodes using this dynamic command-group.
   std::vector<std::weak_ptr<node_impl>> MNodes;
 
-  unsigned long long getID() { return MID; }
+  unsigned long long getID() const { return MID; }
 
 private:
   unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 } // namespace detail

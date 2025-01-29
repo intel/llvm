@@ -2171,8 +2171,8 @@ size_t std::hash<sycl::ext::oneapi::experimental::node>::operator()(
 
 size_t
 std::hash<sycl::ext::oneapi::experimental::dynamic_command_group>::operator()(
-    const sycl::ext::oneapi::experimental::dynamic_command_group &DynamicCGH)
+    const sycl::ext::oneapi::experimental::dynamic_command_group &DynamicCG)
     const {
-  auto ID = sycl::detail::getSyclObjImpl(DynamicCGH)->getID();
+  auto ID = sycl::detail::getSyclObjImpl(DynamicCG)->getID();
   return std::hash<decltype(ID)>()(ID);
 }

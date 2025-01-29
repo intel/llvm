@@ -334,6 +334,12 @@
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBX@Z
+??4?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@AEBU01@@Z
+??4?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@$$QEAU01@@Z
+??R?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@Z
+??R?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVnode@experimental@oneapi@ext@_V1@sycl@@@Z
+??4?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@$$QEAU01@@Z
+??4?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@AEBU01@@Z
 ??0event@_V1@sycl@@AEAA@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
 ??0event@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0event@_V1@sycl@@QEAA@AEBV012@@Z

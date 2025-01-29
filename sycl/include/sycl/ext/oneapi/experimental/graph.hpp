@@ -17,7 +17,7 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
 #endif
-#include <sycl/device.hpp> // for device
+#include <sycl/device.hpp>                     // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
