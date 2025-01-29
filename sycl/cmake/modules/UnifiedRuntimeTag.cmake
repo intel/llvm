@@ -1,7 +1,7 @@
-# commit eaea885d5477c8936209175a5b00062ca44f5765
-# Merge: af4ab49c 2a03334c
+# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
+# Merge: e370a2b9 eeff9f4a
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 16 14:30:47 2025 +0000
-#     Merge pull request #2569 from zhaomaosu/asan-only-warn-host-ptr
-#     [DevASAN] Only report warning if passing host ptr to kernel
-set(UNIFIED_RUNTIME_TAG eaea885d5477c8936209175a5b00062ca44f5765)
+# Date:   Mon Jan 27 10:40:02 2025 +0000
+#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
+#     Enable creation of bindless images backed by host USM
+set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)

@@ -57,7 +57,7 @@ int main() {
 
   auto res = sycl::malloc_host<int>(3, ctx);
   auto KernelLambda = [=]() {
-    res[0] = sycl::ext::intel::math::float2int_rd(4.0) + (int)sqrtf(4.0f) +
+    res[0] = sycl::ext::intel::math::float2int_rd(4.0f) + (int)sqrtf(4.0f) +
              std::exp(std::complex<float>(0.f, 0.f)).real();
   };
   // Test case 1
