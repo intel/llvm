@@ -280,13 +280,13 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     return true;
 
 #ifdef _WIN32
-  bool allowWait = MemObj->hasUserDataPtr() ||
-                   GlobalHandler::instance().isOkToDefer();
+  bool allowWait =
+      MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
 #else
   bool allowWait = true;
 #endif
- 
-  if(allowWait) {
+
+  if (allowWait) {
     // This only needs a shared mutex as it only involves enqueueing and
     // awaiting for events
     ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
