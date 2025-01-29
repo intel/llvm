@@ -85,10 +85,6 @@ struct NDRangeUpdateTest
       EXPECT_SUCCESS(urUSMFree(context, shared_ptr));
     }
 
-    if (command_handle) {
-      EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(command_handle));
-    }
-
     UUR_RETURN_ON_FATAL_FAILURE(
         urUpdatableCommandBufferExpExecutionTest::TearDown());
   }

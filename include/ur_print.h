@@ -3172,26 +3172,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferEnqueueExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_command_buffer_retain_command_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferRetainCommandExpParams(
-    const struct ur_command_buffer_retain_command_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_command_buffer_release_command_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferReleaseCommandExpParams(
-    const struct ur_command_buffer_release_command_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_command_buffer_update_kernel_launch_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3233,16 +3213,6 @@ urPrintCommandBufferUpdateWaitEventsExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferGetInfoExpParams(
     const struct ur_command_buffer_get_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_command_buffer_command_get_info_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferCommandGetInfoExpParams(
-    const struct ur_command_buffer_command_get_info_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_p2p_enable_peer_access_exp_params_t struct

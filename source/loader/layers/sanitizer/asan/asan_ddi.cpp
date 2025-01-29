@@ -1986,7 +1986,6 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     FuncPtr = CommandBufferNotSupported<decltype(FuncPtr)>::ReportError;       \
   } while (0)
 
-  SET_UNSUPPORTED(pDdiTable->pfnCreateExp);
   SET_UNSUPPORTED(pDdiTable->pfnRetainExp);
   SET_UNSUPPORTED(pDdiTable->pfnReleaseExp);
   SET_UNSUPPORTED(pDdiTable->pfnFinalizeExp);
@@ -2002,13 +2001,10 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   SET_UNSUPPORTED(pDdiTable->pfnAppendUSMPrefetchExp);
   SET_UNSUPPORTED(pDdiTable->pfnAppendUSMAdviseExp);
   SET_UNSUPPORTED(pDdiTable->pfnEnqueueExp);
-  SET_UNSUPPORTED(pDdiTable->pfnRetainCommandExp);
-  SET_UNSUPPORTED(pDdiTable->pfnReleaseCommandExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateKernelLaunchExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateSignalEventExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateWaitEventsExp);
   SET_UNSUPPORTED(pDdiTable->pfnGetInfoExp);
-  SET_UNSUPPORTED(pDdiTable->pfnCommandGetInfoExp);
 
 #undef SET_UNSUPPORTED
 

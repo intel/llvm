@@ -21,11 +21,7 @@
 
 namespace {
 ur_result_t
-commandBufferReleaseInternal(ur_exp_command_buffer_handle_t CommandBuffer) try {
-  if (CommandBuffer->decrementInternalReferenceCount() != 0) {
-    return UR_RESULT_SUCCESS;
-  }
-
+commandBufferDestroy(ur_exp_command_buffer_handle_t CommandBuffer) try {
   // Release the memory allocated to the CudaGraph
   UR_CHECK_ERROR(cuGraphDestroy(CommandBuffer->CudaGraph));
 
@@ -40,15 +36,8 @@ commandBufferReleaseInternal(ur_exp_command_buffer_handle_t CommandBuffer) try {
   return Err;
 }
 
-ur_result_t commandHandleReleaseInternal(
-    ur_exp_command_buffer_command_handle_t Command) try {
-  if (Command->decrementInternalReferenceCount() != 0) {
-    return UR_RESULT_SUCCESS;
-  }
-
-  // Decrement parent command-buffer internal ref count
-  commandBufferReleaseInternal(Command->CommandBuffer);
-
+ur_result_t commandHandleDestroy(
+    std::unique_ptr<ur_exp_command_buffer_command_handle_t_> &Command) try {
   // We create the ur_event_t returned to the user for a signal node using
   // `makeWithNative` which sets `HasOwnership` to false. Therefore destruction
   // of the `ur_event_t` object doesn't free the underlying CuEvent_t object and
@@ -60,7 +49,6 @@ ur_result_t commandHandleReleaseInternal(
     UR_CHECK_ERROR(cuEventDestroy(SignalEvent));
   }
 
-  delete Command;
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -70,8 +58,8 @@ ur_result_t commandHandleReleaseInternal(
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable)
     : Context(Context), Device(Device), IsUpdatable(IsUpdatable),
-      CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCountInternal{1},
-      RefCountExternal{1}, NextSyncPoint{0} {
+      CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1},
+      NextSyncPoint{0} {
   urContextRetain(Context);
   urDeviceRetain(Device);
 }
@@ -149,15 +137,6 @@ kernel_command_handle::kernel_command_handle(
                               KernelAlternatives + NumKernelAlternatives);
   }
 };
-
-ur_exp_command_buffer_command_handle_t_::
-    ur_exp_command_buffer_command_handle_t_(
-        ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
-        CUgraphNode SignalNode, const std::vector<CUgraphNode> &WaitNodes)
-    : CommandBuffer(CommandBuffer), Node(Node), SignalNode(SignalNode),
-      WaitNodes(WaitNodes), RefCountInternal(1), RefCountExternal(1) {
-  CommandBuffer->incrementInternalReferenceCount();
-}
 
 /// Helper function for finding the Cuda Nodes associated with the
 /// commands in a command-buffer, each event is pointed to by a sync-point in
@@ -356,14 +335,14 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
   std::vector<CUgraphNode> WaitNodes =
       NumEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new T(CommandBuffer, GraphNode, SignalNode, WaitNodes,
-                          std::move(DecomposedNodes));
-  CommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<T>(CommandBuffer, GraphNode, SignalNode,
+                                        WaitNodes, std::move(DecomposedNodes));
   if (RetCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *RetCommand = NewCommand;
+    *RetCommand = NewCommand.get();
   }
+
+  CommandBuffer->CommandHandles.push_back(std::move(NewCommand));
+
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -397,22 +376,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->incrementInternalReferenceCount();
-  hCommandBuffer->incrementExternalReferenceCount();
+  hCommandBuffer->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->decrementExternalReferenceCount() == 0) {
-    // External ref count has reached zero, internal release of created
-    // commands.
-    for (auto Command : hCommandBuffer->CommandHandles) {
-      commandHandleReleaseInternal(Command);
+  if (hCommandBuffer->decrementReferenceCount() == 0) {
+    // Ref count has reached zero, release of created commands
+    for (auto &Command : hCommandBuffer->CommandHandles) {
+      commandHandleDestroy(Command);
     }
+
+    return commandBufferDestroy(hCommandBuffer);
   }
 
-  return commandBufferReleaseInternal(hCommandBuffer);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -556,16 +535,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
     std::vector<CUgraphNode> WaitNodes =
         numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-    auto NewCommand = new kernel_command_handle(
+    auto NewCommand = std::make_unique<kernel_command_handle>(
         hCommandBuffer, hKernel, GraphNode, NodeParams, workDim,
         pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numKernelAlternatives, phKernelAlternatives, SignalNode, WaitNodes);
-    hCommandBuffer->CommandHandles.push_back(NewCommand);
 
     if (phCommand) {
-      NewCommand->incrementInternalReferenceCount();
-      *phCommand = NewCommand;
+      *phCommand = NewCommand.get();
     }
+
+    hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -613,14 +592,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new usm_memcpy_command_handle(hCommandBuffer, GraphNode,
-                                                  SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<usm_memcpy_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -679,14 +657,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_copy_command_handle(hCommandBuffer, GraphNode,
-                                                   SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
+  auto NewCommand = std::make_unique<buffer_copy_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
 
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -742,14 +720,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_copy_rect_command_handle(
+  auto NewCommand = std::make_unique<buffer_copy_rect_command_handle>(
       hCommandBuffer, GraphNode, SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
 
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -801,14 +779,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_write_command_handle(hCommandBuffer, GraphNode,
-                                                    SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<buffer_write_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -859,14 +836,13 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_read_command_handle(hCommandBuffer, GraphNode,
-                                                   SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
-
+  auto NewCommand = std::make_unique<buffer_read_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -921,14 +897,14 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_write_rect_command_handle(
+  auto NewCommand = std::make_unique<buffer_write_rect_command_handle>(
       hCommandBuffer, GraphNode, SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
 
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -983,14 +959,14 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new buffer_read_rect_command_handle(
+  auto NewCommand = std::make_unique<buffer_read_rect_command_handle>(
       hCommandBuffer, GraphNode, SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
 
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -1037,14 +1013,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new usm_prefetch_command_handle(hCommandBuffer, GraphNode,
-                                                    SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
+  auto NewCommand = std::make_unique<usm_prefetch_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
 
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -1091,14 +1067,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
   std::vector<CUgraphNode> WaitNodes =
       numEventsInWaitList ? std::move(DepsList) : std::vector<CUgraphNode>();
-  auto NewCommand = new usm_advise_command_handle(hCommandBuffer, GraphNode,
-                                                  SignalNode, WaitNodes);
-  hCommandBuffer->CommandHandles.push_back(NewCommand);
+  auto NewCommand = std::make_unique<usm_advise_command_handle>(
+      hCommandBuffer, GraphNode, SignalNode, WaitNodes);
 
   if (phCommand) {
-    NewCommand->incrementInternalReferenceCount();
-    *phCommand = NewCommand;
+    *phCommand = NewCommand.get();
   }
+
+  hCommandBuffer->CommandHandles.push_back(std::move(NewCommand));
 
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
@@ -1184,19 +1160,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  hCommand->incrementExternalReferenceCount();
-  hCommand->incrementInternalReferenceCount();
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
-    ur_exp_command_buffer_command_handle_t hCommand) {
-  hCommand->decrementExternalReferenceCount();
-  return commandHandleReleaseInternal(hCommand);
 }
 
 /**
@@ -1487,7 +1450,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommandBuffer->getExternalReferenceCount());
+    return ReturnValue(hCommandBuffer->getReferenceCount());
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
@@ -1500,22 +1463,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   }
   default:
     assert(!"Command-buffer info request not implemented");
-  }
-
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    ur_exp_command_buffer_command_info_t propName, size_t propSize,
-    void *pPropValue, size_t *pPropSizeRet) {
-  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-
-  switch (propName) {
-  case UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommand->getExternalReferenceCount());
-  default:
-    assert(!"Command-buffer command info request not implemented");
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;

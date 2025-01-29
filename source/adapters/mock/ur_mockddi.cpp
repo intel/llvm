@@ -9810,98 +9810,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferRetainCommandExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
-    /// [in][retain] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_command_buffer_retain_command_exp_params_t params = {&hCommand};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urCommandBufferRetainCommandExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urCommandBufferRetainCommandExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    mock::retainDummyHandle(hCommand);
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urCommandBufferRetainCommandExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferReleaseCommandExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
-    /// [in][release] Handle of the command-buffer command.
-    ur_exp_command_buffer_command_handle_t hCommand) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_command_buffer_release_command_exp_params_t params = {&hCommand};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urCommandBufferReleaseCommandExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urCommandBufferReleaseCommandExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    mock::releaseDummyHandle(hCommand);
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urCommandBufferReleaseCommandExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     /// [in] Handle of the command-buffer kernel command to update.
@@ -10094,61 +10002,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback("urCommandBufferGetInfoExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferCommandGetInfoExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
-    /// [in] handle of the command-buffer command object
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] the name of the command-buffer command property to query
-    ur_exp_command_buffer_command_info_t propName,
-    /// [in] size in bytes of the command-buffer command property value
-    size_t propSize,
-    /// [out][optional][typename(propName, propSize)] value of the
-    /// command-buffer command property
-    void *pPropValue,
-    /// [out][optional] bytes returned in command-buffer command property
-    size_t *pPropSizeRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_command_buffer_command_get_info_exp_params_t params = {
-      &hCommand, &propName, &propSize, &pPropValue, &pPropSizeRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urCommandBufferCommandGetInfoExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urCommandBufferCommandGetInfoExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urCommandBufferCommandGetInfoExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -11195,10 +11048,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
   pDdiTable->pfnEnqueueExp = driver::urCommandBufferEnqueueExp;
 
-  pDdiTable->pfnRetainCommandExp = driver::urCommandBufferRetainCommandExp;
-
-  pDdiTable->pfnReleaseCommandExp = driver::urCommandBufferReleaseCommandExp;
-
   pDdiTable->pfnUpdateKernelLaunchExp =
       driver::urCommandBufferUpdateKernelLaunchExp;
 
@@ -11209,8 +11058,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       driver::urCommandBufferUpdateWaitEventsExp;
 
   pDdiTable->pfnGetInfoExp = driver::urCommandBufferGetInfoExp;
-
-  pDdiTable->pfnCommandGetInfoExp = driver::urCommandBufferCommandGetInfoExp;
 
   return result;
 } catch (...) {

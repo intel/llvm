@@ -347,11 +347,11 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Update) {
         urCommandBufferCreateExp(context, device, &desc, cmd_buf_handle.ptr()));
 
     // Append kernel command to command-buffer and close command-buffer
-    uur::raii::CommandBufferCommand command;
+    ur_exp_command_buffer_command_handle_t command;
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
         &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
-        command.ptr()));
+        &command));
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
     // Verify execution succeeds

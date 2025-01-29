@@ -116,10 +116,6 @@ struct BufferSaxpyKernelTest
       }
     }
 
-    if (command_handle) {
-      EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(command_handle));
-    }
-
     UUR_RETURN_ON_FATAL_FAILURE(
         urUpdatableCommandBufferExpExecutionTest::TearDown());
   }

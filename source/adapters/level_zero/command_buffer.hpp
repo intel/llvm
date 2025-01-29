@@ -145,13 +145,17 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Set this value to true when a command-buffer is enqueued, and false after
   // any fence or event synchronization to avoid repeated calls to synchronize.
   bool NeedsUpdateSynchronization = false;
+  // Track handle objects to free when command-buffer is destroyed.
+  std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
+      CommandHandles;
 };
 
 struct ur_exp_command_buffer_command_handle_t_ : public _ur_object {
-  ur_exp_command_buffer_command_handle_t_(ur_exp_command_buffer_handle_t,
-                                          uint64_t);
+  ur_exp_command_buffer_command_handle_t_(
+      ur_exp_command_buffer_handle_t CommandBuffer, uint64_t CommandId)
+      : CommandBuffer(CommandBuffer), CommandId(CommandId) {}
 
-  virtual ~ur_exp_command_buffer_command_handle_t_();
+  virtual ~ur_exp_command_buffer_command_handle_t_() {}
 
   // Command-buffer of this command.
   ur_exp_command_buffer_handle_t CommandBuffer;
