@@ -14,9 +14,9 @@
 #include "device.hpp"
 #include "platform.hpp"
 
-static ur_result_t getDevicesFromProgram(
-    ur_program_handle_t hProgram,
-    std::unique_ptr<std::vector<cl_device_id>> &DevicesInProgram) {
+static ur_result_t
+getDevicesFromProgram(ur_program_handle_t hProgram,
+                      std::vector<cl_device_id> &DevicesInProgram) {
 
   cl_uint DeviceCount;
   CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
@@ -27,11 +27,11 @@ static ur_result_t getDevicesFromProgram(
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
-  DevicesInProgram = std::make_unique<std::vector<cl_device_id>>(DeviceCount);
+  DevicesInProgram.resize(DeviceCount);
 
   CL_RETURN_ON_FAILURE(clGetProgramInfo(
       cl_adapter::cast<cl_program>(hProgram), CL_PROGRAM_DEVICES,
-      DeviceCount * sizeof(cl_device_id), (*DevicesInProgram).data(), nullptr));
+      DeviceCount * sizeof(cl_device_id), DevicesInProgram.data(), nullptr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -157,12 +157,12 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCompile([[maybe_unused]] ur_context_handle_t hContext,
                  ur_program_handle_t hProgram, const char *pOptions) {
 
-  std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
+  std::vector<cl_device_id> DevicesInProgram;
   UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
 
   CL_RETURN_ON_FAILURE(clCompileProgram(cl_adapter::cast<cl_program>(hProgram),
-                                        DevicesInProgram->size(),
-                                        DevicesInProgram->data(), pOptions, 0,
+                                        DevicesInProgram.size(),
+                                        DevicesInProgram.data(), pOptions, 0,
                                         nullptr, nullptr, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
@@ -215,12 +215,12 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramBuild([[maybe_unused]] ur_context_handle_t hContext,
                ur_program_handle_t hProgram, const char *pOptions) {
 
-  std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
+  std::vector<cl_device_id> DevicesInProgram;
   UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
 
   CL_RETURN_ON_FAILURE(clBuildProgram(
-      cl_adapter::cast<cl_program>(hProgram), DevicesInProgram->size(),
-      DevicesInProgram->data(), pOptions, nullptr, nullptr));
+      cl_adapter::cast<cl_program>(hProgram), DevicesInProgram.size(),
+      DevicesInProgram.data(), pOptions, nullptr, nullptr));
   return UR_RESULT_SUCCESS;
 }
 
