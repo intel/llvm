@@ -23,9 +23,10 @@ from templates import helper as th
 // Do not edit. This file is auto generated from a template: scripts/templates/queue_api.cpp.mako
 
 #include "queue_api.hpp"
+#include "queue_handle.hpp"
 #include "ur_util.hpp"
 
-ur_queue_handle_t_::~ur_queue_handle_t_() {}
+ur_queue_t_::~ur_queue_t_() {}
 
 ## FUNCTION ###################################################################
 namespace ${x}::level_zero {
@@ -37,7 +38,7 @@ ${th.make_func_name(n, tags, obj)}(
     %endfor
     )
 try {
-    return ${obj['params'][0]['name']}->${th.transform_queue_related_function_name(n, tags, obj, format=["name"])};
+    return ${obj['params'][0]['name']}->get().${th.transform_queue_related_function_name(n, tags, obj, format=["name"])};
 } catch(...) {
     return exceptionToResult(std::current_exception());
 }

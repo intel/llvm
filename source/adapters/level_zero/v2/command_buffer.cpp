@@ -12,6 +12,7 @@
 #include "../helpers/kernel_helpers.hpp"
 #include "../ur_interface_loader.hpp"
 #include "logger/ur_logger.hpp"
+#include "queue_handle.hpp"
 
 namespace {
 
@@ -141,7 +142,7 @@ ur_result_t urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) try {
-  return hQueue->enqueueCommandBuffer(
+  return hQueue->get().enqueueCommandBuffer(
       hCommandBuffer->commandListManager.getZeCommandList(), phEvent,
       numEventsInWaitList, phEventWaitList);
 } catch (...) {
