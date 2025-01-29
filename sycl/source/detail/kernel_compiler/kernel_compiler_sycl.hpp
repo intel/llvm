@@ -38,7 +38,9 @@ std::string userArgsAsString(const std::vector<std::string> &UserArguments);
 std::pair<sycl_device_binaries, std::string>
 SYCL_JIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
                   const std::vector<std::string> &UserArgs, std::string *LogPtr,
-                  const std::vector<std::string> &RegisteredKernelNames);
+                  const std::vector<std::string> &RegisteredKernelNames,
+                  const std::vector<char> &CachedIR,
+                  std::vector<char> *SavedIRPtr);
 
 bool SYCL_JIT_Compilation_Available();
 

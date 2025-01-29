@@ -132,7 +132,8 @@ static const std::string &getDPCPPRoot() {
 
 namespace {
 
-struct GetLLVMModuleAction : public ToolAction {
+class GetLLVMModuleAction : public ToolAction {
+public:
   // Code adapted from `FrontendActionFactory::runInvocation`.
   bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                      FileManager *Files,
@@ -160,20 +161,24 @@ struct GetLLVMModuleAction : public ToolAction {
     // Ignore `Compiler.getFrontendOpts().ProgramAction` (would be `EmitBC`) and
     // create/execute an `EmitLLVMOnlyAction` (= codegen to LLVM module without
     // emitting anything) instead.
-    EmitLLVMOnlyAction ELOA;
+    EmitLLVMOnlyAction ELOA{&Context};
     const bool Success = Compiler.ExecuteAction(ELOA);
     Files->clearStatCache();
     if (!Success) {
       return false;
     }
 
-    // Take the module and its context to extend the objects' lifetime.
+    // Take the module to extend its lifetime.
     Module = ELOA.takeModule();
-    ELOA.takeLLVMContext();
 
     return true;
   }
 
+  GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
+  std::unique_ptr<llvm::Module> takeModule() { return std::move(Module); }
+
+private:
+  LLVMContext &Context;
   std::unique_ptr<llvm::Module> Module;
 };
 
@@ -223,9 +228,11 @@ public:
 
 } // anonymous namespace
 
-Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
-    InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-    const InputArgList &UserArgList, std::string &BuildLog) {
+Expected<std::unique_ptr<llvm::Module>>
+jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
+                                View<InMemoryFile> IncludeFiles,
+                                const InputArgList &UserArgList,
+                                std::string &BuildLog, LLVMContext &Context) {
   TimeTraceScope TTS{"compileDeviceCode"};
 
   const std::string &DPCPPRoot = getDPCPPRoot();
@@ -285,9 +292,9 @@ Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
         return NewArgs;
       });
 
-  GetLLVMModuleAction Action;
+  GetLLVMModuleAction Action{Context};
   if (!Tool.run(&Action)) {
-    return std::move(Action.Module);
+    return Action.takeModule();
   }
 
   return createStringError(BuildLog);
@@ -409,8 +416,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   }
 
   LLVMContext &Context = Module.getContext();
-  Context.setDiagnosticHandler(
-      std::make_unique<LLVMDiagnosticWrapper>(BuildLog));
   for (const std::string &LibName : LibNames) {
     std::string LibPath = DPCPPRoot + "/lib/" + LibName;
 
@@ -651,4 +656,10 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   }
 
   return std::move(AL);
+}
+
+void jit_compiler::configureDiagnostics(LLVMContext &Context,
+                                        std::string &BuildLog) {
+  Context.setDiagnosticHandler(
+      std::make_unique<LLVMDiagnosticWrapper>(BuildLog));
 }

@@ -1229,7 +1229,8 @@ sycl_device_binaries jit_compiler::compileSYCL(
     const std::string &CompilationID, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
-    const std::vector<std::string> &RegisteredKernelNames) {
+    const std::vector<std::string> &RegisteredKernelNames,
+    const std::vector<char> &CachedIR, std::vector<char> *SavedIRPtr) {
 
   // RegisteredKernelNames may contain template specializations, so we just put
   // them in main() which ensures they are instantiated.
@@ -1260,7 +1261,9 @@ sycl_device_binaries jit_compiler::compileSYCL(
                  std::back_inserter(UserArgsView),
                  [](const auto &Arg) { return Arg.c_str(); });
 
-  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
+  auto Result =
+      CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView, CachedIR,
+                        /*SaveIR=*/SavedIRPtr != nullptr);
 
   if (LogPtr) {
     LogPtr->append(Result.getBuildLog());
@@ -1268,6 +1271,12 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   if (Result.failed()) {
     throw sycl::exception(sycl::errc::build, Result.getBuildLog());
+  }
+
+  const auto &IR = Result.getDeviceCodeIR();
+  if (SavedIRPtr && !IR.empty()) {
+    SavedIRPtr->resize(IR.size());
+    std::memcpy(SavedIRPtr->data(), IR.begin(), IR.size());
   }
 
   return createDeviceBinaryImage(Result.getBundleInfo(),
