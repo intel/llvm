@@ -218,7 +218,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       auto numGroups = groups.size();
       auto groupsPerThread = numGroups / numParallelThreads;
       auto remainder = numGroups % numParallelThreads;
-      for (unsigned thread = 0; thread < numParallelThreads; thread++) {
+      for (unsigned thread = 0; thread < numParallelThreads && groupsPerThread;
+           thread++) {
         futures.emplace_back(
             tp.schedule_task([groups, thread, groupsPerThread,
                               &kernel = *kernel](size_t threadId) {
