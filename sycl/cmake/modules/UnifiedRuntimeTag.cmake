@@ -1,7 +1,7 @@
-# commit 095e8464124a48c8ed4b995403e754254c072143
-# Merge: 0bb6789f 07001aa7
+# commit 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b
+# Merge: c270a6b8 264d0468
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 27 14:53:22 2025 +0000
-#     Merge pull request #2574 from bratpiorka/rrudnick_fix_usm_pool_config_parse
-#     fix parseDisjointPoolConfig and add tests
-set(UNIFIED_RUNTIME_TAG 095e8464124a48c8ed4b995403e754254c072143)
+# Date:   Tue Jan 28 15:16:58 2025 +0000
+#     Merge pull request #2594 from kbenzie/benie/cl-core-functions-no-dlopen
+#     Fix invalid use of dlopen()
+set(UNIFIED_RUNTIME_TAG 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b)

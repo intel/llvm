@@ -450,7 +450,6 @@ public:
   /// \param [out] total_memory The number of bytes of total memory on the SYCL
   /// device.
   void get_memory_info(size_t &free_memory, size_t &total_memory) const {
-#if (defined(__SYCL_COMPILER_VERSION) && __SYCL_COMPILER_VERSION >= 20221105)
     if (!has(sycl::aspect::ext_intel_free_memory)) {
       std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
                    "supported."
@@ -459,17 +458,6 @@ public:
     } else {
       free_memory = get_info<sycl::ext::intel::info::device::free_memory>();
     }
-#else
-    std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
-                 "supported."
-              << std::endl;
-    free_memory = 0;
-#if defined(_MSC_VER) && !defined(__clang__)
-#pragma message("Querying the number of bytes of free memory is not supported")
-#else
-#warning "Querying the number of bytes of free memory is not supported"
-#endif
-#endif
     total_memory = get_device_info().get_global_mem_size();
   }
 
@@ -489,15 +477,10 @@ public:
     prop.set_minor_version(minor);
 
     prop.set_max_work_item_sizes(
-#if (__SYCL_COMPILER_VERSION && __SYCL_COMPILER_VERSION < 20220902)
-        // oneAPI DPC++ compiler older than 2022/09/02, where
-        // max_work_item_sizes is an enum class element
-        get_info<sycl::info::device::max_work_item_sizes>());
-#else
         // SYCL 2020-conformant code, max_work_item_sizes is a struct
         // templated by an int
         get_info<sycl::info::device::max_work_item_sizes<3>>());
-#endif
+
     prop.set_host_unified_memory(has(sycl::aspect::usm_host_allocations));
 
     prop.set_max_clock_frequency(
