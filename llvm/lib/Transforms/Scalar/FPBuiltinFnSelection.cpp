@@ -138,8 +138,8 @@ replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall,
       return false;
     if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
       return replaceWithLLVMIR(BuiltinCall);
-    Replacement = IRBuilder.CreateIntrinsic(
-        BuiltinCall.getType(), Intrinsic::nvvm_sqrt_approx_f, Args);
+    Replacement =
+        IRBuilder.CreateIntrinsic(Type, Intrinsic::nvvm_sqrt_approx_f, Args);
     break;
   default:
     return false;
