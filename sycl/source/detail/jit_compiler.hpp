@@ -106,11 +106,13 @@ private:
   using MaterializeSpecConstFuncT =
       decltype(::jit_compiler::materializeSpecConstants) *;
   using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
+  using DestroyBinaryFuncT = decltype(::jit_compiler::destroyBinary) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
   MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
+  DestroyBinaryFuncT DestroyBinaryHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
   static std::function<void(void *)> CustomDeleterForLibHandle;

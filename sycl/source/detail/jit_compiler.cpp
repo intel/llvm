@@ -98,6 +98,16 @@ jit_compiler::jit_compiler()
           "Cannot resolve JIT library function entry point");
       return false;
     }
+
+    this->DestroyBinaryHandle = reinterpret_cast<DestroyBinaryFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
+                                                  "destroyBinary"));
+    if (!this->DestroyBinaryHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
     LibraryHandle = std::move(LibraryPtr);
     return true;
   };
@@ -1182,6 +1192,9 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
 
 void jit_compiler::destroyDeviceBinaries(sycl_device_binaries Binaries) {
   std::lock_guard<std::mutex> Guard{RTCDeviceBinariesMutex};
+  for (uint16_t i = 0; i < Binaries->NumDeviceBinaries; ++i) {
+    DestroyBinaryHandle(Binaries->DeviceBinaries[i].BinaryStart);
+  }
   RTCDeviceBinaries.erase(Binaries);
 }
 
