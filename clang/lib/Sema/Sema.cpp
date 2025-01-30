@@ -1721,7 +1721,7 @@ void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
   // that is different from the last template instantiation where
   // we emitted an error, print a template instantiation
   // backtrace.
-  if (!DiagnosticIDs::isBuiltinNote(DiagID))
+  if (!Diags.getDiagnosticIDs()->isNote(DiagID))
     PrintContextStack();
 }
 
