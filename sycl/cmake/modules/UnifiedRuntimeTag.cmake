@@ -1,7 +1,9 @@
-# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
-# Merge: 902bb2e2 94b32ac2
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 28 11:02:44 2025 +0000
-#     Merge pull request #2624 from RossBrunton/ross/msanfix
-#     Assert that Device is valid for memory poisoning
-set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
+# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
+# Merge: 4643d1c0 3ed86fae
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 29 13:55:27 2025 +0000
+#
+#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
+#
+#    Remove command-buffer command handle ref counting
+set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)

@@ -169,12 +169,12 @@ class type_erased_cgfo_ty {
   // by a queue. The function object can be a named type, lambda function or
   // std::function.
   template <typename T> struct invoker {
-    static void call(void *object, handler &cgh) {
-      (*static_cast<T *>(object))(cgh);
+    static void call(const void *object, handler &cgh) {
+      (*const_cast<T *>(static_cast<const T *>(object)))(cgh);
     }
   };
-  void *object;
-  using invoker_ty = void (*)(void *, handler &);
+  const void *object;
+  using invoker_ty = void (*)(const void *, handler &);
   const invoker_ty invoker_f;
 
 public:
@@ -183,7 +183,7 @@ public:
       // NOTE: Even if `T` is a pointer to a function, `&f` is a pointer to a
       // pointer to a function and as such can be casted to `void *` (pointer to
       // a function cannot be casted).
-      : object(static_cast<void *>(&f)), invoker_f(&invoker<T>::call) {}
+      : object(static_cast<const void *>(&f)), invoker_f(&invoker<T>::call) {}
   ~type_erased_cgfo_ty() = default;
 
   type_erased_cgfo_ty(const type_erased_cgfo_ty &) = delete;
@@ -191,7 +191,7 @@ public:
   type_erased_cgfo_ty &operator=(const type_erased_cgfo_ty &) = delete;
   type_erased_cgfo_ty &operator=(type_erased_cgfo_ty &&) = delete;
 
-  void operator()(sycl::handler &cgh) const { invoker_f(object, cgh); }
+  void operator()(handler &cgh) const { invoker_f(object, cgh); }
 };
 
 class kernel_bundle_impl;
