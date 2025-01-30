@@ -133,21 +133,6 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::queueRetain() {
-  RefCount.increment();
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ur_queue_immediate_in_order_t::queueRelease() {
-  if (!RefCount.decrementAndTest())
-    return UR_RESULT_SUCCESS;
-
-  UR_CALL(queueFinish());
-
-  delete this;
-  return UR_RESULT_SUCCESS;
-}
-
 void ur_queue_immediate_in_order_t::deferEventFree(ur_event_handle_t hEvent) {
   std::unique_lock<ur_shared_mutex> lock(this->Mutex);
   deferredEvents.push_back(hEvent);
@@ -195,6 +180,14 @@ void ur_queue_immediate_in_order_t::recordSubmittedKernel(
 
 ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
   return UR_RESULT_SUCCESS;
+}
+
+ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
+  try {
+    UR_CALL_THROWS(queueFinish());
+  } catch (...) {
+    logger::error("Failed to finish queue on destruction");
+  }
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
