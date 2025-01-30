@@ -32,3 +32,4 @@
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
 #include <syclcompat/util.hpp>
+#include <syclcompat/bindless_image.hpp>
