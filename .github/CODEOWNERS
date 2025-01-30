@@ -134,6 +134,7 @@ sycl/**/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
 sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
 sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
 libdevice/nativecpu* @intel/dpcpp-nativecpu-pi-reviewers
+libclc/libspirv/lib/native_cpu* @intel/dpcpp-nativecpu-pi-reviewers
 
 # SYCL-Graphs extensions
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
