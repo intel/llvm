@@ -27,12 +27,16 @@ class ComputeRuntime:
         return
 
     def ld_libraries(self) -> list[str]:
-        return [
+        paths = [
             os.path.join(self.gmmlib, "lib64"),
             os.path.join(self.level_zero, "lib64"),
             os.path.join(self.compute_runtime, "bin"),
-            os.path.join(self.igc, "lib"),
         ]
+
+        if options.build_igc:
+            paths.append(os.path.join(self.igc, "lib"))
+
+        return paths
 
     def env_vars(self) -> dict:
         return {"ZE_ENABLE_ALT_DRIVERS" : os.path.join(self.compute_runtime, "bin", "libze_intel_gpu.so"),
