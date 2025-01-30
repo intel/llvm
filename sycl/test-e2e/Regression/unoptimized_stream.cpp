@@ -1,6 +1,9 @@
 // RUN: %{build} %O0 -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/stream.hpp>

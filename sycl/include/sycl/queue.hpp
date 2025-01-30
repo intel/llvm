@@ -75,10 +75,8 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class queue_impl;
 
-#if __SYCL_USE_FALLBACK_ASSERT
 inline event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
-#endif
 
 // Function to postprocess submitted command
 // Arguments:
@@ -351,13 +349,20 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
             ,
             int = detail::emit_get_backend_info_error<queue, Param>()
 #endif
+#endif
             >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
@@ -375,8 +380,9 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(
-        sycl::ext::oneapi::experimental::empty_properties_t{}, CGF,
+    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF},
         /*SecondaryQueuePtr=*/nullptr, CodeLoc);
   }
 
@@ -395,9 +401,9 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(
-        sycl::ext::oneapi::experimental::empty_properties_t{}, CGF,
-        &SecondaryQueue, CodeLoc);
+    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -2738,7 +2744,9 @@ public:
 
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 
-  event ext_oneapi_get_last_event() const;
+  std::optional<event> ext_oneapi_get_last_event() const {
+    return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
+  }
 
   void ext_oneapi_set_external_event(const event &external_event);
 
@@ -2784,6 +2792,7 @@ private:
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
+  /// Not using `type_erased_cgfo_ty` on purpose.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   event submit_impl(std::function<void(handler &)> CGH,
@@ -2813,16 +2822,28 @@ private:
       std::function<void(handler &)> CGH, queue secondQueue,
       const detail::code_location &CodeLoc,
       const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  /// A template-free versions of submit.
+  // Old version when `std::function` was used in place of
+  // `std::function<void(handler &)>`.
   event submit_with_event_impl(std::function<void(handler &)> CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc);
 
-  /// A template-free version of submit_without_event.
   void submit_without_event_impl(std::function<void(handler &)> CGH,
+                                 const detail::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+  /// A template-free versions of submit.
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc);
+
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
@@ -2834,32 +2855,35 @@ private:
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  template <typename T, typename PropertiesT>
-  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event>
-  submit_with_event(
-      PropertiesT Props, T CGF, queue *SecondaryQueuePtr,
+  //
+  // UseFallBackAssert as template param vs `#if` in function body is necessary
+  // to prevent ODR-violation between TUs built with different fallback assert
+  // modes.
+  template <bool UseFallbackAssert, typename PropertiesT>
+  event submit_with_event(
+      PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
+      queue *SecondaryQueuePtr,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
-#if __SYCL_USE_FALLBACK_ASSERT
-    SI.PostProcessorFunc() =
-        [this, &SecondaryQueuePtr,
-         &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
-          if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-              KernelUsesAssert && !device_has(aspect::accelerator)) {
-            // __devicelib_assert_fail isn't supported by Device-side Runtime
-            // Linking against fallback impl of __devicelib_assert_fail is
-            // performed by program manager class
-            // Fallback assert isn't supported for FPGA
-            submitAssertCapture(*this, E, SecondaryQueuePtr,
-                                TlsCodeLocCapture.query());
-          }
-        };
-#endif // __SYCL_USE_FALLBACK_ASSERT
-    return submit_with_event_impl(std::move(CGF), SI, TlsCodeLocCapture.query(),
+    if constexpr (UseFallbackAssert)
+      SI.PostProcessorFunc() =
+          [this, &SecondaryQueuePtr,
+           &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
+            if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+                KernelUsesAssert && !device_has(aspect::accelerator)) {
+              // __devicelib_assert_fail isn't supported by Device-side Runtime
+              // Linking against fallback impl of __devicelib_assert_fail is
+              // performed by program manager class
+              // Fallback assert isn't supported for FPGA
+              submitAssertCapture(*this, E, SecondaryQueuePtr,
+                                  TlsCodeLocCapture.query());
+            }
+          };
+    return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
 
@@ -2869,21 +2893,25 @@ private:
   /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
-  template <typename T, typename PropertiesT>
-  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
-  submit_without_event(PropertiesT Props, T CGF,
-                       const detail::code_location &CodeLoc) {
-#if __SYCL_USE_FALLBACK_ASSERT
-    // If post-processing is needed, fall back to the regular submit.
-    // TODO: Revisit whether we can avoid this.
-    submit_with_event(Props, CGF, nullptr, CodeLoc);
-#else
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::SubmissionInfo SI{};
-    ProcessSubmitProperties(Props, SI);
-    submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
-                              TlsCodeLocCapture.isToplevel());
-#endif // __SYCL_USE_FALLBACK_ASSERT
+  //
+  // UseFallBackAssert as template param vs `#if` in function body is necessary
+  // to prevent ODR-violation between TUs built with different fallback assert
+  // modes.
+  template <bool UseFallbackAssert, typename PropertiesT>
+  void submit_without_event(PropertiesT Props,
+                            const detail::type_erased_cgfo_ty &CGF,
+                            const detail::code_location &CodeLoc) {
+    if constexpr (UseFallbackAssert) {
+      // If post-processing is needed, fall back to the regular submit.
+      // TODO: Revisit whether we can avoid this.
+      submit_with_event<UseFallbackAssert>(Props, CGF, nullptr, CodeLoc);
+    } else {
+      detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+      detail::SubmissionInfo SI{};
+      ProcessSubmitProperties(Props, SI);
+      submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
+                                TlsCodeLocCapture.isToplevel());
+    }
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -3007,6 +3035,11 @@ private:
                                const std::vector<event> &DepEvents);
   const property_list &getPropList() const;
 
+  // Helper implementation for ext_oneapi_get_last_event. This is needed to
+  // avoid issues where std::optional has a different layout between user-code
+  // and library.
+  sycl::detail::optional<event> ext_oneapi_get_last_event_impl() const;
+
   template <typename KernelName>
   static constexpr detail::code_location getCodeLocation() {
     return {detail::getKernelFileName<KernelName>(),
@@ -3107,10 +3140,10 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     });
   };
 
-  CopierEv = Self.submit_with_event(
+  CopierEv = Self.submit_with_event<true>(
       sycl::ext::oneapi::experimental::empty_properties_t{}, CopierCGF,
       SecondaryQueue, CodeLoc);
-  CheckerEv = Self.submit_with_event(
+  CheckerEv = Self.submit_with_event<true>(
       sycl::ext::oneapi::experimental::empty_properties_t{}, CheckerCGF,
       SecondaryQueue, CodeLoc);
 

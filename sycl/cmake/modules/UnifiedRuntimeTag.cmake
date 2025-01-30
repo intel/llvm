@@ -1,7 +1,9 @@
-# commit 9e48f543b8dd39d45563169433bb529583625dfe
-# Merge: 6a3fece6 1a1108b3
-# Author: Martin Grant <martin.morrisongrant@codeplay.com>
-# Date:   Wed Jan 15 14:33:29 2025 +0000
-#     Merge pull request #2540 from martygrant/martin/program-info-unswitch
-#     Move urProgramGetInfo success test from a switch to individual tests.
-set(UNIFIED_RUNTIME_TAG 9e48f543b8dd39d45563169433bb529583625dfe)
+# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
+# Merge: 4643d1c0 3ed86fae
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Jan 29 13:55:27 2025 +0000
+#
+#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
+#
+#    Remove command-buffer command handle ref counting
+set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)

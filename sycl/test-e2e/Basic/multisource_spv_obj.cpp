@@ -28,6 +28,9 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %t.init.o %t.calc.o %t.main.o -Wno-unused-command-line-argument -o %t3.fat
 // RUN: %{run} %t3.fat
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: CMPLRLLVM-64059
+
 #include <sycl/detail/core.hpp>
 
 #include <iostream>
