@@ -13,8 +13,11 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
-constexpr size_t TN = 16;
-constexpr size_t MATRIX_K = 1024 + 24;
-
 #include "joint_matrix_out_bounds_impl.hpp"
+
+int main() {
+  std::cout << "A row major, B row major:\n";
+  test_all<layout::row_major, layout::row_major>();
+  std::cout << "A row major, B packed:\n";
+  test_all<layout::row_major, layout::ext_intel_packed>();
+}
