@@ -15,11 +15,46 @@
 #include <vector>
 
 namespace uur {
+namespace detail {
+struct AdapterInfo {
+  uint32_t version;
+  ur_adapter_backend_t backend;
+};
+
+inline AdapterInfo getAdapterInfo(ur_adapter_handle_t adapter) {
+  AdapterInfo info;
+  urAdapterGetInfo(adapter, UR_ADAPTER_INFO_VERSION, sizeof(info.version),
+                   &info.version, nullptr);
+  urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(info.backend),
+                   &info.backend, nullptr);
+  return info;
+}
+} // namespace detail
+
 struct Matcher {
   Matcher(uint32_t adapterVersion, ur_adapter_backend_t backend,
           std::vector<std::string> deviceNames)
       : adapterVersion(adapterVersion), backend(backend),
         names(std::move(deviceNames)) {}
+
+  bool matches(const detail::AdapterInfo &adapterInfo,
+               const std::string &name) const {
+    if (backend != adapterInfo.backend) {
+      return false;
+    }
+    if (adapterVersion != adapterInfo.version) {
+      return false;
+    }
+    if (names.empty()) {
+      return true;
+    }
+    for (const auto &matcherName : names) {
+      if (name.find(matcherName) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   uint32_t adapterVersion;
   ur_adapter_backend_t backend;
@@ -56,26 +91,10 @@ struct NativeCPU : Matcher {
       : Matcher(1, UR_ADAPTER_BACKEND_NATIVE_CPU, {il.begin(), il.end()}) {}
 };
 
-namespace detail {
-struct AdapterInfo {
-  uint32_t version;
-  ur_adapter_backend_t backend;
-};
-
-inline AdapterInfo getAdapterInfo(ur_adapter_handle_t adapter) {
-  AdapterInfo info;
-  urAdapterGetInfo(adapter, UR_ADAPTER_INFO_VERSION, sizeof(info.version),
-                   &info.version, nullptr);
-  urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(info.backend),
-                   &info.backend, nullptr);
-  return info;
-}
-} // namespace detail
-
 inline bool isKnownFailureOn(ur_adapter_handle_t adapter,
                              const std::vector<Matcher> &matchers) {
+  auto adapterInfo = detail::getAdapterInfo(adapter);
   for (const auto &matcher : matchers) {
-    auto adapterInfo = detail::getAdapterInfo(adapter);
     if (matcher.adapterVersion == adapterInfo.version &&
         matcher.backend == adapterInfo.backend) {
       return true;
@@ -89,21 +108,12 @@ inline bool isKnownFailureOn(ur_platform_handle_t platform,
   ur_adapter_handle_t adapter = nullptr;
   urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
                     sizeof(ur_adapter_handle_t), &adapter, nullptr);
+  auto adapterInfo = detail::getAdapterInfo(adapter);
+  std::string name;
+  uur::GetPlatformInfo<std::string>(platform, UR_PLATFORM_INFO_NAME, name);
   for (const auto &matcher : matchers) {
-    auto adapterInfo = detail::getAdapterInfo(adapter);
-    if (matcher.adapterVersion != adapterInfo.version &&
-        matcher.backend != adapterInfo.backend) {
-      continue;
-    }
-    if (matcher.names.empty()) {
+    if (matcher.matches(adapterInfo, name)) {
       return true;
-    }
-    std::string name;
-    uur::GetPlatformInfo<std::string>(platform, UR_PLATFORM_INFO_NAME, name);
-    for (const auto &matcherName : matcher.names) {
-      if (name.find(matcherName) != std::string::npos) {
-        return true;
-      }
     }
   }
   return false;
@@ -119,23 +129,12 @@ isKnownFailureOn(const std::tuple<ur_platform_handle_t, Param> &param,
 
 inline bool isKnownFailureOn(const DeviceTuple &param,
                              const std::vector<Matcher> &matchers) {
+  auto adapterInfo = detail::getAdapterInfo(param.adapter);
+  std::string name;
+  uur::GetDeviceInfo<std::string>(param.device, UR_DEVICE_INFO_NAME, name);
   for (const auto &matcher : matchers) {
-    auto adapterInfo = detail::getAdapterInfo(param.adapter);
-    if (matcher.backend != adapterInfo.backend) {
-      continue;
-    }
-    if (matcher.adapterVersion != adapterInfo.version) {
-      continue;
-    }
-    if (matcher.names.empty()) {
+    if (matcher.matches(adapterInfo, name)) {
       return true;
-    }
-    std::string name;
-    uur::GetDeviceInfo<std::string>(param.device, UR_DEVICE_INFO_NAME, name);
-    for (const auto &matcherName : matcher.names) {
-      if (name.find(matcherName) != std::string::npos) {
-        return true;
-      }
     }
   }
   return false;
