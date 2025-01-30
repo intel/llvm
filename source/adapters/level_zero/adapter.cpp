@@ -544,7 +544,7 @@ ur_result_t adapterStateTeardown() {
       {"zeCommandListCreateImmediate", "zeCommandListCreate", "zeCommandListDestroy"},
       {"zeEventCreate",        "zeEventDestroy"},
       {"zeFenceCreate",        "zeFenceDestroy"},
-      {"zeImageCreate",        "zeImageDestroy"},
+      {"zeImageCreate","zeImageViewCreateExt",        "zeImageDestroy"},
       {"zeSamplerCreate",      "zeSamplerDestroy"},
       {"zeMemAllocDevice", "zeMemAllocHost", "zeMemAllocShared", "zeMemFree"},
     };
