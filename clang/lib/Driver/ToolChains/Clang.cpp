@@ -10728,7 +10728,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
 static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
                                             const llvm::opt::ArgList &TCArgs,
                                             ArgStringList &TranslatorArgs) {
-  TranslatorArgs.push_back("-spirv-max-version=1.4");
+  TranslatorArgs.push_back("-spirv-max-version=1.6");
   bool CreatingSyclSPIRVFatObj =
       C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
       TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
