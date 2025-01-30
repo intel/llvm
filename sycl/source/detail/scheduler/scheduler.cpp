@@ -280,6 +280,9 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     return true;
 
 #ifdef _WIN32
+  // If we are shutting down on Windows it may not be
+  // safe to wait on host threads, as the OS may
+  // abandon them. But no worries, the memory WILL be reclaimed.
   bool allowWait =
       MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
 #else
