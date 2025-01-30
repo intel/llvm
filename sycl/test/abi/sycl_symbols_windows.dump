@@ -72,9 +72,9 @@
 ??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ
 ??$get_info@Umax_global_work_groups@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
-??$get_info@Umax_image_linear_height@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
-??$get_info@Umax_image_linear_row_pitch@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
-??$get_info@Umax_image_linear_width@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
+??$get_info@Umax_image_linear_height@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
+??$get_info@Umax_image_linear_row_pitch@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
+??$get_info@Umax_image_linear_width@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@Umax_mem_bandwidth@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@Umax_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@Umax_registers_per_work_group@device@info@experimental@codeplay@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
@@ -83,6 +83,7 @@
 ??$get_info@Umemory_bus_width@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Umemory_clock_rate@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Umipmap_max_anisotropy@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAMXZ
+??$get_info@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@Upci_address@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Uplatform@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AVplatform@12@XZ
 ??$get_info@Upreferred_work_group_size_multiple@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVdevice@12@@Z
@@ -182,9 +183,9 @@
 ??$get_info_impl@Umax_constant_args@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_constant_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_global_work_groups@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
-??$get_info_impl@Umax_image_linear_height@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
-??$get_info_impl@Umax_image_linear_row_pitch@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
-??$get_info_impl@Umax_image_linear_width@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Umax_image_linear_height@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
+??$get_info_impl@Umax_image_linear_row_pitch@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
+??$get_info_impl@Umax_image_linear_width@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_mem_alloc_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_mem_bandwidth@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_num_sub_groups@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
@@ -209,6 +210,7 @@
 ??$get_info_impl@Unative_vector_width_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_short@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unum_args@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uopencl_c_version@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uparent_device@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV012@XZ
 ??$get_info_impl@Upartition_affinity_domains@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4partition_affinity_domain@info@_V1@sycl@@V?$allocator@W4partition_affinity_domain@info@_V1@sycl@@@std@@@std@@XZ
@@ -4344,5 +4346,3 @@
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
-??$get_info@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
-??$get_info_impl@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
