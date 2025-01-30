@@ -461,10 +461,6 @@ inline sycl::id<D> generate_id(const sycl::range<D> &DevMAxWorkItemSizes,
         get_info<info::kernel_device_specific::work_group_size>(Dev);          \
     const auto DeviceMaxWorkItemSizes =                                        \
         Dev.get_info<info::device::max_work_item_sizes<Num>>();                \
-    for (int i = 0; i < Num; i++) {                                            \
-      std::cout << "DeviceMaxWorkItemSizes[" << i                              \
-                << "] = " << DeviceMaxWorkItemSizes[i] << std::endl;           \
-    }                                                                          \
     return generate_id<Num>(DeviceMaxWorkItemSizes, DeviceWgSize);             \
   } // namespace detail
 
