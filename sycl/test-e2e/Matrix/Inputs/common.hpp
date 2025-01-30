@@ -183,10 +183,10 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
         }
       } else if constexpr (exact || std::is_integral_v<T1>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cerr << "Incorrect result in matrix."
+          std::cerr << "Incorrect result in matrix. "
                     << "i: " << i << ", j: " << j
-                    << ", Ref: " << ref[i * cols + j]
-                    << ", Val: " << src[i * cols + j] << "\n";
+                    << ", Ref: " << (int)ref[i * cols + j]
+                    << ", Val: " << (int)src[i * cols + j] << "\n";
           return false;
         }
       } else {
@@ -220,4 +220,17 @@ template <typename KernelName> size_t get_sg_size(queue q) {
   return kernel
       .template get_info<info::kernel_device_specific::max_sub_group_size>(
           q.get_device());
+}
+
+template <typename T>
+void matrix_print(unsigned int rows, unsigned int cols, T *mat) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      if constexpr (std::is_integral_v<T>)
+        std::cout << (int)mat[i * cols + j] << " ";
+      else
+        std::cout << (float)mat[i * cols + j] << " ";
+    }
+    std::cout << "\n";
+  }
 }

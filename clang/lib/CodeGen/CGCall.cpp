@@ -3032,7 +3032,7 @@ static bool hasSYCLRestrictPropertyIRAttr(const VarDecl *Arg,
   return std::any_of(
       NameValuePairs.begin(), NameValuePairs.end(),
       [](const std::pair<std::string, std::string> &NameValuePair) {
-        return NameValuePair.first == "sycl-restrict";
+        return NameValuePair.first == "sycl-unaliased";
       });
 }
 

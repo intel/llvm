@@ -82,7 +82,6 @@ jobs:
         include:
           - name: Intel
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
@@ -91,7 +90,6 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: --param fallback-to-build-if-requires-build-and-run=True ${{ matrix.extra_lit_opts }}
@@ -112,18 +110,15 @@ jobs:
         include:
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             reset_intel_gpu: false
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
@@ -140,7 +135,6 @@ jobs:
             use_igc_dev: true
           - name: E2E tests on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             extra_lit_opts: -j 50
@@ -197,27 +191,22 @@ jobs:
         include:
           - name: Intel GEN12 Graphics system
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
             reset_intel_gpu: true
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
             image_extra_opts: --device=/dev/dri
             reset_intel_gpu: true
           - name: AMD system
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
           - name: CUDA system
             runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_build:latest
             image_extra_opts: --gpus all
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Perf tests on ${{ matrix.name }}
       runner: ${{ matrix. runner }}
-      image: ${{ matrix.image }}
       image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
       target_devices: all
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}

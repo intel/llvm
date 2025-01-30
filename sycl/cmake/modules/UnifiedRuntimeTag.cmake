@@ -1,7 +1,7 @@
-# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
-# Merge: 902bb2e2 94b32ac2
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 28 11:02:44 2025 +0000
-#     Merge pull request #2624 from RossBrunton/ross/msanfix
-#     Assert that Device is valid for memory poisoning
-set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
+# commit 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b
+# Merge: c270a6b8 264d0468
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Jan 28 15:16:58 2025 +0000
+#     Merge pull request #2594 from kbenzie/benie/cl-core-functions-no-dlopen
+#     Fix invalid use of dlopen()
+set(UNIFIED_RUNTIME_TAG 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b)
