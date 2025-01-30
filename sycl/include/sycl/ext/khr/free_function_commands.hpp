@@ -96,18 +96,18 @@ void launch(queue q, range<3> r, const kernel &k, ArgsT &&...args) {
 template <typename KernelType, typename... Reductions>
 void launch_reduce(handler &h, range<1> r, const KernelType &k,
                    Reductions &&...reductions) {
-  h.parallel_for<KernelType>(r, std::forward<Reductions>(reductions)..., k);
+  h.parallel_for(r, std::forward<Reductions>(reductions)..., k);
 }
 
 template <typename KernelType, typename... Reductions>
 void launch_reduce(handler &h, range<2> r, const KernelType &k,
                    Reductions &&...reductions) {
-  h.parallel_for<KernelType>(r, std::forward<Reductions>(reductions)..., k);
+  h.parallel_for(r, std::forward<Reductions>(reductions)..., k);
 }
 template <typename KernelType, typename... Reductions>
 void launch_reduce(handler &h, range<3> r, const KernelType &k,
                    Reductions &&...reductions) {
-  h.parallel_for<KernelType>(r, std::forward<Reductions>(reductions)..., k);
+  h.parallel_for(r, std::forward<Reductions>(reductions)..., k);
 }
 
 template <typename KernelType, typename... Reductions>
