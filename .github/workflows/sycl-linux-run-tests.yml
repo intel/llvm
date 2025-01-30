@@ -12,7 +12,7 @@ on:
         required: True
       image:
         type: string
-        required: True
+        required: False
       image_options:
         type: string
         required: True
@@ -38,13 +38,6 @@ on:
       ref:
         type: string
         required: True
-      merge_ref:
-        description: |
-          Commit-ish to merge post-checkout if non-empty. Must be reachable from
-          the default_branch input paramter.
-        type: string
-        default: 'FETCH_HEAD'
-        required: False
 
       sycl_toolchain_artifact:
         type: string
@@ -61,23 +54,18 @@ on:
 
       e2e_binaries_artifact:
         description: |
-          By setting this the E2E binaries folder will not be created, rather it
-          will be downloaded and extracted from the specified artifact. When
-          running tests in `run-only` mode this must be provided.
+          Must be set if `e2e_testing_mode` is equal to `run-only` and the
+          artifact must exist. Can be set in other modes resulting in artifact
+          upload.
         type: string
         default: ''
         required: False
       e2e_testing_mode:
         description: |
           Testing mode to run E2E tests in, can be either `full`, `build-only`
-          or `run-only`. In `build-only` mode an artifact of the E2E binaries
-          will be uploaded.
+          or `run-only`.
         type: string
         default: 'full'
-      artifact_suffix:
-        description: 'Suffix for E2E binaries artifact that is output when in `build-only`.'
-        type: string
-        default: 'default'
       retention-days:
         description: 'E2E/SYCL-CTS binaries artifact retention period.'
         type: string
@@ -126,25 +114,29 @@ on:
           - '["Linux", "pvc"]'
           - '["cts-cpu"]'
           - '["Linux", "build"]'
+          - '["cuda"]'
       image:
         type: choice
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+          - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options:
         description: |
           Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
         type: choice
         options:
-          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --gpus all --cap-add SYS_ADMIN'
       target_devices:
         type: choice
         options:
+          - 'level_zero:gpu'
           - 'opencl:cpu'
           - 'opencl:gpu'
           - 'opencl:fpga'
-          - 'level_zero:gpu'
           - 'hip:gpu'
+          - 'cuda:gpu'
       tests_selector:
         type: choice
         options:
@@ -194,7 +186,7 @@ jobs:
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
-      image: ${{ inputs.image }}
+      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
@@ -296,13 +288,11 @@ jobs:
       uses: ./devops/actions/run-tests/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
-        e2e_binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        testing_mode: ${{ inputs.e2e_testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
-        e2e_testing_mode: ${{ inputs.e2e_testing_mode }}
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
-        artifact_suffix: ${{ inputs.artifact_suffix }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Run SYCL CTS Tests
