@@ -1,7 +1,7 @@
-# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
-# Merge: d3e97040 b1b0c60c
+# commit 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b
+# Merge: c270a6b8 264d0468
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 13:59:15 2025 +0000
-#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
-#     Fix potential deadlock in the WaitEvent path of CmdBuffers
-set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
+# Date:   Tue Jan 28 15:16:58 2025 +0000
+#     Merge pull request #2594 from kbenzie/benie/cl-core-functions-no-dlopen
+#     Fix invalid use of dlopen()
+set(UNIFIED_RUNTIME_TAG 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b)
