@@ -28,7 +28,6 @@ static void addNVVMMetadata(Function &F, StringRef Name, int Operand) {
                         ConstantAsMetadata::get(
                             ConstantInt::get(Type::getInt32Ty(Ctx), Operand))};
   // Append metadata to nvvm.annotations
-  F.setCallingConv(CallingConv::PTX_Kernel);
   MD->addOperand(MDNode::get(Ctx, MDVals));
 }
 
