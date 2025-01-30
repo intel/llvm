@@ -37,7 +37,6 @@ using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // forward decl
-void shutdown_win(); // TODO: win variant will go away soon
 void shutdown_early();
 void shutdown_late();
 
@@ -338,13 +337,13 @@ void shutdown_late() {
 
 #ifdef _WIN32
 // a simple wrapper to catch and stream any exception then continue
-template <typename F>
-void safe_call(F func) {
-    try {
-        func();
-    } catch (const std::exception& e) {
-        std::cerr << "exception in DllMain DLL_PROCESS_DETACH " << e.what() << std::endl;
-    }
+template <typename F> void safe_call(F func) {
+  try {
+    func();
+  } catch (const std::exception &e) {
+    std::cerr << "exception in DllMain DLL_PROCESS_DETACH " << e.what()
+              << std::endl;
+  }
 }
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
@@ -365,25 +364,26 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                    // release.
 #endif
 
-  // Perform actions based on the reason for calling.
-  switch (fdwReason) {
-  case DLL_PROCESS_DETACH:
-    if (PrintUrTrace)
-      std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
+    // Perform actions based on the reason for calling.
+    switch (fdwReason) {
+    case DLL_PROCESS_DETACH:
+      if (PrintUrTrace)
+        std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
-    safe_call([](){ shutdown_early(); });
-    safe_call([](){ shutdown_late(); });
-    break;
-  case DLL_PROCESS_ATTACH:
-    if (PrintUrTrace)
-      std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
-    break;
-  case DLL_THREAD_ATTACH:
-    break;
-  case DLL_THREAD_DETACH:
-    break;
-  }
-  return TRUE; // Successful DLL_PROCESS_ATTACH.
+      safe_call([]() { shutdown_early(); });
+      safe_call([]() { shutdown_late(); });
+      break;
+    case DLL_PROCESS_ATTACH:
+      if (PrintUrTrace)
+        std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+
+      break;
+    case DLL_THREAD_ATTACH:
+      break;
+    case DLL_THREAD_DETACH:
+      break;
+    }
+    return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global

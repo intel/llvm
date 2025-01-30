@@ -109,8 +109,7 @@ for (adapter in initializedAdapters) {
 urLoaderTearDown();
 ```
 
-Which in turn is called by either `shutdown_late()` or `shutdown_win()`
-depending on platform.
+Which in turn is called by `shutdown_late()`.
 
 ![](images/adapter-lifetime.jpg)
 
