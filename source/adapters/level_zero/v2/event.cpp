@@ -15,6 +15,7 @@
 #include "event_pool.hpp"
 #include "event_provider.hpp"
 #include "queue_api.hpp"
+#include "queue_handle.hpp"
 
 #include "../ur_interface_loader.hpp"
 
@@ -93,7 +94,7 @@ ur_event_handle_t_::ur_event_handle_t_(
     : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
       flags(flags), profilingData(getZeEvent()) {}
 
-void ur_event_handle_t_::resetQueueAndCommand(ur_queue_handle_t hQueue,
+void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
                                               ur_command_t commandType) {
   this->hQueue = hQueue;
   this->commandType = commandType;
@@ -182,7 +183,7 @@ ur_event_handle_t_::getEventEndTimestampAndHandle() {
   return {profilingData.eventEndTimestampAddr(), getZeEvent()};
 }
 
-ur_queue_handle_t ur_event_handle_t_::getQueue() const { return hQueue; }
+ur_queue_t_ *ur_event_handle_t_::getQueue() const { return hQueue; }
 
 ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 

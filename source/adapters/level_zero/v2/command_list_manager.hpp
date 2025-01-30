@@ -21,7 +21,7 @@ struct ur_command_list_manager : public _ur_object {
                           ur_device_handle_t device,
                           v2::raii::command_list_unique_handle &&commandList,
                           v2::event_flags_t flags = v2::EVENT_FLAGS_COUNTER,
-                          ur_queue_handle_t_ *queue = nullptr);
+                          ur_queue_t_ *queue = nullptr);
   ~ur_command_list_manager();
 
   ur_result_t appendKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,
@@ -47,6 +47,6 @@ private:
   ur_device_handle_t device;
   v2::raii::cache_borrowed_event_pool eventPool;
   v2::raii::command_list_unique_handle zeCommandList;
-  ur_queue_handle_t queue;
+  ur_queue_t_ *queue;
   std::vector<ze_event_handle_t> waitList;
 };

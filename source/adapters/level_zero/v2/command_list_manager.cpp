@@ -17,7 +17,7 @@
 ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
-    ur_queue_handle_t queue)
+    ur_queue_t_ *queue)
     : context(context), device(device),
       eventPool(context->eventPoolCache.borrow(device->Id.value(), flags)),
       zeCommandList(std::move(commandList)), queue(queue) {
