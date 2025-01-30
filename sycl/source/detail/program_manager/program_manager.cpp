@@ -2007,7 +2007,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     RTDeviceBinaryImage *Img = *RTDBImages.begin();
 
     // Drop the kernel argument mask map
-    // TODO: Why is this not protected by a mutex?
     m_EliminatedKernelArgMasks.erase(Img);
 
     // Acquire lock to modify maps for kernel bundles
