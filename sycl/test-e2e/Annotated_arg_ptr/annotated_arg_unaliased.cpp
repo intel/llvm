@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 // REQUIRES: aspect-usm_shared_allocations
 
-// Checks that restrict annotated_arg works in device code.
+// Checks that unaliased annotated_arg works in device code.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp>
@@ -15,7 +15,7 @@ int main() {
 
   int *Ptr = sycl::malloc_shared<int>(1, Q);
   syclexp::annotated_arg<int *,
-                         decltype(syclexp::properties(syclexp::restrict))>
+                         decltype(syclexp::properties(syclexp::unaliased))>
       AnnotArg{Ptr};
   Q.submit([&](sycl::handler &CGH) {
      CGH.single_task([=]() { *AnnotArg = 42; });
