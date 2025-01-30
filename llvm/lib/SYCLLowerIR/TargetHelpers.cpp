@@ -76,6 +76,7 @@ void KernelCache::populateKernels(Module &M) {
 	KernelData[&F] = KernelPayload{AnnotationMetadata};
       }
     }
+    // Early-exiting as there are no DependentMDNodes when no AnnotationMetadata.
     if (!AnnotationMetadata)
       return;
 
