@@ -201,10 +201,7 @@ public:
   threadpool_interface() : threadpool() {}
 
   template <class T> auto schedule_task(T &&task) {
-    auto workerTask = std::make_shared<std::packaged_task<void(size_t)>>(
-        [task](auto &&PH1) mutable {
-          return task(std::forward<decltype(PH1)>(PH1));
-        });
+    auto workerTask = std::make_shared<std::packaged_task<void(size_t)>>(task);
     threadpool.schedule(workerTask);
     return workerTask->get_future();
   }
