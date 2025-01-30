@@ -4,7 +4,10 @@
 // kernels when different work-items perform calls to different virtual
 // functions using the same object.
 //
-// RUN: %{build} -o %t.out %helper-includes
+// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
+// https://github.com/intel/llvm/issues/16839. Remove the flag as well as the
+// variable 'props' once the issue is resolved.
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations %helper-includes
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -73,6 +76,7 @@ int main() try {
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
   sycl::range R{1024};
 
+  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (size_t TestCase = 0; TestCase < 2; ++TestCase) {
     std::vector<int> HostData(R.size());
     std::iota(HostData.begin(), HostData.end(), 0);
@@ -87,7 +91,7 @@ int main() try {
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.parallel_for(R, KernelFunctor(DeviceStorage, DataAcc));
+      CGH.parallel_for(R, props, KernelFunctor(DeviceStorage, DataAcc));
     });
 
     BaseOp *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);
