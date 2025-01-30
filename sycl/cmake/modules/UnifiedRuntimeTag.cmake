@@ -1,9 +1,12 @@
-# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
-# Merge: 4643d1c0 3ed86fae
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 13:55:27 2025 +0000
+set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+# commit 80fa413d390d07de396daa851d3fc2ff3ea8cb35
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Mon Jan 27 12:34:34 2025 +0000
+#     Remove virtual methods from ur_mem_handle_t_
 #
-#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
+#     We want to transition to handle pointers containing the ddi table as the
+#     first element. For this to work, handle object must not have a vtable.
 #
-#    Remove command-buffer command handle ref counting
-set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)
+#     Since ur_mem_handle_t_ is relatively simple, it's easy enough to roll
+#     out our own version of dynamic dispatch.
+set(UNIFIED_RUNTIME_TAG 80fa413d390d07de396daa851d3fc2ff3ea8cb35)
