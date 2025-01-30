@@ -1,6 +1,6 @@
 // requires: cpu, gpu, accelerator
 // UNSUPPORTED: hip
-// FIXME: enable the test back, see intel/llvm#8146
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/8146
 // RUN: %{build} -Wno-error=incorrect-sub-group-size %O0 -o %t.out
 // RUN: %{run} %t.out
 
