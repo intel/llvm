@@ -27,8 +27,8 @@ from templates import helper as th
 #include <ur_api.h>
 #include <ze_api.h>
 
-struct ur_queue_handle_t_ {
-    virtual ~ur_queue_handle_t_();
+struct ur_queue_t_ {
+    virtual ~ur_queue_t_();
 
     virtual void deferEventFree(ur_event_handle_t hEvent) = 0;
 

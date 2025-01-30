@@ -14,6 +14,7 @@
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "queue_api.hpp"
+#include "queue_handle.hpp"
 
 #include "../device.hpp"
 #include "../helpers/kernel_helpers.hpp"
@@ -656,8 +657,9 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, globalWorkSize3D);
 
   ur_device_handle_t hDevice;
-  UR_CALL(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                               reinterpret_cast<void *>(&hDevice), nullptr));
+  UR_CALL(hQueue->get().queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
+                                     reinterpret_cast<void *>(&hDevice),
+                                     nullptr));
 
   UR_CALL(getSuggestedLocalWorkSize(hDevice, hKernel->getZeHandle(hDevice),
                                     globalWorkSize3D, localWorkSize));
