@@ -1049,8 +1049,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         ur_result_t Res =
             Queue->getAdapter()
                 ->call_nocheck<
-                    sycl::detail::UrApiKind::urCommandBufferEnqueueExp>(
-                    CommandBuffer, Queue->getHandleRef(), 0, nullptr, &UREvent);
+                    sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+                    Queue->getHandleRef(), CommandBuffer, 0, nullptr, &UREvent);
         NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
