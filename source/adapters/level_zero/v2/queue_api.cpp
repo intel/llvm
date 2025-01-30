@@ -30,12 +30,12 @@ ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
   return exceptionToResult(std::current_exception());
 }
 ur_result_t urQueueRetain(ur_queue_handle_t hQueue) try {
-  return hQueue->get().queueRetain();
+  return hQueue->queueRetain();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 ur_result_t urQueueRelease(ur_queue_handle_t hQueue) try {
-  return hQueue->get().queueRelease();
+  return hQueue->queueRelease();
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

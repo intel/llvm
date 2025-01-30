@@ -26,8 +26,6 @@ struct ur_queue_t_ {
 
   virtual ur_result_t queueGetInfo(ur_queue_info_t, size_t, void *,
                                    size_t *) = 0;
-  virtual ur_result_t queueRetain() = 0;
-  virtual ur_result_t queueRelease() = 0;
   virtual ur_result_t queueGetNativeHandle(ur_queue_native_desc_t *,
                                            ur_native_handle_t *) = 0;
   virtual ur_result_t queueFinish() = 0;

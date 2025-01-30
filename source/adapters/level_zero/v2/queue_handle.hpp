@@ -29,4 +29,24 @@ struct ur_queue_handle_t_ {
   ur_queue_t_ &get() {
     return std::visit([&](auto &q) -> ur_queue_t_ & { return q; }, queue_data);
   }
+
+  ur_result_t queueRetain() {
+    return std::visit(
+        [](auto &q) {
+          q.RefCount.increment();
+          return UR_RESULT_SUCCESS;
+        },
+        queue_data);
+  }
+
+  ur_result_t queueRelease() {
+    return std::visit(
+        [queueHandle = this](auto &q) {
+          if (!q.RefCount.decrementAndTest())
+            return UR_RESULT_SUCCESS;
+          delete queueHandle;
+          return UR_RESULT_SUCCESS;
+        },
+        queue_data);
+  }
 };
