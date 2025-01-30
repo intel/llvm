@@ -31,6 +31,7 @@ using urDeviceGetGlobalTimestampTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceGetGlobalTimestampTest);
 
 TEST_P(urDeviceGetGlobalTimestampTest, Success) {
+  // See https://github.com/oneapi-src/unified-runtime/issues/2633
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
 
   uint64_t device_time = 0;
