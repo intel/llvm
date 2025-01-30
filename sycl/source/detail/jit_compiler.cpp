@@ -1186,7 +1186,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
   sycl_device_binaries Binaries = Collection->getPIDeviceStruct();
 
   std::lock_guard<std::mutex> Guard{RTCDeviceBinariesMutex};
-  RTCDeviceBinaries[Binaries] = std::move(Collection);
+  RTCDeviceBinaries.emplace(Binaries, std::move(Collection));
   return Binaries;
 }
 

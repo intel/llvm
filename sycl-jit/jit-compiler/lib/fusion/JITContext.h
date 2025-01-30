@@ -72,7 +72,7 @@ public:
     WriteLockT WriteLock{BinariesMutex};
     auto KBUPtr = std::make_unique<KernelBinary>(std::forward<Ts>(Args)...);
     KernelBinary &KB = *KBUPtr;
-    Binaries[KB.address()] = std::move(KBUPtr);
+    Binaries.emplace(KB.address(), std::move(KBUPtr));
     return KB;
   }
 
