@@ -91,4 +91,4 @@ declare <2 x double> @llvm.fpbuiltin.sqrt.v2f64(<2 x double>)
 
 attributes #0 = { "fpbuiltin-max-error"="2.5" }
 attributes #1 = { "fpbuiltin-max-error"="3.0" }
-attributes #1 = { "fpbuiltin-max-error"="10.0" }
+attributes #2 = { "fpbuiltin-max-error"="10.0" }
