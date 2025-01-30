@@ -41,10 +41,8 @@ This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-This extension also depends on the following other SYCL extensions:
+This extension also depends on the following other SYCL extension:
 
-* link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
-  sycl_ext_oneapi_kernel_compiler]
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
 
@@ -124,8 +122,8 @@ _Throws:_
 
 * An `exception` with the `errc::invalid` error code if the contents of `bytes`
   is not in the SYCLBIN format, as defined by the SYCL implementation.
-* An `exception` with the `errc::invalid` error code if the contents of `bytes`
-  is incompatible with `State`.
+* An `exception` with the `errc::invalid` error code if the SYCLBIN read from
+  `bytes` is not in the `State` state.
 * An `exception` with the `errc::invalid` error code if the `devs` vector is
   empty.
 * An `exception` with the `errc::invalid` error code if `State` is
@@ -162,14 +160,14 @@ kernel_bundle<State> get_kernel_bundle(const context& ctxt,
 ----
 !====
 
+_Constraints:_ Available only when `State` is not `ext_oneapi_source`.
+
 _Effects (1):_ Creates a new kernel bundle containing the kernels inside the
 SYCLBIN file located at `filename`. This is equivalent to
 `get_kernel_bundle(ctxt, devs, data, props)` where `data` is the bytes read from
 the SYCLBIN file at `filename`.
 
 _Effects (2)_: Equivalent to `get_kernel_bundle(ctxt, ctxt.get_devices(), filename, props)`.
-
-_Constraints:_ Available only when `State` is not `ext_oneapi_source`.
 
 _Returns:_ The newly created kernel bundle, which has `State` state.
 
@@ -180,8 +178,8 @@ _Throws:_
 * An `exception` with the `errc::invalid` error code if the contents of the file
   specified by `filename` is not in the SYCLBIN format, as defined by the SYCL
   implementation.
-* An `exception` with the `errc::invalid` error code if the contents of the file
-  specified by `filename` is incompatible with `State`.
+* An `exception` with the `errc::invalid` error code if the SYCLBIN read from
+  the file specified by `filename` is not in the `State` state.
 * An `exception` with the `errc::invalid` error code if any of the devices in
   `devs` is not one of devices contained by the context `ctxt` or is not a
   descendent device of some device in `ctxt`.
@@ -226,10 +224,11 @@ std::vector<char> ext_oneapi_get_content()
 _Constraints:_ Available only when `State` is not `ext_oneapi_source`.
 
 _Returns:_ A vector of bytes containing the data of the kernel bundle in the
-SYCLBIN format for this implementation.
+SYCLBIN format for this implementation. The corresponding SYCLBIN format will
+be in `State` state.
 
 [_Note:_ If the `kernel_bundle` was created using the `get_kernel_bundle` from
-a SYCLBIN file, the contents returned by this member function is not guaranteed
+a SYCLBIN file, the contents returned by this member function are not guaranteed
 to be the same as the original SYCLBIN file.
 _{endnote}_]
 
