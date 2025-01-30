@@ -30,7 +30,7 @@ class Options:
     build_compute_runtime: bool = False
     extra_ld_libraries: list[str] = field(default_factory=list)
     extra_env_vars: dict = field(default_factory=dict)
-    compute_runtime_tag: str = '24.52.32224.8'
+    compute_runtime_tag: str = '24.52.32224.10'
     build_igc: bool = False
 
 options = Options()
