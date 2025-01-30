@@ -36,6 +36,9 @@ set(UR_ENABLE_TRACING ON)
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
 endif()
+if("level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS)
+  set(UR_BUILD_ADAPTER_L0_V2 ON)
+endif()
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_CUDA ON)
 endif()
@@ -116,7 +119,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/omarahmed1111/unified-runtime.git")
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
@@ -264,6 +267,10 @@ if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
 
   # TODO: L0 adapter does other... things in its cmake - make sure they get
   # added to the new build system
+endif()
+
+if("level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_sycl_ur_adapter(level_zero_v2)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)

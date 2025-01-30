@@ -1,9 +1,7 @@
-# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
-# Merge: 4643d1c0 3ed86fae
+# commit c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787
+# Merge: e6d4355f 778085f7
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 13:55:27 2025 +0000
-#
-#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
-#
-#    Remove command-buffer command handle ref counting
-set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)
+# Date:   Mon Jan 13 10:41:50 2025 +0000
+#     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
+#     Parameterize CTS tests across all available adapters and devices.
+set(UNIFIED_RUNTIME_TAG 5ce773d54b2f1f765789ac95ac37f6770ea2aaa4)
