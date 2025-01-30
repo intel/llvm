@@ -100,8 +100,8 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes3DSuccess) {
   ASSERT_TRUE(result);
   ASSERT_EQ(ret_type::dimensions, 3);
   ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<size_t>(123));
-  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(213));
-  ASSERT_EQ(maxWorkGroupItemSizes[2], static_cast<size_t>(321));
+  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(101));
+  ASSERT_EQ(maxWorkGroupItemSizes[2], static_cast<size_t>(123));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizes2DSuccess) {
@@ -117,7 +117,7 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes2DSuccess) {
   ASSERT_TRUE(result);
   ASSERT_EQ(ret_type::dimensions, 2);
   ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<size_t>(123));
-  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(213));
+  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(101));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizes1DSuccess) {

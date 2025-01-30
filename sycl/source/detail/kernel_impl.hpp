@@ -433,13 +433,19 @@ inline typename syclex::info::kernel_queue_specific::max_work_group_size::
   return KernelWGSize;
 }
 
-template <int D> inline sycl::id<D> generate_id(const size_t *sizes) {
+template <int D>
+inline sycl::id<D> generate_id(const sycl::range<D> &DevMAxWorkItemSizes,
+                               const size_t DevWgSize) {
   sycl::id<D> ret;
   for (int i = 0; i < D; i++) {
-    ret[i] = sizes[i];
+    // DevMAxWorkItemSizes values are reverted, see
+    // sycl/source/detail/device_info.hpp:582
+    ret[D - 1 - i] = std::min(DevMAxWorkItemSizes[i], DevWgSize);
     std::cout << "ret[" << i << "] = " << ret[i] << std::endl;
-    std::cout << "sizes[" << i << "] = " << sizes[i] << std::endl;
+    std::cout << "DevMAxWorkItemSizes[" << i << "] = " << DevMAxWorkItemSizes[i]
+              << std::endl;
   }
+  std::cout << "DevWgSize:" << DevWgSize << std::endl;
   return ret;
 }
 
@@ -450,18 +456,17 @@ template <int D> inline sycl::id<D> generate_id(const size_t *sizes) {
   kernel_impl::ext_oneapi_get_info<                                            \
       syclex::info::kernel_queue_specific::max_work_item_sizes<Num>>(          \
       queue Queue) const {                                                     \
-    const auto &Adapter = getAdapter();                                        \
-    const auto DeviceNativeHandle =                                            \
-        getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
-    size_t KernelWGSize[3] = {0};                                              \
-    Adapter->call<UrApiKind::urKernelGetGroupInfo>(                            \
-        MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE,    \
-        sizeof(size_t) * 3, KernelWGSize, nullptr);                            \
-    std::cout << "KernelWGSize: {" << KernelWGSize[0] << ", "                  \
-              << KernelWGSize[1] << ", " << KernelWGSize[2] << "}"             \
-              << std::endl;                                                    \
-    return generate_id<Num>(KernelWGSize);                                     \
-  }
+    const auto Dev = Queue.get_device();                                       \
+    const auto DeviceWgSize =                                                  \
+        get_info<info::kernel_device_specific::work_group_size>(Dev);          \
+    const auto DeviceMaxWorkItemSizes =                                        \
+        Dev.get_info<info::device::max_work_item_sizes<Num>>();                \
+    for (int i = 0; i < Num; i++) {                                            \
+      std::cout << "DeviceMaxWorkItemSizes[" << i                              \
+                << "] = " << DeviceMaxWorkItemSizes[i] << std::endl;           \
+    }                                                                          \
+    return generate_id<Num>(DeviceMaxWorkItemSizes, DeviceWgSize);             \
+  } // namespace detail
 
 ADD_TEMPLATE_METHOD_SPEC(1)
 ADD_TEMPLATE_METHOD_SPEC(2)

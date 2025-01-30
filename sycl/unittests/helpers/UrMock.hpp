@@ -184,6 +184,17 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
       **params->ppPropSizeRet = sizeof(ur_device_handle_t *);
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+    if (*params->ppPropValue) {
+      auto RealVal = reinterpret_cast<size_t *>(*params->ppPropValue);
+      RealVal[0] = 123;
+      RealVal[1] = 101;
+      RealVal[2] = 321;
+    }
+    if (*params->ppPropSizeRet)
+      **params->ppPropSizeRet = 3 * sizeof(size_t);
+    return UR_RESULT_SUCCESS;
+  }
   case UR_DEVICE_INFO_EXTENSIONS: {
     if (*params->ppPropValue) {
       assert(*params->ppropSize >= sizeof(MockSupportedExtensions));
