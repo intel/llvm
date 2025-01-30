@@ -270,6 +270,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeIntelExternalSemaphoreExtensionSupported = true;
       }
     }
+    if (strncmp(extension.name, ZE_EU_COUNT_EXT_NAME,
+                strlen(ZE_EU_COUNT_EXT_NAME) + 1) == 0) {
+      if (extension.version == ZE_EU_COUNT_EXT_VERSION_1_0) {
+        ZeDriverEuCountExtensionFound = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
