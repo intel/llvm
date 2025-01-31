@@ -8975,13 +8975,15 @@ typedef enum ur_exp_image_copy_flag_t {
   UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST = UR_BIT(1),
   /// Device to device
   UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE = UR_BIT(2),
+  /// Host to host
+  UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST = UR_BIT(3),
   /// @cond
   UR_EXP_IMAGE_COPY_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_exp_image_copy_flag_t;
 /// @brief Bit Mask for validating ur_exp_image_copy_flags_t
-#define UR_EXP_IMAGE_COPY_FLAGS_MASK 0xfffffff8
+#define UR_EXP_IMAGE_COPY_FLAGS_MASK 0xfffffff0
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler cubemap seamless filtering mode.

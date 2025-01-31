@@ -10405,6 +10405,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE:
     os << "UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE";
     break;
+  case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST:
+    os << "UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -10452,6 +10455,17 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
       first = false;
     }
     os << UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
+  }
+
+  if ((val & UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) ==
+      (uint32_t)UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
+    val ^= (uint32_t)UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
