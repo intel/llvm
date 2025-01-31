@@ -49,6 +49,11 @@ build_compute_bench() {
         while IFS= read -r case; do
             # Skip lines starting with '#'
             [ "${case##\#*}" ] || continue
+
+            if [ -n "$(printf "%s" "$case" | sed "s/[a-zA-Z_]*//g")" ]; then
+                echo "Illegal characters in $TESTS_CONFIG."
+                exit 1
+            fi
             # TODO Sanitize this
             make "-j$SANITIZED_COMPUTE_BENCH_COMPILE_JOBS" "$case"
         done < "$TESTS_CONFIG"
@@ -150,6 +155,10 @@ process_benchmarks() {
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
+            if [ -n "$(printf "%s" "$testcase" | sed "s/[a-zA-Z_]*//g")" ]; then
+                echo "Illegal characters in $TESTS_CONFIG."
+                exit 1
+            fi
             echo "# Running $testcase..."
 
             # The benchmark results git repo and this script's output both share
