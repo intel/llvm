@@ -219,10 +219,8 @@ public:
   };
   using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
-  using KernelByNameT =
-      ::boost::unordered_map<std::string, KernelBuildResultPtr>;
-  using KernelCacheT =
-      ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
+  using KernelByNameT = std::unordered_map<std::string, KernelBuildResultPtr>;
+  using KernelCacheT = std::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
       std::pair<ur_device_handle_t, /* UR device handle pointer */
