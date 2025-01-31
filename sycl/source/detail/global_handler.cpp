@@ -345,6 +345,7 @@ template <typename F> void safe_call(F func) {
               << std::endl;
   }
 }
+std::atomic<long> dllRefCount = 0;
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
@@ -370,13 +371,17 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       if (PrintUrTrace)
         std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
-      safe_call([]() { shutdown_early(); });
-      safe_call([]() { shutdown_late(); });
+      dllRefCount--;
+      if (dllRefCount == 0) {
+        safe_call([]() { shutdown_early(); });
+        safe_call([]() { shutdown_late(); });
+      }
       break;
     case DLL_PROCESS_ATTACH:
       if (PrintUrTrace)
         std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
 
+      dllRefCount++;
       break;
     case DLL_THREAD_ATTACH:
       break;

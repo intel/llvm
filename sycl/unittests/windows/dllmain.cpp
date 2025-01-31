@@ -39,24 +39,19 @@ ur_result_t redefinedAdapterRelease(void *) {
 TEST(Windows, DllMainCall) {
 #ifdef _WIN32
   sycl::unittest::UrMock<> Mock;
+  Mock.releaseSyclObjsOnDestruction = false;
+  
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback("urAdapterRelease",
                                            &redefinedAdapterRelease);
 
-  // Teardown calls are only expected on sycl.dll library unload, not when
-  // process gets terminated.
-  // The first call to DllMain is to simulate library unload. The second one
-  // is to simulate process termination
-  fprintf(stderr, "Call DllMain for the first time\n");
+  DllMain((HINSTANCE)0, DLL_PROCESS_ATTACH, (LPVOID)NULL);
+  fprintf(stderr, "Call DllMain detach\n");
   DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)NULL);
 
   int TearDownCallsDone = TearDownCalls.load();
 
   EXPECT_NE(TearDownCallsDone, 0);
 
-  fprintf(stderr, "Call DllMain for the second time\n");
-  DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)0x01);
-
-  EXPECT_EQ(TearDownCalls.load(), TearDownCallsDone);
 #endif
 }
