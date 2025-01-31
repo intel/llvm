@@ -6,8 +6,6 @@
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcf-protection
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fcf-protection -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64_gen -DOPT=-fcf-protection
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga -fcf-protection -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64_fpga -DOPT=-fcf-protection
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fcf-protection -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64_x86_64 -DOPT=-fcf-protection
 
