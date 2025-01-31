@@ -9,6 +9,7 @@
 // This tests support of col major layout for matrix B which does transpose and
 // then VNNI transform. This is currently only available on AMX
 
+// REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out

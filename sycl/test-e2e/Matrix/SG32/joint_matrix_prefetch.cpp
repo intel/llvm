@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: target-spir
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // REQUIRES: aspect-ext_intel_matrix
 // RUN: %{build} -o %t.out
