@@ -1,7 +1,6 @@
-# commit 8e6ea72e44dab71e976b3daf439073c4ef9a847b
-# Merge: 1f6945ce c57c181d
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 15:54:56 2025 +0000
-#     Merge pull request #2619 from martygrant/martin/memimage-info-unswitch-redo
-#     Move urMemImageGetInfo success test from a switch to individual test
-set(UNIFIED_RUNTIME_TAG 8e6ea72e44dab71e976b3daf439073c4ef9a847b)
+set(UNIFIED_RUNTIME_REPO "https://github.com/omarahmed1111/unified-runtime.git")
+# commit da306bae38372600c14fb2b1fed406de36cba474
+# Author: omarahmed1111 <omar.ahmed@codeplay.com>
+# Date:   Fri Oct 4 16:12:36 2024 +0100
+#     Add handles to opencl adapter
+set(UNIFIED_RUNTIME_TAG da306bae38372600c14fb2b1fed406de36cba474)
