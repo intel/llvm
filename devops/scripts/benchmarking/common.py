@@ -191,7 +191,7 @@ class Configuration:
         metric_tolerances = \
             dict([ pair_str.split(":") for pair_str in m_tol_str.split(",") ])
 
-        for metric, tolerance_str in metric_tolerances:
+        for metric, tolerance_str in metric_tolerances.items():
             if metric not in metrics_recorded:
                 print(f"Metric compared against {metric} is not being recorded.",
                       file=sys.stderr)
