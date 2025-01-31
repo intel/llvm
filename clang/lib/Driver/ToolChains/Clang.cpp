@@ -7202,7 +7202,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.ClaimAllArgs(options::OPT_D);
 
   bool SkipO =
-      Args.hasArg(options::OPT_fsycl_link_EQ) && ContainsWrapperAction(&JA);
+      Args.hasArgNoClaim(options::OPT_fsycl_link) && ContainsWrapperAction(&JA);
   const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
   // Manually translate -O4 to -O3; let clang reject others.
   // When compiling a wrapped binary, do not optimize.

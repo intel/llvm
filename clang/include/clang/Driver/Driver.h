@@ -591,7 +591,8 @@ public:
 
   /// getSYCLDeviceTriple - Returns the SYCL device triple for the
   /// specified subarch
-  llvm::Triple getSYCLDeviceTriple(StringRef TargetArch = "spir64") const;
+  llvm::Triple getSYCLDeviceTriple(StringRef TargetArch = "spir64",
+                                   const llvm::opt::Arg *Arg = nullptr) const;
 
   /// PrintActions - Print the list of actions.
   void PrintActions(const Compilation &C) const;

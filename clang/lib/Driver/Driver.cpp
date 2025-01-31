@@ -294,6 +294,17 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
                        DiagnosticsEngine::Warning;
       continue;
     }
+    // Emit an unsupported and removed diagnostic for any options that were
+    // previously supported and subsequently removed.  This is considered a
+    // special case scenario that is currently being used for FPGA related
+    // options that did not go through the regular deprecation process.
+    if (A->getOption().hasFlag(options::UnsupportedRemoved)) {
+      Diag(diag::err_drv_unsupported_opt_removed) << A->getAsString(Args);
+      ContainsError |= Diags.getDiagnosticLevel(
+          diag::err_drv_unsupported_opt_removed,
+          SourceLocation()) > DiagnosticsEngine::Warning;
+      continue;
+    }
 
     // Deprecated options emit a diagnostic about deprecation, but are still
     // supported until removed. It's possible to have a deprecated option which
@@ -840,6 +851,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
       ((T.getArch() == llvm::Triple::spir && A != "spir") ||
        (T.getArch() == llvm::Triple::spir64 && A != "spir64")))
     return false;
+
+  // spir64_fpga is not supported.
+  if (T.isSPIR() && T.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    return false;
   return true;
 }
 
@@ -1167,9 +1182,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         << ArgValue << A->getOption().getName();
   };
 
-  Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
-  checkSingleArgValidity(SYCLLink, {"early", "image"});
-
   Arg *DeviceCodeSplit =
       C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
   checkSingleArgValidity(DeviceCodeSplit,
@@ -1196,7 +1208,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
     StringRef Val(SYCLForceTarget->getValue());
-    llvm::Triple TT(getSYCLDeviceTriple(Val));
+    llvm::Triple TT(getSYCLDeviceTriple(Val, SYCLForceTarget));
     if (!isValidSYCLTriple(TT))
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
   }
@@ -2601,12 +2613,18 @@ void Driver::PrintHelp(bool ShowHidden) const {
                       VisibilityMask);
 }
 
-llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch) const {
+llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch,
+                                         const Arg *Arg) const {
   SmallVector<StringRef, 5> SYCLAlias = {
       "spir",       "spir64",  "spir64_fpga", "spir64_x86_64",
       "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
   if (std::find(SYCLAlias.begin(), SYCLAlias.end(), TargetArch) !=
       SYCLAlias.end()) {
+    // mtoguchi
+    // spir64_fpga is no longer supported.
+    if (TargetArch == "spir64_fpga" && Arg)
+      Diag(diag::err_drv_unsupported_opt_removed) <<
+      Arg->getSpelling().str() + TargetArch.str();
     llvm::Triple TT;
     TT.setArchName(TargetArch);
     // Return the full SYCL target triple string for NVidia GPU targets.
@@ -2631,8 +2649,8 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     if (AV == "gen" || AV == "all")
       HelpArgs.push_back(std::make_tuple(getSYCLDeviceTriple("spir64_gen"),
                                          "ocloc", "--help", ""));
-    if (AV == "fpga" || AV == "all")
-      HelpArgs.push_back(std::make_tuple(getSYCLDeviceTriple("spir64_fpga"),
+    if (AV == "fpga")
+      HelpArgs.push_back(std::make_tuple(getSYCLDeviceTriple("spir64_fpga", A),
                                          "aoc", "-help", "-sycl"));
     if (AV == "x86_64" || AV == "all")
       HelpArgs.push_back(std::make_tuple(getSYCLDeviceTriple("spir64_x86_64"),
@@ -3893,7 +3911,7 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
   // or if -fsycl-targets isn't passed (that implies default device)
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (const char *Val : A->getValues()) {
-      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
+      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val, A));
       if ((TT.isSPIROrSPIRV()) && TT.getSubArch() == llvm::Triple::NoSubArch)
         // Default triple found
         return false;
@@ -6565,7 +6583,7 @@ class OffloadingActionBuilder final {
               continue;
             }
 
-            llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
+            llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
             std::string NormalizedName = TT.normalize();
 
             // Make sure we don't have a duplicate triple.
@@ -6654,7 +6672,7 @@ class OffloadingActionBuilder final {
       }
 
       WrapDeviceOnlyBinary =
-          Args.hasArg(options::OPT_fsycl_link_EQ) && !SYCLfpgaTriple;
+          Args.hasArg(options::OPT_fsycl_link) && !SYCLfpgaTriple;
       // Device only compilation for -fsycl-link (no FPGA)
       CompileDeviceOnly = WrapDeviceOnlyBinary;
 
@@ -7028,7 +7046,7 @@ public:
     // Now that we have unbundled the object, when doing -fsycl-link we
     // want to continue the host link with the input object.
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
-        (Args.hasArg(options::OPT_fsycl_link_EQ) && !HasFPGATarget) ||
+        (Args.hasArgNoClaim(options::OPT_fsycl_link) && !HasFPGATarget) ||
         (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
                             HostAction->getType() == types::TY_Object))))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
@@ -7748,7 +7766,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
       getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
-    if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
+    if (Args.hasArgNoClaim(options::OPT_fsycl_link) &&
         !Args.hasArg(options::OPT_fintelfpga)) {
       ActionList LAList;
       OffloadBuilder->makeHostLinkDeviceOnlyAction(LAList);
@@ -7765,7 +7783,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (!UseNewOffloadingDriver)
       OffloadBuilder->makeHostLinkAction(LinkerInputs);
     types::ID LinkType(types::TY_Image);
-    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+    if (Args.hasArgNoClaim(options::OPT_fsycl_link))
       LinkType = types::TY_Archive;
     Action *LA;
     // Check if this Linker Job should emit a static library.
@@ -9540,7 +9558,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     // When generating binaries with -fsycl-link, the output file prefix is the
     // triple arch only.  Do not add the arch when compiling for host.
     if (!A->getOffloadingHostActiveKinds() &&
-        Args.hasArg(options::OPT_fsycl_link_EQ)) {
+        Args.hasArgNoClaim(options::OPT_fsycl_link)) {
       OffloadingPrefix = "-";
       OffloadingPrefix += TC->getTriple().getArchName();
     } else {

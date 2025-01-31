@@ -1708,7 +1708,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
           A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (getDriver().getSYCLDeviceTriple(A->getValue(0)) == Triple)
+        if (getDriver().getSYCLDeviceTriple(A->getValue(0), A) == Triple)
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;

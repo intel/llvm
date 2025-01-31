@@ -51,6 +51,11 @@ def NoArgumentUnused : OptionFlag;
 // lines that use it.
 def Unsupported : OptionFlag;
 
+// UnsupportedRemoved - The option is unsupported and recently removed. Allows
+// for special diagnostic handling, and the driver will reject command
+// lines that use it.
+def UnsupportedRemoved : OptionFlag;
+
 // Ignored - The option is unsupported, and the driver will silently ignore it.
 def Ignored : OptionFlag;
 
@@ -6943,8 +6948,8 @@ defm : FlangIgnoredDiagOpt<"target-lifetime">;
 
 // C++ SYCL options
 let Group = sycl_Group in {
-def reuse_exe_EQ : Joined<["-"], "reuse-exe=">, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
+def reuse_exe_EQ : Joined<["-"], "reuse-exe=">,
+  Visibility<[ClangOption, CLOption, DXCOption]>, Flags<[UnsupportedRemoved]>,
   MetaVarName<"<exe>">;
 def fsycl : Flag<["-"], "fsycl">,
   HelpText<"Enables SYCL kernels compilation for device">;
@@ -6988,10 +6993,9 @@ def fsycl_default_sub_group_size
 def fsycl_default_sub_group_size_EQ
     : Joined<["-"], "fsycl-default-sub-group-size=">,
       Alias<fsycl_default_sub_group_size>, Visibility<[ClangOption, CC1Option]>;
-def fintelfpga : Flag<["-"], "fintelfpga">,
+def fintelfpga : Flag<["-"], "fintelfpga">, Flags<[UnsupportedRemoved]>,
   Visibility<[ClangOption, CLOption, CC1Option]>,
-  MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
-  HelpText<"Perform ahead-of-time compilation for FPGA">;
+  MarshallingInfoFlag<LangOpts<"IntelFPGA">>;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">,
   HelpText<"Compile SYCL kernels for device">;
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">,
@@ -7091,11 +7095,9 @@ def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
   Alias<fsycl_device_obj_EQ>, AliasArgs<["spirv"]>, Flags<[Deprecated]>,
   HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects (deprecated)">;
 def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
-  HelpText<"Generate partially linked device and host object to be used at "
-           "various stages of compilation">, Values<"image,early">;
-def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
-  AliasArgs<["early"]>, HelpText<"Generate partially linked device object to "
-  "be used with the host link">;
+  Flags<[UnsupportedRemoved]>, Values<"image,early">;
+def fsycl_link : Flag<["-"], "fsycl-link">, HelpText<"Generate partially "
+  "linked device object to be used with the host link">;
 defm sycl_unnamed_lambda
     : BoolFOption<
           "sycl-unnamed-lambda", LangOpts<"SYCLUnnamedLambda">,
