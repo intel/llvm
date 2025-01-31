@@ -147,7 +147,7 @@ public:
     return LHS.impl == RHS.impl;
   }
   friend bool operator!=(const node &LHS, const node &RHS) {
-    return LHS.impl != RHS.impl;
+    return !operator==(LHS, RHS);
   }
 
 private:
@@ -196,7 +196,7 @@ public:
   }
   friend bool operator!=(const dynamic_command_group &LHS,
                          const dynamic_command_group &RHS) {
-    return LHS.impl != RHS.impl;
+    return !operator==(LHS, RHS);
   }
 
 private:
@@ -332,7 +332,7 @@ public:
   }
   friend bool operator!=(const modifiable_command_graph &LHS,
                          const modifiable_command_graph &RHS) {
-    return LHS.impl != RHS.impl;
+    return !operator==(LHS, RHS);
   }
 
 protected:
@@ -421,7 +421,7 @@ public:
   }
   friend bool operator!=(const executable_command_graph &LHS,
                          const executable_command_graph &RHS) {
-    return LHS.impl != RHS.impl;
+    return !operator==(LHS, RHS);
   }
 
 protected:
@@ -497,7 +497,7 @@ public:
   }
   friend bool operator!=(const dynamic_parameter_base &LHS,
                          const dynamic_parameter_base &RHS) {
-    return LHS.impl != RHS.impl;
+    return !operator==(LHS, RHS);
   }
 
 protected:
