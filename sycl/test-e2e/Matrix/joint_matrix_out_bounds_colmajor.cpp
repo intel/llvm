@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
+
 // UNSUPPORTED: gpu-intel-dg2, cpu
+// UNSUPPORTED-INTENDED: Checked load/stores are not supported by DG2 and CPU HW
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

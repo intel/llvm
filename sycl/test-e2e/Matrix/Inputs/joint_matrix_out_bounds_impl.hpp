@@ -147,7 +147,8 @@ void test() {
 
 template <layout A_layout, layout B_layout> void test_all() {
   std::cout << "bf16: ";
-  test<bfloat16, float, 1024 + 14, 1024, 1024 + 24, 8, 16, 16, A_layout,
+  test<bfloat16, float, /*MATRIX_M*/ 1024 + 14, /*MATRIX_N*/ 1024,
+       /*MATRIX_K*/ 1024 + 24, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, A_layout,
        B_layout>();
   std::cout << "half: ";
   test<half, float, 1024 + 14, 1024, 1024 + 24, 8, 16, 16, A_layout,

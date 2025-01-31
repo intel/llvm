@@ -9,6 +9,7 @@
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // UNSUPPORTED: gpu-intel-dg2, cpu
+// UNSUPPORTED-INTENDED: Checked load/stores are not supported by DG2 and CPU HW
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
