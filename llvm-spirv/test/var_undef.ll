@@ -9,12 +9,16 @@
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix CHECK-LLVM
 
-; CHECK-SPIRV:Name [[BAR_VAR:[0-9]+]] "bar"
+; CHECK-SPIRV: Name [[FOO_VAR:[0-9]+]] "foo"
+; CHECK-SPIRV: Name [[BAR_VAR:[0-9]+]] "bar"
+;; foo variable has optional initializer (OpUndef)
+; CHECK-SPIRV: 5 Variable [[#]] [[FOO_VAR]]
 ;; bar variable does not have optional initializer
 ;; word count must be 4
-; CHECK-SPIRV:4 Variable [[#]] [[BAR_VAR]]
+; CHECK-SPIRV: 4 Variable [[#]] [[BAR_VAR]]
 
-; CHECK-LLVM:@bar = internal addrspace(3) global %range undef, align 8
+; CHECK-LLVM: @foo = internal addrspace(3) global %anon undef, align 8
+; CHECK-LLVM: @bar = internal addrspace(3) global %range poison, align 8
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

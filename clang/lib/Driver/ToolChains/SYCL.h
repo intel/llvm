@@ -128,9 +128,11 @@ StringRef mapIntelGPUArchName(StringRef ArchName);
 class SYCLInstallationDetector {
 public:
   SYCLInstallationDetector(const Driver &D);
+  SYCLInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
+                           const llvm::opt::ArgList &Args);
   void getSYCLDeviceLibPath(
       llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
-  void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+  void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const;
   void print(llvm::raw_ostream &OS) const;
 
@@ -138,6 +140,7 @@ private:
   const Driver &D;
   llvm::SmallVector<llvm::SmallString<128>, 4> InstallationCandidates;
 };
+
 
 class Command;
 
@@ -323,7 +326,7 @@ public:
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
   CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
-  void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+  void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
   void
   AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
@@ -334,10 +337,8 @@ public:
 
   SanitizerMask getSupportedSanitizers() const override;
 
-  const ToolChain &HostTC;
   const bool IsSYCLNativeCPU;
 
-  SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildBackendCompiler() const override;
@@ -347,6 +348,8 @@ private:
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;
+  const ToolChain &HostTC;
+  SYCLInstallationDetector SYCLInstallation;
 };
 
 } // end namespace toolchains
