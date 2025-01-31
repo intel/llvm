@@ -1,9 +1,7 @@
-# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
-# Merge: 4643d1c0 3ed86fae
+# commit 8e6ea72e44dab71e976b3daf439073c4ef9a847b
+# Merge: 1f6945ce c57c181d
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 13:55:27 2025 +0000
-#
-#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
-#
-#    Remove command-buffer command handle ref counting
-set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)
+# Date:   Wed Jan 29 15:54:56 2025 +0000
+#     Merge pull request #2619 from martygrant/martin/memimage-info-unswitch-redo
+#     Move urMemImageGetInfo success test from a switch to individual test
+set(UNIFIED_RUNTIME_TAG 8e6ea72e44dab71e976b3daf439073c4ef9a847b)

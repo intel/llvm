@@ -2987,10 +2987,32 @@ RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
   return ComplexRangeStr;
 }
 
+static void EmitAccuracyDiag(const Driver &D, const JobAction &JA,
+                             StringRef AccuracValStr, StringRef TargetPrecStr) {
+  if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    D.Diag(clang::diag::
+               warn_acuracy_conflicts_with_explicit_offload_fp32_prec_option)
+        << AccuracValStr << TargetPrecStr;
+  }
+}
+
+static SmallVector<StringRef, 8> SplitFPAccuracyVal(StringRef Val) {
+  SmallVector<StringRef, 8> ValuesArr;
+  SmallVector<StringRef, 8> FuncsArr;
+  Val.split(ValuesArr, ":");
+  if (ValuesArr.size() > 1) {
+    StringRef x = ValuesArr[1];
+    x.split(FuncsArr, ",");
+  }
+  return FuncsArr;
+}
+
 static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                        bool OFastEnabled, const ArgList &Args,
                                        ArgStringList &CmdArgs,
-                                       const JobAction &JA) {
+                                       const JobAction &JA,
+                                       bool &NoOffloadFP32PrecDiv,
+                                       bool &NoOffloadFP32PrecSqrt) {
   // List of veclibs which when used with -fveclib imply -fno-math-errno.
   constexpr std::array VecLibImpliesNoMathErrno{llvm::StringLiteral("ArmPL"),
                                                 llvm::StringLiteral("SLEEF")};
@@ -3043,6 +3065,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
   std::string GccRangeComplexOption = "";
+  bool IsFp32PrecDivSqrtAllowed = JA.isDeviceOffloading(Action::OFK_SYCL);
 
   auto setComplexRange = [&](LangOptions::ComplexRangeKind NewRange) {
     // Warn if user expects to perform full implementation of complex
@@ -3077,6 +3100,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     FPExceptionBehavior = "";
     FPContract = "fast";
     SeenUnsafeMathModeOption = true;
+    if (IsFp32PrecDivSqrtAllowed) {
+      // when fp-model=fast is used the default precision for division and
+      // sqrt is not precise.
+      NoOffloadFP32PrecDiv = true;
+      NoOffloadFP32PrecSqrt = true;
+    }
   };
 
   // Lambda to consolidate common handling for fp-contract
@@ -3105,6 +3134,31 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back(A->getValue());
   }
 
+  auto addSPIRVArgs = [&](StringRef SPIRVArg) {
+    if (IsFp32PrecDivSqrtAllowed) {
+      if (!FPAccuracy.empty())
+        EmitAccuracyDiag(D, JA, FPAccuracy, SPIRVArg);
+      if (SPIRVArg == "-fno-offload-fp32-prec-div")
+        NoOffloadFP32PrecDiv = true;
+      else if (SPIRVArg == "-fno-offload-fp32-prec-sqrt")
+        NoOffloadFP32PrecSqrt = true;
+      else if (SPIRVArg == "-foffload-fp32-prec-sqrt")
+        NoOffloadFP32PrecSqrt = false;
+      else if (SPIRVArg == "-foffload-fp32-prec-div")
+        NoOffloadFP32PrecDiv = false;
+    }
+  };
+
+  auto parseFPAccOption = [&](StringRef Val, bool &NoOffloadFlag) {
+    SmallVector<StringRef, 8> FuncsArr = SplitFPAccuracyVal(Val);
+    for (const auto &V : FuncsArr) {
+      if (V == "fdiv")
+        NoOffloadFlag = false;
+      else if (V == "sqrt")
+        NoOffloadFlag = false;
+    }
+  };
+
   for (const Arg *A : Args) {
     auto CheckMathErrnoForVecLib =
         llvm::make_scope_exit([&, MathErrnoBeforeArg = MathErrno] {
@@ -3116,6 +3170,18 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     // If this isn't an FP option skip the claim below
     default: continue;
 
+    case options::OPT_foffload_fp32_prec_div:
+      addSPIRVArgs("-foffload-fp32-prec-div");
+      break;
+    case options::OPT_foffload_fp32_prec_sqrt:
+      addSPIRVArgs("-foffload-fp32-prec-sqrt");
+      break;
+    case options::OPT_fno_offload_fp32_prec_div:
+      addSPIRVArgs("-fno-offload-fp32-prec-div");
+      break;
+    case options::OPT_fno_offload_fp32_prec_sqrt:
+      addSPIRVArgs("-fno-offload-fp32-prec-sqrt");
+      break;
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
         if (Range != LangOptions::ComplexRangeKind::CX_Basic)
@@ -3200,6 +3266,14 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_ffp_accuracy_EQ: {
       StringRef Val = A->getValue();
       FPAccuracy = Val;
+      if (NoOffloadFP32PrecDiv) {
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-div");
+        parseFPAccOption(Val, NoOffloadFP32PrecDiv);
+      }
+      if (NoOffloadFP32PrecSqrt) {
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-sqrt");
+        parseFPAccOption(Val, NoOffloadFP32PrecSqrt);
+      }
       break;
     }
     case options::OPT_ffp_model_EQ: {
@@ -3632,6 +3706,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back("-fno-cx-limited-range");
   if (Args.hasArg(options::OPT_fno_cx_fortran_rules))
     CmdArgs.push_back("-fno-cx-fortran-rules");
+  if (IsFp32PrecDivSqrtAllowed) {
+    if (NoOffloadFP32PrecDiv)
+      CmdArgs.push_back("-fno-offload-fp32-prec-div");
+    if (NoOffloadFP32PrecSqrt)
+      CmdArgs.push_back("-fno-offload-fp32-prec-sqrt");
+  }
 }
 
 static void RenderAnalyzerOptions(const ArgList &Args, ArgStringList &CmdArgs,
@@ -5409,6 +5489,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
   const Driver &D = TC.getDriver();
   ArgStringList CmdArgs;
+  bool NoOffloadFP32PrecDiv = false;
+  bool NoOffloadFP32PrecSqrt = false;
 
   assert(Inputs.size() >= 1 && "Must have at least one input.");
   // CUDA/HIP compilation may have multiple inputs (source file + results of
@@ -6245,7 +6327,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_fno_optimize_sibling_calls);
 
     RenderFloatingPointOptions(TC, D, isOptimizationLevelFast(Args), Args,
-                               CmdArgs, JA);
+                               CmdArgs, JA, NoOffloadFP32PrecDiv,
+                               NoOffloadFP32PrecSqrt);
 
     // Render ABI arguments
     switch (TC.getArch()) {
@@ -6720,7 +6803,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_fno_protect_parens, false))
     CmdArgs.push_back("-fprotect-parens");
 
-  RenderFloatingPointOptions(TC, D, OFastEnabled, Args, CmdArgs, JA);
+  RenderFloatingPointOptions(TC, D, OFastEnabled, Args, CmdArgs, JA,
+                             NoOffloadFP32PrecDiv, NoOffloadFP32PrecSqrt);
 
   if (Arg *A = Args.getLastArg(options::OPT_fextend_args_EQ)) {
     const llvm::Triple::ArchType Arch = TC.getArch();
@@ -6776,8 +6860,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       FpAccuracyAttr += OptStr.str();
     }
   };
-  for (StringRef A : Args.getAllArgValues(options::OPT_ffp_accuracy_EQ))
-    RenderFPAccuracyOptions(A);
+  auto shouldAddFpAccuracyOption = [&](StringRef Val, StringRef Func) {
+    SmallVector<StringRef, 8> FuncsArr = SplitFPAccuracyVal(Val);
+    for (const auto &V : FuncsArr)
+      return (V == Func);
+    return false;
+  };
+
+  for (StringRef A : Args.getAllArgValues(options::OPT_ffp_accuracy_EQ)) {
+    if (!(NoOffloadFP32PrecDiv && shouldAddFpAccuracyOption(A, "fdiv")) &&
+        !(NoOffloadFP32PrecSqrt && shouldAddFpAccuracyOption(A, "sqrt")))
+      RenderFPAccuracyOptions(A);
+  }
   if (!FpAccuracyAttr.empty())
     CmdArgs.push_back(Args.MakeArgString(FpAccuracyAttr));
 
@@ -10728,7 +10822,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
 static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
                                             const llvm::opt::ArgList &TCArgs,
                                             ArgStringList &TranslatorArgs) {
-  TranslatorArgs.push_back("-spirv-max-version=1.4");
+  TranslatorArgs.push_back("-spirv-max-version=1.5");
   bool CreatingSyclSPIRVFatObj =
       C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
       TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
@@ -10817,8 +10911,22 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
               ",+SPV_KHR_non_semantic_info"
               ",+SPV_KHR_cooperative_matrix"
               ",+SPV_EXT_shader_atomic_float16_add";
-  if (IsCPU)
+  auto hasNoOffloadFP32PrecOption = [](const llvm::opt::ArgList &TCArgs) {
+    return !TCArgs.hasFlag(options::OPT_foffload_fp32_prec_sqrt,
+                           options::OPT_fno_offload_fp32_prec_sqrt, false) &&
+           !TCArgs.hasFlag(options::OPT_foffload_fp32_prec_div,
+                           options::OPT_fno_offload_fp32_prec_div, false);
+  };
+  auto shouldUseOffloadFP32PrecOption = [](const llvm::opt::ArgList &TCArgs) {
+    return (TCArgs.hasFlag(options::OPT_fno_offload_fp32_prec_sqrt,
+                           options::OPT_foffload_fp32_prec_sqrt, false) ||
+            TCArgs.hasFlag(options::OPT_fno_offload_fp32_prec_div,
+                           options::OPT_foffload_fp32_prec_div, false));
+  };
+  if ((IsCPU && hasNoOffloadFP32PrecOption(TCArgs)) ||
+      shouldUseOffloadFP32PrecOption(TCArgs)) {
     ExtArg += ",+SPV_INTEL_fp_max_error";
+  }
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
