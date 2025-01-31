@@ -192,7 +192,7 @@ class Configuration:
             dict([ pair_str.split(":") for pair_str in m_tol_str.split(",") ])
 
         for metric, tolerance_str in metric_tolerances.items():
-            if metric not in metrics_recorded:
+            if metric not in SanitizedConfig.METRICS_RECORDED:
                 print(f"Metric compared against {metric} is not being recorded.",
                       file=sys.stderr)
                 exit(1)
