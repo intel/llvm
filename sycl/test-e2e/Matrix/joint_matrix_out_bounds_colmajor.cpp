@@ -23,6 +23,6 @@
 #include "joint_matrix_out_bounds_impl.hpp"
 
 int main() {
-  std::cout << "A col major, B col major:\n";
-  test_all<layout::col_major, layout::col_major>();
+  std::cout << "A row major, B col major:\n";
+  test_all<layout::row_major, layout::col_major>();
 }
