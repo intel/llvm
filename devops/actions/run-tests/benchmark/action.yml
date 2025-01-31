@@ -1,0 +1,63 @@
+name: 'Run compute-benchmarks'
+
+# Run compute-benchmarks on SYCL
+# 
+# This action assumes SYCL is in $PWD/toolchain, and that /devops has been
+# checked out in $PWD/devops. This action also assumes that GITHUB_TOKEN
+# was properly set in env, because according to Github, that's apparently the
+# recommended way to pass a secret into a github action:
+#
+# https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#accessing-your-secrets
+#
+
+inputs:
+  target_devices:
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+  - name: Run compute-benchmarks
+    shell: bash
+    run: |
+      cat << EOF
+      #
+      # NOTE TO DEVELOPERS:
+      #
+
+      Check latter steps of the workflow: This job produces an artifact with:
+        - benchmark results from passing/failing tests
+        - log containing all failing (too slow) benchmarks
+        - log containing all erroring benchmarks
+
+      While this step in the workflow provides debugging output describing this
+      information, it might be easier to inspect the logs from the artifact
+      instead.
+
+      EOF
+      export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
+      export CMPLR_ROOT=$PWD/toolchain
+      sycl-ls
+      echo "-----"
+      ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
+  - name: Push compute-benchmarks results
+    shell: bash
+    run: |
+      # TODO -- waiting on security clearance
+      # Load configuration values
+      . "$PWD/devops/scripts/benchmarking/utils.sh"
+      CONFIG_FILE="$PWD/devops/benchmarking/benchmark-ci.conf"
+      load_config_constants "$CONFIG_FILE"
+
+      cd "$PERF_RES_PATH"
+      git config user.name "SYCL Benchmarking Bot"
+      git config user.email "sys_sycl_benchmarks@intel.com"
+      git add .
+      git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+      git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
+  - name: Archive compute-benchmark results
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: Compute-benchmark results (${{ runner.name }})
+      path: ./artifact
