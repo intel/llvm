@@ -37,7 +37,6 @@ using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // forward decl
-void shutdown_win(); // TODO: win variant will go away soon
 void shutdown_early();
 void shutdown_late();
 
@@ -60,10 +59,6 @@ public:
 
       LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
       MCounter--;
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
-      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
@@ -240,10 +235,8 @@ void GlobalHandler::releaseDefaultContexts() {
 struct EarlyShutdownHandler {
   ~EarlyShutdownHandler() {
     try {
-#ifdef _WIN32
-      // on Windows we keep to the existing shutdown procedure
-      GlobalHandler::instance().releaseDefaultContexts();
-#else
+      // For Linux. Windows calls from DllMain
+#ifndef _WIN32
       shutdown_early();
 #endif
     } catch (std::exception &e) {
@@ -287,10 +280,10 @@ void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
   if (Blocking)
     drainThreadPool();
+#endif
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
                                                : BlockingT::NON_BLOCKING);
-#endif
 }
 
 void GlobalHandler::drainThreadPool() {
@@ -298,18 +291,6 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-#ifdef _WIN32
-// because of something not-yet-understood on Windows
-// threads may be shutdown once the end of main() is reached
-// making an orderly shutdown difficult. Fortunately, Windows
-// itself is very aggressive about reclaiming memory. Thus,
-// we focus solely on unloading the adapters, so as to not
-// accidentally retain device handles. etc
-void shutdown_win() {
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->unloadAdapters();
-}
-#else
 void shutdown_early() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
@@ -353,9 +334,18 @@ void shutdown_late() {
   delete Handler;
   Handler = nullptr;
 }
-#endif
 
 #ifdef _WIN32
+// a simple wrapper to catch and stream any exception then continue
+template <typename F> void safe_call(F func) {
+  try {
+    func();
+  } catch (const std::exception &e) {
+    std::cerr << "exception in DllMain DLL_PROCESS_DETACH " << e.what()
+              << std::endl;
+  }
+}
+std::atomic<long> dllRefCount = 0;
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
@@ -368,12 +358,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     return FALSE;
   }
 
-  // Perform actions based on the reason for calling.
-  switch (fdwReason) {
-  case DLL_PROCESS_DETACH:
-    if (PrintUrTrace)
-      std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
-
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
@@ -381,23 +365,30 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                    // release.
 #endif
 
-    try {
-      shutdown_win();
-    } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
-      return FALSE;
+    // Perform actions based on the reason for calling.
+    switch (fdwReason) {
+    case DLL_PROCESS_DETACH:
+      if (PrintUrTrace)
+        std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
+
+      dllRefCount--;
+      if (dllRefCount == 0) {
+        safe_call([]() { shutdown_early(); });
+        safe_call([]() { shutdown_late(); });
+      }
+      break;
+    case DLL_PROCESS_ATTACH:
+      if (PrintUrTrace)
+        std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+
+      dllRefCount++;
+      break;
+    case DLL_THREAD_ATTACH:
+      break;
+    case DLL_THREAD_DETACH:
+      break;
     }
-    break;
-  case DLL_PROCESS_ATTACH:
-    if (PrintUrTrace)
-      std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
-    break;
-  case DLL_THREAD_ATTACH:
-    break;
-  case DLL_THREAD_DETACH:
-    break;
-  }
-  return TRUE; // Successful DLL_PROCESS_ATTACH.
+    return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global

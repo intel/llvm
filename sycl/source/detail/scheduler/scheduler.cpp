@@ -52,6 +52,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #endif
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue; // nothing to do
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -65,6 +68,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue; // nothing to do
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -156,12 +162,14 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
         }
         delete NewCmd;
       }
+      cleanupCommands(ToCleanUp);
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd,
-                                                Blocking);
       try {
+        Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp,
+                                                  Cmd, Blocking);
+
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw exception(make_error_code(errc::runtime),
                           "Auxiliary enqueue process failed.");
@@ -271,7 +279,17 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     // No operations were performed on the mem object
     return true;
 
-  {
+#ifdef _WIN32
+  // If we are shutting down on Windows it may not be
+  // safe to wait on host threads, as the OS may
+  // abandon them. But no worries, the memory WILL be reclaimed.
+  bool allowWait =
+      MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
+#else
+  bool allowWait = true;
+#endif
+
+  if (allowWait) {
     // This only needs a shared mutex as it only involves enqueueing and
     // awaiting for events
     ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
@@ -389,6 +407,7 @@ void Scheduler::releaseResources(BlockingT Blocking) {
   cleanupCommands({});
 
   cleanupAuxiliaryResources(Blocking);
+
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
   // existing deferred mem objects under write lock, during this process we

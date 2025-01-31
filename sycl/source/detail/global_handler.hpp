@@ -95,7 +95,6 @@ private:
 
   bool OkToDefer = true;
 
-  friend void shutdown_win();
   friend void shutdown_early();
   friend void shutdown_late();
   friend class ObjectUsageCounter;
