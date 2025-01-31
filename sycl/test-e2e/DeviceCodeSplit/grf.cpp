@@ -67,6 +67,15 @@ bool checkResult(const std::vector<float> &A, int Inc) {
   return true;
 }
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mPA;
+  T2 mProp;
+  KernelFunctor(T1 PA, T2 Prop) : mPA(PA), mProp(Prop) {}
+
+  void operator()(id<1> i) const { mPA[i] += 2; }
+  auto get(properties_tag) const { return mProp; }
+};
+
 int main(void) {
   constexpr unsigned Size = 32;
   constexpr unsigned VL = 16;
@@ -122,8 +131,8 @@ int main(void) {
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<class SYCLKernelSpecifiedGRF>(
-          Size, prop, [=](id<1> i) { PA[i] += 2; });
+      cgh.parallel_for<class SYCLKernelSpecifiedGRF>(Size,
+                                                     KernelFunctor(PA, prop));
     });
     e.wait();
   } catch (sycl::exception const &e) {

@@ -24,6 +24,22 @@ template <typename T> void dummy_kernel(T *Input, int N, sycl::nd_item<1> It) {
 #endif
 }
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mAcc;
+  T2 mClusterLaunchProperty;
+  KernelFunctor(T2 ClusterLaunchProperty, T1 Acc)
+      : mClusterLaunchProperty(ClusterLaunchProperty), mAcc(Acc) {}
+
+  void operator()(sycl::nd_item<1> It) const {
+    dummy_kernel(
+        mAcc.template get_multi_ptr<sycl::access::decorated::yes>().get(), 4096,
+        It);
+  }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return mClusterLaunchProperty;
+  }
+};
+
 int main() {
 
   std::vector<int> HostArray(4096, -20);
@@ -46,13 +62,8 @@ int main() {
       cuda::cluster_size ClusterDims(sycl::range{2});
       properties ClusterLaunchProperty{ClusterDims};
       auto Acc = Buff.template get_access<sycl::access::mode::read_write>(CGH);
-      CGH.parallel_for(
-          sycl::nd_range({4096}, {32}), ClusterLaunchProperty,
-          [=](sycl::nd_item<1> It) {
-            dummy_kernel(
-                Acc.get_multi_ptr<sycl::access::decorated::yes>().get(), 4096,
-                It);
-          });
+      CGH.parallel_for(sycl::nd_range({4096}, {32}),
+                       KernelFunctor(ClusterLaunchProperty, Acc));
     });
     Queue.submit([&](sycl::handler &CGH) {
       auto Acc = Buff.template get_access<sycl::access::mode::read_write>(CGH);
