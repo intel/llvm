@@ -10,6 +10,9 @@
  * This test calls DllMain on Windows. This means, the process performs actions
  * which are required for library unload. That said, the test requires to be a
  * distinct binary executable.
+ * Do NOT add any other test cases to this file.
+ * Do NOT attempt to move its one test into any other file, because the
+ * release of the global handler that it causes would interfere with others.
  */
 
 #include <helpers/UrMock.hpp>
