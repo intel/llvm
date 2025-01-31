@@ -2,10 +2,10 @@
 // RUN: %{run} %t.out
 // REQUIRES: cuda, cuda_dev_kit
 
+#include <cuda.h>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
-
-#include <cuda.h>
+#include <vector>
 
 int main() {
   sycl::device d([](const sycl::device &d) {
