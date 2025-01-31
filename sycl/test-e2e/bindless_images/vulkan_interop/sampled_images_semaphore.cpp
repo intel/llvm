@@ -1,4 +1,4 @@
-// REQUIRES: cuda || (windows && level_zero && aspect-ext_oneapi_bindless_images)
+// REQUIRES: target-nvidia || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out
