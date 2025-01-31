@@ -51,7 +51,8 @@ public:
       const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames);
+      const std::vector<std::string> &RegisteredKernelNames,
+      const std::vector<char> &CachedIR, std::vector<char> *SavedIRPtr);
 
   bool isAvailable() { return Available; }
 

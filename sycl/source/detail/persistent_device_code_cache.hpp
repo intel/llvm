@@ -178,6 +178,13 @@ public:
                             const std::string &BuildOptionsString,
                             const std::string &SourceString);
 
+  /* Get directory name when storing runtime compiled device code IR ( via
+   * kernel_compiler, sycl_jit language).
+   */
+  static std::string getDeviceCodeIRPath(const std::vector<device> &Devices,
+                                         const std::string &BuildOptionsString,
+                                         const std::string &SourceString);
+
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
    * stored in vector of chars.
@@ -193,6 +200,11 @@ public:
                             const std::string &BuildOptionsString,
                             const std::string &SourceStr);
 
+  static std::vector<char>
+  getDeviceCodeIRFromDisc(const std::vector<device> &Devices,
+                          const std::string &BuildOptionsString,
+                          const std::string &SourceStr);
+
   /* Stores build program in persistent cache
    */
   static void
@@ -206,6 +218,11 @@ public:
                                       const std::string &BuildOptionsString,
                                       const std::string &SourceStr,
                                       const ur_program_handle_t &NativePrg);
+
+  static void putDeviceCodeIRToDisc(const std::vector<device> &Devices,
+                                    const std::string &BuildOptionsString,
+                                    const std::string &SourceStr,
+                                    const std::vector<char> &IR);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg, const std::string &path = "") {

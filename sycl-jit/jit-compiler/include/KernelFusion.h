@@ -61,8 +61,10 @@ public:
   explicit RTCResult(const char *BuildLog)
       : Failed{true}, BundleInfo{}, BuildLog{BuildLog} {}
 
-  RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
-      : Failed{false}, BundleInfo{std::move(BundleInfo)}, BuildLog{BuildLog} {}
+  RTCResult(RTCBundleInfo &&BundleInfo, RTCDeviceCodeIR &&DeviceCodeIR,
+            const char *BuildLog)
+      : Failed{false}, BundleInfo{std::move(BundleInfo)},
+        DeviceCodeIR(std::move(DeviceCodeIR)), BuildLog{BuildLog} {}
 
   bool failed() const { return Failed; }
 
@@ -73,9 +75,15 @@ public:
     return BundleInfo;
   }
 
+  const RTCDeviceCodeIR &getDeviceCodeIR() const {
+    assert(!failed() && "No device code IR");
+    return DeviceCodeIR;
+  }
+
 private:
   bool Failed;
   RTCBundleInfo BundleInfo;
+  RTCDeviceCodeIR DeviceCodeIR;
   sycl::detail::string BuildLog;
 };
 
@@ -102,7 +110,8 @@ KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
 
 KF_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                        View<InMemoryFile> IncludeFiles,
-                                       View<const char *> UserArgs);
+                                       View<const char *> UserArgs,
+                                       View<char> CachedIR, bool SaveIR);
 
 /// Clear all previously set options.
 KF_EXPORT_SYMBOL void resetJITConfiguration();
