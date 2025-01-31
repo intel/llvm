@@ -347,8 +347,8 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     if (A->getOption().hasFlag(options::UnsupportedRemoved)) {
       Diag(diag::err_drv_unsupported_opt_removed) << A->getAsString(Args);
       ContainsError |= Diags.getDiagnosticLevel(
-          diag::err_drv_unsupported_opt_removed,
-          SourceLocation()) > DiagnosticsEngine::Warning;
+                           diag::err_drv_unsupported_opt_removed,
+                           SourceLocation()) > DiagnosticsEngine::Warning;
       continue;
     }
 
@@ -919,8 +919,8 @@ llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch,
   if (llvm::is_contained(SYCLAlias, TargetArch)) {
     // spir64_fpga is no longer supported.
     if (TargetArch == "spir64_fpga" && Arg)
-      Diag(diag::err_drv_unsupported_opt_removed) <<
-      Arg->getSpelling().str() + TargetArch.str();
+      Diag(diag::err_drv_unsupported_opt_removed)
+          << Arg->getSpelling().str() + TargetArch.str();
     llvm::Triple TT;
     TT.setArchName(TargetArch);
     // Return the full SYCL target triple string for NVidia GPU targets.
@@ -6654,7 +6654,8 @@ class OffloadingActionBuilder final {
               continue;
             }
 
-            llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
+            llvm::Triple TT(
+                C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
             std::string NormalizedName = TT.normalize();
 
             // Make sure we don't have a duplicate triple.
