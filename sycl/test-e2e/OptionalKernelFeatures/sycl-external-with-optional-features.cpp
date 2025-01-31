@@ -3,7 +3,7 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %t1.o %t2.o -Wno-unused-command-line-argument -o %t.exe
 // RUN: %{run} %t.exe
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64059
 
 #ifdef SOURCE1

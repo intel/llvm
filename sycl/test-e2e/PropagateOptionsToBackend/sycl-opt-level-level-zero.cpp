@@ -10,7 +10,7 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
 
 // Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 // This test verifies the propagation of front-end compiler optimization
