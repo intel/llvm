@@ -46,8 +46,9 @@ TEST_P(urKernelGetGroupInfoFixedWorkGroupSizeTest,
 
 struct urKernelGetGroupInfoMaxWorkGroupSizeTest : uur::urKernelTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{},
-                         uur::OpenCL{"12th Gen", "13th Gen", "Intel(R) Xeon"});
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+    // see https://github.com/oneapi-src/unified-runtime/issues/2644
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"12th Gen", "13th Gen", "Intel(R) Xeon"});
     program_name = "max_wg_size";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }

@@ -10,8 +10,6 @@
 struct urKernelSetArgSamplerTestWithParam
     : uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT> {
   void SetUp() {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-
     const auto param = getParam();
     const auto normalized = std::get<0>(param);
     const auto addr_mode = std::get<1>(param);
@@ -28,6 +26,12 @@ struct urKernelSetArgSamplerTestWithParam
     program_name = "image_copy";
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
+
+    bool image_support = false;
+    ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
+    if (!image_support) {
+      GTEST_SKIP() << "Device doesn't support images";
+    }
 
     auto ret = urSamplerCreate(context, &sampler_desc, &sampler);
     if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
@@ -72,10 +76,14 @@ TEST_P(urKernelSetArgSamplerTestWithParam, Success) {
 
 struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
   void SetUp() {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-
     program_name = "image_copy";
     UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
+
+    bool image_support = false;
+    ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
+    if (!image_support) {
+      GTEST_SKIP() << "Device doesn't support images";
+    }
 
     ur_sampler_desc_t sampler_desc = {
         UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* sType */

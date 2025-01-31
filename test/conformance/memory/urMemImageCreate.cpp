@@ -26,8 +26,13 @@ static ur_image_desc_t image_desc{
 
 struct urMemImageCreateTest : public uur::urContextTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
+
+    bool image_support = false;
+    ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
+    if (!image_support) {
+      GTEST_SKIP() << "Device doesn't support images";
+    }
 
     uur::raii::Mem image_handle = nullptr;
     auto ret = urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
@@ -36,6 +41,8 @@ struct urMemImageCreateTest : public uur::urContextTest {
     if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       GTEST_SKIP() << "urMemImageCreate not supported";
     }
+
+    ASSERT_SUCCESS(ret);
   }
 
   void TearDown() override {
@@ -51,6 +58,12 @@ struct urMemImageCreateTestWithParam
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTestWithParam<Param>::SetUp());
 
+    bool image_support = false;
+    ASSERT_SUCCESS(uur::GetDeviceImageSupport(this->device, image_support));
+    if (!image_support) {
+      GTEST_SKIP() << "Device doesn't support images";
+    }
+
     uur::raii::Mem image_handle = nullptr;
     auto ret =
         urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE, &image_format,
@@ -59,6 +72,8 @@ struct urMemImageCreateTestWithParam
     if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       GTEST_SKIP() << "urMemImageCreate not supported";
     }
+
+    ASSERT_SUCCESS(ret);
   }
 
   void TearDown() override {
