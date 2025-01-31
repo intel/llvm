@@ -40,6 +40,8 @@ SYCL_JIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
                   const std::vector<std::string> &UserArgs, std::string *LogPtr,
                   const std::vector<std::string> &RegisteredKernelNames);
 
+void SYCL_JIT_destroy(sycl_device_binaries Binaries);
+
 bool SYCL_JIT_Compilation_Available();
 
 } // namespace detail

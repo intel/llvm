@@ -317,6 +317,10 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   return RTCResult{std::move(BundleInfo), BuildLog.c_str()};
 }
 
+extern "C" KF_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {
+  JITContext::getInstance().destroyKernelBinary(Address);
+}
+
 extern "C" KF_EXPORT_SYMBOL void resetJITConfiguration() {
   ConfigHelper::reset();
 }
