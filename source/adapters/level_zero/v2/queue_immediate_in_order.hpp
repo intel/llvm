@@ -83,12 +83,10 @@ public:
                                 ur_native_handle_t, ur_queue_flags_t,
                                 bool ownZeQueue);
 
-  ~ur_queue_immediate_in_order_t() {}
+  ~ur_queue_immediate_in_order_t();
 
   ur_result_t queueGetInfo(ur_queue_info_t propName, size_t propSize,
                            void *pPropValue, size_t *pPropSizeRet) override;
-  ur_result_t queueRetain() override;
-  ur_result_t queueRelease() override;
   ur_result_t queueGetNativeHandle(ur_queue_native_desc_t *pDesc,
                                    ur_native_handle_t *phNativeQueue) override;
   ur_result_t queueFinish() override;
