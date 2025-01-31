@@ -489,12 +489,23 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                   EventImpl);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
+        // connect returned event with dependent events
+        if (!isInOrder()) {
+          std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
+              EventImpl->getPreparedDepsEvents();
+          ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
+          for (const event &DepEvent : ExpandedDepEvents)
+            ExpandedDepEventImplPtrs.push_back(
+                detail::getSyclObjImpl(DepEvent));
+
+          EventImpl->cleanDepEventsThroughOneLevel();
+        }
       }
 
       if (isInOrder()) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                                 : MExtGraphDeps.LastEventPtr;
-        EventToStoreIn = EventImpl;
+        EventToStoreIn = std::move(EventImpl);
       }
       // Track only if we won't be able to handle it with urQueueFinish.
       if (MEmulateOOO)
