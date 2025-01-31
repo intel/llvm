@@ -205,8 +205,14 @@ struct urContextTest : urDeviceTest {
 
 struct urSamplerTest : urContextTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+
+    bool image_support = false;
+    ASSERT_SUCCESS(uur::GetDeviceImageSupport(device, image_support));
+    if (!image_support) {
+      GTEST_SKIP() << "Device doesn't support images";
+    }
+
     sampler_desc = {
         UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
         nullptr,                          /* pNext */
@@ -330,8 +336,14 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
 
 template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
     UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+
+    bool image_support = false;
+    ASSERT_SUCCESS(uur::GetDeviceImageSupport(this->device, image_support));
+    if (!image_support) {
+      GTEST_SKIP() << "Device doesn't support images";
+    }
+
     sampler_desc = {
         UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
         nullptr,                          /* pNext */
