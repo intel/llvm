@@ -35,7 +35,7 @@ struct QueueBufferTestWithParam : uur::IntegrationQueueTestWithParam {
   ur_mem_handle_t Buffer2 = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     QueueBufferTestWithParam,
     testing::Values(0, /* In-Order */
                     UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),

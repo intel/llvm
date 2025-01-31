@@ -50,7 +50,7 @@ struct urMemImageCreateTest : public uur::urContextTest {
   }
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemImageCreateTest);
 
 template <typename Param>
 struct urMemImageCreateTestWithParam
@@ -84,10 +84,10 @@ struct urMemImageCreateTestWithParam
 using urMemImageCreateTestWith1DMemoryTypeParam =
     urMemImageCreateTestWithParam<ur_mem_type_t>;
 
-UUR_DEVICE_TEST_SUITE_P(urMemImageCreateTestWith1DMemoryTypeParam,
-                        ::testing::Values(UR_MEM_TYPE_IMAGE1D,
-                                          UR_MEM_TYPE_IMAGE1D_ARRAY),
-                        uur::deviceTestWithParamPrinter<ur_mem_type_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urMemImageCreateTestWith1DMemoryTypeParam,
+    ::testing::Values(UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D_ARRAY),
+    uur::deviceTestWithParamPrinter<ur_mem_type_t>);
 
 TEST_P(urMemImageCreateTestWith1DMemoryTypeParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
@@ -120,10 +120,10 @@ TEST_P(urMemImageCreateTestWith1DMemoryTypeParam, Success) {
 using urMemImageCreateTestWith2DMemoryTypeParam =
     urMemImageCreateTestWithParam<ur_mem_type_t>;
 
-UUR_DEVICE_TEST_SUITE_P(urMemImageCreateTestWith2DMemoryTypeParam,
-                        ::testing::Values(UR_MEM_TYPE_IMAGE2D,
-                                          UR_MEM_TYPE_IMAGE2D_ARRAY),
-                        uur::deviceTestWithParamPrinter<ur_mem_type_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urMemImageCreateTestWith2DMemoryTypeParam,
+    ::testing::Values(UR_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D_ARRAY),
+    uur::deviceTestWithParamPrinter<ur_mem_type_t>);
 
 TEST_P(urMemImageCreateTestWith2DMemoryTypeParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
@@ -341,10 +341,11 @@ TEST_P(urMemImageCreateTest, InvalidHostPtrValidHost) {
 using urMemImageCreateWithHostPtrFlagsTest =
     urMemImageCreateTestWithParam<ur_mem_flag_t>;
 
-UUR_DEVICE_TEST_SUITE_P(urMemImageCreateWithHostPtrFlagsTest,
-                        ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
-                                          UR_MEM_FLAG_USE_HOST_POINTER),
-                        uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urMemImageCreateWithHostPtrFlagsTest,
+    ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
+                      UR_MEM_FLAG_USE_HOST_POINTER),
+    uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
 TEST_P(urMemImageCreateWithHostPtrFlagsTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});

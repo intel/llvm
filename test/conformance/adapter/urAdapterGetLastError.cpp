@@ -11,7 +11,7 @@ struct urAdapterGetLastErrorTest : uur::urAdapterTest {
   const char *message = nullptr;
 };
 
-UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(urAdapterGetLastErrorTest);
+UUR_INSTANTIATE_ADAPTER_TEST_SUITE(urAdapterGetLastErrorTest);
 
 TEST_P(urAdapterGetLastErrorTest, Success) {
   // We can't reliably generate a UR_RESULT_ERROR_ADAPTER_SPECIFIC error to

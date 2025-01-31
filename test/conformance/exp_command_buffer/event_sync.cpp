@@ -9,7 +9,7 @@
 // Tests non-kernel commands using ur events for synchronization work as
 // expected
 using CommandEventSyncTest = uur::command_buffer::urCommandEventSyncTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(CommandEventSyncTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandEventSyncTest);
 
 TEST_P(CommandEventSyncTest, USMMemcpyExp) {
   // Get wait event from queue fill on ptr 0

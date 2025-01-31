@@ -8,7 +8,7 @@
 #include "uur/utils.h"
 
 using urMemoryResidencyTest = uur::urMultiDeviceContextTestTemplate<1>;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMemoryResidencyTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMemoryResidencyTest);
 
 TEST_P(urMemoryResidencyTest, allocatingDeviceMemoryWillResultInOOM) {
   static constexpr size_t allocSize = 1024 * 1024;

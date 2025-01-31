@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urVirtualMemGetInfoTest = uur::urVirtualMemMappedTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urVirtualMemGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urVirtualMemGetInfoTest);
 
 TEST_P(urVirtualMemGetInfoTest, SuccessAccessMode) {
   size_t property_size = 0;

@@ -8,7 +8,7 @@
 #include <uur/fixtures.h>
 
 using urDeviceGetSelectedTest = uur::urPlatformTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urDeviceGetSelectedTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urDeviceGetSelectedTest);
 
 /* adpater agnostic tests -- none assume the existence or support of any
  * specific adapter */

@@ -7,7 +7,7 @@
 #include "fixtures.h"
 
 using urHipGetDeviceNativeHandle = uur::urDeviceTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipGetDeviceNativeHandle);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urHipGetDeviceNativeHandle);
 
 TEST_P(urHipGetDeviceNativeHandle, Success) {
   ur_native_handle_t native_handle;

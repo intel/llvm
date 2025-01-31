@@ -18,7 +18,7 @@ struct urUSMPoolCreateTest : uur::urContextTest {
     }
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMPoolCreateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMPoolCreateTest);
 
 TEST_P(urUSMPoolCreateTest, Success) {
   ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr, 0};

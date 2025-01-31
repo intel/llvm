@@ -122,11 +122,11 @@ inline std::string printImageCopyTestString(
   return platform_device_name + "__" + test_name;
 }
 
-UUR_DEVICE_TEST_SUITE_P(urEnqueueMemImageCopyTest,
-                        testing::ValuesIn({UR_MEM_TYPE_IMAGE1D,
-                                           UR_MEM_TYPE_IMAGE2D,
-                                           UR_MEM_TYPE_IMAGE3D}),
-                        printImageCopyTestString<urEnqueueMemImageCopyTest>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEnqueueMemImageCopyTest,
+    testing::ValuesIn({UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE2D,
+                       UR_MEM_TYPE_IMAGE3D}),
+    printImageCopyTestString<urEnqueueMemImageCopyTest>);
 
 TEST_P(urEnqueueMemImageCopyTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
@@ -266,7 +266,7 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {
 
 using urEnqueueMemImageCopyMultiDeviceTest =
     uur::urMultiDeviceMemImageWriteTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemImageCopyMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemImageCopyMultiDeviceTest);
 
 TEST_P(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
   ur_mem_handle_t dstImage1D = nullptr;

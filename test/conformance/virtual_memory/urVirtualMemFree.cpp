@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urVirtualMemFreeTest = uur::urVirtualMemTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urVirtualMemFreeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urVirtualMemFreeTest);
 
 TEST_P(urVirtualMemFreeTest, Success) {
   ASSERT_SUCCESS(urVirtualMemFree(context, virtual_ptr, size));

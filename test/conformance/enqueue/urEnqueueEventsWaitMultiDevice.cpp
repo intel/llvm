@@ -68,7 +68,7 @@ struct urEnqueueEventsWaitMultiDeviceTest
 
   std::vector<void *> ptrs;
 };
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueEventsWaitMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueEventsWaitMultiDeviceTest);
 
 TEST_P(urEnqueueEventsWaitMultiDeviceTest, EmptyWaitList) {
   initData();
@@ -167,7 +167,7 @@ struct urEnqueueEventsWaitMultiDeviceMTTest
   std::vector<void *> ptrs;
 };
 
-UUR_PLATFORM_TEST_SUITE_P(
+UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     urEnqueueEventsWaitMultiDeviceMTTest,
     testing::ValuesIn(uur::BoolTestParam::makeBoolParam("MultiThread")),
     uur::platformTestWithParamPrinter<uur::BoolTestParam>);

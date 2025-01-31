@@ -17,7 +17,7 @@ struct urEnqueueUSMPrefetchWithParamTest
   }
 };
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMPrefetchWithParamTest,
     ::testing::Values(UR_USM_MIGRATION_FLAG_DEFAULT),
     uur::deviceTestWithParamPrinter<ur_usm_migration_flag_t>);
@@ -101,7 +101,7 @@ struct urEnqueueUSMPrefetchTest : uur::urUSMDeviceAllocTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urUSMDeviceAllocTest::SetUp());
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMPrefetchTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMPrefetchTest);
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

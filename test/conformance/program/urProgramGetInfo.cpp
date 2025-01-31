@@ -15,7 +15,7 @@ struct urProgramGetInfoTest : uur::urProgramTest {
   }
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetInfoTest);
 
 TEST_P(urProgramGetInfoTest, SuccessReferenceCount) {
   size_t property_size = 0;

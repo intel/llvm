@@ -173,7 +173,7 @@ struct urEnqueueKernelLaunchIncrementTest
   }
 };
 
-UUR_PLATFORM_TEST_SUITE_P(
+UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchIncrementTest,
     testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEvents")),
     uur::platformTestWithParamPrinter<uur::BoolTestParam>);
@@ -258,7 +258,7 @@ using urEnqueueKernelLaunchIncrementMultiDeviceTest =
     urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
         std::tuple<uur::BoolTestParam, uur::BoolTestParam>>;
 
-UUR_PLATFORM_TEST_SUITE_P(
+UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchIncrementMultiDeviceTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEventWait")),
@@ -348,7 +348,7 @@ using urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest =
     urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
         std::tuple<uur::BoolTestParam, uur::BoolTestParam>>;
 
-UUR_PLATFORM_TEST_SUITE_P(
+UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEvents")),

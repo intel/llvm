@@ -9,7 +9,7 @@
 #include <uur/known_failure.h>
 
 using urKernelGetInfoTest = uur::urKernelTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelGetInfoTest);
 
 TEST_P(urKernelGetInfoTest, SuccessFunctionName) {
   ur_kernel_info_t property_name = UR_KERNEL_INFO_FUNCTION_NAME;

@@ -24,7 +24,7 @@ static std::shared_ptr<_zel_tracer_handle_t> tracer = [] {
 }();
 
 using urMultiQueueMultiDeviceEventCacheTest = uur::urAllDevicesTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiQueueMultiDeviceEventCacheTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiQueueMultiDeviceEventCacheTest);
 
 TEST_P(urMultiQueueMultiDeviceEventCacheTest,
        GivenMultiSubDeviceWithQueuePerSubDeviceThenEventIsSharedBetweenQueues) {

@@ -17,7 +17,7 @@ struct urEnqueueKernelLaunchCustomTest : uur::urKernelExecutionTest {
   size_t global_offset = 0;
   size_t n_dimensions = 1;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchCustomTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchCustomTest);
 
 TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

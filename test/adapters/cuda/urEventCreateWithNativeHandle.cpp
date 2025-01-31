@@ -8,7 +8,7 @@
 #include "raii.h"
 
 using urCudaEventCreateWithNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCudaEventCreateWithNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCudaEventCreateWithNativeHandleTest);
 
 TEST_P(urCudaEventCreateWithNativeHandleTest, Success) {
   RAIICUevent cuda_event;

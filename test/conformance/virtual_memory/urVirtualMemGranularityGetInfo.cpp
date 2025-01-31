@@ -20,7 +20,7 @@ struct urVirtualMemGranularityGetInfoTest : uur::urContextTest {
   }
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urVirtualMemGranularityGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urVirtualMemGranularityGetInfoTest);
 
 TEST_P(urVirtualMemGranularityGetInfoTest, SuccessMinimum) {
   size_t property_size = 0;

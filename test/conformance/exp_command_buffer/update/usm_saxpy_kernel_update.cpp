@@ -90,7 +90,7 @@ struct USMSaxpyKernelTest : USMSaxpyKernelTestBase {
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(USMSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMSaxpyKernelTest);
 
 TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
@@ -187,7 +187,7 @@ struct USMMultiSaxpyKernelTest : USMSaxpyKernelTestBase {
   std::array<ur_exp_command_buffer_command_handle_t, nodes> command_handles{};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(USMMultiSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultiSaxpyKernelTest);
 
 TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output

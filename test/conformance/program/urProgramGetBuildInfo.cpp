@@ -13,7 +13,7 @@ struct urProgramGetBuildInfoTest : uur::urProgramTest {
     ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urProgramGetBuildInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetBuildInfoTest);
 
 TEST_P(urProgramGetBuildInfoTest, SuccessStatus) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});

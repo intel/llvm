@@ -9,7 +9,7 @@
 
 using urContextCreateTest = uur::urDeviceTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urContextCreateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urContextCreateTest);
 
 TEST_P(urContextCreateTest, Success) {
   uur::raii::Context context = nullptr;
@@ -46,7 +46,7 @@ TEST_P(urContextCreateTest, InvalidEnumeration) {
 }
 
 using urContextCreateMultiDeviceTest = uur::urAllDevicesTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urContextCreateMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urContextCreateMultiDeviceTest);
 
 TEST_P(urContextCreateMultiDeviceTest, Success) {
   if (devices.size() < 2) {

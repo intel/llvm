@@ -10,7 +10,7 @@
 #include "raii.h"
 
 using cudaEventTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(cudaEventTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(cudaEventTest);
 
 // Testing the urEventGetInfo behaviour for natively constructed (Cuda) events.
 // Backend interop APIs can lead to creating event objects that are not fully

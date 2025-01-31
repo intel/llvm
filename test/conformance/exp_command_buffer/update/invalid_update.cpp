@@ -68,7 +68,7 @@ struct InvalidUpdateTest
   bool finalized = false;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(InvalidUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateTest);
 
 // Test error code is returned if command-buffer not finalized
 TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
@@ -301,7 +301,7 @@ struct InvalidUpdateCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
       0;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(InvalidUpdateCommandBufferExpExecutionTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateCommandBufferExpExecutionTest);
 
 // Test error reported if device doesn't support updating kernel args
 TEST_P(InvalidUpdateCommandBufferExpExecutionTest, KernelArg) {

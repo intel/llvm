@@ -7,7 +7,7 @@
 #include <uur/known_failure.h>
 
 using urQueueRetainTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueRetainTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueRetainTest);
 
 TEST_P(urQueueRetainTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

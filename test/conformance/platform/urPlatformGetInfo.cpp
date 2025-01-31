@@ -10,7 +10,7 @@
 #include <cstring>
 
 using urPlatformGetInfoTest = uur::urPlatformTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetInfoTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urPlatformGetInfoTest);
 
 TEST_P(urPlatformGetInfoTest, SuccessName) {
   ur_platform_info_t property_name = UR_PLATFORM_INFO_NAME;

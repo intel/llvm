@@ -251,7 +251,7 @@ struct urCommandBufferKernelHandleUpdateTest
   std::shared_ptr<TestFill2DKernel> FillUSM2DKernel;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferKernelHandleUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferKernelHandleUpdateTest);
 
 /* Tests that it is possible to update the kernel handle of a command-buffer
  * node. This test launches a Saxpy kernel using a command-buffer and then
@@ -399,7 +399,7 @@ TEST_P(urCommandBufferKernelHandleUpdateTest,
 
 using urCommandBufferValidUpdateParametersTest =
     urCommandBufferKernelHandleUpdateTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferValidUpdateParametersTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferValidUpdateParametersTest);
 
 // Test that updating the dimensions of a kernel command does not cause an
 // error.

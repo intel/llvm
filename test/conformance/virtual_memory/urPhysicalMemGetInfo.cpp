@@ -7,7 +7,7 @@
 #include <uur/known_failure.h>
 
 using urPhysicalMemGetInfoTest = uur::urPhysicalMemTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urPhysicalMemGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urPhysicalMemGetInfoTest);
 
 TEST_P(urPhysicalMemGetInfoTest, SuccessContext) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});

@@ -26,7 +26,7 @@ struct urKernelCreateTest : uur::urProgramTest {
   std::string kernel_name;
   ur_kernel_handle_t kernel = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelCreateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelCreateTest);
 
 TEST_P(urKernelCreateTest, Success) {
   ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
@@ -54,7 +54,7 @@ TEST_P(urKernelCreateTest, InvalidKernelName) {
 }
 
 using urMultiDeviceKernelCreateTest = uur::urMultiDeviceQueueTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceKernelCreateTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceKernelCreateTest);
 
 TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
   constexpr size_t global_offset = 0;

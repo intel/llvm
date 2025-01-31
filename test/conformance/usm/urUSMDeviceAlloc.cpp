@@ -45,7 +45,7 @@ struct urUSMDeviceAllocTest
 // The 0 value parameters are not relevant for urUSMDeviceAllocTest tests, they
 // are used below in urUSMDeviceAllocAlignmentTest for allocation size and
 // alignment values
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urUSMDeviceAllocTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
@@ -138,7 +138,7 @@ TEST_P(urUSMDeviceAllocTest, InvalidValueAlignPowerOfTwo) {
 
 using urUSMDeviceAllocAlignmentTest = urUSMDeviceAllocTest;
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urUSMDeviceAllocAlignmentTest,
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),

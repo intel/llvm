@@ -7,7 +7,7 @@
 #include <uur/utils.h>
 
 using urDevicePartitionTest = uur::urDeviceTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDevicePartitionTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urDevicePartitionTest);
 
 void getNumberComputeUnits(ur_device_handle_t device,
                            uint32_t &n_compute_units) {
@@ -208,7 +208,7 @@ TEST_P(urDevicePartitionTest, SuccessSubSet) {
 using urDevicePartitionAffinityDomainTest =
     uur::urDeviceTestWithParam<ur_device_affinity_domain_flags_t>;
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urDevicePartitionAffinityDomainTest,
     ::testing::Values(UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
                       UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
@@ -284,13 +284,13 @@ CountPrinter(const ::testing::TestParamInfo<
   return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
 
-UUR_DEVICE_TEST_SUITE_P(urDevicePartitionByCountsTestWithParam,
-                        ::testing::Values(std::vector<size_t>{2, 4},
-                                          std::vector<size_t>{1, 4},
-                                          std::vector<size_t>{2, 3},
-                                          std::vector<size_t>{3, 2},
-                                          std::vector<size_t>{3, 1}),
-                        CountPrinter);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(urDevicePartitionByCountsTestWithParam,
+                                 ::testing::Values(std::vector<size_t>{2, 4},
+                                                   std::vector<size_t>{1, 4},
+                                                   std::vector<size_t>{2, 3},
+                                                   std::vector<size_t>{3, 2},
+                                                   std::vector<size_t>{3, 1}),
+                                 CountPrinter);
 
 TEST_P(urDevicePartitionByCountsTestWithParam, CountsOrdering) {
   if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_BY_COUNTS)) {

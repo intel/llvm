@@ -7,7 +7,7 @@
 #include <uur/known_failure.h>
 
 using urDeviceSelectBinaryTest = uur::urDeviceTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceSelectBinaryTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urDeviceSelectBinaryTest);
 
 static constexpr ur_device_binary_t binaries[] = {
     {UR_STRUCTURE_TYPE_DEVICE_BINARY, nullptr, UR_DEVICE_BINARY_TARGET_UNKNOWN},

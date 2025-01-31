@@ -12,7 +12,7 @@ struct urEnqueueMemImageReadTest : uur::urMemImageQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMemImageQueueTest::SetUp());
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueMemImageReadTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemImageReadTest);
 
 // Note that for each test, we multiply the size in pixels by 4 to account for
 // each channel in the RGBA image
@@ -153,7 +153,7 @@ TEST_P(urEnqueueMemImageReadTest, InvalidRegion3D) {
 
 using urEnqueueMemImageReadMultiDeviceTest =
     uur::urMultiDeviceMemImageWriteTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemImageReadMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemImageReadMultiDeviceTest);
 
 TEST_P(urEnqueueMemImageReadMultiDeviceTest, WriteReadDifferentQueues) {
   // The remaining queues do blocking reads from the image1D/2D/3D. Since the

@@ -14,7 +14,7 @@ struct InvalidCreationTest : uur::urContextTest {
   }
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(InvalidCreationTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidCreationTest);
 
 // Check correct error is reported when trying to create a
 // command-buffer with update enabled on a device that doesn't

@@ -21,7 +21,7 @@
 
 struct CommandListCacheTest : public uur::urContextTest {};
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(CommandListCacheTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandListCacheTest);
 
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
   v2::command_list_cache_t cache(context->getZeHandle());

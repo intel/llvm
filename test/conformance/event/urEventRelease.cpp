@@ -8,7 +8,7 @@
 
 using urEventReleaseTest = uur::event::urEventTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventReleaseTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventReleaseTest);
 
 TEST_P(urEventReleaseTest, Success) {
   ASSERT_SUCCESS(urEventRetain(event));

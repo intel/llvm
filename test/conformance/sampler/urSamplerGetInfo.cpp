@@ -8,7 +8,7 @@
 #include <uur/known_failure.h>
 
 using urSamplerGetInfoTest = uur::urSamplerTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urSamplerGetInfoTest);
 
 TEST_P(urSamplerGetInfoTest, SuccessReferenceCount) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});

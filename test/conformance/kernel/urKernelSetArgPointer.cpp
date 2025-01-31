@@ -31,7 +31,7 @@ struct urKernelSetArgPointerTest : uur::urKernelExecutionTest {
   size_t allocation_size = array_size * sizeof(uint32_t);
   uint32_t data = 42;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgPointerTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgPointerTest);
 
 TEST_P(urKernelSetArgPointerTest, SuccessHost) {
   ur_device_usm_access_capability_flags_t host_usm_flags = 0;
@@ -132,7 +132,7 @@ struct urKernelSetArgPointerNegativeTest : urKernelSetArgPointerTest {
     ASSERT_NE(allocation, nullptr);
   }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgPointerNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgPointerNegativeTest);
 
 TEST_P(urKernelSetArgPointerNegativeTest, InvalidNullHandleKernel) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

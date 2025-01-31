@@ -24,7 +24,7 @@ struct urKernelSetSpecializationConstantsTest : uur::urBaseKernelExecutionTest {
   uint32_t spec_value = 42;
   ur_specialization_constant_info_t info = {0, sizeof(spec_value), &spec_value};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetSpecializationConstantsTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetSpecializationConstantsTest);
 
 struct urKernelSetSpecializationConstantsNegativeTest
     : uur::urBaseKernelExecutionTest {
@@ -44,7 +44,7 @@ struct urKernelSetSpecializationConstantsNegativeTest
   uint32_t spec_value = 42;
   ur_specialization_constant_info_t info = {0, sizeof(spec_value), &spec_value};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(
     urKernelSetSpecializationConstantsNegativeTest);
 
 TEST_P(urKernelSetSpecializationConstantsTest, Success) {

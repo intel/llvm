@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urAdapterRetainTest = uur::urAdapterTest;
-UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(urAdapterRetainTest);
+UUR_INSTANTIATE_ADAPTER_TEST_SUITE(urAdapterRetainTest);
 
 TEST_P(urAdapterRetainTest, Success) {
   uint32_t referenceCountBefore = 0;

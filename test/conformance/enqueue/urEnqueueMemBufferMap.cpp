@@ -10,7 +10,7 @@
 using urEnqueueMemBufferMapTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferMapTestWithParam,
     ::testing::ValuesIn(uur::mem_buffer_test_parameters),
     uur::printMemBufferTestString<urEnqueueMemBufferMapTestWithParam>);
@@ -41,10 +41,11 @@ using urEnqueueMemBufferMapTestWithWriteFlagParam =
     uur::urMemBufferQueueTestWithParam<
         uur::mem_buffer_map_write_test_parameters_t>;
 
-UUR_DEVICE_TEST_SUITE_P(urEnqueueMemBufferMapTestWithWriteFlagParam,
-                        ::testing::ValuesIn(map_write_test_parameters),
-                        uur::printMemBufferMapWriteTestString<
-                            urEnqueueMemBufferMapTestWithWriteFlagParam>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEnqueueMemBufferMapTestWithWriteFlagParam,
+    ::testing::ValuesIn(map_write_test_parameters),
+    uur::printMemBufferMapWriteTestString<
+        urEnqueueMemBufferMapTestWithWriteFlagParam>);
 
 TEST_P(urEnqueueMemBufferMapTestWithWriteFlagParam, SuccessWrite) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
@@ -312,7 +313,7 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidSize) {
 
 using urEnqueueMemBufferMapMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemBufferMapMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferMapMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferMapMultiDeviceTest, WriteMapDifferentQueues) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
