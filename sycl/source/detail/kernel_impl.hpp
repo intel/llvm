@@ -440,12 +440,8 @@ inline sycl::id<D> generate_id(const sycl::range<D> &DevMAxWorkItemSizes,
   for (int i = 0; i < D; i++) {
     // DevMAxWorkItemSizes values are reverted, see
     // sycl/source/detail/device_info.hpp:582
-    ret[D - 1 - i] = std::min(DevMAxWorkItemSizes[i], DevWgSize);
-    std::cout << "ret[" << i << "] = " << ret[i] << std::endl;
-    std::cout << "DevMAxWorkItemSizes[" << i << "] = " << DevMAxWorkItemSizes[i]
-              << std::endl;
+    ret[i] = std::min(DevMAxWorkItemSizes[i], DevWgSize);
   }
-  std::cout << "DevWgSize:" << DevWgSize << std::endl;
   return ret;
 }
 

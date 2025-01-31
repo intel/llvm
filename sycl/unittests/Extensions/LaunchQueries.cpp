@@ -116,8 +116,8 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizes2DSuccess) {
   const auto result = std::is_same_v<std::remove_cv_t<ret_type>, sycl::id<2>>;
   ASSERT_TRUE(result);
   ASSERT_EQ(ret_type::dimensions, 2);
-  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<size_t>(123));
-  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(101));
+  ASSERT_EQ(maxWorkGroupItemSizes[0], static_cast<size_t>(101));
+  ASSERT_EQ(maxWorkGroupItemSizes[1], static_cast<size_t>(123));
 }
 
 TEST(LaunchQueries, GetMaxWorkGroupItemSizes1DSuccess) {
