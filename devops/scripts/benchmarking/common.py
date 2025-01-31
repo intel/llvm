@@ -1,67 +1,209 @@
-import os
 import re
-import ast
-
-# Globals definition
-PERF_RES_PATH, metrics_variance, metrics_recorded = None, None, None
-BENCHMARK_SLOW_LOG, BENCHMARK_ERROR_LOG = None, None
-
-
-def sanitize(stat: str) -> float:
-    # Get rid of %
-    if stat[-1] == "%":
-        stat = stat[:-1]
-    return float(stat)
+import os
+import sys
+import string
+import configparser
 
 
-def load_configs():
-    DEVOPS_PATH = os.getenv("DEVOPS_PATH")
-    if DEVOPS_PATH is None:
-        # Try to predict where /devops is based on executable
-        DEVOPS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+class Validate:
+    """ Static class containing methods for validating various fields """
 
-    benchmarking_ci_conf_path = f"{DEVOPS_PATH}/benchmarking/benchmark-ci.conf"
-    if not os.path.isfile(benchmarking_ci_conf_path):
-        raise Exception(f"Please provide path to a valid DEVOPS_PATH.")
+    @staticmethod
+    def filepath(path: str) -> bool:
+        filepath_re = re.compile(
+            r"[a-zA-Z0-9\/\._\-]+"
+        )
+        return filepath_re.match(path) is not None
 
-    global PERF_RES_PATH, OUTPUT_CACHE, metrics_variance, metrics_recorded
-    global BENCHMARK_ERROR_LOG, BENCHMARK_SLOW_LOG
-    perf_res_re = re.compile(r"^PERF_RES_PATH=(.*)$", re.M)
-    output_cache_re = re.compile(r"^OUTPUT_CACHE=(.*)$", re.M)
-    m_variance_re = re.compile(r"^METRICS_VARIANCE=(.*)$", re.M)
-    m_recorded_re = re.compile(r"^METRICS_RECORDED=(.*)$", re.M)
-    b_slow_re = re.compile(r"^BENCHMARK_SLOW_LOG=(.*)$", re.M)
-    b_error_re = re.compile(r"^BENCHMARK_ERROR_LOG=(.*)$", re.M)
+    @staticmethod
+    # TODO use config 
+    def timestamp(t: str) -> bool:
+        timestamp_re = re.compile(
+            # YYYYMMDD_HHMMSS
+            r"^\d{4}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])[0-5][0-9][0-5][0-9]$"
+        )
+        return timestamp_re.match(t) is not None
 
-    with open(benchmarking_ci_conf_path, "r") as configs_file:
-        configs_str = configs_file.read()
+    @staticmethod
+    def sanitize_stat(stat: str) -> float:
+        """
+         Sanitize statistics found in compute-benchmark output csv files. Returns float if sanitized, None if not sanitizable
+         """
+        # Get rid of %
+        if stat[-1] == "%":
+            stat = stat[:-1]
 
-        for m_variance in m_variance_re.findall(configs_str):
-            metrics_variance = ast.literal_eval(m_variance.strip()[1:-1])
-            if not isinstance(metrics_variance, dict):
-                raise TypeError("Error in benchmark-ci.conf: METRICS_VARIANCE is not a python dict.")
+        # Cast to float: If cast succeeds, the statistic is clean.
+        try:
+            return float(stat)
+        except ValueError:
+            return None
 
-        for m_recorded in m_recorded_re.findall(configs_str):
-            metrics_recorded = ast.literal_eval(m_recorded.strip()[1:-1])
-            if not isinstance(metrics_recorded, list):
-                raise TypeError("Error in benchmark-ci.conf: METRICS_RECORDED is not a python list.")
 
-        for perf_res in perf_res_re.findall(configs_str):
-            PERF_RES_PATH = str(perf_res[1:-1])
+class SanitizedConfig:
+    """
+    Static class for holding sanitized configuration values used within python.
 
-        for output_cache in output_cache_re.findall(configs_str):
-            OUTPUT_CACHE = str(output_cache[1:-1])
+    Configuration option names follow <section name>_<option name> from config
+    file.
+    """
+    loaded: bool = False
+    PERF_RES_PATH: str = None
+    ARTIFACT_OUTPUT_CACHE: str = None
+    METRICS_TOLERANCES: dict = None
+    METRICS_RECORDED: list = None
+    BENCHMARK_LOG_SLOW: str = None
+    BENCHMARK_LOG_ERROR: str = None
 
-        for b_slow_log in b_slow_re.findall(configs_str):
-            BENCHMARK_SLOW_LOG = str(b_slow_log[1:-1])
+    @staticmethod
+    def load(devops_path: str):
+        config = Configuration(devops_path)
+        config.export_python_globals()
 
-        for b_error_log in b_error_re.findall(configs_str):
-            BENCHMARK_ERROR_LOG = str(b_error_log[1:-1])
+
+class Configuration:
+    """
+    Class handling loading, sanitizing, and exporting configuration options for
+    use within python or shell scripts.
+    """
+
+    def __init__(self, devops_path: str):
+        """
+        Initialize this configuration handler by finding configuration files 
+
+        @param devops_path Path to /devops folder in intel/llvm
+        """
+        self.config_path = f"{devops_path}/benchmarking/config.ini"
+        self.constants_path = f"{devops_path}/benchmarking/constants.ini"
+
+        if not os.path.isfile(self.config_path):
+            print(f"config.ini not found in {devops_path}/benchmarking.",
+                  file=sys.stderr)
+            exit(1)
+        if not os.path.isfile(self.constants_path):
+            print(f"constants.ini not found in {devops_path}/benchmarking.",
+                  file=sys.stderr)
+            exit(1)
+
+    def __sanitize(self, value: str, field: str) -> str:
+        """
+        Enforces an allowlist of characters and sanitizes input from config
+        files.
+        """
+        _alnum = list(string.ascii_letters + string.digits)
+        allowlist = _alnum + ['_', '-', '.', ',', ':', '/', '%']
+
+        for illegal_ch in filter(lambda ch: ch not in allowlist, value):
+            print(f"Illegal character '{illegal_ch}' in {field}",
+                  file=sys.stderr)
+            exit(1)
+
+        return value
+
+    def __get_export_cmd(self, export_opts: list, config_file_path: str) -> str:
+        """
+        Generates export commands for variables in the configuration file at
+        config_file_path, as listed by export_opts.
+
+        export_opts is list of tuples in (<option section>, <option name>) form.
+        """
+        config = configparser.ConfigParser()
+        config.read(config_file_path)
+
+        def export_var_cmd(sec: str, opt: str) -> str:
+            var_name = f"SANITIZED_{sec.upper()}_{opt.upper()}"
+            var_val = f"{self.__sanitize(config[sec][opt], sec + '.' + opt)}"
+            return f"{var_name}={var_val}"
         
+        export_cmds = [ export_var_cmd(sec, opt) for sec, opt in export_opts ]
+        return "export " + " ".join(export_cmds)
+    
+    def export_shell_configs(self) -> str:
+        """
+        Return shell command exporting environment variables representing
+        various configuration options used in shell scripts.
+        """
+        # List of configs used in shell scripts: Export only what's needed
+        shell_configs = [
+            ("compute_bench", "compile_jobs"),
+            ("compute_bench", "iterations"),
+            ("average", "cutoff_range"),
+            ("average", "min_threshold"),
+            ("device_selector", "enabled_backends"),
+            ("device_selector", "enabled_devices"),
+        ]
+        return self.__get_export_cmd(shell_configs, self.config_path)
 
-def valid_timestamp(timestamp: str) -> bool:
-    timestamp_re = re.compile(
-        # YYYYMMDD_HHMMSS
-        r"^\d{4}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])[0-5][0-9][0-5][0-9]$"
-    )
-    return timestamp_re.match(timestamp) is not None
+    def export_shell_constants(self) -> str:
+        """
+        Return shell command exporting environment variables representing
+        various constants used in shell scripts.
+        """
+        # List of configs used in shell scripts: Export only what's needed
+        shell_constants = [
+            ("perf_res", "git_repo"),
+            ("perf_res", "git_branch"),
+            ("perf_res", "path"),
+            ("compute_bench", "git_repo"),
+            ("compute_bench", "git_branch"),
+            ("compute_bench", "path"),
+            ("artifact", "output_cache"),
+            ("artifact", "passing_cache"),
+            ("artifact", "path"),
+            ("timestamp", "format"),
+            ("benchmark_log", "slow"),
+            ("benchmark_log", "error"),
+        ]
+        return self.__get_export_cmd(shell_constants, self.constants_path)
+
+    def export_python_globals(self):
+        """
+        Populate all configs/constants used in python into SanitizedConfig.
+        """
+        all_opts = configparser.ConfigParser()
+        all_opts.read(self.config_path)
+        all_opts.read(self.constants_path)
+
+        SanitizedConfig.PERF_RES_PATH = \
+            self.__sanitize(all_opts["perf_res"]["path"], "perf_res.path")
+        SanitizedConfig.ARTIFACT_OUTPUT_CACHE = \
+            self.__sanitize(all_opts["artifact"]["output_cache"],
+                            "artifact.output_cache")
+        SanitizedConfig.BENCHMARK_LOG_SLOW = \
+            self.__sanitize(all_opts["benchmark_log"]["slow"],
+                            "benchmark_log.slow")
+        SanitizedConfig.BENCHMARK_LOG_ERROR = \
+            self.__sanitize(all_opts["benchmark_log"]["error"],
+                            "benchmark_log.error")
+
+        # Fields that are supposed to be python objects need to be changed to
+        # python objects:
+
+        # metrics.recorded
+        m_rec_str = \
+            self.__sanitize(all_opts["metrics"]["recorded"], "metrics.recorded")
+        SanitizedConfig.METRICS_RECORDED = m_rec_str.split(",")
+
+        # metrics.tolerances
+        m_tol_str = \
+            self.__sanitize(all_opts["metrics"]["tolerances"],
+                            "metrics.tolerances")
+        metric_tolerances = \
+            dict([ pair_str.split(":") for pair_str in m_tol_str.split(",") ])
+
+        for metric, tolerance_str in metric_tolerances:
+            if metric not in metrics_recorded:
+                print(f"Metric compared against {metric} is not being recorded.",
+                      file=sys.stderr)
+                exit(1)
+            try:
+                metric_tolerances[metric] = float(tolerance_str)
+            except ValueError:
+                print(f"Could not convert '{tolerance_str}' to float.",
+                      file= sys.stderr)
+                exit(1)
+
+        SanitizedConfig.METRICS_TOLERANCES = metric_tolerances
+
+        SanitizedConfig.loaded = True
+

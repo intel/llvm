@@ -21,26 +21,26 @@ This script builds and runs benchmarks from compute-benchmarks."
 }
 
 clone_perf_res() {
-    echo "### Cloning llvm-ci-perf-res ($PERF_RES_GIT_REPO:$PERF_RES_BRANCH) ###"
-    mkdir -p "$(dirname "$PERF_RES_PATH")"
-    git clone -b $PERF_RES_BRANCH https://github.com/$PERF_RES_GIT_REPO $PERF_RES_PATH
+    echo "### Cloning llvm-ci-perf-res ($SANITIZED_PERF_RES_GIT_REPO:$SANITIZED_PERF_RES_GIT_BRANCH) ###"
+    mkdir -p "$(dirname "$SANITIZED_PERF_RES_PATH")"
+    git clone -b $SANITIZED_PERF_RES_GIT_BRANCH https://github.com/$SANITIZED_PERF_RES_GIT_REPO $SANITIZED_PERF_RES_PATH
     [ "$?" -ne 0 ] && exit $? 
 }
 
 clone_compute_bench() {
-    echo "### Cloning compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
-    mkdir -p "$(dirname "$COMPUTE_BENCH_PATH")"
-    git clone -b $COMPUTE_BENCH_BRANCH \
-              --recurse-submodules https://github.com/$COMPUTE_BENCH_GIT_REPO \
-              $COMPUTE_BENCH_PATH
+    echo "### Cloning compute-benchmarks ($SANITIZED_COMPUTE_BENCH_GIT_REPO:$SANITIZED_COMPUTE_BENCH_GIT_BRANCH) ###"
+    mkdir -p "$(dirname "$SANITIZED_COMPUTE_BENCH_PATH")"
+    git clone -b $SANITIZED_COMPUTE_BENCH_GIT_BRANCH \
+              --recurse-submodules https://github.com/$SANITIZED_COMPUTE_BENCH_GIT_REPO \
+              $SANITIZED_COMPUTE_BENCH_PATH
     [ "$?" -ne 0 ] && exit $? 
 }
 
 build_compute_bench() {
-    echo "### Building compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
-    mkdir $COMPUTE_BENCH_PATH/build && cd $COMPUTE_BENCH_PATH/build &&
+    echo "### Building compute-benchmarks ($SANITIZED_COMPUTE_BENCH_GIT_REPO:$SANITIZED_COMPUTE_BENCH_GIT_BRANCH) ###"
+    mkdir $SANITIZED_COMPUTE_BENCH_PATH/build && cd $SANITIZED_COMPUTE_BENCH_PATH/build &&
     # No reason to turn on ccache, if this docker image will be disassembled later on
-    cmake .. -DBUILD_SYCL=ON -DBUILD_L0=OFF -DBUILD=OCL=OFF -DCCACHE_ALLOWED=FALSE # && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+    cmake .. -DBUILD_SYCL=ON -DBUILD_L0=OFF -DBUILD=OCL=OFF -DCCACHE_ALLOWED=FALSE
     # TODO enable mechanism for opting into L0 and OCL -- the concept is to
     # subtract OCL/L0 times from SYCL times in hopes of deriving SYCL runtime
     # overhead, but this is mostly an idea that needs to be mulled upon.
@@ -49,7 +49,8 @@ build_compute_bench() {
         while IFS= read -r case; do
             # Skip lines starting with '#'
             [ "${case##\#*}" ] || continue
-            make $COMPUTE_BENCH_COMPILE_FLAGS "$case"
+            # TODO Sanitize this
+            make "-j$SANITIZED_COMPUTE_BENCH_COMPILE_JOBS" "$case"
         done < "$TESTS_CONFIG"
     fi
     #compute_bench_build_stat=$?
@@ -89,9 +90,9 @@ build_compute_bench() {
 #
 # Usage: <relative path of directory containing test case results>
 samples_under_threshold () {
-    [ ! -d "$PERF_RES_PATH/$1" ] && return 1 # Directory doesn't exist
-    file_count="$(find "$PERF_RES_PATH/$1" -maxdepth 1 -type f | wc -l )"
-    [ "$file_count" -lt "$AVERAGE_THRESHOLD" ]
+    [ ! -d "$SANITIZED_PERF_RES_PATH/$1" ] && return 1 # Directory doesn't exist
+    file_count="$(find "$SANITIZED_PERF_RES_PATH/$1" -maxdepth 1 -type f | wc -l )"
+    [ "$file_count" -lt "$SANITIZED_AVERAGE_MIN_THRESHOLD" ]
 }
 
 # Check for a regression via compare.py
@@ -105,9 +106,8 @@ check_regression() {
  check skipped!"
         return 0 # Success status
     fi
-    DEVOPS_PATH="$DEVOPS_PATH" \
-        python "$DEVOPS_PATH/scripts/benchmarking/compare.py" \
-            "$csv_relpath" "$csv_name"
+    python "$DEVOPS_PATH/scripts/benchmarking/compare.py" \
+        "$DEVOPS_PATH" "$csv_relpath" "$csv_name"
     return $?
 }
 
@@ -116,9 +116,9 @@ check_regression() {
 #
 # Usage: cache <relative path of output csv>
 cache() {
-    mkdir -p "$(dirname "$PASSING_CACHE/$1")" "$(dirname "$PERF_RES_PATH/$1")"
-    cp "$OUTPUT_CACHE/$1" "$PASSING_CACHE/$1"
-    mv "$OUTPUT_CACHE/$1" "$PERF_RES_PATH/$1"
+    mkdir -p "$(dirname "$SANITIZED_ARTIFACT_PASSING_CACHE/$1")" "$(dirname "$SANITIZED_PERF_RES_PATH/$1")"
+    cp "$SANITIZED_ARTIFACT_OUTPUT_CACHE/$1" "$SANITIZED_ARTIFACT_PASSING_CACHE/$1"
+    mv "$SANITIZED_ARTIFACT_OUTPUT_CACHE/$1" "$SANITIZED_PERF_RES_PATH/$1"
 }
 
 # Check for a regression + cache if no regression found
@@ -138,15 +138,15 @@ check_and_cache() {
 
 # Run and process the results of each enabled benchmark in enabled_tests.conf
 process_benchmarks() {
-    mkdir -p "$PERF_RES_PATH"
+    mkdir -p "$SANITIZED_PERF_RES_PATH"
     
     echo "### Running and processing selected benchmarks ###"
     if [ -z "$TESTS_CONFIG" ]; then
         echo "Setting tests to run via cli is not currently supported."
         exit 1
     else
-        rm "$BENCHMARK_ERROR_LOG" "$BENCHMARK_SLOW_LOG" 2> /dev/null
-        mkdir -p "$(dirname "$BENCHMARK_ERROR_LOG")" "$(dirname "$BENCHMARK_SLOW_LOG")"
+        rm "$SANITIZED_BENCHMARK_LOG_ERROR" "$SANITIZED_BENCHMARK_LOG_SLOW" 2> /dev/null
+        mkdir -p "$(dirname "$SANITIZED_BENCHMARK_LOG_ERROR")" "$(dirname "$SANITIZED_BENCHMARK_LOG_SLOW")"
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
@@ -164,12 +164,12 @@ process_benchmarks() {
             # Figure out the relative path of our testcase result:
             test_dir_relpath="$DEVICE_SELECTOR_DIRNAME/$RUNNER/$testcase"
             output_csv_relpath="$test_dir_relpath/$testcase-$TIMESTAMP.csv"
-			mkdir -p "$OUTPUT_CACHE/$test_dir_relpath" # Ensure directory exists
+			mkdir -p "$SANITIZED_ARTIFACT_OUTPUT_CACHE/$test_dir_relpath" # Ensure directory exists
             # TODO generate runner config txt if not exist
 
-            output_csv="$OUTPUT_CACHE/$output_csv_relpath"
-            $COMPUTE_BENCH_PATH/build/bin/$testcase --csv \
-                --iterations="$COMPUTE_BENCH_ITERATIONS" \
+            output_csv="$SANITIZED_ARTIFACT_OUTPUT_CACHE/$output_csv_relpath"
+            $SANITIZED_COMPUTE_BENCH_PATH/build/bin/$testcase --csv \
+                --iterations="$SANITIZED_COMPUTE_BENCH_ITERATIONS" \
                     | tail +8 > "$output_csv"
                     # The tail +8 filters out header lines not in csv format
 
@@ -179,7 +179,7 @@ process_benchmarks() {
             else
                 # TODO consider capturing stderr for logging
                 echo "[ERROR] $testcase returned exit status $exit_status"
-                echo "-- $testcase: error $exit_status" >> "$BENCHMARK_ERROR_LOG"
+                echo "-- $testcase: error $exit_status" >> "$SANITIZED_BENCHMARK_LOG_ERROR"
             fi
         done
     fi
@@ -188,15 +188,15 @@ process_benchmarks() {
 # Handle failures + produce a report on what failed
 process_results() {
     fail=0
-    if [ -s "$BENCHMARK_SLOW_LOG" ]; then
+    if [ -s "$SANITIZED_BENCHMARK_LOG_SLOW" ]; then
         printf "\n### Tests performing over acceptable range of average: ###\n"
-        cat "$BENCHMARK_SLOW_LOG"
+        cat "$SANITIZED_BENCHMARK_LOG_SLOW"
         echo ""
         fail=2
     fi
-    if [ -s "$BENCHMARK_ERROR_LOG" ]; then
+    if [ -s "$SANITIZED_BENCHMARK_LOG_ERROR" ]; then
         printf "\n### Tests that failed to run: ###\n"
-        cat "$BENCHMARK_ERROR_LOG"
+        cat "$SANITIZED_BENCHMARK_LOG_ERROR"
         echo ""
         fail=1
     fi
@@ -205,8 +205,8 @@ process_results() {
 
 cleanup() {
     echo "### Cleaning up compute-benchmark builds from prior runs ###"
-    rm -rf $COMPUTE_BENCH_PATH
-    rm -rf $PERF_RES_PATH
+    rm -rf $SANITIZED_COMPUTE_BENCH_PATH
+    rm -rf $SANITIZED_PERF_RES_PATH
     [ ! -z "$_exit_after_cleanup" ] && exit
 }
 
@@ -225,23 +225,21 @@ load_configs() {
     # Derive /devops based on location of this script:
     [ -z "$DEVOPS_PATH" ] && DEVOPS_PATH="$(dirname "$0")/../.."
 
-    BENCHMARK_CI_CONFIG="$(realpath $DEVOPS_PATH/benchmarking/benchmark-ci.conf)"
     TESTS_CONFIG="$(realpath $DEVOPS_PATH/benchmarking/enabled_tests.conf)"
     COMPARE_PATH="$(realpath $DEVOPS_PATH/scripts/benchmarking/compare.py)"
-    UTILS_PATH="$(realpath $DEVOPS_PATH/scripts/benchmarking/utils.sh)"
+    LOAD_CONFIG_PY="$(realpath $DEVOPS_PATH/scripts/benchmarking/load_config.py)"
 
     for file in \
-        "$BENCHMARK_CI_CONFIG" "$TESTS_CONFIG" "$COMPARE_PATH" "$UTILS_PATH"
+        "$TESTS_CONFIG" "$COMPARE_PATH" "$LOAD_CONFIG_PY"
     do
         if [ ! -f "$file" ]; then
-            echo "Please provide path to DEVOPS_PATH."
+            echo "Please provide path to /devops in DEVOPS_PATH."
             exit -1
         fi
     done
 
-    . "$UTILS_PATH"
-    load_config_options "$BENCHMARK_CI_CONFIG"
-    load_config_constants "$BENCHMARK_CI_CONFIG"
+    $(python "$LOAD_CONFIG_PY" "$DEVOPS_PATH" config)
+    $(python "$LOAD_CONFIG_PY" "$DEVOPS_PATH" constants)
 }
 
 #####
@@ -283,14 +281,14 @@ fi
 
 # Make sure ONEAPI_DEVICE_SELECTOR doesn't try to enable multiple devices at the
 # same time, or use specific device id's
-_dev_sel_backend_re="$(echo "$DEVICE_SELECTOR_ENABLED_BACKENDS" | sed 's/,/|/g')"
-_dev_sel_device_re="$(echo "$DEVICE_SELECTOR_ENABLED_DEVICES" | sed 's/,/|/g')"
+_dev_sel_backend_re="$(echo "$SANITIZED_DEVICE_SELECTOR_ENABLED_BACKENDS" | sed 's/,/|/g')"
+_dev_sel_device_re="$(echo "$SANITIZED_DEVICE_SELECTOR_ENABLED_DEVICES" | sed 's/,/|/g')"
 _dev_sel_re="s/($_dev_sel_backend_re):($_dev_sel_device_re)//"
 if [ -n "$(echo "$ONEAPI_DEVICE_SELECTOR" | sed -E "$_dev_sel_re")" ]; then
     echo "Unsupported ONEAPI_DEVICE_SELECTOR value: please ensure only one \
 device is selected, and devices are not selected by indices."
-    echo "Enabled backends: $DEVICE_SELECTOR_ENABLED_BACKENDS"
-    echo "Enabled device types: $DEVICE_SELECTOR_ENABLED_DEVICES"
+    echo "Enabled backends: $SANITIZED_DEVICE_SELECTOR_ENABLED_BACKENDS"
+    echo "Enabled device types: $SANITIZED_DEVICE_SELECTOR_ENABLED_DEVICES"
     exit 1
 fi
 # ONEAPI_DEVICE_SELECTOR values are not valid directory names in unix: this 
@@ -300,9 +298,9 @@ DEVICE_SELECTOR_DIRNAME="$(echo "$ONEAPI_DEVICE_SELECTOR" | sed 's/:/-/')"
 # Clean up and delete all cached files if specified:
 [ ! -z "$_cleanup" ] && cleanup
 # Clone and build only if they aren't already cached/deleted:
-[ ! -d "$PERF_RES_PATH"            ] && clone_perf_res
-[ ! -d "$COMPUTE_BENCH_PATH"       ] && clone_compute_bench
-[ ! -d "$COMPUTE_BENCH_PATH/build" ] && build_compute_bench
+[ ! -d "$SANITIZED_PERF_RES_PATH"            ] && clone_perf_res
+[ ! -d "$SANITIZED_COMPUTE_BENCH_PATH"       ] && clone_compute_bench
+[ ! -d "$SANITIZED_COMPUTE_BENCH_PATH/build" ] && build_compute_bench
 # Process benchmarks:
 process_benchmarks
 process_results
