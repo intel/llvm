@@ -134,6 +134,9 @@ def warn_double_const_requires_fp64 : Warning<
 def warn_imp_float_size_conversion : Warning<
   "implicit conversion between floating point types of different sizes">,
   InGroup<ImplicitFloatSizeConversion>, DefaultIgnore;
+def warn_sycl_imp_float_size_conversion : Warning<
+  "implicit conversion between floating point types of different sizes">,
+  InGroup<SyclImplicitFloatSizeConversion>, DefaultIgnore;
 def err_half_const_requires_fp16 : Error<
   "half precision constant requires cl_khr_fp16">;
 

@@ -7,7 +7,7 @@
 // RUN: %clang_cc1 -fsyntax-only -verify=precision-increase -Wdouble-promotion \
 // RUN:   -triple x86_64-apple-darwin %s
 
-// RUN: %clang_cc1 -fsyntax-only -verify=precision-loss,size-change -Wimplicit-float-conversion \
+// RUN: %clang_cc1 -fsyntax-only -verify=precision-loss,size-change -fsycl-is-host -Wimplicit-float-conversion \
 // RUN:   -triple x86_64-apple-darwin %s
 
 // RUN: %clang_cc1 -fsyntax-only -verify \

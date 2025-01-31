@@ -11681,10 +11681,14 @@ void Sema::CheckImplicitConversion(Expr *E, QualType T, SourceLocation CC,
                   Context.getFloatTypeSemantics(QualType(TargetBT, 0)),
                   Context.getFloatTypeSemantics(QualType(SourceBT, 0)))) {
             if (getLangOpts().SYCLIsDevice)
-              SYCL().DiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+              SYCL().DiagIfDeviceCode(
+                  CC, diag::warn_sycl_imp_float_size_conversion);
             else
               DiagnoseImpCast(*this, E, T, CC,
-                              diag::warn_imp_float_size_conversion);
+                              getLangOpts().isSYCL()
+                                  ? diag::warn_sycl_imp_float_size_conversion
+                                  : diag::warn_imp_float_size_conversion);
+
             return;
           }
         }
@@ -11697,10 +11701,13 @@ void Sema::CheckImplicitConversion(Expr *E, QualType T, SourceLocation CC,
         // warning.
         if (Diags.isIgnored(diag::warn_impcast_float_precision, CC)) {
           if (getLangOpts().SYCLIsDevice)
-            SYCL().DiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+            SYCL().DiagIfDeviceCode(CC,
+                                    diag::warn_sycl_imp_float_size_conversion);
           else
             DiagnoseImpCast(*this, E, T, CC,
-                            diag::warn_imp_float_size_conversion);
+                            getLangOpts().isSYCL()
+                                ? diag::warn_sycl_imp_float_size_conversion
+                                : diag::warn_imp_float_size_conversion);
         }
         DiagnoseImpCast(*this, E, T, CC, diag::warn_impcast_float_precision);
       }
