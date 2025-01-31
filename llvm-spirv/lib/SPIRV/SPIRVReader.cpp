@@ -3556,40 +3556,65 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
           transType(AI->getSemanticType()),
           SPIRSPIRVAddrSpaceMap::rmap(
               BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
-    } else if (OC == spv::OpCooperativeMatrixStoreKHR ||
-               OC == spv::internal::OpJointMatrixStoreINTEL ||
-               OC == spv::internal::OpCooperativeMatrixStoreCheckedINTEL ||
-               OC == spv::internal::OpJointMatrixLoadINTEL ||
-               OC == spv::OpCompositeConstruct ||
-               OC == spv::internal::OpCooperativeMatrixApplyFunctionINTEL) {
-      auto *Val = transValue(Ops[Ptr], BB->getParent(), BB);
-      Val = Val->stripPointerCasts();
-      if (auto *GEP = dyn_cast<GetElementPtrInst>(Val))
-        ArgTys[Ptr] = TypedPointerType::get(
-            GEP->getSourceElementType(),
-            SPIRSPIRVAddrSpaceMap::rmap(
-                BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
-      else if (auto *AI = dyn_cast<AllocaInst>(Val))
-        ArgTys[Ptr] = TypedPointerType::get(
-            AI->getAllocatedType(),
-            SPIRSPIRVAddrSpaceMap::rmap(
-                BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
-      else if (isa<Argument>(Val) && !RetTy->isVoidTy()) {
-        // Pointer could be a function parameter. Assume that the type of the
-        // pointer is the same as the return type.
-        Type *Ty = nullptr;
-        // it return type is array type, assign its element type to Ty
-        if (RetTy->isArrayTy())
-          Ty = RetTy->getArrayElementType();
-        else if (RetTy->isVectorTy())
-          Ty = cast<VectorType>(RetTy)->getElementType();
-        else
-          Ty = RetTy;
+    }
+  }
 
-        ArgTys[Ptr] = TypedPointerType::get(
-            Ty,
-            SPIRSPIRVAddrSpaceMap::rmap(
-                BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
+  for (unsigned I = 0; I < ArgTys.size(); I++) {
+    if (isa<PointerType>(ArgTys[I])) {
+      SPIRVType *OpTy = BI->getValueType(Ops[I]->getId());
+      // `Param` must be a pointer to an 8-bit integer type scalar.
+      // Avoid demangling for this argument if it's a pointer to get `Pc`
+      // mangling.
+      if (OC == OpEnqueueKernel && I == 7) {
+        if (ArgTys[I]->isPointerTy())
+          continue;
+      }
+      if (OpTy->isTypeUntypedPointerKHR()) {
+        auto *Val = transValue(Ops[I], BB->getParent(), BB);
+        Val = Val->stripPointerCasts();
+        if (isUntypedAccessChainOpCode(Ops[I]->getOpCode())) {
+          SPIRVType *BaseTy =
+              reinterpret_cast<SPIRVAccessChainBase *>(Ops[I])->getBaseType();
+
+          Type *Ty = nullptr;
+          if (BaseTy->isTypeArray())
+            Ty = transType(BaseTy->getArrayElementType());
+          else if (BaseTy->isTypeVector())
+            Ty = transType(BaseTy->getVectorComponentType());
+          else
+            Ty = transType(BaseTy);
+          ArgTys[I] = TypedPointerType::get(
+              Ty, SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (auto *GEP = dyn_cast<GetElementPtrInst>(Val)) {
+          ArgTys[I] = TypedPointerType::get(
+              GEP->getSourceElementType(),
+              SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (Ops[I]->getOpCode() == OpUntypedVariableKHR) {
+          SPIRVUntypedVariableKHR *UV =
+              static_cast<SPIRVUntypedVariableKHR *>(Ops[I]);
+          Type *Ty = transType(UV->getDataType());
+          ArgTys[I] = TypedPointerType::get(
+              Ty, SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (auto *AI = dyn_cast<AllocaInst>(Val)) {
+          ArgTys[I] = TypedPointerType::get(
+              AI->getAllocatedType(),
+              SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (Ops[I]->getOpCode() == OpFunctionParameter &&
+                   !RetTy->isVoidTy()) {
+          // Pointer could be a function parameter. Assume that the type of
+          // the pointer is the same as the return type.
+          Type *Ty = nullptr;
+          // it return type is array type, assign its element type to Ty
+          if (RetTy->isArrayTy())
+            Ty = RetTy->getArrayElementType();
+          else if (RetTy->isVectorTy())
+            Ty = cast<VectorType>(RetTy)->getElementType();
+          else
+            Ty = RetTy;
+
+          ArgTys[I] = TypedPointerType::get(
+              Ty, SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        }
       }
     }
   }
