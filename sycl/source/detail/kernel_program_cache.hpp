@@ -25,10 +25,10 @@
 #include <mutex>
 #include <numeric>
 #include <set>
+#include <sstream>
 #include <thread>
 #include <type_traits>
 
-#include <boost/unordered/unordered_flat_map.hpp>
 #include <boost/unordered_map.hpp>
 
 // For testing purposes
@@ -38,6 +38,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 class context_impl;
+
+template <class T> inline void hashCombine(size_t &Seed, const T &Val) {
+  std::hash<T> Hasher;
+  Seed ^= Hasher(Val) + 0x9e3779b9 + (Seed << 6) + (Seed >> 2);
+}
 
 // During SYCL program execution SYCL runtime will create internal objects
 // representing kernels and programs, it may also invoke JIT compiler to bring
@@ -232,13 +237,33 @@ public:
                                      kernel. */
                  >;
 
+  struct KernelFastCacheKeyHash {
+    std::size_t operator()(const KernelFastCacheKeyT &Key) const {
+      std::size_t Hash = 0;
+      // Hash the UR device handle pointer.
+      hashCombine(Hash, Key.first);
+
+      // Hash the Kernel Name.
+      hashCombine(Hash, Key.second);
+
+      return Hash;
+    }
+  };
+
+  struct KernelFastCacheKeyEqual {
+    bool operator()(const KernelFastCacheKeyT &LHS,
+                    const KernelFastCacheKeyT &RHS) const {
+      // Check equality of the UR device handle pointer.
+      return LHS.first == RHS.first &&
+             // Check equality of the Kernel Name.
+             LHS.second == RHS.second;
+    }
+  };
+
   // This container is used as a fast path for retrieving cached kernels.
-  // unordered_flat_map is used here to reduce lookup overhead.
-  // The slow path is used only once for each newly created kernel, so the
-  // higher overhead of insertion that comes with unordered_flat_map is more
-  // of an issue there. For that reason, those use regular unordered maps.
   using KernelFastCacheT =
-      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
+      std::unordered_map<KernelFastCacheKeyT, KernelFastCacheValT,
+                         KernelFastCacheKeyHash, KernelFastCacheKeyEqual>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
