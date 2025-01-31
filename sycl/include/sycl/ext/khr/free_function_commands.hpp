@@ -226,23 +226,23 @@ template <typename KernelType, typename... Reductions>
 void launch_grouped_reduce(sycl::handler &h, sycl::range<1> r,
                            sycl::range<1> size, const KernelType &k,
                            Reductions &&...reductions) {
-  h.parallel_for<KernelType>(nd_range<1>(r, size),
-                             std::forward<Reductions>(reductions)..., k);
+  h.parallel_for(nd_range<1>(r, size), std::forward<Reductions>(reductions)...,
+                 k);
 }
 template <typename KernelType, typename... Reductions>
 void launch_grouped_reduce(sycl::handler &h, sycl::range<2> r,
                            sycl::range<2> size, const KernelType &k,
                            Reductions &&...reductions) {
-  h.parallel_for<KernelType>(nd_range<2>(r, size),
-                             std::forward<Reductions>(reductions)..., k);
+  h.parallel_for(nd_range<2>(r, size), std::forward<Reductions>(reductions)...,
+                 k);
 }
 
 template <typename KernelType, typename... Reductions>
 void launch_grouped_reduce(sycl::handler &h, sycl::range<3> r,
                            sycl::range<3> size, const KernelType &k,
                            Reductions &&...reductions) {
-  h.parallel_for<KernelType>(nd_range<3>(r, size),
-                             std::forward<Reductions>(reductions)..., k);
+  h.parallel_for(nd_range<3>(r, size), std::forward<Reductions>(reductions)...,
+                 k);
 }
 
 template <typename KernelType, typename... Reductions>
