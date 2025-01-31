@@ -162,6 +162,39 @@ public:
   ext_oneapi_get_info(queue Queue, const range<3> &MaxWorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
 
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG // update description
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(queue Queue,
+                                                  const range<3> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG // update description
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(queue Queue,
+                                                  const range<2> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG // update description
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(queue Queue,
+                                                  const range<1> &WG) const;
+
   /// Get a constant reference to a raw kernel object.
   ///
   /// \return a constant reference to a valid UrKernel instance with raw
@@ -383,6 +416,94 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
                                DynamicLocalMemorySize);
 }
 
+template <>
+inline typename syclex::info::kernel_queue_specific::max_work_group_size::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_work_group_size>(
+        queue Queue) const {
+  const auto &Adapter = getAdapter();
+  const auto DeviceNativeHandle =
+      getSyclObjImpl(Queue.get_device())->getHandleRef();
+
+  size_t KernelWGSize = 0;
+  Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+      MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+      sizeof(size_t), &KernelWGSize, nullptr);
+  return KernelWGSize;
+}
+
+template <int D>
+inline sycl::id<D> generate_id(const sycl::range<D> &DevMAxWorkItemSizes,
+                               const size_t DevWgSize) {
+  sycl::id<D> ret;
+  for (int i = 0; i < D; i++) {
+    // DevMAxWorkItemSizes values are reverted, see
+    // sycl/source/detail/device_info.hpp:582
+    ret[i] = std::min(DevMAxWorkItemSizes[i], DevWgSize);
+    std::cout << "ret[" << i << "] = " << ret[i] << std::endl;
+    std::cout << "DevMAxWorkItemSizes[" << i << "] = " << DevMAxWorkItemSizes[i]
+              << std::endl;
+  }
+  std::cout << "DevWgSize:" << DevWgSize << std::endl;
+  return ret;
+}
+
+#define ADD_TEMPLATE_METHOD_SPEC(Num)                                          \
+  template <>                                                                  \
+  inline typename syclex::info::kernel_queue_specific::max_work_item_sizes<    \
+      Num>::return_type                                                        \
+  kernel_impl::ext_oneapi_get_info<                                            \
+      syclex::info::kernel_queue_specific::max_work_item_sizes<Num>>(          \
+      queue Queue) const {                                                     \
+    const auto Dev = Queue.get_device();                                       \
+    const auto DeviceWgSize =                                                  \
+        get_info<info::kernel_device_specific::work_group_size>(Dev);          \
+    const auto DeviceMaxWorkItemSizes =                                        \
+        Dev.get_info<info::device::max_work_item_sizes<Num>>();                \
+    return generate_id<Num>(DeviceMaxWorkItemSizes, DeviceWgSize);             \
+  } // namespace detail
+
+ADD_TEMPLATE_METHOD_SPEC(1)
+ADD_TEMPLATE_METHOD_SPEC(2)
+ADD_TEMPLATE_METHOD_SPEC(3)
+
+#undef ADD_TEMPLATE_METHOD_SPEC
+
+#define ADD_TEMPLATE_METHOD_SPEC(QueueSpec, Num, Kind, Reg)                    \
+  template <>                                                                  \
+  inline typename syclex::info::kernel_queue_specific::QueueSpec::return_type  \
+  kernel_impl::ext_oneapi_get_info<                                            \
+      syclex::info::kernel_queue_specific::QueueSpec>(                         \
+      queue Queue, const range<Num> &WG) const {                               \
+    if (WG.size() == 0)                                                        \
+      throw exception(sycl::make_error_code(errc::invalid),                    \
+                      "The max work-group size cannot be zero.");              \
+    const auto &Adapter = getAdapter();                                        \
+    const auto DeviceNativeHandle =                                            \
+        getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
+    uint32_t KernelSubWGSize = 0;                                              \
+    Adapter->call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,           \
+                                   sizeof(uint32_t), &KernelSubWGSize,         \
+                                   nullptr);                                   \
+    return KernelSubWGSize;                                                    \
+  }
+
+ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 3, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
+ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 2, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
+ADD_TEMPLATE_METHOD_SPEC(max_sub_group_size, 1, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE)
+
+ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 3, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
+ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 2, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
+ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 1, urKernelGetSubGroupInfo,
+                         UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
+
+#undef ADD_TEMPLATE_METHOD_SPEC
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
