@@ -221,6 +221,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 build_targets.add(test.config.backend_to_target[backend])
 
         triples = set(test.config.target_to_triple[t] for t in build_targets)
+        test.config.available_features = test.config.available_features.union(
+            build_targets
+        )
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
 
