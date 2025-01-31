@@ -167,6 +167,8 @@ etors:
     desc: "Device to host"
   - name: DEVICE_TO_DEVICE
     desc: "Device to device"
+  - name: HOST_TO_HOST
+    desc: "Host to host"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: True

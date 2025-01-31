@@ -108,6 +108,7 @@ Enums
     * ${X}_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE
     * ${X}_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST
     * ${X}_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE
+    * ${X}_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST
 
 * ${x}_exp_sampler_cubemap_filter_mode_t
     * ${X}_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS
@@ -252,6 +253,10 @@ Changelog
 |          || keyword over "interop".                                    |
 +----------+-------------------------------------------------------------+
 | 18.0     | Added BindlessImagesMapExternalLinearMemoryExp function.    |
++----------+-------------------------------------------------------------+
+| 19.0     || Added ${X}_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST                | 
+|          || Added support for DtoD usm pitch copies                    |
+|          || Added support for HtoH copies                              |
 +----------+-------------------------------------------------------------+
 
 Contributors

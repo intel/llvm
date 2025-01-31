@@ -46,34 +46,6 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
   }
 }
 
-template <typename PtrT>
-void getUSMHostOrDevicePtr(PtrT USMPtr, CUmemorytype *OutMemType,
-                           CUdeviceptr *OutDevPtr, PtrT *OutHostPtr) {
-  // do not throw if cuPointerGetAttribute returns CUDA_ERROR_INVALID_VALUE
-  // checks with PI_CHECK_ERROR are not suggested
-  CUresult Ret = cuPointerGetAttribute(
-      OutMemType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)USMPtr);
-  // ARRAY, UNIFIED types are not supported!
-  assert(*OutMemType != CU_MEMORYTYPE_ARRAY &&
-         *OutMemType != CU_MEMORYTYPE_UNIFIED);
-
-  // pointer not known to the CUDA subsystem (possibly a system allocated ptr)
-  if (Ret == CUDA_ERROR_INVALID_VALUE) {
-    *OutMemType = CU_MEMORYTYPE_HOST;
-    *OutDevPtr = 0;
-    *OutHostPtr = USMPtr;
-
-    // todo: resets the above "non-stick" error
-  } else if (Ret == CUDA_SUCCESS) {
-    *OutDevPtr = (*OutMemType == CU_MEMORYTYPE_DEVICE)
-                     ? reinterpret_cast<CUdeviceptr>(USMPtr)
-                     : 0;
-    *OutHostPtr = (*OutMemType == CU_MEMORYTYPE_HOST) ? USMPtr : nullptr;
-  } else {
-    UR_CHECK_ERROR(Ret);
-  }
-}
-
 ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
                            ur_usm_advice_flags_t URAdviceFlags,
                            CUdevice Device) {
