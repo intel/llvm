@@ -12,7 +12,7 @@ Using oneAPI DPC++ for Application Development
    UsersManual
    PreprocessorMacros
    cuda/contents
-   Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
+   extensions/index
    syclcompat/README.md
    FAQ
    EnvironmentVariables
