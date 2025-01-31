@@ -2109,11 +2109,15 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2151,11 +2155,16 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      event DepEvent, PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(event DepEvent, PropertiesT Properties,
+                         _KERNELFUNCPARAM(KernelFunc),
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2197,12 +2206,16 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      const std::vector<event> &DepEvents, PropertiesT Properties,
-      _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(const std::vector<event> &DepEvents,
+                         PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2240,11 +2253,51 @@ public:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<1> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2262,11 +2315,52 @@ public:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2286,6 +2380,27 @@ public:
   ///
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
@@ -2298,11 +2413,54 @@ public:
   ///
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2325,12 +2483,56 @@ public:
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<2> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2448,11 +2650,15 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+      event> parallel_for(nd_range<Dims> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2472,8 +2678,42 @@ public:
             typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
-    return parallel_for<KernelName>(
-        Range, ext::oneapi::experimental::empty_properties_t{}, Rest...);
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName>(Range, Rest...);
+        },
+        TlsCodeLocCapture.query());
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(nd_range<Dims> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        TlsCodeLocCapture.query());
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -2485,7 +2725,8 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2502,12 +2743,44 @@ public:
   /// \param Range specifies the global and local work spaces of the kernel
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(nd_range<Dims> Range,
+                          const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        TlsCodeLocCapture.query());
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
-                     RestT &&...Rest) {
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
+               RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
