@@ -244,7 +244,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #endif // NATIVECPU_USE_OCK
   event->set_futures(futures);
 
-  *phEvent = event;
+  if (phEvent) {
+    *phEvent = event;
+  }
   event->set_callback([hKernel, event]() {
     event->tick_end();
     // TODO: avoid calling clear() here.
@@ -252,7 +254,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   });
 
   if (hQueue->isInOrder()) {
-    urEventWait(1, phEvent);
+    urEventWait(1, &event);
   }
 
   return UR_RESULT_SUCCESS;
