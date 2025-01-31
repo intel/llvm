@@ -40,7 +40,7 @@ TEST(Windows, DllMainCall) {
 #ifdef _WIN32
   sycl::unittest::UrMock<> Mock;
   Mock.releaseSyclObjsOnDestruction = false;
-  
+
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback("urAdapterRelease",
                                            &redefinedAdapterRelease);

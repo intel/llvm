@@ -562,7 +562,7 @@ public:
     urLoaderConfigRelease(UrLoaderConfig);
   }
 
-  bool releaseSyclObjsOnDestruction=true; 
+  bool releaseSyclObjsOnDestruction = true;
 
   UrMock(UrMock<Backend> &&Other) = delete;
   UrMock(const UrMock<Backend> &) = delete;
@@ -570,14 +570,15 @@ public:
   ~UrMock() {
     // if we are testing shutdown, these will already be released
     // and GlobalHandler instance freed.
-    if(releaseSyclObjsOnDestruction){
-      // mock::getCallbacks() is an application lifetime object, we need to reset these between tests
-	detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
-	detail::GlobalHandler::instance().releaseDefaultContexts();
-	// clear platform cache in case subsequent tests want a different backend,
-	// this forces platforms to be reconstructed (and thus queries about UR
-	// backend info to be called again)
-	detail::GlobalHandler::instance().getPlatformCache().clear();
+    if (releaseSyclObjsOnDestruction) {
+      // mock::getCallbacks() is an application lifetime object, we need to
+      // reset these between tests
+      detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
+      detail::GlobalHandler::instance().releaseDefaultContexts();
+      // clear platform cache in case subsequent tests want a different backend,
+      // this forces platforms to be reconstructed (and thus queries about UR
+      // backend info to be called again)
+      detail::GlobalHandler::instance().getPlatformCache().clear();
     }
     mock::getCallbacks().resetCallbacks();
   }
