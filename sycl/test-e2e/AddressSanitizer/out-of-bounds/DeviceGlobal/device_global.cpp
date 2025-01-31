@@ -1,10 +1,10 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
-// RUN: %{run} not %t1.out 2>&1 | FileCheck %s
+// RUN: %{run} not --crash %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O1 -g -o %t2.out
-// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{run} not --crash %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
-// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+// RUN: %{run} not --crash %t3.out 2>&1 | FileCheck %s
 
 // Flakily timesout on PVC
 // UNSUPPORTED: arch-intel_gpu_pvc

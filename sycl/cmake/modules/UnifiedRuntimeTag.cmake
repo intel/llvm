@@ -1,7 +1,7 @@
-# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
-# Merge: e370a2b9 eeff9f4a
+# commit 8e6ea72e44dab71e976b3daf439073c4ef9a847b
+# Merge: 1f6945ce c57c181d
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 27 10:40:02 2025 +0000
-#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
-#     Enable creation of bindless images backed by host USM
-set(UNIFIED_RUNTIME_TAG 3a31ffee22b078a70ee7918c1c783a13d1f3aa60)
+# Date:   Wed Jan 29 15:54:56 2025 +0000
+#     Merge pull request #2619 from martygrant/martin/memimage-info-unswitch-redo
+#     Move urMemImageGetInfo success test from a switch to individual test
+set(UNIFIED_RUNTIME_TAG 8e6ea72e44dab71e976b3daf439073c4ef9a847b)
