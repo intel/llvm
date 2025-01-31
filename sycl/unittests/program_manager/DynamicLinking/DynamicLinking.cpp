@@ -1,5 +1,7 @@
 #include <sycl/sycl.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 #include <detail/device_image_impl.hpp>
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
@@ -76,10 +78,10 @@ generateImage(std::initializer_list<std::string> KernelNames,
               const char *DeviceTargetSpec,
               sycl::unittest::MockPropertySet PropSet) {
   if (!ExportedSymbols.empty())
-    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
+    PropSet.insert(llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS,
                    createPropertySet(ExportedSymbols));
   if (!ImportedSymbols.empty())
-    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
+    PropSet.insert(llvm::util::PropertySetRegistry::SYCL_IMPORTED_SYMBOLS,
                    createPropertySet(ImportedSymbols));
 
   std::vector<unsigned char> Bin{Magic};

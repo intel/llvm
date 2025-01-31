@@ -2,6 +2,8 @@
 #include "ur_mock_helpers.hpp"
 #include <sycl/sycl.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
@@ -65,7 +67,8 @@ generateImage(std::initializer_list<std::string> KernelNames,
                                     SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
   Props.push_back(Prop);
-  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS, std::move(Props));
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS,
+                 std::move(Props));
 
   std::vector<unsigned char> Bin{Magic};
 
