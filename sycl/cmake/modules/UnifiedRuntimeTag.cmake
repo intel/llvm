@@ -1,9 +1,9 @@
-# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
-# Merge: 4643d1c0 3ed86fae
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 13:55:27 2025 +0000
+#commit 3dbf8b247a6f42bfed1db6e6bdfdfd0b0f1067fc 
+#Author: Zhang, Winston <winston.zhang@intel.com>
+#Date:   Wed Jan 29 16:52:47 2025 -0800
 #
-#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
+#[L0] MAX_COMPUTE_UNITS using ze_eu_count_ext_t
 #
-#    Remove command-buffer command handle ref counting
-set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)
+#For some recovery SKUs, MAX_COMPUTE_COUNT calculation does not provide the correct number of EUs. Now we will  use ze_eu_count_t when
+#available.
+set(UNIFIED_RUNTIME_TAG 3dbf8b247a6f42bfed1db6e6bdfdfd0b0f1067fc)
