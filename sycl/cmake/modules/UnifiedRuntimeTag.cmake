@@ -1,7 +1,7 @@
-# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
-# Merge: d3e97040 b1b0c60c
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 13:59:15 2025 +0000
-#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
-#     Fix potential deadlock in the WaitEvent path of CmdBuffers
-set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
+# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
+# Merge: 902bb2e2 94b32ac2
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Tue Jan 28 11:02:44 2025 +0000
+#     Merge pull request #2624 from RossBrunton/ross/msanfix
+#     Assert that Device is valid for memory poisoning
+set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
