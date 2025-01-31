@@ -15,7 +15,7 @@ struct urKernelSetArgLocalTest : uur::urKernelTest {
   }
   size_t local_mem_size = 4 * sizeof(uint32_t);
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgLocalTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalTest);
 
 TEST_P(urKernelSetArgLocalTest, Success) {
   ASSERT_SUCCESS(urKernelSetArgLocal(kernel, 1, local_mem_size, nullptr));
@@ -147,7 +147,7 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
   static constexpr uint64_t hip_local_offset = 0;
   ur_platform_backend_t backend{};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgLocalMultiTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalMultiTest);
 
 TEST_P(urKernelSetArgLocalMultiTest, Basic) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
@@ -324,7 +324,7 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
   }
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgLocalOutOfOrder);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalOutOfOrder);
 TEST_P(urKernelSetArgLocalOutOfOrder, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        &global_offset, &global_size,

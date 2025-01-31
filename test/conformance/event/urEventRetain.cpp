@@ -7,7 +7,7 @@
 #include "fixtures.h"
 
 using urEventRetainTest = uur::event::urEventTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventRetainTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventRetainTest);
 
 TEST_P(urEventRetainTest, Success) {
   uint32_t prevRefCount = 0;

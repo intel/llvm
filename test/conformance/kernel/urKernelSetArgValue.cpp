@@ -15,7 +15,7 @@ struct urKernelSetArgValueTest : uur::urKernelTest {
 
   uint32_t arg_value = 42;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelSetArgValueTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgValueTest);
 
 TEST_P(urKernelSetArgValueTest, Success) {
   ASSERT_SUCCESS(

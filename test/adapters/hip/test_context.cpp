@@ -12,7 +12,7 @@
 #include "uur/raii.h"
 
 using urHipContextTest = uur::urDeviceTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipContextTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urHipContextTest);
 
 TEST_P(urHipContextTest, ActiveContexts) {
   uur::raii::Context context = nullptr;

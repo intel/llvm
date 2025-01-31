@@ -28,9 +28,9 @@ struct urPhysicalMemCreateTest
 };
 
 using urPhysicalMemCreateWithSizeParamTest = urPhysicalMemCreateTest;
-UUR_DEVICE_TEST_SUITE_P(urPhysicalMemCreateWithSizeParamTest,
-                        ::testing::Values(1, 2, 3, 7, 12, 44),
-                        uur::deviceTestWithParamPrinter<size_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(urPhysicalMemCreateWithSizeParamTest,
+                                 ::testing::Values(1, 2, 3, 7, 12, 44),
+                                 uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateWithSizeParamTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
@@ -54,7 +54,7 @@ TEST_P(urPhysicalMemCreateWithSizeParamTest, InvalidSize) {
 
 using urPhysicalMemCreateWithFlagsParamTest =
     uur::urPhysicalMemTestWithParam<ur_physical_mem_flags_t>;
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urPhysicalMemCreateWithFlagsParamTest,
     ::testing::Values(UR_PHYSICAL_MEM_FLAG_TBD),
     uur::deviceTestWithParamPrinter<ur_physical_mem_flags_t>);
@@ -71,8 +71,8 @@ TEST_P(urPhysicalMemCreateWithFlagsParamTest, Success) {
 }
 
 using urPhysicalMemCreateTest = urPhysicalMemCreateTest;
-UUR_DEVICE_TEST_SUITE_P(urPhysicalMemCreateTest, ::testing::Values(1),
-                        uur::deviceTestWithParamPrinter<size_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(urPhysicalMemCreateTest, ::testing::Values(1),
+                                 uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urPhysicalMemCreateTest, InvalidNullHandleContext) {
   ASSERT_EQ_RESULT(

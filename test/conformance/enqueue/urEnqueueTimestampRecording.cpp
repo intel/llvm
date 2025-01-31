@@ -20,7 +20,7 @@ struct urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
 
   void TearDown() override { urQueueTest::TearDown(); }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueTimestampRecordingExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueTimestampRecordingExpTest);
 
 void common_check(ur_event_handle_t event) {
   // All successful runs should return a non-zero profiling results.

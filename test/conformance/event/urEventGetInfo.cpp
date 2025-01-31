@@ -149,4 +149,4 @@ TEST_P(urEventGetInfoTest, InvalidNullPointerPropSizeRet) {
       UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetInfoTest);

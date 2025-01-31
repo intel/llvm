@@ -11,7 +11,7 @@
 
 using urUsmPoolDescriptorTest = uur::urMultiDeviceContextTest;
 
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urUsmPoolDescriptorTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urUsmPoolDescriptorTest);
 
 auto createMockPoolHandle() {
   static uintptr_t uniqueAddress = 0x1;
@@ -177,4 +177,4 @@ TEST_P(urUsmPoolManagerTest, config) {
   ASSERT_EQ(compareConfigs(test, parsed3), true);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUsmPoolManagerTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUsmPoolManagerTest);

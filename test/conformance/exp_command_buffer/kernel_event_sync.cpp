@@ -77,7 +77,7 @@ struct KernelCommandEventSyncTest
   static constexpr size_t A = 2;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(KernelCommandEventSyncTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(KernelCommandEventSyncTest);
 
 // Tests using a regular enqueue event as a dependency of a command-buffer
 // command, and having the signal event of that command-buffer command being

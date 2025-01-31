@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urEnqueueDeviceGetGlobalVariableReadTest = uur::urGlobalVariableTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueDeviceGetGlobalVariableReadTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueDeviceGetGlobalVariableReadTest);
 
 TEST_P(urEnqueueDeviceGetGlobalVariableReadTest, Success) {
 

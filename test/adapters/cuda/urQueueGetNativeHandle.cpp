@@ -8,7 +8,7 @@
 #include "queue.hpp"
 
 using urCudaQueueGetNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCudaQueueGetNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCudaQueueGetNativeHandleTest);
 
 TEST_P(urCudaQueueGetNativeHandleTest, Success) {
   CUstream Stream;

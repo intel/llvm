@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 struct urDeviceReleaseTest : uur::urDeviceTest {};
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urDeviceReleaseTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urDeviceReleaseTest);
 
 TEST_P(urDeviceReleaseTest, Success) {
   uint32_t prevRefCount = 0;

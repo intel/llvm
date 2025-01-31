@@ -10,7 +10,7 @@
 #include <uur/fixtures.h>
 
 using urLevelZeroKernelNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urLevelZeroKernelNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroKernelNativeHandleTest);
 
 TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
   ze_context_handle_t native_context;

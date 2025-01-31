@@ -9,7 +9,7 @@
 using urCommandBufferReleaseExpTest =
     uur::command_buffer::urCommandBufferExpTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferReleaseExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferReleaseExpTest);
 
 TEST_P(urCommandBufferReleaseExpTest, Success) {
   EXPECT_SUCCESS(urCommandBufferRetainExp(cmd_buf_handle));

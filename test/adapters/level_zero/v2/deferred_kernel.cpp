@@ -22,7 +22,7 @@ struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
   size_t global_offset = 0;
   size_t n_dimensions = 1;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchTest);
 
 TEST_P(urEnqueueKernelLaunchTest, DeferredKernelRelease) {
   ur_mem_handle_t buffer = nullptr;
@@ -111,7 +111,7 @@ struct urMultiQueueLaunchKernelDeferFreeTest
   }
 };
 
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiQueueLaunchKernelDeferFreeTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiQueueLaunchKernelDeferFreeTest);
 
 TEST_P(urMultiQueueLaunchKernelDeferFreeTest, Success) {
   auto zeEvent1 = createZeEvent(context, devices[0]);

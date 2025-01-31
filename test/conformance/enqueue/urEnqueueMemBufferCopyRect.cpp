@@ -72,7 +72,7 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
 struct urEnqueueMemBufferCopyRectTestWithParam
     : public uur::urQueueTestWithParam<uur::test_parameters_t> {};
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueMemBufferCopyRectTestWithParam,
     testing::ValuesIn(generateParameterizations()),
     uur::printRectTestString<urEnqueueMemBufferCopyRectTestWithParam>);
@@ -178,7 +178,7 @@ struct urEnqueueMemBufferCopyRectTest : uur::urQueueTest {
   ur_mem_handle_t dst_buffer = nullptr;
   std::vector<uint32_t> input;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueMemBufferCopyRectTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferCopyRectTest);
 
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleQueue) {
   ur_rect_region_t src_region{size, 1, 1};
@@ -245,8 +245,7 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
 
 using urEnqueueMemBufferCopyRectMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(
-    urEnqueueMemBufferCopyRectMultiDeviceTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferCopyRectMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
   // First queue does a fill.

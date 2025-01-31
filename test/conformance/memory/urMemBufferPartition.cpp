@@ -10,11 +10,11 @@
 
 using urMemBufferPartitionWithFlagsTest =
     uur::urContextTestWithParam<ur_mem_flag_t>;
-UUR_DEVICE_TEST_SUITE_P(urMemBufferPartitionWithFlagsTest,
-                        ::testing::Values(UR_MEM_FLAG_READ_WRITE,
-                                          UR_MEM_FLAG_WRITE_ONLY,
-                                          UR_MEM_FLAG_READ_ONLY),
-                        uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urMemBufferPartitionWithFlagsTest,
+    ::testing::Values(UR_MEM_FLAG_READ_WRITE, UR_MEM_FLAG_WRITE_ONLY,
+                      UR_MEM_FLAG_READ_ONLY),
+    uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
 TEST_P(urMemBufferPartitionWithFlagsTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
@@ -42,7 +42,7 @@ TEST_P(urMemBufferPartitionWithFlagsTest, Success) {
 }
 
 using urMemBufferPartitionTest = uur::urMemBufferTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferPartitionTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemBufferPartitionTest);
 
 TEST_P(urMemBufferPartitionTest, InvalidNullHandleBuffer) {
   ur_buffer_region_t region{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, 0, 1024};

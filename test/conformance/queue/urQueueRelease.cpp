@@ -7,7 +7,7 @@
 #include <uur/known_failure.h>
 
 using urQueueReleaseTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueReleaseTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueReleaseTest);
 
 TEST_P(urQueueReleaseTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

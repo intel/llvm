@@ -130,9 +130,9 @@ static std::vector<testParametersFill2D> test_cases{
     /* Height != power_of_2 && width == power_of_2 && pattern_size == 128 */
     {1024, 256, 35, 128}};
 
-UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam,
-                        testing::ValuesIn(test_cases),
-                        printFill2DTestString<urEnqueueUSMFill2DTestWithParam>);
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEnqueueUSMFill2DTestWithParam, testing::ValuesIn(test_cases),
+    printFill2DTestString<urEnqueueUSMFill2DTestWithParam>);
 
 TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
 
@@ -191,7 +191,7 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
   void *ptr{nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMFill2DNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMFill2DNegativeTest);
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullQueueHandle) {
   ASSERT_EQ_RESULT(urEnqueueUSMFill2D(nullptr, ptr, pitch, pattern_size,

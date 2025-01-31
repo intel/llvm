@@ -43,7 +43,7 @@ struct urSamplerCreateTestWithParam
   }
 };
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urSamplerCreateTestWithParam,
     ::testing::Combine(
         ::testing::Values(true, false),
@@ -77,7 +77,7 @@ TEST_P(urSamplerCreateTestWithParam, Success) {
 }
 
 using urSamplerCreateTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerCreateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urSamplerCreateTest);
 
 TEST_P(urSamplerCreateTest, InvalidNullHandleContext) {
   ur_sampler_desc_t sampler_desc{

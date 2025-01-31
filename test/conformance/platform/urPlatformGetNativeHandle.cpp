@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 
 using urPlatformGetNativeHandleTest = uur::urPlatformTest;
-UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetNativeHandleTest);
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urPlatformGetNativeHandleTest);
 
 TEST_P(urPlatformGetNativeHandleTest, Success) {
   ur_native_handle_t native_handle = 0;

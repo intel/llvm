@@ -6,7 +6,7 @@
 #include <uur/fixtures.h>
 
 using urEnqueueDeviceGetGlobalVariableWriteTest = uur::urGlobalVariableTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueDeviceGetGlobalVariableWriteTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueDeviceGetGlobalVariableWriteTest);
 
 TEST_P(urEnqueueDeviceGetGlobalVariableWriteTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(urEnqueueDeviceGlobalVariableWrite(

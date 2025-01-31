@@ -8,7 +8,7 @@
 #include "uur/raii.h"
 
 using cudaMemoryTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(cudaMemoryTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(cudaMemoryTest);
 
 TEST_P(cudaMemoryTest, urMemBufferNoActiveContext) {
   constexpr size_t memSize = 1024u;

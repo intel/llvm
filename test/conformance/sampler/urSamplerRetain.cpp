@@ -8,7 +8,7 @@
 #include <uur/known_failure.h>
 
 using urSamplerRetainTest = uur::urSamplerTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerRetainTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urSamplerRetainTest);
 
 TEST_P(urSamplerRetainTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});

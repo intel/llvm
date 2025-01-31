@@ -9,7 +9,7 @@
 
 using urSamplerCreateWithNativeHandleTest = uur::urSamplerTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerCreateWithNativeHandleTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urSamplerCreateWithNativeHandleTest);
 
 TEST_P(urSamplerCreateWithNativeHandleTest, Success) {
   ur_native_handle_t native_sampler = 0;

@@ -9,7 +9,7 @@
 #include "uur/raii.h"
 
 using urQueueFlushTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueFlushTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueFlushTest);
 
 TEST_P(urQueueFlushTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

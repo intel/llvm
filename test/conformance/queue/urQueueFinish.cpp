@@ -8,7 +8,7 @@
 #include "uur/raii.h"
 
 using urQueueFinishTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueFinishTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueFinishTest);
 
 TEST_P(urQueueFinishTest, Success) {
   constexpr size_t buffer_size = 1024;

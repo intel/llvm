@@ -98,7 +98,7 @@ struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
   void *SharedMem = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     QueueEmptyStatusTestWithParam,
     testing::Values(0, /* In-Order */
                     UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),

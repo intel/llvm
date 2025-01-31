@@ -8,7 +8,7 @@
 #include <uur/optional_queries.h>
 
 using urMemImageGetInfoTest = uur::urMemImageTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageGetInfoTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemImageGetInfoTest);
 
 bool operator==(ur_image_format_t lhs, ur_image_format_t rhs) {
   return lhs.channelOrder == rhs.channelOrder &&

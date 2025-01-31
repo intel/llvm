@@ -134,7 +134,7 @@ struct LocalMemoryUpdateTest : LocalMemoryUpdateTestBase {
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(LocalMemoryUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTest);
 
 // Test updating A,X,Y parameters to new values and local memory parameters
 // to original values.
@@ -882,7 +882,7 @@ struct LocalMemoryMultiUpdateTest : LocalMemoryUpdateTestBase {
   std::array<ur_exp_command_buffer_command_handle_t, nodes> command_handles{};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(LocalMemoryMultiUpdateTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryMultiUpdateTest);
 
 // Test updating A,X,Y parameters to new values and local memory parameters
 // to original values.
@@ -1180,7 +1180,7 @@ struct LocalMemoryUpdateTestOutOfOrder : LocalMemoryUpdateTestBaseOutOfOrder {
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(LocalMemoryUpdateTestOutOfOrder);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTestOutOfOrder);
 
 // Test updating A,X,Y parameters to new values and local memory to larger
 // values when the kernel arguments were added out of order.
