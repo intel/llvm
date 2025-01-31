@@ -20,13 +20,16 @@
  * THE SOFTWARE.
  */
 
-#include "config.h"
-#include "math.h"
 #include "math/clc_ldexp.h"
 
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
+<<<<<<< HEAD
 #include <libspirv/spirv.h>
+=======
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001
 
 _CLC_DEFINE_BINARY_BUILTIN(float, ldexp, __spirv_ocl_ldexp, float, int)
 

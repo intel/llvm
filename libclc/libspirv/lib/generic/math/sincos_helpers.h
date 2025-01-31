@@ -21,6 +21,10 @@
  */
 
 #include <clc/clcfunc.h>
+<<<<<<< HEAD:libclc/libspirv/lib/generic/math/sincos_helpers.h
+=======
+#include <clc/clctypes.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/math/sincos_helpers.h
 
 _CLC_DECL float __clc_sinf_piby4(float x, float y);
 _CLC_DECL float __clc_cosf_piby4(float x, float y);

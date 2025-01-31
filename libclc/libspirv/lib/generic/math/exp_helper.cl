@@ -20,10 +20,16 @@
  * THE SOFTWARE.
  */
 
+<<<<<<< HEAD:libclc/libspirv/lib/generic/math/exp_helper.cl
 #include <libspirv/spirv.h>
 
 #include <libspirv/math/tables.h>
 #include <math/math.h>
+=======
+#include <clc/clc.h>
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/math/exp_helper.cl
 
 #ifdef cl_khr_fp64
 

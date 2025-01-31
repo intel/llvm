@@ -23,13 +23,19 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_mad.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
 #include <clc/relational/clc_isnan.h>
 #include <libspirv/math/tables.h>
 #include <libspirv/spirv.h>
 
+<<<<<<< HEAD:libclc/libspirv/lib/generic/math/clc_exp10.cl
 #include <config.h>
 #include <math/math.h>
 
+=======
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/math/clc_exp10.cl
 //    Algorithm:
 //
 //    e^x = 2^(x/ln(2)) = 2^(x*(64/ln(2))/64)

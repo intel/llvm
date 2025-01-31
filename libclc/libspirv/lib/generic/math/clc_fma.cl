@@ -22,13 +22,18 @@
 
 #include <clc/clcmacro.h>
 #include <clc/integer/clc_abs.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
 #include <clc/relational/clc_isinf.h>
 #include <clc/relational/clc_isnan.h>
 #include <clc/shared/clc_max.h>
+<<<<<<< HEAD:libclc/libspirv/lib/generic/math/clc_fma.cl
 #include <config.h>
 #include <core/clc_core.h>
 #include <math/math.h>
 #include <libspirv/spirv.h>
+=======
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/math/clc_fma.cl
 
 struct fp {
   ulong mantissa;

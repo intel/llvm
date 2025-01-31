@@ -22,7 +22,11 @@
 
 #include <libspirv/spirv.h>
 
+<<<<<<< HEAD:libclc/libspirv/lib/generic/math/tables.cl
 #include <libspirv/math/tables.h>
+=======
+#include <clc/math/tables.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/math/tables.cl
 
 DECLARE_TABLE(float2, LOGE_TBL, 129) = {
     (float2)(0x0.000000p+0f, 0x0.000000p+0f),

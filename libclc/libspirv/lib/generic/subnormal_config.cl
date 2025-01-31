@@ -21,9 +21,13 @@
  */
 
 #include <clc/clc.h>
+<<<<<<< HEAD:libclc/libspirv/lib/generic/subnormal_config.cl
 #include <config.h>
 
 _CLC_DEF bool __clc_fp16_subnormals_supported() { return false; }
+=======
+#include <clc/math/clc_subnormal_config.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/subnormal_config.cl
 
 _CLC_DEF bool __clc_fp32_subnormals_supported() { return false; }
 

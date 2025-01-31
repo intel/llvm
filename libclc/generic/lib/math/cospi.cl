@@ -22,7 +22,17 @@
 
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
+<<<<<<< HEAD
 #include <libspirv/spirv.h>
+=======
+#include <clc/math/math.h>
+
+#include "sincos_helpers.h"
+#include "sincospiF_piby4.h"
+#ifdef cl_khr_fp64
+#include "sincosD_piby4.h"
+#endif
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001
 
 _CLC_OVERLOAD _CLC_DEF float cospi(float x)
 {

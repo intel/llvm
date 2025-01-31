@@ -1,6 +1,11 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
+<<<<<<< HEAD
 #include <libspirv/spirv.h>
+=======
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001
 
 /* Refer to the exp routine for the underlying algorithm */
 

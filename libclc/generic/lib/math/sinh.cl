@@ -22,9 +22,14 @@
 
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
+<<<<<<< HEAD
 
 #include <libspirv/math/tables.h>
 #include "math.h"
+=======
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001
 
 _CLC_OVERLOAD _CLC_DEF float sinh(float x)
 {

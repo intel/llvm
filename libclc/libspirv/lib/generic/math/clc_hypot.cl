@@ -12,11 +12,16 @@
 #include <clc/clcmacro.h>
 #include <clc/integer/clc_abs.h>
 #include <clc/math/clc_mad.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
 #include <clc/relational/clc_isnan.h>
 #include <clc/shared/clc_clamp.h>
 #include <config.h>
 #include <math/clc_hypot.h>
+<<<<<<< HEAD:libclc/libspirv/lib/generic/math/clc_hypot.cl
 #include <math/math.h>
+=======
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/math/clc_hypot.cl
 
 // Returns sqrt(x*x + y*y) with no overflow or underflow unless the result
 // warrants it

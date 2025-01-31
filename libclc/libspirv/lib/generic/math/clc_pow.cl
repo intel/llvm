@@ -25,10 +25,16 @@
 #include <clc/clcmacro.h>
 #include <clc/math/clc_fabs.h>
 #include <clc/math/clc_mad.h>
+<<<<<<< HEAD:libclc/libspirv/lib/generic/math/clc_pow.cl
 
 #include <libspirv/math/tables.h>
 #include <config.h>
 #include <math/math.h>
+=======
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
+>>>>>>> 78b5bb702fe97fe85f66d72598d0dfa7c49fe001:libclc/generic/lib/math/clc_pow.cl
 
 /*
  compute pow using log and exp
