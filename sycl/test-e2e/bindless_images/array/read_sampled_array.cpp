@@ -1,4 +1,4 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_image_array
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -137,7 +137,17 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                     unsigned int seed = 0) {
   using VecType = sycl::vec<DType, NChannels>;
 
-  sycl::device dev;
+  sycl::device dev{};
+  // skip half tests if the device does not support the aspect.
+  if constexpr (std::is_same_v<DType, sycl::half>) {
+    if (!dev.has(sycl::aspect::fp16)) {
+#ifdef VERBOSE_PRINT
+      std::cout << "Test skipped due to lack of device support for fp16\n";
+#endif
+      return false;
+    }
+  }
+
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 

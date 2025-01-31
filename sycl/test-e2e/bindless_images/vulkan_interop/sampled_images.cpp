@@ -1,4 +1,4 @@
-// REQUIRES: cuda || (windows && level_zero && aspect-ext_oneapi_bindless_images)
+// REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 // REQUIRES: build-and-run-mode
 

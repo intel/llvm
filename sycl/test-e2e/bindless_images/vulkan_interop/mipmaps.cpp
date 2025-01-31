@@ -1,4 +1,5 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_external_memory_import
+// REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: vulkan
 // REQUIRES: build-and-run-mode
 
