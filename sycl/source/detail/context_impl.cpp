@@ -104,12 +104,6 @@ context_impl::context_impl(ur_context_handle_t UrContext,
     }
     MPlatform = Platform;
   }
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  // getAdapter() will be the same as the Adapter passed. This should be taken
-  // care of when creating device object.
-  //
-  // TODO: Move this backend-specific retain of the context to SYCL-2020 style
-  //       make_context<backend::opencl> interop, when that is created.
   MKernelProgramCache.setContextPtr(this);
 }
 
