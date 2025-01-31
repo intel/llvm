@@ -29,8 +29,6 @@
 #include <thread>
 #include <type_traits>
 
-#include <boost/unordered_map.hpp>
-
 // For testing purposes
 class MockKernelProgramCache;
 
@@ -145,8 +143,6 @@ public:
    * string*/
   using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      std::set<ur_device_handle_t>>;
-  using CommonProgramKeyT =
-      std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
 
   // A custom hashing and equality function for ProgramCacheKeyT.
   // These are used to compare and hash the keys in the cache.
@@ -154,15 +150,18 @@ public:
     std::size_t operator()(const ProgramCacheKeyT &Key) const {
       std::size_t Hash = 0;
       // Hash the serialized object, representing spec consts.
-      for (const auto &Elem : Key.first.first)
-        Hash ^= std::hash<unsigned char>{}(Elem);
+      for (const auto &Elem : Key.first.first) {
+        hashCombine(Hash, Elem);
+      }
 
       // Hash the imageId.
-      Hash ^= std::hash<std::uintptr_t>{}(Key.first.second);
+      hashCombine(Hash, Key.first.second);
 
       // Hash the devices.
-      for (const auto &Elem : Key.second)
-        Hash ^= std::hash<void *>{}(static_cast<void *>(Elem));
+      for (const auto &Elem : Key.second) {
+        hashCombine(Hash, Elem);
+      }
+
       return Hash;
     }
   };
@@ -181,9 +180,42 @@ public:
     }
   };
 
+  using CommonProgramKeyT =
+      std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
+
+  struct CommonProgramKeyHash {
+    std::size_t operator()(const CommonProgramKeyT &Key) const {
+      std::size_t Hash = 0;
+      // Hash the imageId.
+      hashCombine(Hash, Key.first);
+
+      // Hash the devices.
+      for (const auto &Elem : Key.second) {
+        hashCombine(Hash, Elem);
+      }
+
+      return Hash;
+    }
+  };
+
+  struct CommonProgramKeyEqual {
+    bool operator()(const CommonProgramKeyT &LHS,
+                    const CommonProgramKeyT &RHS) const {
+      // Check equality of imageId.
+      return LHS.first == RHS.first &&
+             // Check equality of devices.
+             std::equal(LHS.second.begin(), LHS.second.end(),
+                        RHS.second.begin(), RHS.second.end());
+    }
+  };
+
   struct ProgramCache {
-    ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
-    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    std::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr,
+                       ProgramCacheKeyHash, ProgramCacheKeyEqual>
+        Cache;
+    std::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT,
+                            CommonProgramKeyHash, CommonProgramKeyEqual>
+        KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
 
