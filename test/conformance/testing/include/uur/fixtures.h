@@ -90,9 +90,6 @@ struct urAllDevicesTest : urPlatformTest {
   }
 
   void TearDown() override {
-    for (auto &device : devices) {
-      EXPECT_SUCCESS(urDeviceRelease(device));
-    }
     UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::TearDown());
   }
 
@@ -160,9 +157,6 @@ struct urAllDevicesTestWithParam : urPlatformTestWithParam<T> {
   }
 
   void TearDown() override {
-    for (auto &device : devices) {
-      EXPECT_SUCCESS(urDeviceRelease(device));
-    }
     UUR_RETURN_ON_FATAL_FAILURE(urPlatformTestWithParam<T>::TearDown());
   }
 
