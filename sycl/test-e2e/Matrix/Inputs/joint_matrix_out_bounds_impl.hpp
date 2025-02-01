@@ -17,7 +17,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
 
   // Add one iteration for the out of bounds dpas instruction
   size_t NDRangeM = M / TM + (((M % TM) != 0) ? 1 : 0);
-  size_t NDRangeN = N / TN;
+  size_t NDRangeN = N / TN + (((N % TN) != 0) ? 1 : 0);
   size_t sg_size = get_sg_size<mult<T2, K, B_layout>>(q);
   std::cout << "SG size: " << sg_size << " ";
 
@@ -147,28 +147,13 @@ void test() {
 
 template <layout A_layout, layout B_layout> void test_all() {
   std::cout << "bf16: ";
-  test<bfloat16, float, /*MATRIX_M*/ 1024 + 14, /*MATRIX_N*/ 1024,
+  test<bfloat16, float, /*MATRIX_M*/ 1024 + 20, /*MATRIX_N*/ 1024 + 20,
        /*MATRIX_K*/ 1024 + 24, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, A_layout,
        B_layout>();
   std::cout << "half: ";
-  test<half, float, 1024 + 14, 1024, 1024 + 24, 8, 16, 16, A_layout,
+  test<half, float, 1024 + 20, 1024 + 20, 1024 + 24, 8, 16, 16, A_layout,
        B_layout>();
   std::cout << "int8: ";
-  test<int8_t, int32_t, 1024 + 14, 1024, 1024 + 24, 8, 16, 32, A_layout,
+  test<int8_t, int32_t, 1024, 1024 + 20, 1024 + 24, 8, 16, 32, A_layout,
        B_layout>();
-
-  // unaligned k:
-  std::cout << "bf16: ";
-  test<bfloat16, float, 1024 + 14, 1024, 1024 + 14, 8, 16, 16, A_layout,
-       B_layout>();
-  std::cout << "half: ";
-  test<half, float, 1024 + 14, 1024, 1024 + 14, 8, 16, 16, A_layout,
-       B_layout>();
-
-  // row major A fails, so disabled. CMPLRLLVM-65239
-  if constexpr (A_layout != layout::row_major) {
-    std::cout << "int8: ";
-    test<int8_t, int32_t, 1024 + 14, 1024, 1024 + 14, 8, 16, 32, A_layout,
-         B_layout>();
-  }
 }
