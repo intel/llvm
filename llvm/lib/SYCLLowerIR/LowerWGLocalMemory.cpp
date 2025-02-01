@@ -9,15 +9,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Pass.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 using namespace llvm;
 
-#define DEBUG_TYPE "LowerWGLocalMemory"
+#define DEBUG_TYPE "sycllowerwglocalmemory"
 
 static constexpr char SYCL_ALLOCLOCALMEM_CALL[] = "__sycl_allocateLocalMemory";
 static constexpr char SYCL_DYNAMIC_LOCALMEM_CALL[] =
@@ -86,6 +88,42 @@ INITIALIZE_PASS(SYCLLowerWGLocalMemoryLegacy, "sycllowerwglocalmemory",
 
 ModulePass *llvm::createSYCLLowerWGLocalMemoryLegacyPass() {
   return new SYCLLowerWGLocalMemoryLegacy();
+}
+
+// In sycl header __sycl_allocateLocalMemory builtin call is wrapped in
+// group_local_memory/group_local_memory_for_overwrite functions, which must be
+// inlined first before each __sycl_allocateLocalMemory call can be lowered to a
+// distinct global variable. Inlining them here so that this pass doesn't have
+// implicit dependency on AlwaysInlinerPass.
+//
+// syclcompat::local_mem, which represents a distinct allocation, calls
+// group_local_memory_for_overwrite. So local_mem should be inlined as well.
+static bool inlineGroupLocalMemoryFunc(Module &M) {
+  Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
+  if (!ALMFunc || ALMFunc->use_empty())
+    return false;
+
+  SmallVector<Function *, 4> WorkList{ALMFunc};
+  DenseSet<Function *> Visited;
+  while (!WorkList.empty()) {
+    auto *F = WorkList.pop_back_val();
+    for (auto *U : make_early_inc_range(F->users())) {
+      auto *CI = cast<CallInst>(U);
+      auto *Caller = CI->getFunction();
+      if (Caller->hasFnAttribute("sycl-forceinline") &&
+          Visited.insert(Caller).second)
+        WorkList.push_back(Caller);
+      if (F != ALMFunc) {
+        InlineFunctionInfo IFI;
+        [[maybe_unused]] auto Result = InlineFunction(*CI, IFI);
+        assert(Result.isSuccess() && "inlining failed");
+      }
+    }
+    if (F != ALMFunc)
+      F->eraseFromParent();
+  }
+
+  return !Visited.empty();
 }
 
 // TODO: It should be checked that __sycl_allocateLocalMemory (or its source
@@ -322,9 +360,8 @@ static bool dynamicWGLocalMemory(Module &M) {
 
 PreservedAnalyses SYCLLowerWGLocalMemoryPass::run(Module &M,
                                                   ModuleAnalysisManager &) {
-  bool MadeChanges = allocaWGLocalMemory(M);
-  MadeChanges = dynamicWGLocalMemory(M) || MadeChanges;
-  if (MadeChanges)
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
+  bool Changed = inlineGroupLocalMemoryFunc(M);
+  Changed |= allocaWGLocalMemory(M);
+  Changed |= dynamicWGLocalMemory(M);
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
