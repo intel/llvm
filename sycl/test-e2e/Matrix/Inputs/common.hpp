@@ -234,3 +234,10 @@ void matrix_print(unsigned int rows, unsigned int cols, T *mat) {
     std::cout << "\n";
   }
 }
+
+template <typename T, layout Layout> constexpr int vnni_factor() {
+  if constexpr (Layout != layout::ext_intel_packed)
+    return 1;
+  static_assert(sizeof(T) <= 4 && "Unsupported type in vnni_factor().");
+  return 4 / sizeof(T);
+}
