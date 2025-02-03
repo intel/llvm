@@ -11,19 +11,16 @@ on:
     inputs:
       cutoff_timestamp:
         description: |
-          Timestamp indicating the age limit of data used in average calculation:
-          Any benchmark results created before this timestamp is excluded from
-          being aggregated. 
-          
-          Any valid date string supported by GNU coreutils is valid here:
-          https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html
+          Timestamp (YYYYMMDD_HHMMSS) indicating the age limit of data used in
+          average calculation: Any benchmark results created before this 
+          timestamp is excluded from being aggregated. 
         type: string
-        required: false
+        required: true
   workflow_call:
     inputs:
       cutoff_timestamp:
         type: string
-        required: false
+        required: true
 
 permissions:
   contents: read
@@ -35,74 +32,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        path: llvm
         sparse-checkout: |
           devops/scripts/benchmarking
           devops/benchmarking
-    - name: Load benchmarking configuration
-      run: |
-        CONFIG_FILE="$PWD/llvm/devops/benchmarking/benchmark-ci.conf"
-
-        # Load default values from configuration file
-        . "$PWD/llvm/devops/scripts/benchmarking/utils.sh"
-        # utils.sh contains functions to sanitize config file settings
-        load_config_constants "$CONFIG_FILE"
-        echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
-        echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
-        echo "PERF_RES_PATH=$PERF_RES_PATH" >> $GITHUB_ENV
-
-        # Determine a "cutoff timestamp" used by the aggregator script
-        #
-        # This timestamp controls which historical results are used to compute
-        # measures of central tendency: Any files timestamped *before* this time
-        # will be *excluded* from the central tendency calculation.
-
-        echo "TIMESTAMP_FORMAT=$TIMESTAMP_FORMAT" >> $GITHUB_ENV
-        if [ -z '${{ inputs.cutoff_timestamp }}' ]; then
-          # No time given, use default time period from config file:
-          echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" +"$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
-        else
-          # If the provided time is a valid GNU coreutils date string, convert
-          # the time to our format:
-          _converted_timestamp="$(date --date '${{ inputs.cutoff_timestamp }}' +"$TIMESTAMP_FORMAT" 2> /dev/null)"
-          if [ -n "$_converted_timestamp" ]; then
-            echo "CUTOFF_TIMESTAMP=$_converted_timestamp" >> $GITHUB_ENV
-          else
-            # If not a valid GNU date string, it could be in our timestamp format already.
-            # aggregate.py will ensure the timestamp is in the proper format, so we can pass the
-            # time forward regardless: 
-            echo 'CUTOFF_TIMESTAMP=${{ inputs.cutoff_timestamp }}' >> $GITHUB_ENV
-          fi
-        fi
-    - name: Checkout historical performance results repository
-      run: |
-        git clone -b $PERF_RES_BRANCH https://github.com/$PERF_RES_GIT_REPO $PERF_RES_PATH
-    - name: Run aggregator on historical results
-      run: |
-        # The current format of the historical results respository is:
-        #
-        # /<ONEAPI_DEVICE_SELECTOR>/<runner>/<test name>
-        #
-        # Thus, a min/max depth of 3 is used to enumerate all test cases in the
-        # repository. Test name is also derived from here.
-        for dir in $(find "$PERF_RES_PATH" -mindepth 3 -maxdepth 3 -type d ! -path '*.git*'); do
-          test_name="$(basename $dir)"
-          python llvm/devops/scripts/benchmarking/aggregate.py "$test_name" "$dir" "$CUTOFF_TIMESTAMP"
-        done
-    - name: Upload average to the repo
+    - name: Aggregate benchmark results and produce historical average
+      uses: ./devops/actions/benchmarking/aggregate
+      with:
+        cutoff_timestamp: ${{ inputs.cutoff_timestamp }}
       env:
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
-      run: |
-        # TODO -- waiting on security clearance
-        cd "$PERF_RES_PATH"
-        git config user.name "SYCL Benchmarking Bot"
-        git config user.email "sys_sycl_benchmarks@intel.com"
-        git add .
-        git commit -m "[GHA] Aggregate median data from $CUTOFF_TIMESTAMP to $(date +"$TIMESTAMP_FORMAT")"
-        git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
-    - name: Archive new medians
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: llvm-ci-perf-results new medians
-        path: ${{ env.PERF_RES_PATH }}/**/*-median.csv

@@ -2,8 +2,8 @@ name: 'Run compute-benchmarks'
 
 # Run compute-benchmarks on SYCL
 # 
-# This action assumes SYCL is in $PWD/toolchain, and that /devops has been
-# checked out in $PWD/devops. This action also assumes that GITHUB_TOKEN
+# This action assumes SYCL is in ./toolchain, and that /devops has been
+# checked out in ./devops. This action also assumes that GITHUB_TOKEN
 # was properly set in env, because according to Github, that's apparently the
 # recommended way to pass a secret into a github action:
 #
@@ -17,6 +17,12 @@ inputs:
 runs:
   using: "composite"
   steps:
+  - name: (Test) aggregate benchmark results and produce historical average
+    uses: ./devops/actions/benchmarking/aggregate
+    with:
+      cutoff_timestamp: 20240101_000000
+    env:
+      GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
   - name: Run compute-benchmarks
     shell: bash
     run: |
@@ -36,7 +42,8 @@ runs:
 
       EOF
       export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
-      export CMPLR_ROOT=$PWD/toolchain
+      export CMPLR_ROOT=./toolchain
+      echo "-----"
       sycl-ls
       echo "-----"
       ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
@@ -45,19 +52,17 @@ runs:
     run: |
       # TODO -- waiting on security clearance
       # Load configuration values
-      . "$PWD/devops/scripts/benchmarking/utils.sh"
-      CONFIG_FILE="$PWD/devops/benchmarking/benchmark-ci.conf"
-      load_config_constants "$CONFIG_FILE"
+      $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
 
-      cd "$PERF_RES_PATH"
+      cd "$SANITIZED_PERF_RES_PATH"
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
       git add .
       git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
-      git push "https://$GITHUB_TOKEN@github.com/$PERF_RES_GIT_REPO.git" "$PERF_RES_BRANCH"
+      git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
   - name: Archive compute-benchmark results
     if: always()
     uses: actions/upload-artifact@v4
     with:
-      name: Compute-benchmark results (${{ runner.name }})
+      name: Compute-benchmark run ${{ github.run_id }} (${{ runner.name }})
       path: ./artifact

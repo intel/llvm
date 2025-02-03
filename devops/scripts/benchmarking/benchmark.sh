@@ -23,22 +23,22 @@ This script builds and runs benchmarks from compute-benchmarks."
 clone_perf_res() {
     echo "### Cloning llvm-ci-perf-res ($SANITIZED_PERF_RES_GIT_REPO:$SANITIZED_PERF_RES_GIT_BRANCH) ###"
     mkdir -p "$(dirname "$SANITIZED_PERF_RES_PATH")"
-    git clone -b $SANITIZED_PERF_RES_GIT_BRANCH https://github.com/$SANITIZED_PERF_RES_GIT_REPO $SANITIZED_PERF_RES_PATH
+    git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" "$SANITIZED_PERF_RES_PATH"
     [ "$?" -ne 0 ] && exit $? 
 }
 
 clone_compute_bench() {
     echo "### Cloning compute-benchmarks ($SANITIZED_COMPUTE_BENCH_GIT_REPO:$SANITIZED_COMPUTE_BENCH_GIT_BRANCH) ###"
     mkdir -p "$(dirname "$SANITIZED_COMPUTE_BENCH_PATH")"
-    git clone -b $SANITIZED_COMPUTE_BENCH_GIT_BRANCH \
-              --recurse-submodules https://github.com/$SANITIZED_COMPUTE_BENCH_GIT_REPO \
-              $SANITIZED_COMPUTE_BENCH_PATH
-    [ "$?" -ne 0 ] && exit $? 
+    git clone -b "$SANITIZED_COMPUTE_BENCH_GIT_BRANCH" \
+              --recurse-submodules "https://github.com/$SANITIZED_COMPUTE_BENCH_GIT_REPO" \
+              "$SANITIZED_COMPUTE_BENCH_PATH"
+    [ "$?" -ne 0 ] && exit "$?"
 }
 
 build_compute_bench() {
     echo "### Building compute-benchmarks ($SANITIZED_COMPUTE_BENCH_GIT_REPO:$SANITIZED_COMPUTE_BENCH_GIT_BRANCH) ###"
-    mkdir $SANITIZED_COMPUTE_BENCH_PATH/build && cd $SANITIZED_COMPUTE_BENCH_PATH/build &&
+    mkdir "$SANITIZED_COMPUTE_BENCH_PATH/build" && cd "$SANITIZED_COMPUTE_BENCH_PATH/build" &&
     # No reason to turn on ccache, if this docker image will be disassembled later on
     cmake .. -DBUILD_SYCL=ON -DBUILD_L0=OFF -DBUILD=OCL=OFF -DCCACHE_ALLOWED=FALSE
     # TODO enable mechanism for opting into L0 and OCL -- the concept is to
@@ -58,37 +58,8 @@ build_compute_bench() {
             make "-j$SANITIZED_COMPUTE_BENCH_COMPILE_JOBS" "$case"
         done < "$TESTS_CONFIG"
     fi
-    #compute_bench_build_stat=$?
     cd -
-    #[ "$compute_bench_build_stat" -ne 0 ] && exit $compute_bench_build_stat 
 }
-
-# print_bench_res() {
-#     # Usage: print_bench_res <benchmark output .csv file> <benchmark status code> <summary file>
-#     if [ ! -s $1 ]; then
-#         printf "NO OUTPUT! (Status $2)\n" | tee -a $3
-#         return  # Do not proceed if file is empty
-#     fi
-#     
-#     get_csv_col_index $1 run-time-mean
-#     tmp_run_time_mean_i=$tmp_csv_col_i
-#     get_csv_col_index $1 run-time-median
-#     tmp_run_time_median_i=$tmp_csv_col_i
-#     get_csv_col_index $1 run-time-throughput
-#     tmp_run_time_throughput_i=$tmp_csv_col_i
-# 
-#     # `sycl-bench` output seems to like inserting the header multiple times.
-#     # Here we cache the header to make sure it prints only once:
-#     tmp_header_title="$(cat $1 | head -n 1 | sed 's/^\# Benchmark name/benchmark/')"
-#     tmp_result="$(cat $1 | grep '^[^\#]')"
-# 
-#     printf "%s\n%s" "$tmp_header_title" "$tmp_result"                  \
-#         | awk -F',' -v me="$tmp_run_time_mean_i"                       \
-#                     -v md="$tmp_run_time_median_i"                     \
-#                     -v th="$tmp_run_time_throughput_i"                 \
-#             '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' \
-#         | tee -a $3   # Print to summary file
-# }
 
 # Check if the number of samples for a given test case is less than a threshold
 # set in benchmark-ci.conf
@@ -155,6 +126,7 @@ process_benchmarks() {
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
+            # Make sure testcase is clean:
             if [ -n "$(printf "%s" "$testcase" | sed "s/[a-zA-Z_]*//g")" ]; then
                 echo "Illegal characters in $TESTS_CONFIG."
                 exit 1
@@ -214,8 +186,8 @@ process_results() {
 
 cleanup() {
     echo "### Cleaning up compute-benchmark builds from prior runs ###"
-    rm -rf $SANITIZED_COMPUTE_BENCH_PATH
-    rm -rf $SANITIZED_PERF_RES_PATH
+    rm -rf "$SANITIZED_COMPUTE_BENCH_PATH"
+    rm -rf "$SANITIZED_PERF_RES_PATH"
     [ ! -z "$_exit_after_cleanup" ] && exit
 }
 
@@ -234,9 +206,9 @@ load_configs() {
     # Derive /devops based on location of this script:
     [ -z "$DEVOPS_PATH" ] && DEVOPS_PATH="$(dirname "$0")/../.."
 
-    TESTS_CONFIG="$(realpath $DEVOPS_PATH/benchmarking/enabled_tests.conf)"
-    COMPARE_PATH="$(realpath $DEVOPS_PATH/scripts/benchmarking/compare.py)"
-    LOAD_CONFIG_PY="$(realpath $DEVOPS_PATH/scripts/benchmarking/load_config.py)"
+    TESTS_CONFIG="$(realpath "$DEVOPS_PATH/benchmarking/enabled_tests.conf")"
+    COMPARE_PATH="$(realpath "$DEVOPS_PATH/scripts/benchmarking/compare.py")"
+    LOAD_CONFIG_PY="$(realpath "$DEVOPS_PATH/scripts/benchmarking/load_config.py")"
 
     for file in \
         "$TESTS_CONFIG" "$COMPARE_PATH" "$LOAD_CONFIG_PY"
@@ -261,17 +233,17 @@ TIMESTAMP="$(date +"$SANITIZED_TIMESTAMP_FORMAT")"
 
 # CLI flags + overrides to configuration options:
 while getopts "p:b:r:f:n:cCs" opt; do
-    case $opt in
-        p) COMPUTE_BENCH_PATH=$OPTARG ;;
-        r) COMPUTE_BENCH_GIT_REPO=$OPTARG ;;
-        b) COMPUTE_BENCH_BRANCH=$OPTARG ;;
-        f) COMPUTE_BENCH_COMPILE_FLAGS=$OPTARG ;;
-		n) RUNNER=$OPTARG ;;
+    case "$opt" in
+        p) COMPUTE_BENCH_PATH="$OPTARG" ;;
+        r) COMPUTE_BENCH_GIT_REPO="$OPTARG" ;;
+        b) COMPUTE_BENCH_BRANCH="$OPTARG" ;;
+        f) COMPUTE_BENCH_COMPILE_FLAGS="$OPTARG" ;;
+		n) RUNNER="$OPTARG" ;;
         # Cleanup status is saved in a var to ensure all arguments are processed before
         # performing cleanup
         c) _cleanup=1 ;;
         C) _cleanup=1 && _exit_after_cleanup=1 ;;
-        s) CACHE_RESULTS="1";;
+        s) CACHE_RESULTS=1;;
         \?) usage ;;
     esac
 done

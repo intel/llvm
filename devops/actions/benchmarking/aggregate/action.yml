@@ -1,0 +1,84 @@
+name: 'Aggregate compute-benchmark results and produce historical averages'
+
+# The benchmarking workflow in sycl-linux-run-tests.yml passes or fails based on
+# how the benchmark results compare to a historical average: This historical
+# average is calculated in this workflow, which aggregates historical data and
+# produces measures of central tendency (median in this case) used for this
+# purpose.
+#
+# This action assumes that /devops has been checked out in ./devops. This action
+# also assumes that GITHUB_TOKEN was properly set in env, because according to
+# Github, that's apparently the recommended way to pass a secret into a github
+# action:
+#
+# https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#accessing-your-secrets
+#
+
+inputs:
+  cutoff_timestamp:
+    type: string
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+  - name: Sanitize provided timestamp
+    run: |
+      # Sanitize the cutoff timestamp provided
+      #
+      # This timestamp controls which historical results are used to compute
+      # measures of central tendency: Any files timestamped *before* this time
+      # will be *excluded* from the central tendency calculation.
+
+      # Regex greps YYYYMMDD_HHMMSS
+      TIMESTAMP_RE='^[0-9]{4}(0[1-9]|1[0-2])([0-2][0-9]|3[01])_([01][0-9]|2[0-3])([0-5][0-9])([0-5][0-9])$'
+
+      # Note:
+      # - variables from input context should be surrounded with '' to prevent
+      #   remote code execution
+      # - `-o` needs to be kept in the grep command; `-o` is exact match only,
+      #   incase user somehow manages to inject extra text, `-o` should take
+      #   care of it.
+      # - DO NOT use input.cutoff_timestamp directly, only use SANITIZED_TIMESTAMP
+      SANITIZED_TIMESTAMP="$(echo '${{ input.cutoff_timestamp }}' | grep -oE "$TIMESTAM_RE")"
+      if [ -z "$SANITIZED_TIMESTAMP" ]; then
+        echo "Please ensure input in input.cutoff_timestamp is exactly YYYYMMDD_HHMMSS."
+        exit 1  # Terminate workflow
+      fi
+      echo "SANITIZED_TIMESTAMP=$SANITIZED_TIMESTAMP" >> $GITHUB_ENV
+  - name: Load benchmarking configuration
+    run: |
+      $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
+      echo "SANITIZED_PERF_RES_GIT_REPO=$SANITIZED_PERF_RES_GIT_REPO" >> $GITHUB_ENV
+      echo "SANITIZED_PERF_RES_GIT_BRANCH=$SANITIZED_PERF_RES_GIT_BRANCH" >> $GITHUB_ENV
+      echo "SANITIZED_PERF_RES_PATH=$SANITIZED_PERF_RES_PATH" >> $GITHUB_ENV
+  - name: Checkout historical performance results repository
+    run: |
+      git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" "$SANITIZED_PERF_RES_PATH"
+  - name: Run aggregator on historical results
+    run: |
+      # The current format of the historical results respository is:
+      #
+      # /<ONEAPI_DEVICE_SELECTOR>/<runner>/<test name>
+      #
+      # Thus, a min/max depth of 3 is used to enumerate all test cases in the
+      # repository. Test name is also derived from here.
+      for dir in "$(find "$SANITIZED_PERF_RES_PATH" -mindepth 3 -maxdepth 3 -type d ! -path '*.git*')"; do
+        test_name="$(basename "$dir")"
+        python ./devops/scripts/benchmarking/aggregate.py "$test_name" "$dir" "$SANITIZED_TIMESTAMP"
+      done
+  - name: Upload average to the repo
+    run: |
+      # TODO -- waiting on security clearance
+      cd "$SANITIZED_PERF_RES_PATH"
+      git config user.name "SYCL Benchmarking Bot"
+      git config user.email "sys_sycl_benchmarks@intel.com"
+      git add .
+      git commit -m "[GHA] Aggregate median data from $SANITIZED_TIMESTAMP to $(date +%Y%m%d_%H%M%S)"
+      git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
+  - name: Archive new medians
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: llvm-ci-perf-results new medians
+      path: ${{ env.SANITIZED_PERF_RES_PATH }}/**/*-median.csv
