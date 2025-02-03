@@ -201,7 +201,7 @@ public:
   threadpool_interface() : threadpool() {}
 
   template <class T> auto schedule_task(T &&task) {
-    auto workerTask = std::make_shared<std::packaged_task<void(size_t)>>(task);
+    auto workerTask = std::make_shared<std::packaged_task<void(size_t)>>(std::move(task));
     threadpool.schedule(workerTask);
     return workerTask->get_future();
   }
