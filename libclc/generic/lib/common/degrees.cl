@@ -24,10 +24,6 @@
 #include <clc/clcmacro.h>
 #include <clc/common/clc_degrees.h>
 
-#define FUNCTION degrees
-#define __CLC_BODY <clc/common/unary_def.inc>
-#include <clc/math/gentype.inc>
-
 _CLC_DEFINE_UNARY_BUILTIN(float, degrees, __clc_degrees, float)
 
 #ifdef cl_khr_fp64

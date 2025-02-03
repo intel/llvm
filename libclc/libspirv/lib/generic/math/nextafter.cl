@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clcmacro.h>
+#include <clc/math/clc_nextafter.h>
 #include <libspirv/spirv.h>
 
 _CLC_DEFINE_BINARY_BUILTIN_NO_SCALARIZE(float, __spirv_ocl_nextafter,

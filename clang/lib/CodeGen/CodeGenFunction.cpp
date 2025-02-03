@@ -122,6 +122,35 @@ clang::ToConstrainedExceptMD(LangOptions::FPExceptionModeKind Kind) {
   }
 }
 
+bool CodeGenFunction::hasAccuracyRequirement(StringRef Name) {
+  if (!getLangOpts().FPAccuracyVal.empty())
+    return true;
+  auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
+  return FuncMapIt != getLangOpts().FPAccuracyFuncMap.end();
+}
+
+llvm::CallInst *CodeGenFunction::CreateBuiltinCallWithAttr(
+    StringRef Name, llvm::Function *FPBuiltinF, ArrayRef<llvm::Value *> Args,
+    unsigned ID) {
+  llvm::CallInst *CI = Builder.CreateCall(FPBuiltinF, Args);
+  // TODO: Replace AttrList with a single attribute. The call can only have a
+  // single FPAccuracy attribute.
+  llvm::AttributeList AttrList;
+  // "sycl_used_aspects" metadata associated with the call.
+  llvm::Metadata *AspectMD = nullptr;
+  // sincos() doesn't return a value, but it still has a type associated with
+  // it that corresponds to the operand type.
+  CGM.getFPAccuracyFuncAttributes(
+      Name, AttrList, AspectMD, ID,
+      Name == "sincos" ? Args[0]->getType() : FPBuiltinF->getReturnType());
+  CI->setAttributes(AttrList);
+
+  if (getLangOpts().SYCLIsDevice && AspectMD)
+    CI->setMetadata("sycl_used_aspects",
+                    llvm::MDNode::get(CGM.getLLVMContext(), AspectMD));
+  return CI;
+}
+
 void CodeGenFunction::SetFastMathFlags(FPOptions FPFeatures) {
   llvm::FastMathFlags FMF;
   FMF.setAllowReassoc(FPFeatures.getAllowFPReassociate());

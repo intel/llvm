@@ -1904,25 +1904,44 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
   // the 'FPAccuracyFuncMap'; if no accuracy is mapped to Name (FuncAttrs
   // is empty), then set its accuracy from the TU's accuracy value.
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
+    StringRef FPAccuracyVal;
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
-      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
-          ID, FuncType, convertFPAccuracy(FuncMapIt->second));
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv")
+        FPAccuracyVal = "2.5";
+      else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt")
+        FPAccuracyVal = "3.0";
+      else
+        FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+            ID, FuncType, convertFPAccuracy(FuncMapIt->second));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
           Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second)));
     }
   }
-  if (FuncAttrs.attrs().size() == 0)
+  if (FuncAttrs.attrs().size() == 0) {
     if (!getLangOpts().FPAccuracyVal.empty()) {
-      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
-          ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
+      StringRef FPAccuracyVal;
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv")
+        FPAccuracyVal = "2.5";
+      else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt")
+        FPAccuracyVal = "3.0";
+      else
+        FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+            ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
           Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
+    } else {
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv") {
+        FuncAttrs.addAttribute("fpbuiltin-max-error", "2.5");
+      } else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt") {
+        FuncAttrs.addAttribute("fpbuiltin-max-error", "3.0");
+      }
     }
+  }
 }
 
 /// Add denormal-fp-math and denormal-fp-math-f32 as appropriate for the
@@ -5877,10 +5896,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {
-    if (!getLangOpts().FPAccuracyFuncMap.empty() ||
-        !getLangOpts().FPAccuracyVal.empty()) {
-      const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
-      if (FD && FD->getNameInfo().getName().isIdentifier()) {
+    const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
+    if (FD && FD->getNameInfo().getName().isIdentifier()) {
+      StringRef FuncName = FD->getName();
+      const bool IsFloat32Type = FD->getReturnType()->isFloat32Type();
+      bool hasFPAccuracyFuncMap = hasAccuracyRequirement(FuncName);
+      bool hasFPAccuracyVal = !getLangOpts().FPAccuracyVal.empty();
+      bool isFp32SqrtFunction =
+          (FuncName == "sqrt" && !getLangOpts().OffloadFP32PrecSqrt &&
+           IsFloat32Type);
+      if (hasFPAccuracyFuncMap || hasFPAccuracyVal || isFp32SqrtFunction) {
         CI = MaybeEmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr,
                                     FD->getName(), FD->getBuiltinID());
         if (CI)
