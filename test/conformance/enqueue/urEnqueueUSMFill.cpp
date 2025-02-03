@@ -86,6 +86,8 @@ static std::vector<testParametersFill> test_cases{
     {256, 256},
     /* pattern_size < size */
     {1024, 256},
+    /* sizes which are not powers of 2 */
+    {1000, 10},
     /* pattern sizes corresponding to some common scalar and vector types */
     {256, 4},
     {256, 8},

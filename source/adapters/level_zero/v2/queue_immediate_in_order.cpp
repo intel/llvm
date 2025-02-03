@@ -650,14 +650,28 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericFillUnlocked(
         waitListView.clear();
       }));
 
-  // TODO: support non-power-of-two pattern sizes
-
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
-  ZE2UR_CALL(zeCommandListAppendMemoryFill,
-             (commandListManager.getZeCommandList(), pDst, pPattern,
-              patternSize, size, zeSignalEvent, waitListView.num,
-              waitListView.handles));
+  if (isPowerOf2(patternSize)) {
+    ZE2UR_CALL(zeCommandListAppendMemoryFill,
+               (commandListManager.getZeCommandList(), pDst, pPattern,
+                patternSize, size, zeSignalEvent, waitListView.num,
+                waitListView.handles));
+  } else {
+    // Copy pattern into every entry in memory array pointed by Ptr.
+    uint32_t numOfCopySteps = size / patternSize;
+    const void *src = pPattern;
+
+    for (uint32_t step = 0; step < numOfCopySteps; ++step) {
+      void *dst = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(pDst) +
+                                           step * patternSize);
+      ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+                 (commandListManager.getZeCommandList(), dst, src, patternSize,
+                  step == numOfCopySteps - 1 ? zeSignalEvent : nullptr,
+                  waitListView.num, waitListView.handles));
+      waitListView.clear();
+    }
+  }
 
   return UR_RESULT_SUCCESS;
 }
