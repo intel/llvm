@@ -153,7 +153,7 @@ get_kernel_device_specific_info<ext::intel::info::kernel::spill_memory_size>(
     ur_kernel_handle_t Kernel, ur_device_handle_t Device,
     const AdapterPtr &Adapter) {
   size_t ResultSize = 0;
-  ur_kernel_info_t PropName = UR_KERNEL_INFO_spill_memory_size;
+  ur_kernel_info_t PropName = UR_KERNEL_INFO_SPILL_MEM_SIZE;
 
   // First call to get the number of device images
   Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, PropName, 0, nullptr,
@@ -185,7 +185,7 @@ get_kernel_device_specific_info<ext::intel::info::kernel::spill_memory_size>(
   // Map the result back to the program devices
   for (size_t idx = 0; idx < URDevices.size(); ++idx) {
     if (URDevices[idx] == Device)
-      return Result[idx];
+      return size_t{Result[idx]};
   }
   throw exception(make_error_code(errc::runtime),
                   "ext::intel::info::kernel::spill_memory_size failed to retrieve "
