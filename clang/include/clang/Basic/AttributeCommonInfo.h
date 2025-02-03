@@ -61,7 +61,7 @@ public:
   };
   enum Kind {
 #define PARSED_ATTR(NAME) AT_##NAME,
-#include "clang/Sema/AttrParsedAttrList.inc"
+#include "clang/Basic/AttrParsedAttrList.inc"
 #undef PARSED_ATTR
     NoSemaHandlerAttribute,
     IgnoredAttribute,
@@ -80,6 +80,11 @@ public:
     SYCL,
     CL,
     SYCL_DETAIL
+  };
+  enum class AttrArgsInfo {
+    None,
+    Optional,
+    Required,
   };
 
 private:
@@ -253,6 +258,8 @@ public:
 
   static Kind getParsedKind(const IdentifierInfo *Name,
                             const IdentifierInfo *Scope, Syntax SyntaxUsed);
+
+  static AttrArgsInfo getCXX11AttrArgsInfo(const IdentifierInfo *Name);
 
 private:
   /// Get an index into the attribute spelling list

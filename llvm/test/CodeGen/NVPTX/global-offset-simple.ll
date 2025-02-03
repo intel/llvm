@@ -26,28 +26,26 @@ define i64 @_ZTS14other_function() {
 ; CHECK: ret i64 %4
 ; CHECK: }
 
-define void @_ZTS14example_kernel() {
+define ptx_kernel void @_ZTS14example_kernel() {
 entry:
   %0 = call i64 @_ZTS14other_function()
 ; CHECK: %0 = call i64 @_ZTS14other_function()
   ret void
 }
 
-; CHECK: define void @_ZTS14example_kernel_with_offset(ptr byval([3 x i32]) %0) {
+; CHECK: define ptx_kernel void @_ZTS14example_kernel_with_offset(ptr byval([3 x i32]) %0) {
 ; CHECK: entry:
 ; CHECK:   %1 = call i64 @_ZTS14other_function_with_offset(ptr %0)
 ; CHECK:   ret void
 ; CHECK: }
 
-; Check the last annotation is our new kernel
-; CHECK: !nvvm.annotations = {{.*}}, ![[NEWKERNELMD:[0-9]+]]}
+; CHECK: !nvvm.annotations = {{.*}}
 
 !llvm.module.flags = !{!7}
 !nvvm.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 !nvvmir.version = !{!6}
 
-; CHECK: ![[NEWKERNELMD]] = !{ptr @_ZTS14example_kernel_with_offset, !"kernel", i32 1}
-!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS14example_kernel, !"dummy", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}

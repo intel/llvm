@@ -74,22 +74,37 @@ jobs:
           fi
 
   run_prebuilt_e2e_tests:
-    needs: [build]
+    needs: [build, detect_changes, determine_arc_tests]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Intel
+          - name: GEN 12 Integrated
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
+          - name: Intel Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            reset_intel_gpu: true
+            extra_lit_opts: --param matrix-xmx8=True
+            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+          - name: Dev IGC on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            use_igc_dev: true
+            extra_lit_opts: -j 50
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
+      image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: --param fallback-to-build-if-requires-build-and-run=True ${{ matrix.extra_lit_opts }}
@@ -100,6 +115,20 @@ jobs:
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
       e2e_binaries_artifact: sycl_e2e_bin_default
       e2e_testing_mode: 'run-only'
+
+      # Do not install drivers on AMD and CUDA runners.
+      install_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'cuda') &&
+        !contains(matrix.target_devices, 'hip') &&
+        contains(needs.detect_changes.outputs.filters, 'drivers') }}
+      install_dev_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'cuda') &&
+        !contains(matrix.target_devices, 'hip') &&
+        matrix.use_igc_dev &&
+        (contains(needs.detect_changes.outputs.filters, 'devigccfg') || contains(needs.detect_changes.outputs.filters, 'drivers')) ||
+        'false' }}
+      # Run only if the PR does not have the 'ci-no-devigc' label.
+      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
 
   test:
     needs: [build, detect_changes, determine_arc_tests]
@@ -117,13 +146,6 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             reset_intel_gpu: false
-          - name: E2E tests on Intel Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
-            extra_lit_opts: --param matrix-xmx8=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
@@ -137,13 +159,6 @@ jobs:
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
-            extra_lit_opts: -j 50
-          - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            use_igc_dev: true
             extra_lit_opts: -j 50
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml

@@ -39,7 +39,7 @@ void test_int() {}
 // CHECK-SPIRV: {{[0-9]+}} ExecutionMode {{[0-9]+}} 30 {{[0-9]+}}
 // CHECK-SPIRV: {{[0-9]+}} ExecutionMode {{[0-9]+}} 30 {{[0-9]+}}
 
-// CHECK-LLVM: [[VFLOAT]] = !{<4 x float> undef, i32 1}
-// CHECK-LLVM: [[VDOUBLE]] = !{double undef, i32 1}
-// CHECK-LLVM: [[VUINT]] = !{<4 x i32> undef, i32 1}
-// CHECK-LLVM: [[VINT]] = !{<8 x i32> undef, i32 1}
+// CHECK-LLVM: [[VFLOAT]] = !{<4 x float> poison, i32 1}
+// CHECK-LLVM: [[VDOUBLE]] = !{double poison, i32 1}
+// CHECK-LLVM: [[VUINT]] = !{<4 x i32> poison, i32 1}
+// CHECK-LLVM: [[VINT]] = !{<8 x i32> poison, i32 1}

@@ -22,22 +22,22 @@
 
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
+#include <clc/common/clc_radians.h>
 #include <libspirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DEF float radians(float degrees) {
-  return __spirv_ocl_radians(degrees);
-}
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, radians, float);
-
+_CLC_DEFINE_UNARY_BUILTIN(float, radians, __clc_radians, float)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_OVERLOAD _CLC_DEF double radians(double degrees) {
-  return __spirv_ocl_radians(degrees);
-}
+_CLC_DEFINE_UNARY_BUILTIN(double, radians, __clc_radians, double)
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, radians, double);
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN(half, radians, __clc_radians, half)
 
 #endif

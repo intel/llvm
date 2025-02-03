@@ -36,10 +36,10 @@
 ; CHECK-LLVM: %[[#StructMember:]] = alloca %class.Sample, align 4
 ; CHECK-LLVM: %[[#Var:]] = alloca i32, align 4
 ; CHECK-LLVM-DAG: %[[#GEP1:]] = getelementptr inbounds %class.Sample, ptr %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM-DAG: %[[#PtrAnn1:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#GEP1:]], ptr @[[StrStructA]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM-DAG: %[[#PtrAnn2:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#PtrAnn1]], ptr @[[StrStructB]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM-DAG: call void @llvm.var.annotation.p0.p0(ptr %[[#Var]], ptr @[[StrA]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM-DAG: call void @llvm.var.annotation.p0.p0(ptr %[[#Var]], ptr @[[StrB]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM-DAG: %[[#PtrAnn1:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#GEP1:]], ptr @[[StrStructA]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM-DAG: %[[#PtrAnn2:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#PtrAnn1]], ptr @[[StrStructB]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM-DAG: call void @llvm.var.annotation.p0.p0(ptr %[[#Var]], ptr @[[StrA]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM-DAG: call void @llvm.var.annotation.p0.p0(ptr %[[#Var]], ptr @[[StrB]], ptr poison, i32 poison, ptr poison)
 
 source_filename = "llvm-link"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

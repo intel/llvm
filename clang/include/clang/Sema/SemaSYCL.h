@@ -662,9 +662,12 @@ public:
                                     Expr *E);
   void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
 
+  void CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD);
   // Used to check whether the function represented by FD is a SYCL
   // free function kernel or not.
   bool isFreeFunction(const FunctionDecl *FD);
+  
+  StmtResult BuildSYCLKernelCallStmt(FunctionDecl *FD, CompoundStmt *Body);
 };
 
 } // namespace clang

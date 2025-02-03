@@ -8,7 +8,7 @@
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
 
-define void @_ZTS14example_kernel(ptr addrspace(3) %a) {
+define ptx_kernel void @_ZTS14example_kernel(ptr addrspace(3) %a) {
 entry:
   %0 = load i32, ptr addrspace(3) %a
   ret void
@@ -18,7 +18,7 @@ entry:
 !nvvm.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 !nvvmir.version = !{!5}
 
-!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS14example_kernel, !"dummy", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}

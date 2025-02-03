@@ -126,14 +126,14 @@ sycl/test/matrix @intel/sycl-matrix-reviewers
 sycl/test/check_device_code/matrix @intel/sycl-matrix-reviewers
 
 # Native CPU
-llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
-clang/include/clang/Basic/SYCLNativeCPUHelpers.h @intel/dpcpp-nativecpu-pi-reviewers 
-clang/test/CodeGenSYCL/native_cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
-clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
-sycl/**/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
-sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
-sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
-libdevice/nativecpu* @intel/dpcpp-nativecpu-pi-reviewers
+llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-reviewers
+clang/include/clang/Basic/SYCLNativeCPUHelpers.h @intel/dpcpp-nativecpu-reviewers
+clang/test/CodeGenSYCL/native_cpu*.cpp @intel/dpcpp-nativecpu-reviewers
+clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-reviewers
+sycl/**/native_cpu/ @intel/dpcpp-nativecpu-reviewers
+sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-reviewers
+sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-reviewers
+libdevice/nativecpu* @intel/dpcpp-nativecpu-reviewers
 
 # SYCL-Graphs extensions
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
