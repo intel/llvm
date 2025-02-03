@@ -331,7 +331,7 @@ def main():
         help="choose hardware platform for HIP backend",
     )
     parser.add_argument(
-        "--level_zero_v2", action="store_true", help="Enable SYCL level_zero_v2"
+        "--level_zero_v2", action="store_true", help="Enable SYCL Level Zero V2"
     )
     parser.add_argument(
         "--host-target",
