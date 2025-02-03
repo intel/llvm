@@ -17,13 +17,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-  - name: (Test) aggregate benchmark results and produce historical average
-    if: always()
-    uses: ./devops/actions/benchmarking/aggregate
-    with:
-      cutoff_timestamp: 20240101_000000
-    env:
-      GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
   - name: Run compute-benchmarks
     shell: bash
     run: |
@@ -67,3 +60,10 @@ runs:
     with:
       name: Compute-benchmark run ${{ github.run_id }} (${{ runner.name }})
       path: ./artifact
+  - name: (Test) aggregate benchmark results and produce historical average
+    if: always()
+    uses: ./devops/actions/benchmarking/aggregate
+    with:
+      cutoff_timestamp: 20240101_000000
+    env:
+      GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
