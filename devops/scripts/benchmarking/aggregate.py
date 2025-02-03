@@ -5,7 +5,7 @@ import heapq
 import statistics
 from common import Validate, SanitizedConfig
 from abc import ABC, abstractmethod
-
+import os
 
 class Aggregator(ABC):
     """
@@ -52,7 +52,7 @@ class SimpleMedian(Aggregator):
     def add(self, n: float):
         self.elements.append(n)
 
-    def get_median(self) -> float:
+    def get_avg(self) -> float:
         return statistics.median(self.elements)
 
 
@@ -91,7 +91,7 @@ class StreamingMedian(Aggregator):
         elif len(self.maxheap_smaller) < len(self.minheap_larger):
             heapq.heappush(self.maxheap_smaller, -heapq.heappop(self.minheap_larger))
 
-    def get_median(self) -> float:
+    def get_avg(self) -> float:
         if len(self.maxheap_smaller) == len(self.minheap_larger):
             # Equal number of elements smaller and larger than "median":
             # thus, there are two median values. The median would then become
@@ -163,9 +163,9 @@ class Aggregate:
             writer.writeheader()
             for test in samples_aggregate:
                 writer.writerow(
-                    {"TestCase": test_case}
+                    {"TestCase": test}
                     | {
-                        metric: samples_aggregate[test][metric].get_median()
+                        metric: samples_aggregate[test][metric].get_avg()
                         for metric in SanitizedConfig.METRICS_TOLERANCES
                     }
                 )
