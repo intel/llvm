@@ -267,8 +267,8 @@ template <>
 struct Scheduler<TBB_threadpool>
     : Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
   using Scheduler_base<TBB_threadpool, TBB_TasksInfo>::Scheduler_base;
-  template <class T> inline void schedule(T &&task) {
-    ref.tasks.run(std::function<void()>([=]() mutable {
+  template <class T> inline void schedule(T &&task_) {
+    ref.tasks.run(std::function<void()>([task = std::move(task_)]() mutable {
       auto thread_id = tbb::this_task_arena::current_thread_index();
       assert(thread_id >= 0 &&
              thread_id < oneapi::tbb::info::default_concurrency());
