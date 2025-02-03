@@ -41,7 +41,7 @@ runs:
       #   incase user somehow manages to inject extra text, `-o` should take
       #   care of it.
       # - DO NOT use input.cutoff_timestamp directly, only use SANITIZED_TIMESTAMP
-      SANITIZED_TIMESTAMP="$(echo '${{ inputs.cutoff_timestamp }}' | grep -oE "$TIMESTAM_RE")"
+      SANITIZED_TIMESTAMP="$(echo '${{ inputs.cutoff_timestamp }}' | grep -oE "$TIMESTAMP_RE")"
       if [ -z "$SANITIZED_TIMESTAMP" ]; then
         echo "Please ensure input in input.cutoff_timestamp is exactly YYYYMMDD_HHMMSS."
         exit 1  # Terminate workflow
