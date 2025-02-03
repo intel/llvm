@@ -148,12 +148,12 @@ uint32_t get_kernel_device_specific_info_with_input(ur_kernel_handle_t Kernel,
 }
 
 template <>
-inline ext::intel::info::kernel::spill_mem_size::return_type
-get_kernel_device_specific_info<ext::intel::info::kernel::spill_mem_size>(
+inline ext::intel::info::kernel::spill_memory_size::return_type
+get_kernel_device_specific_info<ext::intel::info::kernel::spill_memory_size>(
     ur_kernel_handle_t Kernel, ur_device_handle_t Device,
     const AdapterPtr &Adapter) {
   size_t ResultSize = 0;
-  ur_kernel_info_t PropName = UR_KERNEL_INFO_SPILL_MEM_SIZE;
+  ur_kernel_info_t PropName = UR_KERNEL_INFO_spill_memory_size;
 
   // First call to get the number of device images
   Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, PropName, 0, nullptr,
@@ -188,7 +188,7 @@ get_kernel_device_specific_info<ext::intel::info::kernel::spill_mem_size>(
       return Result[idx];
   }
   throw exception(make_error_code(errc::runtime),
-                  "ext::intel::info::kernel::spill_mem_size failed to retrieve "
+                  "ext::intel::info::kernel::spill_memory_size failed to retrieve "
                   "the requested value");
 }
 
