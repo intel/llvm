@@ -30,7 +30,7 @@ ur_command_list_manager::~ur_command_list_manager() {
   ur::level_zero::urDeviceRelease(device);
 }
 
-std::pair<ze_event_handle_t *, uint32_t>
+wait_list_view
 ur_command_list_manager::getWaitListView(const ur_event_handle_t *phWaitEvents,
                                          uint32_t numWaitEvents) {
 
@@ -80,32 +80,24 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
 
-  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  bool memoryMigrated = false;
   auto memoryMigrate = [&](void *src, void *dst, size_t size) {
     ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                       (zeCommandList.get(), dst, src, size, nullptr,
-                       waitList.second, waitList.first));
-    memoryMigrated = true;
+                       waitListView.num, waitListView.handles));
+    waitListView.clear();
   };
 
   UR_CALL(hKernel->prepareForSubmission(context, device, pGlobalWorkOffset,
                                         workDim, WG[0], WG[1], WG[2],
                                         memoryMigrate));
 
-  if (memoryMigrated) {
-    // If memory was migrated, we don't need to pass the wait list to
-    // the copy command again.
-    waitList.first = nullptr;
-    waitList.second = 0;
-  }
-
   TRACK_SCOPE_LATENCY(
       "ur_command_list_manager::zeCommandListAppendLaunchKernel");
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,
              (zeCommandList.get(), hZeKernel, &zeThreadGroupDimensions,
-              zeSignalEvent, waitList.second, waitList.first));
+              zeSignalEvent, waitListView.num, waitListView.handles));
 
   return UR_RESULT_SUCCESS;
 }
