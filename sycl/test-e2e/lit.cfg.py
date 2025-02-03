@@ -44,6 +44,10 @@ if config.test_mode == "full":
     config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
+    # run-only uses external shell, some tests might have hacks to workaround
+    # failures caused by that.
+    config.available_features.add("test-mode-run-only")
+
     config.available_features.add("run-mode")
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
