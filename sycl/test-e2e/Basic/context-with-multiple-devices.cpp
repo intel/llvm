@@ -1,6 +1,6 @@
-// REQUIRES: accelerator, opencl-aot
+// REQUIRES: cpu, opencl-aot
 
-// RUN: %clangxx -fsycl -fintelfpga %s -o %t2.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t2.out
 // RUN: %{run-unfiltered-devices} env CL_CONFIG_CPU_EMULATE_DEVICES=2 %t2.out
 
 #include <sycl/detail/core.hpp>
@@ -18,7 +18,7 @@ void exceptionHandler(sycl::exception_list exceptions) {
 
 int main() {
   auto DeviceList =
-      sycl::device::get_devices(sycl::info::device_type::accelerator);
+      sycl::device::get_devices(sycl::info::device_type::cpu);
 
   sycl::context Context(DeviceList, &exceptionHandler);
 
