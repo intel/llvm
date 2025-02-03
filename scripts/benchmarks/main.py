@@ -143,9 +143,13 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
         if suite_benchmarks:
             print(f"Setting up {type(s).__name__}")
-            s.setup()
-            print(f"{type(s).__name__} setup complete.")
-            benchmarks += suite_benchmarks
+            try:
+                s.setup()
+            except:
+                print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
+            else:
+                print(f"{type(s).__name__} setup complete.")
+                benchmarks += suite_benchmarks
 
     for b in benchmarks:
         print(b.name())
