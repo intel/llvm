@@ -101,7 +101,7 @@ int main() {
       krn.get_info<info::kernel_device_specific::compile_num_sub_groups>(dev);
   assert(compileNumSg <= maxNumSg);
   const spillMemSz =
-      krn.get_info<ext::intel::info::kernel::spill_mem_size>(dev);
+      krn.get_info<ext::intel::info::kernel::spill_memory_size>(dev);
   assert(spillMemSz >= 0);
 
   // Use ext_oneapi_get_kernel_info extension and check that answers match.
@@ -130,7 +130,7 @@ int main() {
 
   const uint32_t spillMemSizeExt =
       syclex::get_kernel_info<SingleTask,
-                              ext::intel::info::kernel::spill_mem_size>(ctx,
+                              ext::intel::info::kernel::spill_memory_size>(ctx,
                                                                         dev);
   assert(spillMemSizeExt == spillMemSz);
 
