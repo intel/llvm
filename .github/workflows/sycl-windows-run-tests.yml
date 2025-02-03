@@ -50,6 +50,7 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
+      continue-on-error: true
       run: |
         Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
         powershell.exe -File windows_detect_hung_tests.ps1
