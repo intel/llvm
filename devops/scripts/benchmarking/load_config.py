@@ -3,9 +3,12 @@ import sys
 
 # TODO better frontend / use argparse
 if __name__ == "__main__":
+
     def usage_and_exit():
         print(f"Usage: {sys.argv[0]} <path to /devops> [config | constants]")
-        print("Generate commands to export configuration options/constants as an environment variable.")
+        print(
+            "Generate commands to export configuration options/constants as an environment variable."
+        )
         exit(1)
 
     if len(sys.argv) != 3:

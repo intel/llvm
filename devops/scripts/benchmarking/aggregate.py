@@ -7,16 +7,18 @@ from common import Validate, SanitizedConfig
 from abc import ABC, abstractmethod
 import os
 
+
 class Aggregator(ABC):
     """
     Aggregator classes used to "aggregate" a pool of elements, and produce an
     "average" (precisely, some "measure of central tendency") from the elements.
     """
+
     @staticmethod
     @abstractmethod
     def get_type() -> str:
         """
-        Return a string indicating the type of average this aggregator 
+        Return a string indicating the type of average this aggregator
         produces.
         """
         pass
@@ -42,6 +44,7 @@ class SimpleMedian(Aggregator):
     Simple median calculation: if the number of samples being generated are low,
     this is the fastest median method.
     """
+
     def __init__(self):
         self.elements = []
 
@@ -105,17 +108,19 @@ class StreamingMedian(Aggregator):
 
 class Aggregate:
     """
-    Static class providing methods for aggregating data 
+    Static class providing methods for aggregating data
     """
+
     @staticmethod
-    def hist_avg(benchmark_name: str, res_dir: str, cutoff: str,
-                aggregator = SimpleMedian):
+    def hist_avg(
+        benchmark_name: str, res_dir: str, cutoff: str, aggregator=SimpleMedian
+    ):
         if not os.path.isdir(res_dir):
             print(f"Not a directory: {res_dir}.", file=sys.stderr)
             exit(1)
 
         def csv_samples() -> list[str]:
-            """ Get all valid .csv samples from the results folder. """
+            """Get all valid .csv samples from the results folder."""
             cache_dir = Path(f"{res_dir}")
             # Filter all benchmark .csv files in the result directory:
             return filter(
@@ -123,9 +128,9 @@ class Aggregate:
                 lambda f: f.is_file()
                 # Make sure timestamp of .csv file is good format:
                 # [-19:-4] corresponds to the timestamp in the filename.
-                and Validate.timestamp(str(f)[-19:-4]) 
+                and Validate.timestamp(str(f)[-19:-4])
                 # Make sure timestamp is bigger than cutoff timestamp:
-                and str(f)[-19:-4] > cutoff, 
+                and str(f)[-19:-4] > cutoff,
                 cache_dir.glob(f"{benchmark_name}-*_*.csv"),
             )
 
@@ -147,8 +152,10 @@ class Aggregate:
                     for metric in SanitizedConfig.METRICS_TOLERANCES:
                         sample_value = Validate.sanitize_stat(sample[metric])
                         if not isinstance(sample_value, float):
-                            print(f"Malformatted statistic in {str(sample_path)}: " + 
-                                f"'{sample[metric]}' for {test}.")
+                            print(
+                                f"Malformatted statistic in {str(sample_path)}: "
+                                + f"'{sample[metric]}' for {test}."
+                            )
                             exit(1)
                         # Add metric from sample for current test to aggregate:
                         samples_aggregate[test][metric].add(sample_value)
@@ -158,7 +165,8 @@ class Aggregate:
             f"{res_dir}/{benchmark_name}-{aggregator.get_type()}.csv", "w"
         ) as output_csv:
             writer = csv.DictWriter(
-                output_csv, fieldnames=["TestCase", *SanitizedConfig.METRICS_TOLERANCES.keys()]
+                output_csv,
+                fieldnames=["TestCase", *SanitizedConfig.METRICS_TOLERANCES.keys()],
             )
             writer.writeheader()
             for test in samples_aggregate:
