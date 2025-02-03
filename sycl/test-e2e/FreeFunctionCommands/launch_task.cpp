@@ -10,7 +10,8 @@
 #include <array>
 #include <iostream>
 
-static int Check(int *Data, int Expected, size_t Index, const std::string& TestName) {
+static int Check(int *Data, int Expected, size_t Index,
+                 const std::string &TestName) {
   if (Data[Index] == Expected)
     return 0;
   std::cout << "Failed " << TestName << " at index " << Index << " : "
