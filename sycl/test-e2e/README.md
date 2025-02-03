@@ -408,20 +408,37 @@ The modes work as follow:
 
 * `--param test-mode=build-only`
 
-  This mode can be used to compile all test binaries. To do this all
-  `UNSUPPORTED` and `REQUIRES` statements are ignored unless they contain
-  `UNSUPPORTED: true` or `REQUIRES: build-and-run-mode`. All `RUN:` lines within
-  a test are ran in this mode unless they contain the following expansions:
-  `%{run}`, `%{run-unfiltered-devices}`, or `%if run-mode`.
+  This mode can be used to compile all test binaries that can be built on the
+  system. To do this the `REQUIRES`/`UNSUPPORTED` statements are handled
+  differently to accommodate for the fact that in `build-only` mode we do not
+  have any devices, and as a result no device-specific features. Instead of
+  considering these features as missing, we assign a third "unknown" boolean
+  value to them. When evaluating An expressions it will result in an unknown
+  value if its result could be changed by setting the unknown features to either
+  true or false. i.e., `false || unknown = unknown` but `true || unknown = true`.
+  If an expression's final value is unknown we consider it to have met the
+  requirements. The list of features that are not unknown in `build-only` is
+  found in the `E2EExpr.py` file.
 
-  Currently, the only triple supported for `build-only` mode is `spir64`.
+  The triples to build for in this mode are selected by evaluating the
+  `REQUIRES`/`UNSUPPORTED` statements with a build-target feature added to the
+  list of available features. The triple for each corresponding passing
+  build-target will be built for. If no build-targets fulfilled the requirements
+  the test is reported as unsupported.
 
-  * `build-only` future work.
+  The set of build-targets that can be selected for tests is determined via the
+  `sycl_build_targets` parameter. Valid build targets are: `spir`,`nvidia`,
+  `amd`, `native_cpu`. Each build target should be separated with a semicolon.
+  This parameter is set to just `spir` by default.
 
-    Note, the fact that `build-only` ignores general `UNSUPPORTED`/`REQUIRES`
-    statements is a current limitation. The logic for taking into account the
-    features that affect compilation, and ignoring those that are only relevant
-    to the execution of the program is currently being worked on.
+  Note: the `target-*` features should be used in place of the backend features
+  if the intent is to mark something as requiring, or expectedly failing at
+  the compilation stage. On the other hand, backend features should be used when
+  we are considering the run stage.
+
+  When executing the test in `build-only`, all `RUN:` lines are ran unless they
+  contain the following expansions: `%{run}`, `%{run-unfiltered-devices}`, or
+  `%if run-mode`.
 
 * `--param test-mode=run-only`
 
@@ -449,8 +466,8 @@ system.
   execution, need to be marked as `XFAIL` with a feature that is device
   agnostic, or with `XFAIL: *`. Device agnostic features are those which are
   added added through a method other than processing the output of sycl-ls, for
-  example the OS, or the presence of a library. This needs to be done because
-  sycl-ls is not ran in `build-only` mode.
+  example the OS, a build target, or a library. This needs to be done because
+  in `build-only` we have no device-specific features.
   * If the expected failure occurs during run-time we will need to mark the test
   with `XFAIL` on a device specific feature (A feature that we add through
   processing sycl-ls output), or if its expected to always fail on run-time we
@@ -473,15 +490,6 @@ otherwise it is classified as a build line.
   line with `%if run-mode` to specifically make the line a run line. This
   situation usually appears when we need to run a command in response to the
   execution of the test binary.
-
-* Currently the `build-only` mode does not support logic to properly assess the
-features in `REQUIRES`/`UNSUPPORTED` to know if a test can be built in the
-system environment, or for `spir64`. Only tests that are marked with `REQUIRES:
-build-and-run-mode` or `UNSUPPORTED: true` are skipped. Thus if a test will fail
-building for the build environment we have on CI or for `spir64` we will need to
-mark this as `REQUIRES: build-and-run-mode`. This is only temporary solution,
-until further work is done to properly mark tests as unsupported on `build-only`
-based on features.
 
 * CPU and FPGA AOT tests are currently expected to fail when compiling and
 executing on separate machines. These failures occur on the `run-only` side,
