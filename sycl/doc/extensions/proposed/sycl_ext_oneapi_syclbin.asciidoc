@@ -63,6 +63,14 @@ APIs, for loading precompiled "SYCLBIN" files. Using these, SYCL code can
 dynamically load kernel binaries produced by the associated compiler, the format
 and options for which are defined by the SYCL implementation.
 
+Conversely, a SYCL implementation supporting this extension allows users to
+create the binary contents in the SYCLBIN format from a `kernel_bundle` object,
+even if that object was not created from a SYCLBIN file originally. As such,
+despite the SYCL implementation defining the format of SYCLBIN files, the format
+is guaranteed to contain the corresponding kernel bundle state of the SYCLBIN
+contents, which must in turn match the state of any `kernel_bundle` object
+created from it.
+
 
 == Specification
 
