@@ -23,6 +23,7 @@ runs:
   using: "composite"
   steps:
   - name: Sanitize provided timestamp
+    shell: bash
     run: |
       # Sanitize the cutoff timestamp provided
       #
@@ -40,22 +41,25 @@ runs:
       #   incase user somehow manages to inject extra text, `-o` should take
       #   care of it.
       # - DO NOT use input.cutoff_timestamp directly, only use SANITIZED_TIMESTAMP
-      SANITIZED_TIMESTAMP="$(echo '${{ input.cutoff_timestamp }}' | grep -oE "$TIMESTAM_RE")"
+      SANITIZED_TIMESTAMP="$(echo '${{ inputs.cutoff_timestamp }}' | grep -oE "$TIMESTAM_RE")"
       if [ -z "$SANITIZED_TIMESTAMP" ]; then
         echo "Please ensure input in input.cutoff_timestamp is exactly YYYYMMDD_HHMMSS."
         exit 1  # Terminate workflow
       fi
       echo "SANITIZED_TIMESTAMP=$SANITIZED_TIMESTAMP" >> $GITHUB_ENV
   - name: Load benchmarking configuration
+    shell: bash
     run: |
       $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
       echo "SANITIZED_PERF_RES_GIT_REPO=$SANITIZED_PERF_RES_GIT_REPO" >> $GITHUB_ENV
       echo "SANITIZED_PERF_RES_GIT_BRANCH=$SANITIZED_PERF_RES_GIT_BRANCH" >> $GITHUB_ENV
       echo "SANITIZED_PERF_RES_PATH=$SANITIZED_PERF_RES_PATH" >> $GITHUB_ENV
   - name: Checkout historical performance results repository
+    shell: bash
     run: |
       git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" "$SANITIZED_PERF_RES_PATH"
   - name: Run aggregator on historical results
+    shell: bash
     run: |
       # The current format of the historical results respository is:
       #
@@ -68,6 +72,7 @@ runs:
         python ./devops/scripts/benchmarking/aggregate.py "$test_name" "$dir" "$SANITIZED_TIMESTAMP"
       done
   - name: Upload average to the repo
+    shell: bash
     run: |
       # TODO -- waiting on security clearance
       cd "$SANITIZED_PERF_RES_PATH"
