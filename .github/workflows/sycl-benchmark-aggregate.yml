@@ -9,17 +9,18 @@ name: Aggregate compute-benchmark averages from historical data
 on:
   workflow_dispatch:
     inputs:
-      cutoff_timestamp:
+      lookback_days:
         description: |
-          Timestamp (YYYYMMDD_HHMMSS) indicating the age limit of data used in
-          average calculation: Any benchmark results created before this 
-          timestamp is excluded from being aggregated. 
-        type: string
+          Number of days from today to look back in historical results for:
+          This sets the age limit of data used in average calculation: Any
+          benchmark results created before `lookback_days` from today is
+          excluded from being aggregated in the historical average. 
+        type: number
         required: true
   workflow_call:
     inputs:
-      cutoff_timestamp:
-        type: string
+      lookback_days:
+        type: number
         required: true
 
 permissions:
@@ -38,6 +39,6 @@ jobs:
     - name: Aggregate benchmark results and produce historical average
       uses: ./devops/actions/benchmarking/aggregate
       with:
-        cutoff_timestamp: ${{ inputs.cutoff_timestamp }}
+        lookback_days: ${{ inputs.lookback_days }}
       env:
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

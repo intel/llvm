@@ -85,7 +85,7 @@ check_regression() {
 #
 # Usage: cache <relative path of output csv>
 cache() {
-    mkdir -p ./artifact/passing_tests/ ./artifact/failed_tests
+    mkdir -p "$(dirname ./artifact/passing_tests/$1)" "$(dirname ./artifact/failed_tests/$1)"
     cp "./artifact/failed_tests/$1" "./artifact/passing_tests/$1"
     mv "./artifact/failed_tests/$1" "./llvm-ci-perf-results/$1"
 }
@@ -112,7 +112,7 @@ process_benchmarks() {
         echo "Setting tests to run via cli is not currently supported."
         exit 1
     else
-        rm ./artifact/benchmarks_errored.log ./artifact/benchmarks_failed.log
+        rm ./artifact/benchmarks_errored.log ./artifact/benchmarks_failed.log 2> /dev/null
         mkdir -p ./artifact
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:

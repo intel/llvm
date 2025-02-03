@@ -15,37 +15,23 @@ name: 'Aggregate compute-benchmark results and produce historical averages'
 #
 
 inputs:
-  cutoff_timestamp:
-    type: string
+  lookback_days:
+    type: number
     required: true
 
 runs:
   using: "composite"
   steps:
-  - name: Sanitize provided timestamp
+  - name: Obtain oldest timestamp allowed for data in aggregation
     shell: bash
     run: |
-      # Sanitize the cutoff timestamp provided
-      #
-      # This timestamp controls which historical results are used to compute
-      # measures of central tendency: Any files timestamped *before* this time
-      # will be *excluded* from the central tendency calculation.
-
-      # Regex greps YYYYMMDD_HHMMSS
-      TIMESTAMP_RE='^[0-9]{4}(0[1-9]|1[0-2])([0-2][0-9]|3[01])_([01][0-9]|2[0-3])([0-5][0-9])([0-5][0-9])$'
-
-      # Note:
-      # - variables from input context should be surrounded with '' to prevent
-      #   remote code execution
-      # - `-o` needs to be kept in the grep command; `-o` is exact match only,
-      #   incase user somehow manages to inject extra text, `-o` should take
-      #   care of it.
-      # - DO NOT use input.cutoff_timestamp directly, only use SANITIZED_TIMESTAMP
-      SANITIZED_TIMESTAMP="$(echo '${{ inputs.cutoff_timestamp }}' | grep -oE "$TIMESTAMP_RE")"
+      # DO NOT use inputs.lookback_days directly, only use SANITIZED_TIMESTAMP.
+      SANITIZED_LOOKBACK_DAYS ="$(echo '${{ inputs.lookback_days }}' | grep -o "^[0-9]$")"
       if [ -z "$SANITIZED_TIMESTAMP" ]; then
-        echo "Please ensure input in input.cutoff_timestamp is exactly YYYYMMDD_HHMMSS."
-        exit 1  # Terminate workflow
+        echo "Please ensure inputs.lookback_days is a number.
+        exit 1
       fi
+      SANITIZED_TIMESTAMP="$(date -d "$SANITIZED_LOOKBACK_DAYS days ago" +%Y%m%d_%H%M%S)"
       echo "SANITIZED_TIMESTAMP=$SANITIZED_TIMESTAMP" >> $GITHUB_ENV
   - name: Load benchmarking configuration
     shell: bash
