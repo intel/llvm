@@ -71,7 +71,7 @@ runs:
       # repository. Test name is also derived from here.
       for dir in "$(find "$SANITIZED_PERF_RES_PATH" -mindepth 3 -maxdepth 3 -type d ! -path '*.git*')"; do
         test_name="$(basename "$dir")"
-        python ./devops/scripts/benchmarking/aggregate.py "$test_name" "$dir" "$SANITIZED_TIMESTAMP"
+        python ./devops/scripts/benchmarking/aggregate.py ./devops "$test_name" "$dir" "$SANITIZED_TIMESTAMP"
       done
   - name: Upload average to the repo
     shell: bash
