@@ -20,7 +20,7 @@ class Validate:
     def timestamp(t: str) -> bool:
         timestamp_re = re.compile(
             # YYYYMMDD_HHMMSS
-            r"^\d{4}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])[0-5][0-9][0-5][0-9]$"
+            r"^\d{4}(0[1-9]|1[0-2])([0-2][0-9]|3[01])_([01][0-9]|2[0-3])[0-5][0-9][0-5][0-9]$"
         )
         return timestamp_re.match(t) is not None
 
@@ -48,12 +48,12 @@ class SanitizedConfig:
     file.
     """
     loaded: bool = False
-    PERF_RES_PATH: str = None
-    ARTIFACT_OUTPUT_CACHE: str = None
+    # PERF_RES_PATH: str = None
+    # ARTIFACT_OUTPUT_CACHE: str = None
     METRICS_TOLERANCES: dict = None
     METRICS_RECORDED: list = None
-    BENCHMARK_LOG_SLOW: str = None
-    BENCHMARK_LOG_ERROR: str = None
+    # BENCHMARK_LOG_SLOW: str = None
+    # BENCHMARK_LOG_ERROR: str = None
 
     @staticmethod
     def load(devops_path: str):
@@ -143,16 +143,8 @@ class Configuration:
         shell_constants = [
             ("perf_res", "git_repo"),
             ("perf_res", "git_branch"),
-            ("perf_res", "path"),
             ("compute_bench", "git_repo"),
             ("compute_bench", "git_branch"),
-            ("compute_bench", "path"),
-            ("artifact", "output_cache"),
-            ("artifact", "passing_cache"),
-            ("artifact", "path"),
-            ("timestamp", "format"),
-            ("benchmark_log", "slow"),
-            ("benchmark_log", "error"),
         ]
         return self.__get_export_cmd(shell_constants, self.constants_path)
 
@@ -164,17 +156,20 @@ class Configuration:
         all_opts.read(self.config_path)
         all_opts.read(self.constants_path)
 
-        SanitizedConfig.PERF_RES_PATH = \
-            self.__sanitize(all_opts["perf_res"]["path"], "perf_res.path")
-        SanitizedConfig.ARTIFACT_OUTPUT_CACHE = \
-            self.__sanitize(all_opts["artifact"]["output_cache"],
-                            "artifact.output_cache")
-        SanitizedConfig.BENCHMARK_LOG_SLOW = \
-            self.__sanitize(all_opts["benchmark_log"]["slow"],
-                            "benchmark_log.slow")
-        SanitizedConfig.BENCHMARK_LOG_ERROR = \
-            self.__sanitize(all_opts["benchmark_log"]["error"],
-                            "benchmark_log.error")
+        # It was decided that paths should be hardcoded throughout this workflow
+        # for security reasons and ease of readability purposes:
+
+        # SanitizedConfig.PERF_RES_PATH = \
+        #     self.__sanitize(all_opts["perf_res"]["path"], "perf_res.path")
+        # SanitizedConfig.ARTIFACT_OUTPUT_CACHE = \
+        #     self.__sanitize(all_opts["artifact"]["output_cache"],
+        #                     "artifact.output_cache")
+        # SanitizedConfig.BENCHMARK_LOG_SLOW = \
+        #     self.__sanitize(all_opts["benchmark_log"]["slow"],
+        #                     "benchmark_log.slow")
+        # SanitizedConfig.BENCHMARK_LOG_ERROR = \
+        #     self.__sanitize(all_opts["benchmark_log"]["error"],
+        #                     "benchmark_log.error")
 
         # Fields that are supposed to be python objects need to be changed to
         # python objects:

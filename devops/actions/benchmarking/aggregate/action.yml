@@ -53,12 +53,11 @@ runs:
       $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
       echo "SANITIZED_PERF_RES_GIT_REPO=$SANITIZED_PERF_RES_GIT_REPO" >> $GITHUB_ENV
       echo "SANITIZED_PERF_RES_GIT_BRANCH=$SANITIZED_PERF_RES_GIT_BRANCH" >> $GITHUB_ENV
-      echo "SANITIZED_PERF_RES_PATH=$SANITIZED_PERF_RES_PATH" >> $GITHUB_ENV
   - name: Checkout historical performance results repository
     shell: bash
     run: |
-      if [ ! -d "$SANITIZED_PERF_RES_PATH" ]; then
-        git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" "$SANITIZED_PERF_RES_PATH"
+      if [ ! -d ./llvm-ci-perf-results ]; then
+        git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" ./llvm-ci-perf-results
       fi
   - name: Run aggregator on historical results
     shell: bash
@@ -69,7 +68,7 @@ runs:
       #
       # Thus, a min/max depth of 3 is used to enumerate all test cases in the
       # repository. Test name is also derived from here.
-      find "$SANITIZED_PERF_RES_PATH" -mindepth 3 -maxdepth 3 -type d ! -path '*.git*' |
+      find ./llvm-ci-perf-results -mindepth 3 -maxdepth 3 -type d ! -path '*.git*' |
       while read -r dir; do
         test_name="$(basename "$dir")"
         python ./devops/scripts/benchmarking/aggregate.py ./devops "$test_name" "$dir" "$SANITIZED_TIMESTAMP"
@@ -78,7 +77,7 @@ runs:
     shell: bash
     run: |
       # TODO -- waiting on security clearance
-      cd "$SANITIZED_PERF_RES_PATH"
+      cd ./llvm-ci-perf-results
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
       git add .
@@ -89,4 +88,4 @@ runs:
     uses: actions/upload-artifact@v4
     with:
       name: llvm-ci-perf-results new medians
-      path: ${{ env.SANITIZED_PERF_RES_PATH }}/**/*-median.csv
+      path: ./llvm-ci-perf-results/**/*-median.csv

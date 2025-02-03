@@ -7,11 +7,6 @@
 usage () {
     >&2 echo "Usage: $0 <compute-benchmarks git repo> -t <runner type> [-B <compute-benchmarks build path>]
   -n  Github runner name -- Required
-  -B  Path to clone and build compute-benchmarks on
-  -p  Path to compute-benchmarks (or directory to build compute-benchmarks in)
-  -r  Github repo to use for compute-benchmarks origin, in format <org>/<name>
-  -b  Git branch to use within compute-benchmarks
-  -f  Compile flags passed into building compute-benchmarks
   -c  Clean up working directory
   -C  Clean up working directory and exit
   -s  Cache results
@@ -21,24 +16,22 @@ This script builds and runs benchmarks from compute-benchmarks."
 }
 
 clone_perf_res() {
-    echo "### Cloning llvm-ci-perf-res ($SANITIZED_PERF_RES_GIT_REPO:$SANITIZED_PERF_RES_GIT_BRANCH) ###"
-    mkdir -p "$(dirname "$SANITIZED_PERF_RES_PATH")"
-    git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" "$SANITIZED_PERF_RES_PATH"
+    echo "### Cloning llvm-ci-perf-results ($SANITIZED_PERF_RES_GIT_REPO:$SANITIZED_PERF_RES_GIT_BRANCH) ###"
+    git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" ./llvm-ci-perf-results
     [ "$?" -ne 0 ] && exit $? 
 }
 
 clone_compute_bench() {
     echo "### Cloning compute-benchmarks ($SANITIZED_COMPUTE_BENCH_GIT_REPO:$SANITIZED_COMPUTE_BENCH_GIT_BRANCH) ###"
-    mkdir -p "$(dirname "$SANITIZED_COMPUTE_BENCH_PATH")"
     git clone -b "$SANITIZED_COMPUTE_BENCH_GIT_BRANCH" \
               --recurse-submodules "https://github.com/$SANITIZED_COMPUTE_BENCH_GIT_REPO" \
-              "$SANITIZED_COMPUTE_BENCH_PATH"
+              ./compute-benchmarks
     [ "$?" -ne 0 ] && exit "$?"
 }
 
 build_compute_bench() {
     echo "### Building compute-benchmarks ($SANITIZED_COMPUTE_BENCH_GIT_REPO:$SANITIZED_COMPUTE_BENCH_GIT_BRANCH) ###"
-    mkdir "$SANITIZED_COMPUTE_BENCH_PATH/build" && cd "$SANITIZED_COMPUTE_BENCH_PATH/build" &&
+    mkdir ./compute-benchmarks/build && cd ./compute-benchmarks/build &&
     # No reason to turn on ccache, if this docker image will be disassembled later on
     cmake .. -DBUILD_SYCL=ON -DBUILD_L0=OFF -DBUILD=OCL=OFF -DCCACHE_ALLOWED=FALSE
     # TODO enable mechanism for opting into L0 and OCL -- the concept is to
@@ -66,8 +59,8 @@ build_compute_bench() {
 #
 # Usage: <relative path of directory containing test case results>
 samples_under_threshold () {
-    [ ! -d "$SANITIZED_PERF_RES_PATH/$1" ] && return 1 # Directory doesn't exist
-    file_count="$(find "$SANITIZED_PERF_RES_PATH/$1" -maxdepth 1 -type f | wc -l )"
+    [ ! -d "./llvm-ci-perf-results/$1" ] && return 1 # Directory doesn't exist
+    file_count="$(find "./llvm-ci-perf-results/$1" -maxdepth 1 -type f | wc -l )"
     [ "$file_count" -lt "$SANITIZED_AVERAGE_MIN_THRESHOLD" ]
 }
 
@@ -92,9 +85,9 @@ check_regression() {
 #
 # Usage: cache <relative path of output csv>
 cache() {
-    mkdir -p "$(dirname "$SANITIZED_ARTIFACT_PASSING_CACHE/$1")" "$(dirname "$SANITIZED_PERF_RES_PATH/$1")"
-    cp "$SANITIZED_ARTIFACT_OUTPUT_CACHE/$1" "$SANITIZED_ARTIFACT_PASSING_CACHE/$1"
-    mv "$SANITIZED_ARTIFACT_OUTPUT_CACHE/$1" "$SANITIZED_PERF_RES_PATH/$1"
+    mkdir -p ./artifact/passing_tests/ ./artifact/failed_tests
+    cp "./artifact/failed_tests/$1" "./artifact/passing_tests/$1"
+    mv "./artifact/failed_tests/$1" "./llvm-ci-perf-results/$1"
 }
 
 # Check for a regression + cache if no regression found
@@ -114,15 +107,13 @@ check_and_cache() {
 
 # Run and process the results of each enabled benchmark in enabled_tests.conf
 process_benchmarks() {
-    mkdir -p "$SANITIZED_PERF_RES_PATH"
-    
     echo "### Running and processing selected benchmarks ###"
     if [ -z "$TESTS_CONFIG" ]; then
         echo "Setting tests to run via cli is not currently supported."
         exit 1
     else
-        rm "$SANITIZED_BENCHMARK_LOG_ERROR" "$SANITIZED_BENCHMARK_LOG_SLOW" 2> /dev/null
-        mkdir -p "$(dirname "$SANITIZED_BENCHMARK_LOG_ERROR")" "$(dirname "$SANITIZED_BENCHMARK_LOG_SLOW")"
+        rm ./artifact/benchmarks_errored.log ./artifact/benchmarks_failed.log
+        mkdir -p ./artifact
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
@@ -145,11 +136,13 @@ process_benchmarks() {
             # Figure out the relative path of our testcase result:
             test_dir_relpath="$DEVICE_SELECTOR_DIRNAME/$RUNNER/$testcase"
             output_csv_relpath="$test_dir_relpath/$testcase-$TIMESTAMP.csv"
-			mkdir -p "$SANITIZED_ARTIFACT_OUTPUT_CACHE/$test_dir_relpath" # Ensure directory exists
-            # TODO generate runner config txt if not exist
+			mkdir -p "./artifact/failed_tests/$test_dir_relpath" # Ensure directory exists
 
-            output_csv="$SANITIZED_ARTIFACT_OUTPUT_CACHE/$output_csv_relpath"
-            $SANITIZED_COMPUTE_BENCH_PATH/build/bin/$testcase --csv \
+            # Tests are first placed in ./artifact/failed_tests, and are only
+            # moved to passing_tests or the performance results repo if the
+            # benchmark results are passing
+            output_csv="./artifact/failed_tests/$output_csv_relpath"
+            "./compute-benchmarks/build/bin/$testcase" --csv \
                 --iterations="$SANITIZED_COMPUTE_BENCH_ITERATIONS" \
                     | tail +8 > "$output_csv"
                     # The tail +8 filters out header lines not in csv format
@@ -158,9 +151,8 @@ process_benchmarks() {
             if [ "$exit_status" -eq 0 ] && [ -s "$output_csv" ]; then 
                 check_and_cache $output_csv_relpath
             else
-                # TODO consider capturing stderr for logging
                 echo "[ERROR] $testcase returned exit status $exit_status"
-                echo "-- $testcase: error $exit_status" >> "$SANITIZED_BENCHMARK_LOG_ERROR"
+                echo "-- $testcase: error $exit_status" >> ./artifact/benchmarks_errored.log
             fi
         done
     fi
@@ -169,15 +161,15 @@ process_benchmarks() {
 # Handle failures + produce a report on what failed
 process_results() {
     fail=0
-    if [ -s "$SANITIZED_BENCHMARK_LOG_SLOW" ]; then
+    if [ -s ./artifact/benchmarks_failed.log ]; then
         printf "\n### Tests performing over acceptable range of average: ###\n"
-        cat "$SANITIZED_BENCHMARK_LOG_SLOW"
+        cat ./artifact/benchmarks_failed.log
         echo ""
         fail=2
     fi
-    if [ -s "$SANITIZED_BENCHMARK_LOG_ERROR" ]; then
+    if [ -s ./artifact/benchmarks_errored.log ]; then
         printf "\n### Tests that failed to run: ###\n"
-        cat "$SANITIZED_BENCHMARK_LOG_ERROR"
+        cat ./artifact/benchmarks_errored.log
         echo ""
         fail=1
     fi
@@ -186,8 +178,8 @@ process_results() {
 
 cleanup() {
     echo "### Cleaning up compute-benchmark builds from prior runs ###"
-    rm -rf "$SANITIZED_COMPUTE_BENCH_PATH"
-    rm -rf "$SANITIZED_PERF_RES_PATH"
+    rm -rf ./compute-benchmarks
+    rm -rf ./llvm-ci-perf-results
     [ ! -z "$_exit_after_cleanup" ] && exit
 }
 
@@ -229,16 +221,19 @@ load_configs
 
 COMPUTE_BENCH_COMPILE_FLAGS=""
 CACHE_RESULTS="0"
-TIMESTAMP="$(date +"$SANITIZED_TIMESTAMP_FORMAT")"
+# Timestamp format is YYYYMMDD_HHMMSS
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
 # CLI flags + overrides to configuration options:
-while getopts "p:b:r:f:n:cCs" opt; do
+while getopts "n:cCs" opt; do
     case "$opt" in
-        p) COMPUTE_BENCH_PATH="$OPTARG" ;;
-        r) COMPUTE_BENCH_GIT_REPO="$OPTARG" ;;
-        b) COMPUTE_BENCH_BRANCH="$OPTARG" ;;
-        f) COMPUTE_BENCH_COMPILE_FLAGS="$OPTARG" ;;
-		n) RUNNER="$OPTARG" ;;
+		n) 
+        if [ -n "$(printf "%s" "$OPTARG" | sed "s/[a-zA-Z0-9_-]*//g")" ]; then
+            echo "Illegal characters in runner name."
+            exit 1
+        fi
+        RUNNER="$OPTARG"
+        ;;
         # Cleanup status is saved in a var to ensure all arguments are processed before
         # performing cleanup
         c) _cleanup=1 ;;
@@ -279,9 +274,9 @@ DEVICE_SELECTOR_DIRNAME="$(echo "$ONEAPI_DEVICE_SELECTOR" | sed 's/:/-/')"
 # Clean up and delete all cached files if specified:
 [ ! -z "$_cleanup" ] && cleanup
 # Clone and build only if they aren't already cached/deleted:
-[ ! -d "$SANITIZED_PERF_RES_PATH"            ] && clone_perf_res
-[ ! -d "$SANITIZED_COMPUTE_BENCH_PATH"       ] && clone_compute_bench
-[ ! -d "$SANITIZED_COMPUTE_BENCH_PATH/build" ] && build_compute_bench
+[ ! -d ./llvm-ci-perf-results     ] && clone_perf_res
+[ ! -d ./compute-benchmarks       ] && clone_compute_bench
+[ ! -d ./compute-benchmarks/build ] && build_compute_bench
 # Process benchmarks:
 process_benchmarks
 process_results

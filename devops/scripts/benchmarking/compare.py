@@ -48,7 +48,7 @@ class Compare:
                         print(
                             f"  {metric}: {sample_value} -- Historic avg. {test_hist_avg[metric]} (max tolerance {threshold*100}%: {max_tolerated})\n"
                         )
-                        with open(SanitizedConfig.BENCHMARK_LOG_SLOW, "a") as slow_log:
+                        with open("./artifact/benchmarks_log_failed.log", "a") as slow_log:
                             slow_log.write(
                                 f"-- {benchmark_name}::{test}\n"
                                 f"   {metric}: {sample_value} -- Historic avg. {test_hist_avg[metric]} (max tol. {threshold*100}%: {max_tolerated})\n"
@@ -77,8 +77,8 @@ if __name__ == "__main__":
     # This relative path is sys.argv[1], while the name of the csv file we are
     # comparing against is sys.argv[2].
     benchmark_name = os.path.basename(sys.argv[2])
-    test_csv_path = f"{SanitizedConfig.ARTIFACT_OUTPUT_CACHE}/{sys.argv[2]}/{sys.argv[3]}"
-    median_path = f"{SanitizedConfig.PERF_RES_PATH}/{sys.argv[2]}/{benchmark_name}-median.csv"
+    test_csv_path = f"./artifact/failed_tests/{sys.argv[2]}/{sys.argv[3]}"
+    median_path = f"./llvm-ci-perf-results/{sys.argv[2]}/{benchmark_name}-median.csv"
 
     if not os.path.isfile(test_csv_path):
         print("Invalid test file provided: " + test_csv_path)

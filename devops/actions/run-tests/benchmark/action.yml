@@ -48,7 +48,7 @@ runs:
       # Load configuration values
       $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
 
-      cd "$SANITIZED_PERF_RES_PATH"
+      cd "./llvm-ci-perf-results"
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
       git add .

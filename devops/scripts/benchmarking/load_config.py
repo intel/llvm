@@ -10,12 +10,14 @@ if __name__ == "__main__":
 
     if len(sys.argv) != 3:
         usage_and_exit()
+
     if not Validate.filepath(sys.argv[1]):
         print(f"Not a valid filepath: {sys.argv[1]}", file=sys.stderr)
         exit(1)
     # If the filepath provided passed filepath validation, then it is clean
     sanitized_filepath = sys.argv[1]
 
+    # Load configuration
     config = Configuration(sanitized_filepath)
     if sys.argv[2] == "config":
         print(config.export_shell_configs())
