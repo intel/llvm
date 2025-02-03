@@ -37,6 +37,7 @@
 #include "llvm/Object/IRObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/OffloadBinary.h"
+#include "llvm/Object/SYCLBIN.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
@@ -155,6 +156,8 @@ static std::atomic<bool> LTOError;
 static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 static bool UseSYCLPostLinkTool;
+
+static bool OutputSYCLBIN;
 
 SmallString<128> SPIRVDumpDir;
 
@@ -552,7 +555,7 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-compression-level=") + Arg->getValue()));
 
-  SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux-gnu"};
+  SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux"};
   for (const auto &[File, Arch] : InputFiles)
     Targets.push_back(Saver.save("hip-amdgcn-amd-amdhsa--" + Arch));
   CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
@@ -1184,6 +1187,52 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
   return *OutputFileOrErr;
 }
 
+// Produce SYCLBIN data from a split module
+static Expected<StringRef>
+PackageSYCLBIN(const SmallVector<SYCLBIN::ModuleDesc> &Modules) {
+  auto ErrorOrSYCLBIN = SYCLBIN::write(Modules);
+  if (!ErrorOrSYCLBIN)
+    return ErrorOrSYCLBIN.takeError();
+
+  OffloadingImage Image{};
+  Image.TheImageKind = IMG_SYCLBIN;
+  Image.TheOffloadKind = OFK_SYCL;
+  Image.Image = MemoryBuffer::getMemBufferCopy(*ErrorOrSYCLBIN);
+
+  std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
+      OffloadBinary::write(Image), Image.Image->getBufferIdentifier());
+
+  auto OutFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName), "syclbin");
+  if (!OutFileOrErr)
+    return OutFileOrErr.takeError();
+
+  Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
+      FileOutputBuffer::create(*OutFileOrErr, Binary->getBufferSize());
+  if (!OutputOrErr)
+    return OutputOrErr.takeError();
+  std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
+  llvm::copy(Binary->getBuffer(), Output->getBufferStart());
+  if (Error E = Output->commit())
+    return std::move(E);
+
+  return *OutFileOrErr;
+}
+
+Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
+  // Fast path for the general case where there's only one file. In this case we
+  // do not need to parse it and can instead simply copy it.
+  if (Files.size() == 1) {
+    if (std::error_code EC = sys::fs::copy_file(Files[0], ExecutableName))
+      return createFileError(ExecutableName, EC);
+    return Error::success();
+  }
+  // TODO: Merge SYCLBIN files here and write to ExecutableName output.
+  // Use the first file as the base and modify.
+  assert(Files.size() == 1);
+  return Error::success();
+}
+
 // Run wrapping library and clang
 static Expected<StringRef>
 runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
@@ -1533,18 +1582,13 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   };
 
   // Forward all of the `--offload-opt` and similar options to the device.
+  CmdArgs.push_back("-flto");
   for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
     CmdArgs.append(
         {"-Xlinker",
          Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
 
-  if (Triple.isNVPTX() || Triple.isAMDGPU()) {
-    CmdArgs.push_back("-foffload-lto");
-  } else {
-    CmdArgs.push_back("-flto");
-  }
-
-  if (!Triple.isNVPTX() && !Triple.isSPIRV())
+  if (!Triple.isNVPTX())
     CmdArgs.push_back("-Wl,--no-undefined");
 
   if (IsSYCLKind && Triple.isNVPTX())
@@ -1553,7 +1597,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back(InputFile);
 
   // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isAMDGPU() && !Triple.isNVPTX() && !Triple.isSPIRV()) {
+  if (!Triple.isAMDGPU() && !Triple.isNVPTX()) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
@@ -2334,6 +2378,11 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
   // object file.
   SmallVector<StringRef> WrappedOutput;
 
+  // When creating SYCLBIN files, we need to store the compiled modules for
+  // combined packaging.
+  std::mutex SYCLBINModulesMtx;
+  SmallVector<SYCLBIN::ModuleDesc> SYCLBINModules;
+
   // Initialize the images with any overriding inputs.
   if (Args.hasArg(OPT_override_image))
     if (Error Err = handleOverrideImages(Args, Images))
@@ -2447,18 +2496,26 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         }
       }
 
-      // TODO(NOM7): Remove this call and use community flow for bundle/wrap
-      auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
-      if (!OutputFile)
-        return OutputFile.takeError();
+      if (!OutputSYCLBIN) {
+        // TODO(NOM7): Remove this call and use community flow for bundle/wrap
+        auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
+        if (!OutputFile)
+          return OutputFile.takeError();
 
-      // SYCL offload kind images are all ready to be sent to host linker.
-      // TODO: Currently, device code wrapping for SYCL offload happens in a
-      // separate path inside 'linkDevice' call seen above.
-      // This will eventually be refactored to use the 'common' wrapping logic
-      // that is used for other offload kinds.
-      std::scoped_lock Guard(ImageMtx);
-      WrappedOutput.push_back(*OutputFile);
+        // SYCL offload kind images are all ready to be sent to host linker.
+        // TODO: Currently, device code wrapping for SYCL offload happens in a
+        // separate path inside 'linkDevice' call seen above.
+        // This will eventually be refactored to use the 'common' wrapping logic
+        // that is used for other offload kinds.
+        std::scoped_lock Guard(ImageMtx);
+        WrappedOutput.push_back(*OutputFile);
+      } else {
+        SYCLBIN::ModuleDesc MD;
+        MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
+        MD.SplitModules = std::move(SplitModules);
+        std::scoped_lock Guard(SYCLBINModulesMtx);
+        SYCLBINModules.emplace_back(std::move(MD));
+      }
     }
     if (HasNonSYCLOffloadKinds) {
       // First link and remove all the input files containing bitcode.
@@ -2509,6 +2566,13 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
   });
   if (Err)
     return std::move(Err);
+
+  if (OutputSYCLBIN) {
+    auto OutputOrErr = sycl::PackageSYCLBIN(SYCLBINModules);
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
+    WrappedOutput.push_back(*OutputOrErr);
+  }
 
   for (auto &[Kind, Input] : Images) {
     if (Kind == OFK_SYCL)
@@ -2965,6 +3029,9 @@ int main(int Argc, char **Argv) {
                                   "-no-use-sycl-post-link-tool options can't "
                                   "be used together."));
 
+  OutputSYCLBIN = Args.hasArg(OPT_syclbin);
+  // TODO: Check conflicting options: sycl_embed_ir
+
   if (Args.hasArg(OPT_sycl_module_split_mode_EQ)) {
     if (UseSYCLPostLinkTool)
       reportError(createStringError(
@@ -3005,9 +3072,14 @@ int main(int Argc, char **Argv) {
     if (!FilesOrErr)
       reportError(FilesOrErr.takeError());
 
-    // Run the host linking job with the rendered arguments.
-    if (Error Err = runLinker(*FilesOrErr, Args))
-      reportError(std::move(Err));
+    if (OutputSYCLBIN) {
+      if (Error Err = sycl::mergeSYCLBIN(*FilesOrErr, Args))
+        reportError(std::move(Err));
+    } else {
+      // Run the host linking job with the rendered arguments.
+      if (Error Err = runLinker(*FilesOrErr, Args))
+        reportError(std::move(Err));
+    }
   }
 
   if (const opt::Arg *Arg = Args.getLastArg(OPT_wrapper_time_trace_eq)) {

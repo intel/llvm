@@ -72,6 +72,8 @@ protected:
     ID_GOFF,
     ID_Wasm,
 
+    ID_SYCLBIN, // SYCLBIN binary file.
+
     ID_EndObjects
   };
 
@@ -137,6 +139,8 @@ public:
   bool isWasm() const { return TypeID == ID_Wasm; }
 
   bool isOffloadFile() const { return TypeID == ID_Offload; }
+
+  bool isSYCLBINFile() const { return TypeID == ID_SYCLBIN; }
 
   bool isCOFFImportFile() const {
     return TypeID == ID_COFFImportFile;

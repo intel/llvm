@@ -158,6 +158,8 @@ public:
     }
   }
 
+  const char *data() const { return reinterpret_cast<const char *>(&Val); }
+
 private:
   template <typename T> T &getValueRef();
   void copy(const PropertyValue &P);
