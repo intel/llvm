@@ -57,7 +57,9 @@ runs:
   - name: Checkout historical performance results repository
     shell: bash
     run: |
-      git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" "$SANITIZED_PERF_RES_PATH"
+      if [ ! -d "$SANITIZED_PERF_RES_PATH"]; then
+        git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" "$SANITIZED_PERF_RES_PATH"
+      fi
   - name: Run aggregator on historical results
     shell: bash
     run: |
