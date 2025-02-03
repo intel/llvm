@@ -1,4 +1,4 @@
-// REQUIRES: opencl, gpu, cpu
+// REQUIRES: opencl, any-device-is-gpu, any-device-is-cpu
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %S/Inputs/is_compatible_with_env.cpp -o %t.out
 
