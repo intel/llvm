@@ -53,7 +53,9 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
         powershell.exe -File windows_detect_hung_tests.ps1
-        exit $LASTEXITCODE
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode
     - uses: actions/checkout@v4
       with:
         sparse-checkout: |
@@ -114,7 +116,9 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
         powershell.exe -File windows_detect_hung_tests.ps1
-        exit $LASTEXITCODE
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode
     - name: Cleanup
       shell: cmd
       if: always()
