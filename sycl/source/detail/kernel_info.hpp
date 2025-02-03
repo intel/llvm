@@ -148,8 +148,9 @@ uint32_t get_kernel_device_specific_info_with_input(ur_kernel_handle_t Kernel,
 }
 
 template <>
-inline ext::intel::info::kernel::spill_memory_size::return_type
-get_kernel_device_specific_info<ext::intel::info::kernel::spill_memory_size>(
+inline ext::intel::info::kernel_device_specific::spill_memory_size::return_type
+get_kernel_device_specific_info<
+    ext::intel::info::kernel_device_specific::spill_memory_size>(
     ur_kernel_handle_t Kernel, ur_device_handle_t Device,
     const AdapterPtr &Adapter) {
   size_t ResultSize = 0;
