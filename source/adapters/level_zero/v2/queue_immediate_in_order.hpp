@@ -35,9 +35,8 @@ private:
   std::vector<ur_event_handle_t> deferredEvents;
   std::vector<ur_kernel_handle_t> submittedKernels;
 
-  std::pair<ze_event_handle_t *, uint32_t>
-  getWaitListView(const ur_event_handle_t *phWaitEvents,
-                  uint32_t numWaitEvents);
+  wait_list_view getWaitListView(const ur_event_handle_t *phWaitEvents,
+                                 uint32_t numWaitEvents);
 
   ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
