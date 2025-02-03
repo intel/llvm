@@ -1698,10 +1698,8 @@ _SPIRV_OP(SignBitSet)
 _SPIRV_OP(Any)
 _SPIRV_OP(All)
 _SPIRV_OP(BitCount)
+_SPIRV_OP(ArithmeticFenceEXT)
 #undef _SPIRV_OP
-#define _SPIRV_OP_INTERNAL(x) typedef SPIRVUnaryInst<internal::Op##x> SPIRV##x;
-_SPIRV_OP_INTERNAL(ArithmeticFenceINTEL)
-#undef _SPIRV_OP_INTERNAL
 
 class SPIRVAccessChainBase : public SPIRVInstTemplateBase {
 public:
