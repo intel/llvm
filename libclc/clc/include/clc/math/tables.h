@@ -20,6 +20,9 @@
  * THE SOFTWARE.
  */
 
+#ifndef __CLC_MATH_TABLES_H__
+#define __CLC_MATH_TABLES_H__
+
 #include <clc/clctypes.h>
 
 #define TABLE_SPACE __constant
@@ -62,3 +65,5 @@ TABLE_FUNCTION_DECL(double2, powlog_tbl);
 TABLE_FUNCTION_DECL(double2, log_f_inv_tbl);
 
 #endif // cl_khr_fp64
+
+#endif // __CLC_MATH_TABLES_H__

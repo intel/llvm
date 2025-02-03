@@ -21,9 +21,9 @@
  */
 
 #include <core/clc_core.h>
-#include <libspirv/math/tables.h>
+#include <clc/math/tables.h>
 #include <libspirv/spirv.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 #include "sincos_helpers.h"
 

@@ -22,12 +22,12 @@
 
 #include <clc/clcmacro.h>
 #include <clc/integer/clc_abs.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
 #include <clc/relational/clc_isinf.h>
 #include <clc/relational/clc_isnan.h>
 #include <clc/shared/clc_max.h>
-#include <config.h>
 #include <core/clc_core.h>
-#include <math/math.h>
 #include <libspirv/spirv.h>
 
 struct fp {

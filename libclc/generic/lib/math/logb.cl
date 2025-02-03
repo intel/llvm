@@ -1,4 +1,3 @@
-#include "math.h"
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <libspirv/spirv.h>

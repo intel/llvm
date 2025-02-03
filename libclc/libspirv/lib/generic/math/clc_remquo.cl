@@ -9,9 +9,9 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <config.h>
+#include <clc/math/clc_subnormal_config.h>
 #include <math/clc_remainder.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_remquo(float x, float y,
                                           __private int *quo) {

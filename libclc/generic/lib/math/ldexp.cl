@@ -20,8 +20,6 @@
  * THE SOFTWARE.
  */
 
-#include "config.h"
-#include "math.h"
 #include "math/clc_ldexp.h"
 
 #include <clc/clc.h>
