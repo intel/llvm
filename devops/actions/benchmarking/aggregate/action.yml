@@ -69,7 +69,8 @@ runs:
       #
       # Thus, a min/max depth of 3 is used to enumerate all test cases in the
       # repository. Test name is also derived from here.
-      for dir in "$(find "$SANITIZED_PERF_RES_PATH" -mindepth 3 -maxdepth 3 -type d ! -path '*.git*')"; do
+      find "$SANITIZED_PERF_RES_PATH" -mindepth 3 -maxdepth 3 -type d ! -path '*.git*' |
+      while read -r dir; do
         test_name="$(basename "$dir")"
         python ./devops/scripts/benchmarking/aggregate.py ./devops "$test_name" "$dir" "$SANITIZED_TIMESTAMP"
       done
