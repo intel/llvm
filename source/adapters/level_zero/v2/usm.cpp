@@ -15,8 +15,6 @@
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "usm.hpp"
 
-#include <umf/pools/pool_disjoint.h>
-#include <umf/pools/pool_proxy.h>
 #include <umf/providers/provider_level_zero.h>
 
 namespace umf {
@@ -158,28 +156,6 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
   return std::move(provider);
 }
 
-static umf::pool_unique_handle_t
-makeDisjointPool(umf::provider_unique_handle_t &&provider,
-                 usm::umf_disjoint_pool_config_t &poolParams) {
-  auto umfParams = getUmfParamsHandle(poolParams);
-  auto [ret, poolHandle] =
-      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(provider),
-                                 static_cast<void *>(umfParams.get()));
-  if (ret != UMF_RESULT_SUCCESS)
-    throw umf::umf2urResult(ret);
-  return std::move(poolHandle);
-}
-
-static umf::pool_unique_handle_t
-makeProxyPool(umf::provider_unique_handle_t &&provider) {
-  auto [ret, poolHandle] = umf::poolMakeUniqueFromOps(
-      umfProxyPoolOps(), std::move(provider), nullptr);
-  if (ret != UMF_RESULT_SUCCESS)
-    throw umf::umf2urResult(ret);
-
-  return std::move(poolHandle);
-}
-
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
                                              ur_usm_pool_desc_t *pPoolDesc)
     : hContext(hContext) {
@@ -207,10 +183,10 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
     if (disjointPoolConfigs.has_value()) {
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
-      poolManager.addPool(desc,
-                          makeDisjointPool(makeProvider(desc), poolConfig));
+      poolManager.addPool(
+          desc, usm::makeDisjointPool(makeProvider(desc), poolConfig));
     } else {
-      poolManager.addPool(desc, makeProxyPool(makeProvider(desc)));
+      poolManager.addPool(desc, usm::makeProxyPool(makeProvider(desc)));
     }
   }
 }
