@@ -38,14 +38,12 @@ int main() {
     int *Result = sycl::malloc_shared<int>(1, Queue);
     Result[0] = 0;
     constexpr size_t N = 1024;
-    constexpr int ExpectedResult = (N - 1);
+    constexpr int ExpectedResult = ((N - 1) * N) / 2;
     {
-      Queue.submit([&](sycl::handler &Handler) {
-        sycl::khr::launch_reduce(
-            Handler, sycl::range<1>(N),
-            [=](sycl::id<1> Id, auto &Max) { Max.combine(Id); },
-            sycl::reduction(Result, sycl::maximum<>()));
-      });
+      sycl::khr::launch_reduce(
+          Queue, sycl::range<1>(N),
+          [=](sycl::id<1> Id, auto &Sum) { Sum += Id; },
+          sycl::reduction(Result, sycl::plus<>()));
     }
 
     Failed += Check(Result[0], ExpectedResult, "launch_reduce_with_sycl_usm");
