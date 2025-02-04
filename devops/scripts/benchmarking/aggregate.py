@@ -123,23 +123,27 @@ class Aggregate:
             """Get all valid .csv samples from the results folder."""
             cache_dir = Path(f"{res_dir}")
             # Filter all benchmark .csv files in the result directory:
-            return list(filter(
-                # Make sure the .csv "file" is a file:
-                lambda f: f.is_file()
-                # Make sure timestamp of .csv file is good format:
-                # [-19:-4] corresponds to the timestamp in the filename.
-                and Validate.timestamp(str(f)[-19:-4])
-                # Make sure timestamp is bigger than cutoff timestamp:
-                and str(f)[-19:-4] > cutoff,
-                cache_dir.glob(f"{benchmark_name}-*_*.csv"),
-            ))
+            return list(
+                filter(
+                    # Make sure the .csv "file" is a file:
+                    lambda f: f.is_file()
+                    # Make sure timestamp of .csv file is good format:
+                    # [-19:-4] corresponds to the timestamp in the filename.
+                    and Validate.timestamp(str(f)[-19:-4])
+                    # Make sure timestamp is bigger than cutoff timestamp:
+                    and str(f)[-19:-4] > cutoff,
+                    cache_dir.glob(f"{benchmark_name}-*_*.csv"),
+                )
+            )
 
         # Calculate median of every desired metric:
         samples_aggregate = dict()
         filtered_samples = get_csv_samples()
         if len(filtered_samples) == 0:
-            print(f"WARNING: No results for {benchmark_name} found from {cutoff} to now",
-                  file=sys.stderr)
+            print(
+                f"WARNING: No results for {benchmark_name} found from {cutoff} to now",
+                file=sys.stderr,
+            )
         for sample_path in filtered_samples:
             with open(sample_path, "r") as sample_file:
                 for sample in csv.DictReader(sample_file):
