@@ -48,7 +48,6 @@ struct DevicesEnvironment : PlatformEnvironment {
   virtual ~DevicesEnvironment() override = default;
 
   virtual void SetUp() override;
-  virtual void TearDown() override;
 
   inline const std::vector<DeviceTuple> &GetDevices() const { return devices; }
 
