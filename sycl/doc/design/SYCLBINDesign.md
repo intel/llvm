@@ -5,7 +5,8 @@ device binaries to be loaded dynamically by the SYCL runtime. It also details
 how the toolchain produces, links and packages these binaries, as well as how
 the SYCL runtime library handles files of this format.
 
-## <a name="syclbin_format"></a> SYCLBIN binary format
+(syclbin_format)=
+## SYCLBIN binary format
 
 The files produced by the new compilation path will follow the format described
 in this section. The intention of defining a new format for these is to give
@@ -13,7 +14,7 @@ the DPC++ implementation an extendable and lightweight wrapper around the
 multiple modules and corresponding metadata captured in the SYCLBIN file.
 The content of the SYCLBIN may be contained as an entry in the offloading binary
 format produced by the clang-offload-packager, as described in
-[ClangOffloadPackager.rst](../../clang/docs/ClangOffloadPackager.rst).
+[ClangOffloadPackager.rst](../../../clang/docs/ClangOffloadPackager.rst).
 
 The following illustration gives an overview of how the file format is
 structured.
@@ -195,7 +196,7 @@ The clang-linker-wrapper is responsible for doing post-processing and linking of
 device binaries, as described in [OffloadDesign.md](OffloadDesign.md).
 However, to support SYCLBIN files, the clang-linker-wrapper must be able to
 unpack an offload binary (as described in
-[ClangOffloadPackager.rst](../../clang/docs/ClangOffloadPackager.rst))
+[ClangOffloadPackager.rst](../../../clang/docs/ClangOffloadPackager.rst))
 directly, instead of extracting it from a host binary. This should be done when
 a new flag, `--syclbin`, is passed. In this case, the clang-linker-wrapper is
 responsible to package the resulting device binaries and produced metadata into
