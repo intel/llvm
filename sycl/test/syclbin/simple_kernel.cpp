@@ -6,7 +6,10 @@
 // Checks the generated SYCLBIN contents of a simple SYCL free function kernel.
 
 // TODO: Replace clang tooling invocation with -fsyclbin clang driver command
-//       when available.
+//       when available. Once this is in place, Windows should also be
+//       supported.
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: CMPLRLLVM-65259
 
 #include <sycl/sycl.hpp>
 
@@ -31,6 +34,6 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-NEXT:     Properties: <Binary blob of {{.*}} bytes>
 // CHECK-NEXT:   Number of IR Modules: 1
 // CHECK-NEXT:   IR module 0:
-// CHECK-NEXT:     IR type: SPIRV
+// CHECK-NEXT:     IR type: SPIR-V
 // CHECK-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
 // CHECK-NEXT:   Number of Native Device Code Images: 0
