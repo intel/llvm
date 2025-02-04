@@ -1,22 +1,22 @@
 // REQUIRES: gpu, cuda, hip, opencl, sycl-ls
 
-// RUN: %if run-mode %{ sycl-ls --verbose >%t.default.out %}
-// RUN: %if run-mode %{ FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.default.out %}
+// RUN: %{run-unfiltered-devices} sycl-ls --verbose | \
+// RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL
 
-// RUN: %if run-mode %{ env ONEAPI_DEVICE_SELECTOR="opencl:*" sycl-ls --verbose >%t.opencl.out %}
-// RUN: %if run-mode %{ FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.opencl.out %}
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" sycl-ls --verbose | \
+// RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL
 
 // CHECK-BUILTIN-GPU-OPENCL: gpu_selector(){{.*}}gpu, {{.*}}OpenCL
 // CHECK-CUSTOM-GPU-OPENCL: custom_selector(gpu){{.*}}gpu, {{.*}}OpenCL
 
-// RUN: %if run-mode %{ env ONEAPI_DEVICE_SELECTOR="cuda:*" sycl-ls --verbose >%t.cuda.out %}
-// RUN: %if run-mode %{ FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA --input-file %t.cuda.out %}
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="cuda:*" sycl-ls --verbose | \
+// RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA
 
 // CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}gpu, {{.*}}CUDA
 // CHECK-CUSTOM-GPU-CUDA: custom_selector(gpu){{.*}}gpu, {{.*}}CUDA
 
-// RUN: %if run-mode %{ env ONEAPI_DEVICE_SELECTOR="hip:*" sycl-ls --verbose >%t.hip.out %}
-// RUN: %if run-mode %{ FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-HIP,CHECK-CUSTOM-GPU-HIP --input-file %t.hip.out %}
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="hip:*" sycl-ls --verbose | \
+// RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-HIP,CHECK-CUSTOM-GPU-HIP
 
 // CHECK-BUILTIN-GPU-HIP: gpu_selector(){{.*}}gpu, {{.*}}HIP
 // CHECK-CUSTOM-GPU-HIP: custom_selector(gpu){{.*}}gpu, {{.*}}HIP

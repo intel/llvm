@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %if run-mode %{ sycl-ls --verbose >%t.default.out %}
-// RUN: %if run-mode %{ FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out %}
+// RUN: %{run-unfiltered-devices} sycl-ls --verbose | \
+// RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM
 
 // CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}Level-Zero
 // CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}Level-Zero
