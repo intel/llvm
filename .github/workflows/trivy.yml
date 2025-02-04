@@ -6,6 +6,8 @@ on:
   pull_request:
     paths:
       - 'devops/containers/**'
+      - 'devops/.trivyignore.yaml'
+      - '.github/workflows/trivy.yml'
   workflow_dispatch:
 
 jobs:
