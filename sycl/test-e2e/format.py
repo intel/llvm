@@ -25,13 +25,13 @@ def parse_min_intel_driver_req(line_number, line, output):
     if not output:
         output = {}
 
-    lin = re.search("lin: *([0-9]{5})", line)
+    lin = re.search(r"lin: *([0-9]{5})", line)
     if lin:
         if "lin" in output:
             raise ValueError('Multiple entries for "lin" version')
         output["lin"] = int(lin.group(1))
 
-    win = re.search("win: *([0-9]{3}\.[0-9]{4})", line)
+    win = re.search(r"win: *([0-9]{3}\.[0-9]{4})", line)
     if win:
         if "win" in output:
             raise ValueError('Multiple entries for "win" version')
@@ -61,7 +61,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 require_script=True,
             )
         except ValueError as e:
-            return lit.Test.Result(Test.UNRESOLVED, str(e))
+            return lit.Test.Result(lit.Test.UNRESOLVED, str(e))
         script = parsed["RUN:"] or []
         assert parsed["DEFINE:"] == script
         assert parsed["REDEFINE:"] == script
@@ -221,6 +221,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 build_targets.add(test.config.backend_to_target[backend])
 
         triples = set(test.config.target_to_triple[t] for t in build_targets)
+        test.config.available_features = test.config.available_features.union(
+            build_targets
+        )
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
 

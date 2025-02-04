@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <clc/clcfunc.h>
+#include <clc/clctypes.h>
 
 // These 2 defines only change when switching between data sizes or base types
 // to keep this file manageable.

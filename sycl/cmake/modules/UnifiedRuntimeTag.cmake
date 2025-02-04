@@ -1,7 +1,7 @@
-# commit 0bb6789f0113ea937d861fd67fd677b91ecdeb8b
-# Merge: e370a2b9 eeff9f4a
+# commit 08d36b76a5b1c4f080e3301507a39525ab5ab365
+# Merge: 4c504dbc e6b61c67
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 27 10:40:02 2025 +0000
-#     Merge pull request #2551 from przemektmalon/przemek/bindless-images-host-usm
-#     Enable creation of bindless images backed by host USM
-set(UNIFIED_RUNTIME_TAG 0bb6789f0113ea937d861fd67fd677b91ecdeb8b)
+# Date:   Tue Feb 4 13:14:19 2025 +0000
+#     Merge pull request #2614 from kurapov-peter/spills
+#     Add UR_KERNEL_INFO_SPILL_MEM_SIZE kernel info prop
+set(UNIFIED_RUNTIME_TAG 08d36b76a5b1c4f080e3301507a39525ab5ab365)
