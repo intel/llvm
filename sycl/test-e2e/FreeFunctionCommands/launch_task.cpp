@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This test checks whether the free function command launches the task.
+// This test checks whether the free function command launch task is valid.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/khr/free_function_commands.hpp>
@@ -24,9 +24,9 @@ int main() {
 
     {
       sycl::buffer<int, 1> MemBuffer{DataBuffer.data(), sycl::range<1>{N}};
-      sycl::khr::submit(Queue, [&](sycl::handler &CGH) {
-        sycl::accessor MemAcc{MemBuffer, CGH, sycl::write_only};
-        sycl::khr::launch_task(CGH, [=]() {
+      sycl::khr::submit(Queue, [&](sycl::handler &Handler) {
+        sycl::accessor MemAcc{MemBuffer, Handler, sycl::write_only};
+        sycl::khr::launch_task(Handler, [=]() {
           for (size_t i = 0; i < N; ++i) {
             MemAcc[i] = 101;
           }

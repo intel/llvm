@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This test checks whether the free function command launch.
+// This test checks whether the free function command launch is valid.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/khr/free_function_commands.hpp>
