@@ -38,7 +38,6 @@ int main() {
   // launch_grouped with USM
   {
     int *Numbers = sycl::malloc_shared<int>(N, Queue);
-    constexpr size_t N = 1024;
     {
 
       sycl::khr::launch_grouped(Queue, sycl::range<2>(8, N / 8),
