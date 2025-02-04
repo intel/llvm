@@ -4,7 +4,7 @@
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
 // RUN: %{run} %t2.out
 //
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: target-nvidia || target-amd
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
