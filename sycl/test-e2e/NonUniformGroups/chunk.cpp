@@ -77,5 +77,3 @@ int main() {
   test<32>();
   return 0;
 }
-
-// #endif
