@@ -379,6 +379,41 @@ TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
   }
 }
 
+TEST_P(urEnqueueKernelLaunchWithUSM, WithMemcpy) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
+  size_t work_dim = 1;
+  size_t global_offset = 0;
+  size_t global_size = alloc_size / sizeof(uint32_t);
+  uint32_t fill_val = 42;
+
+  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, usmPtr));
+  ASSERT_SUCCESS(
+      urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
+
+  std::vector<uint32_t> input(global_size, 0);
+  std::vector<uint32_t> data(global_size);
+
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, usmPtr, input.data(),
+                                    alloc_size, 0, nullptr, nullptr));
+
+  ur_event_handle_t kernel_evt;
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim, &global_offset,
+                                       &global_size, nullptr, 0, nullptr,
+                                       &kernel_evt));
+
+  ur_event_handle_t memcpy_event;
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, data.data(), usmPtr,
+                                    alloc_size, 1, &kernel_evt, &memcpy_event));
+
+  ASSERT_SUCCESS(urEventWait(1, &memcpy_event));
+
+  // verify fill worked
+  for (size_t i = 0; i < global_size; i++) {
+    ASSERT_EQ(data[i], fill_val);
+  }
+}
+
 struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
 
   void SetUp() override {
