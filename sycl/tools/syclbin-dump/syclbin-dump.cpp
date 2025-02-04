@@ -10,7 +10,6 @@
 // human-readable format.
 //
 
-#include "detail/syclbin.hpp"
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/Object/SYCLBIN.h"
 #include "llvm/Support/CommandLine.h"
