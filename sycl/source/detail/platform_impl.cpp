@@ -572,6 +572,7 @@ typename Param::return_type platform_impl::get_info() const {
   return get_platform_info<Param>(this->getHandleRef(), getAdapter());
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 platform_impl::get_backend_info<info::platform::version>() const {
@@ -582,10 +583,12 @@ platform_impl::get_backend_info<info::platform::version>() const {
   }
   return get_info<info::platform::version>();
 }
+#endif
 
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 platform_impl::get_backend_info<info::device::version>() const {
@@ -602,7 +605,9 @@ platform_impl::get_backend_info<info::device::version>() const {
   return select_device(default_selector_v, Devices)
       .get_info<info::device::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 platform_impl::get_backend_info<info::device::backend_version>() const {
@@ -616,6 +621,7 @@ platform_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 // All devices on the platform must have the given aspect.
 bool platform_impl::has(aspect Aspect) const {
