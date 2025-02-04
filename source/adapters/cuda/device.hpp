@@ -11,6 +11,8 @@
 
 #include <ur/ur.hpp>
 
+#include <umf/memory_provider.h>
+
 #include "common.hpp"
 
 struct ur_device_handle_t_ {
@@ -79,9 +81,20 @@ public:
     // CUDA doesn't really have this concept, and could allow almost 100% of
     // global memory in one allocation, but is dependent on device usage.
     UR_CHECK_ERROR(cuDeviceTotalMem(&MaxAllocSize, cuDevice));
+
+    MemoryProviderDevice = nullptr;
+    MemoryProviderShared = nullptr;
   }
 
-  ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
+  ~ur_device_handle_t_() {
+    if (MemoryProviderDevice) {
+      umfMemoryProviderDestroy(MemoryProviderDevice);
+    }
+    if (MemoryProviderShared) {
+      umfMemoryProviderDestroy(MemoryProviderShared);
+    }
+    cuDevicePrimaryCtxRelease(CuDevice);
+  }
 
   native_type get() const noexcept { return CuDevice; };
 
@@ -117,6 +130,12 @@ public:
 
   // bookkeeping for mipmappedArray leaks in Mapping external Memory
   std::map<CUarray, CUmipmappedArray> ChildCuarrayFromMipmapMap;
+
+  // UMF CUDA memory provider for the device memory (UMF_MEMORY_TYPE_DEVICE)
+  umf_memory_provider_handle_t MemoryProviderDevice;
+
+  // UMF CUDA memory provider for the shared memory (UMF_MEMORY_TYPE_SHARED)
+  umf_memory_provider_handle_t MemoryProviderShared;
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);

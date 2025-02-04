@@ -13,10 +13,45 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
+#include "umf_helpers.hpp"
 
 #include <cassert>
 #include <cuda.h>
 #include <sstream>
+
+static ur_result_t
+CreateDeviceMemoryProviders(ur_platform_handle_t_ *Platform) {
+  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
+
+  umf_result_t UmfResult =
+      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  umf::cuda_params_unique_handle_t CUMemoryProviderParamsUnique(
+      CUMemoryProviderParams, umfCUDAMemoryProviderParamsDestroy);
+
+  for (auto &Device : Platform->Devices) {
+    ur_device_handle_t_ *device_handle = Device.get();
+    CUdevice device = device_handle->get();
+    CUcontext context = device_handle->getNativeContext();
+
+    // create UMF CUDA memory provider for the device memory
+    // (UMF_MEMORY_TYPE_DEVICE)
+    UmfResult = umf::createMemoryProvider(
+        CUMemoryProviderParamsUnique.get(), device, context,
+        UMF_MEMORY_TYPE_DEVICE, &device_handle->MemoryProviderDevice);
+    UMF_RETURN_UR_ERROR(UmfResult);
+
+    // create UMF CUDA memory provider for the shared memory
+    // (UMF_MEMORY_TYPE_SHARED)
+    UmfResult = umf::createMemoryProvider(
+        CUMemoryProviderParamsUnique.get(), device, context,
+        UMF_MEMORY_TYPE_SHARED, &device_handle->MemoryProviderShared);
+    UMF_RETURN_UR_ERROR(UmfResult);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t hPlatform, ur_platform_info_t PlatformInfoType,
@@ -98,6 +133,8 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
                   new ur_device_handle_t_{Device, Context, EvBase, &Platform,
                                           static_cast<uint32_t>(i)});
             }
+
+            UR_CHECK_ERROR(CreateDeviceMemoryProviders(&Platform));
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
             for (int i = 0; i < NumDevices; ++i) {
