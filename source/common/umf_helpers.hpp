@@ -16,6 +16,7 @@
 #include <umf/memory_pool_ops.h>
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
+#include <umf/providers/provider_cuda.h>
 #include <ur_api.h>
 
 #include "logger/ur_logger.hpp"
@@ -27,6 +28,24 @@
 #include <tuple>
 #include <utility>
 
+#define UMF_CHECK_ERROR(UmfResult) UR_CHECK_ERROR(umf::umf2urResult(UmfResult));
+
+#define UMF_RETURN_UMF_ERROR(UmfResult)                                        \
+  do {                                                                         \
+    umf_result_t UmfResult_ = (UmfResult);                                     \
+    if (UmfResult_ != UMF_RESULT_SUCCESS) {                                    \
+      return UmfResult_;                                                       \
+    }                                                                          \
+  } while (0)
+
+#define UMF_RETURN_UR_ERROR(UmfResult)                                         \
+  do {                                                                         \
+    umf_result_t UmfResult_ = (UmfResult);                                     \
+    if (UmfResult_ != UMF_RESULT_SUCCESS) {                                    \
+      return umf::umf2urResult(UmfResult_);                                    \
+    }                                                                          \
+  } while (0)
+
 namespace umf {
 
 using pool_unique_handle_t =
@@ -35,6 +54,9 @@ using pool_unique_handle_t =
 using provider_unique_handle_t =
     std::unique_ptr<umf_memory_provider_t,
                     std::function<void(umf_memory_provider_handle_t)>>;
+using cuda_params_unique_handle_t = std::unique_ptr<
+    umf_cuda_memory_provider_params_t,
+    std::function<umf_result_t(umf_cuda_memory_provider_params_handle_t)>>;
 
 #define DEFINE_CHECK_OP(op)                                                    \
   template <typename T> class HAS_OP_##op {                                    \
@@ -277,6 +299,33 @@ inline ur_result_t umf2urResult(umf_result_t umfResult) {
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   };
+}
+
+inline umf_result_t createMemoryProvider(
+    umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams,
+    int cuDevice, void *cuContext, umf_usm_memory_type_t memType,
+    umf_memory_provider_handle_t *provider) {
+
+  umf_result_t UmfResult =
+      umfCUDAMemoryProviderParamsSetContext(CUMemoryProviderParams, cuContext);
+  UMF_RETURN_UMF_ERROR(UmfResult);
+
+  UmfResult =
+      umfCUDAMemoryProviderParamsSetDevice(CUMemoryProviderParams, cuDevice);
+  UMF_RETURN_UMF_ERROR(UmfResult);
+
+  UmfResult =
+      umfCUDAMemoryProviderParamsSetMemoryType(CUMemoryProviderParams, memType);
+  UMF_RETURN_UMF_ERROR(UmfResult);
+
+  umf_memory_provider_handle_t umfCUDAprovider = nullptr;
+  UmfResult = umfMemoryProviderCreate(umfCUDAMemoryProviderOps(),
+                                      CUMemoryProviderParams, &umfCUDAprovider);
+  UMF_RETURN_UMF_ERROR(UmfResult);
+
+  *provider = umfCUDAprovider;
+
+  return UMF_RESULT_SUCCESS;
 }
 
 } // namespace umf
