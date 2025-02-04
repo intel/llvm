@@ -304,7 +304,7 @@ void shutdown_early() {
   if (!Handler)
     return;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION &&_WIN32
+#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
   if (xptiTraceEnabled())
     return; // When doing xpti tracing, we can't safely shutdown on Win.
             // TODO: figure out why XPTI prevents release.
@@ -331,7 +331,7 @@ void shutdown_late() {
   if (!Handler)
     return;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION &&_WIN32
+#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
   if (xptiTraceEnabled())
     return; // When doing xpti tracing, we can't safely shutdown on Win.
             // TODO: figure out why XPTI prevents release.
