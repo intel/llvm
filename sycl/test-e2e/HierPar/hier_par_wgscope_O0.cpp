@@ -9,7 +9,7 @@
 
 // RUN: %{run} %t.out
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 // This test checks correctness of hierarchical kernel execution when there is
