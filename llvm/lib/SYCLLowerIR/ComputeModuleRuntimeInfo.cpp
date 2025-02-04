@@ -472,16 +472,17 @@ PropSetRegTy computeModuleProperties(const Module &M,
   }
 
   if (const NamedMDNode *MD = M.getNamedMetadata("sycl_registered_kernels")) {
-    assert(MD->getNumOperands() == 1 &&
-           "Invalid sycl_registered_kernels metadata");
-    const MDNode *RegistredKernels = MD->getOperand(0);
-    for (const MDOperand &Op : RegistredKernels->operands()) {
-      const auto *RegisteredKernel = cast<MDNode>(Op);
-      assert(RegisteredKernel->getNumOperands() == 2 &&
-             "Invalid sycl_registered_kernels metadata");
-      PropSet.add(PropSetRegTy::SYCL_REGISTERED_KERNELS,
-                  cast<MDString>(RegisteredKernel->getOperand(0))->getString(),
-                  cast<MDString>(RegisteredKernel->getOperand(1))->getString());
+    if (MD->getNumOperands() == 1) {
+      const MDNode *RegistredKernels = MD->getOperand(0);
+      for (const MDOperand &Op : RegistredKernels->operands()) {
+        const auto *RegisteredKernel = cast<MDNode>(Op);
+        if (RegisteredKernel->getNumOperands() != 2)
+          continue;
+        PropSet.add(
+            PropSetRegTy::SYCL_REGISTERED_KERNELS,
+            cast<MDString>(RegisteredKernel->getOperand(0))->getString(),
+            cast<MDString>(RegisteredKernel->getOperand(1))->getString());
+      }
     }
   }
 
