@@ -70,34 +70,41 @@ struct ur_mem_handle_t_ : _ur_object {
   // Keeps device of this memory handle
   ur_device_handle_t UrDevice;
 
+  // Whether this is an image or buffer
+  enum mem_type_t { image, buffer };
+  mem_type_t mem_type;
+
   // Enumerates all possible types of accesses.
   enum access_mode_t { unknown, read_write, read_only, write_only };
 
   // Interface of the _ur_mem object
 
   // Get the Level Zero handle of the current memory object
-  virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t Device,
-                                  const ur_event_handle_t *phWaitEvents,
-                                  uint32_t numWaitEvents) = 0;
+  ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
+                          ur_device_handle_t Device,
+                          const ur_event_handle_t *phWaitEvents,
+                          uint32_t numWaitEvents);
 
   // Get a pointer to the Level Zero handle of the current memory object
-  virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                     ur_device_handle_t Device,
-                                     const ur_event_handle_t *phWaitEvents,
-                                     uint32_t numWaitEvents) = 0;
+  ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                             ur_device_handle_t Device,
+                             const ur_event_handle_t *phWaitEvents,
+                             uint32_t numWaitEvents);
 
   // Method to get type of the derived object (image or buffer)
-  virtual bool isImage() const = 0;
-
-  virtual ~ur_mem_handle_t_() = default;
+  bool isImage() const { return mem_type == mem_type_t::image; }
 
 protected:
-  ur_mem_handle_t_(ur_context_handle_t Context)
-      : UrContext{Context}, UrDevice{nullptr} {}
+  ur_mem_handle_t_(mem_type_t type, ur_context_handle_t Context)
+      : UrContext{Context}, UrDevice{nullptr}, mem_type(type) {}
 
-  ur_mem_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device)
-      : UrContext{Context}, UrDevice(Device) {}
+  ur_mem_handle_t_(mem_type_t type, ur_context_handle_t Context,
+                   ur_device_handle_t Device)
+      : UrContext{Context}, UrDevice(Device), mem_type(type) {}
+
+  // Since the destructor isn't virtual, callers must destruct it via _ur_buffer
+  // or _ur_image
+  ~ur_mem_handle_t_() {};
 };
 
 struct _ur_buffer final : ur_mem_handle_t_ {
@@ -110,7 +117,7 @@ struct _ur_buffer final : ur_mem_handle_t_ {
 
   // Sub-buffer constructor
   _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
-      : ur_mem_handle_t_(Parent->UrContext), Size(Size),
+      : ur_mem_handle_t_(mem_type_t::buffer, Parent->UrContext), Size(Size),
         SubBuffer{{Parent, Origin}} {
     // Retain the Parent Buffer due to the Creation of the SubBuffer.
     Parent->RefCount.increment();
@@ -127,16 +134,15 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   // up-to-date and any data copies needed for that are performed under
   // the hood.
   //
-  virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t Device,
-                                  const ur_event_handle_t *phWaitEvents,
-                                  uint32_t numWaitEvents) override;
-  virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                     ur_device_handle_t Device,
-                                     const ur_event_handle_t *phWaitEvents,
-                                     uint32_t numWaitEvents) override;
+  ur_result_t getBufferZeHandle(char *&ZeHandle, access_mode_t,
+                                ur_device_handle_t Device,
+                                const ur_event_handle_t *phWaitEvents,
+                                uint32_t numWaitEvents);
+  ur_result_t getBufferZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                   ur_device_handle_t Device,
+                                   const ur_event_handle_t *phWaitEvents,
+                                   uint32_t numWaitEvents);
 
-  bool isImage() const override { return false; }
   bool isSubBuffer() const { return SubBuffer != std::nullopt; }
 
   // Frees all allocations made for the buffer.
@@ -206,34 +212,32 @@ struct _ur_buffer final : ur_mem_handle_t_ {
 struct _ur_image final : ur_mem_handle_t_ {
   // Image constructor
   _ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage)
-      : ur_mem_handle_t_(UrContext), ZeImage{ZeImage} {}
+      : ur_mem_handle_t_(mem_type_t::image, UrContext), ZeImage{ZeImage} {}
 
   _ur_image(ur_context_handle_t UrContext, ze_image_handle_t ZeImage,
             bool OwnZeMemHandle)
-      : ur_mem_handle_t_(UrContext), ZeImage{ZeImage} {
+      : ur_mem_handle_t_(mem_type_t::image, UrContext), ZeImage{ZeImage} {
     OwnNativeHandle = OwnZeMemHandle;
   }
 
-  virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t,
-                                  const ur_event_handle_t *phWaitEvents,
-                                  uint32_t numWaitEvents) override {
+  ur_result_t getImageZeHandle(char *&ZeHandle, access_mode_t,
+                               ur_device_handle_t,
+                               const ur_event_handle_t *phWaitEvents,
+                               uint32_t numWaitEvents) {
     std::ignore = phWaitEvents;
     std::ignore = numWaitEvents;
     ZeHandle = reinterpret_cast<char *>(ZeImage);
     return UR_RESULT_SUCCESS;
   }
-  virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                     ur_device_handle_t,
-                                     const ur_event_handle_t *phWaitEvents,
-                                     uint32_t numWaitEvents) override {
+  ur_result_t getImageZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                  ur_device_handle_t,
+                                  const ur_event_handle_t *phWaitEvents,
+                                  uint32_t numWaitEvents) {
     std::ignore = phWaitEvents;
     std::ignore = numWaitEvents;
     ZeHandlePtr = reinterpret_cast<char **>(&ZeImage);
     return UR_RESULT_SUCCESS;
   }
-
-  bool isImage() const override { return true; }
 
   // Keep the descriptor of the image
   ZeStruct<ze_image_desc_t> ZeImageDesc;
