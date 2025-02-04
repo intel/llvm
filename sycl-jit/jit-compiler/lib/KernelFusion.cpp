@@ -281,6 +281,18 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                                       Verbose);
   }
 
+  // TODO(julian): Expose as a separate API.
+  auto Start = std::chrono::high_resolution_clock::now();
+  auto HashOrError = calculateSourceHash(SourceFile, IncludeFiles, UserArgList);
+  if (!HashOrError) {
+    return errorTo<RTCResult>(HashOrError.takeError(), "Source hashing failed");
+  }
+  auto SourceHash = *HashOrError;
+  auto Stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<double, std::milli> HashTime = Stop - Start;
+  llvm::dbgs() << "Hashing took " << int(HashTime.count()) << "ms\n";
+
   std::unique_ptr<llvm::Module> Module;
 
   if (CachedIR.size() > 0) {
