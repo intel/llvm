@@ -64,6 +64,7 @@ static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
     return CL_KERNEL_ATTRIBUTES;
   // NUM_REGS doesn't have a CL equivalent
   case UR_KERNEL_INFO_NUM_REGS:
+  case UR_KERNEL_INFO_SPILL_MEM_SIZE:
   default:
     return -1;
   }
@@ -76,6 +77,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     size_t *pPropSizeRet) {
   // OpenCL doesn't have a way to support this.
   if (propName == UR_KERNEL_INFO_NUM_REGS) {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  if (propName == UR_KERNEL_INFO_SPILL_MEM_SIZE) {
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   size_t CheckPropSize = 0;

@@ -125,6 +125,12 @@ etors:
       desc: "[char[]] Return null-terminated kernel attributes string."
     - name: NUM_REGS
       desc: "[uint32_t][optional-query] Return the number of registers used by the compiled kernel."
+    - name: SPILL_MEM_SIZE
+      desc: | 
+            [uint32_t[]][optional-query] Return the spill memory size allocated by the compiler.
+            The returned values correspond to the associated devices.
+            The order of the devices is guaranteed (i.e., the same as queried by `urDeviceGet`)
+            by the UR within a single application even if the runtime is reinitialized.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel Work Group information"
