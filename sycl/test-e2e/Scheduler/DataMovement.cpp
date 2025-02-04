@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out %debug_option
 // RUN: %{run} %t.out
 //
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 //
 //==-------------------------- DataMovement.cpp ----------------------------==//

@@ -1,5 +1,4 @@
-// REQUIRES: cuda
-// REQUIRES: build-and-run-mode
+// REQUIRES: target-nvidia
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
