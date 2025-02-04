@@ -13,7 +13,7 @@ the DPC++ implementation an extendable and lightweight wrapper around the
 multiple modules and corresponding metadata captured in the SYCLBIN file.
 The content of the SYCLBIN may be contained as an entry in the offloading binary
 format produced by the clang-offload-packager, as described in
-[../../clang/docs/ClangOffloadPackager.rst](ClangOffloadPackager.rst).
+[ClangOffloadPackager.rst](../../clang/docs/ClangOffloadPackager.rst).
 
 The following illustration gives an overview of how the file format is
 structured.
@@ -153,28 +153,37 @@ describing the change.
  * Initial version of the layout.
 
 
-== Clang driver changes
+## Clang driver changes
 
 The clang driver needs to accept the following new flags:
 
-| Option          | Description                                                      |
-| --------------- | ---------------------------------------------------------------- |
-| `-fsyclbin`     | If this option is set, the output of the invocation is a SYCLBIN |
-|                 | file with the .syclbin file extension. This skips the            |
-|                 | host-compilation invocation of the typical `-fsycl` pipeline,    |
-|                 | instead passing the output of the clang-offloat-packager         |
-|                 | invocation to clang-linker-wrapper together with the new         |
-|                 | `--syclbin` flag.                                                |
-|                 |                                                                  |
-|                 | Setting this option will override `-fsycl` and                   |
-|                 |`-fsycl-device-only`.                                             |
-|                 |                                                                  |
-|                 | This option currently requires `--offload-new-driver` to be set. |
-| --------------- | ---------------------------------------------------------------- |
-| `--offload-ir`  | *TODO*                                                           |
-| --------------- | ---------------------------------------------------------------- |
-| `--offload-rdc` | This is an alias of `-fgpu-rdc`.                                 |
-| --------------- | ---------------------------------------------------------------- |
+<table>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>`-fsyclbin`</td>
+<td>
+If this option is set, the output of the invocation is a SYCLBIN file with the
+.syclbin file extension. This skips the host-compilation invocation of the typical
+`-fsycl` pipeline, instead passing the output of the clang-offloat-packager
+invocation to clang-linker-wrapper together with the new `--syclbin` flag.
+
+Setting this option will override `-fsycl` and `-fsycl-device-only`.
+
+This option currently requires `--offload-new-driver` to be set.
+</td>
+</tr>
+<tr>
+<td>`--offload-ir`</td>
+<td>*TODO*</td>
+</tr>
+<tr>
+<td>`--offload-rdc`</td>
+<td>This is an alias of `-fgpu-rdc`.</td>
+</tr>
+</table>
 
 Additionally, `-fsycl-link` should work with .syclbin files. Semantics of how
 SYCLBIN files are linked together is yet to be specified.
@@ -183,11 +192,10 @@ SYCLBIN files are linked together is yet to be specified.
 ## clang-linker-wrapper changes
 
 The clang-linker-wrapper is responsible for doing post-processing and linking of
-device binaries, as described in
-link:OffloadDesign.rst[OffloadDesign.md].
+device binaries, as described in [OffloadDesign.md](OffloadDesign.md).
 However, to support SYCLBIN files, the clang-linker-wrapper must be able to
 unpack an offload binary (as described in
-link:../../clang/docs/ClangOffloadPackager.rst[ClangOffloadPackager.rst])
+[ClangOffloadPackager.rst](../../clang/docs/ClangOffloadPackager.rst))
 directly, instead of extracting it from a host binary. This should be done when
 a new flag, `--syclbin`, is passed. In this case, the clang-linker-wrapper is
 responsible to package the resulting device binaries and produced metadata into
@@ -202,7 +210,7 @@ wrap the device code in and link.
 ## SYCL runtime library changes
 
 Using the interfaces from the
-[../extensions/proposed/sycl_ext_oneapi_syclbin.asciidoc](sycl_ext_oneapi_syclbin)
+[sycl_ext_oneapi_syclbin](../extensions/proposed/sycl_ext_oneapi_syclbin.asciidoc)
 extension, the runtime must be able to parse the SYCLBIN format, as described in
 the [SYCLBIN binary format section](#syclbin_format). To avoid large amounts of
 code duplication, the runtime uses the implementation of SYCLBIN reading and
