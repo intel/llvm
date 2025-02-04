@@ -177,7 +177,6 @@ class Configuration:
         #     self.__sanitize(all_opts["benchmark_log"]["error"],
         #                     "benchmark_log.error")
 
-
         # Fields that are supposed to be python objects need to be changed to
         # python objects manually:
 
