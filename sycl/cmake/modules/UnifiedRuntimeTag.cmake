@@ -1,4 +1,7 @@
-# commit e2df8acd37c3c159364cfdf9dfdc1be35b71779e
-# Merge: 992ff37f 3a31ffee
+# commit 08d36b76a5b1c4f080e3301507a39525ab5ab365
+# Merge: 4c504dbc e6b61c67
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-set(UNIFIED_RUNTIME_TAG e6b61c6768f9e12b46ed921a4bdf3283de53772f)
+# Date:   Tue Feb 4 13:14:19 2025 +0000
+#     Merge pull request #2614 from kurapov-peter/spills
+#     Add UR_KERNEL_INFO_SPILL_MEM_SIZE kernel info prop
+set(UNIFIED_RUNTIME_TAG 08d36b76a5b1c4f080e3301507a39525ab5ab365)
