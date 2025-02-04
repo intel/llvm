@@ -69,6 +69,15 @@ runs:
       git add .
       git commit -m "[GHA] Aggregate median data from $SANITIZED_TIMESTAMP to $(date +%Y%m%d_%H%M%S)"
       git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
+  - name: Find aggregated average results artifact here
+    if: always()
+    shell: bash
+    run: |
+      cat << EOF
+      #
+      # Artifact link for aggregated averages here:
+      #
+      EOF
   - name: Archive new medians
     if: always()
     uses: actions/upload-artifact@v4

@@ -54,13 +54,13 @@ runs:
       git add .
       git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
       git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
-  - name: Find workflow artifact below
+  - name: Find benchmark result artifact here
     if: always()
     shell: bash
     run: |
       cat << EOF
       #
-      # Artifact link for benchmark results below:
+      # Artifact link for benchmark results here:
       #
       EOF
   - name: Archive compute-benchmark results
