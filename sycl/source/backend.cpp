@@ -161,7 +161,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
 
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
                                const context &Context, backend Backend) {
-  return make_event(NativeHandle, Context, false, Backend);
+  return make_event(NativeHandle, Context, true /* KeepOwnership */, Backend);
 }
 
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
@@ -179,9 +179,6 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
       NativeHandle, ContextImpl->getHandleRef(), &Properties, &UrEvent);
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(UrEvent, Context));
-
-  if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urEventRetain>(UrEvent);
   return Event;
 }
 
@@ -203,9 +200,6 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "urProgramCreateWithNativeHandle resulted in a null program handle.");
-
-  if (ContextImpl->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urProgramRetain>(UrProgram);
 
   std::vector<ur_device_handle_t> ProgramDevices;
   uint32_t NumDevices = 0;
@@ -310,7 +304,8 @@ std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(ur_native_handle_t NativeHandle,
                    const context &TargetContext, bundle_state State,
                    backend Backend) {
-  return make_kernel_bundle(NativeHandle, TargetContext, false, State, Backend);
+  return make_kernel_bundle(NativeHandle, TargetContext,
+                            true /* KeepOwnership*/, State, Backend);
 }
 
 kernel make_kernel(const context &TargetContext,
@@ -351,9 +346,6 @@ kernel make_kernel(const context &TargetContext,
       NativeHandle, ContextImpl->getHandleRef(), UrProgram, &Properties,
       &UrKernel);
 
-  if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urKernelRetain>(UrKernel);
-
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
       std::make_shared<kernel_impl>(UrKernel, ContextImpl, KernelBundleImpl));
@@ -364,7 +356,7 @@ kernel make_kernel(ur_native_handle_t NativeHandle,
   return make_kernel(
       TargetContext,
       get_empty_interop_kernel_bundle<bundle_state::executable>(TargetContext),
-      NativeHandle, false, Backend);
+      NativeHandle, true /* KeepOwnership */, Backend);
 }
 
 } // namespace detail

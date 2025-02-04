@@ -49,15 +49,12 @@ void buffer_impl::destructorNotification(void *UserObj) {
 void buffer_impl::addInteropObject(
     std::vector<ur_native_handle_t> &Handles) const {
   if (MOpenCLInterop) {
-    if (std::find(Handles.begin(), Handles.end(),
-                  ur::cast<ur_native_handle_t>(MInteropMemObject)) ==
+    const AdapterPtr &Adapter = getAdapter();
+    ur_native_handle_t NativeHandle = 0;
+    Adapter->call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
+                                                   &NativeHandle);
+    if (std::find(Handles.begin(), Handles.end(), NativeHandle) ==
         Handles.end()) {
-      const AdapterPtr &Adapter = getAdapter();
-      Adapter->call<UrApiKind::urMemRetain>(
-          ur::cast<ur_mem_handle_t>(MInteropMemObject));
-      ur_native_handle_t NativeHandle = 0;
-      Adapter->call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
-                                                     &NativeHandle);
       Handles.push_back(NativeHandle);
     }
   }
@@ -85,10 +82,6 @@ buffer_impl::getNativeVector(backend BackendName) const {
       continue;
 
     auto Adapter = Platform->getAdapter();
-
-    if (Platform->getBackend() == backend::opencl) {
-      Adapter->call<UrApiKind::urMemRetain>(NativeMem);
-    }
 
     ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be

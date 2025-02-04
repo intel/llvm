@@ -24,14 +24,13 @@ inline namespace _V1 {
 
 event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
-event::event(cl_event ClEvent, const context &SyclContext)
-    : impl(std::make_shared<detail::event_impl>(
-          detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
-  // This is a special interop constructor for OpenCL, so the event must be
-  // retained.
-  // TODO(pi2ur): Don't just cast from cl_event above
-  impl->getAdapter()->call<detail::UrApiKind::urEventRetain>(
-      detail::ur::cast<ur_event_handle_t>(ClEvent));
+event::event(cl_event ClEvent, const context &SyclContext) {
+  ur_event_handle_t hEvent = nullptr;
+  impl->getAdapter()->call<detail::UrApiKind::urEventCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(ClEvent),
+      detail::getSyclObjImpl(SyclContext)->getHandleRef(), nullptr, &hEvent);
+
+  impl = std::make_shared<detail::event_impl>(hEvent, SyclContext);
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }

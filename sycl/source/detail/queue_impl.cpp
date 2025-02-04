@@ -731,8 +731,6 @@ void queue_impl::destructorNotification() {
 
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   const AdapterPtr &Adapter = getAdapter();
-  if (getContextImplPtr()->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urQueueRetain>(MQueues[0]);
   ur_native_handle_t Handle{};
   ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
                                       nullptr, nullptr};
