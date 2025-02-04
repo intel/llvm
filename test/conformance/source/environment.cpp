@@ -152,16 +152,6 @@ void DevicesEnvironment::SetUp() {
   }
 }
 
-void DevicesEnvironment::TearDown() {
-  PlatformEnvironment::TearDown();
-  for (auto device_tuple : devices) {
-    if (urDeviceRelease(device_tuple.device)) {
-      error = "urDeviceRelease() failed";
-      return;
-    }
-  }
-}
-
 KernelsEnvironment *KernelsEnvironment::instance = nullptr;
 
 KernelsEnvironment::KernelsEnvironment(int argc, char **argv,
