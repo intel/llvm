@@ -29,12 +29,12 @@ class OneAPI:
 
         package = download(self.oneapi_dir, url, f'package_{name}.sh')
         try:
-            print(f"installing f{name}")
+            print(f"installing {name}")
             run(f"sh {package} -a -s --eula accept --install-dir {self.oneapi_dir} --instance f{self.ONEAPI_BENCHMARK_INSTANCE_ID}")
         except:
             print("oneAPI installation likely exists already")
             return
-        print(f"f{name} installation complete")
+        print(f"{name} installation complete")
 
     def package_dir(self, package, dir):
         return os.path.join(self.oneapi_dir, package, 'latest', dir)
