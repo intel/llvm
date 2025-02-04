@@ -48,6 +48,7 @@ class Compare:
                         exit(1)
 
                     if sample_value > max_tolerated:
+                        # Log failure if fail, otherwise proceed as usual
                         print(f"\n-- FAILED {benchmark_name}::{test}")
                         print(
                             f"  {metric}: {sample_value} -- Historic avg. {test_hist_avg[metric]} (max tolerance {threshold*100}%: {max_tolerated})\n"

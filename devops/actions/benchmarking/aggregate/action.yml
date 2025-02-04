@@ -2,9 +2,9 @@ name: 'Aggregate compute-benchmark results and produce historical averages'
 
 # The benchmarking workflow in sycl-linux-run-tests.yml passes or fails based on
 # how the benchmark results compare to a historical average: This historical
-# average is calculated in this workflow, which aggregates historical data and
-# produces measures of central tendency (median in this case) used for this
-# purpose.
+# average is calculated in this composite workflow, which aggregates historical
+# data and produces measures of central tendency (median in this case) used for
+# this purpose.
 #
 # This action assumes that /devops has been checked out in ./devops. This action
 # also assumes that GITHUB_TOKEN was properly set in env, because according to

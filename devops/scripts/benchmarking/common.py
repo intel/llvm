@@ -10,14 +10,18 @@ class Validate:
 
     @staticmethod
     def filepath(path: str) -> bool:
+        """
+        Returns True if path is clean (no illegal characters), otherwise False.
+        """
         filepath_re = re.compile(r"[a-zA-Z0-9\/\._\-]+")
         return filepath_re.match(path) is not None
 
     @staticmethod
-    # TODO use config
     def timestamp(t: str) -> bool:
+        """
+        Returns True if t is in form YYYYMMDD_HHMMSS, otherwise False.
+        """
         timestamp_re = re.compile(
-            # YYYYMMDD_HHMMSS
             r"^\d{4}(0[1-9]|1[0-2])([0-2][0-9]|3[01])_([01][0-9]|2[0-3])[0-5][0-9][0-5][0-9]$"
         )
         return timestamp_re.match(t) is not None
@@ -25,7 +29,8 @@ class Validate:
     @staticmethod
     def sanitize_stat(stat: str) -> float:
         """
-        Sanitize statistics found in compute-benchmark output csv files. Returns float if sanitized, None if not sanitizable
+        Sanitize statistics found in compute-benchmark output csv files. Returns
+        float if sanitized, None if not sanitizable.
         """
         # Get rid of %
         if stat[-1] == "%":
@@ -172,8 +177,9 @@ class Configuration:
         #     self.__sanitize(all_opts["benchmark_log"]["error"],
         #                     "benchmark_log.error")
 
+
         # Fields that are supposed to be python objects need to be changed to
-        # python objects:
+        # python objects manually:
 
         # metrics.recorded
         m_rec_str = self.__sanitize(all_opts["metrics"]["recorded"], "metrics.recorded")
