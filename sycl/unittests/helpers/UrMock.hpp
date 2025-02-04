@@ -83,7 +83,7 @@ inline ur_result_t mock_urDeviceGet(void *pParams) {
 inline ur_result_t mock_urDeviceRetain(void *) { return UR_RESULT_SUCCESS; }
 inline ur_result_t mock_urDeviceRelease(void *) { return UR_RESULT_SUCCESS; }
 
-template <ur_adapter_backend_t Backend>
+template <ur_backend_t Backend>
 inline ur_result_t mock_urAdapterGetInfo(void *pParams) {
   auto params = reinterpret_cast<ur_adapter_get_info_params_t *>(pParams);
 
@@ -100,7 +100,7 @@ inline ur_result_t mock_urAdapterGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-template <ur_platform_backend_t Backend>
+template <ur_backend_t Backend>
 inline ur_result_t mock_urPlatformGetInfo(void *pParams) {
   auto params = reinterpret_cast<ur_platform_get_info_params_t *>(pParams);
   constexpr char MockPlatformName[] = "Mock platform";
@@ -518,16 +518,14 @@ public:
 #define ADD_DEFAULT_OVERRIDE(func_name, func_override)                         \
   mock::getCallbacks().set_replace_callback(#func_name,                        \
                                             &MockAdapter::func_override);
-    ADD_DEFAULT_OVERRIDE(
-        urAdapterGetInfo,
-        mock_urAdapterGetInfo<convertToUrAdapterBackend(Backend)>)
+    ADD_DEFAULT_OVERRIDE(urAdapterGetInfo,
+                         mock_urAdapterGetInfo<convertToUrBackend(Backend)>)
     ADD_DEFAULT_OVERRIDE(urPlatformGet, mock_urPlatformGet)
     ADD_DEFAULT_OVERRIDE(urDeviceGet, mock_urDeviceGet)
     ADD_DEFAULT_OVERRIDE(urDeviceRetain, mock_urDeviceRetain)
     ADD_DEFAULT_OVERRIDE(urDeviceRelease, mock_urDeviceRelease)
-    ADD_DEFAULT_OVERRIDE(
-        urPlatformGetInfo,
-        mock_urPlatformGetInfo<convertToUrPlatformBackend(Backend)>)
+    ADD_DEFAULT_OVERRIDE(urPlatformGetInfo,
+                         mock_urPlatformGetInfo<convertToUrBackend(Backend)>)
     ADD_DEFAULT_OVERRIDE(urDeviceGetInfo, mock_urDeviceGetInfo)
     ADD_DEFAULT_OVERRIDE(urProgramGetInfo, mock_urProgramGetInfo)
     ADD_DEFAULT_OVERRIDE(urContextGetInfo, mock_urContextGetInfo)
@@ -580,39 +578,21 @@ public:
 private:
   // These two helpers are needed to enable arbitrary backend selection
   // at compile time.
-  static constexpr ur_platform_backend_t
-  convertToUrPlatformBackend(const sycl::backend SyclBackend) {
+  static constexpr ur_backend_t
+  convertToUrBackend(const sycl::backend SyclBackend) {
     switch (SyclBackend) {
     case sycl::backend::opencl:
-      return UR_PLATFORM_BACKEND_OPENCL;
+      return UR_BACKEND_OPENCL;
     case sycl::backend::ext_oneapi_level_zero:
-      return UR_PLATFORM_BACKEND_LEVEL_ZERO;
+      return UR_BACKEND_LEVEL_ZERO;
     case sycl::backend::ext_oneapi_cuda:
-      return UR_PLATFORM_BACKEND_CUDA;
+      return UR_BACKEND_CUDA;
     case sycl::backend::ext_oneapi_hip:
-      return UR_PLATFORM_BACKEND_HIP;
+      return UR_BACKEND_HIP;
     case sycl::backend::ext_oneapi_native_cpu:
-      return UR_PLATFORM_BACKEND_NATIVE_CPU;
+      return UR_BACKEND_NATIVE_CPU;
     default:
-      return UR_PLATFORM_BACKEND_UNKNOWN;
-    }
-  }
-
-  static constexpr ur_adapter_backend_t
-  convertToUrAdapterBackend(sycl::backend SyclBackend) {
-    switch (SyclBackend) {
-    case sycl::backend::opencl:
-      return UR_ADAPTER_BACKEND_OPENCL;
-    case sycl::backend::ext_oneapi_level_zero:
-      return UR_ADAPTER_BACKEND_LEVEL_ZERO;
-    case sycl::backend::ext_oneapi_cuda:
-      return UR_ADAPTER_BACKEND_CUDA;
-    case sycl::backend::ext_oneapi_hip:
-      return UR_ADAPTER_BACKEND_HIP;
-    case sycl::backend::ext_oneapi_native_cpu:
-      return UR_ADAPTER_BACKEND_NATIVE_CPU;
-    default:
-      return UR_ADAPTER_BACKEND_UNKNOWN;
+      return UR_BACKEND_UNKNOWN;
     }
   }
 };
