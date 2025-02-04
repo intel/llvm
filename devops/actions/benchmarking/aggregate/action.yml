@@ -26,7 +26,7 @@ runs:
     shell: bash
     run: |
       # DO NOT use inputs.lookback_days directly, only use SANITIZED_TIMESTAMP.
-      SANITIZED_LOOKBACK_DAYS="$(echo '${{ inputs.lookback_days }}' | grep -o "^[0-9]+$")"
+      SANITIZED_LOOKBACK_DAYS="$(echo '${{ inputs.lookback_days }}' | grep -oE "^[0-9]+$")"
       if [ -z "$SANITIZED_LOOKBACK_DAYS" ]; then
         echo "Please ensure inputs.lookback_days is a number."
         exit 1
