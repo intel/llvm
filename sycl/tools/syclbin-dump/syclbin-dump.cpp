@@ -18,6 +18,7 @@
 #include <iostream>
 #include <iterator>
 #include <string>
+#include <utility>
 
 using namespace llvm;
 
@@ -48,6 +49,8 @@ std::string_view IRTypeToString(llvm::object::SYCLBIN::IRType IRType) {
 }
 
 int main(int argc, char **argv, char *env[]) {
+  std::ignore = env;
+
   cl::opt<std::string> TargetSYCLBIN(
       cl::Positional, cl::desc("<target syclbin>"), cl::Required);
 
