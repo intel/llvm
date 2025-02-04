@@ -442,6 +442,23 @@ so the implementation can rely on `get_max_local_range()` range size:
 
 If partition is uneven the behavior is undefined.
 
+== Alignment
+
+The following property can be used to provide an alignment of the pointer.
+It allows to avoid dynamic alignment check.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+struct alignment_key {
+  template <int K>
+  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
+};
+
+template<int K>
+inline constexpr alignment_key::value_t<K> alignment;
+} // namespace sycl::ext::oneapi::experimental
+```
+
 == Usage Example
 
 Example shows the simplest case without local memory usage of blocked load
@@ -472,7 +489,7 @@ q.submit([&](sycl::handler& cgh) {
             auto offset = g.get_group_id(0) * g.get_local_range(0) *
                                        items_per_thread;
 
-            auto props = sycl_exp::properties{sycl_exp::contiguous_memory};
+            auto props = sycl_exp::properties{sycl_exp::contiguous_memory, sycl_exp::alignment<16>};
 
             sycl_exp::group_load(g, input + offset, sycl::span{ data }, props);
 

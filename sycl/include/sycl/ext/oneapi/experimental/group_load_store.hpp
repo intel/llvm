@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/sycl_span.hpp>
@@ -181,6 +182,28 @@ struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
       detail::ConvertToOpenCLType_t<vec<block_type, BlockInfoTy::num_blocks>>>;
 };
 
+template <typename IteratorT, int RequiredAlign, typename Properties,
+          typename = void>
+struct is_statically_known_aligned {
+  using value_type =
+      remove_decoration_t<typename std::iterator_traits<IteratorT>::value_type>;
+  static constexpr bool value = (alignof(value_type) >= RequiredAlign);
+};
+
+template <typename IteratorT, int RequiredAlign, typename Properties>
+struct is_statically_known_aligned<
+    IteratorT, RequiredAlign, Properties,
+    typename std::enable_if_t<
+        Properties::template has_property<alignment_key>()>> {
+  using value_type =
+      remove_decoration_t<typename std::iterator_traits<IteratorT>::value_type>;
+
+  static constexpr bool value =
+      (Properties::template get_property<alignment_key>().value >=
+       RequiredAlign) ||
+      (alignof(value_type) >= RequiredAlign);
+};
+
 // Returns either a pointer decorated with the deduced address space, suitable
 // to use in a block read/write builtin, or nullptr if some legality conditions
 // aren't satisfied. If deduced address space is generic then returned pointer
@@ -189,8 +212,6 @@ struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
 template <int RequiredAlign, std::size_t ElementsPerWorkItem,
           typename IteratorT, typename Properties>
 auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
-  using value_type =
-      remove_decoration_t<typename std::iterator_traits<IteratorT>::value_type>;
   using iter_no_cv = std::remove_cv_t<IteratorT>;
 
   constexpr bool blocked = detail::isBlocked(props);
@@ -221,10 +242,6 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
     // compiler to optimize the IR further.
     __builtin_assume(iter != nullptr);
 
-    // No early return as that would mess up return type deduction.
-    bool is_aligned = alignof(value_type) >= RequiredAlign ||
-                      reinterpret_cast<uintptr_t>(iter) % RequiredAlign == 0;
-
     using block_pointer_type =
         typename BlockTypeInfo<BlkInfo>::block_pointer_type;
 
@@ -235,7 +252,14 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
                   deduced_address_space ==
                       access::address_space::global_space ||
                   deduced_address_space == access::address_space::local_space) {
-      return is_aligned ? reinterpret_cast<block_pointer_type>(iter) : nullptr;
+      if constexpr (is_statically_known_aligned<IteratorT, RequiredAlign,
+                                                Properties>::value) {
+        return reinterpret_cast<block_pointer_type>(iter);
+      } else {
+        return reinterpret_cast<uintptr_t>(iter) % RequiredAlign == 0
+                   ? reinterpret_cast<block_pointer_type>(iter)
+                   : nullptr;
+      }
     } else {
       return nullptr;
     }
@@ -266,11 +290,19 @@ group_load(Group g, InputIteratorT in_ptr,
   } else if constexpr (!std::is_same_v<Group, sycl::sub_group>) {
     return group_load(g, in_ptr, out, use_naive{});
   } else {
-    auto ptr =
-        detail::get_block_op_ptr<4 /* load align */, ElementsPerWorkItem>(
-            in_ptr, props);
-    if (!ptr)
-      return group_load(g, in_ptr, out, use_naive{});
+    constexpr int RequiredAlign = 4;
+    auto ptr = detail::get_block_op_ptr<RequiredAlign, ElementsPerWorkItem>(
+        in_ptr, props);
+
+    if constexpr (detail::is_statically_known_aligned<
+                      InputIteratorT, RequiredAlign, Properties>::value) {
+      if constexpr (std::is_same_v<std::nullptr_t, decltype(ptr)>) {
+        return group_load(g, in_ptr, out, use_naive{});
+      }
+    } else {
+      if (!ptr)
+        return group_load(g, in_ptr, out, use_naive{});
+    }
 
     if constexpr (!std::is_same_v<std::nullptr_t, decltype(ptr)>) {
       // Do optimized load.
@@ -336,9 +368,9 @@ group_load(Group g, InputIteratorT in_ptr,
         for (int i = 0; i < ElementsPerWorkItem; ++i)
           out[i] = values[i];
       }
-
-      return;
     }
+
+    return;
   }
 }
 
@@ -365,11 +397,19 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
   } else if constexpr (!std::is_same_v<Group, sycl::sub_group>) {
     return group_store(g, in, out_ptr, use_naive{});
   } else {
-    auto ptr =
-        detail::get_block_op_ptr<16 /* store align */, ElementsPerWorkItem>(
-            out_ptr, props);
-    if (!ptr)
-      return group_store(g, in, out_ptr, use_naive{});
+    constexpr int RequiredAlign = 16;
+    auto ptr = detail::get_block_op_ptr<RequiredAlign, ElementsPerWorkItem>(
+        out_ptr, props);
+
+    if constexpr (detail::is_statically_known_aligned<
+                      OutputIteratorT, RequiredAlign, Properties>::value) {
+      if constexpr (std::is_same_v<std::nullptr_t, decltype(ptr)>) {
+        return group_store(g, in, out_ptr, use_naive{});
+      }
+    } else {
+      if (!ptr)
+        return group_store(g, in, out_ptr, use_naive{});
+    }
 
     if constexpr (!std::is_same_v<std::nullptr_t, decltype(ptr)>) {
       using block_info = typename detail::BlockTypeInfo<
