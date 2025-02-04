@@ -73,7 +73,7 @@ public:
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerEarlyShutdownHandler();
+  static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
   void endDeferredRelease();

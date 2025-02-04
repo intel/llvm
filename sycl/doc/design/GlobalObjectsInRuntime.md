@@ -55,9 +55,49 @@ Deinitialization is platform-specific. Upon application shutdown, the DPC++
 runtime frees memory pointed by `GlobalHandler` global pointer, which triggers
 destruction of nested `std::unique_ptr`s.
 
+### Shutdown Tasks and Challenges
+
+As the user's app ends, SYCL's primary goal is to release any UR adapters that 
+have been gotten, and teardown the plugins/adapters themselves.  Additionally, 
+we need to stop deferring any new buffer releases and clean up any memory 
+whose release was deferred. 
+
+To this end, the shutdown occurs in two phases: early and late.  In the early
+shutdown we stop deferring, tell the scheduler to prepare for release, and
+try releasing the memory that has been deferred so far.  Following this, if 
+the user has any global or static handles to sycl objects, they'll be destroyed.
+Finally, the late shutdown routine is called the last of the UR handles and 
+adapters are let go, as is the GlobalHandler itself.
+
+#### Threads
+The deferred memory marshalling is built on a thread pool, but there is a
+challenge here in that on Windows, once the end of the users main() is reached
+and their app is shutting down, the Windows OS will abandon all remaining 
+in-flight threads. These threads can be .join() but they simply return instantly,
+the threads are not completed. Further any thread specific variables
+(or thread_local static vars) will NOT have their destructors called.  Note
+that the standard while-loop-over-condition-var pattern will cause a hang - 
+we cannot "wait" on abandoned threads. 
+On Windows, short of adding some user called API to signal this, there is 
+no way to detect or avoid this. None of the "end-of-library" lifecycle events
+occurs before the threads are abandoned.  ( not std::atexit(), not globals or 
+static, or static thread_local var destruction, not DllMain(DLL_PROCESS_DETACH) )
+This means that on Windows, once we arrive at shutdown_early we cannot wait on
+host events or the thread pool. 
+
+For the deferred memory itself, there is no issue here. The Windows OS will
+reclaim the memory for us. The issue of which we must be wary is placing UR 
+handles (and simiar) in host threads. The RAII mechanism of unique and 
+shared pointers will not work in any thread that is abandoned on Windows. 
+
+
 ### Linux
 
-On Linux DPC++ runtime uses `__attribute__((destructor))` property with low
+On Linux, the "eary_shutdown()" is begun by the destruction of a static
+StaticVarShutdownHandler object, which is initialized by 
+platform::get_platforms().
+
+late_shutdown() timing uses `__attribute__((destructor))` property with low
 priority value 110. This approach does not guarantee, that `GlobalHandler`
 destructor is the last thing to run, as user code may contain a similar function
 with the same priority value. At the same time, users may specify priorities
@@ -72,10 +112,10 @@ times, the memory leak may impact code performance.
 
 ### Windows
 
-To identify shutdown moment on Windows, DPC++ runtime uses default `DllMain`
-function with `DLL_PROCESS_DETACH` reason. This guarantees, that global objects
-deinitialization happens right before `sycl.dll` is unloaded from process
-address space.
+Differing from Linux, on Windows the "early_shutdown()" is begun by the DLL `DllMain`
+function with `DLL_PROCESS_DETACH` reason. 
+
+The "late_shutdown()" is begun by the destruction of a static StaticVarShutdownHandler object, which is initialized by platform::get_platforms().  ( On linux, this is when we do "early_shutdown()". Go figure.)  This is as late as we can manage, but it is later than any user application global, static, or thread_local variable destruction.
 
 ### Recommendations for DPC++ runtime developers
 

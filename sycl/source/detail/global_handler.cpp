@@ -232,22 +232,29 @@ void GlobalHandler::releaseDefaultContexts() {
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
-struct EarlyShutdownHandler {
-  ~EarlyShutdownHandler() {
+// Shutdown is split into two parts. shutdown_early() stops any more
+// objects from being deferred and takes an initial pass at freeing them.
+// shutdown_late() finishes and releases the adapters and the GlobalHandler.
+// For Windows, early shutdown is called from DllMain, and late shutdown is
+// here. For Linux, early shutdown is here, and late shutdown is called from
+// a low priority destructor.
+struct StaticVarShutdownHandler {
+  ~StaticVarShutdownHandler() {
     try {
-      // For Linux. Windows calls from DllMain
-#ifndef _WIN32
+#ifdef _WIN32
+      shutdown_late();
+#else
       shutdown_early();
 #endif
     } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~EarlyShutdownHandler",
-                                        e);
+      __SYCL_REPORT_EXCEPTION_TO_STREAM(
+          "exception in ~StaticVarShutdownHandler", e);
     }
   }
 };
 
-void GlobalHandler::registerEarlyShutdownHandler() {
-  static EarlyShutdownHandler handler{};
+void GlobalHandler::registerStaticVarShutdownHandler() {
+  static StaticVarShutdownHandler handler{};
 }
 
 bool GlobalHandler::isOkToDefer() const { return OkToDefer; }
@@ -374,7 +381,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       dllRefCount--;
       if (dllRefCount == 0) {
         safe_call([]() { shutdown_early(); });
-        safe_call([]() { shutdown_late(); });
       }
       break;
     case DLL_PROCESS_ATTACH:
