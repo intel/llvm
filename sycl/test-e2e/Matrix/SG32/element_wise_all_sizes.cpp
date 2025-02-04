@@ -14,8 +14,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 
-#include "../element_wise_all_sizes_impl.hpp"
+#include "element_wise_all_sizes_impl.hpp"
