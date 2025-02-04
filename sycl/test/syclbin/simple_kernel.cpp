@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl-device-only -Xclang -emit-llvm-bc -o %t.bc %s
 // RUN: clang-offload-packager -o %t.out "--image=file=%t.bc,triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts="
-// RUN: clang-linker-wrapper --syclbin --host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries="libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cassert.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o" -sycl-device-library-location=%sycl_libs_dir --sycl-post-link-options="-device-globals" --llvm-spirv-options=-spirv-max-version=1.4 -o %t.syclbin %t.out
+// RUN: clang-linker-wrapper --syclbin --host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries="libsycl-crt.new.o" -sycl-device-library-location=%sycl_libs_dir --sycl-post-link-options="-device-globals" --llvm-spirv-options=-spirv-max-version=1.4 -o %t.syclbin %t.out
 // RUN: syclbin-dump %t.syclbin | FileCheck %s
 
 // Checks the generated SYCLBIN contents of a simple SYCL free function kernel.

@@ -30,7 +30,6 @@
 namespace llvm {
 
 class Function;
-class Module;
 
 namespace cl {
 class OptionCategory;

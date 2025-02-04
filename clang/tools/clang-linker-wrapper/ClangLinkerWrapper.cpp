@@ -555,7 +555,7 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-compression-level=") + Arg->getValue()));
 
-  SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux"};
+  SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-gnu"};
   for (const auto &[File, Arch] : InputFiles)
     Targets.push_back(Saver.save("hip-amdgcn-amd-amdhsa--" + Arch));
   CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
@@ -1189,7 +1189,7 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 
 // Produce SYCLBIN data from a split module
 static Expected<StringRef>
-PackageSYCLBIN(const SmallVector<SYCLBIN::ModuleDesc> &Modules) {
+packageSYCLBIN(const SmallVector<SYCLBIN::ModuleDesc> &Modules) {
   auto ErrorOrSYCLBIN = SYCLBIN::write(Modules);
   if (!ErrorOrSYCLBIN)
     return ErrorOrSYCLBIN.takeError();
@@ -1582,13 +1582,18 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   };
 
   // Forward all of the `--offload-opt` and similar options to the device.
-  CmdArgs.push_back("-flto");
   for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
     CmdArgs.append(
         {"-Xlinker",
          Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
 
-  if (!Triple.isNVPTX())
+  if (Triple.isNVPTX() || Triple.isAMDGPU()) {
+    CmdArgs.push_back("-foffload-lto");
+  } else {
+    CmdArgs.push_back("-flto");
+  }
+
+  if (!Triple.isNVPTX() && !Triple.isSPIRV())
     CmdArgs.push_back("-Wl,--no-undefined");
 
   if (IsSYCLKind && Triple.isNVPTX())
@@ -1597,7 +1602,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back(InputFile);
 
   // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isAMDGPU() && !Triple.isNVPTX()) {
+  if (!Triple.isAMDGPU() && !Triple.isNVPTX() && !Triple.isSPIRV()) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
@@ -2496,7 +2501,13 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         }
       }
 
-      if (!OutputSYCLBIN) {
+      if (OutputSYCLBIN) {
+        SYCLBIN::ModuleDesc MD;
+        MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
+        MD.SplitModules = std::move(SplitModules);
+        std::scoped_lock Guard(SYCLBINModulesMtx);
+        SYCLBINModules.emplace_back(std::move(MD));
+      } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
         auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
         if (!OutputFile)
@@ -2509,12 +2520,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         // that is used for other offload kinds.
         std::scoped_lock Guard(ImageMtx);
         WrappedOutput.push_back(*OutputFile);
-      } else {
-        SYCLBIN::ModuleDesc MD;
-        MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
-        MD.SplitModules = std::move(SplitModules);
-        std::scoped_lock Guard(SYCLBINModulesMtx);
-        SYCLBINModules.emplace_back(std::move(MD));
       }
     }
     if (HasNonSYCLOffloadKinds) {
@@ -2568,7 +2573,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     return std::move(Err);
 
   if (OutputSYCLBIN) {
-    auto OutputOrErr = sycl::PackageSYCLBIN(SYCLBINModules);
+    auto OutputOrErr = sycl::packageSYCLBIN(SYCLBINModules);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
     WrappedOutput.push_back(*OutputOrErr);
