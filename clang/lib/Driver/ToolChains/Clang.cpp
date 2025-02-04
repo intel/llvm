@@ -10553,7 +10553,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
          "Not have inputs for all dependence actions??");
 
   if (OffloadingKind == Action::OFK_None &&
-      C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
+      C.getArgs().hasArg(options::OPT_fsycl_link)) {
 
     // For FPGA, we wrap the host objects before archiving them when using
     // -fsycl-link.  This allows for better extraction control from the
