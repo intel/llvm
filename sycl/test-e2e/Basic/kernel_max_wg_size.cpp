@@ -29,6 +29,16 @@ __attribute__((noinline)) void f(int *result, nd_item<1> &index) {
   result[index.get_global_id()] = index.get_global_id();
 }
 
+struct KernelFunctor {
+  int *mResult;
+  KernelFunctor(int *result) : mResult(result) {}
+
+  void operator()(nd_item<1> index) const { f(mResult, index); }
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{intelex::grf_size<256>};
+  }
+};
+
 int main() {
   queue myQueue;
   auto myContext = myQueue.get_context();
@@ -46,11 +56,9 @@ int main() {
   nd_range myRange{range{maxWgSize}, range{maxWgSize}};
 
   int *result = sycl::malloc_shared<int>(maxWgSize, myQueue);
-  syclex::properties kernelProperties{intelex::grf_size<256>};
   myQueue.submit([&](handler &cgh) {
     cgh.use_kernel_bundle(myBundle);
-    cgh.parallel_for<MyKernel>(myRange, kernelProperties,
-                               ([=](nd_item<1> index) { f(result, index); }));
+    cgh.parallel_for<MyKernel>(myRange, KernelFunctor(result));
   });
 
   myQueue.wait();

@@ -30,7 +30,7 @@
 // RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
 
 // Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include <cmath>

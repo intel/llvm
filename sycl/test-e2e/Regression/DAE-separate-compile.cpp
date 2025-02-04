@@ -8,7 +8,7 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %t.o %O0 -Wno-unused-command-line-argument -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64059
 
 // Failing on HIP AMD, enable after fixed

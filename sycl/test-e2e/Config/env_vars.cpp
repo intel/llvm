@@ -13,7 +13,7 @@
 // RUN: %if cpu %{ env SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %{run} %t.out %}
 // RUN: %if cpu %{ env SYCL_PROGRAM_APPEND_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %{run} %t.out %}
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 #include "../helpers.hpp"
