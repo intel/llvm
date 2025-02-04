@@ -37,7 +37,7 @@ std::string_view StateToString(llvm::object::SYCLBIN::BundleState State) {
 std::string_view IRTypeToString(llvm::object::SYCLBIN::IRType IRType) {
   switch (IRType) {
   case llvm::object::SYCLBIN::IRType::SPIRV:
-    return "SPIRV";
+    return "SPIR-V";
   case llvm::object::SYCLBIN::IRType::PTX:
     return "PTX";
   case llvm::object::SYCLBIN::IRType::AMDGCN:
