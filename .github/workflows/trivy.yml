@@ -1,4 +1,4 @@
-# This workflow performs trivy check of docker config files.
+# This workflow performs a trivy check of docker config files.
 
 name: Trivy
 
