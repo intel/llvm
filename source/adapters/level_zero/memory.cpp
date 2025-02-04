@@ -1747,11 +1747,12 @@ ur_result_t urMemRelease(
       if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         return ze2urResult(ZeResult);
     }
+    delete Image;
   } else {
     auto Buffer = reinterpret_cast<_ur_buffer *>(Mem);
     Buffer->free();
+    delete Buffer;
   }
-  delete Mem;
 
   return UR_RESULT_SUCCESS;
 }
@@ -2081,10 +2082,11 @@ static ur_result_t ZeDeviceMemAllocHelper(void **ResultPtr,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
-                                    ur_device_handle_t Device,
-                                    const ur_event_handle_t *phWaitEvents,
-                                    uint32_t numWaitEvents) {
+ur_result_t _ur_buffer::getBufferZeHandle(char *&ZeHandle,
+                                          access_mode_t AccessMode,
+                                          ur_device_handle_t Device,
+                                          const ur_event_handle_t *phWaitEvents,
+                                          uint32_t numWaitEvents) {
 
   // NOTE: There might be no valid allocation at all yet and we get
   // here from piEnqueueKernelLaunch that would be doing the buffer
@@ -2393,7 +2395,7 @@ ur_result_t _ur_buffer::free() {
 // Buffer constructor
 _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size, char *HostPtr,
                        bool ImportedHostPtr = false)
-    : ur_mem_handle_t_(Context), Size(Size) {
+    : ur_mem_handle_t_(mem_type_t::buffer, Context), Size(Size) {
 
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
@@ -2422,13 +2424,13 @@ _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size, char *HostPtr,
 
 _ur_buffer::_ur_buffer(ur_context_handle_t Context, ur_device_handle_t Device,
                        size_t Size)
-    : ur_mem_handle_t_(Context, Device), Size(Size) {}
+    : ur_mem_handle_t_(mem_type_t::buffer, Context, Device), Size(Size) {}
 
 // Interop-buffer constructor
 _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size,
                        ur_device_handle_t Device, char *ZeMemHandle,
                        bool OwnZeMemHandle)
-    : ur_mem_handle_t_(Context, Device), Size(Size) {
+    : ur_mem_handle_t_(mem_type_t::buffer, Context, Device), Size(Size) {
 
   // Device == nullptr means host allocation
   Allocations[Device].ZeHandle = ZeMemHandle;
@@ -2449,11 +2451,38 @@ _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size,
   LastDeviceWithValidAllocation = Device;
 }
 
-ur_result_t _ur_buffer::getZeHandlePtr(char **&ZeHandlePtr,
-                                       access_mode_t AccessMode,
-                                       ur_device_handle_t Device,
-                                       const ur_event_handle_t *phWaitEvents,
-                                       uint32_t numWaitEvents) {
+ur_result_t ur_mem_handle_t_::getZeHandle(char *&ZeHandle, access_mode_t mode,
+                                          ur_device_handle_t Device,
+                                          const ur_event_handle_t *phWaitEvents,
+                                          uint32_t numWaitEvents) {
+  switch (mem_type) {
+  case ur_mem_handle_t_::image:
+    return reinterpret_cast<_ur_image *>(this)->getImageZeHandle(
+        ZeHandle, mode, Device, phWaitEvents, numWaitEvents);
+  case ur_mem_handle_t_::buffer:
+    return reinterpret_cast<_ur_buffer *>(this)->getBufferZeHandle(
+        ZeHandle, mode, Device, phWaitEvents, numWaitEvents);
+  }
+  ur::unreachable();
+}
+
+ur_result_t ur_mem_handle_t_::getZeHandlePtr(
+    char **&ZeHandlePtr, access_mode_t mode, ur_device_handle_t Device,
+    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents) {
+  switch (mem_type) {
+  case ur_mem_handle_t_::image:
+    return reinterpret_cast<_ur_image *>(this)->getImageZeHandlePtr(
+        ZeHandlePtr, mode, Device, phWaitEvents, numWaitEvents);
+  case ur_mem_handle_t_::buffer:
+    return reinterpret_cast<_ur_buffer *>(this)->getBufferZeHandlePtr(
+        ZeHandlePtr, mode, Device, phWaitEvents, numWaitEvents);
+  }
+  ur::unreachable();
+}
+
+ur_result_t _ur_buffer::getBufferZeHandlePtr(
+    char **&ZeHandlePtr, access_mode_t AccessMode, ur_device_handle_t Device,
+    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents) {
   char *ZeHandle;
   UR_CALL(
       getZeHandle(ZeHandle, AccessMode, Device, phWaitEvents, numWaitEvents));
