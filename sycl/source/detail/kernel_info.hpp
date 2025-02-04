@@ -188,9 +188,10 @@ get_kernel_device_specific_info<
     if (URDevices[idx] == Device)
       return size_t{Result[idx]};
   }
-  throw exception(make_error_code(errc::runtime),
-                  "ext::intel::info::kernel::spill_memory_size failed to retrieve "
-                  "the requested value");
+  throw exception(
+      make_error_code(errc::runtime),
+      "ext::intel::info::kernel::spill_memory_size failed to retrieve "
+      "the requested value");
 }
 
 } // namespace detail
