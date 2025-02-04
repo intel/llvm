@@ -87,7 +87,7 @@ host events or the thread pool.
 
 For the deferred memory itself, there is no issue here. The Windows OS will
 reclaim the memory for us. The issue of which we must be wary is placing UR 
-handles (and simiar) in host threads. The RAII mechanism of unique and 
+handles (and similar) in host threads. The RAII mechanism of unique and 
 shared pointers will not work in any thread that is abandoned on Windows. 
 
 
@@ -115,7 +115,11 @@ times, the memory leak may impact code performance.
 Differing from Linux, on Windows the "early_shutdown()" is begun by the DLL `DllMain`
 function with `DLL_PROCESS_DETACH` reason. 
 
-The "late_shutdown()" is begun by the destruction of a static StaticVarShutdownHandler object, which is initialized by platform::get_platforms().  ( On linux, this is when we do "early_shutdown()". Go figure.)  This is as late as we can manage, but it is later than any user application global, static, or thread_local variable destruction.
+The "late_shutdown()" is begun by the destruction of a 
+static StaticVarShutdownHandler object, which is initialized by 
+platform::get_platforms().  ( On linux, this is when we do "early_shutdown()". 
+Go figure.)  This is as late as we can manage, but it is later than any user 
+application global, static, or thread_local variable destruction.
 
 ### Recommendations for DPC++ runtime developers
 
