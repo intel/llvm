@@ -131,6 +131,7 @@ typename Param::return_type device_impl::get_info() const {
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 device_impl::get_backend_info<info::platform::version>() const {
@@ -141,7 +142,9 @@ device_impl::get_backend_info<info::platform::version>() const {
   }
   return get_platform().get_info<info::platform::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 device_impl::get_backend_info<info::device::version>() const {
@@ -152,7 +155,9 @@ device_impl::get_backend_info<info::device::version>() const {
   }
   return get_info<info::device::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 device_impl::get_backend_info<info::device::backend_version>() const {
@@ -166,6 +171,7 @@ device_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   std::string AllExtensionNames =

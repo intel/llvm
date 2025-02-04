@@ -445,6 +445,47 @@ template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
 __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint64_t *Ptr,
                                 dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint8_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint8_t *Ptr,
+                                dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint16_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint16_t *Ptr,
+                                dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint32_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint32_t *Ptr,
+                                dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint64_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint64_t *Ptr,
+                                dataT Data) noexcept;
+
 template <int W, int rW>
 extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<rW>
 __spirv_FixedSqrtINTEL(sycl::detail::ap_int<W> a, bool S, int32_t I, int32_t rI,

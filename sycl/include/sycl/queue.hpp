@@ -349,13 +349,20 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
             ,
             int = detail::emit_get_backend_info_error<queue, Param>()
 #endif
+#endif
             >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
@@ -1370,40 +1377,40 @@ public:
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
-  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
-  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
-  /// memory region.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. An exception is thrown if either \p Src
+  /// is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p DestImgDesc is inconsistent with the allocated allocated memory
+  /// regions.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param Dest is a wrapper for an opaque image memory handle to the
-  /// destination memory.
-  /// \param DestImgDesc is the image descriptor (format, order, dimensions).
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region. An exception is thrown if either \p
-  /// Src is nullptr or \p CopyExtent is incomplete.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DestImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an offset from the origin where the x, y, and z
   ///                  components are measured in bytes, rows, and slices
-  ///                  respectively
-  /// \param SrcExtent is the extent of the source memory to copy, measured in
-  ///                  pixels (pixel size determined by \p DestImgDesc )
+  ///                  respectively.
+  /// \param SrcExtent is the size of the source memory, measured in
+  ///                  pixels. (Pixel size determined by \p DestImgDesc .)
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the destination origin measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
+  ///                   pixels. (Pixel size determined by \p DestImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///                   measured in pixels as determined by \p DestImgDesc
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
@@ -1413,16 +1420,15 @@ public:
       sycl::range<3> CopyExtent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
-  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
-  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
-  /// memory region.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. An exception is thrown if either \p Src
+  /// is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p DestImgDesc is inconsistent with the allocated allocated memory
+  /// regions.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param Dest is a wrapper for an opaque image memory handle to the
-  /// destination memory.
-  /// \param DestImgDesc is the destination image descriptor
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1431,24 +1437,25 @@ public:
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region. An exception is thrown if either \p
-  /// Src is nullptr or \p Dest is incomplete.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DestImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an offset from the origin where the x, y, and z
   ///                  components are measured in bytes, rows, and slices
-  ///                  respectively
-  /// \param SrcExtent is the extent of the source memory to copy, measured in
-  ///                  pixels (pixel size determined by \p DestImgDesc )
+  ///                  respectively.
+  /// \param SrcExtent is the size of the source memory, measured in
+  ///                  pixels. (Pixel size determined by \p DestImgDesc .)
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the destination origin measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
+  ///                   pixels. (Pixel size determined by \p DestImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels as determined by \p DestImgDesc
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1459,16 +1466,15 @@ public:
       sycl::range<3> CopyExtent, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
-  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
-  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
-  /// memory region.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. An exception is thrown if either \p Src
+  /// is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p DestImgDesc is inconsistent with the allocated allocated memory
+  /// regions.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param Dest is a wrapper for an opaque image memory handle to the
-  /// destination memory.
-  /// \param DestImgDesc is the destination image descriptor
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -1478,24 +1484,25 @@ public:
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region. An exception is thrown if either \p
-  /// Src is nullptr or \p Dest is incomplete.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DestImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an offset from the origin where the x, y, and z
   ///                  components are measured in bytes, rows, and slices
-  ///                  respectively
-  /// \param SrcExtent is the extent of the source memory to copy, measured in
-  ///                  pixels (pixel size determined by \p DestImgDesc )
+  ///                  respectively.
+  /// \param SrcExtent is the size of the source memory, measured in
+  ///                  pixels. (Pixel size determined by \p DestImgDesc .)
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the destination origin measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
+  ///                   pixels. (Pixel size determined by \p DestImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels as determined by \p DestImgDesc
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvents is a vector of events that specifies the kernel
   ///                  dependencies.
   /// \return an event representing the copy operation.
@@ -1507,11 +1514,10 @@ public:
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer.
-  /// An exception is thrown if either \p Src is incomplete or \p Dest is
-  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
-  /// the allocated memory region.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc is inconsistent with the allocated memory regions.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
@@ -1522,26 +1528,25 @@ public:
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region.  Pixel size is determined by \p
-  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
-  /// is incomplete.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an offset from the destination origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DestExtent is the extent of the dest memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DestExtent is the size of the destination memory, measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
@@ -1551,15 +1556,14 @@ public:
       sycl::range<3> CopyExtent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer.
-  /// An exception is thrown if either \p Src is incomplete or \p Dest is
-  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
-  /// the allocated memory region.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc is inconsistent with the allocated memory regions.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param SrcImgDesc is the image descriptor (format, order, dimensions).
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1568,26 +1572,25 @@ public:
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region.  Pixel size is determined by \p
-  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
-  /// is incomplete.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an offset from the destination origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DestExtent is the extent of the dest memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DestExtent is the size of the destination memory, measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1598,15 +1601,14 @@ public:
       sycl::range<3> CopyExtent, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer.
-  /// An exception is thrown if either \p Src is incomplete or \p Dest is
-  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
-  /// the allocated memory region.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc is inconsistent with the allocated memory regions.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param SrcImgDesc is the image descriptor (format, order, dimensions).
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -1616,26 +1618,25 @@ public:
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region.  Pixel size is determined by \p
-  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
-  /// is incomplete.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an offset from the destination origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DestExtent is the extent of the dest memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DestExtent is the size of the destination memory, measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvents is a vector of events that specifies the kernel
   ///                  dependencies.
   /// \return an event representing the copy operation.
@@ -1647,16 +1648,17 @@ public:
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
-  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
-  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
-  /// allocated memory region.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is nullptr. The behavior is undefined if
+  /// \p DeviceImgDesc is inconsistent with the allocated memory regions or
+  /// \p DeviceRowPitch is inconsistent with hardware requirements.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DeviceImgDesc is the image descriptor
-  /// \param DeviceRowPitch is the DeviceRowPitch of the rows on the device.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the memory on the
+  ///                       device.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, void *Dest,
@@ -1664,27 +1666,29 @@ public:
       size_t DeviceRowPitch,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
-  /// \p DestOffset , and \p Extent are used to determine the sub-region.
-  /// An exception is thrown if either \p Src is nullptr or \p Dest is
-  /// incomplete.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DeviceImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is nullptr. The behavior is
+  /// undefined if \p DeviceRowPitch is inconsistent with hardware requirements
+  /// or \p HostExtent is inconsistent with its respective memory region.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an destination offset from the origin where the
   ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
+  ///                  and slices respectively.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an destination offset from the origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DeviceImgDesc is the device image descriptor
-  /// \param DeviceRowPitch is the row pitch on the device
-  /// \param HostExtent is the extent of the host memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the image on the device.
+  /// \param HostExtent is the size of the host memory, measured in pixels.
+  ///                   (Pixel size determined by \p DeviceImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p DeviceImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p DeviceImgDesc .)
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, sycl::range<3> SrcOffset, void *Dest,
@@ -1694,16 +1698,17 @@ public:
       sycl::range<3> CopyExtent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
-  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
-  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
-  /// allocated memory region.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is nullptr. The behavior is undefined if
+  /// \p DeviceImgDesc is inconsistent with the allocated memory regions or
+  /// \p DeviceRowPitch is inconsistent with hardware requirements.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DeviceImgDesc is the image descriptor
-  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the memory on the
+  ///                       device.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1712,161 +1717,29 @@ public:
       size_t DeviceRowPitch, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param ImageDesc is the source image descriptor
-  /// \param DepEvent is an events that specifies the kernel dependency.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
-      event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param ImageDesc is the source image descriptor
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
-      const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param ImageDesc is the source image descriptor
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles. Allows for a sub-region copy, where
-  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region. Pixel size is determined by \p SrcImgDesc
-  /// An exception is thrown if either \p Src or \p Dest is incomplete.
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
-  /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-      sycl::range<3> CopyExtent,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles. Allows for a sub-region copy, where
-  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region. Pixel size is determined by \p SrcImgDesc
-  /// An exception is thrown if either \p Src or \p Dest is incomplete.
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
-  /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
-  /// \param DepEvent is an event that specifies the kernel dependencies.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-      sycl::range<3> CopyExtent, event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles. Allows for a sub-region copy, where
-  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region. Pixel size is determined by \p SrcImgDesc
-  /// An exception is thrown if either \p Src or \p Dest is incomplete.
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param srcImgDesc is the source image descriptor
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
-  /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
-  /// \param DepEvents is a vector of events that specifies the kernel
-  ///                  dependencies.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
-  /// \p DestOffset , and \p Extent are used to determine the sub-region.
-  /// An exception is thrown if either \p Src is nullptr or \p Dest is
-  /// incomplete.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DeviceImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is nullptr. The behavior is
+  /// undefined if \p DeviceRowPitch is inconsistent with hardware requirements
+  /// or \p HostExtent is inconsistent with its respective memory region.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an destination offset from the origin where the
   ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
+  ///                  and slices respectively.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an destination offset from the origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DeviceImgDesc is the destination image descriptor
-  /// \param DeviceRowPitch is the row pitch on the device
-  /// \param HostExtent is the extent of the host memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the image on the device.
+  /// \param HostExtent is the size of the host memory, measured in pixels.
+  ///                   (Pixel size determined by \p DeviceImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p DeviceImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p DeviceImgDesc .)
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1877,16 +1750,17 @@ public:
       sycl::range<3> CopyExtent, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
-  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
-  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
-  /// allocated memory region.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is nullptr. The behavior is undefined if
+  /// \p DeviceImgDesc is inconsistent with the allocated memory regions or
+  /// \p DeviceRowPitch is inconsistent with hardware requirements.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DeviceImgDesc is the image descriptor
-  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the memory on the
+  ///                       device.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -1896,27 +1770,29 @@ public:
       size_t DeviceRowPitch, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
-  /// \p DestOffset , and \p Extent are used to determine the sub-region.
-  /// An exception is thrown if either \p Src is nullptr or \p Dest is
-  /// incomplete.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DeviceImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is nullptr. The behavior is
+  /// undefined if \p DeviceRowPitch is inconsistent with hardware requirements
+  /// or \p HostExtent is inconsistent with its respective memory region.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an destination offset from the origin where the
   ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
+  ///                  and slices respectively.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an destination offset from the origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DeviceImgDesc is the destination image descriptor
-  /// \param DeviceRowPitch is the row pitch on the device
-  /// \param HostExtent is the extent of the host memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the image on the device.
+  /// \param HostExtent is the size of the host memory, measured in pixels.
+  ///                   (Pixel size determined by \p DeviceImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p DeviceImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p DeviceImgDesc .)
   /// \param DepEvents is a vector of events that specifies the kernel
   ///                  dependencies.
   /// \return an event representing the copy operation.
@@ -1926,6 +1802,627 @@ public:
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. An exception is thrown if either \p Src or \p Dest
+  /// are incomplete. The behavior is undefined if \p SrcImgDesc or
+  /// \p DestImgDesc are inconsistent with their respective allocated memory
+  /// regions.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset and \p CopyExtent are used to determine the sub-region.
+  /// Pixel size is determined by \p SrcImgDesc . An exception is thrown if
+  /// either \p Src or \p Dest is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. An exception is thrown if either \p Src or \p Dest
+  /// are incomplete. The behavior is undefined if \p SrcImgDesc or
+  /// \p DestImgDesc are inconsistent with their respective allocated memory
+  /// regions.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvent is an events that specifies the kernel dependency.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset and \p CopyExtent are used to determine the sub-region.
+  /// Pixel size is determined by \p SrcImgDesc . An exception is thrown if
+  /// either \p Src or \p Dest is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. An exception is thrown if either \p Src or \p Dest
+  /// are incomplete. The behavior is undefined if \p SrcImgDesc or
+  /// \p DestImgDesc are inconsistent with their respective allocated memory
+  /// regions.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset and \p CopyExtent are used to determine the sub-region.
+  /// Pixel size is determined by \p SrcImgDesc . An exception is thrown if
+  /// either \p Src or \p Dest is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is incomplete or \p Dest is nullptr. The behavior
+  /// is undefined if \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in Pixels
+  ///                   (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels. (Pixel size determined by
+  ///               \p SrcImgDesc .)
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is incomplete or \p Dest is nullptr. The behavior
+  /// is undefined if \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in Pixels
+  ///                   (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels. (Pixel size determined by
+  ///               \p SrcImgDesc .)
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is incomplete or \p Dest is nullptr. The behavior
+  /// is undefined if \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in Pixels
+  ///                   (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels. (Pixel size determined by
+  ///               \p SrcImgDesc .)
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. An exception is thrown if either
+  /// \p Src is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. Allows for a sub-region
+  /// copy, where \p SrcOffset, \p DestOffset and \p CopyExtent are used to
+  /// determine the sub-region. Pixel size is determined by \p SrcImgDesc . An
+  /// exception is thrown if either \p Src is nullptr or \p Dest is incomplete.
+  /// The behavior is undefined if \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. An exception is thrown if either
+  /// \p Src is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. Allows for a sub-region
+  /// copy, where \p SrcOffset, \p DestOffset and \p CopyExtent are used to
+  /// determine the sub-region. Pixel size is determined by \p SrcImgDesc . An
+  /// exception is thrown if either \p Src is nullptr or \p Dest is incomplete.
+  /// The behavior is undefined if \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. An exception is thrown if either
+  /// \p Src is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. Allows for a sub-region
+  /// copy, where \p SrcOffset, \p DestOffset and \p CopyExtent are used to
+  /// determine the sub-region. Pixel size is determined by \p SrcImgDesc . An
+  /// exception is thrown if either \p Src is nullptr or \p Dest is incomplete.
+  /// The behavior is undefined if \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. An exception is thrown if either \p Src or \p Dest are nullptr.
+  /// The behavior is undefined if \p SrcImgDesc or \p DestImgDesc are
+  /// inconsistent with their respective allocated memory regions or
+  /// \p SrcRowPitch or \p DestRowPitch are inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. Allows for a sub-region copy, where \p SrcOffset, \p DestOffset
+  /// and \p CopyExtent are used to determine the sub-region. Pixel size is
+  /// determined by \p SrcImgDesc . An exception is thrown if either \p Src or
+  /// \p Dest are nullptr. The behavior is undefined if \p SrcRowPitch or
+  /// \p DestRowPitch are inconsistent with hardware requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. An exception is thrown if either \p Src or \p Dest are nullptr.
+  /// The behavior is undefined if \p SrcImgDesc or \p DestImgDesc are
+  /// inconsistent with their respective allocated memory regions or
+  /// \p SrcRowPitch or \p DestRowPitch are inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. Allows for a sub-region copy, where \p SrcOffset, \p DestOffset
+  /// and \p CopyExtent are used to determine the sub-region. Pixel size is
+  /// determined by \p SrcImgDesc . An exception is thrown if either \p Src or
+  /// \p Dest are nullptr. The behavior is undefined if \p SrcRowPitch or
+  /// \p DestRowPitch are inconsistent with hardware requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. An exception is thrown if either \p Src or \p Dest are nullptr.
+  /// The behavior is undefined if \p SrcImgDesc or \p DestImgDesc are
+  /// inconsistent with their respective allocated memory regions or
+  /// \p SrcRowPitch or \p DestRowPitch are inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. Allows for a sub-region copy, where \p SrcOffset, \p DestOffset
+  /// and \p CopyExtent are used to determine the sub-region. Pixel size is
+  /// determined by \p SrcImgDesc . An exception is thrown if either \p Src or
+  /// \p Dest are nullptr. The behavior is undefined if \p SrcRowPitch or
+  /// \p DestRowPitch are inconsistent with hardware requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
