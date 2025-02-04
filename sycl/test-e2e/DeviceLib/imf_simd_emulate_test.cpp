@@ -6,7 +6,7 @@
 //
 // UNSUPPORTED: target-nvidia || target-amd
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 #include "imf_utils.hpp"
