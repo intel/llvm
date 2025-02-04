@@ -14,7 +14,7 @@ the DPC++ implementation an extendable and lightweight wrapper around the
 multiple modules and corresponding metadata captured in the SYCLBIN file.
 The content of the SYCLBIN may be contained as an entry in the offloading binary
 format produced by the clang-offload-packager, as described in
-[ClangOffloadPackager.rst](../../../clang/docs/ClangOffloadPackager.rst).
+[ClangOffloadPackager.rst](https://github.com/intel/llvm/blob/sycl/clang/docs/ClangOffloadPackager.rst).
 
 The following illustration gives an overview of how the file format is
 structured.
@@ -196,7 +196,7 @@ The clang-linker-wrapper is responsible for doing post-processing and linking of
 device binaries, as described in [OffloadDesign.md](OffloadDesign.md).
 However, to support SYCLBIN files, the clang-linker-wrapper must be able to
 unpack an offload binary (as described in
-[ClangOffloadPackager.rst](../../../clang/docs/ClangOffloadPackager.rst))
+[ClangOffloadPackager.rst](https://github.com/intel/llvm/blob/sycl/clang/docs/ClangOffloadPackager.rst))
 directly, instead of extracting it from a host binary. This should be done when
 a new flag, `--syclbin`, is passed. In this case, the clang-linker-wrapper is
 responsible to package the resulting device binaries and produced metadata into
