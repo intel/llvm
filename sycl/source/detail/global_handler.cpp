@@ -304,6 +304,12 @@ void shutdown_early() {
   if (!Handler)
     return;
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION && _WIN32
+    if (xptiTraceEnabled())
+      return; // When doing xpti tracing, we can't safely shutdown on Win.
+              // TODO: figure out why XPTI prevents release.
+#endif
+
   // Now that we are shutting down, we will no longer defer MemObj releases.
   Handler->endDeferredRelease();
 
@@ -324,6 +330,12 @@ void shutdown_late() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
+  
+#ifdef XPTI_ENABLE_INSTRUMENTATION && _WIN32
+    if (xptiTraceEnabled())
+      return; // When doing xpti tracing, we can't safely shutdown on Win.
+              // TODO: figure out why XPTI prevents release.
+#endif
 
   // First, release resources, that may access adapters.
   Handler->MPlatformCache.Inst.reset(nullptr);
@@ -364,13 +376,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DllMain", e);
     return FALSE;
   }
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    if (xptiTraceEnabled())
-      return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents
-                   // release.
-#endif
 
     // Perform actions based on the reason for calling.
     switch (fdwReason) {
