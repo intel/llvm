@@ -1660,9 +1660,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return transValue(Init, F, BB);
     }
 
-    if (BS == StorageClassFunction && !Init) {
-      assert(BB && "Invalid BB");
-      return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
+    if (BS == StorageClassFunction) {
+      // A Function storage class variable needs storage for each dynamic
+      // execution instance, so emit an alloca instead of a global.
+      assert(BB && "OpVariable with Function storage class requires BB");
+      IRBuilder<> Builder(BB);
+      AllocaInst *AI = Builder.CreateAlloca(Ty, 0, BV->getName());
+      if (Init) {
+        auto *Src = transValue(Init, F, BB);
+        const bool IsVolatile = BVar->hasDecorate(DecorationVolatile);
+        Builder.CreateStore(Src, AI, IsVolatile);
+      }
+      return mapValue(BV, AI);
     }
 
     SPIRAddressSpace AddrSpace;
