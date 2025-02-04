@@ -247,8 +247,7 @@ struct StaticVarShutdownHandler {
       shutdown_early();
 #endif
     } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM(
-          "exception in ~StaticVarShutdownHandler", e);
+      std::cout << "exception in ~StaticVarShutdownHandler " <<  e.what() << std::endl;
     }
   }
 };
