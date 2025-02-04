@@ -7,14 +7,14 @@
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes=CHECK-NO-ASPECT,CHECK
 
 !sycl_registered_kernels = !{!4}
-!4 = !{!5, !6, !7, !8, !9, !10, !11, !12, !13, !14}
+!4 = !{!5, !6, !7, !8, !9, !10, !11, !12, !13, !14, !16}
 
 ; Both splits should contain the registered kernel data.
 ; CHECK: [SYCL/registered kernels]
 
 ; For each entry in !sycl_registered_kernels, an entry
 ; mapping the registered name to the mangled name is added in the
-; SYCL/registered kernels if it references a kernel that appears
+; [SYCL/registered kernels] if it references a kernel that appears
 ; in the split. (Although in the prop files, the
 ; mapped values are base64 encoded, so just using simplifed check
 ; with a regex.)
@@ -78,3 +78,7 @@ define spir_kernel void @_Z17__sycl_kernel_barv() {
 define spir_kernel void @kernel_with_aspects() !sycl_used_aspects !15 {
     ret void
 }
+
+; Data with incorrect format should be ignored.
+; CHECK-NOT: incorrect_data_format
+!16 = !{!"incorrect_data_format"}

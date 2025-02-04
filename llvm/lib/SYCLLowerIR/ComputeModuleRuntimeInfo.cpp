@@ -473,8 +473,8 @@ PropSetRegTy computeModuleProperties(const Module &M,
 
   if (const NamedMDNode *MD = M.getNamedMetadata("sycl_registered_kernels")) {
     if (MD->getNumOperands() == 1) {
-      const MDNode *RegistredKernels = MD->getOperand(0);
-      for (const MDOperand &Op : RegistredKernels->operands()) {
+      const MDNode *RegisteredKernels = MD->getOperand(0);
+      for (const MDOperand &Op : RegisteredKernels->operands()) {
         const auto *RegisteredKernel = cast<MDNode>(Op);
         if (RegisteredKernel->getNumOperands() != 2)
           continue;
