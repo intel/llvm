@@ -22,6 +22,7 @@
 #include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
 #include <umf/pools/pool_disjoint.h>
+#include <umf/pools/pool_proxy.h>
 
 #include <functional>
 #include <unordered_map>
@@ -289,6 +290,28 @@ public:
     return it->second.get();
   }
 };
+
+inline umf::pool_unique_handle_t
+makeDisjointPool(umf::provider_unique_handle_t &&provider,
+                 usm::umf_disjoint_pool_config_t &poolParams) {
+  auto umfParams = getUmfParamsHandle(poolParams);
+  auto [ret, poolHandle] =
+      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(provider),
+                                 static_cast<void *>(umfParams.get()));
+  if (ret != UMF_RESULT_SUCCESS)
+    throw umf::umf2urResult(ret);
+  return std::move(poolHandle);
+}
+
+inline umf::pool_unique_handle_t
+makeProxyPool(umf::provider_unique_handle_t &&provider) {
+  auto [ret, poolHandle] = umf::poolMakeUniqueFromOps(
+      umfProxyPoolOps(), std::move(provider), nullptr);
+  if (ret != UMF_RESULT_SUCCESS)
+    throw umf::umf2urResult(ret);
+
+  return std::move(poolHandle);
+}
 
 } // namespace usm
 

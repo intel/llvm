@@ -15,8 +15,6 @@
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "usm.hpp"
 
-#include <umf/pools/pool_disjoint.h>
-#include <umf/pools/pool_proxy.h>
 #include <umf/providers/provider_level_zero.h>
 
 namespace umf {
@@ -34,7 +32,17 @@ ur_result_t getProviderNativeError(const char *providerName,
 }
 } // namespace umf
 
-static usm::DisjointPoolAllConfigs initializeDisjointPoolConfig() {
+static std::optional<usm::DisjointPoolAllConfigs>
+initializeDisjointPoolConfig() {
+  const char *UrRetDisable = std::getenv("UR_L0_DISABLE_USM_ALLOCATOR");
+  const char *PiRetDisable =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR");
+  const char *Disable =
+      UrRetDisable ? UrRetDisable : (PiRetDisable ? PiRetDisable : nullptr);
+  if (Disable != nullptr && Disable != std::string("")) {
+    return std::nullopt;
+  }
+
   const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
 
   int PoolTrace = 0;
@@ -47,7 +55,14 @@ static usm::DisjointPoolAllConfigs initializeDisjointPoolConfig() {
     return usm::DisjointPoolAllConfigs(PoolTrace);
   }
 
-  return usm::parseDisjointPoolConfig(PoolUrConfigVal, PoolTrace);
+  // TODO: rework parseDisjointPoolConfig to return optional,
+  // once EnableBuffers is no longer used (by legacy L0)
+  auto configs = usm::parseDisjointPoolConfig(PoolUrConfigVal, PoolTrace);
+  if (configs.EnableBuffers) {
+    return configs;
+  }
+
+  return std::nullopt;
 }
 
 inline umf_usm_memory_type_t urToUmfMemoryType(ur_usm_type_t type) {
@@ -81,17 +96,20 @@ descToDisjoinPoolMemType(const usm::pool_descriptor &desc) {
   }
 }
 
-static umf::pool_unique_handle_t
-makePool(usm::umf_disjoint_pool_config_t *poolParams,
-         usm::pool_descriptor poolDescriptor) {
-  umf_level_zero_memory_provider_params_handle_t params = NULL;
-  umf_result_t umf_ret = umfLevelZeroMemoryProviderParamsCreate(&params);
+static umf::provider_unique_handle_t
+makeProvider(usm::pool_descriptor poolDescriptor) {
+  umf_level_zero_memory_provider_params_handle_t hParams;
+  umf_result_t umf_ret = umfLevelZeroMemoryProviderParamsCreate(&hParams);
   if (umf_ret != UMF_RESULT_SUCCESS) {
     throw umf::umf2urResult(umf_ret);
   }
 
+  std::unique_ptr<umf_level_zero_memory_provider_params_t,
+                  decltype(&umfLevelZeroMemoryProviderParamsDestroy)>
+      params(hParams, &umfLevelZeroMemoryProviderParamsDestroy);
+
   umf_ret = umfLevelZeroMemoryProviderParamsSetContext(
-      params, poolDescriptor.hContext->getZeHandle());
+      hParams, poolDescriptor.hContext->getZeHandle());
   if (umf_ret != UMF_RESULT_SUCCESS) {
     throw umf::umf2urResult(umf_ret);
   };
@@ -99,14 +117,14 @@ makePool(usm::umf_disjoint_pool_config_t *poolParams,
   ze_device_handle_t level_zero_device_handle =
       poolDescriptor.hDevice ? poolDescriptor.hDevice->ZeDevice : nullptr;
 
-  umf_ret = umfLevelZeroMemoryProviderParamsSetDevice(params,
+  umf_ret = umfLevelZeroMemoryProviderParamsSetDevice(hParams,
                                                       level_zero_device_handle);
   if (umf_ret != UMF_RESULT_SUCCESS) {
     throw umf::umf2urResult(umf_ret);
   }
 
   umf_ret = umfLevelZeroMemoryProviderParamsSetMemoryType(
-      params, urToUmfMemoryType(poolDescriptor.type));
+      hParams, urToUmfMemoryType(poolDescriptor.type));
   if (umf_ret != UMF_RESULT_SUCCESS) {
     throw umf::umf2urResult(umf_ret);
   }
@@ -123,34 +141,19 @@ makePool(usm::umf_disjoint_pool_config_t *poolParams,
     }
 
     umf_ret = umfLevelZeroMemoryProviderParamsSetResidentDevices(
-        params, residentZeHandles.data(), residentZeHandles.size());
+        hParams, residentZeHandles.data(), residentZeHandles.size());
     if (umf_ret != UMF_RESULT_SUCCESS) {
       throw umf::umf2urResult(umf_ret);
     }
   }
 
   auto [ret, provider] =
-      umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), params);
+      umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), hParams);
   if (ret != UMF_RESULT_SUCCESS) {
     throw umf::umf2urResult(ret);
   }
 
-  if (!poolParams) {
-    auto [ret, poolHandle] = umf::poolMakeUniqueFromOps(
-        umfProxyPoolOps(), std::move(provider), nullptr);
-    if (ret != UMF_RESULT_SUCCESS)
-      throw umf::umf2urResult(ret);
-    return std::move(poolHandle);
-  } else {
-    auto umfParams = getUmfParamsHandle(*poolParams);
-
-    auto [ret, poolHandle] =
-        umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(provider),
-                                   static_cast<void *>(umfParams.get()));
-    if (ret != UMF_RESULT_SUCCESS)
-      throw umf::umf2urResult(ret);
-    return std::move(poolHandle);
-  }
+  return std::move(provider);
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
@@ -158,11 +161,17 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
     : hContext(hContext) {
   // TODO: handle UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK from pPoolDesc
   auto disjointPoolConfigs = initializeDisjointPoolConfig();
-  if (auto limits = find_stype_node<ur_usm_pool_limits_desc_t>(pPoolDesc)) {
-    for (auto &config : disjointPoolConfigs.Configs) {
-      config.MaxPoolableSize = limits->maxPoolableSize;
-      config.SlabMinSize = limits->minDriverAllocSize;
+
+  if (disjointPoolConfigs.has_value()) {
+    if (auto limits = find_stype_node<ur_usm_pool_limits_desc_t>(pPoolDesc)) {
+      for (auto &config : disjointPoolConfigs.value().Configs) {
+        config.MaxPoolableSize = limits->maxPoolableSize;
+        config.SlabMinSize = limits->minDriverAllocSize;
+      }
     }
+  } else {
+    // If pooling is disabled, do nothing.
+    logger::info("USM pooling is disabled. Skiping pool limits adjustment.");
   }
 
   auto [result, descriptors] = usm::pool_descriptor::create(this, hContext);
@@ -171,12 +180,13 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
   }
 
   for (auto &desc : descriptors) {
-    if (disjointPoolConfigs.EnableBuffers) {
+    if (disjointPoolConfigs.has_value()) {
       auto &poolConfig =
-          disjointPoolConfigs.Configs[descToDisjoinPoolMemType(desc)];
-      poolManager.addPool(desc, makePool(&poolConfig, desc));
+          disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
+      poolManager.addPool(
+          desc, usm::makeDisjointPool(makeProvider(desc), poolConfig));
     } else {
-      poolManager.addPool(desc, makePool(nullptr, desc));
+      poolManager.addPool(desc, usm::makeProxyPool(makeProvider(desc)));
     }
   }
 }
