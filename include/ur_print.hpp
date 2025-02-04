@@ -8781,6 +8781,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value) {
   case UR_KERNEL_INFO_NUM_REGS:
     os << "UR_KERNEL_INFO_NUM_REGS";
     break;
+  case UR_KERNEL_INFO_SPILL_MEM_SIZE:
+    os << "UR_KERNEL_INFO_SPILL_MEM_SIZE";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -8872,6 +8875,20 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << *tptr;
 
     os << ")";
+  } break;
+  case UR_KERNEL_INFO_SPILL_MEM_SIZE: {
+
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    os << "{";
+    size_t nelems = size / sizeof(uint32_t);
+    for (size_t i = 0; i < nelems; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << tptr[i];
+    }
+    os << "}";
   } break;
   default:
     os << "unknown enumerator";
