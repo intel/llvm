@@ -293,6 +293,12 @@ public:
   /// Get device architecture
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
+  // Check if the device supports double precision floating point.
+  bool isFp64Supported() const;
+
+  // Check if the device supports half precision floating point.
+  bool isFp16Supported() const;
+
 private:
   explicit device_impl(ur_native_handle_t InteropDevice,
                        ur_device_handle_t Device, PlatformImplPtr Platform,

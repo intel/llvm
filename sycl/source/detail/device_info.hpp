@@ -232,12 +232,6 @@ struct get_device_info_impl<ReturnT, info::device::parent_device> {
 template <typename Param>
 struct get_device_info_impl<std::vector<info::fp_config>, Param> {
   static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
-    // Check if fp type is supported
-    if (!get_device_info_impl<
-            typename check_fp_support<Param>::type::return_type,
-            typename check_fp_support<Param>::type>::get(Dev)) {
-      return {};
-    }
     ur_device_fp_capability_flags_t result;
     Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
         Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
