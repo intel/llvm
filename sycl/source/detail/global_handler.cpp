@@ -247,7 +247,8 @@ struct StaticVarShutdownHandler {
       shutdown_early();
 #endif
     } catch (std::exception &e) {
-      std::cout << "exception in ~StaticVarShutdownHandler " <<  e.what() << std::endl;
+      std::cout << "exception in ~StaticVarShutdownHandler " << e.what()
+                << std::endl;
     }
   }
 };
@@ -303,10 +304,10 @@ void shutdown_early() {
   if (!Handler)
     return;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION && _WIN32
-    if (xptiTraceEnabled())
-      return; // When doing xpti tracing, we can't safely shutdown on Win.
-              // TODO: figure out why XPTI prevents release.
+#ifdef XPTI_ENABLE_INSTRUMENTATION &&_WIN32
+  if (xptiTraceEnabled())
+    return; // When doing xpti tracing, we can't safely shutdown on Win.
+            // TODO: figure out why XPTI prevents release.
 #endif
 
   // Now that we are shutting down, we will no longer defer MemObj releases.
@@ -329,11 +330,11 @@ void shutdown_late() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
-  
-#ifdef XPTI_ENABLE_INSTRUMENTATION && _WIN32
-    if (xptiTraceEnabled())
-      return; // When doing xpti tracing, we can't safely shutdown on Win.
-              // TODO: figure out why XPTI prevents release.
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION &&_WIN32
+  if (xptiTraceEnabled())
+    return; // When doing xpti tracing, we can't safely shutdown on Win.
+            // TODO: figure out why XPTI prevents release.
 #endif
 
   // First, release resources, that may access adapters.
@@ -376,29 +377,29 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     return FALSE;
   }
 
-    // Perform actions based on the reason for calling.
-    switch (fdwReason) {
-    case DLL_PROCESS_DETACH:
-      if (PrintUrTrace)
-        std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
+  // Perform actions based on the reason for calling.
+  switch (fdwReason) {
+  case DLL_PROCESS_DETACH:
+    if (PrintUrTrace)
+      std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
-      dllRefCount--;
-      if (dllRefCount == 0) {
-        safe_call([]() { shutdown_early(); });
-      }
-      break;
-    case DLL_PROCESS_ATTACH:
-      if (PrintUrTrace)
-        std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
-
-      dllRefCount++;
-      break;
-    case DLL_THREAD_ATTACH:
-      break;
-    case DLL_THREAD_DETACH:
-      break;
+    dllRefCount--;
+    if (dllRefCount == 0) {
+      safe_call([]() { shutdown_early(); });
     }
-    return TRUE; // Successful DLL_PROCESS_ATTACH.
+    break;
+  case DLL_PROCESS_ATTACH:
+    if (PrintUrTrace)
+      std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+
+    dllRefCount++;
+    break;
+  case DLL_THREAD_ATTACH:
+    break;
+  case DLL_THREAD_DETACH:
+    break;
+  }
+  return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global
