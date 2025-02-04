@@ -4,7 +4,7 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t1.o %t2.o -o %t.exe
 // RUN: %{run} %t.exe
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64059
 
 #ifdef SOURCE1
