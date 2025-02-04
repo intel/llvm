@@ -39,13 +39,12 @@ int main() {
     Result[0] = 0;
     constexpr size_t N = 1024;
     constexpr int ExpectedResult = ((N - 1) * N) / 2;
-    {
-      sycl::khr::launch_reduce(
-          Queue, sycl::range<1>(N),
-          [=](sycl::id<1> Id, auto &Sum) { Sum += Id; },
-          sycl::reduction(Result, sycl::plus<>()));
-    }
 
+    sycl::khr::launch_reduce(
+        Queue, sycl::range<1>(N), [=](sycl::id<1> Id, auto &Sum) { Sum += Id; },
+        sycl::reduction(Result, sycl::plus<>()));
+
+    Queue.wait();
     Failed += Check(Result[0], ExpectedResult, "launch_reduce_with_sycl_usm");
     sycl::free(Result, Queue);
   }

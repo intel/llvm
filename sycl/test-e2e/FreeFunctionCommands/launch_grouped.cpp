@@ -38,14 +38,12 @@ int main() {
   // launch_grouped with USM
   {
     int *Numbers = sycl::malloc_shared<int>(N, Queue);
-    {
 
-      sycl::khr::launch_grouped(Queue, sycl::range<2>(8, N / 8),
-                                sycl::range<2>(8, 8),
-                                [=](sycl::nd_item<2> Item) {
-                                  Numbers[Item.get_global_linear_id()] = 302;
-                                });
-    }
+    sycl::khr::launch_grouped(Queue, sycl::range<2>(8, N / 8),
+                              sycl::range<2>(8, 8), [=](sycl::nd_item<2> Item) {
+                                Numbers[Item.get_global_linear_id()] = 302;
+                              });
+    Queue.wait();
     for (size_t i = 0; i < N; ++i)
       Failed += Check(Numbers, 302, i, "launch_grouped_with_usm");
     sycl::free(Numbers, Queue);
