@@ -264,7 +264,15 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      getAdapter()->call<UrApiKind::urQueueRelease>(MQueues[0]);
+      auto status =
+          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueues[0]);
+      // if loader is already closed, it'll return a not-initialized status
+      // which the UR should convert to SUCCESS code. But that isn't always
+      // working on Windows. This is a temporary workaround until that is fixed.
+      if (status != UR_RESULT_SUCCESS ||
+          status != UR_RESULT_ERROR_UNINITIALIZED) {
+        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
