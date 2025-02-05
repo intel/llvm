@@ -2,7 +2,7 @@
 // REQUIRES: aspect-ext_oneapi_cubemap_seamless_filtering
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include "../user_types/user_types_common.hpp"
 #include <iostream>

@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_cubemap
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
