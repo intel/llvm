@@ -75,10 +75,6 @@ images can be an architecture-specific binary format. There is no requirement
 that all device binaries in an abstract module is usable on the same device or
 are specific to a single vendor.
 
-Each abstract module represents a set of kernels, the corresponding metadata, 0
-or more IR modules containing these kernels, and 0 or more native device code
-images containing the kernels.
-
 | Type       | Description                                     | Value variable |
 | ---------- | ----------------------------------------------- | -------------- |
 | `uint64_t` | Byte size of the list of the metadata.          | `M`            |
