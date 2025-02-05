@@ -2,11 +2,10 @@
 // RUN: %{run-unfiltered-devices} %t.out
 //
 
-//==--------------- AMX_aspect.cpp - SYCL device test
-//------------------------==//
+//==--------------- matrix_aspect.cpp - SYCL device test--------------------==//
 //
 // Checks that the has(aspect) method on a device returns the correct answer
-// when queried about ext_intel_matrix AMX aspect.
+// when queried about ext_intel_matrix joint matrix aspect.
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
