@@ -14,6 +14,7 @@
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
 
+#include <hip/hip_runtime.h>
 #include <sstream>
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
@@ -784,6 +785,144 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
+  }
+
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
+    // On HIP bindless images are implemented but support is device-dependent.
+    return ReturnValue(
+        static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
+    // On HIP bindless images can be backed by shared (managed) USM.
+    return ReturnValue(
+        static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
+    // On HIP 1D bindless image USM is supported, but sampling is not.
+    // More specifically, image creation from with sampler using linear
+    // filtering is unstable and somtimes passes while other times returns
+    // unsupported error code.
+    return ReturnValue(
+        static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
+    // On HIP 2D bindless image USM is supported, but sampling is not.
+    // More specifically, image creation from with sampler using linear
+    // filtering is unstable and somtimes passes while other times returns
+    // unsupported error code.
+    return ReturnValue(
+        static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
+  }
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
+    int32_t tex_pitch_align{0};
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &tex_pitch_align, hipDeviceAttributeTexturePitchAlignment,
+        hDevice->get()));
+    detail::ur::assertion(tex_pitch_align >= 0);
+    return ReturnValue(static_cast<uint32_t>(tex_pitch_align));
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
+    // Default values due to non-existent hipamd queries for linear sizes.
+    constexpr uint32_t MaxLinearWidth{1};
+    return ReturnValue(MaxLinearWidth);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
+    // Default values due to non-existent hipamd queries for linear sizes.
+    constexpr uint32_t MaxLinearHeight{1};
+    return ReturnValue(MaxLinearHeight);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
+    // Default values due to non-existent hipamd queries for linear sizes.
+    constexpr uint32_t MaxLinearPitch{1};
+    return ReturnValue(MaxLinearPitch);
+  }
+  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
+    // HIP supports mipmaps.
+    // TODO: DPC++ doesn't implement the required mipmap builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP: {
+    // HIP supports anisotropic filtering.
+    // TODO: DPC++ doesn't implement the required mipmap builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP: {
+    // HIP has no query for this, but documentation states max value is 16.
+    constexpr float MaxAnisotropy{16.f};
+    return ReturnValue(MaxAnisotropy);
+  }
+  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
+    // HIP supports creation of images from individual mipmap levels.
+    // TODO: DPC++ doesn't implement the required mipmap builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+
+  case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
+    // Importing external memory is supported, but there are current
+    // issues in the HIP runtime due to which mapping the external array memory
+    // does not work at the moment. Linear/buffer memory mapping is supported.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+    // HIP supports importing external semaphores.
+    // TODO: Importing external semaphores should be supported in the adapter,
+    // but there are still current issues as not all related tests are passing.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
+    // HIP supports cubemaps.
+    // TODO: DPC++ doesn't implement the required builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
+    // HIP supports cubemap seamless filtering.
+    // TODO: DPC++ doesn't implement the required builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+    // HIP supports fetching 1D USM sampled image data.
+    // TODO: DPC++ doesn't implement the required builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+    // HIP does not support fetching 1D non-USM sampled image data.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+    // HIP supports fetching 2D USM sampled image data.
+    // TODO: DPC++ doesn't implement the required builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+    // HIP supports fetching 2D non-USM sampled image data.
+    // TODO: DPC++ doesn't implement the required builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+    // HIP supports fetching 3D non-USM sampled image data.
+    // TODO: DPC++ doesn't implement the required builtins for SYCL.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
+    // TODO: Our HIP adapter implements image arrays but DPC++ end-to-end
+    // testing currently fails due to various runtime errors that could be
+    // arch-specific driver support, as well missing builtins. Hence, this
+    // feature is marked unsupported until those issues are resolved.
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+    // HIP does not support unique addressing per dimension
+    return ReturnValue(ur_bool_t{false});
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+    // HIP supports sampling 1D USM sampled image data.
+    return ReturnValue(
+        static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+    // HIP supports sampling 2D USM sampled image data.
+    return ReturnValue(
+        static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
 
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {

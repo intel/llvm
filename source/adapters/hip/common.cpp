@@ -43,6 +43,10 @@ ur_result_t mapErrorUR(hipError_t Result) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   case hipErrorLaunchOutOfResources:
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  case hipErrorNotInitialized:
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  case hipErrorNotSupported:
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
