@@ -1,7 +1,7 @@
-# commit e2df8acd37c3c159364cfdf9dfdc1be35b71779e
-# Merge: 992ff37f 3a31ffee
+# commit 87d4a32666f2950e7cfa016ff181311c2e0ebbca
+# Merge: f07688db 8e4b5c3d
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Fri Jan 31 10:15:03 2025 +0000
-#     Merge pull request #2575 from DBDuncan/duncan/extend-copies
-#     [CUDA][Bindless] Add support for device to device pitched copies and host to host copies
-set(UNIFIED_RUNTIME_TAG c5bbac8c299418f48b70deb22ba63456bddf3247)
+# Date:   Tue Feb 4 15:45:58 2025 +0000
+#     Merge pull request #2480 from ldorau/Add_UMF_CUDA_provider
+#     Use UMF CUDA memory provider in UR
+set(UNIFIED_RUNTIME_TAG 87d4a32666f2950e7cfa016ff181311c2e0ebbca)
