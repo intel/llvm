@@ -1,13 +1,17 @@
-// RUN: %{build} -Wno-error=unused-command-line-argument -foffload-fp32-prec-div -o %t_with.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -o %t_with.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -foffload-fp32-prec-div -o %t_with_div.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -foffload-fp32-prec-sqrt -o %t_with_sqrt.out
 // RUN: %{build} -o %t_without.out
 
 // RUN: env SYCL_UR_TRACE=2 %{run} %t_with.out 2>&1 | FileCheck %if hip || cuda %{ --check-prefix=CHECK-WITHOUT %} %else %{ --check-prefix=CHECK-WITH %} %s
-// RUN: env SYCL_UR_TRACE=2 %{run} %t_without.out 2>&1 | FileCheck --implicit-check-not=fp32-correctly-rounded-divide-div
+// RUN: env SYCL_UR_TRACE=2 %{run} %t_with_div.out 2>&1 | FileCheck %if hip || cuda %{ --check-prefix=CHECK-WITHOUT %} %else %{ --check-prefix=CHECK-WITH %} %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t_with_sqrt.out 2>&1 | FileCheck %if hip || cuda %{ --check-prefix=CHECK-WITHOUT %} %else %{ --check-prefix=CHECK-WITH %} %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t_without.out 2>&1 | FileCheck --implicit-check-not=fp32-correctly-rounded-divide-sqrt %s
 
-// CHECK-INTEL-WITH: <--- urProgramBuild
-// CHECK-INTEL-WITH-SAME: fp32-correctly-rounded-divide-div
+// CHECK-WITH: <--- urProgramBuild
+// CHECK-WITH-SAME: fp32-correctly-rounded-divide-sqrt
 
-// CHECK-WITHOUT-NOT: <--- urProgramBuild{{.*}}fp32-correctly-rounded-divide-div{{.*}} -> UR_RESULT_SUCCESS
+// CHECK-WITHOUT-NOT: <--- urProgramBuild{{.*}}fp32-correctly-rounded-divide-sqrt{{.*}} -> UR_RESULT_SUCCESS
 // CHECK-WITHOUT: <--- urProgramBuild{{.*}} -> UR_RESULT_SUCCESS
 
 #include <sycl/detail/core.hpp>
