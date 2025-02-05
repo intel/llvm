@@ -348,7 +348,7 @@ public:
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event submit(const std::function<void(handler &)> &CGF,
+  event submit(const detail::type_erased_cgfo_ty &CGF,
                const std::shared_ptr<queue_impl> &Self,
                const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc, bool IsTopCodeLoc,
@@ -370,7 +370,7 @@ public:
   /// \param Loc is the code location of the submit call (default argument)
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object for the submitted command group.
-  event submit_with_event(const std::function<void(handler &)> &CGF,
+  event submit_with_event(const detail::type_erased_cgfo_ty &CGF,
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
@@ -395,7 +395,7 @@ public:
     return discard_or_return(ResEvent);
   }
 
-  void submit_without_event(const std::function<void(handler &)> &CGF,
+  void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const std::shared_ptr<queue_impl> &Self,
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
@@ -863,7 +863,7 @@ protected:
   /// \param Loc is the code location of the submit call (default argument)
   /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
-  event submit_impl(const std::function<void(handler &)> &CGF,
+  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
                     const std::shared_ptr<queue_impl> &Self,
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
