@@ -24,14 +24,11 @@
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Object/Archive.h"
-#include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/IRObjectFile.h"
@@ -44,10 +41,8 @@
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -55,7 +50,6 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
-#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
@@ -156,7 +150,7 @@ static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 static bool UseSYCLPostLinkTool;
 
-SmallString<128> SPIRVDumpDir;
+static SmallString<128> SPIRVDumpDir;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
@@ -1480,7 +1474,7 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
       if (Magic == file_magic::spirv_object)
         return createStringError(
             "SPIR-V fat objects must be generated with --offload-new-driver");
-      auto Arg = Args.MakeArgString(
+      const auto *Arg = Args.MakeArgString(
           "sycl-" +
           (Triple.isSPIROrSPIRV() ? Triple.str() + "-" : Triple.str()) + "=" +
           ObjectFilePath);
@@ -2237,7 +2231,7 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
 
-  auto Bin = Input.front().getBinary();
+  const auto *Bin = Input.front().getBinary();
   DAL.AddJoinedArg(
       nullptr, Tbl.getOption(OPT_sycl_backend_compile_options_from_image_EQ),
       Args.MakeArgString(Bin->getString(COMPILE_OPTS)));
