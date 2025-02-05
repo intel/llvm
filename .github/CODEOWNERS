@@ -35,6 +35,22 @@ sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 # Unified Runtime
+unified-runtime/ @intel/unified-runtime-reviewers
+# TODO: Use specific UR Level Zero adapter team
+unified-runtime/*/adapters/level_zero/ @intel/unified-runtime-reviewers
+# TODO: Use specific UR OpenCL adapter team
+unified-runtime/*/adapters/opencl/ @intel/unified-runtime-reviewers
+unified-runtime/*/adapters/cuda/  @intel/llvm-reviewers-cuda
+unified-runtime/*/adapters/hip/  @intel/llvm-reviewers-cuda
+unified-runtime/*/adapters/native_cpu/ @intel/dpcpp-nativecpu-reviewers
+unified-runtime/source/adapters/**/command_buffer.* @intel/sycl-graphs-reviewers
+unified-runtime/scripts/core/EXP-COMMAND-BUFFER.rst @intel/sycl-graphs-reviewers
+unified-runtime/scripts/core/exp-command-buffer.yml @intel/sycl-graphs-reviewers
+unified-runtime/test/conformance/exp_command_buffer** @intel/sycl-graphs-reviewers
+unified-runtime/source/adapters/**/image.* @intel/bindless-images-reviewers
+unified-runtime/scripts/core/EXP-BINDLESS-IMAGES.rst @intel/bindless-images-reviewers
+unified-runtime/scripts/core/exp-bindless-images.yml @intel/bindless-images-reviewers
+unified-runtime/test/conformance/exp_bindless_images** @intel/bindless-images-reviewers
 sycl/cmake/modules/FetchUnifiedRuntime.cmake @intel/unified-runtime-reviewers
 sycl/cmake/modules/UnifiedRuntimeTag.cmake @intel/unified-runtime-reviewers
 sycl/include/sycl/detail/ur.hpp @intel/unified-runtime-reviewers
@@ -126,14 +142,14 @@ sycl/test/matrix @intel/sycl-matrix-reviewers
 sycl/test/check_device_code/matrix @intel/sycl-matrix-reviewers
 
 # Native CPU
-llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
-clang/include/clang/Basic/SYCLNativeCPUHelpers.h @intel/dpcpp-nativecpu-pi-reviewers 
-clang/test/CodeGenSYCL/native_cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
-clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
-sycl/**/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
-sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
-sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
-libdevice/nativecpu* @intel/dpcpp-nativecpu-pi-reviewers
+llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-reviewers
+clang/include/clang/Basic/SYCLNativeCPUHelpers.h @intel/dpcpp-nativecpu-reviewers
+clang/test/CodeGenSYCL/native_cpu*.cpp @intel/dpcpp-nativecpu-reviewers
+clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-reviewers
+sycl/**/native_cpu/ @intel/dpcpp-nativecpu-reviewers
+sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-reviewers
+sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-reviewers
+libdevice/nativecpu* @intel/dpcpp-nativecpu-reviewers
 
 # SYCL-Graphs extensions
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers

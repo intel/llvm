@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux,sg-32,aspect-usm_shared_allocations
+// REQUIRES: sg-32,aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

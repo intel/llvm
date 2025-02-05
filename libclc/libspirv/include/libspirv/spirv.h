@@ -58,6 +58,7 @@
 #include <libspirv/workitem/get_global_size.h>
 #include <libspirv/workitem/get_group_id.h>
 #include <libspirv/workitem/get_local_id.h>
+#include <libspirv/workitem/get_local_linear_id.h>
 #include <libspirv/workitem/get_local_size.h>
 #include <libspirv/workitem/get_max_sub_group_size.h>
 #include <libspirv/workitem/get_num_groups.h>
