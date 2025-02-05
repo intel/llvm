@@ -446,19 +446,15 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts = NewCompileOpts;
       OptPos = CompileOpts.find(TargetRegisterAllocMode);
     }
-    static const char *FP32PrecDiv = "-foffload-fp32-prec-div";
-    if (auto Pos = CompileOpts.find(FP32PrecDiv); Pos != std::string::npos) {
-      const char *BackendOption = nullptr;
-      PlatformImpl->getBackendOption(FP32PrecDiv, &BackendOption);
-      auto OptLen = strlen(FP32PrecDiv);
-      CompileOpts.replace(Pos, OptLen, BackendOption);
-    }
-    static const char *FP32PrecSqrt = "-foffload-fp32-prec-sqrt";
-    if (auto Pos = CompileOpts.find(FP32PrecSqrt); Pos != std::string::npos) {
-      const char *BackendOption = nullptr;
-      PlatformImpl->getBackendOption(FP32PrecSqrt, &BackendOption);
-      auto OptLen = strlen(FP32PrecSqrt);
-      CompileOpts.replace(Pos, OptLen, BackendOption);
+    constexpr std::string_view ReplaceOpts[] = {"-foffload-fp32-prec-div",
+                                                "-foffload-fp32-prec-sqrt"};
+    for (const std::string_view Opt : ReplaceOpts) {
+      if (auto Pos = CompileOpts.find(Opt); Pos != std::string::npos) {
+        const char *BackendOption = nullptr;
+        PlatformImpl->getBackendOption(std::string(Opt).c_str(),
+                                       &BackendOption);
+        CompileOpts.replace(Pos, Opt.length(), BackendOption);
+      }
     }
   }
 }
