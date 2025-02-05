@@ -610,7 +610,7 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cubemap: {
     ur_bool_t support = false;
     bool call_successful =
-        getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
             MDevice, UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP, sizeof(ur_bool_t),
             &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
@@ -618,7 +618,7 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cubemap_seamless_filtering: {
     ur_bool_t support = false;
     bool call_successful =
-        getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
             MDevice, UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
