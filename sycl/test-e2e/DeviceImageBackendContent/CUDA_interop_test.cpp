@@ -9,7 +9,7 @@
 
 int main() {
   sycl::device d([](const sycl::device &d) {
-    return d.get_backend() == sycl::backend::opencl;
+    return d.get_backend() == sycl::backend::cuda;
   });
   sycl::queue q{d};
   sycl::context ctxt = q.get_context();
