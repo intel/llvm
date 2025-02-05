@@ -118,7 +118,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     KernelImplicitArgumentType =
         ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
     ImplicitOffsetPtrType =
-        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
+        PointerType::get(Type::getInt32Ty(M.getContext()), TargetAS);
     assert(
         (ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
         "Implicit offset intrinsic does not return the expected type");
@@ -179,7 +179,7 @@ void GlobalOffsetPass::processKernelEntryPoint(
   // Add the new argument to all other kernel entry points, despite not
   // using the global offset.
   auto *NewFunc = addOffsetArgumentToFunction(
-                      M, Func, KernelImplicitArgumentType->getPointerTo(),
+                      M, Func, PointerType::getUnqual(Func->getContext()),
                       /*KeepOriginal=*/true,
                       /*IsKernel=*/true)
                       .first;
@@ -343,7 +343,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
       // addrspace(4), cast implicit offset arg to constant memory so the
       // memcpy is issued into a correct address space.
       auto *OrigImplicitOffsetAS4 = Builder.CreateAddrSpaceCast(
-          OrigImplicitOffset, Type::getInt8Ty(M.getContext())->getPointerTo(4));
+          OrigImplicitOffset, llvm::PointerType::get(M.getContext(), 4));
       Builder.CreateMemCpy(
           ImplicitOffsetAlloca, ImplicitOffsetAlloca->getAlign(),
           OrigImplicitOffsetAS4, OrigImplicitOffsetAS4->getPointerAlignment(DL),
@@ -390,8 +390,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
             : EntryBlock->getFirstInsertionPt();
     IRBuilder<> Builder(EntryBlock, InsertionPt);
     ImplicitOffset = Builder.CreateBitCast(
-        ImplicitOffset,
-        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS));
+        ImplicitOffset, llvm::PointerType::get(M.getContext(), TargetAS));
   }
 
   ProcessedFunctions[Func] = ImplicitOffset;
