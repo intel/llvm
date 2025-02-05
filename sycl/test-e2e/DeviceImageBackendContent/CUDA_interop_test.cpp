@@ -26,7 +26,7 @@ int main() {
   const auto img = *(bundle.begin());
   const auto bytes = img.ext_oneapi_get_backend_content();
   CUmodule m;
-  CUresult res =
+  CUresult result =
       cuModuleLoadData(&m, reinterpret_cast<const void *>(bytes.data()));
   assert(result == CUDA_SUCCESS);
   return 0;
