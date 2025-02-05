@@ -159,8 +159,10 @@ void SPIRVToLLVMDbgTran::transDbgInfo(const SPIRVValue *SV, Value *V) {
     return;
 
   if (Instruction *I = dyn_cast<Instruction>(V)) {
-    const SPIRVInstruction *SI = static_cast<const SPIRVInstruction *>(SV);
-    I->setDebugLoc(transDebugScope(SI));
+    if (SV->isInst()) {
+      const SPIRVInstruction *SI = static_cast<const SPIRVInstruction *>(SV);
+      I->setDebugLoc(transDebugScope(SI));
+    }
   }
 }
 
