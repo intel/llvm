@@ -20555,6 +20555,23 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
   if (Final && LangOpts.OpenMP && !LangOpts.CUDA)
     return FunctionEmissionStatus::Emitted;
 
+  if (LangOpts.CUDA) {
+    // When compiling for device, host functions are never emitted.  Similarly,
+    // when compiling for host, device and global functions are never emitted.
+    // (Technically, we do emit a host-side stub for global functions, but this
+    // doesn't count for our purposes here.)
+    CUDAFunctionTarget T = CUDA().IdentifyTarget(FD);
+    if (LangOpts.CUDAIsDevice && T == CUDAFunctionTarget::Host)
+      return FunctionEmissionStatus::CUDADiscarded;
+    if (!LangOpts.CUDAIsDevice &&
+        (T == CUDAFunctionTarget::Device || T == CUDAFunctionTarget::Global))
+      return FunctionEmissionStatus::CUDADiscarded;
+
+    // Defere to SYCLIsDevice if in cude compat mode
+    if (!LangOpts.SYCLCUDACompat && IsEmittedForExternalSymbol())
+      return FunctionEmissionStatus::Emitted;
+  }
+
   if (getLangOpts().SYCLIsDevice) {
     if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
       return FunctionEmissionStatus::Unknown;
@@ -20569,22 +20586,6 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
 
     if (Def &&
         !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))
-      return FunctionEmissionStatus::Emitted;
-  }
-
-  if (LangOpts.CUDA) {
-    // When compiling for device, host functions are never emitted.  Similarly,
-    // when compiling for host, device and global functions are never emitted.
-    // (Technically, we do emit a host-side stub for global functions, but this
-    // doesn't count for our purposes here.)
-    CUDAFunctionTarget T = CUDA().IdentifyTarget(FD);
-    if (LangOpts.CUDAIsDevice && T == CUDAFunctionTarget::Host)
-      return FunctionEmissionStatus::CUDADiscarded;
-    if (!LangOpts.CUDAIsDevice &&
-        (T == CUDAFunctionTarget::Device || T == CUDAFunctionTarget::Global))
-      return FunctionEmissionStatus::CUDADiscarded;
-
-    if (IsEmittedForExternalSymbol())
       return FunctionEmissionStatus::Emitted;
   }
 
