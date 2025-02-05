@@ -125,8 +125,9 @@ int get_mem_idx(GroupTy g, int vec_or_array_idx) {
 // https://registry.khronos.org/OpenCL/extensions/intel/cl_intel_subgroups_char.html
 // https://registry.khronos.org/OpenCL/extensions/intel/cl_intel_subgroups_long.html
 // https://registry.khronos.org/OpenCL/extensions/intel/cl_intel_subgroups_short.html
-// Reads require 4-byte alignment, writes 16-byte alignment. Supported
-// sizes:
+// https://registry.khronos.org/OpenCL/extensions/intel/cl_intel_subgroup_local_block_io.html
+// Reads require 4-byte alignment for global pointers and 16-byte alignment for
+// local pointers, writes require 16-byte alignment. Supported sizes:
 //
 // +------------+-------------+
 // | block type | # of blocks |
@@ -168,7 +169,7 @@ struct RequiredAlignment<OpType, access::address_space::global_space> {
 
 template <operation_type OpType>
 struct RequiredAlignment<OpType, access::address_space::local_space> {
-  static constexpr int value = (OpType == operation_type::load) ? 4 : 16;
+  static constexpr int value = 16;
 };
 
 template <typename BlockInfoTy> struct BlockTypeInfo;
