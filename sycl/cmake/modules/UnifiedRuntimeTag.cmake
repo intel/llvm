@@ -1,7 +1,7 @@
-# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
-# Merge: 902bb2e2 94b32ac2
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 28 11:02:44 2025 +0000
-#     Merge pull request #2624 from RossBrunton/ross/msanfix
-#     Assert that Device is valid for memory poisoning
-set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
+# commit 87d4a32666f2950e7cfa016ff181311c2e0ebbca
+# Merge: f07688db 8e4b5c3d
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Feb 4 15:45:58 2025 +0000
+#     Merge pull request #2480 from ldorau/Add_UMF_CUDA_provider
+#     Use UMF CUDA memory provider in UR
+set(UNIFIED_RUNTIME_TAG 87d4a32666f2950e7cfa016ff181311c2e0ebbca)
