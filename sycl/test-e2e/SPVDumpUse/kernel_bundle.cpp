@@ -1,4 +1,4 @@
-// REQUIRES: opencl || level_zero
+// REQUIRES: target-spir, opencl || level_zero
 //
 // SYCL_USE_KERNEL_SPV assumes no dead arguments elimination, need to produce
 // SPV under the same conditions.
