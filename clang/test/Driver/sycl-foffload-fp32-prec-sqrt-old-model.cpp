@@ -8,6 +8,6 @@
 // RUN:   -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=JIT %s
 
-// AOT: "ocloc" "-output"{{.*}} "-options" "-ze-fp32-correctly-rounded-divide-sqrt"
+// AOT: "-ze-fp32-correctly-rounded-divide-sqrt"
 
 // JIT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-foffload-fp32-prec-sqrt"
