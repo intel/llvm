@@ -7312,8 +7312,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // preprocessed inputs and configure concludes that -fPIC is not supported.
   Args.ClaimAllArgs(options::OPT_D);
 
-  bool SkipO =
-      Args.hasArgNoClaim(options::OPT_fsycl_link_EQ) && ContainsWrapperAction(&JA);
+  bool SkipO = Args.hasArgNoClaim(options::OPT_fsycl_link_EQ) &&
+               ContainsWrapperAction(&JA);
   const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
   // Manually translate -O4 to -O3; let clang reject others.
   // When compiling a wrapped binary, do not optimize.
