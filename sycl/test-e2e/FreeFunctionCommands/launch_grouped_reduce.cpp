@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -16,7 +17,6 @@ int main() {
   int Failed = 0;
   sycl::queue Queue;
 
-  // launch_grouped_reduce with buffer
   {
     int Result = 0;
     constexpr size_t Dim = 8;
@@ -37,7 +37,6 @@ int main() {
         Check(Result, ExpectedResult, "launch_grouped_reduce_with_buffer");
   }
 
-  // launch_grouped_reduce with USM
   {
     int *Result = sycl::malloc_shared<int>(1, Queue);
     Result[0] = 0;

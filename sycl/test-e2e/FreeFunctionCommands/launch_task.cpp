@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -18,7 +19,6 @@ int main() {
 
   sycl::queue Queue;
 
-  // launch_task with buffer
   {
     std::array<int, N> DataBuffer = {-0};
 
@@ -37,7 +37,6 @@ int main() {
       Failed += Check(DataBuffer.data(), 101, i, "launch_task_with_buffer");
   }
 
-  // launch_task with USM
   {
     int *DataBuffer = sycl::malloc_shared<int>(N, Queue);
 

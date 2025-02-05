@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -18,7 +19,6 @@ int main() {
   sycl::queue Queue;
   constexpr size_t Dim = 8;
 
-  // launch with buffer
   {
     constexpr size_t N = Dim * Dim * Dim;
 
@@ -38,7 +38,6 @@ int main() {
       Failed += Check(Numbers.data(), 901, i, "launch_with_buffer");
   }
 
-  // launch with USM
   {
     constexpr size_t N = Dim * Dim;
     int *Numbers = sycl::malloc_shared<int>(N, Queue);

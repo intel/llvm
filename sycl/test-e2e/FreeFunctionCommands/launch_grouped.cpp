@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -15,7 +16,6 @@ int main() {
   sycl::queue Queue;
   constexpr size_t N = 1024;
 
-  // launch_grouped with sycl buffer
   {
     std::array<int, N> Numbers = {0};
     {
@@ -35,7 +35,6 @@ int main() {
           Check(Numbers.data(), 301, i, "launch_grouped_with_sycl_buffer");
   }
 
-  // launch_grouped with USM
   {
     int *Numbers = sycl::malloc_shared<int>(N, Queue);
 
