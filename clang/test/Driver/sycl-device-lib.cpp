@@ -352,3 +352,16 @@
 // SYCL_DEVICE_MSAN_MACRO: "-cc1"
 // SYCL_DEVICE_MSAN_MACRO-SAME: "USE_SYCL_DEVICE_MSAN"
 // SYCL_DEVICE_MSAN_MACRO: libsycl-msan.new.o
+
+/// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// SYCL_DEVICE_LIB_MSAN_PVC: clang-linker-wrapper{{.*}} "-sycl-device-libraries
+// SYCL_DEVICE_LIB_MSAN_PVC-SAME: {{.*}}libsycl-msan-pvc.new.o
+
+/// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_CPU
+// SYCL_DEVICE_LIB_MSAN_CPU: clang-linker-wrapper{{.*}} "-sycl-device-libraries
+// SYCL_DEVICE_LIB_MSAN_CPU-SAME: {{.*}}libsycl-msan-cpu.new.o
+

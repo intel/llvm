@@ -1,8 +1,7 @@
-# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
-# Merge: 71a5eab0 128ea023
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 11:21:50 2025 +0000
-#     Merge pull request #2539 from RossBrunton/ross/specconst
-#
-#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
-set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
+# commit 87d4a32666f2950e7cfa016ff181311c2e0ebbca
+# Merge: f07688db 8e4b5c3d
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Feb 4 15:45:58 2025 +0000
+#     Merge pull request #2480 from ldorau/Add_UMF_CUDA_provider
+#     Use UMF CUDA memory provider in UR
+set(UNIFIED_RUNTIME_TAG 87d4a32666f2950e7cfa016ff181311c2e0ebbca)
