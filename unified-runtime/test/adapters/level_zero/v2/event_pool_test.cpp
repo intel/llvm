@@ -109,6 +109,10 @@ struct EventPoolTest : public uur::urQueueTestWithParam<ProviderParams> {
 
     auto params = getParam();
 
+    // Initialize Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, the driver will not be init otherwise.
+    zeInit(ZE_INIT_FLAG_GPU_ONLY);
+
     mockVec.push_back(device);
 
     cache = std::unique_ptr<event_pool_cache>(new event_pool_cache(
