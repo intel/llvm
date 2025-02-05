@@ -10,4 +10,4 @@
 
 // AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch={{.*}},kind=sycl,compile-opts=-options -ze-fp32-correctly-rounded-divide-sqrt{{.*}}"
 
-// JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch={{.*}} -foffload-fp32-prec-sqrt"
+// JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch={{.*}}compile-opts={{.*}}-foffload-fp32-prec-sqrt"
