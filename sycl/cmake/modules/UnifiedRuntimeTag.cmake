@@ -1,7 +1,7 @@
-# commit b841691699393dd2375e987c3d38d5f59c3e35cf
-# Merge: c6859445 9de10cd9
+# commit f07688dbc20c73d7e480cb62d7dc0ce7dc822bd3
+# Merge: 7d864b6c 3dbf8b24
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 16:07:06 2025 +0000
-#     Merge pull request #2559 from Bensuo/fix_kernel_arg_indices
-#     [CUDA][HIP] Fix kernel arguments being overwritten when added out of order
-set(UNIFIED_RUNTIME_TAG b841691699393dd2375e987c3d38d5f59c3e35cf)
+# Date:   Tue Feb 4 15:45:49 2025 +0000
+#     Merge pull request #2618 from winstonzhang-intel/max_eu_count_calculation
+#     [L0] MAX_COMPUTE_UNITS using ze_eu_count_ext_t
+set(UNIFIED_RUNTIME_TAG f07688dbc20c73d7e480cb62d7dc0ce7dc822bd3)
