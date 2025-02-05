@@ -21,8 +21,7 @@
 
 namespace v2 {
 
-std::pair<ze_event_handle_t *, uint32_t>
-ur_queue_immediate_in_order_t::getWaitListView(
+wait_list_view ur_queue_immediate_in_order_t::getWaitListView(
     const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents) {
   return commandListManager.getWaitListView(phWaitEvents, numWaitEvents);
 }
@@ -291,16 +290,16 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
     ur_command_t commandType) {
   auto zeSignalEvent = getSignalEvent(phEvent, commandType);
 
-  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  bool memoryMigrated = false;
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
       hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, srcOffset,
       size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (commandListManager.getZeCommandList(), dst, src,
-                           size, nullptr, waitList.second, waitList.first));
-        memoryMigrated = true;
+                           size, nullptr, waitListView.num,
+                           waitListView.handles));
+        waitListView.clear();
       }));
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
@@ -308,20 +307,14 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
       size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (commandListManager.getZeCommandList(), dst, src,
-                           size, nullptr, waitList.second, waitList.first));
-        memoryMigrated = true;
+                           size, nullptr, waitListView.num,
+                           waitListView.handles));
+        waitListView.clear();
       }));
-
-  if (memoryMigrated) {
-    // If memory was migrated, we don't need to pass the wait list to
-    // the copy command again.
-    waitList.first = nullptr;
-    waitList.second = 0;
-  }
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandListManager.getZeCommandList(), pDst, pSrc, size,
-              zeSignalEvent, waitList.second, waitList.first));
+              zeSignalEvent, waitListView.num, waitListView.handles));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize,
@@ -379,38 +372,32 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueRegionCopyUnlocked(
 
   auto zeSignalEvent = getSignalEvent(phEvent, commandType);
 
-  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  bool memoryMigrated = false;
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
       hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, 0,
       src->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (commandListManager.getZeCommandList(), dst, src,
-                           size, nullptr, waitList.second, waitList.first));
-        memoryMigrated = true;
+                           size, nullptr, waitListView.num,
+                           waitListView.handles));
+        waitListView.clear();
       }));
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
       hDevice, ur_mem_handle_t_::device_access_mode_t::write_only, 0,
       dst->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (commandListManager.getZeCommandList(), dst, src,
-                           size, nullptr, waitList.second, waitList.first));
-        memoryMigrated = true;
+                           size, nullptr, waitListView.num,
+                           waitListView.handles));
+        waitListView.clear();
       }));
-
-  if (memoryMigrated) {
-    // If memory was migrated, we don't need to pass the wait list to
-    // the copy command again.
-    waitList.first = nullptr;
-    waitList.second = 0;
-  }
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
              (commandListManager.getZeCommandList(), pDst, &zeParams.dstRegion,
               zeParams.dstPitch, zeParams.dstSlicePitch, pSrc,
               &zeParams.srcRegion, zeParams.srcPitch, zeParams.srcSlicePitch,
-              zeSignalEvent, waitList.second, waitList.first));
+              zeSignalEvent, waitListView.num, waitListView.handles));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize,
@@ -580,23 +567,23 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_BUFFER_MAP);
 
-  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  bool memoryMigrated = false;
   auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
       mapFlags, offset, size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (commandListManager.getZeCommandList(), dst, src,
-                           size, nullptr, waitList.second, waitList.first));
-        memoryMigrated = true;
+                           size, nullptr, waitListView.num,
+                           waitListView.handles));
+        waitListView.clear();
       }));
   *ppRetMap = pDst;
 
-  if (!memoryMigrated && waitList.second) {
+  if (waitListView) {
     // If memory was not migrated, we need to wait on the events here.
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (commandListManager.getZeCommandList(), waitList.second,
-                waitList.first));
+               (commandListManager.getZeCommandList(), waitListView.num,
+                waitListView.handles));
   }
 
   if (zeSignalEvent) {
@@ -621,21 +608,20 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemUnmap(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_UNMAP);
 
-  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   // TODO: currently unmapHostPtr deallocates memory immediately,
   // since the memory might be used by the user, we need to make sure
   // all dependencies are completed.
-  ZE2UR_CALL(
-      zeCommandListAppendWaitOnEvents,
-      (commandListManager.getZeCommandList(), waitList.second, waitList.first));
+  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+             (commandListManager.getZeCommandList(), waitListView.num,
+              waitListView.handles));
+  waitListView.clear();
 
-  bool memoryMigrated = false;
   hMem->unmapHostPtr(pMappedPtr, [&](void *src, void *dst, size_t size) {
     ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                       (commandListManager.getZeCommandList(), dst, src, size,
-                       nullptr, waitList.second, waitList.first));
-    memoryMigrated = true;
+                       nullptr, waitListView.num, waitListView.handles));
   });
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
@@ -652,33 +638,40 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericFillUnlocked(
 
   auto zeSignalEvent = getSignalEvent(phEvent, commandType);
 
-  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  bool memoryMigrated = false;
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
       hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, offset, size,
       [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (commandListManager.getZeCommandList(), dst, src,
-                           size, nullptr, waitList.second, waitList.first));
-        memoryMigrated = true;
+                           size, nullptr, waitListView.num,
+                           waitListView.handles));
+        waitListView.clear();
       }));
-
-  if (memoryMigrated) {
-    // If memory was migrated, we don't need to pass the wait list to
-    // the copy command again.
-    waitList.first = nullptr;
-    waitList.second = 0;
-  }
-
-  // TODO: support non-power-of-two pattern sizes
 
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
-  ZE2UR_CALL(zeCommandListAppendMemoryFill,
-             (commandListManager.getZeCommandList(), pDst, pPattern,
-              patternSize, size, zeSignalEvent, waitList.second,
-              waitList.first));
+  if (isPowerOf2(patternSize)) {
+    ZE2UR_CALL(zeCommandListAppendMemoryFill,
+               (commandListManager.getZeCommandList(), pDst, pPattern,
+                patternSize, size, zeSignalEvent, waitListView.num,
+                waitListView.handles));
+  } else {
+    // Copy pattern into every entry in memory array pointed by Ptr.
+    uint32_t numOfCopySteps = size / patternSize;
+    const void *src = pPattern;
+
+    for (uint32_t step = 0; step < numOfCopySteps; ++step) {
+      void *dst = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(pDst) +
+                                           step * patternSize);
+      ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+                 (commandListManager.getZeCommandList(), dst, src, patternSize,
+                  step == numOfCopySteps - 1 ? zeSignalEvent : nullptr,
+                  waitListView.num, waitListView.handles));
+      waitListView.clear();
+    }
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -988,33 +981,25 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
 
-  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  bool memoryMigrated = false;
   auto memoryMigrate = [&](void *src, void *dst, size_t size) {
     ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                       (commandListManager.getZeCommandList(), dst, src, size,
-                       nullptr, waitList.second, waitList.first));
-    memoryMigrated = true;
+                       nullptr, waitListView.num, waitListView.handles));
+    waitListView.clear();
   };
 
   UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
                                         workDim, WG[0], WG[1], WG[2],
                                         memoryMigrate));
 
-  if (memoryMigrated) {
-    // If memory was migrated, we don't need to pass the wait list to
-    // the copy command again.
-    waitList.first = nullptr;
-    waitList.second = 0;
-  }
-
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::"
                       "zeCommandListAppendLaunchCooperativeKernel");
   ZE2UR_CALL(zeCommandListAppendLaunchCooperativeKernel,
              (commandListManager.getZeCommandList(), hZeKernel,
-              &zeThreadGroupDimensions, zeSignalEvent, waitList.second,
-              waitList.first));
+              &zeThreadGroupDimensions, zeSignalEvent, waitListView.num,
+              waitListView.handles));
 
   recordSubmittedKernel(hKernel);
 

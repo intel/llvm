@@ -15,6 +15,21 @@
 #include "queue_api.hpp"
 #include <ze_api.h>
 
+struct wait_list_view {
+  ze_event_handle_t *handles;
+  uint32_t num;
+
+  operator bool() const {
+    assert((handles != nullptr) == (num > 0));
+    return handles != nullptr;
+  }
+
+  void clear() {
+    handles = nullptr;
+    num = 0;
+  }
+};
+
 struct ur_command_list_manager : public _ur_object {
 
   ur_command_list_manager(ur_context_handle_t context,
@@ -34,9 +49,8 @@ struct ur_command_list_manager : public _ur_object {
 
   ze_command_list_handle_t getZeCommandList();
 
-  std::pair<ze_event_handle_t *, uint32_t>
-  getWaitListView(const ur_event_handle_t *phWaitEvents,
-                  uint32_t numWaitEvents);
+  wait_list_view getWaitListView(const ur_event_handle_t *phWaitEvents,
+                                 uint32_t numWaitEvents);
   ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
 
