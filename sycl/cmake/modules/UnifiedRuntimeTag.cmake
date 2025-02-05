@@ -4,4 +4,4 @@
 # Date:   Tue Feb 4 15:45:58 2025 +0000
 #     Merge pull request #2480 from ldorau/Add_UMF_CUDA_provider
 #     Use UMF CUDA memory provider in UR
-set(UNIFIED_RUNTIME_TAG 87d4a32666f2950e7cfa016ff181311c2e0ebbca)
+set(UNIFIED_RUNTIME_TAG 889d3d32dccf6a48e3f57c7857ddcc45b49589cc)
