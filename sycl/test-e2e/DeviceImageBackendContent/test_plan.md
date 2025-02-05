@@ -1,4 +1,4 @@
-#Test plan for [`sycl_ext_oneapi_device_image_backend_content`][spec-link] extension
+# Test plan for [`sycl_ext_oneapi_device_image_backend_content`][spec-link] extension
 
 ## Testing scope
 
