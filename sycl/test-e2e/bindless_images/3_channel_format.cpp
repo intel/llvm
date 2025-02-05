@@ -1,5 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 
+// Test requires at least this version of the Intel GPU driver on Arc.
+// REQUIRES-INTEL-DRIVER: lin: 32370
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 

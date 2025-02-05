@@ -1,8 +1,7 @@
-# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
-# Merge: 71a5eab0 128ea023
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 11:21:50 2025 +0000
-#     Merge pull request #2539 from RossBrunton/ross/specconst
-#
-#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
-set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
+# commit f07688dbc20c73d7e480cb62d7dc0ce7dc822bd3
+# Merge: 7d864b6c 3dbf8b24
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Tue Feb 4 15:45:49 2025 +0000
+#     Merge pull request #2618 from winstonzhang-intel/max_eu_count_calculation
+#     [L0] MAX_COMPUTE_UNITS using ze_eu_count_ext_t
+set(UNIFIED_RUNTIME_TAG f07688dbc20c73d7e480cb62d7dc0ce7dc822bd3)
