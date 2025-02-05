@@ -5,7 +5,6 @@ device binaries to be loaded dynamically by the SYCL runtime. It also details
 how the toolchain produces, links and packages these binaries, as well as how
 the SYCL runtime library handles files of this format.
 
-(syclbin_format)=
 ## SYCLBIN binary format
 
 The files produced by the new compilation path will follow the format described
@@ -33,6 +32,14 @@ file.
 | ---------- | ------------------------------------------------------------------ | -------------- |
 | `uint32_t` | Magic number. (0x53594249)                                         |                |
 | `uint32_t` | SYCLBIN version number.                                            |                |
+
+#### Global metadata
+
+Immediately after the header is the global metadata segment of the SYCLBIN,
+containing information about the contained SYCLBIN file.
+
+| Type       | Description                                                        | Value variable |
+| ---------- | ------------------------------------------------------------------ | -------------- |
 | `uint8_t`  | `sycl::bundle_state` corresponding to the contents of the SYCLBIN. |                |
 
 The `sycl::bundle_state` is an integer with the values as follows:
@@ -46,7 +53,7 @@ The `sycl::bundle_state` is an integer with the values as follows:
 
 ### Body
 
-Immediately after the header is the body of the SYCLBIN file. The body consists
+Following the global metadata is the body of the SYCLBIN file. The body consists
 of a list of abstract modules.
 
 | Type       | Description                                | Value variable |
@@ -56,6 +63,17 @@ of a list of abstract modules.
 
 
 #### Abstract module
+
+An abstract module is a collection of device binaries that share properties,
+including, but not limited to: kernel names, imported symbols, exported symbols,
+aspect requirements, and specialization constants.
+
+The device binaries contained inside an abstract module must either be an IR
+module or a native device code image. IR modules contain device binaries in some
+known intermediate representation, such as SPIR-V, while the native device code
+images can be an architecture-specific binary format. There is no requirement
+that all device binaries in an abstract module is usable on the same device or
+are specific to a single vendor.
 
 Each abstract module represents a set of kernels, the corresponding metadata, 0
 or more IR modules containing these kernels, and 0 or more native device code
@@ -78,29 +96,12 @@ module.
 
 | Type       | Description                                                    | Value variable |
 | ---------- | -------------------------------------------------------------- | -------------- |
-| `uint32_t` | Byte size of the list of kernel names.                         | `K`            |
-| `K`        | List of kernel names. (String list)                            |                |
-| `uint32_t` | Byte size of the list of imported symbols.                     | `I`            |
-| `I`        | List of imported symbols. (String list)                        |                |
-| `uint32_t` | Byte size of the list of exported symbols.                     | `E`            |
-| `E`        | List of exported symbols. (String list)                        |                |
 | `uint32_t` | Byte size of property set data.                                | `P`            |
 | `P`        | Property set data.                                             |                |
 
 
 *NOTE:* Optional features used is embedded in the property set data.
 *TODO:* Consolidate and/or document the property set data in this document.
-
-##### String list
-
-A string list in this binary format consists of a `uint32_t` at the beginning
-containing the number of elements in the list, followed by that number of
-entries with the format:
-
-| Type       | Description              | Value variable |
-| ---------- | ------------------------ | -------------- |
-| `uint32_t` | Byte size of the string. | `S`            |
-| `S`        | String bytes.            |                |
 
 
 ##### IR module
@@ -168,7 +169,7 @@ The clang driver needs to accept the following new flags:
 <td>
 If this option is set, the output of the invocation is a SYCLBIN file with the
 .syclbin file extension. This skips the host-compilation invocation of the typical
-`-fsycl` pipeline, instead passing the output of the clang-offloat-packager
+`-fsycl` pipeline, instead passing the output of the clang-offload-packager
 invocation to clang-linker-wrapper together with the new `--syclbin` flag.
 
 Setting this option will override `-fsycl` and `-fsycl-device-only`.
@@ -200,7 +201,7 @@ unpack an offload binary (as described in
 directly, instead of extracting it from a host binary. This should be done when
 a new flag, `--syclbin`, is passed. In this case, the clang-linker-wrapper is
 responsible to package the resulting device binaries and produced metadata into
-the format described in [SYCLBIN binary format section](#syclbin_format).
+the format described in [SYCLBIN binary format section](#syclbin-binary-format).
 Additionally, in this case the clang-linker-wrapper will skip the wrapping of
 the device code and the host code linking stage, as there is no host code to
 wrap the device code in and link.
@@ -213,9 +214,9 @@ wrap the device code in and link.
 Using the interfaces from the
 [sycl_ext_oneapi_syclbin](../extensions/proposed/sycl_ext_oneapi_syclbin.asciidoc)
 extension, the runtime must be able to parse the SYCLBIN format, as described in
-the [SYCLBIN binary format section](#syclbin_format). To avoid large amounts of
-code duplication, the runtime uses the implementation of SYCLBIN reading and
-writing implemented in LLVM.
+the [SYCLBIN binary format section](#syclbin-binary-format). To avoid large
+amounts of code duplication, the runtime uses the implementation of SYCLBIN
+reading and writing implemented in LLVM.
 
 When creating a `kernel_bundle` from a SYCLBIN file, the runtime reads the
 contents of the SYCLBIN file and creates the corresponding data structure from
@@ -229,7 +230,7 @@ In the other direction, users can request the "contents" of a `kernel_bundle`.
 When this is done, the runtime library must ensure that a SYCLBIN file is
 available for the contents of the `kernel_bundle` and must then write the
 SYCLBIN object to the corresponding binary representation in the format
-described in the [SYCLBIN binary format section](#syclbin_format). In cases
+described in the [SYCLBIN binary format section](#syclbin-binary-format). In cases
 where the `kernel_bundle` was created with a SYCLBIN file, the SYCLBIN
 representation is immediately available and can be serialized directly. In other
 cases, the runtime library creates a new SYCLBIN object from the binaries
