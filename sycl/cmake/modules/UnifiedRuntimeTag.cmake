@@ -1,9 +1,7 @@
-# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
-# Merge: 4643d1c0 3ed86fae
+# commit 0e6adfb64039d3dd5fc8363245fcac60cbdcb8bd
+# Merge: 42044a83 d0c87169
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 13:55:27 2025 +0000
-#
-#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
-#
-#    Remove command-buffer command handle ref counting
-set(UNIFIED_RUNTIME_TAG georgi/bindless-hip)
+# Date:   Wed Feb 5 15:39:15 2025 +0000
+#     Merge pull request #2496 from GeorgeWeb/georgi/bindless-hip
+#     [UR][Bindless] Initial implementation of bindless images for HIP
+set(UNIFIED_RUNTIME_TAG 0e6adfb64039d3dd5fc8363245fcac60cbdcb8bd)
