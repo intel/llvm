@@ -7313,7 +7313,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.ClaimAllArgs(options::OPT_D);
 
   bool SkipO =
-      Args.hasArgNoClaim(options::OPT_fsycl_link) && ContainsWrapperAction(&JA);
+      Args.hasArgNoClaim(options::OPT_fsycl_link_EQ) && ContainsWrapperAction(&JA);
   const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
   // Manually translate -O4 to -O3; let clang reject others.
   // When compiling a wrapped binary, do not optimize.
@@ -10553,7 +10553,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
          "Not have inputs for all dependence actions??");
 
   if (OffloadingKind == Action::OFK_None &&
-      C.getArgs().hasArg(options::OPT_fsycl_link)) {
+      C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
 
     // For FPGA, we wrap the host objects before archiving them when using
     // -fsycl-link.  This allows for better extraction control from the

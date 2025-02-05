@@ -7135,9 +7135,10 @@ def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
   Alias<fsycl_device_obj_EQ>, AliasArgs<["spirv"]>, Flags<[Deprecated]>,
   HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects (deprecated)">;
-def fsycl_link_EQ : Joined<["-"], "fsycl-link=">, Flags<[UnsupportedRemoved]>;
-def fsycl_link : Flag<["-"], "fsycl-link">, HelpText<"Generate partially "
-  "linked device object to be used with the host link">;
+def fsycl_link_EQ : Joined<["-"], "fsycl-link=">;
+def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
+  AliasArgs<["default"]>, HelpText<"Generate partially linked device object to "
+  "be used with the host link">;
 defm sycl_unnamed_lambda
     : BoolFOption<
           "sycl-unnamed-lambda", LangOpts<"SYCLUnnamedLambda">,

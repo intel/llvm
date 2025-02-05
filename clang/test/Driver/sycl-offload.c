@@ -39,16 +39,17 @@
 // RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: '-fsycl-targets' must be used in conjunction with '-fsycl' to enable offloading
-
-// RUN: %clang -### -fsycl-link  %s 2>&1 \
+// RUN: not %clang -### -fsycl-link  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
-// CHK-NO-FSYCL-LINK: warning: argument unused during compilation: '-fsycl-link'
+// CHK-NO-FSYCL-LINK: error: '-fsycl-link' must be used in conjunction with '-fsycl' to enable offloading
 
 /// ###########################################################################
 
 /// Validate SYCL option values
 // RUN:   not %clang -### -fsycl-device-code-split=bad_value -fsycl --offload-new-driver  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-OPT-VALUE -Doption=-fsycl-device-code-split %s
+// RUN:   not %clang -### -fsycl-link=bad_value -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-OPT-VALUE -Doption=-fsycl-link %s
 // CHK-SYCL-BAD-OPT-VALUE: error: invalid argument 'bad_value' to [[option]]=
 
 /// Check no error for -fsycl-targets with good triple
