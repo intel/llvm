@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This test checks whether the free function command launch reduce is valid.
+// This test checks whether the free function command launch grouped reduce is
+// valid.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/khr/free_function_commands.hpp>
@@ -15,7 +16,7 @@ int main() {
   int Failed = 0;
   sycl::queue Queue;
 
-  // launch_reduced with buffer
+  // launch_grouped_reduce with buffer
   {
     int Result = 0;
     constexpr size_t Dim = 8;
@@ -24,28 +25,35 @@ int main() {
     {
       sycl::buffer<int> sumBuf{&Result, 1};
       Queue.submit([&](sycl::handler &Handler) {
-        sycl::khr::launch_reduce(
-            Handler, sycl::range<3>(Dim, Dim, Dim),
-            [=](sycl::item<3> Item, auto &Sum) { Sum += Item.get_linear_id(); },
+        sycl::khr::launch_grouped_reduce(
+            Handler, sycl::range<3>(Dim, Dim, Dim), sycl::range<3>(8, 8, 8),
+            [=](sycl::nd_item<3> Item, auto &Sum) {
+              Sum += Item.get_local_linear_id();
+            },
             sycl::reduction(sumBuf, Handler, sycl::plus<>()));
       });
     }
-    Failed += Check(Result, ExpectedResult, "launch_reduce_with_buffer");
+    Failed +=
+        Check(Result, ExpectedResult, "launch_grouped_reduce_with_buffer");
   }
 
-  // launch_reduced with USM
+  // launch_grouped_reduce with USM
   {
     int *Result = sycl::malloc_shared<int>(1, Queue);
     Result[0] = 0;
     constexpr size_t N = 1024;
     constexpr int ExpectedResult = ((N - 1) * N) / 2;
 
-    sycl::khr::launch_reduce(
-        Queue, sycl::range<1>(N), [=](sycl::id<1> Id, auto &Sum) { Sum += Id; },
+    sycl::khr::launch_grouped_reduce(
+        Queue, sycl::range<1>(N), sycl::range<1>(8),
+        [=](sycl::nd_item<1> Item, auto &Sum) {
+          Sum += Item.get_global_linear_id();
+        },
         sycl::reduction(Result, sycl::plus<>()));
 
     Queue.wait();
-    Failed += Check(Result[0], ExpectedResult, "launch_reduce_with_usm");
+    Failed +=
+        Check(Result[0], ExpectedResult, "launch_grouped_reduce_with_usm");
     sycl::free(Result, Queue);
   }
 

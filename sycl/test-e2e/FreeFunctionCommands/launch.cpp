@@ -18,7 +18,7 @@ int main() {
   sycl::queue Queue;
   constexpr size_t Dim = 8;
 
-  // launch with sycl buffer
+  // launch with buffer
   {
     constexpr size_t N = Dim * Dim * Dim;
 
@@ -35,7 +35,7 @@ int main() {
       });
     }
     for (size_t i = 0; i < N; ++i)
-      Failed += Check(Numbers.data(), 901, i, "launch_with_sycl_buffer");
+      Failed += Check(Numbers.data(), 901, i, "launch_with_buffer");
   }
 
   // launch with USM
