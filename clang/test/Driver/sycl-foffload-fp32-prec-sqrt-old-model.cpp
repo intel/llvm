@@ -10,4 +10,4 @@
 
 // AOT: "ocloc" "-output"{{.*}} "-options" "-ze-fp32-correctly-rounded-divide-sqrt"
 
-// JIT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-foffload-fp32-prec-div"
+// JIT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-foffload-fp32-prec-sqrt"
