@@ -34,6 +34,7 @@ private:
   int DeviceMaxLocalMem{0};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
+  bool HardwareImageSupport{false};
 
 public:
   ur_device_handle_t_(native_type HipDevice, hipEvent_t EvBase,
@@ -57,6 +58,12 @@ public:
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &ConcurrentManagedAccess, hipDeviceAttributeConcurrentManagedAccess,
         HIPDevice));
+    // Check if texture functions are supported in the HIP host runtime.
+    int Ret{};
+    UR_CHECK_ERROR(
+        hipDeviceGetAttribute(&Ret, hipDeviceAttributeImageSupport, HIPDevice));
+    detail::ur::assertion(Ret == 0 || Ret == 1);
+    HardwareImageSupport = Ret == 1;
   }
 
   ~ur_device_handle_t_() noexcept(false) {}
@@ -88,6 +95,8 @@ public:
   int getConcurrentManagedAccess() const noexcept {
     return ConcurrentManagedAccess;
   };
+
+  bool supportsHardwareImages() const noexcept { return HardwareImageSupport; }
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
