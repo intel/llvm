@@ -17,10 +17,36 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <regex>
 #include <string>
-#include <utility>
 
 using namespace llvm;
+
+thread_local size_t CurrentIndentationLevel = 0;
+
+class ScopedIndent {
+public:
+  ScopedIndent(size_t Indents = 2) : Incremented(Indents) {
+    CurrentIndentationLevel += Incremented;
+  }
+
+  ~ScopedIndent() {
+    CurrentIndentationLevel -= Incremented;
+  }
+
+  std::string str() const { return std::string(CurrentIndentationLevel, ' '); }
+
+private:
+  friend std::ostream &operator<<(std::ostream &OS,
+                                  const ScopedIndent &IH);
+
+  const size_t Incremented;
+
+};
+
+std::ostream &operator<<(std::ostream &OS, const ScopedIndent &IH) {
+  return (OS << IH.str());
+}
 
 std::string_view StateToString(llvm::object::SYCLBIN::BundleState State) {
   switch (State) {
@@ -48,9 +74,19 @@ std::string_view IRTypeToString(llvm::object::SYCLBIN::IRType IRType) {
   }
 }
 
-int main(int argc, char **argv, char *env[]) {
-  std::ignore = env;
+std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
+  switch (PropVal.getType()) {
+  case llvm::util::PropertyValue::UINT32:
+    return std::to_string(PropVal.asUint32());
+  case llvm::util::PropertyValue::BYTE_ARRAY:
+    return std::string{PropVal.data(), PropVal.getByteArraySize()};
+  case llvm::util::PropertyValue::NONE:
+    break;
+  }
+  return "!UNKNOWN PROPERTY VALUE TYPE!";
+}
 
+int main(int argc, char **argv) {
   cl::opt<std::string> TargetSYCLBIN(
       cl::Positional, cl::desc("<target syclbin>"), cl::Required);
 
@@ -58,8 +94,8 @@ int main(int argc, char **argv, char *env[]) {
 
   std::string TargetFilename{TargetSYCLBIN};
 
-  auto FileMemBufferOrError =
-      llvm::MemoryBuffer::getFileAsStream(TargetFilename);
+  auto FileMemBufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(
+      TargetFilename, /*IsText=*/false, /*RequiresNullTerminator=*/false);
   if (!FileMemBufferOrError) {
     std::cerr << "Failed to open or read file: " << TargetFilename << std::endl;
     return 1;
@@ -85,7 +121,7 @@ int main(int argc, char **argv, char *env[]) {
   std::cout << "Version:                    " << ParsedSYCLBIN->Header.Version
             << "\n";
   std::cout << "State:                      "
-            << StateToString(ParsedSYCLBIN->Header.State) << "\n";
+            << StateToString(ParsedSYCLBIN->Metadata.State) << "\n";
   std::cout << "Number of Abstract Modules: "
             << ParsedSYCLBIN->AbstractModules.size() << "\n";
 
@@ -95,41 +131,72 @@ int main(int argc, char **argv, char *env[]) {
 
     std::cout << "Abstract Module " << I << ":\n";
 
+    ScopedIndent Ind;
+
     // Metadata.
-    std::cout << "  Metadata:\n";
-    std::cout << "    Kernel names:\n";
-    for (const llvm::SmallString<0> &KernelName : AM.KernelNames)
-      std::cout << "      " << static_cast<std::string>(KernelName) << "\n";
-    std::cout << "    Imported symbols:\n";
-    for (const llvm::SmallString<0> &ImportedSymbol : AM.ImportedSymbols)
-      std::cout << "      " << static_cast<std::string>(ImportedSymbol) << "\n";
-    std::cout << "    Exported symbols:\n";
-    for (const llvm::SmallString<0> &ExportedSymbol : AM.ExportedSymbols)
-      std::cout << "      " << static_cast<std::string>(ExportedSymbol) << "\n";
-    std::cout << "    Properties: <Binary blob of "
-              << AM.Properties->getPropSets().size() << " bytes>\n";
+    std::cout << Ind << "Metadata:\n";
+    {
+      ScopedIndent Ind;
 
-    // IR Modules.
-    std::cout << "  Number of IR Modules: " << AM.IRModules.size() << "\n";
-    for (size_t J = 0; J < AM.IRModules.size(); ++J) {
-      const llvm::object::SYCLBIN::IRModule &IRM = AM.IRModules[J];
-      std::cout << "  IR module " << J << ":\n";
-      std::cout << "    IR type: " << IRTypeToString(IRM.Type) << "\n";
-      std::cout << "    Raw IR bytes: <Binary blob of " << IRM.RawIRBytes.size()
-                << " bytes>\n";
-    }
+      std::cout << Ind << "Kernel names:\n";
+      for (const llvm::SmallString<0> &KernelName : AM.KernelNames) {
+        ScopedIndent Ind;
+        std::cout << Ind << static_cast<std::string>(KernelName) << "\n";
+      }
 
-    // Native device code images.
-    std::cout << "  Number of Native Device Code Images: "
-              << AM.NativeDeviceCodeImages.size() << "\n";
-    for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
-      const llvm::object::SYCLBIN::NativeDeviceCodeImage &NDCI =
-          AM.NativeDeviceCodeImages[J];
-      std::cout << "  Native device code image " << J << ":\n";
-      std::cout << "    Architecture: "
-                << static_cast<std::string>(NDCI.ArchString) << "\n";
-      std::cout << "    Raw native device code image bytes: <Binary blob of "
-                << NDCI.RawDeviceCodeImageBytes.size() << " bytes>\n";
+      std::cout << Ind << "Properties:\n";
+      for (auto PropertySet : *AM.Properties) {
+        ScopedIndent Ind;
+        std::cout << Ind << PropertySet.first.c_str() << ":\n";
+        for (auto PropertyValue : PropertySet.second) {
+          ScopedIndent Ind;
+          std::string PropValStr = PropertyValueToString(PropertyValue.second);
+          // If there is a newline in the value, start at next line and do
+          // proper indentantion.
+          std::regex NewlineRegex{"\r\n|\r|\n"};
+          if (std::smatch Match;
+              std::regex_search(PropValStr, Match, NewlineRegex)) {
+            ScopedIndent Ind;
+            PropValStr = "\n" + Ind.str() + PropValStr;
+            // Add indentation to newlines in the returned string.
+            PropValStr =
+                std::regex_replace(PropValStr, NewlineRegex, "\n" + Ind.str());
+          }
+          std::cout << Ind << PropertyValue.first.c_str() << ":" << PropValStr
+                    << "\n";
+        }
+      }
+
+      // IR Modules.
+      std::cout << Ind << "Number of IR Modules: " << AM.IRModules.size()
+                << "\n";
+      for (size_t J = 0; J < AM.IRModules.size(); ++J) {
+        const llvm::object::SYCLBIN::IRModule &IRM = AM.IRModules[J];
+        std::cout << Ind << "IR module " << J << ":\n";
+        {
+          ScopedIndent Ind;
+          std::cout << Ind << "IR type: " << IRTypeToString(IRM.Type) << "\n";
+          std::cout << Ind << "Raw IR bytes: <Binary blob of "
+                    << IRM.RawIRBytes.size() << " bytes>\n";
+        }
+      }
+
+      // Native device code images.
+      std::cout << Ind << "Number of Native Device Code Images: "
+                << AM.NativeDeviceCodeImages.size() << "\n";
+      for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
+        const llvm::object::SYCLBIN::NativeDeviceCodeImage &NDCI =
+            AM.NativeDeviceCodeImages[J];
+        std::cout << Ind << "Native device code image " << J << ":\n";
+        {
+          ScopedIndent Ind;
+          std::cout << Ind << "Architecture: "
+                    << static_cast<std::string>(NDCI.ArchString) << "\n";
+          std::cout << Ind
+                    << "Raw native device code image bytes: <Binary blob of "
+                    << NDCI.RawDeviceCodeImageBytes.size() << " bytes>\n";
+        }
+      }
     }
   }
 

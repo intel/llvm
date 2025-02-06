@@ -155,7 +155,9 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
   OS << StringRef(reinterpret_cast<const char *>(&MagicNumber),
                   sizeof(MagicNumber));
   BinaryWriteInteger<uint32_t>(OS, Version);
-  BinaryWriteInteger<uint8_t>(OS, 0); // TODO: Deduce this from arguments.
+
+  // TODO: Deduce state from arguments.
+  BinaryWriteInteger<uint8_t>(OS, /* State = input */ 0);
 
   {
     SmallString<0> BodyData;
@@ -201,18 +203,6 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
           FullKernelNamesOS << KernelNamesData;
           return FullKernelNamesData;
         });
-
-        // Write imported symbols string list.
-        // TODO: Currently empty, so the list byte size is the size of the
-        //       string count.
-        BinaryWriteInteger<uint64_t>(AbstractModuleOS, 4);
-        BinaryWriteInteger<uint32_t>(AbstractModuleOS, 0);
-
-        // Write exported symbols string list.
-        // TODO: Currently empty, so the list byte size is the size of the
-        //       string count.
-        BinaryWriteInteger<uint64_t>(AbstractModuleOS, 4);
-        BinaryWriteInteger<uint32_t>(AbstractModuleOS, 0);
 
         SizedBlockWrite<uint32_t>(AbstractModuleOS, [&]() {
           SmallString<0> PropertiesData;
@@ -271,7 +261,7 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
   }
 
   // Add final padding to required alignment.
-  size_t AlignedSize = alignTo(OS.tell(), getAlignment());
+  size_t AlignedSize = alignTo(OS.tell(), 8);
   OS.write_zeros(AlignedSize - OS.tell());
   assert(AlignedSize == OS.tell() && "Size mismatch");
 
@@ -303,7 +293,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
   auto StateOrError = DataConsumer.ConsumeScalar<BundleState>();
   if (!StateOrError)
     return StateOrError.takeError();
-  Result->Header.State = *StateOrError;
+  Result->Metadata.State = *StateOrError;
 
   ConsumerParser BodyConsumer;
   if (Error EC =
@@ -321,12 +311,6 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
     if (Error EC = BodyConsumer.ConsumeStringList().moveInto(
             AbstractModule.KernelNames))
-      return EC;
-    if (Error EC = BodyConsumer.ConsumeStringList().moveInto(
-            AbstractModule.ImportedSymbols))
-      return EC;
-    if (Error EC = BodyConsumer.ConsumeStringList().moveInto(
-            AbstractModule.ExportedSymbols))
       return EC;
 
     {
@@ -397,4 +381,4 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
   return std::move(Result);
 }
 
-SYCLBIN::SYCLBIN(MemoryBufferRef Source) : Binary(Binary::ID_SYCLBIN, Source) {}
+SYCLBIN::SYCLBIN(MemoryBufferRef Source) {}

@@ -10,7 +10,6 @@
 #define LLVM_OBJECT_SYCLBIN_H
 
 #include "llvm/ADT/SmallString.h"
-#include "llvm/Object/Binary.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <string>
@@ -19,9 +18,13 @@ namespace llvm {
 
 namespace object {
 
-class SYCLBIN : public Binary {
+// Representation of a SYCLBIN binary object. This is intended for use as an
+// image inside a OffloadBinary.
+class SYCLBIN {
 public:
   SYCLBIN(MemoryBufferRef Source);
+
+  SYCLBIN(const SYCLBIN &Other) = delete;
 
   enum class BundleState : uint8_t { Input = 0, Object = 1, Executable = 2 };
   enum class IRType : uint8_t { SPIRV = 0, PTX = 1, AMDGCN = 2 };
@@ -44,10 +47,6 @@ public:
 
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
-  static uint64_t getAlignment() { return 8; }
-
-  static bool classof(const Binary *V) { return V->isSYCLBINFile(); }
-
   struct IRModule {
     IRType Type;
     SmallVector<char> RawIRBytes;
@@ -59,8 +58,6 @@ public:
 
   struct AbstractModule {
     SmallVector<SmallString<0>> KernelNames;
-    SmallVector<SmallString<0>> ImportedSymbols;
-    SmallVector<SmallString<0>> ExportedSymbols;
     std::unique_ptr<llvm::util::PropertySetRegistry> Properties;
 
     SmallVector<IRModule> IRModules;
@@ -70,13 +67,13 @@ public:
   struct {
     uint8_t Magic[4];
     uint32_t Version;
-    BundleState State;
   } Header;
 
-  SmallVector<AbstractModule, 4> AbstractModules;
+  struct {
+    BundleState State;
+  } Metadata;
 
-private:
-  SYCLBIN(const SYCLBIN &Other) = delete;
+  SmallVector<AbstractModule, 4> AbstractModules;
 };
 
 } // namespace object

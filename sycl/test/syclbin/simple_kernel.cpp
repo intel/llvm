@@ -29,10 +29,8 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-NEXT:   Metadata:
 // CHECK-NEXT:     Kernel names:
 // CHECK-NEXT:       __sycl_kernel_TestKernel
-// CHECK-NEXT:     Imported symbols:
-// CHECK-NEXT:     Exported symbols:
-// CHECK-NEXT:     Properties: <Binary blob of {{.*}} bytes>
-// CHECK-NEXT:   Number of IR Modules: 1
+// CHECK-NEXT:     Properties:
+// CHECK:      Number of IR Modules: 1
 // CHECK-NEXT:   IR module 0:
 // CHECK-NEXT:     IR type: SPIR-V
 // CHECK-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>

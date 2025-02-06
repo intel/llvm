@@ -3,7 +3,6 @@ add_executable(syclbin-dump syclbin-dump.cpp)
 link_llvm_libs(syclbin-dump LLVMSupport LLVMObject)
 target_include_directories(syclbin-dump PRIVATE
     "${sycl_inc_dir}"
-    "${sycl_src_dir}"
 )
 
 set(sycl_lib sycl)
