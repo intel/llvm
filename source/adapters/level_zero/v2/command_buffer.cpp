@@ -138,17 +138,6 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) try {
-  return hQueue->get().enqueueCommandBuffer(
-      hCommandBuffer->commandListManager.getZeCommandList(), phEvent,
-      numEventsInWaitList, phEventWaitList);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
 ur_result_t
 urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                           ur_exp_command_buffer_info_t propName,
