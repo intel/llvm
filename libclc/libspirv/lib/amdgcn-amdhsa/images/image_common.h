@@ -30,7 +30,7 @@
 // defined in "image_common.cl"
 extern _CLC_CONST_AS const unsigned int SAMPLER_OBJECT_OFFSET_DWORD;
 
-// Helpers for casting between two builitin vector types and/or scalar types.
+// Helpers for casting between two builtin vector types and/or scalar types.
 
 // Using the builtin as_type() and as_typen() functions to reinterpret types.
 // The restriction being is that element "type"s need to be of the same size.
