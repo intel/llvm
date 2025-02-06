@@ -44,8 +44,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults ${{ inputs.build_configure_extra_args }} \
-          --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
+          --ci-defaults --hip --cuda \
           --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
 
