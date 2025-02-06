@@ -201,6 +201,11 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_launchinfo, (void *)launch_info,
                                 launch_info->GlobalShadowOffset));
 
+#if defined(__LIBDEVICE_PVC__)
+  shadow_ptr = __msan_get_shadow_pvc(addr, as);
+#elif defined(__LIBDEVICE_CPU__)
+  shadow_ptr = __msan_get_shadow_cpu(addr);
+#else
   if (LIKELY(launch_info->DeviceTy == DeviceType::CPU)) {
     shadow_ptr = __msan_get_shadow_cpu(addr);
   } else if (launch_info->DeviceTy == DeviceType::GPU_PVC) {
@@ -209,6 +214,7 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
                                   launch_info->DeviceTy));
   }
+#endif
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_shadow, (void *)addr, as,
                                 (void *)shadow_ptr, *(u8 *)shadow_ptr));
