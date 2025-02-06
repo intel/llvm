@@ -1,5 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 

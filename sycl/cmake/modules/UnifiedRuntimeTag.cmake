@@ -1,7 +1,7 @@
-# commit 87d4a32666f2950e7cfa016ff181311c2e0ebbca
-# Merge: f07688db 8e4b5c3d
+# commit 0e6adfb64039d3dd5fc8363245fcac60cbdcb8bd
+# Merge: 42044a83 d0c87169
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Feb 4 15:45:58 2025 +0000
-#     Merge pull request #2480 from ldorau/Add_UMF_CUDA_provider
-#     Use UMF CUDA memory provider in UR
-set(UNIFIED_RUNTIME_TAG 889d3d32dccf6a48e3f57c7857ddcc45b49589cc)
+# Date:   Wed Feb 5 15:39:15 2025 +0000
+#     Merge pull request #2496 from GeorgeWeb/georgi/bindless-hip
+#     [UR][Bindless] Initial implementation of bindless images for HIP
+set(UNIFIED_RUNTIME_TAG ad6851850ee031226cf880d51112532f5572ea3a)

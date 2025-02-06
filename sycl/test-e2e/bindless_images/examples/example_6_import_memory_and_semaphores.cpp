@@ -3,6 +3,11 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 
 // RUN: %{build} -o %t.out
+// This test is not being executed via the {run} command due to using invalid
+// external input and output file descriptors for the external resource that is
+// being imported. The purpose of this test is to showcase the interop APIs and
+// in order to properly obtain those descriptors we would need a lot of Vulkan
+// context and texture setup as a prerequisite to the example and complicate it.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
