@@ -6,15 +6,31 @@
 
 #include <uur/fixtures.h>
 
-using urUSMPoolDestroyTest = uur::urUSMPoolTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMPoolDestroyTest);
+using urUSMPoolReleaseTest = uur::urUSMPoolTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMPoolReleaseTest);
 
-TEST_P(urUSMPoolDestroyTest, Success) {
-  ASSERT_SUCCESS(urUSMPoolRelease(pool));
+TEST_P(urUSMPoolReleaseTest, Success) {
+  uint32_t prevRefCount = 0;
+  ASSERT_SUCCESS(uur::GetObjectReferenceCount(pool, prevRefCount));
+
+  ASSERT_SUCCESS(urUSMPoolRetain(pool));
+
+  uint32_t refCount = 0;
+  ASSERT_SUCCESS(uur::GetObjectReferenceCount(pool, refCount));
+
+  ASSERT_LT(prevRefCount, refCount);
+
+  EXPECT_SUCCESS(urUSMPoolRelease(pool));
+
+  uint32_t afterRefCount = 0;
+  ASSERT_SUCCESS(uur::GetObjectReferenceCount(pool, afterRefCount));
+
+  ASSERT_LT(afterRefCount, refCount);
+
   pool = nullptr; // prevent double-delete
 }
 
-TEST_P(urUSMPoolDestroyTest, InvalidNullHandleContext) {
+TEST_P(urUSMPoolReleaseTest, InvalidNullHandle) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urUSMPoolRelease(nullptr));
 }
