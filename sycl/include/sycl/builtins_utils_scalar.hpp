@@ -80,37 +80,6 @@ constexpr bool check_all_same_op_type_v = CheckAllSameOpType<Ts...>();
 //       as MSVC thinks function definitions are the same otherwise.
 template <size_t... Ns> constexpr bool check_size_in_v = CheckSizeIn<Ns...>();
 
-// Utility traits for getting a signed integer type with the specified size.
-template <size_t Size> struct get_signed_int_by_size {
-  using type = select_scalar_by_size_t<Size, int8_t, int16_t, int32_t, int64_t>;
-};
-template <typename T> struct same_size_signed_int {
-  using type = typename get_signed_int_by_size<sizeof(T)>::type;
-};
-
-template <typename T>
-using same_size_signed_int_t = typename same_size_signed_int<T>::type;
-
-// Utility traits for getting a unsigned integer type with the specified size.
-template <size_t Size> struct get_unsigned_int_by_size {
-  using type =
-      select_scalar_by_size_t<Size, uint8_t, uint16_t, uint32_t, uint64_t>;
-};
-template <typename T> struct same_size_unsigned_int {
-  using type = typename get_unsigned_int_by_size<sizeof(T)>::type;
-};
-template <typename T>
-using same_size_unsigned_int_t = typename same_size_unsigned_int<T>::type;
-
-template <typename T> struct get_fixed_sized_int {
-  static_assert(std::is_integral_v<T>);
-  using type =
-      std::conditional_t<std::is_signed_v<T>, same_size_signed_int_t<T>,
-                         same_size_unsigned_int_t<T>>;
-};
-template <typename T>
-using get_fixed_sized_int_t = typename get_fixed_sized_int<T>::type;
-
 // Utility for converting a swizzle to a vector or preserve the type if it isn't
 // a swizzle.
 template <typename T> struct simplify_if_swizzle {
