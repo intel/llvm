@@ -155,10 +155,13 @@ TEST_P(urEnqueueUSMFillNegativeTest, InvalidNullQueueHandle) {
                    UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
-TEST_P(urEnqueueUSMFillNegativeTest, InvalidNullPtr) {
-
+TEST_P(urEnqueueUSMFillNegativeTest, InvalidNullPointer) {
   ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, nullptr, pattern_size,
                                     pattern.data(), size, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, nullptr, size, 0,
+                                    nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
@@ -172,6 +175,11 @@ TEST_P(urEnqueueUSMFillNegativeTest, InvalidSize) {
   ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(), 7,
                                     0, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_SIZE);
+
+  /* size does not exceed allocation size of ptr */
+  ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
+                                    size + 1, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urEnqueueUSMFillNegativeTest, OutOfBounds) {
@@ -181,7 +189,7 @@ TEST_P(urEnqueueUSMFillNegativeTest, OutOfBounds) {
                    UR_RESULT_ERROR_INVALID_SIZE);
 }
 
-TEST_P(urEnqueueUSMFillNegativeTest, invalidPatternSize) {
+TEST_P(urEnqueueUSMFillNegativeTest, InvalidPatternSize) {
   /* pattern_size is 0 */
   ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, 0, pattern.data(), size, 0,
                                     nullptr, nullptr),
