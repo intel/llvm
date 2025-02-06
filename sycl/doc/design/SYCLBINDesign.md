@@ -72,7 +72,7 @@ The device binaries contained inside an abstract module must either be an IR
 module or a native device code image. IR modules contain device binaries in some
 known intermediate representation, such as SPIR-V, while the native device code
 images can be an architecture-specific binary format. There is no requirement
-that all device binaries in an abstract module is usable on the same device or
+that all device binaries in an abstract module are usable on the same device or
 are specific to a single vendor.
 
 | Type       | Description                                     | Value variable |
