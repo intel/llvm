@@ -1,4 +1,4 @@
-// REQUIRES: linux
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_image_array
 
 // RUN: %{build} -o %t.out
