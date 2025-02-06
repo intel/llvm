@@ -8,10 +8,7 @@
 #include <vector>
 
 int main() {
-  sycl::device d([](const sycl::device &d) {
-    return d.get_backend() == sycl::backend::ext_oneapi_cuda;
-  });
-  sycl::queue q{d};
+  sycl::queue q;
   sycl::context ctxt = q.get_context();
   sycl::kernel_id k_id = sycl::get_kernel_id<class mykernel>();
   auto bundle =

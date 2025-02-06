@@ -49,14 +49,6 @@ backend device_image_plain::ext_oneapi_get_backend_impl() const noexcept {
   return impl->get_context().get_backend();
 }
 
-std::vector<std::byte>
-device_image_plain::ext_oneapi_get_backend_content_impl() const {
-  return std::vector(reinterpret_cast<const std::byte *>(
-                         impl->get_bin_image_ref()->getRawData().BinaryStart),
-                     reinterpret_cast<const std::byte *>(
-                         impl->get_bin_image_ref()->getRawData().BinaryEnd));
-}
-
 std::pair<const std::byte *, const std::byte *>
 device_image_plain::ext_oneapi_get_backend_content_view_impl() const {
   return std::make_pair(

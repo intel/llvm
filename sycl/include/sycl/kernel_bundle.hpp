@@ -130,8 +130,6 @@ protected:
   backend ext_oneapi_get_backend_impl() const noexcept;
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-  std::vector<std::byte> ext_oneapi_get_backend_content_impl() const;
-
   std::pair<const std::byte *, const std::byte *>
   ext_oneapi_get_backend_content_view_impl() const;
 #endif // HAS_STD_BYTE
@@ -165,7 +163,9 @@ public:
   template <sycl::bundle_state T = State,
             typename = std::enable_if_t<T == bundle_state::executable>>
   std::vector<std::byte> ext_oneapi_get_backend_content() const {
-    return device_image_plain::ext_oneapi_get_backend_content_impl();
+    const auto view =
+        device_image_plain::ext_oneapi_get_backend_content_view_impl();
+    return std::vector(view.first, view.second);
   }
 
 #ifdef __cpp_lib_span
