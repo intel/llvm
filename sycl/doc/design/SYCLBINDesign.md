@@ -170,7 +170,9 @@ invocation to clang-linker-wrapper together with the new `--syclbin` flag.
 
 Setting this option will override `-fsycl` and `-fsycl-device-only`.
 
-This option currently requires `--offload-new-driver` to be set.
+The behavior is dependent on using the clang-linker-wrapper. As the current default
+offload compilation behavior is using the old offload model (driver based), this
+option currently requires `--offload-new-driver` to be set.
 </td>
 </tr>
 <tr>
