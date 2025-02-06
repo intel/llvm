@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 // This test checks whether the free function command launch reduce is valid.
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/khr/free_function_commands.hpp>
