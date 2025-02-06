@@ -58,7 +58,7 @@ jobs:
       run: |
         # Initialize a build. Fetch a cloud upload url.
         curl -X POST \
-        -d version="${{ github.sha }}" \
+        -d version="sycl: ${{ github.sha }}" \
         -d description="Regular build" \
         -d email=${{ secrets.COVERITY_EMAIL }} \
         -d token=${{ secrets.COVERITY_TOKEN }} \
