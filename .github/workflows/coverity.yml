@@ -55,35 +55,35 @@ jobs:
           --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
 
-      - name: Build with coverity
-        run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build
+    - name: Build with coverity
+      run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build
 
-      - name: Compress results
-        run: tar -czf intel_llvm.tgz cov-int
+    - name: Compress results
+      run: tar -czf intel_llvm.tgz cov-int
 
-      - name: Submit build
-        run: |
-          # Initialize a build. Fetch a cloud upload url.
-          curl -X POST \
-          -d version="${{ github.sha }}" \
-          -d description="Regular build" \
-          -d email=${{ secrets.COVERITY_EMAIL }} \
-          -d token=${{ secrets.COVERITY_TOKEN }} \
-          -d file_name="intel_llvm.tgz" \
-          https://scan.coverity.com/projects/31090/builds/init \
-          | tee response
+    - name: Submit build
+      run: |
+        # Initialize a build. Fetch a cloud upload url.
+        curl -X POST \
+        -d version="${{ github.sha }}" \
+        -d description="Regular build" \
+        -d email=${{ secrets.COVERITY_EMAIL }} \
+        -d token=${{ secrets.COVERITY_TOKEN }} \
+        -d file_name="intel_llvm.tgz" \
+        https://scan.coverity.com/projects/31090/builds/init \
+        | tee response
 
-          # Store response data to use in later stages.
-          upload_url=$(jq -r '.url' response)
-          build_id=$(jq -r '.build_id' response)
+        # Store response data to use in later stages.
+        upload_url=$(jq -r '.url' response)
+        build_id=$(jq -r '.build_id' response)
 
-          # Upload the tarball to the Cloud.
-          curl -X PUT \
-          --header 'Content-Type: application/json' \
-          --upload-file $PWD/intel_llvm.tgz \
-          $upload_url
+        # Upload the tarball to the Cloud.
+        curl -X PUT \
+        --header 'Content-Type: application/json' \
+        --upload-file $PWD/intel_llvm.tgz \
+        $upload_url
 
-          # Trigger the build on Scan.
-          curl -X PUT \
-          -d token=${{ secrets.COVERITY_TOKEN }} \
-          https://scan.coverity.com/projects/31090/builds/$build_id/enqueue
+        # Trigger the build on Scan.
+        curl -X PUT \
+        -d token=${{ secrets.COVERITY_TOKEN }} \
+        https://scan.coverity.com/projects/31090/builds/$build_id/enqueue
