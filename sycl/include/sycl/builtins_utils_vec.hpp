@@ -21,29 +21,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-// Utility trait for checking if T's element type is in Ts.
-template <typename T, size_t N, typename... Ts>
-struct is_valid_elem_type<marray<T, N>, Ts...>
-    : std::bool_constant<check_type_in_v<T, Ts...>> {};
-template <typename T, int N, typename... Ts>
-struct is_valid_elem_type<vec<T, N>, Ts...>
-    : std::bool_constant<check_type_in_v<T, Ts...>> {};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes,
-          typename... Ts>
-struct is_valid_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                                    OperationCurrentT, Indexes...>,
-                          Ts...>
-    : std::bool_constant<check_type_in_v<typename VecT::element_type, Ts...>> {
-};
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress, typename... Ts>
-struct is_valid_elem_type<multi_ptr<ElementType, Space, DecorateAddress>, Ts...>
-    : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
-template <typename ElementType, typename... Ts>
-struct is_valid_elem_type<ElementType *, Ts...>
-    : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
-
 // Utilty trait for checking that the number of elements in T is in Ns.
 template <typename T, size_t... Ns>
 struct is_valid_size
