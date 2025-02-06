@@ -101,7 +101,7 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
-._Mandates_:: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
+_Mandates_: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
 
 _Effects_: Loads single element from `in_iter` to `out` by using the `g` group
 object to identify memory location as `in_iter` + `g.get_local_linear_id()`.
@@ -134,7 +134,7 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
-._Mandates_:: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
+_Mandates_: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
 
 _Effects_: Loads `N` elements from `in_iter` to `out`
 using the `g` group object.
@@ -144,7 +144,7 @@ Default data placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `N`.
-Properties may provide xref:optimization_properties[assertions] or the `alignment` property
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
 which can enable better optimizations.
 
 
@@ -174,7 +174,7 @@ work-group or sub-group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
-._Mandates_:: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
+_Mandates_: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
 
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_iter` to `out`
 using the `g` group object.
@@ -184,7 +184,7 @@ Default placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `ElementsPerWorkItem`.
-Properties may provide xref:optimization_properties[assertions] or the `alignment` property
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
 which can enable better optimizations.
 
 
@@ -217,7 +217,7 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
-._Mandates_:: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
+_Mandates_: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
 
 _Effects_: Stores single element `in` to `out_iter` by using the `g` group
 object to identify memory location as `out_iter` + `g.get_local_linear_id()`
@@ -251,7 +251,7 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
-._Mandates_:: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
+_Mandates_: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
 
 _Effects_: Stores `N` elements from `in` vec to `out_iter`
 using the `g` group object.
@@ -261,7 +261,7 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `N`.
-Properties may provide xref:optimization_properties[assertions] or the `alignment` property
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
 which can enable better optimizations.
 
 
@@ -292,7 +292,7 @@ work-group or sub-group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
-._Mandates_:: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
+_Mandates_: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_iter`
 using the `g` group object.
@@ -303,7 +303,7 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
-Properties may provide xref:optimization_properties[assertions] or the `alignment` property
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
 which can enable better optimizations.
 
 
@@ -460,7 +460,7 @@ If partition is uneven the behavior is undefined.
 == Alignment
 
 If `InputIteratorT`/`OutputIteratorT` is a pointer then the following property can be used
-to provide an alignment of the pointer. It allows to avoid dynamic alignment check.
+to provide an alignment of the pointer. It can allow to avoid dynamic alignment check.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
