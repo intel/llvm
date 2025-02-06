@@ -1,9 +1,7 @@
-# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
-# Merge: 4643d1c0 3ed86fae
+# commit 87d4a32666f2950e7cfa016ff181311c2e0ebbca
+# Merge: f07688db 8e4b5c3d
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 13:55:27 2025 +0000
-#
-#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
-#
-#    Remove command-buffer command handle ref counting
-set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)
+# Date:   Tue Feb 4 15:45:58 2025 +0000
+#     Merge pull request #2480 from ldorau/Add_UMF_CUDA_provider
+#     Use UMF CUDA memory provider in UR
+set(UNIFIED_RUNTIME_TAG 87d4a32666f2950e7cfa016ff181311c2e0ebbca)
