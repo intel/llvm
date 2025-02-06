@@ -38,12 +38,6 @@ struct simplify_if_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
   using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
 };
 
-template <typename T1, typename T2>
-struct is_same_op<
-    T1, T2,
-    std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2>>>
-    : std::is_same<simplify_if_swizzle_t<T1>, simplify_if_swizzle_t<T2>> {};
-
 // Utility trait for changing the element type of a type T. If T is a scalar,
 // the new type replaces T completely.
 template <typename NewElemT, typename T> struct change_elements {
