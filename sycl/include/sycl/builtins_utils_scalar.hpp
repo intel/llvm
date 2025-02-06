@@ -120,13 +120,6 @@ template <typename T> struct simplify_if_swizzle {
 template <typename T>
 using simplify_if_swizzle_t = typename simplify_if_swizzle<T>::type;
 
-// Utility trait for checking if T's element type is in Ts.
-template <typename T, typename... Ts>
-struct is_valid_elem_type : std::false_type {};
-
-template <typename T, typename... Ts>
-constexpr bool is_valid_elem_type_v = is_valid_elem_type<T, Ts...>::value;
-
 // Utility trait for getting the decoration of a multi_ptr.
 template <typename T> struct get_multi_ptr_decoration;
 template <typename ElementType, access::address_space Space,
