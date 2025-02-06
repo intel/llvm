@@ -513,9 +513,9 @@ public:
       std::string Prefix = CompilationID + '$';
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
-        if (KernelName.find(MPrefix) == 0) {
+        if (KernelName.find(Prefix) == 0) {
           KernelIDs.push_back(KernelID);
-          KernelName.remove_prefix(MPrefix.length());
+          KernelName.remove_prefix(Prefix.length());
           KernelNames.emplace_back(KernelName);
         }
       }
