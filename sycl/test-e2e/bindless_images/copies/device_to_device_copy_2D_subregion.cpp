@@ -1,7 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <numeric>
