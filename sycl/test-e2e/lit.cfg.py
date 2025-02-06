@@ -79,7 +79,7 @@ else:
     lit_config.error("Invalid argument for test-mode")
 
 # Dummy substitution to indicate line should be a run line
-config.substitutions.append(("%{execute-at-run-stage}", ""))
+config.substitutions.append(("%{run-aux}", ""))
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
