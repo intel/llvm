@@ -50,6 +50,7 @@ SYCL_EXTERNAL void test_load_without_alignment_hint(sycl::sub_group &sg,
   group_load(sg, p, out, opt_blocked{});
 }
 
+//
 // CHECK-GLOBAL-LABEL: @_Z29test_load_with_alignment_hintRN4sycl3_V19sub_groupEPU3AS1sRs(
 // CHECK-GLOBAL-NEXT:  entry:
 // CHECK-GLOBAL-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(1) [[P:%.*]], null
