@@ -15,7 +15,7 @@
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[foo_a:[0-9]+]]
 ; CHECK-SPIRV: DebugGlobalVariable {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[foo_a]]
 
-; CHECK-LLVM: @foo.a = internal addrspace(3) global i32 undef, align 4, !dbg ![[a_dbg_expr:[0-9]+]]
+; CHECK-LLVM: @foo.a = internal addrspace(3) global i32 poison, align 4, !dbg ![[a_dbg_expr:[0-9]+]]
 ; CHECK-LLVM: ![[a_dbg_expr]] = !DIGlobalVariableExpression(var: ![[a_dbg_var:[0-9]+]],
 ; CHECK-LLVM: ![[a_dbg_var]] = distinct !DIGlobalVariable(name: "a"
 

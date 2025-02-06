@@ -7,7 +7,7 @@
 ;CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "annotation_on_function"
 
 ;CHECK-LLVM: @0 = private unnamed_addr constant [23 x i8] c"annotation_on_function\00", section "llvm.metadata"
-;CHECK-LLVM: @llvm.global.annotations = appending global [1 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @foo, ptr @0, ptr undef, i32 undef, ptr undef }], section "llvm.metadata"
+;CHECK-LLVM: @llvm.global.annotations = appending global [1 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @foo, ptr @0, ptr poison, i32 poison, ptr poison }], section "llvm.metadata"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-linux"

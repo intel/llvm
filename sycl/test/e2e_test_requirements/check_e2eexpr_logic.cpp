@@ -5,4 +5,4 @@
 // REQUIRES: linux
 // DEFINE: %{E2EExpr}=%S/../../test-e2e/E2EExpr.py
 // DEFINE: %{lit_source}=%S/../../../llvm/utils/lit
-// RUN: env PYTHONPATH=%{lit_source} python %{E2EExpr}
+// RUN: env PYTHONPATH=%{lit_source} %python %{E2EExpr}

@@ -193,9 +193,9 @@ static cl::opt<bool>
     SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
                          cl::desc("Enable SYCL optimization mode."));
 
-static cl::opt<bool>
-    RunPartialInlining("enable-partial-inlining", cl::init(false), cl::Hidden,
-                       cl::desc("Run Partial inlinining pass"));
+static cl::opt<bool> RunPartialInlining("enable-partial-inlining",
+                                        cl::init(false), cl::Hidden,
+                                        cl::desc("Run Partial inlining pass"));
 
 static cl::opt<bool> ExtraVectorizerPasses(
     "extra-vectorizer-passes", cl::init(false), cl::Hidden,
@@ -268,7 +268,7 @@ static cl::opt<bool>
 static cl::opt<bool> FlattenedProfileUsed(
     "flattened-profile-used", cl::init(false), cl::Hidden,
     cl::desc("Indicate the sample profile being used is flattened, i.e., "
-             "no inline hierachy exists in the profile"));
+             "no inline hierarchy exists in the profile"));
 
 static cl::opt<bool> EnableOrderFileInstrumentation(
     "enable-order-file-instrumentation", cl::init(false), cl::Hidden,
