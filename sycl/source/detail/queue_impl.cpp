@@ -481,7 +481,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
@@ -505,7 +505,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       if (isInOrder()) {
         auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                                 : MExtGraphDeps.LastEventPtr;
-        EventToStoreIn = std::move(EventImpl);
+        EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with urQueueFinish.
       if (MEmulateOOO)
