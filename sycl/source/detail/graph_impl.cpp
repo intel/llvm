@@ -196,6 +196,7 @@ void exec_graph_impl::makePartitions() {
     }
   }
 
+  MContainsHostTask = HostTaskList.size() > 0;
   // Annotate nodes
   // The first step in graph partitioning is to annotate all nodes of the graph
   // with a temporary partition or group number. This step allows us to group
@@ -1080,6 +1081,16 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
                (CurrentPartition->MSchedule.front()->MCGType ==
                 sycl::detail::CGType::CodeplayHostTask)) {
+      // If we have pending updates then we need to make sure that they are
+      // completed before the host-task is enqueued, to ensure it has received
+      // those updates prior to calling node->getCGCopy()
+      if (MUpdateEvents.size() > 0) {
+        for (auto &Event : MUpdateEvents) {
+          Event->wait_and_throw(Event);
+        }
+        MUpdateEvents.clear();
+      }
+
       auto NodeImpl = CurrentPartition->MSchedule.front();
       // Schedule host task
       NodeImpl->MCommandGroup->getEvents().insert(
@@ -1438,9 +1449,17 @@ void exec_graph_impl::update(
         sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
         sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
         sycl::async_handler{}, sycl::property_list{});
-    // Don't need to care about the return event here because it is synchronous
-    sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-        this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
+
+    auto UpdateEvent =
+        sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
+            this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
+
+    // If the graph contains host-task(s) we need to track update events so we
+    // can explicitly wait on them before enqueue further host-tasks to ensure
+    // updates have taken effect.
+    if (MContainsHostTask) {
+      MUpdateEvents.push_back(UpdateEvent);
+    }
   } else {
     for (auto &Node : Nodes) {
       updateImpl(Node);

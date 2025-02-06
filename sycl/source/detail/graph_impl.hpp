@@ -475,6 +475,7 @@ public:
       HostTaskCG->getAccStorage() = OtherHostTaskCG->getAccStorage();
       HostTaskCG->getRequirements() = OtherHostTaskCG->getRequirements();
       HostTaskCG->MHostTask = OtherHostTaskCG->MHostTask;
+      HostTaskCG->getEvents() = OtherHostTaskCG->getEvents();
       break;
     }
     default:
@@ -1453,6 +1454,12 @@ private:
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
+  // True if this graph contains any host-tasks, controls whether we store
+  // events in MUpdateEvents.
+  bool MContainsHostTask = false;
+  // Contains events for updates submitted through the scheduler as we need to
+  // wait on them when enqueuing host-tasks.
+  std::vector<sycl::detail::EventImplPtr> MUpdateEvents;
 };
 
 class dynamic_parameter_impl {

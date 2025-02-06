@@ -100,23 +100,20 @@ int main() {
   // Fill graphB with nodes, with a different set of pointers
   add_nodes_to_graph(GraphB, Queue, PtrA2, PtrB2, PtrC2, ModValue);
 
-  // Execute several Iterations of the graph for 1st set of buffers
+  // Execute several Iterations of the graph, updating in between each
+  // execution.
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
     Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
-  }
-
-  GraphExec.update(GraphB);
-
-  // Execute several Iterations of the graph for 2nd set of buffers
-  for (unsigned n = 0; n < Iterations; n++) {
+    GraphExec.update(GraphB);
     Event = Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
+    GraphExec.update(GraphA);
   }
 
   Queue.wait_and_throw();
