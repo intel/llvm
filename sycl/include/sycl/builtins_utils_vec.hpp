@@ -20,15 +20,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
-// Utilty trait for checking that the number of elements in T is in Ns.
-template <typename T, size_t... Ns>
-struct is_valid_size
-    : std::bool_constant<check_size_in_v<num_elements<T>::value, Ns...>> {};
-
-template <typename T, int... Ns>
-constexpr bool is_valid_size_v = is_valid_size<T, Ns...>::value;
-
 // Utility for converting a swizzle to a vector or preserve the type if it isn't
 // a swizzle.
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
