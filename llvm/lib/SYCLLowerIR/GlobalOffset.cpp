@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/GlobalOffset.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
@@ -91,6 +91,33 @@ static void validateKernels(Module &M, TargetHelpers::KernelCache &KCache) {
   }
 }
 
+// Loop over every instruction in a given function to inspect its debug
+// location (DILocation). Replace all found DISubprogram with the one that
+// corresponds to the cloned function (provided in DISubprogramMap).
+static void updatePerInstrDbgInformation(
+    llvm::Function &F, DenseMap<StringRef, DISubprogram *> &DISubprogramMap) {
+  DenseMap<const MDNode *, MDNode *> Cache;
+  auto &Context = F.getContext();
+  SmallVector<DbgRecord *> DRs;
+
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      if (auto &DILoc = I.getDebugLoc()) {
+        if (auto *NewSP = DISubprogramMap[F.getName()]) {
+          auto NewDILoc = llvm::DebugLoc::replaceInlinedAtSubprogram(
+              DILoc, *NewSP, Context, Cache);
+          I.setDebugLoc(NewDILoc);
+          for (DbgRecord &DR : I.getDbgRecordRange())
+            DRs.push_back(&DR);
+        }
+      }
+    }
+  }
+  // Remove debug records from cloned functions.
+  for (auto &DR : DRs)
+    DR->removeFromParent();
+}
+
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   // Only run this pass on SYCL device code
@@ -163,6 +190,10 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   assert(ImplicitOffsetIntrinsic->use_empty() &&
          "Not all uses of intrinsic removed");
   ImplicitOffsetIntrinsic->eraseFromParent();
+
+  for (auto *F : Clones)
+    updatePerInstrDbgInformation(*F, DISubprogramMap);
+
   return PreservedAnalyses::none();
 }
 
@@ -322,6 +353,39 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     SmallVector<ReturnInst *, 8> Returns;
     CloneFunctionInto(NewFunc, Func, GlobalVMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
+
+    // If the original function has debug information attached to it, make sure
+    // to update the info, to avoid a situation where DISubprogram is attached
+    // to more than one function.
+    if (auto *OldDISub = Func->getSubprogram()) {
+      // First, remove the dbg node from the cloned function, as it points to
+      // an incorrect data (original function).
+      if (NewFunc->getMetadata("dbg"))
+        NewFunc->setMetadata("dbg", nullptr);
+
+      auto *CU = OldDISub->getFile();
+      DIBuilder DIB(M, true, OldDISub->getUnit());
+      const std::string Name = (OldDISub->getName() + "_with_offset").str();
+      const std::string LinkageName =
+          (OldDISub->getLinkageName() + "_with_offset").str();
+      DISubprogram *NewDISub = DIB.createFunction(
+          CU, Name, LinkageName, CU,
+          0 /* 0 is reserved for compiler-generated code. */,
+          OldDISub->getType(),
+          0, /* 0 is reserved for compiler-generated code. */
+          DINode::DIFlags::FlagArtificial /* Compiler-generated code. */,
+          /* Outlined code is optimized code by definition. */
+          DISubprogram::SPFlagDefinition | DISubprogram::SPFlagOptimized);
+
+      DIB.finalizeSubprogram(NewDISub);
+      // Attach subprogram to the function.
+      NewFunc->setSubprogram(NewDISub);
+      DIB.finalize();
+      // Store the new subprogram in a map, used later for instruction debug
+      // info fixup.
+      DISubprogramMap[NewFunc->getName()] = NewDISub;
+    }
+
     // In order to keep the signatures of functions called by the kernel
     // unified, the pass has to copy global offset to an array allocated in
     // addrspace(3). This is done as kernels can't allocate and fill the
