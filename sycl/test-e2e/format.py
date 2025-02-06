@@ -306,7 +306,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             # Filter commands based on testing mode
             is_run_line = any(
                 i in directive.command
-                for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
+                for i in ["%{run}", "%{run-unfiltered-devices}", "%{execute-at-run-stage}"]
             )
 
             ignore_line_filtering = (
