@@ -5,10 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 
-using urEnqueueDeviceGetGlobalVariableReadTest = uur::urGlobalVariableTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueDeviceGetGlobalVariableReadTest);
+using urEnqueueDeviceGetGlobalVariableReadWithParamTest =
+    uur::urGlobalVariableWithParamTest<uur::BoolTestParam>;
 
-TEST_P(urEnqueueDeviceGetGlobalVariableReadTest, Success) {
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEnqueueDeviceGetGlobalVariableReadWithParamTest,
+    testing::ValuesIn(uur::BoolTestParam::makeBoolParam("Blocking")),
+    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
+
+TEST_P(urEnqueueDeviceGetGlobalVariableReadWithParamTest, Success) {
+  bool is_blocking = getParam().value;
 
   ASSERT_SUCCESS(urEnqueueDeviceGlobalVariableWrite(
       queue, program, global_var.name.c_str(), true, sizeof(global_var.value),
@@ -26,12 +32,19 @@ TEST_P(urEnqueueDeviceGetGlobalVariableReadTest, Success) {
 
   // read global var back to host
   ASSERT_SUCCESS(urEnqueueDeviceGlobalVariableRead(
-      queue, program, global_var.name.c_str(), true, sizeof(global_var.value),
-      0, &global_var.value, 0, nullptr, nullptr));
+      queue, program, global_var.name.c_str(), is_blocking,
+      sizeof(global_var.value), 0, &global_var.value, 0, nullptr, nullptr));
+
+  if (!is_blocking) {
+    ASSERT_SUCCESS(urQueueFinish(queue));
+  }
 
   // kernel should increment value
   ASSERT_EQ(global_var.value, 1);
 }
+
+using urEnqueueDeviceGetGlobalVariableReadTest = uur::urGlobalVariableTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueDeviceGetGlobalVariableReadTest);
 
 TEST_P(urEnqueueDeviceGetGlobalVariableReadTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(urEnqueueDeviceGlobalVariableRead(

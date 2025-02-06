@@ -5,6 +5,46 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 
+using urEnqueueDeviceGetGlobalVariableWriteWithParamTest =
+    uur::urGlobalVariableWithParamTest<uur::BoolTestParam>;
+
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urEnqueueDeviceGetGlobalVariableWriteWithParamTest,
+    testing::ValuesIn(uur::BoolTestParam::makeBoolParam("Blocking")),
+    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
+
+TEST_P(urEnqueueDeviceGetGlobalVariableWriteWithParamTest, Success) {
+  bool is_blocking = getParam().value;
+  global_var.value = 42;
+
+  ASSERT_SUCCESS(urEnqueueDeviceGlobalVariableWrite(
+      queue, program, global_var.name.c_str(), is_blocking,
+      sizeof(global_var.value), 0, &global_var.value, 0, nullptr, nullptr));
+
+  if (!is_blocking) {
+    ASSERT_SUCCESS(urQueueFinish(queue));
+  }
+
+  size_t global_offset = 0;
+  size_t n_dimensions = 1;
+  size_t global_size = 1;
+
+  // execute the kernel
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                       &global_offset, &global_size, nullptr, 0,
+                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+
+  // read global var back to host
+  int return_value = 0;
+  ASSERT_SUCCESS(urEnqueueDeviceGlobalVariableRead(
+      queue, program, global_var.name.c_str(), true, sizeof(return_value), 0,
+      &return_value, 0, nullptr, nullptr));
+
+  // kernel should return global_var.value + 1
+  ASSERT_EQ(return_value, global_var.value + 1);
+}
+
 using urEnqueueDeviceGetGlobalVariableWriteTest = uur::urGlobalVariableTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueDeviceGetGlobalVariableWriteTest);
 
