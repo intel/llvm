@@ -13,15 +13,15 @@
 
 extern int __clc_nvvm_reflect_arch();
 
-_CLC_DEFINE_TERNARY_BUILTIN(float, __spirv_ocl_fma, __nv_fmaf, float, float,
-                            float)
+_CLC_DEFINE_TERNARY_BUILTIN_SCALARIZE(float, __spirv_ocl_fma, __nv_fmaf, float,
+                                      float, float)
 
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_TERNARY_BUILTIN(double, __spirv_ocl_fma, __nv_fma, double, double,
-                            double)
+_CLC_DEFINE_TERNARY_BUILTIN_SCALARIZE(double, __spirv_ocl_fma, __nv_fma, double,
+                                      double, double)
 
 #endif
 

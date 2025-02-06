@@ -8,7 +8,7 @@
 // RUN: %{build} %O0 -o %t_O0.out
 // RUN: %{run} %t_O0.out
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 /*

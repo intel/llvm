@@ -22,7 +22,7 @@
 //       -O2        |    /* no option */
 //       -O3        |    /* no option */
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 #include <sycl/detail/core.hpp>

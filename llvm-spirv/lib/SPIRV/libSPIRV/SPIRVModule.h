@@ -272,6 +272,9 @@ public:
   virtual SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() = 0;
   virtual SPIRVInstruction *
   addTaskSequenceGetINTELInst(SPIRVType *, SPIRVValue *, SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *
+  addCooperativeMatrixLengthKHRInst(SPIRVType *, SPIRVType *,
+                                    SPIRVBasicBlock *) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;

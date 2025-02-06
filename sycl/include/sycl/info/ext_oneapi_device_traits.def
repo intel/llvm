@@ -59,13 +59,13 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
                          image_row_pitch_align, uint32_t,
                         UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
-                         max_image_linear_row_pitch, uint32_t,
+                         max_image_linear_row_pitch, size_t,
                         UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
-                         max_image_linear_width, uint32_t,
+                         max_image_linear_width, size_t,
                         UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP)
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
-                         max_image_linear_height, uint32_t,
+                         max_image_linear_height, size_t,
                         UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP)
 
 // Bindless images mipmaps
@@ -80,6 +80,10 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
                          composite_device, sycl::device,
                         UR_DEVICE_INFO_COMPOSITE_DEVICE)
+
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi, device,
+                        num_compute_units, size_t,
+                        UR_DEVICE_INFO_NUM_COMPUTE_UNITS)
 
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC

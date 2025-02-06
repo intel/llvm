@@ -14,21 +14,10 @@
 // to make sure that the batching is submitted when the urEventGetInfo is
 // done, rather than some other dynamic batching criteria.
 //
-// CHECK: ---> urEnqueueKernelLaunch
-// CHECK: ZE ---> zeCommandListAppendLaunchKernel
-// Shouldn't have closed until we see a urEventGetInfo
-// CHECK-NOT:  ZE ---> zeCommandListClose
-// CHECK-NOT:  ZE ---> zeCommandQueueExecuteCommandLists
+// The call to urEventGetInfo should trigger the executeOpenCommandList to
+// execute the batch.
 // CHECK: ---> urEventGetInfo
-// Shouldn't see another urGetEventInfo until after closing command list
-// CHECK-NOT: ---> urEventGetInfo
-// Look for close and Execute after urEventGetInfo
-// CHECK:  ZE ---> zeCommandListClose
-// CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
-// CHECK: ---> urEventGetInfo
-// CHECK-NOT: ---> urEventsWait
-// CHECK: ---> urEnqueueKernelLaunch
-// CHECK: ZE ---> zeCommandListAppendLaunchKernel
+// CHECK: UR ---> UrQueue->executeOpenCommandList
 // CHECK: ---> urQueueFinish
 // Look for close and Execute after urQueueFinish
 // CHECK:  ZE ---> zeCommandListClose

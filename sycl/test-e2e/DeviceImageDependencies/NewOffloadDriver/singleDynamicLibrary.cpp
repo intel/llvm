@@ -20,7 +20,7 @@
 
 // RUN: %{run} %t.out
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
 
 #include "wrapper.hpp"
