@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_mad(__CLC_GENTYPE a,
-                                                     __CLC_GENTYPE b,
-                                                     __CLC_GENTYPE c) {
-  return a * b + c;
+#include <libspirv/spirv.h>
+
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_LocalInvocationIndex() {
+  return __spirv_LocalInvocationId_z() * __spirv_WorkgroupSize_y() *
+             __spirv_WorkgroupSize_x() +
+         __spirv_LocalInvocationId_y() * __spirv_WorkgroupSize_x() +
+         __spirv_LocalInvocationId_x();
 }

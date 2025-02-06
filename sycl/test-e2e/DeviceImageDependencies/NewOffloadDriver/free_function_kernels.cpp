@@ -11,7 +11,7 @@
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15742
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
 
 #include <iostream>

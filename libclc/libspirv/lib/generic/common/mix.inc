@@ -9,7 +9,7 @@
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_mix(__CLC_GENTYPE x,
                                                      __CLC_GENTYPE y,
                                                      __CLC_GENTYPE a) {
-  return __spirv_ocl_mad(y - x, a, x);
+  return __clc_mad(y - x, a, x);
 }
 
 #ifndef __CLC_SCALAR

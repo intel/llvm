@@ -221,6 +221,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 build_targets.add(test.config.backend_to_target[backend])
 
         triples = set(test.config.target_to_triple[t] for t in build_targets)
+        test.config.available_features = test.config.available_features.union(
+            build_targets
+        )
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
 
@@ -239,7 +242,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             "target-spir" in build_targets
             and "spirv-backend" in test.config.available_features
         ):
-            sycl_target_opts += " -fsycl-use-spirv-backend-for-spirv-gen"
+            # TODO: Maybe that should be link-only option, so that we wouldn't
+            # need to suppress the warning below for compile-only commands.
+            sycl_target_opts += " -fsycl-use-spirv-backend-for-spirv-gen -Wno-unused-command-line-argument"
         substitutions.append(("%{sycl_target_opts}", sycl_target_opts))
 
         substitutions.append(

@@ -7,7 +7,7 @@
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 // Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include <sycl/detail/core.hpp>

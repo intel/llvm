@@ -4,7 +4,7 @@
 // RUN: %{build} -Wno-error=incorrect-sub-group-size %O0 -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 #include <sycl/detail/core.hpp>
