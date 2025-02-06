@@ -1855,6 +1855,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::acos:
   case Intrinsic::asin:
   case Intrinsic::atan:
+  case Intrinsic::atan2:
   case Intrinsic::ceil:
   case Intrinsic::copysign:
   case Intrinsic::cos:
@@ -1962,7 +1963,7 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 // %d = extractelement <3 x i64> %b, i32 idx
 // With:
 // %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
-// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %1 = insertelement <3 x i64> poison, i64 %0, i32 0
 // %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
 // %3 = insertelement <3 x i64> %1, i64 %2, i32 1
 // %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
@@ -1977,7 +1978,7 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 // %2 = load i64, i64 addrspace(4)* %1, align 32
 // With:
 // %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
-// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %1 = insertelement <3 x i64> poison, i64 %0, i32 0
 // %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
 // %3 = insertelement <3 x i64> %1, i64 %2, i32 1
 // %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
@@ -2033,7 +2034,7 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
           if (!Index.isZero() || DL.getTypeSizeInBits(VecTy) !=
                                      DL.getTypeSizeInBits(Load->getType()))
             llvm_unreachable("Illegal use of a SPIR-V builtin variable");
-          Replacement = UndefValue::get(VecTy);
+          Replacement = PoisonValue::get(VecTy);
           for (unsigned I = 0; I < VecTy->getNumElements(); I++) {
             Replacement = Builder.CreateInsertElement(
                 Replacement,

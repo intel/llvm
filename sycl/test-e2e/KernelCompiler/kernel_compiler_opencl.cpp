@@ -8,6 +8,7 @@
 
 // REQUIRES: ocloc && (opencl || level_zero)
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
@@ -34,6 +35,7 @@
 // CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 auto constexpr CLSource = R"===(
 __kernel void my_kernel(__global int *in, __global int *out) {

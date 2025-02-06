@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/sub_group.hpp>
 
 int main() {
   sycl::queue Q;

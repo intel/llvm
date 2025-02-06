@@ -13,9 +13,7 @@
 // Tests that sub-group shuffles work even when abi is different to what is
 // expected
 
-#include <sycl/detail/core.hpp>
-#include <sycl/group_algorithm.hpp>
-#include <sycl/marray.hpp>
+#include <sycl/sycl.hpp>
 
 static constexpr size_t NumElems = VEC_WIDTH;
 static constexpr size_t NumWorkItems = 64;

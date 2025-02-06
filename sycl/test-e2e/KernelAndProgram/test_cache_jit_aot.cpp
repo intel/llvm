@@ -2,6 +2,7 @@
 // cannot do that reliably when number of devices is unknown.
 //
 // REQUIRES: level_zero, ocloc
+// REQUIRES: build-and-run-mode
 //
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{build_cmd} = %{build}

@@ -7,7 +7,7 @@
 // The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
 
-// XFAIL: hip_amd
+// XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15742
 
 #include <iostream>

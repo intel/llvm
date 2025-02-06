@@ -13,8 +13,8 @@
 // RUN: %{build} %fp-model-precise -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 
-#include "../joint_matrix_apply_two_matrices_impl.hpp"
+#include "joint_matrix_apply_two_matrices_impl.hpp"

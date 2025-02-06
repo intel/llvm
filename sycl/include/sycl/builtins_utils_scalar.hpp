@@ -12,7 +12,6 @@
 #include <sycl/aliases.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/half_type.hpp>
 #include <sycl/multi_ptr.hpp>

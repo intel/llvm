@@ -7,6 +7,12 @@ target triple = "spir64-unknown-unknown"
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; TODO: investigate why function parameters are decorated with Volatile multiple times.
+; R/UN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
+
 ; Most of atomics lost information about the sign of the integer operand
 ; but since this concerns only built-ins  with two-complement's arithmetics
 ; it shouldn't cause any problems.

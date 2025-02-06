@@ -6,6 +6,7 @@
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
 // XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16416
 
 #include <stdio.h>
 #include <sycl/detail/core.hpp>

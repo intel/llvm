@@ -13,7 +13,7 @@
 
 static unsigned NumOfEventsWaitWithBarrierCalls = 0;
 
-static ur_result_t redefined_urEnqueueEventsWaitWithBarrier(void *) {
+static ur_result_t redefined_urEnqueueEventsWaitWithBarrierExt(void *) {
   NumOfEventsWaitWithBarrierCalls++;
 
   return UR_RESULT_SUCCESS;
@@ -22,8 +22,8 @@ static ur_result_t redefined_urEnqueueEventsWaitWithBarrier(void *) {
 TEST(Queue, HandlerBarrier) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q;
@@ -41,8 +41,8 @@ TEST(Queue, HandlerBarrier) {
 TEST(Queue, ExtOneAPISubmitBarrier) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q;
@@ -60,8 +60,8 @@ TEST(Queue, ExtOneAPISubmitBarrier) {
 TEST(Queue, HandlerBarrierWithWaitList) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q1;
@@ -81,8 +81,8 @@ TEST(Queue, HandlerBarrierWithWaitList) {
 TEST(Queue, ExtOneAPISubmitBarrierWithWaitList) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q1;

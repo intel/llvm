@@ -1,4 +1,4 @@
-// REQUIRES: cuda
+// REQUIRES: target-nvidia
 // REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out

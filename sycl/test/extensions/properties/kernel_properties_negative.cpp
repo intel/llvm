@@ -18,8 +18,8 @@ int main() {
                                   oneapi::execution_scope::root_group>};
 
   // expected-error-re@sycl/ext/oneapi/experimental/enqueue_functions.hpp:* {{static assertion failed due to requirement {{.*}} launch_config does not allow properties with compile-time kernel effects.}}
-  oneapi::launch_config<sycl::range<1>, decltype(props1)> LC1{{1}, props1};
+  oneapi::launch_config LC1{sycl::range<1>{1}, props1};
 
   // expected-error-re@sycl/ext/oneapi/experimental/enqueue_functions.hpp:* {{static assertion failed due to requirement {{.*}} launch_config does not allow properties with compile-time kernel effects.}}
-  oneapi::launch_config<sycl::range<1>, decltype(props2)> LC22{{1}, props2};
+  oneapi::launch_config LC22{sycl::range<1>{1}, props2};
 }

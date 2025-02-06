@@ -1,9 +1,9 @@
 // This test is written with an aim to check that experimental::printf versions
 // for constant and generic address space can be used in the same module.
 //
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 // XFAIL: cuda && windows
-//
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14733
 // FIXME: Drop the test once generic AS support is considered stable and the
 //        dedicated constant AS overload of printf is removed from the library.
 //

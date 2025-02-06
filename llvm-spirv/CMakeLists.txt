@@ -144,7 +144,9 @@ if (NOT SPIRV_TOOLS_FOUND)
   endif()
 endif()
 
-if (NOT SPIRV_TOOLS_FOUND)
+option(LLVM_SPIRV_ENABLE_LIBSPIRV_DIS "Enable --spirv-tools-dis support.")
+
+if (NOT SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
   message(STATUS "SPIRV-Tools not found; project will be built without "
           "--spirv-tools-dis support.")
 endif()

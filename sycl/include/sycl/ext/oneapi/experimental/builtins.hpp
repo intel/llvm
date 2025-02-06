@@ -15,7 +15,7 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloath, is_sv...
 #include <sycl/detail/memcpy.hpp>              // detail::memcpy
 #include <sycl/marray.hpp>                     // for marray
-#include <sycl/types.hpp>                      // for vec
+#include <sycl/vector.hpp>                     // for vec
 
 #include <cstring>     // for size_t
 #include <stdio.h>     // for printf

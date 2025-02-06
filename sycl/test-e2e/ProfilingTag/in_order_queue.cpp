@@ -5,13 +5,13 @@
 // Tests the get_profiling_tag extension function on an in-order queue.
 
 // HIP backend currently returns invalid values for submission time queries.
-// https://github.com/intel/llvm/issues/12904
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12904
 
 // CUDA backend seems to fail sporadically for expected profiling tag time
 // query orderings.
-// https://github.com/intel/llvm/issues/14053
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14053
 
 #include "common.hpp"
 

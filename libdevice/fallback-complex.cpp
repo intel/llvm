@@ -141,27 +141,24 @@ DEVICE_EXTERN_C_INLINE
 float __complex__ __devicelib_cexpf(float __complex__ z) {
   float z_imag = __devicelib_cimagf(z);
   float z_real = __devicelib_crealf(z);
+  if (z_imag == 0) {
+    return CMPLXF(__spirv_ocl_exp(z_real), __spirv_ocl_copysign(0.f, z_imag));
+  }
+
   if (__spirv_IsInf(z_real)) {
-    if (z_real < 0.0f) {
+    if (z_real < 0.f) {
       if (!__spirv_IsFinite(z_imag))
         z_imag = 1.0f;
-    } else if (z_imag == 0.0f || !__spirv_IsFinite(z_imag)) {
+    } else if (__spirv_IsNan(z_imag)) {
+      return z;
+    } else if (z_imag == 0.f || !__spirv_IsFinite(z_imag)) {
       if (__spirv_IsInf(z_imag))
-        z_imag = NAN;
-      return CMPLXF(z_real, z_imag);
+        return CMPLXF(z_real, NAN);
     }
-  } else if (__spirv_IsNan(z_real) && (z_imag == 0.0f)) {
-    return z;
   }
-  float __e = __spirv_ocl_exp(z_real);
-  float ret_real = __e * __spirv_ocl_cos(z_imag);
-  float ret_imag = __e * __spirv_ocl_sin(z_imag);
 
-  if (__spirv_IsNan(ret_real))
-    ret_real = 0.f;
-  if (__spirv_IsNan(ret_imag))
-    ret_imag = 0.f;
-  return CMPLXF(ret_real, ret_imag);
+  float e = __spirv_ocl_exp(z_real);
+  return CMPLXF(e * __spirv_ocl_cos(z_imag), e * __spirv_ocl_sin(z_imag));
 }
 
 DEVICE_EXTERN_C_INLINE

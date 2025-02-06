@@ -1,4 +1,5 @@
 // REQUIRES: opencl-aot, cpu
+// REQUIRES: build-and-run-mode
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/common.cpp -o %t.out \
 // RUN:          -fsycl-dead-args-optimization
@@ -6,6 +7,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 const static sycl::specialization_id<int> SpecConst{42};

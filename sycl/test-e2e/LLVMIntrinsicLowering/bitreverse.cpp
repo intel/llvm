@@ -2,6 +2,9 @@
 
 // UNSUPPORTED: hip || cuda
 
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16318, CMPLRLLVM-62187
+
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
 

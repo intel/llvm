@@ -149,9 +149,9 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(
-            CGH, oneapiext::launch_config<sycl::range<1>>{sycl::range<1>{N}},
-            Kernel1D, 49, MemAcc);
+        oneapiext::parallel_for(CGH,
+                                oneapiext::launch_config{sycl::range<1>{N}},
+                                Kernel1D, 49, MemAcc);
       });
     }
   }
@@ -165,9 +165,8 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(CGH,
-                                oneapiext::launch_config<sycl::range<2>>{Range},
-                                Kernel2D, 50, MemAcc);
+        oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel2D,
+                                50, MemAcc);
       });
     }
   }
@@ -181,9 +180,8 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(CGH,
-                                oneapiext::launch_config<sycl::range<3>>{Range},
-                                Kernel3D, 51, MemAcc);
+        oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel3D,
+                                51, MemAcc);
       });
     }
   }
@@ -196,11 +194,10 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::nd_launch(
-            CGH,
-            oneapiext::launch_config<sycl::nd_range<1>>{
-                sycl::nd_range<1>{sycl::range<1>{N}, sycl::range{8}}},
-            Kernel1D, 52, MemAcc);
+        oneapiext::nd_launch(CGH,
+                             oneapiext::launch_config{sycl::nd_range<1>{
+                                 sycl::range<1>{N}, sycl::range{8}}},
+                             Kernel1D, 52, MemAcc);
       });
     }
   }
@@ -215,7 +212,7 @@ int main() {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
         oneapiext::nd_launch(CGH,
-                             oneapiext::launch_config<sycl::nd_range<2>>{
+                             oneapiext::launch_config{
                                  sycl::nd_range<2>{Range, sycl::range{8, 8}}},
                              Kernel2D, 53, MemAcc);
       });
@@ -231,11 +228,10 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::nd_launch(
-            CGH,
-            oneapiext::launch_config<sycl::nd_range<3>>{
-                sycl::nd_range<3>{Range, sycl::range{8, 8, 8}}},
-            Kernel3D, 54, MemAcc);
+        oneapiext::nd_launch(CGH,
+                             oneapiext::launch_config{sycl::nd_range<3>{
+                                 Range, sycl::range{8, 8, 8}}},
+                             Kernel3D, 54, MemAcc);
       });
     }
   }

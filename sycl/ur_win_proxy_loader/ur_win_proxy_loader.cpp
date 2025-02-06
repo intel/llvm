@@ -65,7 +65,7 @@ static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
 
 // cribbed from sycl/source/detail/os_util.cpp
 /// Returns an absolute path where the object was found.
-std::wstring getCurrentDSODir() {
+static std::wstring getCurrentDSODir() {
   wchar_t Path[MAX_PATH];
   auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileName(

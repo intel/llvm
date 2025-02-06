@@ -49,6 +49,8 @@ void EmitClangAttrParserStringSwitches(const llvm::RecordKeeper &Records,
                                        llvm::raw_ostream &OS);
 void EmitClangAttrSubjectMatchRulesParserStringSwitches(
     const llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitCXX11AttributeInfo(const llvm::RecordKeeper &Records,
+                            llvm::raw_ostream &OS);
 void EmitClangAttrClass(const llvm::RecordKeeper &Records,
                         llvm::raw_ostream &OS);
 void EmitClangAttrImpl(const llvm::RecordKeeper &Records,
@@ -89,6 +91,8 @@ void EmitClangBuiltins(const llvm::RecordKeeper &Records,
 
 void EmitClangDiagsDefs(const llvm::RecordKeeper &Records,
                         llvm::raw_ostream &OS, const std::string &Component);
+void EmitClangDiagsEnums(const llvm::RecordKeeper &Records,
+                         llvm::raw_ostream &OS, const std::string &Component);
 void EmitClangDiagGroups(const llvm::RecordKeeper &Records,
                          llvm::raw_ostream &OS);
 void EmitClangDiagsIndexName(const llvm::RecordKeeper &Records,
@@ -179,7 +183,7 @@ void EmitClangOpenCLBuiltinHeader(const llvm::RecordKeeper &Records,
                                   llvm::raw_ostream &OS);
 void EmitClangOpenCLBuiltinTests(const llvm::RecordKeeper &Records,
                                  llvm::raw_ostream &OS);
-void EmitClangSPIRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitClangSPIRVBuiltins(const llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangDataCollectors(const llvm::RecordKeeper &Records,
                              llvm::raw_ostream &OS);

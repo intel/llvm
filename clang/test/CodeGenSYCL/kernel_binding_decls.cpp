@@ -12,7 +12,7 @@ void foo() {
     float b[3] = { 0, 3.0f, 4.0 };
   } s;
   auto [f1, f2, f3] = s.b;
-  auto Lambda = [=]() { x = 10; f2 = 2.3f; };
+  auto Lambda = [=]() { (void)x; (void)f2; };
   h.single_task(Lambda);
 }
 
@@ -51,11 +51,9 @@ void foo() {
 // CHECK:  store ptr addrspace(4) %this, ptr addrspace(4) %this.addr.ascast
 // CHECK:  %this1 = load ptr addrspace(4), ptr addrspace(4) %this.addr.ascast
 
-// Check the store of 10 into the int value
+// Check the fetch of the x binding.
 // CHECK:  %x = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %this1, i32 0, i32 0
-// CHECK:  store i32 10, ptr addrspace(4) %x
 
-// Check the store of 2.3f into the float value
+// Check the fetch of the f2 binding.
 // CHECK:  %f2 = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %this1, i32 0, i32 1
-// CHECK:  store float 0x4002666660000000, ptr addrspace(4) %f2
 // CHECK:  ret void

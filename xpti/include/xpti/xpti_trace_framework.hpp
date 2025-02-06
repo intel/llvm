@@ -55,14 +55,6 @@ typedef void *xpti_plugin_function_t;
 #endif
 #endif
 
-/// Insert something when compiled with msvc
-/// https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros
-#ifdef _MSC_VER
-#define __XPTI_INSERT_IF_MSVC(x) x
-#else
-#define __XPTI_INSERT_IF_MSVC(x)
-#endif
-
 namespace xpti {
 namespace utils {
 /// @class StringHelper
@@ -219,7 +211,9 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    __XPTI_INSERT_IF_MSVC(__pragma(warning(suppress : 4996)))
+#ifdef _MSC_VER
+#pragma warning(suppress : 4996)
+#endif
     const char *val = std::getenv(var.c_str());
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
@@ -353,6 +347,8 @@ private:
 struct finally {
   std::function<void()> MFunc;
 
+  finally(const finally &) = delete;
+  finally &operator=(const finally &) = delete;
   ~finally() {
     if (xptiTraceEnabled())
       MFunc();
@@ -663,6 +659,11 @@ public:
         (xptiStashTuple(key, value) == xpti::result_t::XPTI_RESULT_SUCCESS);
   }
 
+  // Copy and copy assignment are deleted since we dont want to stash the same
+  // key-value pair multiple times
+  stash_tuple(const stash_tuple &) = delete;
+  stash_tuple &operator=(const stash_tuple &) = delete;
+
   /// @brief Destroys the stash_tuple object and unstashes the key-value pair if
   /// it was stashed successfully earlier.
   ///
@@ -733,6 +734,8 @@ public:
     MUId.p2 = 0;
     MUId.instance = 0;
   };
+
+  ~uid_object_t() = default;
 
   /// @brief Copy constructor for creating a uid_object_t object as a copy of
   /// another.
@@ -1613,6 +1616,10 @@ public:
       }
     }
   }
+
+  tracepoint_t(const tracepoint_t &) = delete;
+  tracepoint_t &operator=(const tracepoint_t &) = delete;
+
   ~tracepoint_t() {
     // If tracing is not enabled, don't do anything
     if (!xptiTraceEnabled())

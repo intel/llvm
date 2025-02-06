@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -18,6 +17,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 
 // ---------------------------------------

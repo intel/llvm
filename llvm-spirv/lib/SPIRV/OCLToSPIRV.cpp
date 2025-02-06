@@ -1065,7 +1065,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
           } else if (Desc.Dim == Dim2D && Desc.Arrayed) {
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1)};
             Constant *Mask = ConstantVector::get(Index);
-            return new ShuffleVectorInst(NCI, UndefValue::get(NCI->getType()),
+            return new ShuffleVectorInst(NCI, PoisonValue::get(NCI->getType()),
                                          Mask, NCI->getName(),
                                          CI->getIterator());
           }
@@ -1410,9 +1410,9 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
   for (auto I : ScalarPos)
     Mutator.mapArg(I, [&](Value *V) {
       Instruction *Inst = InsertElementInst::Create(
-          UndefValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
+          PoisonValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
       return new ShuffleVectorInst(
-          Inst, UndefValue::get(VecTy),
+          Inst, PoisonValue::get(VecTy),
           ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
           CI->getIterator());
     });
@@ -1431,7 +1431,7 @@ bool usesSpvExtImageRaw10Raw12Constants(const CallInst *CI) {
   // common use patterns here.
   for (auto *U : CI->users()) {
     for (auto C : ExtConstants) {
-      ICmpInst::Predicate Pred;
+      CmpPredicate Pred;
       if (match(U, m_c_ICmp(Pred, m_Value(), m_SpecificInt(C)))) {
         return true;
       }

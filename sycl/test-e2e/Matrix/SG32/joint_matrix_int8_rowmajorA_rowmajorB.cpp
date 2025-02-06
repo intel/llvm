@@ -14,9 +14,10 @@
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-4181
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 
-#include "../joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"
+#include "joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"

@@ -1,6 +1,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/sub_group.hpp>
 
 #pragma once
 

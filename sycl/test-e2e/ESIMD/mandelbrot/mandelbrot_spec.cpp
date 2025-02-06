@@ -15,6 +15,7 @@
 #include "../esimd_test_utils.hpp"
 
 #include <sycl/accessor_image.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include <array>

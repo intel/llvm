@@ -11,7 +11,8 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/vector_convert.hpp>
+#include <sycl/vector.hpp>
 
 #include <cstdint>
 #include <iostream>

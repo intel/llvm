@@ -47,25 +47,31 @@ sizeof_type = {'char'  : 1, 'schar'  : 1, 'uchar'  : 1,
                'half'  : 2, 'float'  : 4,
                'double': 8}
 
-limit_max = {'char'  : 'CHAR_MAX',
-             'schar' : 'CHAR_MAX',
-             'uchar' : 'UCHAR_MAX',
-             'short' : 'SHRT_MAX',
-             'ushort': 'USHRT_MAX',
-             'int'   : 'INT_MAX',
-             'uint'  : 'UINT_MAX',
-             'long'  : 'LONG_MAX',
-             'ulong' : 'ULONG_MAX'}
+limit_max = {
+    "char": "CHAR_MAX",
+    "schar": "CHAR_MAX",
+    "uchar": "UCHAR_MAX",
+    "short": "SHRT_MAX",
+    "ushort": "USHRT_MAX",
+    "int": "INT_MAX",
+    "uint": "UINT_MAX",
+    "long": "LONG_MAX",
+    "ulong": "ULONG_MAX",
+    "half": "0x1.ffcp+15",
+}
 
-limit_min = {'char'  : 'CHAR_MIN',
-             'schar' : 'CHAR_MIN',
-             'uchar' : '0',
-             'short' : 'SHRT_MIN',
-             'ushort': '0',
-             'int'   : 'INT_MIN',
-             'uint'  : '0',
-             'long'  : 'LONG_MIN',
-             'ulong' : '0'}
+limit_min = {
+    "char": "CHAR_MIN",
+    "schar": "CHAR_MIN",
+    "uchar": "0",
+    "short": "SHRT_MIN",
+    "ushort": "0",
+    "int": "INT_MIN",
+    "uint": "0",
+    "long": "LONG_MIN",
+    "ulong": "0",
+    "half": "-0x1.ffcp+15",
+}
 
 
 def conditional_guard(src, dst):

@@ -35,7 +35,7 @@ See [Get Started Guide instructions](../GetStartedGuide.md)
 
 For any DPC++-related commit, the `[SYCL]` tag should be present in the
 commit message title. To a reasonable extent, additional tags can be used
-to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
+to signify the component changed, e.g.: `[UR]`, `[CUDA]`, `[Doc]`.
 
 ## Using \<iostream\> 
 
@@ -112,8 +112,11 @@ end-to-end or SYCL-CTS tests.
   unit tests. LIT tests make compile-time checks of DPC++ headers, e.g. device
   code IR verification, `static_assert` tests. Unit tests check DPC++ runtime
   behavior and do not perform any device code compilation, instead relying on
-  redefining plugin API with [PiMock](https://github.com/intel/llvm/blob/sycl/sycl/unittests/helpers/PiMock.hpp) when
-  necessary.
+  redefining the UR API with
+  [UrMock](https://github.com/intel/llvm/blob/sycl/sycl/unittests/helpers/UrMock.hpp)
+  and the
+  [Unified Runtime mocking interface](https://oneapi-src.github.io/unified-runtime/core/INTRO.html#mocking)
+  when necessary.
 
 When adding new test to `check-sycl`, please consider the following:
 

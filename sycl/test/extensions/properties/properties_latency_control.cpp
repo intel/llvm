@@ -8,12 +8,6 @@
 using namespace sycl::ext;
 
 int main() {
-  // Check that oneapi::experimental::is_property_key is correctly specialized
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::latency_anchor_id_key>::value);
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::latency_constraint_key>::value);
-
   // Check that oneapi::experimental::is_property_value is correctly specialized
   static_assert(oneapi::experimental::is_property_value<
                 decltype(intel::experimental::latency_anchor_id<-1>)>::value);

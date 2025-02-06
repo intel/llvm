@@ -152,11 +152,10 @@ double __complex__ __devicelib_cexp(double __complex__ z) {
   } else if (__spirv_IsNan(z_real)) {
     if (z_imag == 0.0)
       return z;
-    else /* z_imag != 0.0 */
-      return CMPLX(NAN, NAN);
-  } else if (__spirv_IsFinite(z_real)) {
-    if (__spirv_IsNan(z_imag) || __spirv_IsInf(z_imag))
-      return CMPLX(NAN, NAN);
+    return CMPLX(NAN, NAN);
+  } else if (__spirv_IsFinite(z_real) &&
+             (__spirv_IsNan(z_imag) || __spirv_IsInf(z_imag))) {
+    return CMPLX(NAN, NAN);
   }
   double __e = __spirv_ocl_exp(z_real);
   double ret_real = __e * __spirv_ocl_cos(z_imag);

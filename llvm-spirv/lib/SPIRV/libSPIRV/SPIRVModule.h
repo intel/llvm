@@ -272,6 +272,9 @@ public:
   virtual SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() = 0;
   virtual SPIRVInstruction *
   addTaskSequenceGetINTELInst(SPIRVType *, SPIRVValue *, SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *
+  addCooperativeMatrixLengthKHRInst(SPIRVType *, SPIRVType *,
+                                    SPIRVBasicBlock *) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;
@@ -500,6 +503,9 @@ public:
                                              SPIRVValue *Value,
                                              SPIRVValue *ExpectedValue,
                                              SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addUntypedPrefetchKHRInst(SPIRVType *Ty, std::vector<SPIRVWord> Args,
+                            SPIRVBasicBlock *BB) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 

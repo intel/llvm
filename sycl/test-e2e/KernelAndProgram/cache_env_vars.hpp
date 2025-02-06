@@ -65,6 +65,7 @@
 #include <chrono>
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class Inc;
 template <class Kernel> void check_build_time(sycl::queue &q) {

@@ -26,8 +26,9 @@ inline constexpr cache_config_enum large_slm =
 inline constexpr cache_config_enum large_data =
     cache_config_enum::large_data;
 
-struct cache_config : oneapi::experimental::detail::run_time_property_key<
-                          oneapi::experimental::detail::PropKind::CacheConfig> {
+struct cache_config
+    : oneapi::experimental::detail::run_time_property_key<
+          cache_config, oneapi::experimental::detail::PropKind::CacheConfig> {
   cache_config(cache_config_enum v) : value(v) {}
   cache_config_enum value;
 };

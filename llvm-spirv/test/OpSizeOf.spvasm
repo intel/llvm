@@ -1,0 +1,33 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.1 -o %t.spv %s
+; TODO: reenable spirv-val when OpSizeOf is supported.
+; R/U/N: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %f "testSizeOf"
+               OpName %p "p"
+       %void = OpTypeVoid
+       %bool = OpTypeBool
+        %i32 = OpTypeInt 32 0
+     %struct = OpTypeStruct %i32 %i32
+%_ptr_CrossWorkgroup_bool = OpTypePointer CrossWorkgroup %bool
+%_ptr_CrossWorkgroup_i32 = OpTypePointer CrossWorkgroup %i32
+%_ptr_CrossWorkgroup_struct = OpTypePointer CrossWorkgroup %struct
+       %fnTy = OpTypeFunction %void %_ptr_CrossWorkgroup_i32
+
+          %f = OpFunction %void None %fnTy
+          %p = OpFunctionParameter %_ptr_CrossWorkgroup_i32
+         %10 = OpLabel
+
+; CHECK: store i32 1, ptr addrspace(1) %p
+         %11 = OpSizeOf %i32 %_ptr_CrossWorkgroup_bool
+               OpStore %p %11
+
+; CHECK: store i32 8, ptr addrspace(1) %p
+         %12 = OpSizeOf %i32 %_ptr_CrossWorkgroup_struct
+               OpStore %p %12
+
+               OpReturn
+               OpFunctionEnd

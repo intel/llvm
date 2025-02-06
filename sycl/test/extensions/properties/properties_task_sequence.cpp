@@ -10,14 +10,6 @@ using namespace sycl::ext;
 constexpr uint32_t TestResponseCapacity = 7;
 constexpr uint32_t TestInvocationCapacity = 5;
 int main() {
-  // Check that is_property_key is correctly specialized
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::balanced_key>::value);
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::response_capacity_key>::value);
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::invocation_capacity_key>::value);
-
   // Check that is_property_value is correctly specialized
   static_assert(oneapi::experimental::is_property_value<
                 decltype(intel::experimental::balanced)>::value);

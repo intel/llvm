@@ -130,10 +130,6 @@ enum class lsc_subopcode : uint8_t {
   read_state_info = 0x1e,
   fence = 0x1f,
 };
-// The regexp for ESIMD intrinsics:
-// /^_Z(\d+)__esimd_\w+/
-static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
-static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
 struct ESIMDIntrinDesc {
@@ -1243,7 +1239,7 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
-                            NewI->getName() + ".cast.ty", OldI);
+                            NewI->getName() + ".cast.ty", OldI->getIterator());
     NewI->setDebugLoc(OldI->getDebugLoc());
   }
   return NewI;
@@ -1569,7 +1565,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
-      &CI);
+      CI.getIterator());
   NewCI->setDebugLoc(CI.getDebugLoc());
   if (DoesFunctionReturnStructure) {
     IRBuilder<> Builder(&CI);
@@ -2178,12 +2174,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
       StringRef Name = Callee->getName();
 
-      // See if the Name represents an ESIMD intrinsic and demangle only if it
-      // does.
-      if (!Name.consume_front(ESIMD_INTRIN_PREF0) && !isDevicelibFunction(Name))
+      if (!isDevicelibFunction(Name))
+        Name = stripMangling(Name);
+
+      if (Name.empty())
         continue;
-      // now skip the digits
-      Name = Name.drop_while([](char C) { return std::isdigit(C); });
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
