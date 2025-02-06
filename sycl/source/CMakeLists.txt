@@ -321,6 +321,7 @@ set(SYCL_COMMON_SOURCES
     "stream.cpp"
     "spirv_ops.cpp"
     "virtual_mem.cpp"
+    "detail/async_alloc.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

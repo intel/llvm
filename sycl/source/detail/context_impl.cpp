@@ -553,6 +553,40 @@ void context_impl::verifyProps(const property_list &Props) const {
                                                 NoAllowedPropertiesCheck);
 }
 
+// TODO: there needs to be one default pool per device
+std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
+context_impl::get_default_memory_pool(const context &ctx, const device &dev,
+                                      const usm::alloc &kind) {
+
+  assert(kind == usm::alloc::device);
+
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(dev);
+  ur_device_handle_t Device = DevImpl->getHandleRef();
+  const sycl::detail::AdapterPtr &Adapter = this->getAdapter();
+
+  ur_usm_pool_handle_t poolHandle;
+
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
+      this->getHandleRef(), Device, &poolHandle);
+
+  if (!MmemPoolImplPtr) {
+    std::cout << "Not a valid default pool. Creating impl for the first time!"
+              << std::endl;
+    property_list fakeProps{};
+    MmemPoolImplPtr = std::make_shared<
+        sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
+        ctx, dev, sycl::usm::alloc::device, poolHandle, true /*Default pool*/,
+        property_list{});
+  }
+
+  std::cout << "We now have a valid default pool so returning that!"
+            << std::endl;
+
+  return MmemPoolImplPtr;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
