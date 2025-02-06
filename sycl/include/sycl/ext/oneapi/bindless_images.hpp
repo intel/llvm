@@ -1144,7 +1144,7 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
                      const sycl::float3 &dirVec [[maybe_unused]]) {
   [[maybe_unused]] constexpr size_t NDims = 2;
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__SPIR__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageReadCubemap<DataT, uint64_t>(
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, NDims), dirVec);
@@ -1159,7 +1159,8 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
         dirVec));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host
+  assert(false); // Bindless images not yet implemented on host/ cubemap
+                 // implementation broken/incomplete on SPIR backend
 #endif
 }
 
