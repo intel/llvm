@@ -8,7 +8,8 @@
 // This test is for element wise operations when matrix size does not multiply
 // SG size. This corner case only applies to AMX. Also, it tests bf16 type.
 // only run this on AMX
-// REQUIRES: target-spir
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix is not currently supported on other backends
 // REQUIRES: cpu
 // REQUIRES: aspect-ext_intel_matrix
 

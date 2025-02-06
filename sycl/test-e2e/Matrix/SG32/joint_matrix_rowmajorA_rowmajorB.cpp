@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // This tests support of row major layout for matrix B which does automatic VNNI
-// REQUIRES: target-spir
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix is not currently supported on other backends
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
