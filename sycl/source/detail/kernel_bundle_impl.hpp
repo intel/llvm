@@ -521,7 +521,7 @@ public:
       }
 
       return std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, KernelNames, MPrefix, MLanguage);
+          MContext, MDevices, KernelIDs, KernelNames, Prefix, MLanguage);
     }
 
     ur_program_handle_t UrProgram = nullptr;
