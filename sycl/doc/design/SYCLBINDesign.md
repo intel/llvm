@@ -56,10 +56,10 @@ The `sycl::bundle_state` is an integer with the values as follows:
 Following the global metadata is the body of the SYCLBIN file. The body consists
 of a list of abstract modules.
 
-| Type       | Description                                | Value variable |
-| ---------- | ------------------------------------------ | -------------- |
-| `uint64_t` | Byte size of the list of abstract modules. | `B`            |
-| `B`        | List of abstract modules.                  |                |
+| Type         | Description                                | Value variable |
+| ------------ | ------------------------------------------ | -------------- |
+| `uint64_t`   | Byte size of the list of abstract modules. | `B`            |
+| `uint8_t[B]` | List of abstract modules.                  |                |
 
 
 #### Abstract module
@@ -75,14 +75,14 @@ images can be an architecture-specific binary format. There is no requirement
 that all device binaries in an abstract module are usable on the same device or
 are specific to a single vendor.
 
-| Type       | Description                                     | Value variable |
-| ---------- | ----------------------------------------------- | -------------- |
-| `uint64_t` | Byte size of the list of the metadata.          | `M`            |
-| `M`        | Module metadata.                                |                |
-| `uint64_t` | Byte size of list of IR modules.                | `IR`           |
-| `IR`       | List of IR modules.                             |                |
-| `uint64_t` | Byte size of list of native device code images. | `ND`           |
-| `ND`       | List of native device code images.              |                |
+| Type          | Description                                     | Value variable |
+| ------------- | ----------------------------------------------- | -------------- |
+| `uint64_t`    | Byte size of the list of the metadata.          | `M`            |
+| `uint8_t[M]`  | Module metadata.                                |                |
+| `uint64_t`    | Byte size of list of IR modules.                | `IR`           |
+| `uint8_t[IR]` | List of IR modules.                             |                |
+| `uint64_t`    | Byte size of list of native device code images. | `ND`           |
+| `uint8_t[ND]` | List of native device code images.              |                |
 
 
 ##### Module metadata
@@ -90,10 +90,12 @@ are specific to a single vendor.
 The module metadata contains the following information about the contents of the
 module.
 
-| Type       | Description                                                    | Value variable |
-| ---------- | -------------------------------------------------------------- | -------------- |
-| `uint32_t` | Byte size of property set data.                                | `P`            |
-| `P`        | Property set data.                                             |                |
+| Type         | Description                                                    | Value variable |
+| ------------ | -------------------------------------------------------------- | -------------- |
+| `uint32_t`   | Byte size of the list of kernel names.                         | `K`            |
+| `uint8_t[K]` | List of kernel names. (String list)                            |                |
+| `uint32_t`   | Byte size of property set data.                                | `P`            |
+| `uint8_t[P]` | Property set data.                                             |                |
 
 
 *NOTE:* Optional features used is embedded in the property set data.
@@ -105,14 +107,26 @@ module.
 An IR module contains the binary data for the corresponding module compiled to a
 given IR representation, identified by the IR type field.
 
-| Type       | Description                    | Value variable |
-| ---------- | ------------------------------ | -------------- |
-| `uint8_t`  | IR type.                       |                |
-| `uint32_t` | Byte size of the raw IR bytes. | `IB`           |
-| `IB`       | Raw IR bytes.                  |                |
+| Type          | Description                    | Value variable |
+| ------------- | ------------------------------ | -------------- |
+| `uint8_t`     | IR type.                       |                |
+| `uint32_t`    | Byte size of the raw IR bytes. | `IB`           |
+| `uint8_t[IB]` | Raw IR bytes.                  |                |
 
 *TODO:* Do we need a target-specific blob inside this structure? E.g. for CUDA
         we may want to embed the SM version.
+
+
+##### String list
+
+A string list in this binary format consists of a `uint32_t` at the beginning
+containing the number of elements in the list, followed by that number of
+entries with the format:
+
+| Type         | Description              | Value variable |
+| ------------ | ------------------------ | -------------- |
+| `uint32_t`   | Byte size of the string. | `S`            |
+| `uint8_t[S]` | String bytes.            |                |
 
 
 ##### IR types
@@ -132,12 +146,12 @@ An native device code image contains the binary data for the corresponding
 module AOT compiled for a specific device, identified by the architecture
 string.
 
-| Type       | Description                                      | Value variable |
-| ---------- | ------------------------------------------------ | -------------- |
-| `uint32_t` | Byte size of the architecture string.            | `A`            |
-| `A`        | Architecture string.                             |                |
-| `uint32_t` | Byte size of the native device code image bytes. | `NB`           |
-| NB         | Native device code image bytes.                  |                |
+| Type          | Description                                      | Value variable |
+| ------------- | ------------------------------------------------ | -------------- |
+| `uint32_t`    | Byte size of the architecture string.            | `A`            |
+| `uint8_t[A]`  | Architecture string.                             |                |
+| `uint32_t`    | Byte size of the native device code image bytes. | `NB`           |
+| `uint8_t[NB]` | Native device code image bytes.                  |                |
 
 
 ### SYCLBIN version changelog
