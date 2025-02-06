@@ -21,7 +21,7 @@ extern "C" SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
 int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
-
+  sycl::device d = ctxt.get_devices()[0];
   // The following ifndef is required due to a number of limitations of free
   // function kernels. See CMPLRLLVM-61498.
   // TODO: Remove it once these limitations are no longer there.
