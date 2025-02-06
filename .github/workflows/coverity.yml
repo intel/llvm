@@ -13,9 +13,6 @@ jobs:
     container:
       image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps
       options: -u 1001:1001
-    env:
-      CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
-      CCACHE_MAXSIZE: 8G
 
     steps:
     - uses: actions/checkout@v4
@@ -43,14 +40,11 @@ jobs:
         CXX: g++
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
-        mkdir -p $CCACHE_DIR
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults ${{ inputs.build_configure_extra_args }} \
-          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
