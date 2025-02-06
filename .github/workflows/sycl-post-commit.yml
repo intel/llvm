@@ -52,6 +52,8 @@ jobs:
             runner: '["Linux", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True
             reset_intel_gpu: true
+          - name: Intel Battlemage Graphics with Level Zero
+            runner: '["Linux", "bmg"]'
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
