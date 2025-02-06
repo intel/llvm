@@ -276,6 +276,9 @@ std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  is_property_list_v<Properties>>
 group_load(Group g, InputIteratorT in_ptr,
            span<OutputT, ElementsPerWorkItem> out, Properties props = {}) {
+  static_assert(std::is_pointer_v<InputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_load requires a pointer if alignment property is used");
   constexpr bool blocked = detail::isBlocked(props);
   using use_naive =
       detail::merged_properties_t<Properties,
@@ -383,6 +386,9 @@ std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  is_property_list_v<Properties>>
 group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
             OutputIteratorT out_ptr, Properties props = {}) {
+  static_assert(std::is_pointer_v<OutputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_load requires a pointer if alignment property is used");
   constexpr bool blocked = detail::isBlocked(props);
   using use_naive =
       detail::merged_properties_t<Properties,
