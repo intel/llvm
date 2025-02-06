@@ -110,7 +110,7 @@ TEST_P(KernelCommandEventSyncTest, Basic) {
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue command that reads output to host
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -163,8 +163,8 @@ TEST_P(KernelCommandEventSyncTest, InterCommandBuffer) {
 
   // Submit command-buffers
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(second_cmd_buf_handle, queue, 0,
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, second_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Verify execution
@@ -180,8 +180,8 @@ TEST_P(KernelCommandEventSyncTest, InterCommandBuffer) {
 
   // Submit command-buffers again to check that dependencies still enforced.
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(second_cmd_buf_handle, queue, 0,
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, second_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Verify second execution

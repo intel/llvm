@@ -140,7 +140,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTest);
 // to original values.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -223,7 +223,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -237,7 +237,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
 // Test only passing local memory parameters to update with the original values.
 TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -289,7 +289,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -301,7 +301,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
 // parameters from the update.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -364,7 +364,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -381,7 +381,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -520,7 +520,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -535,7 +535,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
 // to new larger values.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -674,7 +674,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -690,7 +690,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
 // the other local memory argument.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -851,7 +851,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(command_handle,
                                                       &second_update_desc));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -888,7 +888,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryMultiUpdateTest);
 // to original values.
 TEST_P(LocalMemoryMultiUpdateTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -972,7 +972,7 @@ TEST_P(LocalMemoryMultiUpdateTest, UpdateParameters) {
   for (auto &handle : command_handles) {
     ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -1057,14 +1057,14 @@ TEST_P(LocalMemoryMultiUpdateTest, UpdateWithoutBlocking) {
       nullptr,                // pNewLocalWorkSize
   };
   // Enqueue without calling urQueueFinish after
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Update kernel and enqueue command-buffer again
   for (auto &handle : command_handles) {
     ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -1186,7 +1186,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(LocalMemoryUpdateTestOutOfOrder);
 // values when the kernel arguments were added out of order.
 TEST_P(LocalMemoryUpdateTestOutOfOrder, UpdateAllParameters) {
   // Run command-buffer prior to update and verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -1272,7 +1272,7 @@ TEST_P(LocalMemoryUpdateTestOutOfOrder, UpdateAllParameters) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
