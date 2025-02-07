@@ -1,6 +1,4 @@
 //==--- joint_matrix_bf16_fill_k_cache_runtime_dim.cpp  - DPC++ joint_matrix--------==//
-// XFAIL: arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16922
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +16,8 @@
 // test.
 // XFAIL: gpu-intel-dg2 && run-mode
 // XFAIL-TRACKER: GSD-10510
+// XFAIL: arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16922
 
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

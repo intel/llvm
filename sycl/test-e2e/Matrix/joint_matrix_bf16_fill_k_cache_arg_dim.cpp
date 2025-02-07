@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
-// XFAIL: arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16922
 // RUN: %{build} -o %t_arg_dim_vnni.out %fp-model-precise -DARG_DIM -DVNNI
 // RUN: %{run} %t_arg_dim_vnni.out
 
@@ -17,6 +15,8 @@
 // test.
 // XFAIL: gpu-intel-dg2 && run-mode
 // XFAIL-TRACKER: GSD-10510
+// XFAIL: arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16922
 
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"
