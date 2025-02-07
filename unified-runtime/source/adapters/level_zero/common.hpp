@@ -241,7 +241,6 @@ const int UrL0InitAllDrivers = [] {
 enum {
   UrL0SerializeNone =
       0, // no locking or blocking (except when SYCL RT requested blocking)
-  UrL0SerializeLock = 1, // locking around each UR_CALL
   UrL0SerializeBlock =
       2, // blocking UR calls, where supported (usually in enqueue commands)
 };
@@ -288,20 +287,10 @@ private:
   static std::mutex GlobalLock;
 
 public:
-  ZeCall() {
-    if ((UrL0Serialize & UrL0SerializeLock) != 0) {
-      GlobalLock.lock();
-    }
+  template <typename F> static auto underLock(F &&f) {
+    std::lock_guard<std::mutex> Lock(GlobalLock);
+    return f();
   }
-  ~ZeCall() {
-    if ((UrL0Serialize & UrL0SerializeLock) != 0) {
-      GlobalLock.unlock();
-    }
-  }
-
-  // The non-static version just calls static one.
-  ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
-                     const char *ZeArgs, bool TraceError = true);
 };
 
 // This function will ensure compatibility with both Linux and Windows for
@@ -352,25 +341,19 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 // Trace a call to Level-Zero RT
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \
   {                                                                            \
-    ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
+    if (auto Result = ZeName ZeArgs)                                           \
       return ze2urResult(Result);                                              \
   }
 
 // Trace a call to Level-Zero RT, throw on error
 #define ZE2UR_CALL_THROWS(ZeName, ZeArgs)                                      \
   {                                                                            \
-    ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
+    if (auto Result = ZeName ZeArgs)                                           \
       throw ze2urResult(Result);                                               \
   }
 
 // Perform traced call to L0 without checking for errors
-#define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
-  ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
-
-#define ZE_CALL_NOCHECK_NAME(ZeName, ZeArgs, callName)                         \
-  ZeCall().doCall(ZeName ZeArgs, callName, #ZeArgs, false)
+#define ZE_CALL_NOCHECK(ZeName, ZeArgs) ZeName ZeArgs
 
 // This wrapper around std::atomic is created to limit operations with reference
 // counter and to make allowed operations more transparent in terms of

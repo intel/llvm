@@ -308,6 +308,10 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+    setEnvVar("ZEL_ENABLE_LOADER_LOGGING", "1");
+    setEnvVar("ZEL_LOADER_LOGGING_LEVEL", "trace");
+    setEnvVar("ZEL_LOADER_LOG_CONSOLE", "1");
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
   };
 
   if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {

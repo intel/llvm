@@ -137,18 +137,6 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
-                           const char *ZeArgs, bool TraceError) {
-  logger::debug("ZE ---> {}{}", ZeName, ZeArgs);
-
-  if (TraceError) {
-    const char *ErrorString = "Unknown";
-    zeParseError(ZeResult, ErrorString);
-    logger::error("Error ({}) in {}", ErrorString, ZeName);
-  }
-  return ZeResult;
-}
-
 // Specializations for various L0 structures
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
   return ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;

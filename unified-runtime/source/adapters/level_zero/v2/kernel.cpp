@@ -262,7 +262,7 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
         // Unexpected cache configuration value.
         return UR_RESULT_ERROR_INVALID_VALUE;
       ZE2UR_CALL(zeKernelSetCacheConfig,
-                 (kernel->hKernel.get(), zeCacheConfig););
+                 (kernel->hKernel.get(), zeCacheConfig));
     } else {
       logger::error("urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
