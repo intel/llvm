@@ -75,7 +75,19 @@ cmake_path(NORMAL_PATH UR_INTREE_SOURCE_DIR OUTPUT_VARIABLE UR_INTREE_SOURCE_DIR
 
 if(IS_DIRECTORY "${UR_INTREE_SOURCE_DIR}")
   set(UR_INTREE_BINARY_DIR ${LLVM_BINARY_DIR}/unified-runtime)
-  add_subdirectory(${UR_INTREE_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
+  set(UNIFIED_RUNTIME_SOURCE_DIR
+    "${UR_INTREE_SOURCE_DIR}" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+  set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
+  # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
+  # to link statically on windows
+  if(WIN32)
+    set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
+    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  else()
+    set(UMF_DISABLE_HWLOC ${SYCL_UMF_DISABLE_HWLOC} CACHE INTERNAL "Disable hwloc for UMF")
+  endif()
+  add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
 elseif(SYCL_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
@@ -122,7 +134,7 @@ elseif(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/rafbiels/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
