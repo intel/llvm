@@ -1,7 +1,7 @@
 // REQUIRES: opencl, opencl_icd, aspect-usm_shared_allocations
 // RUN: %{build} %opencl_lib -fno-sycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: fpga
+// XFAIL: accelerator
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16914
 //
 #include <sycl/backend.hpp>
