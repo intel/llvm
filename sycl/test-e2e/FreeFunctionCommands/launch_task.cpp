@@ -50,8 +50,8 @@ int main() {
         });
 
     sycl::khr::submit(Queue, [&](sycl::handler &Handler) {
-      sycl::khr::launch_task(Handler, [&]() {
-        Handler.depends_on(Event);
+      Handler.depends_on(Event);
+      sycl::khr::launch_task(Handler, [=]() {
         for (size_t i = 0; i < N; ++i) {
           DataBuffer[i] += 100;
         }
