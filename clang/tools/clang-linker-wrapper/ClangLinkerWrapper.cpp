@@ -2036,14 +2036,16 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       InputFiles.emplace_back(*FileNameOrErr);
     }
 
+    // Link the remaining device files using the device linker.
+    Expected<StringRef> OutputOrErr =
+        HasSYCLOffloadKind ? sycl::linkDevice(InputFiles, LinkerArgs)
+                           : linkDevice(InputFiles, LinkerArgs);
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
+
     if (HasSYCLOffloadKind) {
-      // Link the input device files using the device linker for SYCL
-      // offload.
-      auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
-      if (!TmpOutputOrErr)
-        return TmpOutputOrErr.takeError();
       SmallVector<StringRef> InputFilesSYCL;
-      InputFilesSYCL.emplace_back(*TmpOutputOrErr);
+      InputFilesSYCL.emplace_back(*OutputOrErr);
       auto SplitModulesOrErr =
           UseSYCLPostLinkTool
               ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
@@ -2117,19 +2119,9 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       WrappedOutput.push_back(*OutputFile);
     }
 
+    // Note: body of the 'if' below is supposed to match 1:1 (or at least very
+    // close) to the code in the upstream.
     if (HasNonSYCLOffloadKinds) {
-      // Write any remaining device inputs to an output file for the linker.
-      for (const OffloadFile &File : Input) {
-        auto FileNameOrErr = writeOffloadFile(File);
-        if (!FileNameOrErr)
-          return FileNameOrErr.takeError();
-        InputFiles.emplace_back(*FileNameOrErr);
-      }
-
-      // Link the remaining device files using the device linker.
-      auto OutputOrErr = linkDevice(InputFiles, LinkerArgs);
-      if (!OutputOrErr)
-        return OutputOrErr.takeError();
       // Store the offloading image for each linked output file.
       for (OffloadKind Kind : ActiveOffloadKinds) {
         llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
