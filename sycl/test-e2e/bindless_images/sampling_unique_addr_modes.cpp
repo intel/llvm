@@ -1,4 +1,4 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_unique_addressing_per_dim
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

@@ -7,5 +7,5 @@
 // RUN: %{run} %t_compress.out
 // RUN: not diff %t_not_compress.out %t_compress.out
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
