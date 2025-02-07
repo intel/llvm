@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 // XFAIL: arch-intel_gpu_bmg_g21
-// XFAIL: https://github.com/intel/llvm/issues/16922
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16922
 // RUN: %{build} -o %t_arg_dim_vnni.out %fp-model-precise -DARG_DIM -DVNNI
 // RUN: %{run} %t_arg_dim_vnni.out
 
