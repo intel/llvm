@@ -23,7 +23,7 @@ TEST(BarrierTest, CommandBarrierShortcut) {
   NumOfEnqueueEventsWaitWithBarrier = 0;
   sycl::queue Queue;
   sycl::khr::command_barrier(Queue);
-  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, 1);
+  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, size_t{1});
 }
 
 TEST(BarrierTest, CommandBarrier) {
@@ -40,7 +40,7 @@ TEST(BarrierTest, CommandBarrier) {
     sycl::khr::command_barrier(Handler);
   });
 
-  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, 1);
+  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, size_t{1});
 }
 
 TEST(BarrierTest, EventBarrierShortcut) {
@@ -59,7 +59,7 @@ TEST(BarrierTest, EventBarrierShortcut) {
 
   sycl::khr::event_barrier(Queue2, {Event1, Event2});
 
-  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, 1);
+  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, size_t{1});
 }
 
 TEST(BarrierTest, EventBarrier) {
@@ -80,5 +80,5 @@ TEST(BarrierTest, EventBarrier) {
     sycl::khr::event_barrier(Handler, {Event1, Event2});
   });
 
-  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, 1);
+  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, size_t{1});
 }
