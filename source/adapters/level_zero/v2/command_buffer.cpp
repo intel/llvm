@@ -138,6 +138,33 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urCommandBufferAppendUSMMemcpyExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
+    size_t size, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+
+  // the same issue as in urCommandBufferAppendKernelLaunchExp
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  // sync mechanic can be ignored, because all lists are in-order
+  std::ignore = numSyncPointsInWaitList;
+  std::ignore = pSyncPointWaitList;
+  std::ignore = pSyncPoint;
+
+  std::ignore = phCommand;
+
+  UR_CALL(hCommandBuffer->commandListManager.enqueueUSMMemcpy(
+      false, pDst, pSrc, size, 0, nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_result_t
 urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                           ur_exp_command_buffer_info_t propName,

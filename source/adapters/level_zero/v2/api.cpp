@@ -239,17 +239,6 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urCommandBufferAppendUSMMemcpyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
-    size_t size, uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urCommandBufferAppendUSMFillExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pMemory,
     const void *pPattern, size_t patternSize, size_t size,
