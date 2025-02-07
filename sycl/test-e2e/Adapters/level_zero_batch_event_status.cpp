@@ -1,5 +1,7 @@
 // See https://github.com/intel/llvm-test-suite/issues/906
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: adapter-v2
+// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
 // RUN: %{build} -o %t.out
 
