@@ -317,10 +317,8 @@ void shutdown_early() {
   // upon its release
   Handler->prepareSchedulerToRelease(true);
 
-#ifndef _WIN32
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
-#endif
 
   // This releases OUR reference to the default context, but
   // other may yet have refs

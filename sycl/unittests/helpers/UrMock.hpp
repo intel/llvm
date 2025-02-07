@@ -568,8 +568,10 @@ public:
   ~UrMock() {
     // mock::getCallbacks() is an application lifetime object, we need to reset
     // these between tests
+#ifndef _WIN32
     detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
     detail::GlobalHandler::instance().releaseDefaultContexts();
+#endif
     // clear platform cache in case subsequent tests want a different backend,
     // this forces platforms to be reconstructed (and thus queries about UR
     // backend info to be called again)
