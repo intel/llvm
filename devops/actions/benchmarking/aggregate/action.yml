@@ -26,12 +26,16 @@ runs:
     shell: bash
     run: |
       # DO NOT use inputs.lookback_days directly, only use SANITIZED_TIMESTAMP.
-      SANITIZED_LOOKBACK_DAYS="$(echo '${{ inputs.lookback_days }}' | grep -oE "^[0-9]+$")"
+      SANITIZED_LOOKBACK_DAYS="$(echo '${{ inputs.lookback_days }}' | grep -oE '^[0-9]+$')"
       if [ -z "$SANITIZED_LOOKBACK_DAYS" ]; then
         echo "Please ensure inputs.lookback_days is a number."
         exit 1
       fi
       SANITIZED_TIMESTAMP="$(date -d "$SANITIZED_LOOKBACK_DAYS days ago" +%Y%m%d_%H%M%S)"
+      if [ -z "$(echo "$SANITIZED_TIMESTAMP" | grep -oE '^[0-9]{8}_[0-9]{6}$' )" ]; then
+        echo "Invalid timestamp generated: is inputs.lookback_days valid?"
+        exit 1
+      fi
       echo "SANITIZED_TIMESTAMP=$SANITIZED_TIMESTAMP" >> $GITHUB_ENV
   - name: Load benchmarking configuration
     shell: bash

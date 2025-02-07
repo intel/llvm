@@ -15,6 +15,14 @@ This script builds and runs benchmarks from compute-benchmarks."
     exit 1
 }
 
+# Ensures test cases read from enabled_tests.conf contains no malicious content
+_validate_testname () {
+    if [ -n "$(printf "%s" "$1" | sed "s/[a-zA-Z_]*//g")" ]; then
+        echo "Illegal characters in $TEST_CONFIG. Permitted characters: a-zA-Z_"
+        exit 1
+    fi
+}
+
 clone_perf_res() {
     echo "### Cloning llvm-ci-perf-results ($SANITIZED_PERF_RES_GIT_REPO:$SANITIZED_PERF_RES_GIT_BRANCH) ###"
     git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" ./llvm-ci-perf-results
@@ -43,11 +51,7 @@ build_compute_bench() {
             # Skip lines starting with '#'
             [ "${case##\#*}" ] || continue
 
-            if [ -n "$(printf "%s" "$case" | sed "s/[a-zA-Z_]*//g")" ]; then
-                echo "Illegal characters in $TESTS_CONFIG."
-                exit 1
-            fi
-            # TODO Sanitize this
+            _validate_testname "$case"
             make "-j$SANITIZED_COMPUTE_BENCH_COMPILE_JOBS" "$case"
         done < "$TESTS_CONFIG"
     fi
@@ -117,11 +121,7 @@ process_benchmarks() {
         # Loop through each line of enabled_tests.conf, but ignore lines in the
         # test config starting with #'s:
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
-            # Make sure testcase is clean:
-            if [ -n "$(printf "%s" "$testcase" | sed "s/[a-zA-Z_]*//g")" ]; then
-                echo "Illegal characters in $TESTS_CONFIG."
-                exit 1
-            fi
+            _validate_testname "$testcase"
             echo "# Running $testcase..."
 
             # The benchmark results git repo and this script's output both share
