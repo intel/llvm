@@ -30,6 +30,29 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
   return out;
 }
 
+inline bool stringPropertyIsValid(const char *property,
+                                  const size_t property_size) {
+  if (!property) {
+    return property_size == 0;
+  }
+
+  if (property_size == 1) {
+    return property[0] == '\0';
+  }
+
+  if (property[property_size - 1] != '\0') {
+    return false;
+  }
+
+  for (size_t i = 0; i < property_size - 1; i++) {
+    if (property[i] == '\0') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 } // namespace uur
 
 #ifndef ASSERT_EQ_RESULT
@@ -68,5 +91,16 @@ inline std::ostream &operator<<(std::ostream &out,
   out << uur::GetDeviceName(device);
   return out;
 }
+
+#ifndef ASSERT_QUERY_RETURNS_VALUE
+#define ASSERT_QUERY_RETURNS_VALUE(CALL, PROPERTY_VALUE)                       \
+  do {                                                                         \
+    ASSERT_SUCCESS(CALL);                                                      \
+    auto returned_value = PROPERTY_VALUE;                                      \
+    PROPERTY_VALUE = 1;                                                        \
+    ASSERT_SUCCESS(CALL);                                                      \
+    ASSERT_EQ(PROPERTY_VALUE, returned_value);                                 \
+  } while (0)
+#endif
 
 #endif // UR_CONFORMANCE_INCLUDE_CHECKS_H_INCLUDED

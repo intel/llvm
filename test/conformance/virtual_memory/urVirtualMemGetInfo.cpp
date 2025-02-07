@@ -10,7 +10,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urVirtualMemGetInfoTest);
 
 TEST_P(urVirtualMemGetInfoTest, SuccessAccessMode) {
   size_t property_size = 0;
-  ur_virtual_mem_info_t property_name = UR_VIRTUAL_MEM_INFO_ACCESS_MODE;
+  const ur_virtual_mem_info_t property_name = UR_VIRTUAL_MEM_INFO_ACCESS_MODE;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(urVirtualMemGetInfo(context, virtual_ptr,
                                                        size, property_name, 0,
@@ -18,27 +18,28 @@ TEST_P(urVirtualMemGetInfoTest, SuccessAccessMode) {
                                    property_name);
   ASSERT_NE(property_size, 0);
 
-  ur_virtual_mem_access_flags_t returned_flags =
+  ur_virtual_mem_access_flags_t property_value =
       UR_VIRTUAL_MEM_ACCESS_FLAG_FORCE_UINT32;
   ASSERT_SUCCESS(urVirtualMemGetInfo(context, virtual_ptr, size, property_name,
-                                     property_size, &returned_flags, nullptr));
+                                     property_size, &property_value, nullptr));
 
-  ASSERT_TRUE(returned_flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
+  ASSERT_TRUE(property_value & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
 }
 
 TEST_P(urVirtualMemGetInfoTest, InvalidNullHandleContext) {
-  ur_virtual_mem_access_flags_t flags = 0;
+  ur_virtual_mem_access_flags_t property_value = 0;
   ASSERT_EQ_RESULT(urVirtualMemGetInfo(nullptr, virtual_ptr, size,
                                        UR_VIRTUAL_MEM_INFO_ACCESS_MODE,
-                                       sizeof(flags), &flags, nullptr),
+                                       sizeof(property_value), &property_value,
+                                       nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urVirtualMemGetInfoTest, InvalidNullPointerStart) {
-  ur_virtual_mem_access_flags_t flags = 0;
-  ASSERT_EQ_RESULT(urVirtualMemGetInfo(context, nullptr, size,
-                                       UR_VIRTUAL_MEM_INFO_ACCESS_MODE,
-                                       sizeof(flags), &flags, nullptr),
+  ur_virtual_mem_access_flags_t property_value = 0;
+  ASSERT_EQ_RESULT(urVirtualMemGetInfo(
+                       context, nullptr, size, UR_VIRTUAL_MEM_INFO_ACCESS_MODE,
+                       sizeof(property_value), &property_value, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 

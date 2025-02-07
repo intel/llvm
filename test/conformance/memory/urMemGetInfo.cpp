@@ -14,7 +14,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemGetInfoTest);
 TEST_P(urMemGetInfoTest, SuccessSize) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_mem_info_t property_name = UR_MEM_INFO_SIZE;
+  const ur_mem_info_t property_name = UR_MEM_INFO_SIZE;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -22,17 +22,18 @@ TEST_P(urMemGetInfoTest, SuccessSize) {
       property_name);
   ASSERT_EQ(property_size, sizeof(size_t));
 
-  size_t returned_size = 0;
-  ASSERT_SUCCESS(urMemGetInfo(buffer, property_name, property_size,
-                              &returned_size, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemGetInfo(buffer, property_name, property_size,
+                                          &property_value, nullptr),
+                             property_value);
 
-  ASSERT_GE(returned_size, allocation_size);
+  ASSERT_GE(property_value, allocation_size);
 }
 
 TEST_P(urMemGetInfoTest, SuccessContext) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_mem_info_t property_name = UR_MEM_INFO_CONTEXT;
+  const ur_mem_info_t property_name = UR_MEM_INFO_CONTEXT;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -40,17 +41,17 @@ TEST_P(urMemGetInfoTest, SuccessContext) {
       property_name);
   ASSERT_EQ(property_size, sizeof(ur_context_handle_t));
 
-  ur_context_handle_t returned_context = nullptr;
+  ur_context_handle_t property_value = nullptr;
   ASSERT_SUCCESS(urMemGetInfo(buffer, property_name, property_size,
-                              &returned_context, nullptr));
+                              &property_value, nullptr));
 
-  ASSERT_EQ(context, returned_context);
+  ASSERT_EQ(context, property_value);
 }
 
 TEST_P(urMemGetInfoTest, SuccessReferenceCount) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_mem_info_t property_name = UR_MEM_INFO_REFERENCE_COUNT;
+  const ur_mem_info_t property_name = UR_MEM_INFO_REFERENCE_COUNT;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -58,46 +59,50 @@ TEST_P(urMemGetInfoTest, SuccessReferenceCount) {
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
 
-  uint32_t returned_reference_count = 0;
-  ASSERT_SUCCESS(urMemGetInfo(buffer, property_name, property_size,
-                              &returned_reference_count, nullptr));
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemGetInfo(buffer, property_name, property_size,
+                                          &property_value, nullptr),
+                             property_value);
 
-  ASSERT_GT(returned_reference_count, 0);
+  ASSERT_GT(property_value, 0);
 }
 
 TEST_P(urMemGetInfoTest, InvalidNullHandleMemory) {
-  size_t mem_size = 0;
+  size_t property_size = 0;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                   urMemGetInfo(nullptr, UR_MEM_INFO_SIZE, sizeof(size_t),
-                                &mem_size, nullptr));
+                   urMemGetInfo(nullptr, UR_MEM_INFO_SIZE,
+                                sizeof(property_size), &property_size,
+                                nullptr));
 }
 
 TEST_P(urMemGetInfoTest, InvalidEnumerationMemInfoType) {
-  size_t mem_size = 0;
+  size_t property_size = 0;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                    urMemGetInfo(buffer, UR_MEM_INFO_FORCE_UINT32,
-                                sizeof(size_t), &mem_size, nullptr));
+                                sizeof(property_size), &property_size,
+                                nullptr));
 }
 
 TEST_P(urMemGetInfoTest, InvalidSizeZero) {
-  size_t mem_size = 0;
+  size_t property_size = 0;
   ASSERT_EQ_RESULT(
-      urMemGetInfo(buffer, UR_MEM_INFO_SIZE, 0, &mem_size, nullptr),
+      urMemGetInfo(buffer, UR_MEM_INFO_SIZE, 0, &property_size, nullptr),
       UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urMemGetInfoTest, InvalidSizeSmall) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  size_t mem_size = 0;
-  ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE, sizeof(mem_size) - 1,
-                                &mem_size, nullptr),
+  size_t property_size = 0;
+  ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE,
+                                sizeof(property_size) - 1, &property_size,
+                                nullptr),
                    UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urMemGetInfoTest, InvalidNullPointerParamValue) {
-  size_t mem_size = 0;
-  ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE, sizeof(mem_size),
+  size_t property_size = 0;
+  ASSERT_EQ_RESULT(urMemGetInfo(buffer, UR_MEM_INFO_SIZE, sizeof(property_size),
                                 nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
@@ -118,7 +123,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemGetInfoImageTest);
 TEST_P(urMemGetInfoImageTest, SuccessSize) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  ur_mem_info_t property_name = UR_MEM_INFO_SIZE;
+  const ur_mem_info_t property_name = UR_MEM_INFO_SIZE;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -126,9 +131,10 @@ TEST_P(urMemGetInfoImageTest, SuccessSize) {
       property_name);
   ASSERT_EQ(property_size, sizeof(size_t));
 
-  size_t image_size_bytes = 0;
-  ASSERT_SUCCESS(urMemGetInfo(image, property_name, property_size,
-                              &image_size_bytes, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemGetInfo(image, property_name, property_size,
+                                          &property_value, nullptr),
+                             property_value);
 
   const size_t expected_pixel_size = sizeof(uint8_t) * 4;
   const size_t expected_image_size = expected_pixel_size *
@@ -137,11 +143,11 @@ TEST_P(urMemGetInfoImageTest, SuccessSize) {
 
   // Make sure the driver has allocated enough space to hold the image (the
   // actual size may be padded out to above the requested size)
-  ASSERT_GE(image_size_bytes, expected_image_size);
+  ASSERT_GE(property_value, expected_image_size);
 }
 
 TEST_P(urMemGetInfoImageTest, SuccessContext) {
-  ur_mem_info_t property_name = UR_MEM_INFO_CONTEXT;
+  const ur_mem_info_t property_name = UR_MEM_INFO_CONTEXT;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -149,15 +155,15 @@ TEST_P(urMemGetInfoImageTest, SuccessContext) {
       property_name);
   ASSERT_EQ(property_size, sizeof(ur_context_handle_t));
 
-  ur_context_handle_t returned_context = nullptr;
+  ur_context_handle_t property_value = nullptr;
   ASSERT_SUCCESS(urMemGetInfo(image, property_name, property_size,
-                              &returned_context, nullptr));
+                              &property_value, nullptr));
 
-  ASSERT_EQ(context, returned_context);
+  ASSERT_EQ(context, property_value);
 }
 
 TEST_P(urMemGetInfoImageTest, SuccessReferenceCount) {
-  ur_mem_info_t property_name = UR_MEM_INFO_REFERENCE_COUNT;
+  const ur_mem_info_t property_name = UR_MEM_INFO_REFERENCE_COUNT;
   size_t property_size = 0;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -165,9 +171,10 @@ TEST_P(urMemGetInfoImageTest, SuccessReferenceCount) {
       property_name);
   ASSERT_EQ(property_size, sizeof(uint32_t));
 
-  uint32_t returned_reference_count = 0;
-  ASSERT_SUCCESS(urMemGetInfo(image, property_name, property_size,
-                              &returned_reference_count, nullptr));
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemGetInfo(image, property_name, property_size,
+                                          &property_value, nullptr),
+                             property_value);
 
-  ASSERT_GT(returned_reference_count, 0);
+  ASSERT_GT(property_value, 0);
 }

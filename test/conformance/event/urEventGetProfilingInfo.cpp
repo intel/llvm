@@ -7,143 +7,170 @@
 #include "fixtures.h"
 #include "uur/known_failure.h"
 
-using urEventGetProfilingInfoTest =
-    uur::event::urEventTestWithParam<ur_profiling_info_t>;
+using urEventGetProfilingInfoTest = uur::event::urEventTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoTest);
 
-TEST_P(urEventGetProfilingInfoTest, Success) {
+TEST_P(urEventGetProfilingInfoTest, SuccessCommandQueued) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{}, uur::NativeCPU{});
 
-  ur_profiling_info_t info_type = getParam();
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
+  size_t property_size = 0;
 
-  if (info_type == UR_PROFILING_INFO_COMMAND_COMPLETE) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
-                         uur::NativeCPU{});
-  }
-
-  if (info_type == UR_PROFILING_INFO_COMMAND_QUEUED) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
-                         uur::NativeCPU{});
-  }
-
-  if (info_type == UR_PROFILING_INFO_COMMAND_SUBMIT) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
-                         uur::NativeCPU{});
-  }
-
-  size_t size;
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urEventGetProfilingInfo(event, info_type, 0, nullptr, &size), info_type);
-  ASSERT_EQ(size, 8);
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint64_t));
 
-  std::vector<uint8_t> data(size);
-  ASSERT_SUCCESS(
-      urEventGetProfilingInfo(event, info_type, size, data.data(), nullptr));
-
-  if (sizeof(size_t) == size) {
-    auto returned_value = reinterpret_cast<size_t *>(data.data());
-    ASSERT_NE(*returned_value, 0);
-  }
+  uint64_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urEventGetProfilingInfo(event, property_name,
+                                                     property_size,
+                                                     &property_value, nullptr),
+                             property_value);
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
-    urEventGetProfilingInfoTest,
-    ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED,
-                      UR_PROFILING_INFO_COMMAND_SUBMIT,
-                      UR_PROFILING_INFO_COMMAND_START,
-                      UR_PROFILING_INFO_COMMAND_END,
-                      UR_PROFILING_INFO_COMMAND_COMPLETE),
-    uur::deviceTestWithParamPrinter<ur_profiling_info_t>);
+TEST_P(urEventGetProfilingInfoTest, SuccessCommandSubmit) {
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{}, uur::NativeCPU{});
 
-using urEventGetProfilingInfoWithTimingComparisonTest = uur::event::urEventTest;
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_SUBMIT;
+  size_t property_size = 0;
 
-TEST_P(urEventGetProfilingInfoWithTimingComparisonTest, Success) {
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint64_t));
+
+  uint64_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urEventGetProfilingInfo(event, property_name,
+                                                     property_size,
+                                                     &property_value, nullptr),
+                             property_value);
+}
+
+TEST_P(urEventGetProfilingInfoTest, SuccessCommandStart) {
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_START;
+  size_t property_size = 0;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint64_t));
+
+  uint64_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urEventGetProfilingInfo(event, property_name,
+                                                     property_size,
+                                                     &property_value, nullptr),
+                             property_value);
+}
+
+TEST_P(urEventGetProfilingInfoTest, SuccessCommandEnd) {
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_END;
+  size_t property_size = 0;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint64_t));
+
+  uint64_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urEventGetProfilingInfo(event, property_name,
+                                                     property_size,
+                                                     &property_value, nullptr),
+                             property_value);
+}
+
+TEST_P(urEventGetProfilingInfoTest, SuccessCommandComplete) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
+                       uur::NativeCPU{});
+
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_COMPLETE;
+  size_t property_size = 0;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint64_t));
+
+  uint64_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urEventGetProfilingInfo(event, property_name,
+                                                     property_size,
+                                                     &property_value, nullptr),
+                             property_value);
+}
+
+TEST_P(urEventGetProfilingInfoTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::LevelZero{},
                        uur::LevelZeroV2{}, uur::NativeCPU{});
 
   uint8_t size = 8;
 
-  std::vector<uint8_t> queued_data(size);
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event,
-                                         UR_PROFILING_INFO_COMMAND_QUEUED, size,
-                                         queued_data.data(), nullptr));
-  auto queued_timing = reinterpret_cast<size_t *>(queued_data.data());
-  ASSERT_NE(*queued_timing, 0);
+  uint64_t queued_value = 0;
+  ASSERT_SUCCESS(urEventGetProfilingInfo(
+      event, UR_PROFILING_INFO_COMMAND_QUEUED, size, &queued_value, nullptr));
+  ASSERT_NE(queued_value, 0);
 
-  std::vector<uint8_t> submit_data(size);
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event,
-                                         UR_PROFILING_INFO_COMMAND_SUBMIT, size,
-                                         submit_data.data(), nullptr));
-  auto submit_timing = reinterpret_cast<size_t *>(submit_data.data());
-  ASSERT_NE(*submit_timing, 0);
+  uint64_t submit_value = 0;
+  ASSERT_SUCCESS(urEventGetProfilingInfo(
+      event, UR_PROFILING_INFO_COMMAND_SUBMIT, size, &submit_value, nullptr));
+  ASSERT_NE(submit_value, 0);
 
-  std::vector<uint8_t> start_data(size);
+  uint64_t start_value = 0;
   ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_START,
-                                         size, start_data.data(), nullptr));
-  auto start_timing = reinterpret_cast<size_t *>(start_data.data());
-  ASSERT_NE(*start_timing, 0);
+                                         size, &start_value, nullptr));
+  ASSERT_NE(start_value, 0);
 
-  std::vector<uint8_t> end_data(size);
+  uint64_t end_value = 0;
   ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_END,
-                                         size, end_data.data(), nullptr));
-  auto end_timing = reinterpret_cast<size_t *>(end_data.data());
-  ASSERT_NE(*end_timing, 0);
+                                         size, &end_value, nullptr));
+  ASSERT_NE(end_value, 0);
 
-  std::vector<uint8_t> complete_data(size);
+  uint64_t complete_value = 0;
   ASSERT_SUCCESS(urEventGetProfilingInfo(event,
                                          UR_PROFILING_INFO_COMMAND_COMPLETE,
-                                         size, complete_data.data(), nullptr));
-  auto complete_timing = reinterpret_cast<size_t *>(complete_data.data());
-  ASSERT_NE(*complete_timing, 0);
+                                         size, &complete_value, nullptr));
+  ASSERT_NE(complete_value, 0);
 
-  ASSERT_LE(*queued_timing, *submit_timing);
-  ASSERT_LT(*submit_timing, *start_timing);
-  ASSERT_LT(*start_timing, *end_timing);
-  ASSERT_LE(*end_timing, *complete_timing);
+  ASSERT_LE(queued_value, submit_value);
+  ASSERT_LT(submit_value, start_value);
+  ASSERT_LT(start_value, end_value);
+  ASSERT_LE(end_value, complete_value);
 }
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(
-    urEventGetProfilingInfoWithTimingComparisonTest);
-
-using urEventGetProfilingInfoNegativeTest = uur::event::urEventTest;
-
-TEST_P(urEventGetProfilingInfoNegativeTest, InvalidNullHandle) {
+TEST_P(urEventGetProfilingInfoTest, InvalidNullHandle) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_profiling_info_t info_type = UR_PROFILING_INFO_COMMAND_QUEUED;
-  size_t size;
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event, info_type, 0, nullptr, &size));
-  ASSERT_NE(size, 0);
-  std::vector<uint8_t> data(size);
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
+  size_t property_size;
+  ASSERT_SUCCESS(urEventGetProfilingInfo(event, property_name, 0, nullptr,
+                                         &property_size));
+  ASSERT_NE(property_size, 0);
 
-  /* Invalid hEvent */
-  ASSERT_EQ_RESULT(
-      urEventGetProfilingInfo(nullptr, info_type, 0, nullptr, &size),
-      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  ASSERT_EQ_RESULT(urEventGetProfilingInfo(nullptr, property_name, 0, nullptr,
+                                           &property_size),
+                   UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
-TEST_P(urEventGetProfilingInfoNegativeTest, InvalidEnumeration) {
-  size_t size;
+TEST_P(urEventGetProfilingInfoTest, InvalidEnumeration) {
+  size_t property_size;
   ASSERT_EQ_RESULT(urEventGetProfilingInfo(event,
                                            UR_PROFILING_INFO_FORCE_UINT32, 0,
-                                           nullptr, &size),
+                                           nullptr, &property_size),
                    UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
-TEST_P(urEventGetProfilingInfoNegativeTest, InvalidValue) {
+TEST_P(urEventGetProfilingInfoTest, InvalidValue) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_profiling_info_t info_type = UR_PROFILING_INFO_COMMAND_QUEUED;
-  size_t size;
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event, info_type, 0, nullptr, &size));
-  ASSERT_NE(size, 0);
-  std::vector<uint8_t> data(size);
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
+  size_t property_size = 0;
+  ASSERT_SUCCESS(urEventGetProfilingInfo(event, property_name, 0, nullptr,
+                                         &property_size));
+  ASSERT_NE(property_size, 0);
 
-  /* Invalid propSize */
-  ASSERT_EQ_RESULT(
-      urEventGetProfilingInfo(event, info_type, 0, data.data(), nullptr),
-      UR_RESULT_ERROR_INVALID_VALUE);
+  uint64_t property_value = 0;
+  ASSERT_EQ_RESULT(urEventGetProfilingInfo(event, property_name, 0,
+                                           &property_value, nullptr),
+                   UR_RESULT_ERROR_INVALID_VALUE);
 }
-
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoNegativeTest);
 
 struct urEventGetProfilingInfoForWaitWithBarrier : uur::urProfilingQueueTest {
   void SetUp() override {
@@ -176,17 +203,15 @@ struct urEventGetProfilingInfoForWaitWithBarrier : uur::urProfilingQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoForWaitWithBarrier);
 
 TEST_P(urEventGetProfilingInfoForWaitWithBarrier, Success) {
-  std::vector<uint8_t> submit_data(size);
+  uint64_t submit_value = 0;
   ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_START,
-                                         size, submit_data.data(), nullptr));
-  auto start_timing = reinterpret_cast<size_t *>(submit_data.data());
-  ASSERT_NE(*start_timing, 0);
+                                         size, &submit_value, nullptr));
+  ASSERT_NE(submit_value, 0);
 
-  std::vector<uint8_t> complete_data(size);
+  uint64_t complete_value = 0;
   ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_END,
-                                         size, complete_data.data(), nullptr));
-  auto end_timing = reinterpret_cast<size_t *>(complete_data.data());
-  ASSERT_NE(*end_timing, 0);
+                                         size, &complete_value, nullptr));
+  ASSERT_NE(complete_value, 0);
 
-  ASSERT_GE(*end_timing, *start_timing);
+  ASSERT_GE(complete_value, submit_value);
 }

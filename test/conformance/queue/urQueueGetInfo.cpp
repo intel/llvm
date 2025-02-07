@@ -75,8 +75,9 @@ TEST_P(urQueueGetInfoTest, SuccessReferenceCount) {
   ASSERT_EQ(sizeof(uint32_t), property_size);
 
   uint32_t property_value = 0;
-  ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
-                                &property_value, nullptr));
+  ASSERT_QUERY_RETURNS_VALUE(urQueueGetInfo(queue, property_name, property_size,
+                                            &property_value, nullptr),
+                             property_value);
 
   ASSERT_GT(property_value, 0U);
 }
@@ -90,7 +91,6 @@ TEST_P(urQueueGetInfoTest, SuccessEmptyQueue) {
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
       property_name);
-
   ASSERT_EQ(sizeof(ur_bool_t), property_size);
 }
 
@@ -196,8 +196,9 @@ TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, SuccessSize) {
   ASSERT_EQ(sizeof(uint32_t), property_size);
 
   uint32_t property_value = 0;
-  ASSERT_SUCCESS(urQueueGetInfo(queue, property_name, property_size,
-                                &property_value, nullptr));
+  ASSERT_QUERY_RETURNS_VALUE(urQueueGetInfo(queue, property_name, property_size,
+                                            &property_value, nullptr),
+                             property_value);
 
   ASSERT_GT(property_value, 0);
 }

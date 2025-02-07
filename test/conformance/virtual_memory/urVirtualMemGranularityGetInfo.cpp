@@ -24,7 +24,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urVirtualMemGranularityGetInfoTest);
 
 TEST_P(urVirtualMemGranularityGetInfoTest, SuccessMinimum) {
   size_t property_size = 0;
-  ur_virtual_mem_granularity_info_t property_name =
+  const ur_virtual_mem_granularity_info_t property_name =
       UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -33,17 +33,18 @@ TEST_P(urVirtualMemGranularityGetInfoTest, SuccessMinimum) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  uint32_t returned_minimum = 0;
-  ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(context, device, property_name,
-                                                property_size,
-                                                &returned_minimum, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(
+      urVirtualMemGranularityGetInfo(context, device, property_name,
+                                     property_size, &property_value, nullptr),
+      property_value);
 
-  ASSERT_GT(returned_minimum, 0);
+  ASSERT_GT(property_value, 0);
 }
 
 TEST_P(urVirtualMemGranularityGetInfoTest, SuccessRecommended) {
   size_t property_size = 0;
-  ur_virtual_mem_granularity_info_t property_name =
+  const ur_virtual_mem_granularity_info_t property_name =
       UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
@@ -52,12 +53,13 @@ TEST_P(urVirtualMemGranularityGetInfoTest, SuccessRecommended) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  uint32_t returned_recommended = 0;
-  ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
-      context, device, property_name, property_size, &returned_recommended,
-      nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(
+      urVirtualMemGranularityGetInfo(context, device, property_name,
+                                     property_size, &property_value, nullptr),
+      property_value);
 
-  ASSERT_GT(returned_recommended, 0);
+  ASSERT_GT(property_value, 0);
 }
 
 TEST_P(urVirtualMemGranularityGetInfoTest, InvalidNullHandleContext) {

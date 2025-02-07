@@ -11,65 +11,67 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMPoolGetInfoTest);
 
 TEST_P(urUSMPoolGetInfoTest, SuccessReferenceCount) {
   size_t property_size = 0;
-  ur_usm_pool_info_t property_name = UR_USM_POOL_INFO_REFERENCE_COUNT;
+  const ur_usm_pool_info_t property_name = UR_USM_POOL_INFO_REFERENCE_COUNT;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urUSMPoolGetInfo(pool, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(sizeof(uint32_t), property_size);
 
-  uint32_t returned_reference_count = 0;
-  ASSERT_SUCCESS(urUSMPoolGetInfo(pool, property_name, property_size,
-                                  &returned_reference_count, nullptr));
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urUSMPoolGetInfo(pool, property_name,
+                                              property_size, &property_value,
+                                              nullptr),
+                             property_value);
 
-  ASSERT_GT(returned_reference_count, 0U);
+  ASSERT_GT(property_value, 0U);
 }
 
 TEST_P(urUSMPoolGetInfoTest, SuccessContext) {
   size_t property_size = 0;
-  ur_usm_pool_info_t property_name = UR_USM_POOL_INFO_CONTEXT;
+  const ur_usm_pool_info_t property_name = UR_USM_POOL_INFO_CONTEXT;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urUSMPoolGetInfo(pool, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(sizeof(ur_context_handle_t), property_size);
 
-  ur_context_handle_t returned_context = nullptr;
+  ur_context_handle_t property_value = nullptr;
   ASSERT_SUCCESS(urUSMPoolGetInfo(pool, property_name, property_size,
-                                  &returned_context, nullptr));
+                                  &property_value, nullptr));
 
-  ASSERT_EQ(context, returned_context);
+  ASSERT_EQ(context, property_value);
 }
 
 TEST_P(urUSMPoolGetInfoTest, InvalidNullHandlePool) {
-  ur_context_handle_t context = nullptr;
+  ur_context_handle_t property_value = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urUSMPoolGetInfo(nullptr, UR_USM_POOL_INFO_CONTEXT,
-                                    sizeof(ur_context_handle_t), &context,
-                                    nullptr));
+                                    sizeof(ur_context_handle_t),
+                                    &property_value, nullptr));
 }
 
 TEST_P(urUSMPoolGetInfoTest, InvalidEnumerationProperty) {
-  ur_context_handle_t context = nullptr;
+  ur_context_handle_t property_value = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                    urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_FORCE_UINT32,
-                                    sizeof(ur_context_handle_t), &context,
-                                    nullptr));
+                                    sizeof(ur_context_handle_t),
+                                    &property_value, nullptr));
 }
 
 TEST_P(urUSMPoolGetInfoTest, InvalidSizeZero) {
-  ur_context_handle_t context = nullptr;
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_SIZE,
-      urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_CONTEXT, 0, &context, nullptr));
+  ur_context_handle_t property_value = nullptr;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                   urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_CONTEXT, 0,
+                                    &property_value, nullptr));
 }
 
 TEST_P(urUSMPoolGetInfoTest, InvalidSizeTooSmall) {
-  ur_context_handle_t context = nullptr;
+  ur_context_handle_t property_value = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                    urUSMPoolGetInfo(pool, UR_USM_POOL_INFO_CONTEXT,
-                                    sizeof(ur_context_handle_t) - 1, &context,
-                                    nullptr));
+                                    sizeof(ur_context_handle_t) - 1,
+                                    &property_value, nullptr));
 }
 
 TEST_P(urUSMPoolGetInfoTest, InvalidNullPointerPropValue) {
