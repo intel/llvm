@@ -1,4 +1,6 @@
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: adapter-v2
+// UNSUPPORTED-INTENDED: v2 adapter does not allow disabling caching
 
 // RUN: %{build}  -o %t.out
 
