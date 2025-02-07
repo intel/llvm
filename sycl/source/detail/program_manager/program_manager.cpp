@@ -796,12 +796,12 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   // built for the root device
   DeviceImplPtr RootDevImpl = DeviceImpl;
   while (!RootDevImpl->isRootDevice()) {
-    const auto &ParentDev = detail::getSyclObjImpl(
+    auto ParentDev = detail::getSyclObjImpl(
         RootDevImpl->get_info<info::device::parent_device>());
     // Sharing is allowed within a single context only
     if (!ContextImpl->hasDevice(ParentDev))
       break;
-    RootDevImpl = ParentDev;
+    RootDevImpl = std::move(ParentDev);
   }
 
   ur_bool_t MustBuildOnSubdevice = true;
