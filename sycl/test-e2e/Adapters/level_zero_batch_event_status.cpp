@@ -1,5 +1,6 @@
 // See https://github.com/intel/llvm-test-suite/issues/906
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: l0_v2_adapter
 
 // RUN: %{build} -o %t.out
 

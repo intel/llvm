@@ -1,4 +1,5 @@
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: l0_v2_adapter
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 0 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
 // RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 1 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
