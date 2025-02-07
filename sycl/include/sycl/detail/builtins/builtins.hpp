@@ -116,8 +116,13 @@ auto builtin_marray_impl(FuncTy F, const Ts &...x) {
     auto PartialRes = [&]() {
       using elem_ty = get_elem_type_t<T>;
       if constexpr (std::is_integral_v<elem_ty>)
-        return F(to_vec2(x, I * 2)
-                     .template as<vec<get_fixed_sized_int_t<elem_ty>, 2>>()...);
+        return F(
+            to_vec2(x, I * 2)
+                .template as<vec<
+                    std::conditional_t<std::is_signed_v<elem_ty>,
+                                       fixed_width_signed<sizeof(elem_ty)>,
+                                       fixed_width_unsigned<sizeof(elem_ty)>>,
+                    2>>()...);
       else
         return F(to_vec2(x, I * 2)...);
     }();
