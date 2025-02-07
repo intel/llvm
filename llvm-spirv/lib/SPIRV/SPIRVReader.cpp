@@ -1098,7 +1098,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         unsigned TotalBitWidth =
             DstVecTy->getElementType()->getIntegerBitWidth() *
             DstVecTy->getNumElements();
-        auto *IntTy = Type::getIntNTy(BB->getContext(), TotalBitWidth);
+        auto *IntTy = Type::getIntNTy(Src->getContext(), TotalBitWidth);
         if (BB) {
           Src = CastInst::CreatePointerCast(Src, IntTy, "", BB);
         } else {
@@ -1112,7 +1112,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         unsigned TotalBitWidth =
             SrcVecTy->getElementType()->getIntegerBitWidth() *
             SrcVecTy->getNumElements();
-        auto *IntTy = Type::getIntNTy(BB->getContext(), TotalBitWidth);
+        auto *IntTy = Type::getIntNTy(Src->getContext(), TotalBitWidth);
         if (BB) {
           Src = CastInst::Create(Instruction::BitCast, Src, IntTy, "", BB);
         } else {
