@@ -260,11 +260,11 @@ template <int RequiredAlign, typename IteratorType, typename Properties>
 bool is_aligned(IteratorType iter, [[maybe_unused]] Properties props) {
   using value_type = remove_decoration_t<
       typename std::iterator_traits<IteratorType>::value_type>;
-  
+
   if constexpr (Properties::template has_property<alignment_key>()) {
     if (Properties::template get_property<alignment_key>().value >=
-           RequiredAlign)
-           return true;
+        RequiredAlign)
+      return true;
   }
 
   return alignof(value_type) >= RequiredAlign ||
