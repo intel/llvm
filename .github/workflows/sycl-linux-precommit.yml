@@ -105,7 +105,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
-            extra_lit_opts: --param spirv_backend=True --param gpu-intel-gen12=True
+            extra_lit_opts: --param spirv-backend=True --param gpu-intel-gen12=True
             e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
