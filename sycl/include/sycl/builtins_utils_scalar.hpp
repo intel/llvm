@@ -32,15 +32,6 @@ template <typename> struct use_fast_math : std::false_type {};
 #endif
 template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
 
-// Common utility for selecting a type based on the specified size.
-template <size_t Size, typename T8, typename T16, typename T32, typename T64>
-using select_scalar_by_size_t = std::conditional_t<
-    Size == 1, T8,
-    std::conditional_t<
-        Size == 2, T16,
-        std::conditional_t<Size == 4, T32,
-                           std::conditional_t<Size == 8, T64, void>>>>;
-
 template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   constexpr bool SameSize[] = {(N == Ns)...};
   // Replace with std::any_of with C++20.
@@ -50,32 +41,6 @@ template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   return false;
 }
 
-// Checks if the type of the operation is the same. For scalars and marray that
-// requires the types to be exact matches. For vector and swizzles it requires
-// that the corresponding vector conversion is the same.
-template <typename T1, typename T2, typename = void>
-struct is_same_op : std::is_same<T1, T2> {};
-
-template <typename T1, typename T2>
-constexpr bool is_same_op_v = is_same_op<T1, T2>::value;
-
-// Constexpr function for checking that all types are the same, considering
-// swizzles and vectors the same if they have the same number of elements and
-// the same element type.
-template <typename T, typename... Ts> constexpr bool CheckAllSameOpType() {
-  constexpr bool SameType[] = {
-      is_same_op_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
-  // Replace with std::all_of with C++20.
-  for (size_t I = 0; I < sizeof...(Ts); ++I)
-    if (!SameType[I])
-      return false;
-  return true;
-}
-
-// NOTE: We need a constexpr variable definition for the constexpr functions
-//       as MSVC thinks function definitions are the same otherwise.
-template <typename... Ts>
-constexpr bool check_all_same_op_type_v = CheckAllSameOpType<Ts...>();
 // NOTE: We need a constexpr variable definition for the constexpr functions
 //       as MSVC thinks function definitions are the same otherwise.
 template <size_t... Ns> constexpr bool check_size_in_v = CheckSizeIn<Ns...>();
