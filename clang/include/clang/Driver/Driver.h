@@ -617,6 +617,9 @@ public:
 
   /// getSYCLDeviceTriple - Returns the SYCL device triple for the
   /// specified subarch
+  // TODO: Additional Arg input parameter is for diagnostic output information
+  // regarding FPGA support removal. This should be cleaned up in a future
+  // release.
   llvm::Triple getSYCLDeviceTriple(StringRef TargetArch = "spir64",
                                    const llvm::opt::Arg *Arg = nullptr) const;
 

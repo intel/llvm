@@ -7137,7 +7137,7 @@ public:
     // Now that we have unbundled the object, when doing -fsycl-link we
     // want to continue the host link with the input object.
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
-        (Args.hasArgNoClaim(options::OPT_fsycl_link_EQ) && !HasFPGATarget) ||
+        (Args.hasArg(options::OPT_fsycl_link_EQ) && !HasFPGATarget) ||
         (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
                             HostAction->getType() == types::TY_Object))))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
@@ -7864,7 +7864,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
       getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
-    if (Args.hasArgNoClaim(options::OPT_fsycl_link_EQ) &&
+    if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
         !Args.hasArg(options::OPT_fintelfpga)) {
       ActionList LAList;
       OffloadBuilder->makeHostLinkDeviceOnlyAction(LAList);
@@ -7881,7 +7881,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (!UseNewOffloadingDriver)
       OffloadBuilder->makeHostLinkAction(LinkerInputs);
     types::ID LinkType(types::TY_Image);
-    if (Args.hasArgNoClaim(options::OPT_fsycl_link_EQ))
+    if (Args.hasArg(options::OPT_fsycl_link_EQ))
       LinkType = types::TY_Archive;
     Action *LA;
     // Check if this Linker Job should emit a static library.
@@ -9666,7 +9666,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     // When generating binaries with -fsycl-link, the output file prefix is the
     // triple arch only.  Do not add the arch when compiling for host.
     if (!A->getOffloadingHostActiveKinds() &&
-        Args.hasArgNoClaim(options::OPT_fsycl_link_EQ)) {
+        Args.hasArg(options::OPT_fsycl_link_EQ)) {
       OffloadingPrefix = "-";
       OffloadingPrefix += TC->getTriple().getArchName();
     } else {
