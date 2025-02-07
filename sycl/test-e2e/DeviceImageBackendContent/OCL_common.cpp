@@ -49,12 +49,11 @@ int main() {
   bytes = img.ext_oneapi_get_backend_content();
   auto clContext = sycl::get_native<sycl::backend::opencl>(ctxt);
   auto clDevice = sycl::get_native<sycl::backend::opencl>(d);
- cl_int status;
- size_t lengths = bytes.size();
- const unsigned char * data = (const unsigned char *)(bytes.data());
-  auto clProgram = clCreateProgramWithBinary(
-      clContext, 1, &clDevice, &lengths, &data, nullptr,
-      &status);
+  cl_int status;
+  size_t lengths = bytes.size();
+  const unsigned char *data = (const unsigned char *)(bytes.data());
+  auto clProgram = clCreateProgramWithBinary(clContext, 1, &clDevice, &lengths,
+                                             &data, nullptr, &status);
   assert(status == CL_SUCCESS);
   status = clBuildProgram(clProgram, 1, &clDevice, "", nullptr, nullptr);
   assert(status == CL_SUCCESS);
