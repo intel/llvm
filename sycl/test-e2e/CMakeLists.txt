@@ -69,6 +69,13 @@ endif()
 
 set(SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS} -Werror")
 
+find_package(CUDAToolkit)
+
+if(CUDAToolkit_FOUND)
+  set(CUDA_LIBS_DIR "${CUDAToolkit_LIBRARY_DIR}")
+  set(CUDA_INCLUDE "${CUDAToolkit_INCLUDE_DIRS}")
+endif()
+
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                  "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")
