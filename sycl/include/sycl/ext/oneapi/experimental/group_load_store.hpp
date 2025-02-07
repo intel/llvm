@@ -302,10 +302,10 @@ group_load_impl(Group g, InputIteratorT in_ptr,
                     access::address_space::generic_space) {
         if (auto local_ptr = detail::dynamic_address_cast<
                 access::address_space::local_space>(ptr)) {
-          return group_load(g, local_ptr, out, props);
+          return group_load_impl(g, local_ptr, out, props);
         } else if (auto global_ptr = detail::dynamic_address_cast<
                        access::address_space::global_space>(ptr)) {
-          return group_load(g, global_ptr, out, props);
+          return group_load_impl(g, global_ptr, out, props);
         } else {
           return group_load_impl(g, in_ptr, out, use_naive{});
         }
@@ -320,7 +320,7 @@ group_load_impl(Group g, InputIteratorT in_ptr,
             detail::RequiredAlignment<detail::operation_type::load,
                                       deduced_address_space>::value;
         if (!detail::is_aligned<ReqAlign>(in_ptr, props))
-          return group_load(g, in_ptr, out, use_naive{});
+          return group_load_impl(g, in_ptr, out, use_naive{});
 
         // We know the pointer is aligned and the address space is known. Do the
         // optimized load.
@@ -358,7 +358,7 @@ group_load_impl(Group g, InputIteratorT in_ptr,
         }
       }
     } else {
-      return group_load(g, in_ptr, out, use_naive{});
+      return group_load_impl(g, in_ptr, out, use_naive{});
     }
 
     return;
@@ -396,10 +396,10 @@ group_store_impl(Group g, const span<InputT, ElementsPerWorkItem> in,
                     access::address_space::generic_space) {
         if (auto local_ptr = detail::dynamic_address_cast<
                 access::address_space::local_space>(ptr)) {
-          return group_store(g, in, local_ptr, props);
+          return group_store_impl(g, in, local_ptr, props);
         } else if (auto global_ptr = detail::dynamic_address_cast<
                        access::address_space::global_space>(ptr)) {
-          return group_store(g, in, global_ptr, props);
+          return group_store_impl(g, in, global_ptr, props);
         } else {
           return group_store_impl(g, in, out_ptr, use_naive{});
         }
@@ -413,7 +413,7 @@ group_store_impl(Group g, const span<InputT, ElementsPerWorkItem> in,
             detail::RequiredAlignment<detail::operation_type::store,
                                       deduced_address_space>::value;
         if (!detail::is_aligned<ReqAlign>(out_ptr, props))
-          return group_store(g, in, out_ptr, use_naive{});
+          return group_store_impl(g, in, out_ptr, use_naive{});
 
         std::remove_const_t<remove_decoration_t<
             typename std::iterator_traits<OutputIteratorT>::value_type>>
@@ -430,7 +430,7 @@ group_store_impl(Group g, const span<InputT, ElementsPerWorkItem> in,
                                         sycl::bit_cast<block_op_type>(values));
       }
     } else {
-      return group_store(g, in, out_ptr, use_naive{});
+      return group_store_impl(g, in, out_ptr, use_naive{});
     }
   }
 }
