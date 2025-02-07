@@ -724,11 +724,8 @@ void CompilerInstance::createCodeCompletionConsumer() {
 }
 
 void CompilerInstance::createFrontendTimer() {
-  FrontendTimerGroup.reset(
-      new llvm::TimerGroup("frontend", "Clang front-end time report"));
-  FrontendTimer.reset(
-      new llvm::Timer("frontend", "Clang front-end timer",
-                      *FrontendTimerGroup));
+  timerGroup.reset(new llvm::TimerGroup("clang", "Clang time report"));
+  FrontendTimer.reset(new llvm::Timer("frontend", "Front end", *timerGroup));
 }
 
 CodeCompleteConsumer *
@@ -1042,9 +1039,6 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
     OS << "clang -cc1 version " CLANG_VERSION_STRING << " based upon LLVM "
        << LLVM_VERSION_STRING << " default target "
        << llvm::sys::getDefaultTargetTriple() << "\n";
-
-  if (getCodeGenOpts().TimePasses)
-    createFrontendTimer();
 
   if (getFrontendOpts().ShowStats || !getFrontendOpts().StatsFile.empty())
     llvm::EnableStatistics(false);
@@ -1728,10 +1722,9 @@ void CompilerInstance::createASTReader() {
   const FrontendOptions &FEOpts = getFrontendOpts();
   std::unique_ptr<llvm::Timer> ReadTimer;
 
-  if (FrontendTimerGroup)
+  if (timerGroup)
     ReadTimer = std::make_unique<llvm::Timer>("reading_modules",
-                                                "Reading modules",
-                                                *FrontendTimerGroup);
+                                              "Reading modules", *timerGroup);
   TheASTReader = new ASTReader(
       getPreprocessor(), getModuleCache(), &getASTContext(),
       getPCHContainerReader(), getFrontendOpts().ModuleFileExtensions,
@@ -1760,10 +1753,10 @@ void CompilerInstance::createASTReader() {
 bool CompilerInstance::loadModuleFile(
     StringRef FileName, serialization::ModuleFile *&LoadedModuleFile) {
   llvm::Timer Timer;
-  if (FrontendTimerGroup)
+  if (timerGroup)
     Timer.init("preloading." + FileName.str(), "Preloading " + FileName.str(),
-               *FrontendTimerGroup);
-  llvm::TimeRegion TimeLoading(FrontendTimerGroup ? &Timer : nullptr);
+               *timerGroup);
+  llvm::TimeRegion TimeLoading(timerGroup ? &Timer : nullptr);
 
   // If we don't already have an ASTReader, create one now.
   if (!TheASTReader)
@@ -1894,10 +1887,10 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
 
   // Time how long it takes to load the module.
   llvm::Timer Timer;
-  if (FrontendTimerGroup)
+  if (timerGroup)
     Timer.init("loading." + ModuleFilename, "Loading " + ModuleFilename,
-               *FrontendTimerGroup);
-  llvm::TimeRegion TimeLoading(FrontendTimerGroup ? &Timer : nullptr);
+               *timerGroup);
+  llvm::TimeRegion TimeLoading(timerGroup ? &Timer : nullptr);
   llvm::TimeTraceScope TimeScope("Module Load", ModuleName);
 
   // Try to load the module file. If we are not trying to load from the

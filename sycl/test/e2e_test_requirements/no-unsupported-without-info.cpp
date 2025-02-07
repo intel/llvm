@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 409
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 371
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -233,40 +233,6 @@
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
 // CHECK-NEXT: HostInteropTask/host-task-failure.cpp
 // CHECK-NEXT: HostInteropTask/interop-task.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_bad_opcode.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_bad_operand_syntax.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_duplicate_label.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_illegal_exec_size.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_missing_label.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_missing_region.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_simple.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_undefined_decl.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_undefined_pred.cpp
-// CHECK-NEXT: InlineAsm/Negative/asm_wrong_declare.cpp
-// CHECK-NEXT: InlineAsm/asm_16_empty.cpp
-// CHECK-NEXT: InlineAsm/asm_16_matrix_mult.cpp
-// CHECK-NEXT: InlineAsm/asm_16_no_input_int.cpp
-// CHECK-NEXT: InlineAsm/asm_16_no_opts.cpp
-// CHECK-NEXT: InlineAsm/asm_8_empty.cpp
-// CHECK-NEXT: InlineAsm/asm_8_no_input_int.cpp
-// CHECK-NEXT: InlineAsm/asm_arbitrary_ops_order.cpp
-// CHECK-NEXT: InlineAsm/asm_decl_in_scope.cpp
-// CHECK-NEXT: InlineAsm/asm_float_add.cpp
-// CHECK-NEXT: InlineAsm/asm_float_imm_arg.cpp
-// CHECK-NEXT: InlineAsm/asm_float_neg.cpp
-// CHECK-NEXT: InlineAsm/asm_if.cpp
-// CHECK-NEXT: InlineAsm/asm_imm_arg.cpp
-// CHECK-NEXT: InlineAsm/asm_loop.cpp
-// CHECK-NEXT: InlineAsm/asm_mul.cpp
-// CHECK-NEXT: InlineAsm/asm_multiple_instructions.cpp
-// CHECK-NEXT: InlineAsm/asm_no_operands.cpp
-// CHECK-NEXT: InlineAsm/asm_no_output.cpp
-// CHECK-NEXT: InlineAsm/asm_plus_mod.cpp
-// CHECK-NEXT: InlineAsm/asm_switch.cpp
-// CHECK-NEXT: InlineAsm/letter_example.cpp
-// CHECK-NEXT: InlineAsm/malloc_shared_32.cpp
-// CHECK-NEXT: InlineAsm/malloc_shared_in_out_dif.cpp
-// CHECK-NEXT: InlineAsm/malloc_shared_no_input.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
@@ -307,22 +273,18 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_half.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_out_bounds.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_ss_int8.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_su_int8.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_transposeC.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_unaligned_k.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_us_int8.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_uu_int8.cpp
 // CHECK-NEXT: Matrix/joint_matrix_annotated_ptr.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_prefetch.cpp
 // CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/joint_matrix_out_bounds.cpp
 // CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/joint_matrix_unaligned_k.cpp
 // CHECK-NEXT: NewOffloadDriver/aot-gpu.cpp
 // CHECK-NEXT: NewOffloadDriver/spirv_device_obj_smoke.cpp
 // CHECK-NEXT: NonUniformGroups/ballot_group.cpp

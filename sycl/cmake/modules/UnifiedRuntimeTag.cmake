@@ -1,7 +1,7 @@
-# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
-# Merge: 902bb2e2 94b32ac2
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 28 11:02:44 2025 +0000
-#     Merge pull request #2624 from RossBrunton/ross/msanfix
-#     Assert that Device is valid for memory poisoning
+# commit 9d6542bac16db69d907002cb0f8c724c7a50d2dc
+# Merge: 0e6adfb6 04882ba3
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Feb 6 11:30:48 2025 +0000
+#     Merge pull request #2655 from hvdijk/nativecpu-null-phevent
+#     [NativeCPU] Handle null phEvent.
 set(UNIFIED_RUNTIME_TAG uwe/nativecpu_perf)
