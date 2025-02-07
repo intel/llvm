@@ -32,11 +32,12 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 6709535de92933d6bfc1e1d19a324f17afec3877
+    # commit 222dd3d107cf1f97259ecb4bae45df3b8905725b (HEAD -> main, tag: v0.11.0-dev2)
     # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Mon Jan 27 10:57:57 2025 +0100
-    # Merge pull request #1056 from lukaszstolarczuk/hwloc-revert-examples-win
-    set(UMF_TAG 6709535de92933d6bfc1e1d19a324f17afec3877)
+    # Date:   Fri Feb 7 14:43:25 2025 +0100
+    # Merge pull request #1084 from lukaszstolarczuk/fix-icx-build
+    # Fix icx build
+    set(UMF_TAG v0.11.0-dev2)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
