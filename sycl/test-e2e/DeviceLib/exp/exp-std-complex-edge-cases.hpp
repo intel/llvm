@@ -338,7 +338,7 @@ template <typename T> bool test() {
         // The check failed with VS2019 or previous versions due to a MSVC
         // std::complex implementation bug and the bug is fixed in VS2022.
         if (std::is_same_v<typename decltype(r)::value_type, float>)
-           continue;
+          continue;
 #endif
 #endif
         CHECK(std::signbit(r.imag()) == std::signbit(testcases[i].imag()),
