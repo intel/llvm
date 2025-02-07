@@ -333,6 +333,14 @@ template <typename T> bool test() {
       } else if (std::isfinite(testcases[i].imag()) &&
                  std::abs(testcases[i].imag()) <= 1) {
         CHECK(!std::signbit(r.real()), passed, i);
+#ifdef _WIN32
+#if _MSC_VER <= 1929
+        // The check failed with VS2019 or previous versions due to a MSVC
+        // std::complex implementation bug and the bug is fixed in VS2022.
+        if (std::is_same_v<typename decltype(r)::value_type, float>)
+           continue;
+#endif
+#endif
         CHECK(std::signbit(r.imag()) == std::signbit(testcases[i].imag()),
               passed, i);
         // Those tests were taken from oneDPL, not sure what is the corner case
