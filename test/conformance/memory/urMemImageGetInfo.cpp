@@ -46,11 +46,11 @@ TEST_P(urMemImageGetInfoTest, SuccessElementSize) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
-
-  ASSERT_NE(property_value, 999);
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessRowPitch) {
@@ -64,9 +64,11 @@ TEST_P(urMemImageGetInfoTest, SuccessRowPitch) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_TRUE(property_value == image_desc.rowPitch ||
               property_value == (4 * sizeof(uint8_t)) * image_desc.width);
@@ -83,9 +85,11 @@ TEST_P(urMemImageGetInfoTest, SuccessSlicePitch) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_EQ(property_value, image_desc.slicePitch);
 }
@@ -101,9 +105,11 @@ TEST_P(urMemImageGetInfoTest, SuccessWidth) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_EQ(property_value, image_desc.width);
 }
@@ -119,9 +125,11 @@ TEST_P(urMemImageGetInfoTest, SuccessHeight) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_EQ(property_value, image_desc.height);
 }
@@ -137,9 +145,11 @@ TEST_P(urMemImageGetInfoTest, SuccessDepth) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_TRUE(property_value == image_desc.depth || property_value == 0);
 }
@@ -155,9 +165,11 @@ TEST_P(urMemImageGetInfoTest, SuccessArraySize) {
       property_name);
   ASSERT_EQ(sizeof(size_t), property_size);
 
-  size_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  size_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_TRUE(property_value == image_desc.depth || property_value == 0);
 }
@@ -173,9 +185,11 @@ TEST_P(urMemImageGetInfoTest, SuccessNumMipMaps) {
       property_name);
   ASSERT_EQ(sizeof(uint32_t), property_size);
 
-  uint32_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_EQ(property_value, image_desc.numMipLevel);
 }
@@ -191,9 +205,11 @@ TEST_P(urMemImageGetInfoTest, SuccessNumSamples) {
       property_name);
   ASSERT_EQ(sizeof(uint32_t), property_size);
 
-  uint32_t property_value = 999;
-  ASSERT_SUCCESS(urMemImageGetInfo(image, property_name, property_size,
-                                   &property_value, nullptr));
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urMemImageGetInfo(image, property_name,
+                                               property_size, &property_value,
+                                               nullptr),
+                             property_value);
 
   ASSERT_EQ(property_value, image_desc.numSamples);
 }
