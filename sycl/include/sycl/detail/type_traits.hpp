@@ -218,7 +218,7 @@ template <typename T, typename R> struct copy_cv_qualifiers {
 };
 
 // make_unsigned with support SYCL vec class
-template <typename T> struct make_unsigned {
+template <typename T, typename = void> struct make_unsigned {
   using type = std::make_unsigned_t<T>;
 };
 template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
@@ -228,11 +228,10 @@ template <class T> struct make_unsigned<const T> {
 template <class T, int N> struct make_unsigned<vec<T, N>> {
   using type = vec<make_unsigned_t<T>, N>;
 };
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct make_unsigned<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
-  using type = make_unsigned_t<std::remove_cv_t<VecT>>;
+
+template <typename T>
+struct make_unsigned<T, std::enable_if_t<is_swizzle_v<T>>> {
+  using type = make_unsigned_t<vec<typename T::element_type, T::size()>>;
 };
 template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
   using type = marray<make_unsigned_t<T>, N>;
