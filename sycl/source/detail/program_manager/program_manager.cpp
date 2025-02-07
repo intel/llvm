@@ -801,7 +801,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // Sharing is allowed within a single context only
     if (!ContextImpl->hasDevice(ParentDev))
       break;
-    RootDevImpl = ParentDev;
+    RootDevImpl = std::move(ParentDev);
   }
 
   ur_bool_t MustBuildOnSubdevice = true;

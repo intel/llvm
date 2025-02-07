@@ -44,38 +44,6 @@ struct is_same_op<
     std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2>>>
     : std::is_same<simplify_if_swizzle_t<T1>, simplify_if_swizzle_t<T2>> {};
 
-template <typename T, size_t N> struct same_size_signed_int<marray<T, N>> {
-  using type = marray<typename same_size_signed_int<T>::type, N>;
-};
-template <typename T, int N> struct same_size_signed_int<vec<T, N>> {
-  using type = vec<typename same_size_signed_int<T>::type, N>;
-};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct same_size_signed_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                                      OperationCurrentT, Indexes...>> {
-  // Converts to vec for simplicity.
-  using type =
-      vec<typename same_size_signed_int<typename VecT::element_type>::type,
-          sizeof...(Indexes)>;
-};
-
-template <typename T, size_t N> struct same_size_unsigned_int<marray<T, N>> {
-  using type = marray<typename same_size_unsigned_int<T>::type, N>;
-};
-template <typename T, int N> struct same_size_unsigned_int<vec<T, N>> {
-  using type = vec<typename same_size_unsigned_int<T>::type, N>;
-};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct same_size_unsigned_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                                        OperationCurrentT, Indexes...>> {
-  // Converts to vec for simplicity.
-  using type =
-      vec<typename same_size_unsigned_int<typename VecT::element_type>::type,
-          sizeof...(Indexes)>;
-};
-
 // Utility trait for changing the element type of a type T. If T is a scalar,
 // the new type replaces T completely.
 template <typename NewElemT, typename T> struct change_elements {
