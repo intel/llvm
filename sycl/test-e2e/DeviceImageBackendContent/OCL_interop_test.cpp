@@ -57,7 +57,6 @@ int main() {
   bytes = img.ext_oneapi_get_backend_content();
   auto clContext = sycl::get_native<sycl::backend::opencl>(ctxt);
   auto clDevice = sycl::get_native<sycl::backend::opencl>(d);
-
   cl_int status;
   auto clProgram = clCreateProgramWithIL(
       clContext, reinterpret_cast<const void *>(bytes.data()), bytes.size(),
