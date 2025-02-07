@@ -1,6 +1,8 @@
 // REQUIRES: opencl, opencl_icd, aspect-usm_shared_allocations
 // RUN: %{build} %opencl_lib -fno-sycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: fpga
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16914
 //
 #include <sycl/backend.hpp>
 #include <sycl/detail/cl.h>
@@ -53,13 +55,12 @@ int main() {
   const sycl::device_image<sycl::bundle_state::executable> &img =
       *(exe_bndl.begin());
   bytes = img.ext_oneapi_get_backend_content();
-  std::cout << bytes.size() << std::endl;
   auto clContext = sycl::get_native<sycl::backend::opencl>(ctxt);
   auto clDevice = sycl::get_native<sycl::backend::opencl>(d);
 
   cl_int status;
   auto clProgram = clCreateProgramWithIL(
-      clContext, reinterpret_cast<unsigned char *>(bytes.data()), bytes.size(),
+      clContext, reinterpret_cast<const void *>(bytes.data()), bytes.size(),
       &status);
   assert(status == CL_SUCCESS);
   status = clBuildProgram(clProgram, 1, &clDevice, "", nullptr, nullptr);
