@@ -40,13 +40,34 @@ int main() {
   {
     int *Numbers = sycl::malloc_shared<int>(N, Queue);
 
-    sycl::khr::launch_grouped(Queue, sycl::range<2>(8, N / 8),
-                              sycl::range<2>(8, 8), [=](sycl::nd_item<2> Item) {
-                                Numbers[Item.get_global_linear_id()] = 302;
-                              });
+    sycl::event Event =
+        sycl::khr::submit_tracked(Queue, [&](sycl::handler &Handler) {
+          sycl::khr::launch_grouped(Handler, sycl::range<3>(4, 4, N / 16),
+                                    sycl::range<3>(4, 4, 4),
+                                    [=](sycl::nd_item<3> Item) {
+                                      Numbers[Item.get_global_linear_id()] = 2;
+                                    });
+        });
+
+    sycl::khr::submit(Queue, [&](sycl::handler &Handler) {
+      Handler.depends_on(Event);
+      sycl::khr::launch_grouped(Handler, sycl::range<1>(N), sycl::range<1>(8),
+                                [=](sycl::nd_item<1> Item) {
+                                  size_t Index = Item.get_global_linear_id();
+                                  Numbers[Index] = Numbers[Index] + 300;
+                                });
+    });
     Queue.wait();
     for (size_t i = 0; i < N; ++i)
       Failed += Check(Numbers, 302, i, "launch_grouped_with_usm");
+
+    sycl::khr::launch_grouped(Queue, sycl::range<2>(8, N / 8),
+                              sycl::range<2>(8, 8), [=](sycl::nd_item<2> Item) {
+                                Numbers[Item.get_global_linear_id()] = 303;
+                              });
+    Queue.wait();
+    for (size_t i = 0; i < N; ++i)
+      Failed += Check(Numbers, 303, i, "launch_grouped_shortcut_with_usm");
     sycl::free(Numbers, Queue);
   }
 

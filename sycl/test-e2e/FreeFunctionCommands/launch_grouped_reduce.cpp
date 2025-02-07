@@ -45,6 +45,29 @@ int main() {
     constexpr size_t N = 1024;
     constexpr int ExpectedResult = ((N - 1) * N) / 2;
 
+    sycl::event Event =
+        sycl::khr::submit_tracked(Queue, [&](sycl::handler &Handler) {
+          sycl::khr::launch_grouped_reduce(
+              Handler, sycl::range<3>(8, 8, N / 64), sycl::range<3>(8, 8, 8),
+              [=](sycl::nd_item<3> Item, auto &Sum) {
+                Sum += 1;
+              },
+              sycl::reduction(Result, sycl::plus<>()));
+        });
+
+    sycl::khr::submit(Queue, [&](sycl::handler &Handler) {
+      Handler.depends_on(Event);
+      sycl::khr::launch_grouped_reduce(
+          Handler, sycl::range<2>(16, N / 16), sycl::range<2>(8, 8),
+          [=](sycl::nd_item<2> Item, auto &Sum) {
+            Sum += 1;
+          },
+          sycl::reduction(Result, sycl::plus<>()));
+    });
+    Queue.wait();
+    Failed += Check(Result[0], N * 2, "launch_grouped_reduce_with_usm");
+
+    Result[0] = 0;
     sycl::khr::launch_grouped_reduce(
         Queue, sycl::range<1>(N), sycl::range<1>(8),
         [=](sycl::nd_item<1> Item, auto &Sum) {
@@ -53,8 +76,8 @@ int main() {
         sycl::reduction(Result, sycl::plus<>()));
 
     Queue.wait();
-    Failed +=
-        Check(Result[0], ExpectedResult, "launch_grouped_reduce_with_usm");
+    Failed += Check(Result[0], ExpectedResult,
+                    "launch_grouped_reduce_shortcut_with_usm");
     sycl::free(Result, Queue);
   }
 

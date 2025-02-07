@@ -40,12 +40,35 @@ int main() {
     constexpr size_t N = 1024;
     constexpr int ExpectedResult = ((N - 1) * N) / 2;
 
+    sycl::event Event =
+        sycl::khr::submit_tracked(Queue, [&](sycl::handler &Handler) {
+          sycl::khr::launch_reduce(
+              Handler, sycl::range<1>(N),
+              [=](sycl::id<1> Id, auto &Sum) {
+                int NegativeId = -(int)Id;
+                Sum += NegativeId;
+              },
+              sycl::reduction(Result, sycl::plus<>()));
+        });
+
+    Queue.submit([&](sycl::handler &Handler) {
+      Handler.depends_on(Event);
+      sycl::khr::launch_reduce(
+          Handler, sycl::range<1>(N),
+          [=](sycl::item<1> Item, auto &Sum) { Sum += Item.get_linear_id(); },
+          sycl::reduction(Result, sycl::plus<>()));
+    });
+
+    Queue.wait();
+    Failed += Check(Result[0], 0, "launch_reduce_with_usm");
+
     sycl::khr::launch_reduce(
         Queue, sycl::range<1>(N), [=](sycl::id<1> Id, auto &Sum) { Sum += Id; },
         sycl::reduction(Result, sycl::plus<>()));
 
     Queue.wait();
-    Failed += Check(Result[0], ExpectedResult, "launch_reduce_with_usm");
+    Failed +=
+        Check(Result[0], ExpectedResult, "launch_reduce_shortcut_with_usm");
     sycl::free(Result, Queue);
   }
 
