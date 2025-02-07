@@ -586,11 +586,10 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
   for (auto It = MAuxiliaryResources.begin();
        It != MAuxiliaryResources.end();) {
-    const EventImplPtr &Event = It->first;
     if (Blocking == BlockingT::BLOCKING) {
-      Event->waitInternal();
+      It->first->waitInternal();
       It = MAuxiliaryResources.erase(It);
-    } else if (Event->isCompleted())
+    } else if (It->first->isCompleted())
       It = MAuxiliaryResources.erase(It);
     else
       ++It;
