@@ -8,6 +8,7 @@
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
 // other triples
+
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t_runtime_dim_vnni.out %fp-model-precise -DRUNTIME_DIM -DVNNI
