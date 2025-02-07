@@ -613,6 +613,9 @@ config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 if lit_config.params.get("ze_debug"):
     config.available_features.add("ze_debug")
 
+if config.l0_v2_adapter:
+    config.available_features.add("l0_v2_adapter")
+
 if config.run_launcher:
     config.substitutions.append(("%e2e_tests_root", config.test_source_root))
 
