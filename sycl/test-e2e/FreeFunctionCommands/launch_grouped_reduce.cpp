@@ -49,9 +49,7 @@ int main() {
         sycl::khr::submit_tracked(Queue, [&](sycl::handler &Handler) {
           sycl::khr::launch_grouped_reduce(
               Handler, sycl::range<3>(8, 8, N / 64), sycl::range<3>(8, 8, 8),
-              [=](sycl::nd_item<3> Item, auto &Sum) {
-                Sum += 1;
-              },
+              [=](sycl::nd_item<3> Item, auto &Sum) { Sum += 1; },
               sycl::reduction(Result, sycl::plus<>()));
         });
 
@@ -59,9 +57,7 @@ int main() {
       Handler.depends_on(Event);
       sycl::khr::launch_grouped_reduce(
           Handler, sycl::range<2>(16, N / 16), sycl::range<2>(8, 8),
-          [=](sycl::nd_item<2> Item, auto &Sum) {
-            Sum += 1;
-          },
+          [=](sycl::nd_item<2> Item, auto &Sum) { Sum += 1; },
           sycl::reduction(Result, sycl::plus<>()));
     });
     Queue.wait();
