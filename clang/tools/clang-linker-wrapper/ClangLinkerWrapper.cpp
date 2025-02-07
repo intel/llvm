@@ -1681,28 +1681,6 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   }
 }
 
-void diagnosticHandler(const DiagnosticInfo &DI) {
-  std::string ErrStorage;
-  raw_string_ostream OS(ErrStorage);
-  DiagnosticPrinterRawOStream DP(OS);
-  DI.print(DP);
-
-  switch (DI.getSeverity()) {
-  case DS_Error:
-    WithColor::error(errs(), LinkerExecutable) << ErrStorage << "\n";
-    break;
-  case DS_Warning:
-    WithColor::warning(errs(), LinkerExecutable) << ErrStorage << "\n";
-    break;
-  case DS_Note:
-    WithColor::note(errs(), LinkerExecutable) << ErrStorage << "\n";
-    break;
-  case DS_Remark:
-    WithColor::remark(errs()) << ErrStorage << "\n";
-    break;
-  }
-}
-
 // Compile the module to an object file using the appropriate target machine for
 // the host triple.
 Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
