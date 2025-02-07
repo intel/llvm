@@ -383,6 +383,9 @@ struct map_type<T, From, To, Rest...> {
 template <typename T, typename... Ts>
 constexpr bool check_type_in_v = ((std::is_same_v<T, Ts> || ...));
 
+template <auto V, auto... Vs>
+constexpr bool check_value_in_v = (((V == Vs) || ...));
+
 #if __has_builtin(__type_pack_element)
 template <int N, typename... Ts>
 using nth_type_t = __type_pack_element<N, Ts...>;

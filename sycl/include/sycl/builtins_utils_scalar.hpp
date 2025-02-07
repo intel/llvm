@@ -32,19 +32,6 @@ template <typename> struct use_fast_math : std::false_type {};
 #endif
 template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
 
-template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
-  constexpr bool SameSize[] = {(N == Ns)...};
-  // Replace with std::any_of with C++20.
-  for (size_t I = 0; I < sizeof...(Ns); ++I)
-    if (SameSize[I])
-      return true;
-  return false;
-}
-
-// NOTE: We need a constexpr variable definition for the constexpr functions
-//       as MSVC thinks function definitions are the same otherwise.
-template <size_t... Ns> constexpr bool check_size_in_v = CheckSizeIn<Ns...>();
-
 // Utility for converting a swizzle to a vector or preserve the type if it isn't
 // a swizzle.
 template <typename T> struct simplify_if_swizzle {
