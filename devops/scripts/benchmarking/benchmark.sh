@@ -197,6 +197,10 @@ load_configs() {
     #
     # Derive /devops based on location of this script:
     [ -z "$DEVOPS_PATH" ] && DEVOPS_PATH="$(dirname "$0")/../.."
+    if [ -z "$(printf "%s" "$DEVOPS_PATH" | grep -oE '^[a-zA-Z0-9._\/-]+$')"]; then
+        echo "Bad DEVOPS_PATH, please specify DEVOPS_PATH variable."
+        exit 1
+    fi
 
     TESTS_CONFIG="$(realpath "$DEVOPS_PATH/benchmarking/enabled_tests.conf")"
     COMPARE_PATH="$(realpath "$DEVOPS_PATH/scripts/benchmarking/compare.py")"
