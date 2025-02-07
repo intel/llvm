@@ -6,14 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/config.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -98,25 +101,14 @@ static sycl::unittest::MockDeviceImageArray<1> EAMImgArray{&EAMImg};
 static sycl::unittest::MockDeviceImageArray<1> EAM2ImgArray{&EAM2Img};
 static sycl::unittest::MockDeviceImageArray<1> EAM3ImgArray{&EAM3Img};
 
-// ur_program_handle_t address is used as a key for ProgramManager::NativePrograms
-// storage. redefinedProgramLinkCommon makes ur_program_handle_t address equal to 0x1.
-// Make sure that size of Bin is different for device images used in these tests
-// and greater than 1.
+// ur_program_handle_t address is used as a key for
+// ProgramManager::NativePrograms storage. redefinedProgramLinkCommon makes
+// ur_program_handle_t address equal to 0x1. Make sure that size of Bin is
+// different for device images used in these tests and greater than 1.
 inline ur_result_t redefinedProgramCreateEAM(void *pParams) {
   auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
   static size_t UrProgramAddr = 2;
   **params.pphProgram = reinterpret_cast<ur_program_handle_t>(UrProgramAddr++);
-  return UR_RESULT_SUCCESS;
-}
-
-mock::dummy_handle_t_ FixedHandle;
-inline ur_result_t setFixedProgramPtr(void *pParams) {
-  auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
-  **params.pphProgram = reinterpret_cast<ur_program_handle_t>(&FixedHandle);
-  return UR_RESULT_SUCCESS;
-}
-inline ur_result_t releaseFixedProgramPtr(void *pParams) {
-  // Do nothing
   return UR_RESULT_SUCCESS;
 }
 
@@ -218,6 +210,53 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   EXPECT_EQ(*EliminatedArgMask, ExpElimArgMask);
 }
 
+std::vector<std::unique_ptr<mock::dummy_handle_t_>> UsedProgramHandles;
+std::vector<std::unique_ptr<mock::dummy_handle_t_>> ProgramHandlesToReuse;
+inline ur_result_t setFixedProgramPtr(void *pParams) {
+  auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
+  if (!ProgramHandlesToReuse.empty()) {
+    auto it = ProgramHandlesToReuse.begin() + 1;
+    std::move(ProgramHandlesToReuse.begin(), it,
+              std::back_inserter(UsedProgramHandles));
+    ProgramHandlesToReuse.erase(ProgramHandlesToReuse.begin(), it);
+  } else
+    UsedProgramHandles.push_back(
+        std::make_unique<mock::dummy_handle_t_>(sizeof(unsigned)));
+  **params.pphProgram =
+      reinterpret_cast<ur_program_handle_t>(UsedProgramHandles.back().get());
+  return UR_RESULT_SUCCESS;
+}
+inline ur_result_t releaseFixedProgramPtr(void *pParams) {
+  auto params = *static_cast<ur_program_release_params_t *>(pParams);
+  {
+    auto it = std::find_if(
+        UsedProgramHandles.begin(), UsedProgramHandles.end(),
+        [&params](const std::unique_ptr<mock::dummy_handle_t_> &item) {
+          return reinterpret_cast<ur_program_handle_t>(item.get()) ==
+                 *params.phProgram;
+        });
+    if (it == UsedProgramHandles.end())
+      return UR_RESULT_SUCCESS;
+    std::move(it, it + 1, std::back_inserter(ProgramHandlesToReuse));
+    UsedProgramHandles.erase(it, it + 1);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t customProgramRetain(void *pParams) {
+  // do nothing
+  return UR_RESULT_SUCCESS;
+}
+
+class ProgramManagerTest {
+public:
+  static std::unordered_multimap<ur_program_handle_t,
+                                 const sycl::detail::RTDeviceBinaryImage *> &
+  getNativePrograms() {
+    return sycl::detail::ProgramManager::getInstance().NativePrograms;
+  }
+};
+
 // It's possible for the same handle to be reused for multiple distinct programs
 // This can happen if a program is released (freeing underlying memory) and then
 // a new program happens to get given that same memory for its handle.
@@ -227,6 +266,7 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
 TEST(EliminatedArgMask, ReuseOfHandleValues) {
   sycl::detail::ProgramManager &PM =
       sycl::detail::ProgramManager::getInstance();
+  auto &NativePrograms = ProgramManagerTest::getNativePrograms();
 
   ur_program_handle_t ProgBefore = nullptr;
   ur_program_handle_t ProgAfter = nullptr;
@@ -238,6 +278,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
                                               &setFixedProgramPtr);
     mock::getCallbacks().set_replace_callback("urProgramRelease",
                                               &releaseFixedProgramPtr);
+    mock::getCallbacks().set_replace_callback("urProgramRetain",
+                                              &customProgramRetain);
 
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
@@ -247,7 +289,11 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
+    EXPECT_EQ(UsedProgramHandles.size(), 1u);
+    EXPECT_EQ(NativePrograms.count(ProgBefore), 1u);
   }
+
+  EXPECT_EQ(UsedProgramHandles.size(), 0u);
 
   {
     auto Name = sycl::detail::KernelInfo<EAMTestKernel3>::getName();
@@ -257,6 +303,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
                                               &setFixedProgramPtr);
     mock::getCallbacks().set_replace_callback("urProgramRelease",
                                               &releaseFixedProgramPtr);
+    mock::getCallbacks().set_replace_callback("urProgramRetain",
+                                              &customProgramRetain);
 
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
@@ -266,6 +314,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);
+    EXPECT_EQ(UsedProgramHandles.size(), 1u);
+    EXPECT_EQ(NativePrograms.count(ProgBefore), 1u);
   }
 
   // Verify that the test is behaving correctly and that the pointer is being

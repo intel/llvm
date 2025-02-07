@@ -19,7 +19,7 @@ int main(void) {
   esimd_test::printTestLabel(q);
 
   constexpr bool TestCacheHintProperties = true;
-  bool passed = test_main_acc<TestCacheHintProperties>(q);
+  bool passed = test_main_acc<TestCacheHintProperties, true>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

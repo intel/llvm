@@ -13,7 +13,7 @@
 // RUN: %{run} %t.out
 
 // Failing on HIP AMD
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

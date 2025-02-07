@@ -2,6 +2,11 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
+// Timeout on CPU. Enable when fixed.
+// Depends on SPIR-V Backend & run-time drivers version.
+// UNSUPPORTED: spirv-backend && cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
+
 // The test verifies sort API extension.
 // Currently it checks the following combinations:
 // For number of elements {18, 64}

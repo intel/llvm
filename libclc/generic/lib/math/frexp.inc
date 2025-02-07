@@ -42,6 +42,17 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE frexp(__CLC_GENTYPE x, __CLC_ADDRESS_SPACE 
 }
 #endif
 
+#if __CLC_FPSIZE == 16
+#ifdef __CLC_SCALAR
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE frexp(__CLC_GENTYPE x,
+                                           __CLC_ADDRESS_SPACE __CLC_INTN *ep) {
+  return (__CLC_GENTYPE)frexp((float)x, ep);
+}
+_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, __CLC_GENTYPE, frexp,
+                      __CLC_GENTYPE, __CLC_ADDRESS_SPACE, __CLC_INTN);
+#endif
+#endif
+
 #if __CLC_FPSIZE == 64
 #ifdef __CLC_SCALAR
 #define __CLC_AS_LONGN as_long
