@@ -1,7 +1,7 @@
-# commit c6859445e01d433ec1cf3d87a244c5cf697fb290
-# Merge: d3e97040 b1b0c60c
+# commit 9d6542bac16db69d907002cb0f8c724c7a50d2dc
+# Merge: 0e6adfb6 04882ba3
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Jan 23 13:59:15 2025 +0000
-#     Merge pull request #2589 from Bensuo/fabio/fix_potential_race_condition
-#     Fix potential deadlock in the WaitEvent path of CmdBuffers
-set(UNIFIED_RUNTIME_TAG c6859445e01d433ec1cf3d87a244c5cf697fb290)
+# Date:   Thu Feb 6 11:30:48 2025 +0000
+#     Merge pull request #2655 from hvdijk/nativecpu-null-phevent
+#     [NativeCPU] Handle null phEvent.
+set(UNIFIED_RUNTIME_TAG 9d6542bac16db69d907002cb0f8c724c7a50d2dc)
