@@ -61,7 +61,7 @@ target triple = "spir64-unknown-unknown"
 %class.anon = type { i8 }
 
 ; Function Attrs: nounwind
-define spir_kernel void @lifetime_simple(i32 addrspace(1)* nocapture %res, i32 addrspace(1)* nocapture %lhs, i32 addrspace(1)* nocapture %rhs) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @lifetime_simple(i32 addrspace(1)* captures(none) %res, i32 addrspace(1)* captures(none) %lhs, i32 addrspace(1)* captures(none) %rhs) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
   %1 = alloca i32
   %2 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
   %3 = shl i64 %2, 32
@@ -95,10 +95,10 @@ entry:
 declare spir_func void @foo(%class.anon* %this) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #0
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* captures(none)) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #0
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* captures(none)) #0
 
 ; Function Attrs: nounwind readnone
 declare spir_func i64 @_Z13get_global_idj(i32) #1
@@ -117,10 +117,10 @@ entry:
 declare spir_func void @boo(%class.anon addrspace(4)* %this) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.start.p4i8(i64 immarg, i8 addrspace(4)* nocapture) #0
+declare void @llvm.lifetime.start.p4i8(i64 immarg, i8 addrspace(4)* captures(none)) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.end.p4i8(i64 immarg, i8 addrspace(4)* nocapture) #0
+declare void @llvm.lifetime.end.p4i8(i64 immarg, i8 addrspace(4)* captures(none)) #0
 
 
 attributes #0 = { nounwind }

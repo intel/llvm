@@ -493,7 +493,7 @@ define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: inlinehint norecurse
 define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %0) #2 align 2 {
@@ -548,7 +548,7 @@ define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %0) #2 al
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: norecurse nounwind
 define linkonce_odr dso_local spir_func void @_Z13ap_float_castILi11ELi28ELi9ELi30EEvv() #3 {

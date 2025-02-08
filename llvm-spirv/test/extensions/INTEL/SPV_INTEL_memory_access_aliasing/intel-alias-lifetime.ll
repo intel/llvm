@@ -20,7 +20,7 @@ define spir_kernel void @lifetime_simple()
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #0
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #0
 
 attributes #0 = { nounwind }
 

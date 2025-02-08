@@ -22,7 +22,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: call spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @nosamp(ptr addrspace(1) %im, <2 x i32> %coord, ptr addrspace(1) nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @nosamp(ptr addrspace(1) %im, <2 x i32> %coord, ptr addrspace(1) captures(none) %res) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
   %call = tail call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i(ptr addrspace(1) %im, <2 x i32> %coord) #3
   store <4 x half> %call, ptr addrspace(1) %res, align 8, !tbaa !8
@@ -33,7 +33,7 @@ entry:
 declare spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i(ptr addrspace(1), <2 x i32>) local_unnamed_addr #1
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @withsamp(ptr addrspace(1) %im, ptr addrspace(2) %smp, <2 x i32> %coord, ptr addrspace(1) nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !11 !kernel_arg_access_qual !12 !kernel_arg_type !13 !kernel_arg_base_type !14 !kernel_arg_type_qual !15 {
+define spir_kernel void @withsamp(ptr addrspace(1) %im, ptr addrspace(2) %smp, <2 x i32> %coord, ptr addrspace(1) captures(none) %res) local_unnamed_addr #0 !kernel_arg_addr_space !11 !kernel_arg_access_qual !12 !kernel_arg_type !13 !kernel_arg_base_type !14 !kernel_arg_type_qual !15 {
 entry:
   %call = tail call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i(ptr addrspace(1) %im, ptr addrspace(2) %smp, <2 x i32> %coord) #3
   store <4 x half> %call, ptr addrspace(1) %res, align 8, !tbaa !8
@@ -44,7 +44,7 @@ entry:
 declare spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i(ptr addrspace(1), ptr addrspace(2), <2 x i32>) local_unnamed_addr #1
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @writehalf(ptr addrspace(1) %im, <2 x i32> %coord, ptr addrspace(1) nocapture readonly %val) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !16 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @writehalf(ptr addrspace(1) %im, <2 x i32> %coord, ptr addrspace(1) captures(none) readonly %val) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !16 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
   %0 = load <4 x half>, ptr addrspace(1) %val, align 8, !tbaa !8
   tail call spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(ptr addrspace(1) %im, <2 x i32> %coord, <4 x half> %0) #4

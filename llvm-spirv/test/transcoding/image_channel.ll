@@ -19,7 +19,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV-DAG: 4 Constant {{[0-9]+}} [[OrderOffsetId:[0-9]+]] 4272
 
 ; Function Attrs: nounwind
-define spir_kernel void @f(ptr addrspace(1) %img, ptr addrspace(1) nocapture %type, ptr addrspace(1) nocapture %order) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @f(ptr addrspace(1) %img, ptr addrspace(1) captures(none) %type, ptr addrspace(1) captures(none) %order) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 ; CHECK-LLVM-DAG: [[DTCALL:%.+]] ={{.*}} call spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro(
 ; CHECK-LLVM: [[DTSUB:%.+]] = sub i32 [[DTCALL]], 4304
 ; CHECK-LLVM: [[DTADD:%.+]] = add i32 [[DTSUB]], 4304

@@ -89,7 +89,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: inlinehint norecurse nounwind
 define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %this) #2 align 2 {
@@ -111,7 +111,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: norecurse nounwind
 define spir_func i32 @_Z12expect_consti(i32 %x) #3 {

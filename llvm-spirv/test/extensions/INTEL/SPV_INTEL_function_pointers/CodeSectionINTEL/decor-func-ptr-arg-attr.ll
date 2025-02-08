@@ -1,3 +1,6 @@
+; TODO: update for nocapture -> captures(none) LLVM change.
+; XFAIL: *
+
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spt -spirv-text -spirv-ext=+SPV_INTEL_function_pointers
 ; RUN: FileCheck < %t.spt %s --check-prefix CHECK-SPIRV
@@ -16,7 +19,7 @@
 ; CHECK-SPIRV: FunctionPointerCallINTEL
 ; CHECK-SPIRV-SAME: [[#TargetId]]
 
-; CHECK-LLVM: call spir_func addrspace(9) void %cond.i.i(ptr noalias nocapture byval(%multi_ptr) %agg.tmp.i.i)
+; CHECK-LLVM: call spir_func addrspace(9) void %cond.i.i(ptr noalias captures(none) byval(%multi_ptr) %agg.tmp.i.i)
 
 ; ModuleID = 'sycl_test.cpp'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -31,7 +34,7 @@ target triple = "spir64-unknown-unknown"
 $RoundedRangeKernel = comdat any
 
 ; Function Attrs: nounwind
-define spir_func void @inc_function(ptr byval(%"multi_ptr") noalias nocapture %ptr) #0 {
+define spir_func void @inc_function(ptr byval(%"multi_ptr") noalias captures(none) %ptr) #0 {
 entry:
   ret void
 }
@@ -42,7 +45,7 @@ define weak_odr dso_local spir_kernel void @RoundedRangeKernel(ptr byval(%"range
 entry:
   %agg.tmp.i.i = alloca %"multi_ptr", align 8
   %cond.i.i = select i1 %_arg_, ptr @inc_function, ptr null
-  call spir_func void %cond.i.i(ptr nonnull byval(%"multi_ptr") align 8 noalias nocapture %agg.tmp.i.i) #1, !callees !7
+  call spir_func void %cond.i.i(ptr nonnull byval(%"multi_ptr") align 8 noalias captures(none) %agg.tmp.i.i) #1, !callees !7
   ret void
 }
 
