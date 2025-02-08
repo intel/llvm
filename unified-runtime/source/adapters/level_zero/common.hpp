@@ -536,8 +536,6 @@ extern thread_local int32_t ErrorAdapterNativeCode;
                                       ur_result_t ErrorCode,
                                       int32_t AdapterErrorCode);
 
-#define L0_DRIVER_INORDER_MIN_VERSION 29534
-
 // Definitions for the External Semaphore Extension
 
 #ifndef ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME

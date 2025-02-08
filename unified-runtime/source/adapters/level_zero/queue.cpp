@@ -1192,11 +1192,13 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
   this->CounterBasedEventsEnabled =
-      UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
+      UsingImmCmdLists && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists() &&
       Device->useDriverCounterBasedEvents() &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
   this->InterruptBasedEventsEnabled =
-      isLowPowerEvents() && isInOrderQueue() && Device->useDriverInOrderLists();
+      isLowPowerEvents() && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists();
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -2288,7 +2290,7 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
   bool IsInOrderList = false;
-  if (Device->useDriverInOrderLists() && isInOrderQueue()) {
+  if (Device->Platform->allowDriverInOrderLists() && isInOrderQueue()) {
     ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_IN_ORDER;
     IsInOrderList = true;
   }
@@ -2425,7 +2427,8 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue()) {
+  if (Queue->Device->Platform->allowDriverInOrderLists() &&
+      Queue->isInOrderQueue()) {
     isInOrderList = true;
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }

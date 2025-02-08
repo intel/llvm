@@ -156,9 +156,6 @@ struct ur_device_handle_t_ : _ur_object {
   // Read env settings to select immediate commandlist mode.
   ImmCmdlistMode useImmediateCommandLists();
 
-  // Whether Adapter uses driver's implementation of in-order lists or not
-  bool useDriverInOrderLists();
-
   // Whether Adapter uses driver's implementation of counter-based events or not
   bool useDriverCounterBasedEvents();
 
