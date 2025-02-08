@@ -1,6 +1,7 @@
 #include <clc/clc.h>
-#include <core/clc_core.h>
-#include <libspirv/spirv.h>
+#include <clc/integer/clc_mad24.h>
 
-#define __CLC_BODY <mad24.inc>
-#include <clc/integer/integer-gentype.inc>
+#define FUNCTION mad24
+#define __CLC_BODY <clc/shared/ternary_def.inc>
+
+#include <clc/integer/gentype24.inc>

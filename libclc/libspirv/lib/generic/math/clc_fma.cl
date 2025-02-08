@@ -22,6 +22,7 @@
 
 #include <clc/clcmacro.h>
 #include <clc/integer/clc_abs.h>
+#include <clc/integer/clc_clz.h>
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
 #include <clc/relational/clc_isinf.h>
@@ -119,7 +120,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_sw_fma(float a, float b, float c) {
   }
 
   // detect overflow/underflow
-  int overflow_bits = 3 - __spirv_ocl_clz(st_fma.mantissa);
+  int overflow_bits = 3 - __clc_clz(st_fma.mantissa);
 
   // adjust exponent
   st_fma.exponent += overflow_bits;

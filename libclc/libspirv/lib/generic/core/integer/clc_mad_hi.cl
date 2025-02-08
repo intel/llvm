@@ -10,4 +10,3 @@
 #include <clc/utils.h>
 
 #define __CLC_BODY <clc_mad_hi.inc>
-#include <clc/integer/gentype.inc>

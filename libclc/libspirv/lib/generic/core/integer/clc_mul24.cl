@@ -9,4 +9,3 @@
 #include <core/clc_core.h>
 
 #define __CLC_BODY <clc_mul24.inc>
-#include <clc/integer/integer-gentype.inc>
