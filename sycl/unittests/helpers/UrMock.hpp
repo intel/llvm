@@ -571,7 +571,7 @@ public:
 
 #ifdef _WIN32
     detail::GlobalHandler::instance().releaseDefaultContexts();
-#else _WIN32
+#else
     detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
     detail::GlobalHandler::instance().releaseDefaultContexts();
     // clear platform cache in case subsequent tests want a different backend,
