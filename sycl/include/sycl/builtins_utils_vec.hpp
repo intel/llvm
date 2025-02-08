@@ -20,15 +20,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
-// Utilty trait for checking that the number of elements in T is in Ns.
-template <typename T, size_t... Ns>
-struct is_valid_size
-    : std::bool_constant<check_size_in_v<num_elements<T>::value, Ns...>> {};
-
-template <typename T, int... Ns>
-constexpr bool is_valid_size_v = is_valid_size<T, Ns...>::value;
-
 // Utility for converting a swizzle to a vector or preserve the type if it isn't
 // a swizzle.
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
@@ -37,12 +28,6 @@ struct simplify_if_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                      OperationCurrentT, Indexes...>> {
   using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
 };
-
-template <typename T1, typename T2>
-struct is_same_op<
-    T1, T2,
-    std::enable_if_t<is_vec_or_swizzle_v<T1> && is_vec_or_swizzle_v<T2>>>
-    : std::is_same<simplify_if_swizzle_t<T1>, simplify_if_swizzle_t<T2>> {};
 
 // Utility trait for changing the element type of a type T. If T is a scalar,
 // the new type replaces T completely.
