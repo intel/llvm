@@ -1,8 +1,7 @@
-# commit b074893e854d28141cd67bc5935ed87e47eb3bb6
-# Merge: 71a5eab0 128ea023
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 21 11:21:50 2025 +0000
-#     Merge pull request #2539 from RossBrunton/ross/specconst
-#
-#     Added `DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS`
-set(UNIFIED_RUNTIME_TAG b074893e854d28141cd67bc5935ed87e47eb3bb6)
+# commit 9d6542bac16db69d907002cb0f8c724c7a50d2dc
+# Merge: 0e6adfb6 04882ba3
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Feb 6 11:30:48 2025 +0000
+#     Merge pull request #2655 from hvdijk/nativecpu-null-phevent
+#     [NativeCPU] Handle null phEvent.
+set(UNIFIED_RUNTIME_TAG 9d6542bac16db69d907002cb0f8c724c7a50d2dc)

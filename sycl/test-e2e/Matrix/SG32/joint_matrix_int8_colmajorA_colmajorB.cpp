@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
+// other triples
+
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
@@ -17,7 +21,7 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
 
-#include "../common.hpp"
+#include "common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -25,4 +29,4 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 #define SG_SZ 32
 constexpr size_t TN = 16;
 
-#include "../joint_matrix_int8_colmajorA_colmajorB_impl.hpp"
+#include "joint_matrix_int8_colmajorA_colmajorB_impl.hpp"
