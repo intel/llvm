@@ -54,13 +54,22 @@ int main() {
 
   // Check if we have at least two GPU devices
   if (gpuDevices.size() < 2) {
-    std::cerr << "Less than two GPU devices found." << std::endl;
-    return 1;
+    std::cerr << "Less than two GPU devices found, skipped." << std::endl;
+    return 0;
   }
 
   // Create contexts for the first two GPU devices
   auto dev1 = gpuDevices[0];
   auto dev2 = gpuDevices[1];
+
+  // Check if two devices are the same model
+  std::string dev1_name = dev1.get_info<sycl::info::device::name>();
+  std::string dev2_name = dev2.get_info<sycl::info::device::name>();
+  if (dev1_name != dev2_name) {
+    std::cerr << "Two different devices, skipped." << std::endl;
+    return 0;
+  }
+
   sycl::context context1_d1(dev1);
   sycl::context context2_d1(dev1);
   sycl::context context_d2(dev2);
