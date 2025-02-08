@@ -475,9 +475,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
 
-  // This mutex is to prevent concurrent kernel launches on the same queue or
-  // across different queues as the DeviceASAN local/private shadow memory
-  // does not support concurrent kernel launches now.
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceASAN local/private shadow memory does not support concurrent
+  // kernel launches now.
   static ur_shared_mutex KernelLaunchMutex;
   std::scoped_lock<ur_shared_mutex> Guard(KernelLaunchMutex);
 
