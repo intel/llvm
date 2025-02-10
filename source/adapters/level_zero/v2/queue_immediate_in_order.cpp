@@ -698,7 +698,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy(
   // TODO: parametrize latency tracking with 'blocking'
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMMemcpy");
 
-  UR_CALL(commandListManager.enqueueUSMMemcpy(blocking, pDst, pSrc, size,
+  UR_CALL(commandListManager.appendUSMMemcpy(blocking, pDst, pSrc, size,
                                               numEventsInWaitList,
                                               phEventWaitList, phEvent));
 

@@ -47,7 +47,7 @@ struct ur_command_list_manager : public _ur_object {
                                  const ur_event_handle_t *phEventWaitList,
                                  ur_event_handle_t *phEvent);
 
-  ur_result_t enqueueUSMMemcpy(bool blocking, void *pDst, const void *pSrc,
+  ur_result_t appendUSMMemcpy(bool blocking, void *pDst, const void *pSrc,
                                size_t size, uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t *phEvent);

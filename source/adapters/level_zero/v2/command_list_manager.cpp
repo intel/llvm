@@ -102,11 +102,11 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_command_list_manager::enqueueUSMMemcpy(
+ur_result_t ur_command_list_manager::appendUSMMemcpy(
     bool blocking, void *pDst, const void *pSrc, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  TRACK_SCOPE_LATENCY("ur_command_list_manager::enqueueUSMMemcpy");
+  TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMMemcpy");
 
   std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
