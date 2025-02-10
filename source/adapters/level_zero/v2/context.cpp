@@ -48,7 +48,8 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            uint32_t numDevices,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
-    : commandListCache(hContext),
+    : hContext(hContext, ownZeContext),
+      hDevices(phDevices, phDevices + numDevices), commandListCache(hContext),
       eventPoolCache(this, phDevices[0]->Platform->getNumDevices(),
                      [context = this, platform = phDevices[0]->Platform](
                          DeviceId deviceId, v2::event_flags_t flags)
@@ -65,8 +66,6 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
-      hContext(hContext, ownZeContext),
-      hDevices(phDevices, phDevices + numDevices),
       p2pAccessDevices(populateP2PDevices(
           phDevices[0]->Platform->getNumDevices(), this->hDevices)),
       defaultUSMPool(this, nullptr) {}
