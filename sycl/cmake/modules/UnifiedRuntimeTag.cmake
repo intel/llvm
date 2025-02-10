@@ -1,7 +1,7 @@
-# commit 9d6542bac16db69d907002cb0f8c724c7a50d2dc
-# Merge: 0e6adfb6 04882ba3
+# commit bdbe7b47a8d72710da60a409d6e21f64080d6f05
+# Merge: e55fe50f 508e6b9b
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Feb 6 11:30:48 2025 +0000
-#     Merge pull request #2655 from hvdijk/nativecpu-null-phevent
-#     [NativeCPU] Handle null phEvent.
-set(UNIFIED_RUNTIME_TAG yc/0208-ur-dasan-bugfix-main)
+# Date:   Mon Feb 10 11:10:34 2025 +0000
+#     Merge pull request #2679 from yingcong-wu/yc/0208-ur-dasan-bugfix-main
+#     [DeviceASAN][bugfix] Not allow concurrent kernel launches across different queue
+set(UNIFIED_RUNTIME_TAG bdbe7b47a8d72710da60a409d6e21f64080d6f05)
