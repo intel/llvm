@@ -63,7 +63,8 @@ build_compute_bench() {
 #
 # Usage: <relative path of directory containing test case results>
 samples_under_threshold () {
-    [ ! -d "./llvm-ci-perf-results/$1" ] && return 1 # Directory doesn't exist
+    # Directory doesn't exist, samples automatically under threshold
+    [ ! -d "./llvm-ci-perf-results/$1" ] && return 0
     file_count="$(find "./llvm-ci-perf-results/$1" -maxdepth 1 -type f | wc -l )"
     [ "$file_count" -lt "$SANITIZED_AVERAGE_MIN_THRESHOLD" ]
 }
