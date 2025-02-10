@@ -6,6 +6,10 @@ class Compare(Enum):
     AVERAGE = 'average'
     MEDIAN = 'median'
 
+class MarkdownSize(Enum):
+    SHORT = 'short'
+    FULL = 'full'
+
 @dataclass
 class Options:
     workdir: str = None
@@ -20,8 +24,8 @@ class Options:
     verbose: bool = False
     compare: Compare = Compare.LATEST
     compare_max: int = 10 # average/median over how many results
+    output_markdown: MarkdownSize = MarkdownSize.SHORT
     output_html: bool = False
-    output_markdown: bool = True
     dry_run: bool = False
     # these two should probably be merged into one setting
     stddev_threshold: float = 0.02
@@ -32,6 +36,7 @@ class Options:
     extra_env_vars: dict = field(default_factory=dict)
     compute_runtime_tag: str = '24.52.32224.10'
     build_igc: bool = False
+    current_run_name: str = "This PR"
 
 options = Options()
 
