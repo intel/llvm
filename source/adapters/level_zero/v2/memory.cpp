@@ -149,7 +149,7 @@ void ur_integrated_mem_handle_t::unmapHostPtr(
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice, void *dst,
                                      const void *src, size_t size) {
-  auto commandList = hContext->commandListCache.getImmediateCommandList(
+  auto commandList = hContext->getCommandListCache().getImmediateCommandList(
       hDevice->ZeDevice, true,
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
