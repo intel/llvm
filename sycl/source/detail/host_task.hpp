@@ -13,9 +13,11 @@
 #pragma once
 
 #include <detail/cg.hpp>
+#include <detail/global_handler.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/interop_handle.hpp>
+#include <detail/global_handler.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -33,6 +35,9 @@ public:
   bool isInteropTask() const { return !!MInteropTask; }
 
   void call(HostProfilingInfo *HPI) {
+    std::cout << "host_task call()" << std::endl;
+    if(!GlobalHandler::instance().isOkToDefer()){ return; }
+
     if (HPI)
       HPI->start();
     MHostTask();
@@ -41,6 +46,9 @@ public:
   }
 
   void call(HostProfilingInfo *HPI, interop_handle handle) {
+    std::cout << "host_task call()" << std::endl;
+    if(!GlobalHandler::instance().isOkToDefer()){ return; }
+
     if (HPI)
       HPI->start();
     MInteropTask(handle);
