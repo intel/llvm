@@ -474,6 +474,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
+
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceASAN local/private shadow memory does not support concurrent
+  // kernel launches now.
+  std::scoped_lock<ur_shared_mutex> Guard(
+      getAsanInterceptor()->KernelLaunchMutex);
+
   auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
 
   if (nullptr == pfnKernelLaunch) {
