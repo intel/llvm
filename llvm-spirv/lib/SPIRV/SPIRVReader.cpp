@@ -1395,6 +1395,14 @@ void SPIRVToLLVM::transFunctionPointerCallArgumentAttributes(
     std::vector<SPIRVWord> Literals = Dec->getVecLiteral();
     SPIRVWord ArgNo = Literals[0];
     SPIRVWord SpirvAttr = Literals[1];
+    // There is no value to rmap SPIR-V FunctionParameterAttributeNoCapture, as
+    // LLVM does not have Attribute::NoCapture anymore. Adding special handling
+    // for this case.
+    if (SpirvAttr == FunctionParameterAttributeNoCapture) {
+      CI->addParamAttr(ArgNo, Attribute::getWithCaptureInfo(
+                                  CI->getContext(), CaptureInfo::none()));
+      continue;
+    }
     Attribute::AttrKind LlvmAttrKind = SPIRSPIRVFuncParamAttrMap::rmap(
         static_cast<SPIRVFuncParamAttrKind>(SpirvAttr));
     auto LlvmAttr =
