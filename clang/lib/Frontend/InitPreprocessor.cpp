@@ -1500,7 +1500,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   // CUDA device path compilaton
   if ((LangOpts.SYCLIsDevice && LangOpts.SYCLCUDACompat) ||
-      (LangOpts.CUDAIsDevice && !LangOpts.HIP)) {
+      (LangOpts.CUDAIsDevice && !LangOpts.HIP && !LangOpts.isSYCL())) {
     // The CUDA_ARCH value is set for the GPU target specified in the NVPTX
     // backend's target defines.
     // Note: SYCL targeting nvptx-cuda relies on __SYCL_CUDA_ARCH__ instead.
