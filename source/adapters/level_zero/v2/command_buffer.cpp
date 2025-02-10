@@ -156,7 +156,7 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
   std::ignore = pSyncPoint;
 
   std::ignore = phCommand;
-
+  // Responsibility of UMD to offload to copy engine
   UR_CALL(hCommandBuffer->commandListManager.enqueueUSMMemcpy(
       false, pDst, pSrc, size, 0, nullptr, nullptr));
 
