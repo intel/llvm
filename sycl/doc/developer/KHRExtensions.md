@@ -27,15 +27,17 @@ but at the same time avoid exposing incomplete and/or undocumented feature to
 end users just yet.
 
 "in-progress" KHR extension term used above is defined as:
-- KHR extension proposed to Khronos Group which has not been published in a
-  released revision of the SYCL specification (of any version).
+- PR proposing a KHR extension has not been merged/cherry-picked to `sycl-2020`
+  branch of KhronosGroup/SYCL-Docs.
 
-  Note: merge of an extension proposal PR into KhronosGroup/SYCL-Docs repo is
-  **not** considered to be a publishing event. The extension specification has
-  to be available on the Khronos SYCL Registry website:
-  https://registry.khronos.org/SYCL/
+  That only happens after all formal processes on Khronos Group side are
+  completed so an extension can be considered good and stable to be released by
+  us.
 
-- Published KHR extension, which hasn't been fully implemented by us
+  Note: merge of an extension proposal PR into `main` branch of
+  KhronosGroup/SYCL-Docs repo is **not** enough.
+- Published (i.e. the above bullet complete) KHR extension, which hasn't been
+  fully implemented by us
 
 The macro is **not** intended to be used by end users and its purpose is to
 simplify our development process by allowing us to merge implementation (full
