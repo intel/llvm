@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/sycl_span.hpp>
@@ -255,25 +256,29 @@ constexpr auto get_block_op_ptr(IteratorT iter,
   }
 }
 
-template <int RequiredAlign, typename IteratorType>
-bool is_aligned(IteratorType iter) {
+template <int RequiredAlign, typename IteratorType, typename Properties>
+bool is_aligned(IteratorType iter, [[maybe_unused]] Properties props) {
   using value_type = remove_decoration_t<
       typename std::iterator_traits<IteratorType>::value_type>;
+
+  if constexpr (Properties::template has_property<alignment_key>()) {
+    if (Properties::template get_property<alignment_key>().value >=
+        RequiredAlign)
+      return true;
+  }
+
   return alignof(value_type) >= RequiredAlign ||
          reinterpret_cast<uintptr_t>(&*iter) % RequiredAlign == 0;
 }
 
-} // namespace detail
-
-// Load API span overload.
 template <typename Group, typename InputIteratorT, typename OutputT,
           std::size_t ElementsPerWorkItem,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  detail::is_generic_group_v<Group> &&
                  is_property_list_v<Properties>>
-group_load(Group g, InputIteratorT in_ptr,
-           span<OutputT, ElementsPerWorkItem> out, Properties props = {}) {
+group_load_impl(Group g, InputIteratorT in_ptr,
+                span<OutputT, ElementsPerWorkItem> out, Properties props = {}) {
   constexpr bool blocked = detail::isBlocked(props);
   using use_naive =
       detail::merged_properties_t<Properties,
@@ -286,7 +291,7 @@ group_load(Group g, InputIteratorT in_ptr,
     group_barrier(g);
     return;
   } else if constexpr (!std::is_same_v<Group, sycl::sub_group>) {
-    return group_load(g, in_ptr, out, use_naive{});
+    return group_load_impl(g, in_ptr, out, use_naive{});
   } else {
     auto ptr = detail::get_block_op_ptr<ElementsPerWorkItem>(in_ptr, props);
     static constexpr auto deduced_address_space =
@@ -297,12 +302,12 @@ group_load(Group g, InputIteratorT in_ptr,
                     access::address_space::generic_space) {
         if (auto local_ptr = detail::dynamic_address_cast<
                 access::address_space::local_space>(ptr)) {
-          return group_load(g, local_ptr, out, props);
+          return group_load_impl(g, local_ptr, out, props);
         } else if (auto global_ptr = detail::dynamic_address_cast<
                        access::address_space::global_space>(ptr)) {
-          return group_load(g, global_ptr, out, props);
+          return group_load_impl(g, global_ptr, out, props);
         } else {
-          return group_load(g, in_ptr, out, use_naive{});
+          return group_load_impl(g, in_ptr, out, use_naive{});
         }
       } else {
         using value_type = remove_decoration_t<
@@ -314,8 +319,8 @@ group_load(Group g, InputIteratorT in_ptr,
         constexpr int ReqAlign =
             detail::RequiredAlignment<detail::operation_type::load,
                                       deduced_address_space>::value;
-        if (!detail::is_aligned<ReqAlign>(in_ptr))
-          return group_load(g, in_ptr, out, use_naive{});
+        if (!detail::is_aligned<ReqAlign>(in_ptr, props))
+          return group_load_impl(g, in_ptr, out, use_naive{});
 
         // We know the pointer is aligned and the address space is known. Do the
         // optimized load.
@@ -353,20 +358,21 @@ group_load(Group g, InputIteratorT in_ptr,
         }
       }
     } else {
-      return group_load(g, in_ptr, out, use_naive{});
+      return group_load_impl(g, in_ptr, out, use_naive{});
     }
+
+    return;
   }
 }
 
-// Store API span overload.
 template <typename Group, typename InputT, std::size_t ElementsPerWorkItem,
           typename OutputIteratorT,
           typename Properties = decltype(properties())>
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  detail::is_generic_group_v<Group> &&
                  is_property_list_v<Properties>>
-group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
-            OutputIteratorT out_ptr, Properties props = {}) {
+group_store_impl(Group g, const span<InputT, ElementsPerWorkItem> in,
+                 OutputIteratorT out_ptr, Properties props = {}) {
   constexpr bool blocked = detail::isBlocked(props);
   using use_naive =
       detail::merged_properties_t<Properties,
@@ -379,7 +385,7 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
     group_barrier(g);
     return;
   } else if constexpr (!std::is_same_v<Group, sycl::sub_group>) {
-    return group_store(g, in, out_ptr, use_naive{});
+    return group_store_impl(g, in, out_ptr, use_naive{});
   } else {
     auto ptr = detail::get_block_op_ptr<ElementsPerWorkItem>(out_ptr, props);
 
@@ -390,12 +396,12 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
                     access::address_space::generic_space) {
         if (auto local_ptr = detail::dynamic_address_cast<
                 access::address_space::local_space>(ptr)) {
-          return group_store(g, in, local_ptr, props);
+          return group_store_impl(g, in, local_ptr, props);
         } else if (auto global_ptr = detail::dynamic_address_cast<
                        access::address_space::global_space>(ptr)) {
-          return group_store(g, in, global_ptr, props);
+          return group_store_impl(g, in, global_ptr, props);
         } else {
-          return group_store(g, in, out_ptr, use_naive{});
+          return group_store_impl(g, in, out_ptr, use_naive{});
         }
       } else {
         using block_info = typename detail::BlockTypeInfo<
@@ -406,8 +412,8 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
         constexpr int ReqAlign =
             detail::RequiredAlignment<detail::operation_type::store,
                                       deduced_address_space>::value;
-        if (!detail::is_aligned<ReqAlign>(out_ptr))
-          return group_store(g, in, out_ptr, use_naive{});
+        if (!detail::is_aligned<ReqAlign>(out_ptr, props))
+          return group_store_impl(g, in, out_ptr, use_naive{});
 
         std::remove_const_t<remove_decoration_t<
             typename std::iterator_traits<OutputIteratorT>::value_type>>
@@ -424,9 +430,40 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
                                         sycl::bit_cast<block_op_type>(values));
       }
     } else {
-      return group_store(g, in, out_ptr, use_naive{});
+      return group_store_impl(g, in, out_ptr, use_naive{});
     }
   }
+}
+} // namespace detail
+
+// Load API span overload.
+template <typename Group, typename InputIteratorT, typename OutputT,
+          std::size_t ElementsPerWorkItem,
+          typename Properties = decltype(properties())>
+std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
+group_load(Group g, InputIteratorT in_ptr,
+           span<OutputT, ElementsPerWorkItem> out, Properties props = {}) {
+  static_assert(std::is_pointer_v<InputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_load requires a pointer if alignment property is used");
+  detail::group_load_impl(g, in_ptr, out, props);
+}
+
+// Store API span overload.
+template <typename Group, typename InputT, std::size_t ElementsPerWorkItem,
+          typename OutputIteratorT,
+          typename Properties = decltype(properties())>
+std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
+                 detail::is_generic_group_v<Group> &&
+                 is_property_list_v<Properties>>
+group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
+            OutputIteratorT out_ptr, Properties props = {}) {
+  static_assert(std::is_pointer_v<OutputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_store requires a pointer if alignment property is used");
+  detail::group_store_impl(g, in, out_ptr, props);
 }
 
 // Load API scalar.
@@ -437,7 +474,10 @@ std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  is_property_list_v<Properties>>
 group_load(Group g, InputIteratorT in_ptr, OutputT &out,
            Properties properties = {}) {
-  group_load(g, in_ptr, span<OutputT, 1>(&out, 1), properties);
+  static_assert(std::is_pointer_v<InputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_load requires a pointer if alignment property is used");
+  detail::group_load_impl(g, in_ptr, span<OutputT, 1>(&out, 1), properties);
 }
 
 // Store API scalar.
@@ -448,7 +488,11 @@ std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  is_property_list_v<Properties>>
 group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
             Properties properties = {}) {
-  group_store(g, span<const InputT, 1>(&in, 1), out_ptr, properties);
+  static_assert(std::is_pointer_v<OutputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_store requires a pointer if alignment property is used");
+  detail::group_store_impl(g, span<const InputT, 1>(&in, 1), out_ptr,
+                           properties);
 }
 
 // Load API sycl::vec overload.
@@ -459,7 +503,10 @@ std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  is_property_list_v<Properties>>
 group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
            Properties properties = {}) {
-  group_load(g, in_ptr, span<OutputT, N>(&out[0], N), properties);
+  static_assert(std::is_pointer_v<InputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_load requires a pointer if alignment property is used");
+  detail::group_load_impl(g, in_ptr, span<OutputT, N>(&out[0], N), properties);
 }
 
 // Store API sycl::vec overload.
@@ -470,7 +517,11 @@ std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  is_property_list_v<Properties>>
 group_store(Group g, const sycl::vec<InputT, N> &in, OutputIteratorT out_ptr,
             Properties properties = {}) {
-  group_store(g, span<const InputT, N>(&in[0], N), out_ptr, properties);
+  static_assert(std::is_pointer_v<OutputIteratorT> ||
+                    !Properties::template has_property<alignment_key>(),
+                "group_store requires a pointer if alignment property is used");
+  detail::group_store_impl(g, span<const InputT, N>(&in[0], N), out_ptr,
+                           properties);
 }
 
 #else

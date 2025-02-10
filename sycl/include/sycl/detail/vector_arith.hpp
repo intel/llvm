@@ -21,6 +21,19 @@ template <typename DataT, int NumElem> class __SYCL_EBO vec;
 
 namespace detail {
 
+template <typename T> struct from_incomplete;
+template <typename T>
+struct from_incomplete<const T> : public from_incomplete<T> {};
+
+template <typename DataT, int NumElements>
+struct from_incomplete<vec<DataT, NumElements>> {
+  using element_type = DataT;
+  static constexpr size_t size() { return NumElements; }
+};
+
+template <bool Cond, typename Mixin> struct ApplyIf {};
+template <typename Mixin> struct ApplyIf<true, Mixin> : Mixin {};
+
 // We use std::plus<void> and similar to "map" template parameter to an
 // overloaded operator. These three below are missing from `<functional>`.
 struct ShiftLeft {
