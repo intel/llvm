@@ -1,4 +1,3 @@
-// REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_1d_usm
 
 // RUN: %{build} -o %t.out

@@ -14,10 +14,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 template <typename T>
-struct shape_geo : std::bool_constant<is_valid_size_v<T, 2, 3, 4> ||
-                                      is_scalar_arithmetic_v<T>> {};
+struct shape_geo
+    : std::bool_constant<check_value_in_v<num_elements_v<T>, 2, 3, 4> ||
+                         is_scalar_arithmetic_v<T>> {};
 template <typename T>
-struct shape_geo3or4 : std::bool_constant<is_valid_size_v<T, 3, 4>> {};
+struct shape_geo3or4
+    : std::bool_constant<check_value_in_v<num_elements_v<T>, 3, 4>> {};
 } // namespace detail
 
 BUILTIN_CREATE_ENABLER(builtin_enable_geo, default_ret_type, fp_elem_type,

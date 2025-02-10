@@ -26,12 +26,15 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
-#include <array>       // for array
-#include <cstddef>     // for std::byte
-#include <cstring>     // for size_t, memcpy
-#include <functional>  // for function
-#include <iterator>    // for distance
-#include <memory>      // for shared_ptr, operator==, hash
+#include <array>      // for array
+#include <cstddef>    // for std::byte
+#include <cstring>    // for size_t, memcpy
+#include <functional> // for function
+#include <iterator>   // for distance
+#include <memory>     // for shared_ptr, operator==, hash
+#if __has_include(<span>)
+#include <span>
+#endif
 #include <string>      // for string
 #include <type_traits> // for enable_if_t, remove_refer...
 #include <utility>     // for move
@@ -123,6 +126,13 @@ protected:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  backend ext_oneapi_get_backend_impl() const noexcept;
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  std::pair<const std::byte *, const std::byte *>
+  ext_oneapi_get_backend_content_view_impl() const;
+#endif // HAS_STD_BYTE
 };
 } // namespace detail
 
@@ -144,6 +154,30 @@ public:
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
     return device_image_plain::has_kernel(KernelID, Dev);
   }
+
+  backend ext_oneapi_get_backend() const noexcept {
+    return device_image_plain::ext_oneapi_get_backend_impl();
+  }
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  template <sycl::bundle_state T = State,
+            typename = std::enable_if_t<T == bundle_state::executable>>
+  std::vector<std::byte> ext_oneapi_get_backend_content() const {
+    const auto view =
+        device_image_plain::ext_oneapi_get_backend_content_view_impl();
+    return std::vector(view.first, view.second);
+  }
+
+#ifdef __cpp_lib_span
+  template <sycl::bundle_state T = State,
+            typename = std::enable_if_t<T == bundle_state::executable>>
+  std::span<const std::byte> ext_oneapi_get_backend_content_view() const {
+    const auto view =
+        device_image_plain::ext_oneapi_get_backend_content_view_impl();
+    return std::span<const std::byte>{view.first, view.second};
+  }
+#endif // __cpp_lib_span
+#endif // _HAS_STD_BYTE
 
 private:
   device_image(detail::DeviceImageImplPtr Impl)

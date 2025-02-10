@@ -36,7 +36,7 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 template <typename T>
 constexpr bool is_vec_or_swizzle_bf16_v =
     sycl::detail::is_vec_or_swizzle_v<T> &&
-    sycl::detail::is_valid_elem_type_v<T, bfloat16>;
+    std::is_same_v<sycl::detail::get_elem_type_t<T>, bfloat16>;
 
 template <typename T>
 constexpr int num_elements_v = sycl::detail::num_elements<T>::value;

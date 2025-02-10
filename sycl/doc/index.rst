@@ -66,3 +66,4 @@ Developer Documentation
    developer/DockerBKMs
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP
+   developer/KHRExtensions

@@ -2272,7 +2272,7 @@ void release_external_semaphore(external_semaphore semaphoreHandle,
 ```cpp
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_1_1D_read_write.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_1_1D_read_write.cpp[lines=12..-1]
 ```
 
 === Reading from a dynamically sized array of 2D images
@@ -2288,14 +2288,14 @@ include::../../../test-e2e/bindless_images/examples/example_2_2D_dynamic_read.cp
 ```cpp
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_3_1D_mipmap_anisotropic_filtering_and_levels.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_3_1D_mipmap_anisotropic_filtering_and_levels.cpp[lines=10..-1]
 ```
 
 === 1D image array read/write
 ```cpp
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_4_1D_array_read_write.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_4_1D_array_read_write.cpp[lines=14..-1]
 ```
 
 === Sampling a cubemap
@@ -2303,7 +2303,7 @@ include::../../../test-e2e/bindless_images/examples/example_4_1D_array_read_writ
 ```c++
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp[lines=9..-1]
+include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp[lines=10..-1]
 ```
 
 === Using imported memory and semaphore objects
@@ -2311,7 +2311,7 @@ include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp
 ```c++
 #include <sycl/sycl.hpp>
 
-include::../../../test-e2e/bindless_images/examples/example_6_import_memory_and_semaphores.cpp[lines=8..-1]
+include::../../../test-e2e/bindless_images/examples/example_6_import_memory_and_semaphores.cpp[lines=14..-1]
 ```
 
 == Implementation notes

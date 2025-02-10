@@ -22,7 +22,6 @@
 
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
 #include <clc/common/clc_smoothstep.h>
 
 #define SMOOTHSTEP_SINGLE_DEF(X_TYPE)                                          \
