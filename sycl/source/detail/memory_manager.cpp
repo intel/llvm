@@ -1644,7 +1644,8 @@ void MemoryManager::copy_image_bindless(
          "Copy image bindless must be called with a valid device queue");
   assert((Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
           Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST ||
-          Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) &&
+          Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+          Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) &&
          "Invalid flags passed to copy_image_bindless.");
   if (!Dst || !Src)
     throw sycl::exception(

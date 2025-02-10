@@ -12,7 +12,7 @@ on:
         required: True
       image:
         type: string
-        required: True
+        required: False
       image_options:
         type: string
         required: True
@@ -114,25 +114,29 @@ on:
           - '["Linux", "pvc"]'
           - '["cts-cpu"]'
           - '["Linux", "build"]'
+          - '["cuda"]'
       image:
         type: choice
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+          - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options:
         description: |
           Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
         type: choice
         options:
-          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
+          - '-u 1001 --gpus all --cap-add SYS_ADMIN'
       target_devices:
         type: choice
         options:
+          - 'level_zero:gpu'
           - 'opencl:cpu'
           - 'opencl:gpu'
           - 'opencl:fpga'
-          - 'level_zero:gpu'
           - 'hip:gpu'
+          - 'cuda:gpu'
       tests_selector:
         type: choice
         options:
@@ -182,7 +186,7 @@ jobs:
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
-      image: ${{ inputs.image }}
+      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
@@ -207,7 +211,7 @@ jobs:
             # If libllvm14 is already installed (dev igc docker), still return true.
             sudo apt-get install -yqq libllvm14 || true;
         fi
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |

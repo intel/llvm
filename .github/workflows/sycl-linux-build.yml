@@ -195,9 +195,6 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl-unittests
     - name: check-llvm-spirv
       if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
-      # Temporary workaround to disable running tests requiring spirv-tools.
-      env:
-        LIT_OPTS: "--param disable-spirv-tools=True"
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
@@ -282,3 +279,18 @@ jobs:
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+
+    - name: Remove E2E tests before spirv-backend run
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: rm -rf build-e2e
+
+    - name: Build E2E tests with SPIR-V Backend
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_spirv_backend
+        cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        extra_lit_opts: --param spirv-backend=True

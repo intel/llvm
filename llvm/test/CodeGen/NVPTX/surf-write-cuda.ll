@@ -11,7 +11,7 @@ declare i64 @llvm.nvvm.texsurf.handle.internal.p1(ptr addrspace(1))
 
 ; SM20-LABEL: .entry foo
 ; SM30-LABEL: .entry foo
-define void @foo(i64 %img, i32 %val, i32 %idx) {
+define ptx_kernel void @foo(i64 %img, i32 %val, i32 %idx) {
 ; SM20: ld.param.u64    %rd[[SURFREG:[0-9]+]], [foo_param_0];
 ; SM20: sust.b.1d.b32.trap [%rd[[SURFREG]], {%r{{[0-9]+}}}], {%r{{[0-9]+}}}
 ; SM30: ld.param.u64    %rd[[SURFREG:[0-9]+]], [foo_param_0];
@@ -27,7 +27,7 @@ define void @foo(i64 %img, i32 %val, i32 %idx) {
 
 ; SM20-LABEL: .entry bar
 ; SM30-LABEL: .entry bar
-define void @bar(i32 %val, i32 %idx) {
+define ptx_kernel void @bar(i32 %val, i32 %idx) {
 ; SM30: mov.u64 %rd[[SURFHANDLE:[0-9]+]], surf0
   %surfHandle = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1(ptr addrspace(1) @surf0)
 ; SM20: sust.b.1d.b32.trap [surf0, {%r{{[0-9]+}}}], {%r{{[0-9]+}}}
@@ -37,8 +37,6 @@ define void @bar(i32 %val, i32 %idx) {
 }
 
 
-!nvvm.annotations = !{!1, !2, !3}
-!1 = !{ptr @foo, !"kernel", i32 1}
-!2 = !{ptr @bar, !"kernel", i32 1}
-!3 = !{ptr addrspace(1) @surf0, !"surface", i32 1}
+!nvvm.annotations = !{!1}
+!1 = !{ptr addrspace(1) @surf0, !"surface", i32 1}
 

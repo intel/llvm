@@ -62,6 +62,10 @@ if config.test_mode == "full":
     config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
+    # run-only uses external shell, some tests might have hacks to workaround
+    # failures caused by that.
+    config.available_features.add("test-mode-run-only")
+
     config.available_features.add("run-mode")
     if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
         config.available_features.add("build-and-run-mode")
@@ -889,6 +893,14 @@ else:
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
     )
+
+if lit_config.params.get("print_features", False):
+    lit_config.note(
+        "Global features: {}".format(" ".join(sorted(config.available_features)))
+    )
+    lit_config.note("Per-device features:")
+    for dev, features in config.sycl_dev_features.items():
+        lit_config.note("\t{}: {}".format(dev, " ".join(sorted(features))))
 
 # Set timeout for a single test
 try:
