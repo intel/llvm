@@ -24,7 +24,7 @@ Foo& get() {
   return f;
 }
 
-int printf(const char *restrict, ...) { return 0; }
+extern "C" int printf(const char *fmt, ...);
 
 void print() {
   sycl::queue q;
