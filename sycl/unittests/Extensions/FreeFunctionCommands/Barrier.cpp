@@ -6,7 +6,7 @@
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/ext/khr/free_function_commands.hpp>
 
-static size_t NumOfEnqueueEventsWaitWithBarrier = 0;
+thread_local size_t NumOfEnqueueEventsWaitWithBarrier = 0;
 
 inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *pParams) {
   (void)pParams;
