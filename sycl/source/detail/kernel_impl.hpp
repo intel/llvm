@@ -437,13 +437,13 @@ template <int Dimensions>
 inline sycl::id<Dimensions>
 generate_id(const sycl::range<Dimensions> &DevMAxWorkItemSizes,
             const size_t DevWgSize) {
-  sycl::id<Dimensions> ret;
+  sycl::id<Dimensions> Ret;
   for (int i = 0; i < Dimensions; i++) {
     // DevMAxWorkItemSizes values are reverted, see
     // sycl/source/detail/device_info.hpp:582
-    ret[i] = std::min(DevMAxWorkItemSizes[i], DevWgSize);
+    Ret[i] = std::min(DevMAxWorkItemSizes[i], DevWgSize);
   }
-  return ret;
+  return Ret;
 }
 
 #define ADD_TEMPLATE_METHOD_SPEC(Num)                                          \
