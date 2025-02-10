@@ -4,4 +4,4 @@
 # Date:   Fri Jan 31 10:15:03 2025 +0000
 #     Merge pull request #2575 from DBDuncan/duncan/extend-copies
 #     [CUDA][Bindless] Add support for device to device pitched copies and host to host copies
-set(UNIFIED_RUNTIME_TAG 8922e51bef1a11d50d3001df024bf09f196eae86)
+set(UNIFIED_RUNTIME_TAG 807196a709a8fa024a0257f9ec1651d072f0df07)
