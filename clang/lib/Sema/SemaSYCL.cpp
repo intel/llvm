@@ -436,7 +436,7 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
   // inform the user of both, e.g. struct member usage vs declaration.
 
   bool Emitting = false;
-  ASTContext& Context = S.getASTContext();
+  ASTContext &Context = S.getASTContext();
 
   //--- check types ---
 
@@ -464,7 +464,8 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
       (Ty->isIntegerType() && Context.getTypeSize(Ty) == 128 &&
        !Context.getTargetInfo().hasInt128Type()) ||
       (Ty->isBFloat16Type() && !Context.getTargetInfo().hasBFloat16Type()) ||
-      // FIXME: this should have a TI check, but support isn't properly reported ...
+      // FIXME: this should have a TI check, but support isn't properly reported
+      // ...
       (Ty->isSpecificBuiltinType(BuiltinType::LongDouble))) {
     S.DiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
         << Ty.getUnqualifiedType().getCanonicalType();

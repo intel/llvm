@@ -5909,7 +5909,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
 
-//    if (IsSYCLCUDACompat && IsSYCLDevice) {
     if (IsSYCLCUDACompat) {
       Args.addOptInFlag(CmdArgs, options::OPT_fsycl_cuda_compat,
                         options::OPT_fno_sycl_cuda_compat);

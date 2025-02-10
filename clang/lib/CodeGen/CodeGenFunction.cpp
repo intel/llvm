@@ -1882,9 +1882,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       Builder.CreateRetVoid();
     else
       Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
-      Builder.ClearInsertionPoint();
-  }
-  else if (isa<CXXDestructorDecl>(FD))
+    Builder.ClearInsertionPoint();
+  } else if (isa<CXXDestructorDecl>(FD))
     EmitDestructorBody(Args);
   else if (isa<CXXConstructorDecl>(FD))
     EmitConstructorBody(Args);
