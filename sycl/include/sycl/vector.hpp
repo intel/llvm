@@ -113,12 +113,11 @@ public:
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Vec, typename T, int N, typename = void>
-struct ScalarConversionOperatorMixIn {};
+template <typename Self> class ScalarConversionOperatorMixIn {
+  using T = typename from_incomplete<Self>::element_type;
 
-template <typename Vec, typename T, int N>
-struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
-  operator T() const { return (*static_cast<const Vec *>(this))[0]; }
+public:
+  operator T() const { return (*static_cast<const Self *>(this))[0]; }
 };
 
 template <typename T>
@@ -134,10 +133,10 @@ inline constexpr bool is_fundamental_or_half_or_bfloat16 =
 template <typename DataT, int NumElements>
 class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
-      public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
-                                                   DataT, NumElements>,
-      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>,
-                                            NumElements> {
+      public detail::ApplyIf<
+          NumElements == 1,
+          detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>>>,
+      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>> {
   static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
                 "DataT must be cv-unqualified");
 
@@ -176,6 +175,24 @@ public:
       typename std::conditional_t<NumElements == 1, element_type_for_vector_t,
                                   element_type_for_vector_t __attribute__((
                                       ext_vector_type(NumElements)))>;
+
+  // Make it a template to avoid ambiguity with `vec(const DataT &)` when
+  // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
+  // so we don't even need a smart `enable_if` condition here, the mere fact of
+  // this being a template makes the other ctor preferred.
+  template <
+      typename vector_t_ = vector_t,
+      typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
+  constexpr vec(vector_t_ openclVector) {
+    m_Data = sycl::bit_cast<DataType>(openclVector);
+  }
+
+  /* @SYCL2020
+   * Available only when: compiled for the device.
+   * Converts this SYCL vec instance to the underlying backend-native vector
+   * type defined by vector_t.
+   */
+  operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
 
 private:
 #endif // __SYCL_DEVICE_ONLY__
@@ -298,26 +315,6 @@ public:
     *this = Rhs.template as<vec>();
     return *this;
   }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  // Make it a template to avoid ambiguity with `vec(const DataT &)` when
-  // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
-  // so we don't even need a smart `enable_if` condition here, the mere fact of
-  // this being a template makes the other ctor preferred.
-  template <
-      typename vector_t_ = vector_t,
-      typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
-  constexpr vec(vector_t_ openclVector) {
-    m_Data = sycl::bit_cast<DataType>(openclVector);
-  }
-
-  /* @SYCL2020
-   * Available only when: compiled for the device.
-   * Converts this SYCL vec instance to the underlying backend-native vector
-   * type defined by vector_t.
-   */
-  operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
-#endif // __SYCL_DEVICE_ONLY__
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
