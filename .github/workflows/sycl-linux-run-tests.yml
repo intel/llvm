@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Three possible options: "e2e", "cts", and "benchmark".
+          Three possible options: "e2e", "cts", and "compute-benchmarks".
         type: string
         default: "e2e"
 
@@ -142,7 +142,7 @@ on:
         options:
           - e2e
           - cts
-          - benchmark
+          - compute-benchmarks
 
       env:
         description: |
@@ -307,7 +307,7 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Run compute-benchmarks on SYCL
-      if: inputs.tests_selector == 'benchmark'
+      if: inputs.tests_selector == 'compute-benchmarks'
       uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
