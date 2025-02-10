@@ -4945,7 +4945,7 @@ recurse:
   case Expr::SYCLBuiltinFieldTypeExprClass:
   case Expr::SYCLBuiltinNumBasesExprClass:
   case Expr::SYCLBuiltinBaseTypeExprClass:
-  {
+  case Expr::ResolvedUnexpandedPackExprClass: {
     NotPrimaryExpr();
     if (!NullOut) {
       // As bad as this diagnostic is, it's better than crashing.
