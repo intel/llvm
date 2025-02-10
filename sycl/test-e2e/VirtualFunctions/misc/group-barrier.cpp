@@ -1,5 +1,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 //
+// On CPU it segfaults within the kernel that performs virtual function call.
+// XFAIL: cpu && linux
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15080
 // UNSUPPORTED: gpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15068
 // On GPU this test (its older version which used nd_item instead of group)
