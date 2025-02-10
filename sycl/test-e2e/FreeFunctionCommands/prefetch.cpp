@@ -22,7 +22,7 @@ int main() {
     sycl::khr::prefetch(Queue, Memory, ChunkSize);
   } catch (sycl::exception &Excep) {
     std::cout << "SYCL exception caught:" << Excep.what() << std::endl;
-    return ++Failed;
+    ++Failed;
   }
 
   try {
@@ -31,7 +31,7 @@ int main() {
     });
   } catch (sycl::exception &Excep) {
     std::cout << "SYCL exception caught:" << Excep.what() << std::endl;
-    return ++Failed;
+    ++Failed;
   }
 
   try {
@@ -42,7 +42,7 @@ int main() {
     Event.wait();
   } catch (sycl::exception &Excep) {
     std::cout << "SYCL exception caught:" << Excep.what() << std::endl;
-    return ++Failed;
+    ++Failed;
   }
 
   Queue.wait();

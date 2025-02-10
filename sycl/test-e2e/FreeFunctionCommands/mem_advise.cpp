@@ -25,14 +25,14 @@ int main() {
     sycl::khr::mem_advise(Queue, Memory, ChunkSize, 0);
   } catch (sycl::exception &Excep) {
     std::cout << "SYCL exception caught:" << Excep.what() << std::endl;
-    return ++Failed;
+    ++Failed;
   }
 
   try {
     sycl::khr::mem_advise(Queue, Memory, ChunkSize, 0);
   } catch (sycl::exception &Excep) {
     std::cout << "SYCL exception caught:" << Excep.what() << std::endl;
-    return ++Failed;
+    ++Failed;
   }
 
   try {
@@ -41,7 +41,7 @@ int main() {
     });
   } catch (sycl::exception &Excep) {
     std::cout << "SYCL exception caught:" << Excep.what() << std::endl;
-    return ++Failed;
+    ++Failed;
   }
 
   try {
@@ -52,7 +52,7 @@ int main() {
     Event.wait();
   } catch (sycl::exception &Excep) {
     std::cout << "SYCL exception caught:" << Excep.what() << std::endl;
-    return ++Failed;
+    ++Failed;
   }
 
   Queue.wait();
