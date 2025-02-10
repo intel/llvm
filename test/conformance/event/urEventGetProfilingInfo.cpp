@@ -215,3 +215,41 @@ TEST_P(urEventGetProfilingInfoForWaitWithBarrier, Success) {
 
   ASSERT_GE(complete_value, submit_value);
 }
+
+struct urEventGetProfilingInfoInvalidQueue : uur::urQueueTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
+                                     nullptr, &buffer));
+
+    input.assign(count, 42);
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, false, 0, size,
+                                           input.data(), 0, nullptr, &event));
+    ASSERT_SUCCESS(urEventWait(1, &event));
+  }
+
+  void TearDown() override {
+    if (buffer) {
+      EXPECT_SUCCESS(urMemRelease(buffer));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+  };
+
+  const size_t count = 1024;
+  const size_t size = sizeof(uint32_t) * count;
+  ur_mem_handle_t buffer = nullptr;
+  ur_event_handle_t event = nullptr;
+  std::vector<uint32_t> input;
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoInvalidQueue);
+
+TEST_P(urEventGetProfilingInfoInvalidQueue, ProfilingInfoNotAvailable) {
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
+  const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
+  size_t property_size;
+  ASSERT_EQ_RESULT(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+}

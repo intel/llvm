@@ -56,3 +56,35 @@ TEST_P(urEventCreateWithNativeHandleTest, SuccessWithProperties) {
                                 sizeof(ur_execution_info_t), &exec_info,
                                 nullptr));
 }
+
+TEST_P(urEventCreateWithNativeHandleTest, InvalidNullHandle) {
+  ur_native_handle_t native_event = 0;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventGetNativeHandle(event, &native_event));
+
+  // We cannot assume anything about a native_handle, not even if it's
+  // `nullptr` since this could be a valid representation within a backend.
+  // We can however convert the native_handle back into a unified-runtime handle
+  // and perform some query on it to verify that it works.
+  uur::raii::Event evt = nullptr;
+  ASSERT_EQ_RESULT(
+      urEventCreateWithNativeHandle(native_event, nullptr, nullptr, evt.ptr()),
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+}
+
+TEST_P(urEventCreateWithNativeHandleTest, InvalidNullPointer) {
+  ur_native_handle_t native_event = 0;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventGetNativeHandle(event, &native_event));
+
+  // We cannot assume anything about a native_handle, not even if it's
+  // `nullptr` since this could be a valid representation within a backend.
+  // We can however convert the native_handle back into a unified-runtime handle
+  // and perform some query on it to verify that it works.
+  uur::raii::Event evt = nullptr;
+  ASSERT_EQ_RESULT(
+      urEventCreateWithNativeHandle(native_event, context, nullptr, nullptr),
+      UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
