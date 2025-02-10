@@ -7,7 +7,7 @@
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes=CHECK-NO-ASPECT,CHECK
 
 !sycl_registered_kernels = !{!4}
-!4 = !{!5, !6, !7, !8, !9, !10, !11, !12, !13, !14, !16}
+!4 = !{!5, !6, !7, !8, !9, !10, !11, !12, !13, !14, !16, !17, !18, !19}
 
 ; Both splits should contain the registered kernel data.
 ; CHECK: [SYCL/registered kernels]
@@ -82,3 +82,12 @@ define spir_kernel void @kernel_with_aspects() !sycl_used_aspects !15 {
 ; Data with incorrect format should be ignored.
 ; CHECK-NOT: incorrect_data_format
 !16 = !{!"incorrect_data_format"}
+
+!17 = !{!"bar", !"_Z3barv"}
+!18 = !{!"bar", !"_Z3barv"}
+!19 = !{!"(void(*)())bar", !"_Z3barv"}
+; CHECK-NO-ASPECT-NEXT: bar=2|[[BAR:[A-Za-z0-9+/]+]]
+; CHECK-NO-ASPECT-NEXT: (void(*)())bar=2|[[BAR]]
+define spir_kernel void @_Z3barv() {
+    ret void
+}
