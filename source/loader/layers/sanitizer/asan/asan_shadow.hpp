@@ -15,6 +15,7 @@
 
 #include "asan_allocator.hpp"
 #include "sanitizer_common/sanitizer_libdevice.hpp"
+#include "ur_sanitizer_layer.hpp"
 
 #include <unordered_set>
 
@@ -24,10 +25,16 @@ namespace asan {
 struct ShadowMemory {
   ShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
       : Context(Context), Device(Device) {
-    urDeviceRetain(Device);
+    [[maybe_unused]] ur_result_t URes =
+        getContext()->urDdiTable.Device.pfnRetain(Device);
+    assert(URes == UR_RESULT_SUCCESS);
   }
 
-  virtual ~ShadowMemory() { urDeviceRelease(Device); }
+  virtual ~ShadowMemory() {
+    [[maybe_unused]] ur_result_t URes =
+        getContext()->urDdiTable.Device.pfnRelease(Device);
+    assert(URes == UR_RESULT_SUCCESS);
+  }
 
   virtual ur_result_t Setup() = 0;
 
