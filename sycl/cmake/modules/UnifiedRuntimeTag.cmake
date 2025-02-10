@@ -1,7 +1,7 @@
-# commit 08d36b76a5b1c4f080e3301507a39525ab5ab365
-# Merge: 4c504dbc e6b61c67
+# commit 9d6542bac16db69d907002cb0f8c724c7a50d2dc
+# Merge: 0e6adfb6 04882ba3
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Feb 4 13:14:19 2025 +0000
-#     Merge pull request #2614 from kurapov-peter/spills
-#     Add UR_KERNEL_INFO_SPILL_MEM_SIZE kernel info prop
-set(UNIFIED_RUNTIME_TAG 08d36b76a5b1c4f080e3301507a39525ab5ab365)
+# Date:   Thu Feb 6 11:30:48 2025 +0000
+#     Merge pull request #2655 from hvdijk/nativecpu-null-phevent
+#     [NativeCPU] Handle null phEvent.
+set(UNIFIED_RUNTIME_TAG 9d6542bac16db69d907002cb0f8c724c7a50d2dc)

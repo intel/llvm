@@ -1,4 +1,4 @@
-// REQUIRES: target-nvidia || (windows && level_zero && aspect-ext_oneapi_bindless_images)
+// REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes -DTEST_L0_SUPPORTED_VK_FORMAT %}
