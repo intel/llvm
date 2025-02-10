@@ -1,3 +1,7 @@
+// REQUIRES: opencl, opencl_icd, aspect-usm_shared_allocations, !accelerator
+// RUN: %{build} -fno-sycl-dead-args-optimization %opencl_lib -o %t.out
+// RUN: %{run} %t.out
+
 #include <sycl/backend.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/core.hpp>
@@ -50,10 +54,9 @@ int main() {
   auto clContext = sycl::get_native<sycl::backend::opencl>(ctxt);
   auto clDevice = sycl::get_native<sycl::backend::opencl>(d);
   cl_int status;
-  size_t lengths = bytes.size();
-  const unsigned char *data = (const unsigned char *)(bytes.data());
-  auto clProgram = clCreateProgramWithBinary(clContext, 1, &clDevice, &lengths,
-                                             &data, nullptr, &status);
+  auto clProgram = clCreateProgramWithIL(
+      clContext, reinterpret_cast<const void *>(bytes.data()), bytes.size(),
+      &status);
   assert(status == CL_SUCCESS);
   status = clBuildProgram(clProgram, 1, &clDevice, "", nullptr, nullptr);
   assert(status == CL_SUCCESS);
