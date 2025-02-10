@@ -73,6 +73,6 @@ runs:
     if: always()
     uses: ./devops/actions/benchmarking/aggregate
     with:
-      lookback_days: 7
+      lookback_days: 999
     env:
       GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
