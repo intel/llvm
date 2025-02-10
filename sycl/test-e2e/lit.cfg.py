@@ -894,6 +894,14 @@ else:
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
     )
 
+if lit_config.params.get("print_features", False):
+    lit_config.note(
+        "Global features: {}".format(" ".join(sorted(config.available_features)))
+    )
+    lit_config.note("Per-device features:")
+    for dev, features in config.sycl_dev_features.items():
+        lit_config.note("\t{}: {}".format(dev, " ".join(sorted(features))))
+
 # Set timeout for a single test
 try:
     import psutil
