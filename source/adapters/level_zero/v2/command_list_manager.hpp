@@ -51,6 +51,52 @@ struct ur_command_list_manager : public _ur_object {
                               size_t size, uint32_t numEventsInWaitList,
                               const ur_event_handle_t *phEventWaitList,
                               ur_event_handle_t *phEvent);
+  ur_result_t appendMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
+                                  size_t offset, size_t size, void *pDst,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent);
+
+  ur_result_t appendMemBufferWrite(ur_mem_handle_t hBuffer, bool blockingWrite,
+                                   size_t offset, size_t size, const void *pSrc,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent);
+
+  ur_result_t appendMemBufferCopy(ur_mem_handle_t hBufferSrc,
+                                  ur_mem_handle_t hBufferDst, size_t srcOffset,
+                                  size_t dstOffset, size_t size,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent);
+
+  ur_result_t appendMemBufferReadRect(
+      ur_mem_handle_t hBuffer, bool blockingRead, ur_rect_offset_t bufferOrigin,
+      ur_rect_offset_t hostOrigin, ur_rect_region_t region,
+      size_t bufferRowPitch, size_t bufferSlicePitch, size_t hostRowPitch,
+      size_t hostSlicePitch, void *pDst, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+
+  ur_result_t appendMemBufferWriteRect(
+      ur_mem_handle_t hBuffer, bool blockingWrite,
+      ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
+      ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
+      size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent);
+
+  ur_result_t appendMemBufferCopyRect(
+      ur_mem_handle_t hBufferSrc, ur_mem_handle_t hBufferDst,
+      ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
+      ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
+      size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+
+  ur_result_t appendUSMMemcpy2D(bool blocking, void *pDst, size_t dstPitch,
+                                const void *pSrc, size_t srcPitch, size_t width,
+                                size_t height, uint32_t numEventsInWaitList,
+                                const ur_event_handle_t *phEventWaitList,
+                                ur_event_handle_t *phEvent);
 
   ze_command_list_handle_t getZeCommandList();
 
@@ -60,6 +106,19 @@ struct ur_command_list_manager : public _ur_object {
                                    ur_command_t commandType);
 
 private:
+  ur_result_t appendGenericCopyUnlocked(
+      ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking, size_t srcOffset,
+      size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
+      ur_command_t commandType);
+
+  ur_result_t appendRegionCopyUnlocked(
+      ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking,
+      ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
+      ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
+      size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
+      ur_command_t commandType);
   // UR context associated with this command-buffer
   ur_context_handle_t context;
   // Device associated with this command-buffer
