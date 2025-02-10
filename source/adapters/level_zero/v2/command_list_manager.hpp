@@ -48,9 +48,9 @@ struct ur_command_list_manager : public _ur_object {
                                  ur_event_handle_t *phEvent);
 
   ur_result_t appendUSMMemcpy(bool blocking, void *pDst, const void *pSrc,
-                               size_t size, uint32_t numEventsInWaitList,
-                               const ur_event_handle_t *phEventWaitList,
-                               ur_event_handle_t *phEvent);
+                              size_t size, uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent);
 
   ze_command_list_handle_t getZeCommandList();
 

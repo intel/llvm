@@ -699,8 +699,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy(
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMMemcpy");
 
   UR_CALL(commandListManager.appendUSMMemcpy(blocking, pDst, pSrc, size,
-                                              numEventsInWaitList,
-                                              phEventWaitList, phEvent));
+                                             numEventsInWaitList,
+                                             phEventWaitList, phEvent));
 
   return UR_RESULT_SUCCESS;
 }
