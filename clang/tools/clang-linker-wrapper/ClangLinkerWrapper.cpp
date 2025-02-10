@@ -282,15 +282,17 @@ Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
   return TempFiles.back();
 }
 
-Expected<StringRef> writeOffloadFile(const OffloadFile &File) {
+// TODO: Remove HasSYCLOffloadKind dependence when aligning with community code.
+Expected<StringRef> writeOffloadFile(const OffloadFile &File,
+                                     bool HasSYCLOffloadKind = false) {
   const OffloadBinary &Binary = *File.getBinary();
 
   StringRef Prefix =
       sys::path::stem(Binary.getMemoryBufferRef().getBufferIdentifier());
-  StringRef Suffix = getImageKindName(Binary.getImageKind());
 
   auto TempFileOrErr = createOutputFile(
-      Prefix + "-" + Binary.getTriple() + "-" + Binary.getArch(), Suffix);
+      Prefix + "-" + Binary.getTriple() + "-" + Binary.getArch(),
+      HasSYCLOffloadKind ? getImageKindName(Binary.getImageKind()) : "o");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
@@ -1304,7 +1306,7 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     for (auto &Binary : Binaries) {
       auto BinTriple = Binary.getBinary()->getTriple();
       if (BinTriple == Triple.getTriple()) {
-        auto FileNameOrErr = writeOffloadFile(Binary);
+        auto FileNameOrErr = writeOffloadFile(Binary, true /* SYCLOffload */);
         if (!FileNameOrErr)
           return FileNameOrErr.takeError();
         ExtractedDeviceLibFiles.emplace_back(*FileNameOrErr);
@@ -2004,7 +2006,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
       for (const OffloadFile &File : Input) {
-        auto FileNameOrErr = writeOffloadFile(File);
+        auto FileNameOrErr = writeOffloadFile(File, HasSYCLOffloadKind);
         if (!FileNameOrErr)
           return FileNameOrErr.takeError();
         InputFiles.emplace_back(*FileNameOrErr);
