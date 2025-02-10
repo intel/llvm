@@ -86,6 +86,10 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -137,10 +141,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
