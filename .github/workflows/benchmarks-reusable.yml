@@ -175,7 +175,16 @@ jobs:
         -S${{github.workspace}}/umf-repo
         -B${{github.workspace}}/umf_build
         -DUMF_BUILD_BENCHMARKS=ON
-        -DUMF_TESTS_FAIL_ON_SKIP=ON
+        -DUMF_BUILD_SHARED_LIBRARY=ON
+        -DUMF_BUILD_BENCHMARKS_MT=ON
+        -DUMF_BUILD_TESTS=OFF
+        -DUMF_FORMAT_CODE_STYLE=OFF
+        -DUMF_DEVELOPER_MODE=OFF
+        -DUMF_BUILD_LEVEL_ZERO_PROVIDER=ON
+        -DUMF_BUILD_CUDA_PROVIDER=ON
+        -DUMF_BUILD_LIBUMF_POOL_DISJOINT=ON
+        -DUMF_BUILD_LIBUMF_POOL_JEMALLOC=ON
+        -DUMF_BUILD_EXAMPLES=OFF
 
     - name: Build UMF
       run: cmake --build ${{github.workspace}}/umf_build -j $(nproc)
