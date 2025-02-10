@@ -92,6 +92,7 @@ check_regression() {
 cache() {
     mkdir -p "$(dirname ./artifact/passing_tests/$1)" "$(dirname ./artifact/failed_tests/$1)"
     cp "./artifact/failed_tests/$1" "./artifact/passing_tests/$1"
+    mkdir -p "$(dirname ./llvm-ci-perf-results/$1)"
     mv "./artifact/failed_tests/$1" "./llvm-ci-perf-results/$1"
 }
 
@@ -198,7 +199,7 @@ load_configs() {
     #
     # Derive /devops based on location of this script:
     [ -z "$DEVOPS_PATH" ] && DEVOPS_PATH="$(dirname "$0")/../.."
-    if [ -z "$(printf "%s" "$DEVOPS_PATH" | grep -oE '^[a-zA-Z0-9._\/-]+$')"]; then
+    if [ -z "$(printf '%s' "$DEVOPS_PATH" | grep -oE '^[a-zA-Z0-9._\/-]+$')" ]; then
         echo "Bad DEVOPS_PATH, please specify DEVOPS_PATH variable."
         exit 1
     fi
