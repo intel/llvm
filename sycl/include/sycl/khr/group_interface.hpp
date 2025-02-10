@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/id.hpp>
@@ -224,3 +225,5 @@ template <typename Group> bool leader_of(Group g) {
 } // namespace khr
 } // namespace _V1
 } // namespace sycl
+
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS

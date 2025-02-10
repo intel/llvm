@@ -4,6 +4,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/khr/group_interface.hpp>
 
 #include <sycl/builtins.hpp>

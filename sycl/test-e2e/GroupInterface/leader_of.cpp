@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/khr/group_interface.hpp>
 
 using namespace sycl;
