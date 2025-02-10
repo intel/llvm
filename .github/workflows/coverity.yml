@@ -12,7 +12,7 @@ jobs:
     name: Coverity
     runs-on: [Linux, build]
     container:
-      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps
+      image: ghcr.io/intel/llvm/ubuntu2404_build:latest
       options: -u 1001:1001
 
     steps:
