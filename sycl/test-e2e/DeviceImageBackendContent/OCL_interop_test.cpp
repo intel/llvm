@@ -27,9 +27,11 @@ int main() {
   // TODO: Remove it once these limitations are no longer there.
 #ifndef __SYCL_DEVICE_ONLY__
   // First, run the kernel using the SYCL API.
+
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt);
   sycl::kernel_id iota_id = syclexp::get_kernel_id<iota>();
   sycl::kernel k_iota = bundle.get_kernel(iota_id);
+
   int *ptr = sycl::malloc_shared<int>(1, q);
   *ptr = 0;
   q.submit([&](sycl::handler &cgh) {
