@@ -1,5 +1,5 @@
 // REQUIRES: opencl, opencl_icd, aspect-usm_shared_allocations, !accelerator
-// RUN: %{build} -fno-sycl-dead-args-optimization %opencl_lib -o %t.out
+// RUN: %{build} %opencl_lib -fno-sycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/backend.hpp>
