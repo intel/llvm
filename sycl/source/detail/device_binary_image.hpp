@@ -73,7 +73,7 @@ public:
 
   uint32_t asUint32() const;
   ByteArray asByteArray() const;
-  const char *asCString() const;
+  std::string_view asStringView() const;
 
 protected:
   friend std::ostream &operator<<(std::ostream &Out,

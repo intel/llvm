@@ -558,7 +558,7 @@ inline MockProperty makeAspectsProp(const std::vector<sycl::aspect> &Aspects) {
   uint64_t ValDataSize = ValData.size();
   std::uninitialized_copy(&ValDataSize, &ValDataSize + sizeof(uint64_t),
                           ValData.data());
-  auto *AspectsPtr = reinterpret_cast<const unsigned char *>(&Aspects[0]);
+  auto *AspectsPtr = reinterpret_cast<const unsigned char *>(Aspects.data());
   std::uninitialized_copy(AspectsPtr, AspectsPtr + Aspects.size(),
                           ValData.data() + BYTES_FOR_SIZE);
   return {"aspects", ValData, SYCL_PROPERTY_TYPE_BYTE_ARRAY};
