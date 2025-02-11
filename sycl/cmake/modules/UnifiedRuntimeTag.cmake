@@ -1,7 +1,7 @@
-# commit 0e6adfb64039d3dd5fc8363245fcac60cbdcb8bd
-# Merge: 42044a83 d0c87169
+# commit 98756a20d7792636c87b6193fe1ff47ec4f78914
+# Merge: 34c21d7f 8b22ed83
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Feb 5 15:39:15 2025 +0000
-#     Merge pull request #2496 from GeorgeWeb/georgi/bindless-hip
-#     [UR][Bindless] Initial implementation of bindless images for HIP
-set(UNIFIED_RUNTIME_TAG 05726ce9d167d094be0feb069ae5eb8872cce628)
+# Date:   Tue Feb 11 12:09:29 2025 +0000
+#     Merge pull request #2688 from Bensuo/revert_2606
+#     Revert "Merge pull request #2606 from Bensuo/cmd-buf_enqueue_refactor"
+set(UNIFIED_RUNTIME_TAG 98756a20d7792636c87b6193fe1ff47ec4f78914)
