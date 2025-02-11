@@ -5,9 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} %no_opt -o %t.out
+// RUN: %{build} %O0 -o %t.out
 
 // RUN: %{run} %t.out
+
+// XFAIL: spirv-backend && run-mode
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 // This test checks correctness of hierarchical kernel execution when there is
 // code and data in the work group scope, and when the test is compiled with

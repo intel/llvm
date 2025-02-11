@@ -991,3 +991,16 @@ struct __attribute__((sycl_special_class)) InvalidSpecialClassStruct32 {
 struct [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", 1)]] InvalidKernelParameterSubjectStruct;     // expected-error {{'add_ir_attributes_kernel_parameter' attribute only applies to parameters}}
 [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", 1)]] void InvalidKernelParameterSubjectFunction() {} // expected-error {{'add_ir_attributes_kernel_parameter' attribute only applies to parameters}}
 [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", 1)]] int InvalidKernelParameterSubjectVar;           // expected-error {{'add_ir_attributes_kernel_parameter' attribute only applies to parameters}}
+
+struct A {
+  protected:
+  static constexpr const char *ir_attribute_name = ""; // expected-note {{declared protected here}}
+  static constexpr auto ir_attribute_value = nullptr;  // expected-note {{declared protected here}}
+};
+
+template <typename Ts>
+struct [[__sycl_detail__::add_ir_attributes_global_variable(
+             Ts::ir_attribute_name, Ts::ir_attribute_value)]] B {  // expected-error {{'ir_attribute_name' is a protected member of 'A'}} // expected-error {{'ir_attribute_value' is a protected member of 'A'}}
+};
+
+B<A> v; // expected-note {{in instantiation of template class 'B<A>' requested here}}

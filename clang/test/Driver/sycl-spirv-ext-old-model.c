@@ -24,6 +24,63 @@
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-sqrt -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -foffload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU,CHECK-CPU-NFPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -foffload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU,CHECK-CPU-NFPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -foffload-fp32-prec-div -foffload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU,CHECK-CPU-NFPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -foffload-fp32-prec-sqrt -foffload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU,CHECK-CPU-NFPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown -fno-offload-fp32-prec-sqrt -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-CPU
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-DEFAULT-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-DEFAULT-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-DEFAULT-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -fno-offload-fp32-prec-sqrt -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT,CHECK-DEFAULT-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -foffload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -foffload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -foffload-fp32-prec-div -foffload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown -foffload-fp32-prec-sqrt -foffload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW,CHECK-FPGA-HW-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW,CHECK-FPGA-HW-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW,CHECK-FPGA-HW-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -fno-offload-fp32-prec-sqrt -fno-offload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW,CHECK-FPGA-HW-FPME
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -foffload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -foffload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -foffload-fp32-prec-div -foffload-fp32-prec-sqrt %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware -foffload-fp32-prec-sqrt -foffload-fp32-prec-div %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
+
 
 // CHECK-DEFAULT: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_add
@@ -52,7 +109,6 @@
 // CHECK-DEFAULT-SAME:,+SPV_KHR_shader_clock
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bindless_images
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_task_sequence
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_hw_thread_queries
@@ -62,7 +118,8 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone
 // CHECK-DEFAULT-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-DEFAULT-SAME:,+SPV_KHR_cooperative_matrix
-// CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add"
+// CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add
+// CHECK-DEFAULT-FPME:,+SPV_INTEL_fp_max_error"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
@@ -91,7 +148,8 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_dsp_control
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_accesses
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_attributes"
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_memory_attributes
+// CHECK-FPGA-HW-FPME:,+SPV_INTEL_fp_max_error"
 // CHECK-CPU: llvm-spirv{{.*}}"-spirv-allow-unknown-intrinsics=llvm.genx.,llvm.fpbuiltin"
 // CHECK-CPU-SAME: {{.*}}"-spirv-ext=-all
 // CHECK-CPU-SAME:,+SPV_EXT_shader_atomic_float_add
@@ -118,7 +176,6 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_latency_control
 // CHECK-CPU-SAME:,+SPV_INTEL_task_sequence
-// CHECK-CPU-SAME:,+SPV_INTEL_token_type
 // CHECK-CPU-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-CPU-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_hw_thread_queries
@@ -128,4 +185,4 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_optnone
 // CHECK-CPU-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-CPU-SAME:,+SPV_KHR_cooperative_matrix
-// CHECK-CPU-SAME:,+SPV_INTEL_fp_max_error"
+// CHECK-CPU-NFPME-NOT:,+SPV_INTEL_fp_max_error"

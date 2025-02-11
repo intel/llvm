@@ -1,7 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
+
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
 
@@ -10,10 +16,12 @@
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Lenmemset21:[0-9]+]] 4
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Lenmemset0:[0-9]+]] 12
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Const21:[0-9]+]] 21
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8Ptr:[0-9]+]] 8
 ; CHECK-SPIRV: TypeArray [[Int8x4:[0-9]+]] [[Int8]] [[Lenmemset21]]
-; CHECK-SPIRV: TypePointer [[Int8Ptr:[0-9]+]] 8 [[Int8]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8Ptr:[0-9]+]] 8 [[Int8]]
 ; CHECK-SPIRV: TypeArray [[Int8x12:[0-9]+]] [[Int8]] [[Lenmemset0]]
-; CHECK-SPIRV: TypePointer [[Int8PtrConst:[0-9]+]] 0 [[Int8]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrConst:[0-9]+]] 0 [[Int8]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrConst:[0-9]+]] 0
 
 ; CHECK-SPIRV: ConstantNull [[Int8x12]] [[Init:[0-9]+]]
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[Val:[0-9]+]] 0 [[Init]]
@@ -43,7 +51,8 @@
 ; CHECK-SPIRV: Label [[#WhileBody]]
 ; CHECK-SPIRV: Phi [[#]] [[#Offset:]] [[#Zero]] [[#Entry]] [[#OffsetInc:]] [[#WhileBody]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#DestU8:]] [[#Dest]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#Ptr:]] [[#DestU8]] [[#Offset]]
+; CHECK-SPIRV-TYPED-PTR: InBoundsPtrAccessChain [[#]] [[#Ptr:]] [[#DestU8]] [[#Offset]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedInBoundsPtrAccessChainKHR [[#]] [[#Ptr:]] [[Int8]] [[#DestU8]] [[#Offset]]
 ; CHECK-SPIRV: Store [[#Ptr]] [[#Value]] 2 1
 ; CHECK-SPIRV: IAdd [[#]] [[#OffsetInc]] [[#Offset]] [[#One:]]
 ; CHECK-SPIRV: ULessThan [[#]] [[#NotEnd:]] [[#OffsetInc]] [[#Len]]

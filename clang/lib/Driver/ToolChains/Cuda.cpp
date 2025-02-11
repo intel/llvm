@@ -17,6 +17,7 @@
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
@@ -86,6 +87,10 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_124;
   if (raw_version < 12060)
     return CudaVersion::CUDA_125;
+  if (raw_version < 12070)
+    return CudaVersion::CUDA_126;
+  if (raw_version < 12090)
+    return CudaVersion::CUDA_128;
   return CudaVersion::NEW;
 }
 
@@ -512,7 +517,7 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 static bool shouldIncludePTX(const ArgList &Args, StringRef InputArch) {
   // The new driver does not include PTX by default to avoid overhead.
   bool includePTX = !Args.hasFlag(options::OPT_offload_new_driver,
-                                  options::OPT_no_offload_new_driver, false);
+                                  options::OPT_no_offload_new_driver, false); // INTEL
   for (Arg *A : Args.filtered(options::OPT_cuda_include_ptx_EQ,
                               options::OPT_no_cuda_include_ptx_EQ)) {
     A->claim();
@@ -719,16 +724,28 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   std::vector<StringRef> Features;
   getNVPTXTargetFeatures(C.getDriver(), getToolChain().getTriple(), Args,
                          Features);
-  for (StringRef Feature : Features)
-    CmdArgs.append({"--feature", Args.MakeArgString(Feature)});
+  CmdArgs.push_back(
+      Args.MakeArgString("--plugin-opt=-mattr=" + llvm::join(Features, ",")));
 
-  addGPULibraries(getToolChain(), Args, CmdArgs);
+  // Enable ctor / dtor lowering for the direct / freestanding NVPTX target.
+  CmdArgs.append({"-mllvm", "--nvptx-lower-global-ctor-dtor"});
 
   // Add paths for the default clang library path.
   SmallString<256> DefaultLibPath =
       llvm::sys::path::parent_path(TC.getDriver().Dir);
   llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
   CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DefaultLibPath));
+
+  if (Args.hasArg(options::OPT_stdlib))
+    CmdArgs.append({"-lc", "-lm"});
+  if (Args.hasArg(options::OPT_startfiles)) {
+    std::optional<std::string> IncludePath = getToolChain().getStdlibPath();
+    if (!IncludePath)
+      IncludePath = "/lib";
+    SmallString<128> P(*IncludePath);
+    llvm::sys::path::append(P, "crt1.o");
+    CmdArgs.push_back(Args.MakeArgString(P));
+  }
 
   C.addCommand(std::make_unique<Command>(
       JA, *this,
@@ -758,6 +775,8 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(128, 87);
+    CASE_CUDA_VERSION(126, 85);
     CASE_CUDA_VERSION(125, 85);
     CASE_CUDA_VERSION(124, 84);
     CASE_CUDA_VERSION(123, 83);
@@ -780,6 +799,10 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     CASE_CUDA_VERSION(91, 61);
     CASE_CUDA_VERSION(90, 60);
 #undef CASE_CUDA_VERSION
+  // TODO: Use specific CUDA version once it's public.
+  case clang::CudaVersion::NEW:
+    PtxFeature = "+ptx86";
+    break;
   default:
     PtxFeature = "+ptx42";
   }
@@ -859,7 +882,7 @@ void NVPTXToolChain::addClangTargetOptions(
   // If we are compiling with a standalone NVPTX toolchain we want to try to
   // mimic a standard environment as much as possible. So we enable lowering
   // ctor / dtor functions to global symbols that can be registered.
-  if (Freestanding)
+  if (Freestanding && !getDriver().isUsingLTO())
     CC1Args.append({"-mllvm", "--nvptx-lower-global-ctor-dtor"});
 }
 
@@ -924,7 +947,7 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args,
                              const Action::OffloadKind OK)
     : NVPTXToolChain(D, Triple, HostTC.getTriple(), Args), HostTC(HostTC),
-      OK(OK) {}
+      SYCLInstallation(D), OK(OK) {}
 
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
@@ -932,14 +955,31 @@ void CudaToolChain::addClangTargetOptions(
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
-  assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
   assert((DeviceOffloadingKind == Action::OFK_OpenMP ||
           DeviceOffloadingKind == Action::OFK_SYCL ||
           DeviceOffloadingKind == Action::OFK_Cuda) &&
          "Only OpenMP, SYCL or CUDA offloading kinds are supported for NVIDIA GPUs.");
 
-  CC1Args.append(
-      {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
+  // If we are compiling SYCL kernels for Nvidia GPUs, we do not support Cuda
+  // device code compatability, hence we do not set Cuda mode in that instance.
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
+      CC1Args.push_back("-fcuda-prec-sqrt");
+
+    bool FastRelaxedMath = DriverArgs.hasFlag(
+        options::OPT_ffast_math, options::OPT_fno_fast_math, false);
+    bool UnsafeMathOpt =
+        DriverArgs.hasFlag(options::OPT_funsafe_math_optimizations,
+                           options::OPT_fno_unsafe_math_optimizations, false);
+    if (FastRelaxedMath || UnsafeMathOpt)
+      CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
+                      "--nvptx-prec-sqrtf32=0"});
+  } else {
+    CC1Args.append({"-fcuda-is-device", "-mllvm",
+                    "-enable-memcpyopt-without-libcalls",
+                    "-fno-threadsafe-statics"});
 
     // Unsized function arguments used for variadics were introduced in CUDA-9.0
     // We still do not support generating code that actually uses variadic
@@ -948,18 +988,10 @@ void CudaToolChain::addClangTargetOptions(
     if (CudaInstallation.version() >= CudaVersion::CUDA_90)
       CC1Args.push_back("-fcuda-allow-variadic-functions");
 
-    if (DriverArgs.hasArg(options::OPT_fsycl)) {
-      // Add these flags for .cu SYCL compilation.
+    // Add these flags for .cu SYCL compilation.
+    if (DeviceOffloadingKind == Action::OFK_Cuda &&
+        DriverArgs.hasArg(options::OPT_fsycl))
       CC1Args.append({"-std=c++17", "-fsycl-is-host"});
-    }
-
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
-
-    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
-      CC1Args.push_back("-fcuda-prec-sqrt");
-    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
@@ -1009,6 +1041,10 @@ void CudaToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
+  if (DriverArgs.hasFlag(options::OPT_fcuda_short_ptr,
+                         options::OPT_fno_cuda_short_ptr, false))
+    CC1Args.append({"-mllvm", "--nvptx-short-ptr"});
+
   if (DriverArgs.hasArg(options::OPT_nogpulib))
     return;
 
@@ -1033,10 +1069,6 @@ void CudaToolChain::addClangTargetOptions(
     return;
 
   clang::CudaVersion CudaInstallationVersion = CudaInstallation.version();
-
-  if (DriverArgs.hasFlag(options::OPT_fcuda_short_ptr,
-                         options::OPT_fno_cuda_short_ptr, false))
-    CC1Args.append({"-mllvm", "--nvptx-short-ptr"});
 
   if (CudaInstallationVersion >= CudaVersion::UNKNOWN)
     CC1Args.push_back(
@@ -1195,8 +1227,7 @@ CudaToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_fsycl)) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 

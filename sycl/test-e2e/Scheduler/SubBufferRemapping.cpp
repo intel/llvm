@@ -6,12 +6,12 @@
 // correct alloca, even in the case of sub-buffer accessors in host tasks.
 
 // CHECK: == fills completed
-// CHECK: urEnqueueMemBufferMap
-// CHECK: urEnqueueMemBufferMap
+// CHECK: <--- urEnqueueMemBufferMap
+// CHECK: <--- urEnqueueMemBufferMap
 // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ
 
 // CHECK: == between host accesses
-// CHECK: urEnqueueMemBufferMap
+// CHECK: <--- urEnqueueMemBufferMap
 // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ
 
 #include <sycl/detail/core.hpp>

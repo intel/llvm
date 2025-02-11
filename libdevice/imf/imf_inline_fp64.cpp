@@ -5,8 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include "../device_imf.hpp"
+
+#include "../device.h"
+
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "../device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE double __devicelib_imf_fma(double a, double b,
                                                   double c) {

@@ -15,12 +15,11 @@
 // The workaround is this proxy_loader. It is statically linked by the SYCL
 // library and thus is a real dependency and is not unloaded from memory until
 // after SYCL itself is unloaded. It calls LoadLibrary on all the UR adapters
-// that SYCL will use during its initialization, which ensures that those plugin
-// DLLs are not unloaded until after.
-// Note that this property is not transitive. If any of the UR DLLs in turn
-// dynamically load some other DLL during their lifecycle there is no guarantee
-// that the "grandchild" won't be unloaded early. They would need to employ a
-// similar approach.
+// that SYCL will use during its initialization, which ensures that those
+// adapter DLLs are not unloaded until after. Note that this property is not
+// transitive. If any of the UR DLLs in turn dynamically load some other DLL
+// during their lifecycle there is no guarantee that the "grandchild" won't be
+// unloaded early. They would need to employ a similar approach.
 
 #include <cassert>
 #include <filesystem>
@@ -66,7 +65,7 @@ static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
 
 // cribbed from sycl/source/detail/os_util.cpp
 /// Returns an absolute path where the object was found.
-std::wstring getCurrentDSODir() {
+static std::wstring getCurrentDSODir() {
   wchar_t Path[MAX_PATH];
   auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileName(
@@ -84,7 +83,7 @@ std::wstring getCurrentDSODir() {
 }
 
 // these are cribbed from include/sycl/detail/ur.hpp
-// a new plugin must be added to both places.
+// a new adapter must be added to both places.
 #ifdef _MSC_VER
 #define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "ur_loader.dll"
 #define __SYCL_OPENCL_ADAPTER_NAME "ur_adapter_opencl.dll"
@@ -108,12 +107,12 @@ void *&getDllHandle() {
   return dllHandle;
 }
 
-/// Load the plugin libraries
+/// Load the adapter libraries
 void preloadLibraries() {
   // Suppress system errors.
   // Tells the system to not display the critical-error-handler message box.
   // Instead, the system sends the error to the calling process.
-  // This is crucial for graceful handling of plugins that couldn't be
+  // This is crucial for graceful handling of adapters that couldn't be
   // loaded, e.g. due to missing native run-times.
   // Sometimes affects L0 or the unified runtime.
   // TODO: add reporting in case of an error.
@@ -125,27 +124,27 @@ void preloadLibraries() {
     assert(false && "Failed to update DLL search path");
   }
 
-  // this path duplicates sycl/detail/ur.cpp:initializePlugins
+  // this path duplicates sycl/detail/ur.cpp:initializeAdapters
   std::filesystem::path LibSYCLDir(getCurrentDSODir());
 
-  // When searching for dependencies of the plugins limit the
+  // When searching for dependencies of the adapters limit the
   // list of directories to %windows%\system32 and the directory that contains
-  // the loaded DLL (the plugin). This is necessary to avoid loading dlls from
+  // the loaded DLL (the adapter). This is necessary to avoid loading dlls from
   // current directory and some other directories which are considered unsafe.
-  auto loadPlugin = [&](auto pluginName,
-                        DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
-                                      LOAD_LIBRARY_SEARCH_SYSTEM32) {
-    auto path = LibSYCLDir / pluginName;
+  auto loadAdapter = [&](auto adapterName,
+                         DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
+                                       LOAD_LIBRARY_SEARCH_SYSTEM32) {
+    auto path = LibSYCLDir / adapterName;
     return LoadLibraryEx(path.wstring().c_str(), NULL, flags);
   };
   // We keep the UR Loader handle so it can be fetched by the runtime, but the
   // adapter libraries themselves won't be used.
-  getDllHandle() = loadPlugin(__SYCL_UNIFIED_RUNTIME_LOADER_NAME);
-  loadPlugin(__SYCL_OPENCL_ADAPTER_NAME);
-  loadPlugin(__SYCL_LEVEL_ZERO_ADAPTER_NAME);
-  loadPlugin(__SYCL_CUDA_ADAPTER_NAME);
-  loadPlugin(__SYCL_HIP_ADAPTER_NAME);
-  loadPlugin(__SYCL_NATIVE_CPU_ADAPTER_NAME);
+  getDllHandle() = loadAdapter(__SYCL_UNIFIED_RUNTIME_LOADER_NAME);
+  loadAdapter(__SYCL_OPENCL_ADAPTER_NAME);
+  loadAdapter(__SYCL_LEVEL_ZERO_ADAPTER_NAME);
+  loadAdapter(__SYCL_CUDA_ADAPTER_NAME);
+  loadAdapter(__SYCL_HIP_ADAPTER_NAME);
+  loadAdapter(__SYCL_NATIVE_CPU_ADAPTER_NAME);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
@@ -154,7 +153,7 @@ void preloadLibraries() {
   }
 }
 
-/// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded
+/// windows_ur.cpp:getURLoaderLibrary() calls this to get the DLL loaded
 /// earlier.
 __declspec(dllexport) void *getPreloadedURLib() { return getDllHandle(); }
 

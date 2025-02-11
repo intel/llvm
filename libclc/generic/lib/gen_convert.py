@@ -65,21 +65,21 @@ types = [
     "uint",
     "long",
     "ulong",
+    "half",
     "float",
     "double",
 ]
 int_types = ["char", "uchar", "short", "ushort", "int", "uint", "long", "ulong"]
 unsigned_types = ["uchar", "ushort", "uint", "ulong"]
-float_types = ["float", "double"]
+float_types = ["half", "float", "double"]
 int64_types = ["long", "ulong"]
 float64_types = ["double"]
+float16_types = ["half"]
 vector_sizes = ["", "2", "3", "4", "8", "16"]
 half_sizes = [("2", ""), ("4", "2"), ("8", "4"), ("16", "8")]
 
 saturation = ["", "_sat"]
 rounding_modes = ["_rtz", "_rte", "_rtp", "_rtn"]
-float_prefix = {"float": "FLT_", "double": "DBL_"}
-float_suffix = {"float": "f", "double": ""}
 
 bool_type = {
     "char": "char",
@@ -90,6 +90,7 @@ bool_type = {
     "uint": "int",
     "long": "long",
     "ulong": "long",
+    "half": "short",
     "float": "int",
     "double": "long",
 }
@@ -114,6 +115,7 @@ sizeof_type = {
     "uint": 4,
     "long": 8,
     "ulong": 8,
+    "half": 2,
     "float": 4,
     "double": 8,
 }
@@ -127,6 +129,7 @@ limit_max = {
     "uint": "UINT_MAX",
     "long": "LONG_MAX",
     "ulong": "ULONG_MAX",
+    "half": "0x1.ffcp+15",
 }
 
 limit_min = {
@@ -138,23 +141,32 @@ limit_min = {
     "uint": "0",
     "long": "LONG_MIN",
     "ulong": "0",
+    "half": "-0x1.ffcp+15",
 }
 
 
 def conditional_guard(src, dst):
     int64_count = 0
     float64_count = 0
+    float16_count = 0
     if src in int64_types:
         int64_count = int64_count + 1
     elif src in float64_types:
         float64_count = float64_count + 1
+    elif src in float16_types:
+        float16_count = float16_count + 1
     if dst in int64_types:
         int64_count = int64_count + 1
     elif dst in float64_types:
         float64_count = float64_count + 1
+    elif dst in float16_types:
+        float16_count = float16_count + 1
     if float64_count > 0:
         # In embedded profile, if cl_khr_fp64 is supported cles_khr_int64 has to be
         print("#ifdef cl_khr_fp64")
+        return True
+    elif float16_count > 0:
+        print("#if defined cl_khr_fp16")
         return True
     elif int64_count > 0:
         print("#if defined cles_khr_int64 || !defined(__EMBEDDED_PROFILE__)")
@@ -193,6 +205,10 @@ print(
 
 #include <clc/clc.h>
 #include <core/clc_core.h>
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable

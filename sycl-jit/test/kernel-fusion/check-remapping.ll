@@ -385,7 +385,7 @@ declare !sycl.kernel.fused !31 !sycl.kernel.nd-ranges !25 !sycl.kernel.nd-range 
 ; CHECK-LABEL: define internal spir_func i64 @__num_work_groups_remapper_1_10_1_1_10_1_1_3_48_1_1_2_1_1(
 ; CHECK-SAMEE:                                                                                          i32 %0) #[[ATTRS]] {
 ; CHECK-NEXT:   entry:
-; CHECK-NEXT:     %1 = extractelement <3 x i64> <i64 1, i64 1, i64 1>, i32 %0
+; CHECK-NEXT:     %1 = extractelement <3 x i64> splat (i64 1), i32 %0
 ; CHECK-NEXT:     ret i64 %1
 ; CHECK-NEXT:   }
 

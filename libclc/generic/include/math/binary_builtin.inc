@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "utils.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <clc/utils.h>
 
 #ifndef __CLC_BUILTIN
 #define __CLC_BUILTIN __CLC_XCONCAT(__clc_, __CLC_FUNCTION)

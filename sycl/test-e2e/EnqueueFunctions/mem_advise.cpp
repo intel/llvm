@@ -36,5 +36,5 @@ int main() {
   return 0;
 }
 
-// CHECK-COUNT-3:---> urEnqueueUSMAdvise
-// CHECK-NOT:---> urEnqueueUSMAdvise
+// CHECK-COUNT-3: <--- urEnqueueUSMAdvise
+// CHECK-NOT: <--- urEnqueueUSMAdvise

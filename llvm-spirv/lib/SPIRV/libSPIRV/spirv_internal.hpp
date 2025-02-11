@@ -68,7 +68,6 @@ enum InternalOp {
   IOpJointMatrixSUMadINTEL = 6128,
   IOpJointMatrixUSMadINTEL = 6129,
   IOpJointMatrixUUMadINTEL = 6130,
-  IOpArithmeticFenceINTEL = 6145,
   IOpTaskSequenceCreateINTEL = 6163,
   IOpTaskSequenceAsyncINTEL = 6164,
   IOpTaskSequenceGetINTEL = 6165,
@@ -77,6 +76,8 @@ enum InternalOp {
   IOpCooperativeMatrixLoadCheckedINTEL = 6193,
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
+  IOpCooperativeMatrixLoadOffsetINTEL = 6239,
+  IOpCooperativeMatrixStoreOffsetINTEL = 6240,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpTypeTaskSequenceINTEL = 6199,
   IOpComplexFMulINTEL = 6415,
@@ -101,8 +102,6 @@ enum InternalDecoration {
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
-  IDecFuncParamKindINTEL = 9624,
-  IDecFuncParamDescINTEL = 9625
 };
 
 enum InternalCapability {
@@ -112,10 +111,10 @@ enum InternalCapability {
   ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
   ICapabilityHWThreadQueryINTEL = 6134,
-  ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
   ICapabilityTaskSequenceINTEL = 6162,
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
+  ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
   ICapabilityComplexFloatMulDivINTEL = 6414,
   ICapabilityTensorFloat32RoundingINTEL = 6425,
@@ -188,6 +187,10 @@ _SPIRV_OP(Capability, CooperativeMatrixCheckedInstructionsINTEL)
 _SPIRV_OP(Op, CooperativeMatrixLoadCheckedINTEL)
 _SPIRV_OP(Op, CooperativeMatrixStoreCheckedINTEL)
 _SPIRV_OP(Op, CooperativeMatrixConstructCheckedINTEL)
+
+_SPIRV_OP(Capability, CooperativeMatrixOffsetInstructionsINTEL)
+_SPIRV_OP(Op, CooperativeMatrixLoadOffsetINTEL)
+_SPIRV_OP(Op, CooperativeMatrixStoreOffsetINTEL)
 
 _SPIRV_OP(Capability, CooperativeMatrixInvocationInstructionsINTEL)
 _SPIRV_OP(Op, CooperativeMatrixApplyFunctionINTEL)
@@ -267,7 +270,6 @@ constexpr SourceLanguage SourceLanguageCPP20 =
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
 constexpr Op OpTypeTokenINTEL = static_cast<Op>(IOpTypeTokenINTEL);
-constexpr Op OpArithmeticFenceINTEL = static_cast<Op>(IOpArithmeticFenceINTEL);
 constexpr Op OpConvertFToBF16INTEL = static_cast<Op>(IOpConvertFToBF16INTEL);
 constexpr Op OpConvertBF16ToFINTEL = static_cast<Op>(IOpConvertBF16ToFINTEL);
 
@@ -283,10 +285,6 @@ constexpr Decoration DecorationImplementInCSRINTEL =
     static_cast<Decoration>(IDecImplementInCSRINTEL);
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
-constexpr Decoration DecorationFuncParamKindINTEL =
-    static_cast<Decoration>(IDecFuncParamKindINTEL);
-constexpr Decoration DecorationFuncParamDescINTEL =
-    static_cast<Decoration>(IDecFuncParamDescINTEL);
 
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
@@ -294,8 +292,6 @@ constexpr Capability CapabilityOptNoneINTEL =
     static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
-constexpr Capability CapabilityFPArithmeticFenceINTEL =
-    static_cast<Capability>(ICapFPArithmeticFenceINTEL);
 constexpr Capability CapabilityBfloat16ConversionINTEL =
     static_cast<Capability>(ICapBfloat16ConversionINTEL);
 constexpr Capability CapabilityGlobalVariableDecorationsINTEL =

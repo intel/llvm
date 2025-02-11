@@ -45,9 +45,8 @@ template <size_t... Is> struct KernelFunctorWithWGSizeProp {
   }
 };
 
-template <Variant KernelVariant, size_t... Is, typename PropertiesT,
-          typename KernelType>
-int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
+template <Variant KernelVariant, size_t... Is, typename KernelType>
+int test(queue &Q, KernelType KernelFunc) {
   constexpr size_t Dims = sizeof...(Is);
 
   bool IsOpenCL = (Q.get_backend() == backend::opencl);
@@ -56,8 +55,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<ReqdWGSizePositiveA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-          KernelFunc);
+          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), KernelFunc);
     });
     Q.wait_and_throw();
   } catch (exception &E) {
@@ -69,8 +67,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   // Same as above but using the queue shortcuts.
   try {
     Q.parallel_for<ReqdWGSizePositiveA<KernelVariant, true, Is...>>(
-        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-        KernelFunc);
+        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), KernelFunc);
     Q.wait_and_throw();
   } catch (exception &E) {
     std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: unexpected "
@@ -87,7 +84,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
       Q.submit([&](handler &CGH) {
         CGH.parallel_for<
             ReqdWGSizeNoLocalPositive<KernelVariant, false, Is...>>(
-            repeatRange<Dims>(16), Props, KernelFunc);
+            repeatRange<Dims>(16), KernelFunc);
       });
       Q.wait_and_throw();
     } catch (exception &E) {
@@ -99,7 +96,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
 
     try {
       Q.parallel_for<ReqdWGSizeNoLocalPositive<KernelVariant, true, Is...>>(
-          repeatRange<Dims>(16), Props, KernelFunc);
+          repeatRange<Dims>(16), KernelFunc);
       Q.wait_and_throw();
     } catch (exception &E) {
       std::cerr << "Test case ReqdWGSizeNoLocalPositive shortcut failed: "
@@ -113,7 +110,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<ReqdWGSizeNegativeA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
+          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
           KernelFunc);
     });
     Q.wait_and_throw();
@@ -137,7 +134,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   // Same as above but using the queue shortcuts.
   try {
     Q.parallel_for<ReqdWGSizeNegativeA<KernelVariant, true, Is...>>(
-        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
+        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
         KernelFunc);
     Q.wait_and_throw();
     std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: no exception "
@@ -162,17 +159,10 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
 }
 
 template <size_t... Is> int test(queue &Q) {
-  auto Props = ext::oneapi::experimental::properties{
-      ext::oneapi::experimental::work_group_size<Is...>};
-  auto KernelFunction = [](auto) {};
-
-  auto EmptyProps = ext::oneapi::experimental::properties{};
   KernelFunctorWithWGSizeProp<Is...> KernelFunctor;
 
   int Res = 0;
-  Res += test<Variant::Function, Is...>(Q, Props, KernelFunction);
-  Res += test<Variant::Functor, Is...>(Q, EmptyProps, KernelFunctor);
-  Res += test<Variant::FunctorAndProperty, Is...>(Q, Props, KernelFunctor);
+  Res += test<Variant::Functor, Is...>(Q, KernelFunctor);
   return Res;
 }
 

@@ -23,21 +23,6 @@ int main() {
   static_assert(d::is_genfloat_v<s::opencl::cl_float> == true);
   static_assert(d::is_genfloat_v<s::vec<s::opencl::cl_float, 4>> == true);
 
-  static_assert(d::is_ugenint_v<s::vec<s::opencl::cl_float, 4>> == false);
-  static_assert(d::is_ugenint_v<s::float4> == false);
-
-  static_assert(d::is_ugenint_v<s::opencl::cl_uint> == true);
-  static_assert(d::is_ugenint_v<unsigned int> == true);
-
-  static_assert(d::is_ugenint_v<s::vec<s::opencl::cl_uint, 3>> == true);
-  static_assert(d::is_ugenint_v<s::uint3> == true);
-
-  static_assert(d::is_half_v<s::half>);
-
-  static_assert(d::is_bfloat16_v<sycl::ext::oneapi::bfloat16>);
-  static_assert(d::is_half_or_bf16_v<s::half>);
-  static_assert(d::is_half_or_bf16_v<sycl::ext::oneapi::bfloat16>);
-
   // TODO add checks for the following type traits
   /*
   is_doublen
@@ -50,19 +35,6 @@ int main() {
 
   is_sgenfloat
   is_vgenfloat
-
-  is_gengeofloat
-  is_gengeodouble
-  is_gengeohalf
-
-  is_vgengeofloat
-  is_vgengeodouble
-  is_vgengeohalf
-
-  is_gencrossfloat
-  is_gencrossdouble
-  is_gencrosshalf
-  is_gencross
 
   is_charn
   is_scharn
@@ -77,8 +49,6 @@ int main() {
   is_ugenshort
 
   is_uintn
-  is_ugenint
-  is_intn
   is_genint
   */
 
@@ -92,37 +62,16 @@ int main() {
   is_ugenlonginteger
 
   is_geninteger
-  is_igeninteger
-  is_ugeninteger
   is_sgeninteger
-  is_vgeninteger
 
 
   is_sigeninteger
   is_sugeninteger
-  is_vigeninteger
-  is_vugeninteger
-
-  is_gentype
-
-  is_igeninteger8bit
-  is_igeninteger16bit
-  is_igeninteger32bit
-  is_igeninteger64bit
-
-  is_ugeninteger8bit
-  is_ugeninteger16bit
-  is_ugeninteger32bit
-  is_ugeninteger64bit
-
-  is_genintptr
-  is_genfloatptr
 
   unsing_integeral_to_float_point
   float_point_to_sign_integeral
 
   make_unsigned
-  make_larger
   */
 
   // checks for some type conversions.

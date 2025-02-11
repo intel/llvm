@@ -16,77 +16,77 @@
 //       Since it is a warning it is safe to ignore for this test.
 //
 // Everything that follows TestQueueOperations()
-// CHECK: ---> urEnqueueUSMFill
+// CHECK: <--- urEnqueueUSMFill
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueUSMMemcpy
+// CHECK: <--- urEnqueueUSMMemcpy
 // CHECK: .phEvent = nullptr
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
-// CHECK-L0: ---> urEnqueueKernelLaunch
+// CHECK-L0: <--- urEnqueueKernelLaunch
 // CHECK-L0: .phEvent = nullptr
-// CHECK-OTHER: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK-OTHER: <--- urEnqueueUSMFill({{.*}} .phEvent = nullptr
 //
 // ---> urEnqueueUSMMemcpy(
-// CHECK: ---> urEnqueueUSMMemcpy
+// CHECK: <--- urEnqueueUSMMemcpy
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueUSMPrefetch
+// CHECK: <--- urEnqueueUSMPrefetch
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueUSMAdvise
+// CHECK: <--- urEnqueueUSMAdvise
 // CHECK: .phEvent = nullptr
 // CHECK: -> {{UR_RESULT_SUCCESS|UR_RESULT_ERROR_ADAPTER_SPECIFIC}}
 //
-// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 // CHECK: .phEvent = nullptr
 //
 // RegularQueue
-// CHECK-NOT: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
-// CHECK: ---> urEnqueueUSMFill
+// CHECK-NOT: <--- urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK: <--- urEnqueueUSMFill
 // CHECK: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> urEnqueueEventsWait
+// CHECK: <--- urEnqueueEventsWait
 // CHECK: .phEvent = nullptr
 //
 // Everything that follows TestQueueOperationsViaSubmit()
-// CHECK: ---> urEnqueueUSMFill
+// CHECK: <--- urEnqueueUSMFill
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueUSMMemcpy
+// CHECK: <--- urEnqueueUSMMemcpy
 // CHECK: .phEvent = nullptr
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
-// CHECK-L0: ---> urEnqueueKernelLaunch
+// CHECK-L0: <--- urEnqueueKernelLaunch
 // CHECK-L0: .phEvent = nullptr
-// CHECK-OTHER: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK-OTHER: <--- urEnqueueUSMFill({{.*}} .phEvent = nullptr
 //
 // ---> urEnqueueUSMMemcpy(
-// CHECK: ---> urEnqueueUSMMemcpy
+// CHECK: <--- urEnqueueUSMMemcpy
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueUSMPrefetch
+// CHECK: <--- urEnqueueUSMPrefetch
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueUSMAdvise
+// CHECK: <--- urEnqueueUSMAdvise
 // CHECK: .phEvent = nullptr
 // CHECK-SAME: ) -> {{UR_RESULT_SUCCESS|UR_RESULT_ERROR_ADAPTER_SPECIFIC}}
 //
-// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 // CHECK: .phEvent = nullptr
 //
-// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 // CHECK: .phEvent = nullptr
 //
 // RegularQueue
-// CHECK-NOT: ---> urEnqueueUSMFill({{.*}} .phEvent = nullptr
-// CHECK: ---> urEnqueueUSMFill
+// CHECK-NOT: <--- urEnqueueUSMFill({{.*}} .phEvent = nullptr
+// CHECK: <--- urEnqueueUSMFill
 // CHECK: -> UR_RESULT_SUCCESS
 //
-// CHECK: ---> urEnqueueEventsWait
+// CHECK: <--- urEnqueueEventsWait
 // CHECK: .phEvent = nullptr
 //
 // CHECK: The test passed.

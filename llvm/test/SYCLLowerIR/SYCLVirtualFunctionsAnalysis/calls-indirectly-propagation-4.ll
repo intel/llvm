@@ -35,7 +35,20 @@ entry:
   ret void
 }
 
+define internal spir_func void @helper2(ptr addrspace(1) noundef align 8 %arg) {
+entry:
+  call void @helper(ptr addrspace(1) %arg)
+  ret void
+}
+
+define weak_odr dso_local spir_kernel void @kernel2(ptr addrspace(1) noundef align 8 %_arg_StorageAcc) #2 {
+entry:
+  call void @helper2(ptr addrspace(1) %_arg_StorageAcc)
+  ret void
+}
+
 ; CHECK: @kernel{{.*}} #[[#KERNEL_ATTRS:]]
+; CHECK: @kernel2{{.*}} #[[#KERNEL_ATTRS]]
 ;
 ; CHECK: attributes #[[#KERNEL_ATTRS]] = {{.*}}"calls-indirectly"="set-foo,set-bar"
 

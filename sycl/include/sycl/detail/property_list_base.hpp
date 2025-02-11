@@ -13,6 +13,7 @@
 
 #include <algorithm>   // for iter_swap
 #include <bitset>      // for bitset
+#include <functional>  // for function
 #include <memory>      // for shared_ptr, __shared_ptr_...
 #include <type_traits> // for enable_if_t
 #include <utility>     // for move
@@ -123,6 +124,25 @@ protected:
     if (It != MPropsWithData.end()) {
       std::iter_swap(It, MPropsWithData.end() - 1);
       MPropsWithData.pop_back();
+    }
+  }
+
+  void checkPropsAndThrow(std::function<bool(int)> FunctionForDataless,
+                          std::function<bool(int)> FunctionForData) const {
+    static const auto ErrorCode = sycl::make_error_code(errc::invalid);
+    static const auto ErrorMessage = "The property list contains property "
+                                     "unsupported for the current object";
+
+    for (int PropertyKind = 0;
+         PropertyKind < static_cast<int>(MDataLessProps.size());
+         PropertyKind++) {
+      if (MDataLessProps[PropertyKind] && !FunctionForDataless(PropertyKind))
+        throw sycl::exception(ErrorCode, ErrorMessage);
+    }
+
+    for (const auto &PropertyItem : MPropsWithData) {
+      if (!FunctionForData(PropertyItem->getKind()))
+        throw sycl::exception(ErrorCode, ErrorMessage);
     }
   }
 

@@ -60,7 +60,7 @@ int main() {
 
     auto GraphExec = Graph.finalize();
 
-    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    exp_ext::execute_graph(Queue, GraphExec);
     Queue.wait_and_throw();
   }
 

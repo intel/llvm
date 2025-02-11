@@ -5,8 +5,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} %no_opt -o %t_O0.out
+// RUN: %{build} %O0 -o %t_O0.out
 // RUN: %{run} %t_O0.out
+
+// XFAIL: spirv-backend && run-mode
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 /*
     test performs a lattice reduction.

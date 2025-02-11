@@ -7,6 +7,7 @@
 // Tests raw_kernel_arg with pointers and scalars to different 32-bit types.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 auto constexpr CLSource = R"===(

@@ -33,6 +33,7 @@ static_library("Support") {
     "Windows",
   ]
   sources = [
+    "AArch64BuildAttributes.cpp",
     "ABIBreak.cpp",
     "AMDGPUMetadata.cpp",
     "APFixedPoint.cpp",
@@ -111,8 +112,10 @@ static_library("Support") {
     "MemAlloc.cpp",
     "MemoryBuffer.cpp",
     "MemoryBufferRef.cpp",
+    "ModRef.cpp",
     "NativeFormatting.cpp",
     "OptimizedStructLayout.cpp",
+    "OptionStrCmp.cpp",
     "Optional.cpp",
     "PGOOptions.cpp",
     "Parallel.cpp",
@@ -150,6 +153,7 @@ static_library("Support") {
     "TimeProfiler.cpp",
     "Timer.cpp",
     "ToolOutputFile.cpp",
+    "TrieRawHashMap.cpp",
     "Twine.cpp",
     "TypeSize.cpp",
     "Unicode.cpp",

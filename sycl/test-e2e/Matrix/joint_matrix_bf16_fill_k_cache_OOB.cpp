@@ -5,13 +5,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
+// other triples
+
 // REQUIRES: aspect-ext_intel_matrix, gpu
 // UNSUPPORTED: gpu-intel-dg2
 
-// RUN: %{build} -o %t_gpu_vnni.out -ffp-model=precise -DOOB -DVNNI
+// RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DOOB -DVNNI
 // RUN: %{run} %t_gpu_vnni.out
 
-// RUN: %{build} -o %t_gpu.out -ffp-model=precise -DOOB
+// RUN: %{build} -o %t_gpu.out %fp-model-precise -DOOB
 // RUN: %{run} %t_gpu.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.

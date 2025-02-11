@@ -8,8 +8,8 @@
 
 #include <gtest/gtest.h>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 class TestKernelWithMemObj;
@@ -33,9 +33,9 @@ struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"TestKernelWithMemObj"});
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 using namespace sycl;
 

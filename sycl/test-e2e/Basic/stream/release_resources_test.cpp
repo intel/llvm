@@ -16,7 +16,7 @@ int main() {
   {
     queue Queue;
 
-    // CHECK:---> urMemRelease
+    // CHECK: <--- urMemRelease
     Queue.submit([&](handler &CGH) {
       stream Out(1024, 80, CGH);
       CGH.parallel_for<class test_cleanup1>(

@@ -10,7 +10,7 @@
 
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
 #include <sycl/marray.hpp>                    // for marray
-#include <sycl/types.hpp>                     // for vec
+#include <sycl/vector.hpp>                    // for vec
 
 #include <stddef.h> // for size_t
 #include <stdint.h> // for uint32_t

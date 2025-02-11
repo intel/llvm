@@ -7,7 +7,7 @@
 
 
 ; CHECK-LABEL: void @kernel_A
-; CHECK-RT: %[[CALL:.*]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8 1)
+; CHECK-RT: %[[CALL:.*]] = call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8 1)
 ; CHECK-RT: trunc i8 %[[CALL]] to i1
 ;
 ; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, ptr addrspace(4) null, i32 0
@@ -15,7 +15,7 @@
 ; CHECK-DEF: %[[TOBOOL:tobool.*]] = trunc i8 %[[LOAD]] to i1
 ;
 ; CHECK-LABEL: void @kernel_B
-; CHECK-RT: call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8
+; CHECK-RT: call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8
 ;
 ; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, ptr addrspace(4) null, i32 4
 ; CHECK-DEF: %[[BC:bc.*]] = bitcast ptr addrspace(4) %[[GEP]] to ptr addrspace(4)

@@ -50,7 +50,6 @@ template <typename T> void templatedContext() {
   // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   auto p1 = &ForMembers::badMember;
 
-  // expected-error@+2 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   // expected-note@+1 {{called by 'templatedContext<int>'}}
   templateCaller1<badFoo>(1);
 }
@@ -84,9 +83,7 @@ int main() {
           a = goodFoo;
           a = &goodFoo;
 
-          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           constexpr auto b = badFoo;
-          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           constexpr auto c = &badFoo;
           // expected-note@+1 {{called by 'operator()'}}
           basicUsage();
@@ -125,8 +122,7 @@ int main() {
 
           templateCaller1<goodFoo>(1);
 
-          // expected-note@+2 {{called by 'operator()'}}
-          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
+          // expected-note@+1 {{called by 'operator()'}}
           templateCaller1<badFoo>(1);
         });
   });

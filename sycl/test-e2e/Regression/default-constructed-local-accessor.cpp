@@ -1,7 +1,10 @@
 // -O0 is necessary; on higher levels of optimization, an error
 // would not occur because of dead argument elimination of the local_accessor.
-// RUN: %{build} -o %t.out %no_opt
+// RUN: %{build} -o %t.out %O0
 // RUN: %{run} %t.out
+
+// XFAIL: spirv-backend && run-mode
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 #include <sycl/detail/core.hpp>
 

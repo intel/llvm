@@ -114,6 +114,26 @@ StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) {
     if (SubArch == AArch64SubArch_arm64e)
       return "arm64e";
     break;
+  case Triple::spirv:
+    switch (SubArch) {
+    case Triple::SPIRVSubArch_v10:
+      return "spirv1.0";
+    case Triple::SPIRVSubArch_v11:
+      return "spirv1.1";
+    case Triple::SPIRVSubArch_v12:
+      return "spirv1.2";
+    case Triple::SPIRVSubArch_v13:
+      return "spirv1.3";
+    case Triple::SPIRVSubArch_v14:
+      return "spirv1.4";
+    case Triple::SPIRVSubArch_v15:
+      return "spirv1.5";
+    case Triple::SPIRVSubArch_v16:
+      return "spirv1.6";
+    default:
+      break;
+    }
+    break;
   case Triple::dxil:
     switch (SubArch) {
     case Triple::NoSubArch:
@@ -316,10 +336,13 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case EABI: return "eabi";
   case EABIHF: return "eabihf";
   case GNU: return "gnu";
+  case GNUT64: return "gnut64";
   case GNUABI64: return "gnuabi64";
   case GNUABIN32: return "gnuabin32";
   case GNUEABI: return "gnueabi";
+  case GNUEABIT64: return "gnueabit64";
   case GNUEABIHF: return "gnueabihf";
+  case GNUEABIHFT64: return "gnueabihft64";
   case GNUF32: return "gnuf32";
   case GNUF64: return "gnuf64";
   case GNUSF: return "gnusf";
@@ -329,8 +352,16 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case MSVC: return "msvc";
   case MacABI: return "macabi";
   case Musl: return "musl";
+  case MuslABIN32:
+    return "muslabin32";
+  case MuslABI64:
+    return "muslabi64";
   case MuslEABI: return "musleabi";
   case MuslEABIHF: return "musleabihf";
+  case MuslF32:
+    return "muslf32";
+  case MuslSF:
+    return "muslsf";
   case MuslX32: return "muslx32";
   case Simulator: return "simulator";
   case Pixel: return "pixel";
@@ -353,6 +384,8 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case OpenHOS: return "ohos";
   case PAuthTest:
     return "pauthtest";
+  case LLVM:
+    return "llvm";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
@@ -622,22 +655,22 @@ static Triple::ArchType parseArch(StringRef ArchName) {
 
 static Triple::VendorType parseVendor(StringRef VendorName) {
   return StringSwitch<Triple::VendorType>(VendorName)
-    .Case("apple", Triple::Apple)
-    .Case("pc", Triple::PC)
-    .Case("scei", Triple::SCEI)
-    .Case("sie", Triple::SCEI)
-    .Case("fsl", Triple::Freescale)
-    .Case("ibm", Triple::IBM)
-    .Case("img", Triple::ImaginationTechnologies)
-    .Case("mti", Triple::MipsTechnologies)
-    .Case("nvidia", Triple::NVIDIA)
-    .Case("csr", Triple::CSR)
-    .Case("amd", Triple::AMD)
-    .Case("mesa", Triple::Mesa)
-    .Case("suse", Triple::SUSE)
-    .Case("oe", Triple::OpenEmbedded)
-    .Case("intel", Triple::Intel)
-    .Default(Triple::UnknownVendor);
+      .Case("apple", Triple::Apple)
+      .Case("pc", Triple::PC)
+      .Case("scei", Triple::SCEI)
+      .Case("sie", Triple::SCEI)
+      .Case("fsl", Triple::Freescale)
+      .Case("ibm", Triple::IBM)
+      .Case("img", Triple::ImaginationTechnologies)
+      .Case("mti", Triple::MipsTechnologies)
+      .Case("nvidia", Triple::NVIDIA)
+      .Case("csr", Triple::CSR)
+      .Case("amd", Triple::AMD)
+      .Case("mesa", Triple::Mesa)
+      .Case("suse", Triple::SUSE)
+      .Case("oe", Triple::OpenEmbedded)
+      .Case("intel", Triple::Intel)
+      .Default(Triple::UnknownVendor);
 }
 
 static Triple::OSType parseOS(StringRef OSName) {
@@ -693,7 +726,9 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("eabi", Triple::EABI)
       .StartsWith("gnuabin32", Triple::GNUABIN32)
       .StartsWith("gnuabi64", Triple::GNUABI64)
+      .StartsWith("gnueabihft64", Triple::GNUEABIHFT64)
       .StartsWith("gnueabihf", Triple::GNUEABIHF)
+      .StartsWith("gnueabit64", Triple::GNUEABIT64)
       .StartsWith("gnueabi", Triple::GNUEABI)
       .StartsWith("gnuf32", Triple::GNUF32)
       .StartsWith("gnuf64", Triple::GNUF64)
@@ -701,10 +736,15 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("gnux32", Triple::GNUX32)
       .StartsWith("gnu_ilp32", Triple::GNUILP32)
       .StartsWith("code16", Triple::CODE16)
+      .StartsWith("gnut64", Triple::GNUT64)
       .StartsWith("gnu", Triple::GNU)
       .StartsWith("android", Triple::Android)
+      .StartsWith("muslabin32", Triple::MuslABIN32)
+      .StartsWith("muslabi64", Triple::MuslABI64)
       .StartsWith("musleabihf", Triple::MuslEABIHF)
       .StartsWith("musleabi", Triple::MuslEABI)
+      .StartsWith("muslf32", Triple::MuslF32)
+      .StartsWith("muslsf", Triple::MuslSF)
       .StartsWith("muslx32", Triple::MuslX32)
       .StartsWith("musl", Triple::Musl)
       .StartsWith("msvc", Triple::MSVC)
@@ -731,6 +771,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("opencl", Triple::OpenCL)
       .StartsWith("ohos", Triple::OpenHOS)
       .StartsWith("pauthtest", Triple::PAuthTest)
+      .StartsWith("llvm", Triple::LLVM)
       .Default(Triple::UnknownEnvironment);
 }
 
@@ -882,6 +923,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
     return Triple::ARMSubArch_v9_4a;
   case ARM::ArchKind::ARMV9_5A:
     return Triple::ARMSubArch_v9_5a;
+  case ARM::ArchKind::ARMV9_6A:
+    return Triple::ARMSubArch_v9_6a;
   case ARM::ArchKind::ARMV8R:
     return Triple::ARMSubArch_v8r;
   case ARM::ArchKind::ARMV8MBaseline:
@@ -933,7 +976,6 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::mips64:
   case Triple::mips64el:
   case Triple::mips:
-  case Triple::mipsel:
   case Triple::msp430:
   case Triple::nvptx64:
   case Triple::nvptx:
@@ -956,6 +998,11 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::ve:
   case Triple::xcore:
   case Triple::xtensa:
+    return Triple::ELF;
+
+  case Triple::mipsel:
+    if (T.isOSWindows())
+      return Triple::COFF;
     return Triple::ELF;
 
   case Triple::ppc64:
@@ -1106,7 +1153,7 @@ static StringRef getDXILArchNameFromShaderModel(StringRef ShaderModelStr) {
   return Triple::getArchName(Triple::dxil, Triple::DXILSubArch_v1_0);
 }
 
-std::string Triple::normalize(StringRef Str) {
+std::string Triple::normalize(StringRef Str, CanonicalForm Form) {
   bool IsMinGW32 = false;
   bool IsCygwin = false;
 
@@ -1312,6 +1359,19 @@ std::string Triple::normalize(StringRef Str) {
       Components[0] = getDXILArchNameFromShaderModel(Components[2]);
     }
   }
+
+  // Canonicalize the components if necessary.
+  switch (Form) {
+  case CanonicalForm::ANY:
+    break;
+  case CanonicalForm::THREE_IDENT:
+  case CanonicalForm::FOUR_IDENT:
+  case CanonicalForm::FIVE_IDENT: {
+    Components.resize(static_cast<unsigned>(Form), "unknown");
+    break;
+  }
+  }
+
   // Stick the corrected components back together to form the normalized string.
   return join(Components, "-");
 }
@@ -2005,6 +2065,10 @@ bool Triple::isLittleEndian() const {
 }
 
 bool Triple::isCompatibleWith(const Triple &Other) const {
+  // On MinGW, C code is usually built with a "w64" vendor, while Rust
+  // often uses a "pc" vendor.
+  bool IgnoreVendor = isWindowsGNUEnvironment();
+
   // ARM and Thumb triples are compatible, if subarch, vendor and OS match.
   if ((getArch() == Triple::thumb && Other.getArch() == Triple::arm) ||
       (getArch() == Triple::arm && Other.getArch() == Triple::thumb) ||
@@ -2015,17 +2079,24 @@ bool Triple::isCompatibleWith(const Triple &Other) const {
              getVendor() == Other.getVendor() && getOS() == Other.getOS();
     else
       return getSubArch() == Other.getSubArch() &&
-             getVendor() == Other.getVendor() && getOS() == Other.getOS() &&
+             (getVendor() == Other.getVendor() || IgnoreVendor) &&
+             getOS() == Other.getOS() &&
              getEnvironment() == Other.getEnvironment() &&
              getObjectFormat() == Other.getObjectFormat();
   }
 
-  // If vendor is apple, ignore the version number.
+  // If vendor is apple, ignore the version number (the environment field)
+  // and the object format.
   if (getVendor() == Triple::Apple)
     return getArch() == Other.getArch() && getSubArch() == Other.getSubArch() &&
-           getVendor() == Other.getVendor() && getOS() == Other.getOS();
+           (getVendor() == Other.getVendor() || IgnoreVendor) &&
+           getOS() == Other.getOS();
 
-  return *this == Other;
+  return getArch() == Other.getArch() && getSubArch() == Other.getSubArch() &&
+         (getVendor() == Other.getVendor() || IgnoreVendor) &&
+         getOS() == Other.getOS() &&
+         getEnvironment() == Other.getEnvironment() &&
+         getObjectFormat() == Other.getObjectFormat();
 }
 
 std::string Triple::merge(const Triple &Other) const {

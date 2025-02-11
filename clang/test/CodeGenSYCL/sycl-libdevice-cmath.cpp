@@ -7,6 +7,8 @@
 
 // RUN: %clang_cc1 %s -fsycl-is-device -triple nvptx64-nvidia-cuda -emit-llvm -o - | FileCheck %s
 // RUN: %clang_cc1 %s -fsycl-is-device -triple nvptx64-nvidia-cuda -ffast-math -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -triple amdgcn-amd-amdhsa -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl-is-device -triple amdgcn-amd-amdhsa -ffast-math -emit-llvm -o - | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 

@@ -14,23 +14,25 @@
 //   compiler option
 
 // REQUIRES: arch-intel_gpu_pvc
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: *
+// XFAIL: arch-intel_gpu_pvc && opencl
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
-// RUN: %{build} -o %t.out
-// Don't use SYCL_UR_TRACE as the output from the L0 adapter logging interferes
-// with the regular UR traces we are checking.
-// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_NEW_API=1 -o %t.out
-// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_AUTO_GRF=1 -o %t.out
-// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
-// RUN: %{build} -DUSE_NEW_API=1 -DUSE_AUTO_GRF=1 -o %t.out
-// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// Flaky pass/fail behaviour.
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
+
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t1.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_NEW_API=1 -o %t2.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_AUTO_GRF=1 -Wno-error=deprecated-declarations -o %t3.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: %{build} -DUSE_NEW_API=1 -DUSE_AUTO_GRF=1 -o %t4.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t4.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t4.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -64,6 +66,15 @@ bool checkResult(const std::vector<float> &A, int Inc) {
   }
   return true;
 }
+
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mPA;
+  T2 mProp;
+  KernelFunctor(T1 PA, T2 Prop) : mPA(PA), mProp(Prop) {}
+
+  void operator()(id<1> i) const { mPA[i] += 2; }
+  auto get(properties_tag) const { return mProp; }
+};
 
 int main(void) {
   constexpr unsigned Size = 32;
@@ -120,8 +131,8 @@ int main(void) {
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<class SYCLKernelSpecifiedGRF>(
-          Size, prop, [=](id<1> i) { PA[i] += 2; });
+      cgh.parallel_for<class SYCLKernelSpecifiedGRF>(Size,
+                                                     KernelFunctor(PA, prop));
     });
     e.wait();
   } catch (sycl::exception const &e) {
@@ -139,16 +150,16 @@ int main(void) {
   return 0;
 }
 
-// CHECK-LABEL: ---> urProgramBuild
+// CHECK-LABEL: <--- urProgramBuild
 // CHECK-WITH-VAR-SAME: -g
 // CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK: ---> urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: <--- urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
 
-// CHECK-NO-VAR: urProgramBuild{{.*}}-ze-opt-large-register-file
-// CHECK-WITH-VAR: urProgramBuild{{.*}}-g -ze-opt-large-register-file
-// CHECK-AUTO-NO-VAR: urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
-// CHECK-AUTO-WITH-VAR: urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
+// CHECK-NO-VAR: <--- urProgramBuild{{.*}}-ze-opt-large-register-file
+// CHECK-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-opt-large-register-file
+// CHECK-AUTO-NO-VAR: <--- urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
+// CHECK-AUTO-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
 // CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK: ---> urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: <--- urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS

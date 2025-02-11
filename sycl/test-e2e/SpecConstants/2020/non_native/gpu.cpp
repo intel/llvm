@@ -1,4 +1,5 @@
-// REQUIRES: ocloc, gpu, TEMPORARY_DISABLED
+// UNSUPPORTED: true
+// REQUIRES: ocloc, gpu
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
 //

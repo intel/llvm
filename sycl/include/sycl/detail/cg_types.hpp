@@ -23,7 +23,6 @@
 #include <sycl/nd_item.hpp>                    // for nd_item
 #include <sycl/nd_range.hpp>                   // for nd_range
 #include <sycl/range.hpp>                      // for range, operator*
-#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 
 #include <functional>  // for function
 #include <stddef.h>    // for size_t
@@ -192,10 +191,18 @@ public:
                          std::is_same_v<KernelArgType, item<Dims, false>>) {
       constexpr bool HasOffset =
           std::is_same_v<KernelArgType, item<Dims, true>>;
-      KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-          InitializedVal<Dims, range>::template get<1>(),
-          InitializedVal<Dims, id>::template get<0>());
-      runKernelWithArg<KernelArgType>(MKernel, Item);
+      if constexpr (!HasOffset) {
+        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+            InitializedVal<Dims, range>::template get<1>(),
+            InitializedVal<Dims, id>::template get<0>());
+        runKernelWithArg<KernelArgType>(MKernel, Item);
+      } else {
+        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+            InitializedVal<Dims, range>::template get<1>(),
+            InitializedVal<Dims, id>::template get<0>(),
+            InitializedVal<Dims, id>::template get<0>());
+        runKernelWithArg<KernelArgType>(MKernel, Item);
+      }
     } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
       sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
       sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();

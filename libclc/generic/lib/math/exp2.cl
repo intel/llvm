@@ -21,10 +21,10 @@
  */
 
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <clc/clcmacro.h>
+#include <libspirv/spirv.h>
 
 #include "math.h"
-#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float exp2(float x) {
     return __spirv_ocl_exp2(x);

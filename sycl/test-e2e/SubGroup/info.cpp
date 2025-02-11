@@ -1,7 +1,3 @@
-// UNSUPPORTED: accelerator
-// TODO: FPGAs currently report supported subgroups as {4,8,16,32,64}, causing
-// this test to fail. Additionally, the kernel max_sub_group_size checks
-// crash on FPGAs
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -20,21 +16,7 @@ using namespace sycl;
 int main() {
   queue Queue;
   device Device = Queue.get_device();
-
-  bool old_opencl = false;
-  if (Device.get_backend() == sycl::backend::opencl) {
-    // Extract the numerical version from the version string, OpenCL version
-    // string have the format "OpenCL <major>.<minor> <vendor specific data>".
-    std::string ver = Device.get_info<info::device::version>().substr(7, 3);
-    old_opencl = (ver < "2.1");
-  }
-
-  /* Check info::device parameters. */
-  if (!old_opencl) {
-    // Independent forward progress is missing on OpenCL backend prior to
-    // version 2.1
-    Device.get_info<info::device::sub_group_independent_forward_progress>();
-  }
+  Device.get_info<info::device::sub_group_independent_forward_progress>();
   Device.get_info<info::device::max_num_sub_groups>();
 
   try {

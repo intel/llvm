@@ -10,6 +10,13 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
 ; CHECK-SPIRV-DAG: Capability CooperativeMatrixKHR
 ; CHECK-SPIRV-DAG: Extension "SPV_KHR_cooperative_matrix"
 ; CHECK-SPIRV: TypeInt [[#Int16Ty:]] 16 0

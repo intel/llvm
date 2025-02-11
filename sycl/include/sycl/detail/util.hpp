@@ -15,6 +15,9 @@
 
 #include <cstring>
 #include <mutex>
+#include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace sycl {
@@ -42,6 +45,8 @@ template <typename T> struct TempAssignGuard {
   TempAssignGuard(T &fld, T tempVal) : field(fld), restoreValue(fld) {
     field = tempVal;
   }
+  TempAssignGuard(const TempAssignGuard<T> &) = delete;
+  TempAssignGuard operator=(const TempAssignGuard<T> &) = delete;
   ~TempAssignGuard() { field = restoreValue; }
 };
 
@@ -83,6 +88,40 @@ template <> struct ABINeutralT<std::vector<std::string>> {
 };
 
 template <typename T> using ABINeutralT_t = typename ABINeutralT<T>::type;
+
+template <typename ParamT> auto convert_to_abi_neutral(ParamT &&Info) {
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, std::string>) {
+    return detail::string{Info};
+  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<std::string>>) {
+    std::vector<detail::string> Res;
+    Res.reserve(Info.size());
+    for (std::string &Str : Info) {
+      Res.push_back(detail::string{Str});
+    }
+    return Res;
+  } else {
+    return std::forward<ParamT>(Info);
+  }
+}
+
+template <typename ParamT> auto convert_from_abi_neutral(ParamT &&Info) {
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, detail::string>) {
+    return Info.c_str();
+  } else if constexpr (std::is_same_v<ParamNoRef,
+                                      std::vector<detail::string>>) {
+    std::vector<std::string> Res;
+    Res.reserve(Info.size());
+    for (detail::string &Str : Info) {
+      Res.push_back(Str.c_str());
+    }
+    return Res;
+  } else {
+    return std::forward<ParamT>(Info);
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

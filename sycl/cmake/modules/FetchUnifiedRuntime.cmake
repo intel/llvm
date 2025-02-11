@@ -70,7 +70,13 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
 endif()
 
-if(SYCL_UR_USE_FETCH_CONTENT)
+set(UR_INTREE_SOURCE_DIR "${LLVM_SOURCE_DIR}/../unified-runtime")
+cmake_path(NORMAL_PATH UR_INTREE_SOURCE_DIR OUTPUT_VARIABLE UR_INTREE_SOURCE_DIR)
+
+if(IS_DIRECTORY "${UR_INTREE_SOURCE_DIR}")
+  set(UR_INTREE_BINARY_DIR ${LLVM_BINARY_DIR}/unified-runtime)
+  add_subdirectory(${UR_INTREE_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
+elseif(SYCL_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   # The fetch_adapter_source function can be used to perform a separate content
@@ -117,13 +123,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6298474e628889d3598b9416303a52e67a2b66aa
-  # Merge: 3cd6eaeb 4bb6a103
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Wed Sep 18 09:20:05 2024 +0200
-  #   Merge pull request #2093 from lslusarczyk/memleak-fix
-  #   fixed issue #1990, L0 leaks checker counts successful create/destroy only
-  set(UNIFIED_RUNTIME_TAG 6298474e628889d3598b9416303a52e67a2b66aa)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -232,14 +232,10 @@ find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
   # Install the UR loader.
-  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
-  # When UR is moved to its separate repo perhaps we should introduce new component,
-  # e.g. unified-runtime-sycl-dev.
-  # See github issue #14598
   install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
 endif()
 
@@ -303,8 +299,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
-# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
 install(TARGETS umf
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)

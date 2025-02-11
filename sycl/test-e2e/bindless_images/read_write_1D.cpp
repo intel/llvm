@@ -1,7 +1,10 @@
-// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
+// REQUIRES: aspect-ext_oneapi_bindless_images
+
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
 
 // RUN: %{build} -o %t.out
-// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

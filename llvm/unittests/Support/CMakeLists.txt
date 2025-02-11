@@ -61,6 +61,7 @@ add_llvm_unittest(SupportTests
   MemoryBufferRefTest.cpp
   MemoryBufferTest.cpp
   MemoryTest.cpp
+  ModRefTest.cpp
   NativeFormatTests.cpp
   OptimizedStructLayoutTest.cpp
   ParallelTest.cpp
@@ -69,6 +70,7 @@ add_llvm_unittest(SupportTests
   ProcessTest.cpp
   ProgramTest.cpp
   PropertySetIOTest.cpp
+  RecyclerTest.cpp
   RegexTest.cpp
   ReverseIterationTest.cpp
   ReplaceFileTest.cpp

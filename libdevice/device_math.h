@@ -10,7 +10,8 @@
 #define __LIBDEVICE_DEVICE_MATH_H__
 
 #include "device.h"
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 #include <cstdint>
 
 typedef struct {
@@ -367,5 +368,5 @@ float __devicelib_scalbnf(float x, int n);
 DEVICE_EXTERN_C
 double __devicelib_scalbn(double x, int exp);
 
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
 #endif // __LIBDEVICE_DEVICE_MATH_H__

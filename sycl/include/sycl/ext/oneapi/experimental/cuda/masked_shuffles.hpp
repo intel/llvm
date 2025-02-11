@@ -39,9 +39,15 @@ namespace detail {
           mask, static_cast<int>(tmp_b16), shfl_param, c);                     \
       asm("mov.b16 %0,%1;" : "=h"(res) : "h"(static_cast<short>(tmp_b32)));    \
     } else if constexpr (std::is_same_v<T, float>) {                           \
-      auto tmp_b32 = __nvvm_shfl_sync_##SHUFFLE_INSTR(                         \
-          mask, __nvvm_bitcast_f2i(val), shfl_param, c);                       \
-      res = __nvvm_bitcast_i2f(tmp_b32);                                       \
+      union {                                                                  \
+        int i;                                                                 \
+        float f;                                                               \
+      } u;                                                                     \
+      u.f = val;                                                               \
+      auto tmp_b32 =                                                           \
+          __nvvm_shfl_sync_##SHUFFLE_INSTR(mask, u.i, shfl_param, c);          \
+      u.i = tmp_b32;                                                           \
+      res = u.f;                                                               \
     } else {                                                                   \
       res = __nvvm_shfl_sync_##SHUFFLE_INSTR(mask, val, shfl_param, c);        \
     }                                                                          \

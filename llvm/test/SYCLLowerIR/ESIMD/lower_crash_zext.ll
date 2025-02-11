@@ -6,7 +6,7 @@
 
 define spir_func <32 x i16> @_Z3foov() {
 ; CHECK-LABEL: @_Z3foov(
-; CHECK-NEXT:    %call.i.i = zext <32 x i1> bitcast (<1 x i32> <i32 1717986918> to <32 x i1>) to <32 x i16>
+; CHECK-NEXT:    %call.i.i = zext <32 x i1> bitcast (<1 x i32> splat (i32 1717986918) to <32 x i1>) to <32 x i16>
 ; CHECK-NEXT:    ret <32 x i16> %call.i.i
 ;
   %call.i.i = call spir_func <32 x i16> @_Z19__esimd_unpack_maskILi32EEN2cl4sycl5INTEL3gpu11vector_typeItXT_EE4typeEj(i32 1717986918)
@@ -17,7 +17,7 @@ declare dso_local spir_func <32 x i16> @_Z19__esimd_unpack_maskILi32EEN2cl4sycl5
 
 define spir_func <16 x i16> @_Z3barv() {
 ; CHECK-LABEL: @_Z3barv(
-; CHECK:    %call.i.i = zext <16 x i1> bitcast (<1 x i16> <i16 15> to <16 x i1>) to <16 x i16>
+; CHECK:    %call.i.i = zext <16 x i1> bitcast (<1 x i16> splat (i16 15) to <16 x i1>) to <16 x i16>
 ;
   %call.i.i = call spir_func <16 x i16> @_Z19__esimd_unpack_maskILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeItXT_EE4typeEj(i32 15)
   ret <16 x i16> %call.i.i

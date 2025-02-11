@@ -9,6 +9,7 @@ config.sycl_tools_dir = lit_config.params.get('SYCL_TOOLS_DIR', "@LLVM_TOOLS_DIR
 config.sycl_include = lit_config.params.get('SYCL_INCLUDE', "@SYCL_INCLUDE@")
 config.sycl_obj_root = "@SYCL_BINARY_DIR@"
 config.sycl_source_dir = "@SYCL_SOURCE_DIR@/source"
+config.sycl_include_source_dir = "@SYCL_SOURCE_DIR@/include"
 config.sycl_libs_dir = lit_config.params.get('SYCL_LIBS_DIR', "@LLVM_LIBS_DIR@")
 config.target_triple = "@LLVM_TARGET_TRIPLE@"
 config.host_triple = "@LLVM_HOST_TRIPLE@"

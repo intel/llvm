@@ -5,12 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: accelerator
+// REQUIRES: target-spir, accelerator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/13887
-// XFAIL: *
 // If users need to use host pipe feature provided by experimental::pipe, all
 // pipes in their design should use the experimental::pipe (as a workround).
 

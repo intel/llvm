@@ -1,3 +1,6 @@
+#ifndef __CLC_CLC_H__
+#define __CLC_CLC_H__
+
 #ifndef cl_clang_storage_class_specifiers
 #error Implementation requires cl_clang_storage_class_specifiers extension!
 #endif
@@ -31,10 +34,10 @@
 #endif
 
 /* Function Attributes */
-#include <func.h>
+#include <clc/clcfunc.h>
 
 /* 6.1 Supported Data Types */
-#include <types.h>
+#include <clc/clctypes.h>
 
 /* 6.2.3 Explicit Conversions */
 #include <clc/convert.h>
@@ -304,3 +307,5 @@
 #include <clc/image/image.h>
 
 #pragma OPENCL EXTENSION all : disable
+
+#endif // __CLC_CLC_H__

@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/platform.hpp>
 
+#include <algorithm>
 #include <unordered_set>
 
 namespace sycl {

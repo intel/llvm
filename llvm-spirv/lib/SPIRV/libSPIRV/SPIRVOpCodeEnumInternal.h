@@ -2,7 +2,6 @@
 
 _SPIRV_OP_INTERNAL(Forward, internal::OpForward)
 _SPIRV_OP_INTERNAL(TypeTokenINTEL, internal::OpTypeTokenINTEL)
-_SPIRV_OP_INTERNAL(ArithmeticFenceINTEL, internal::OpArithmeticFenceINTEL)
 _SPIRV_OP_INTERNAL(ConvertFToBF16INTEL, internal::OpConvertFToBF16INTEL)
 _SPIRV_OP_INTERNAL(ConvertBF16ToFINTEL, internal::OpConvertBF16ToFINTEL)
 _SPIRV_OP_INTERNAL(TypeJointMatrixINTEL, internal::OpTypeJointMatrixINTEL)
@@ -24,6 +23,10 @@ _SPIRV_OP_INTERNAL(CooperativeMatrixStoreCheckedINTEL,
                    internal::OpCooperativeMatrixStoreCheckedINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixConstructCheckedINTEL,
                    internal::OpCooperativeMatrixConstructCheckedINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixLoadOffsetINTEL,
+                   internal::OpCooperativeMatrixLoadOffsetINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixStoreOffsetINTEL,
+                   internal::OpCooperativeMatrixStoreOffsetINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixApplyFunctionINTEL,
                    internal::OpCooperativeMatrixApplyFunctionINTEL)
 _SPIRV_OP_INTERNAL(ComplexFMulINTEL, internal::ComplexFMulINTEL)

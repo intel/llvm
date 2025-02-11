@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
@@ -21,8 +20,11 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/platform.hpp>
 #include <ur_api.h>
+
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
 
 #include <cstddef>
 #include <memory>
@@ -35,7 +37,7 @@
 namespace sycl {
 inline namespace _V1 {
 // Forward declarations
-class device_selector;
+class platform;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -219,9 +221,21 @@ public:
   /// Queries this SYCL device for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<device, Param>()
+#endif
+#endif
+            >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Check SYCL extension support by device
   ///

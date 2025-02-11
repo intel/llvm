@@ -14,7 +14,7 @@
 #include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>             // for id
 #include <sycl/marray.hpp>         // for marray
-#include <sycl/types.hpp>          // for vec
+#include <sycl/vector.hpp>         // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT

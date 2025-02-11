@@ -22,6 +22,20 @@ def strip_version(name):
     return name.replace("sycl::_V1::", "sycl::")
 
 
+def linear_index(gdb_range, gdb_id):
+    """Calculate the linear index for a sycl id within the specified range."""
+    sycl_range = SYCLRange(gdb_range)
+    sycl_id = SYCLId(gdb_id)
+    assert sycl_range.dimensions() == sycl_id.dimensions()
+    index_array = sycl_id.array()
+    range_array = sycl_range.array()
+    linear_index = 0
+    for dim in range(sycl_range.dimensions()):
+        linear_index *= range_array[dim]
+        linear_index += index_array[dim]
+    return linear_index
+
+
 class SYCLType:
     """Wrapper around a gdb.Type."""
 
@@ -269,7 +283,11 @@ class SYCLAccessor(SYCLValue):
 
 
 class SYCLLocalAccessor(SYCLValue):
-    """Provides information about a sycl::local_accessor from a gdb.Value."""
+    """Provides information about a sycl::local_accessor from a gdb.Value.
+
+    This SYCLLocalAccessor cannot represent the elements as a vector because
+    the address space qualifier only applies to pointers.
+    """
 
     def __init__(self, gdb_value):
         super().__init__(gdb_value)
@@ -304,15 +322,14 @@ class SYCLLocalAccessor(SYCLValue):
         return data
 
     def subscript_sizet(self, subscript):
-        return self.data()[subscript]
+        if self.dimensions() == 1:
+            return self.data_ptr()[subscript]
+        else:
+            return self.data()[subscript]
 
     def subscript_id(self, subscript):
-        id_array = SYCLId(subscript).array()
-        result = self.data()
-        for dimension in range(self.dimensions()):
-            index = id_array[dimension]
-            result = result[index]
-        return result
+        index = linear_index(self.memory_range(), subscript)
+        return self.data_ptr()[index]
 
     def subscript_item(self, subscript):
         return self.subscript_id(SYCLItem(subscript).index())
@@ -757,6 +774,10 @@ class SYCLAccessorPrinter(SYCLPrinter):
 class SYCLLocalAccessorPrinter(SYCLPrinter):
     """Pretty printer for a sycl::local_accessor.
 
+    Use a decorated pointer for printing data in local memory.  This implements
+    a trivial array printing algorithm by calculating indexes from a decorated
+    pointer.
+
     Examples:
       # In device code.
       (gdb) p local_accessor_1d
@@ -765,13 +786,63 @@ class SYCLLocalAccessorPrinter(SYCLPrinter):
       # In host code.
       (gdb) p local_accessor_1d
       $2 = sycl::local_accessor undefined
+
+    In order to avoid printing arbitrarily large arrays, this printer includes
+    support for specifying the maximum elements. For example:
+
+    Example:
+      (gdb) show print elements
+      Limit on string chars or array elements to print is 200.
+      (gdb) p -elements 4 -- local_accessor_1d
+      $3 = sycl::local_accessor range 10 = {0, 1, 2, 3...}
     """
 
     def __init__(self, gdb_value):
         super().__init__(gdb_value)
 
-    def display_hint(self):
-        return "array"
+    def elements_per_dimension(self, gdb_range):
+        sycl_range = SYCLRange(gdb_range)
+        dims = sycl_range.dimensions()
+        extents = [int(sycl_range.array()[i]) for i in range(dims)]
+        product = lambda x: x[0] if len(x) == 1 else x[0] * product(x[1:])
+        elements = [product(extents[dim:]) for dim in range(dims)]
+        return elements
+
+    def array_string(self, gdb_pointer, gdb_range):
+        # Maximum number of elements for a single array dimension.
+        # print_options() is only available in GDB versions after 13.1.
+        if hasattr(gdb, "print_options") and callable(gdb.print_options):
+            max_elements = int(gdb.print_options()["max_elements"])
+        else:
+            max_elements = int(gdb.parameter("print elements"))
+        string = ""
+        EPD = self.elements_per_dimension(gdb_range)
+        num_elements = EPD[0]
+        # Iterate over every item in the mulit-dimensional array.
+        item = 0
+        while item < num_elements:
+            # Seperate items with a comma.
+            if item != 0:
+                string += ", "
+            for elements in EPD:
+                # Begin each array with '{'.
+                if item % elements == 0:
+                    string += "{"
+            # Add the current array element.
+            string += str(gdb_pointer[item])
+            sub_elements = 1
+            for elements in reversed(EPD):
+                # Upon reaching max_elements in a single array, display "..."
+                # and skip the remaining elements in this array.
+                if ((item + 1) % elements) // sub_elements == max_elements:
+                    string += "..."
+                    item += elements - ((item + 1) % elements)
+                # End each array with '}'.
+                if (item + 1) % elements == 0:
+                    string += "}"
+                sub_elements = elements
+            item += 1
+        return string
 
     def to_string(self):
         local_accessor = SYCLLocalAccessor(self.gdb_value())
@@ -780,20 +851,12 @@ class SYCLLocalAccessorPrinter(SYCLPrinter):
             mem_range = local_accessor.memory_range()
             range_string = SYCLRangePrinter(mem_range).value_as_string()
             string += " range " + range_string
-        except:
+            pointer = local_accessor.data_ptr()
+            array_string = self.array_string(pointer, mem_range)
+            string += " = " + array_string
+        except Exception:
             string += " undefined"
         return string
-
-    def children(self):
-        try:
-            local_accessor = SYCLLocalAccessor(self.gdb_value())
-            data = local_accessor.data()
-            (low, inclusive_high) = data.type.range()
-            high = inclusive_high + 1
-            for index in range(low, high):
-                yield (f"[{index}]", data[index])
-        except:
-            return None
 
 
 class SYCLBufferPrinter(SYCLPrinter):

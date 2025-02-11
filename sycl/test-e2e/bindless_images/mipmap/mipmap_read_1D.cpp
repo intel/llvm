@@ -1,7 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_mipmap
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

@@ -1,4 +1,4 @@
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 #include <clc/clc.h>
 
 _CLC_DEF _CLC_OVERLOAD void wait_group_events(int num_events,

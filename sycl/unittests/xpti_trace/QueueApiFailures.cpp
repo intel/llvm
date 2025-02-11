@@ -66,7 +66,7 @@ public:
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
                                         "libxptitest_subscriber.so", [] {}};
-  sycl::unittest::UrMock<> MockPlugin;
+  sycl::unittest::UrMock<> MockAdapter;
 
   static constexpr char FileName[] = "QueueApiFailures.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";
@@ -88,7 +88,8 @@ public:
   const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
-  const std::string PiLevelFailMessage = "Native API failed";
+  const std::string URLevelFailMessage = "Native API failed";
+  const std::string SYCLLevelFailMessage = "Enqueue process failed";
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {
@@ -250,6 +251,11 @@ TEST_F(QueueApiFailures, QueueFill) {
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
   EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(URLevelFailMessage));
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(SYCLLevelFailMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -279,6 +285,11 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
   EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(URLevelFailMessage));
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(SYCLLevelFailMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 

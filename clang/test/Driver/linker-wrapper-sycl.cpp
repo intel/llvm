@@ -139,7 +139,7 @@
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}llvm-link" [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang"{{.*}} -o [[CLANGOUT:.*]] --target=amdgcn-amd-amdhsa -mcpu={{.*}}
-// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang-offload-bundler"{{.*}} -targets=host-x86_64-unknown-linux,hip-amdgcn-amd-amdhsa--gfx803 -input=/dev/null -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
+// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang-offload-bundler"{{.*}} -targets=host-x86_64-unknown-linux-gnu,hip-amdgcn-amd-amdhsa--gfx803 -input=/dev/null -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
 // CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT:.*]]
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
@@ -190,3 +190,7 @@
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT2:.*]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Error handling when --linker-path is not provided for clang-linker-wrapper
+// RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
+// LINKER-PATH-NOT-PROVIDED: linker path missing, must pass 'linker-path'

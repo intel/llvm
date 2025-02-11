@@ -9,13 +9,13 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>          // for backend, backend_return_t
-#include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/string_view.hpp>
-#include <sycl/detail/ur.hpp>           // for cast
-#include <sycl/device.hpp>              // for device
+#include <sycl/detail/ur.hpp> // for cast
+#include <sycl/device.hpp>    // for device
+#include <sycl/handler.hpp>
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
@@ -26,12 +26,15 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
-#include <array>       // for array
-#include <cstddef>     // for std::byte
-#include <cstring>     // for size_t, memcpy
-#include <functional>  // for function
-#include <iterator>    // for distance
-#include <memory>      // for shared_ptr, operator==, hash
+#include <array>      // for array
+#include <cstddef>    // for std::byte
+#include <cstring>    // for size_t, memcpy
+#include <functional> // for function
+#include <iterator>   // for distance
+#include <memory>     // for shared_ptr, operator==, hash
+#if __has_include(<span>)
+#include <span>
+#endif
 #include <string>      // for string
 #include <type_traits> // for enable_if_t, remove_refer...
 #include <utility>     // for move
@@ -45,6 +48,7 @@ template <backend Backend> class backend_traits;
 template <backend Backend, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<Backend, kernel_bundle<State>>;
+class context;
 
 namespace detail {
 class kernel_id_impl;
@@ -122,6 +126,13 @@ protected:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  backend ext_oneapi_get_backend_impl() const noexcept;
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  std::pair<const std::byte *, const std::byte *>
+  ext_oneapi_get_backend_content_view_impl() const;
+#endif // HAS_STD_BYTE
 };
 } // namespace detail
 
@@ -143,6 +154,30 @@ public:
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
     return device_image_plain::has_kernel(KernelID, Dev);
   }
+
+  backend ext_oneapi_get_backend() const noexcept {
+    return device_image_plain::ext_oneapi_get_backend_impl();
+  }
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  template <sycl::bundle_state T = State,
+            typename = std::enable_if_t<T == bundle_state::executable>>
+  std::vector<std::byte> ext_oneapi_get_backend_content() const {
+    const auto view =
+        device_image_plain::ext_oneapi_get_backend_content_view_impl();
+    return std::vector(view.first, view.second);
+  }
+
+#ifdef __cpp_lib_span
+  template <sycl::bundle_state T = State,
+            typename = std::enable_if_t<T == bundle_state::executable>>
+  std::span<const std::byte> ext_oneapi_get_backend_content_view() const {
+    const auto view =
+        device_image_plain::ext_oneapi_get_backend_content_view_impl();
+    return std::span<const std::byte>{view.first, view.second};
+  }
+#endif // __cpp_lib_span
+#endif // _HAS_STD_BYTE
 
 private:
   device_image(detail::DeviceImageImplPtr Impl)
@@ -901,7 +936,8 @@ struct build_source_bundle_props;
 // PropertyT syclex::include_files
 /////////////////////////
 struct include_files
-    : detail::run_time_property_key<detail::PropKind::IncludeFiles> {
+    : detail::run_time_property_key<include_files,
+                                    detail::PropKind::IncludeFiles> {
   include_files();
   include_files(const std::string &name, const std::string &content) {
     record.emplace_back(std::make_pair(name, content));
@@ -922,7 +958,8 @@ struct is_property_key_of<include_files_key,
 // PropertyT syclex::build_options
 /////////////////////////
 struct build_options
-    : detail::run_time_property_key<detail::PropKind::BuildOptions> {
+    : detail::run_time_property_key<build_options,
+                                    detail::PropKind::BuildOptions> {
   std::vector<std::string> opts;
   build_options(const std::string &optsArg) : opts{optsArg} {}
   build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
@@ -936,7 +973,8 @@ struct is_property_key_of<build_options_key, detail::build_source_bundle_props>
 /////////////////////////
 // PropertyT syclex::save_log
 /////////////////////////
-struct save_log : detail::run_time_property_key<detail::PropKind::BuildLog> {
+struct save_log
+    : detail::run_time_property_key<save_log, detail::PropKind::BuildLog> {
   std::string *log;
   save_log(std::string *logArg) : log(logArg) {}
 };
@@ -950,7 +988,8 @@ struct is_property_key_of<save_log_key, detail::build_source_bundle_props>
 // PropertyT syclex::registered_kernel_names
 /////////////////////////
 struct registered_kernel_names
-    : detail::run_time_property_key<detail::PropKind::RegisteredKernelNames> {
+    : detail::run_time_property_key<registered_kernel_names,
+                                    detail::PropKind::RegisteredKernelNames> {
   std::vector<std::string> kernel_names;
   registered_kernel_names() {}
   registered_kernel_names(const std::string &knArg) : kernel_names{knArg} {}
@@ -1054,12 +1093,9 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 /////////////////////////
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
-template <
-    typename PropertyListT = empty_properties_t,
-    typename = std::enable_if_t<
-        is_property_list_v<PropertyListT> &&
-        detail::all_props_are_keys_of<detail::create_bundle_from_source_props,
-                                      PropertyListT>::value>>
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::create_bundle_from_source_props, PropertyListT>>>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::string &Source, PropertyListT props = {}) {
@@ -1073,12 +1109,9 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
 }
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <
-    typename PropertyListT = empty_properties_t,
-    typename = std::enable_if_t<
-        is_property_list_v<PropertyListT> &&
-        detail::all_props_are_keys_of<detail::create_bundle_from_source_props,
-                                      PropertyListT>::value>>
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::create_bundle_from_source_props, PropertyListT>>>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::vector<std::byte> &Bytes, PropertyListT props = {}) {
@@ -1097,10 +1130,8 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
 /////////////////////////
 
 template <typename PropertyListT = empty_properties_t,
-          typename = std::enable_if_t<
-              is_property_list_v<PropertyListT> &&
-              detail::all_props_are_keys_of<detail::build_source_bundle_props,
-                                            PropertyListT>::value>>
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
 
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
@@ -1123,10 +1154,8 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 }
 
 template <typename PropertyListT = empty_properties_t,
-          typename = std::enable_if_t<
-              is_property_list_v<PropertyListT> &&
-              detail::all_props_are_keys_of<detail::build_source_bundle_props,
-                                            PropertyListT>::value>>
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       PropertyListT props = {}) {
@@ -1134,6 +1163,37 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 }
 
 } // namespace ext::oneapi::experimental
+
+template <auto &SpecName>
+void handler::set_specialization_constant(
+    typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
+
+  setStateSpecConstSet();
+
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+
+  detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+      KernelBundleImplPtr)
+      .set_specialization_constant<SpecName>(Value);
+}
+
+template <auto &SpecName>
+typename std::remove_reference_t<decltype(SpecName)>::value_type
+handler::get_specialization_constant() const {
+
+  if (isStateExplicitKernelBundle())
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Specialization constants cannot be read after "
+                          "explicitly setting the used kernel bundle");
+
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+
+  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+             KernelBundleImplPtr)
+      .get_specialization_constant<SpecName>();
+}
 
 } // namespace _V1
 } // namespace sycl

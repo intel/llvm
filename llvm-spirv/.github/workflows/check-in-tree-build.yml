@@ -9,8 +9,8 @@ name: In-tree build & tests
 on:
   push:
     branches:
+      # This check is expensive; do not run it after pushes to llvm_release_*
       - main
-      - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README

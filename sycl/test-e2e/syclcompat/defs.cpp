@@ -54,10 +54,10 @@ void test_check_error() {
     throw std::runtime_error("Expected invalid exception in test_check_error");
   };
 
-  assert(syclcompat::error_code::SUCCESS == SYCLCOMPAT_CHECK_ERROR());
-  assert(syclcompat::error_code::BACKEND_ERROR ==
+  assert(syclcompat::error_code::success == SYCLCOMPAT_CHECK_ERROR());
+  assert(syclcompat::error_code::backend_error ==
          SYCLCOMPAT_CHECK_ERROR(sycl_error_throw()));
-  assert(syclcompat::error_code::DEFAULT_ERROR ==
+  assert(syclcompat::error_code::default_error ==
          SYCLCOMPAT_CHECK_ERROR(runtime_error_throw()));
 }
 

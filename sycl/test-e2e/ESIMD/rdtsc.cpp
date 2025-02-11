@@ -1,5 +1,3 @@
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 //==- rdtsc.cpp - Test to verify rdtsc0 and sr0 functionlity----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
+// REQUIRES-INTEL-DRIVER: lin: 28690
 
 // This is basic test to validate rdtsc function.
 

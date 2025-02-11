@@ -9,6 +9,15 @@
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx702 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx702 -DMAC_STR=GFX702
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx703 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx703 -DMAC_STR=GFX703
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx704 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx704 -DMAC_STR=GFX704
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx705 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx705 -DMAC_STR=GFX705
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx801 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx801 -DMAC_STR=GFX801
@@ -127,13 +136,34 @@
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
 // BAD_AMD_INPUT: error: SYCL target is invalid: 'amd_gpu_bad'
 
+// Check the SYCL triple for AMD GPUs.
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa -### \
+// RUN: -Xsycl-target-backend --offload-arch=gfx908 \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=AMD-TRIPLE
+// AMD-TRIPLE: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
+
+// Check if SYCL triples with 'Environment' component are rejected for AMD GPUs.
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
+  // RUN: FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
+// BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'amdgcn-amd-amdhsa-sycl'
+
+// Check for invalid SYCL triple for AMD GPUs.
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
+// BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'amdgcn{{.*}}'
+
 /// Test for proper creation of fat object
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx700 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_FATO
 // AMD_FATO: clang-offload-bundler{{.*}} "-type=o"
-// AMD_FATO: "-targets=host-x86_64-unknown-linux,hipv4-amdgcn-amd-amdhsa--gfx700"
+// AMD_FATO: "-targets=host-x86_64-unknown-linux-gnu,hipv4-amdgcn-amd-amdhsa--gfx700"
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o

@@ -358,7 +358,7 @@ struct Wrapper {
   std::pair<Constant *, Constant *>
   addStructArrayToModule(ArrayRef<Constant *> ArrayData, Type *ElemTy) {
     if (ArrayData.empty()) {
-      auto *PtrTy = ElemTy->getPointerTo();
+      auto *PtrTy = llvm::PointerType::getUnqual(ElemTy->getContext());
       auto *NullPtr = Constant::getNullValue(PtrTy);
       return std::make_pair(NullPtr, NullPtr);
     }

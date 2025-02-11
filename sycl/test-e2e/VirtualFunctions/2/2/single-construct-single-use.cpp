@@ -1,6 +1,3 @@
-// UNSUPPORTED: cuda, hip, acc
-// FIXME: replace unsupported with an aspect check once we have it
-//
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
@@ -51,9 +48,34 @@ public:
   void increment(int *Data) override { *Data += 8 + Mod; }
 };
 
+struct SetIncBy16;
+class IncrementBy16 : public BaseIncrement {
+public:
+  IncrementBy16(int Mod, int /* unused */) : BaseIncrement(Mod) {}
+
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<SetIncBy16>)
+  void increment(int *Data) override { *Data += 16 + Mod; }
+};
+
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mStorageAcc;
+  T2 mDataAcc;
+  KernelFunctor(T1 &StorageAcc, T2 &DataAcc)
+      : mStorageAcc(StorageAcc), mDataAcc(DataAcc) {}
+  void operator()() const {
+    auto *Ptr = mStorageAcc[0].template getAs<BaseIncrement>();
+    Ptr->increment(
+        mDataAcc.template get_multi_ptr<sycl::access::decorated::no>().get());
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{
+        oneapi::assume_indirect_calls_to<void, SetIncBy16>};
+  }
+};
+
 int main() try {
-  using storage_t =
-      obj_storage_t<BaseIncrement, IncrementBy2, IncrementBy4, IncrementBy8>;
+  using storage_t = obj_storage_t<BaseIncrement, IncrementBy2, IncrementBy4,
+                                  IncrementBy8, IncrementBy16>;
 
   storage_t HostStorage;
   sycl::buffer<storage_t> DeviceStorage(sycl::range{1});
@@ -66,8 +88,7 @@ int main() try {
   sycl::queue q(asyncHandler);
 
   // TODO: cover uses case when objects are passed through USM
-  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
-  for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
+  for (unsigned TestCase = 0; TestCase < 5; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
     sycl::buffer<int> DataStorage(&Data, sycl::range{1});
@@ -83,11 +104,7 @@ int main() try {
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::read_write);
       sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
-      CGH.single_task(props, [=]() {
-        auto *Ptr = StorageAcc[0].getAs<BaseIncrement>();
-        Ptr->increment(
-            DataAcc.get_multi_ptr<sycl::access::decorated::no>().get());
-      });
+      CGH.single_task(KernelFunctor(StorageAcc, DataAcc));
     });
 
     auto *Ptr =

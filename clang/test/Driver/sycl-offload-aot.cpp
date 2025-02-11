@@ -18,7 +18,7 @@
 /// Check that -aux-triple is passed with -fintelfpga
 // RUN:    %clang -### -fintelfpga %s 2>&1 \
 // RUN:    | FileCheck -DARCH=spir64_fpga -check-prefix=CHK-SYCL-FPGA-AUX-TRIPLE %s
-// CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple" "{{.*}}"{{.*}} "-aux-triple" "[[ARCH]]-{{.*}}"{{.*}} "-fsycl-is-host"
+// CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple"{{.*}} "-fsycl-is-host"{{.*}} "-aux-triple" "[[ARCH]]-{{.*}}"
 
 /// Check error for -fsycl-targets with bad triple
 // RUN:   not %clang -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
@@ -138,25 +138,25 @@
 // CHK-TOOLS-GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHK-TOOLS-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // CHK-TOOLS-AOT: "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
-// CHK-TOOLS-AOT: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT7:.+\.o]]
+// CHK-TOOLS-AOT: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT7:.+\.o]]
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
 // CHK-TOOLS-FPGA: sycl-post-link{{.*}} "-o" "[[OUTPUT2_T:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-GEN: sycl-post-link{{.*}} "-o" "[[OUTPUT2_T:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-CPU: sycl-post-link{{.*}} "-o" "spir64_x86_64,[[OUTPUT2_T:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-extract=Code" "-drop_titles" "-o" "[[OUTPUT2_1:.+\.txt]]" "[[OUTPUT2_T]]"
-// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.4" "-spirv-debug-info-version=nonsemantic-shader-200" "-spirv-allow-unknown-intrinsics=llvm.genx.,llvm.fpbuiltin" {{.*}} "[[OUTPUT2_1]]"
-// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.4" "-spirv-debug-info-version=nonsemantic-shader-200" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-HW: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.4" "-spirv-debug-info-version=ocl-100" "-spirv-allow-extra-diexpressions" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-EMU: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.4" "-spirv-debug-info-version=nonsemantic-shader-200" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
+// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.5" "-spirv-debug-info-version=nonsemantic-shader-200" "-spirv-allow-unknown-intrinsics=llvm.genx.,llvm.fpbuiltin" {{.*}} "[[OUTPUT2_1]]"
+// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.5" "-spirv-debug-info-version=nonsemantic-shader-200" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-HW: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.5" "-spirv-debug-info-version=ocl-100" "-spirv-allow-extra-diexpressions" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
+// CHK-TOOLS-FPGA-EMU: llvm-spirv{{.*}} "-o" "[[OUTPUT3_T:.+\.txt]]" "-spirv-max-version=1.5" "-spirv-debug-info-version=nonsemantic-shader-200" "-spirv-allow-unknown-intrinsics=llvm.genx." {{.*}} "[[OUTPUT2_1]]"
 // CHK-TOOLS-FPGA-HW: aoc{{.*}} "-o" "[[OUTPUT4_T:.+\.aocx]]" "[[OUTPUT3_T]]"
 // CHK-TOOLS-FPGA-EMU: opencl-aot{{.*}} "-spv=[[OUTPUT3_T]]" "-ir=[[OUTPUT4_T:.+\.aocx]]"
 // CHK-TOOLS-GEN: ocloc{{.*}} "-output" "[[OUTPUT4_T:.+\.out]]" {{.*}} "[[OUTPUT3_T]]"
 // CHK-TOOLS-CPU: opencl-aot{{.*}} "-o=[[OUTPUT4_T:.+\.out]]" {{.*}} "[[OUTPUT3_T]]"
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-o" "[[OUTPUT4:.+\.table]]" "{{.*}}.table"{{.*}} "[[OUTPUT4_T]]"
-// CHK-TOOLS-FPGA: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_fpga{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
-// CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_gen{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
-// CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_x86_64{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
-// CHK-TOOLS-AOT: clang{{.*}} "-c" "-o" "[[OUTPUT6:.+\.o]]" "[[OUTPUT5]]"
+// CHK-TOOLS-FPGA: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_fpga{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
+// CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_gen{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
+// CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_x86_64{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
+// CHK-TOOLS-AOT: clang{{.*}} "--target=[[HOST_TARGET]]" "-c" "-o" "[[OUTPUT6:.+\.o]]" "[[OUTPUT5]]"
 // CHK-TOOLS-AOT: ld{{.*}} "[[OUTPUT7]]" "[[OUTPUT6]]" {{.*}} "-lsycl"
 
 // Check to be sure that for windows, the 'exe' tools are called

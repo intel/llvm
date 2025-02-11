@@ -31,7 +31,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 
-#include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
 
 namespace sycl {
 inline namespace _V1 {

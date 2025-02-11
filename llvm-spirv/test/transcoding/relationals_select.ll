@@ -75,31 +75,31 @@ entry:
 ; CHECK: [[DATA10:%.*]] = call spir_func <4 x i32> @_Z8isnormalDv4_f(<4 x float> [[ARG1:%.*]]) #0
 ; CHECK-NEXT: [[DATA11:%.*]] = trunc <4 x i32> [[DATA10]] to <4 x i8>
 ; CHECK-NEXT: [[DATA12:%.*]] = trunc <4 x i8> [[DATA11]] to <4 x i1>
-; CHECK-NEXT: [[CALL5:%.*]] = select <4 x i1> [[DATA12]], <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1>, <4 x i32> zeroinitializer
+; CHECK-NEXT: [[CALL5:%.*]] = select <4 x i1> [[DATA12]], <4 x i32> splat (i32 -1), <4 x i32> zeroinitializer
   %call7 = tail call spir_func <4 x i32> @_Z8isnormalDv4_f(<4 x float> noundef %v) #2
 
 ; CHECK: [[DATA13:%.*]] = call spir_func <4 x i32> @_Z8isfiniteDv4_f(<4 x float> [[ARG1]]) #0
 ; CHECK-NEXT: [[DATA14:%.*]] = trunc <4 x i32> [[DATA13]] to <4 x i8>
 ; CHECK-NEXT: [[DATA15:%.*]] = trunc <4 x i8> [[DATA14]] to <4 x i1>
-; CHECK-NEXT: [[CALL6:%.*]] = select <4 x i1> [[DATA15]], <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1>, <4 x i32> zeroinitializer
+; CHECK-NEXT: [[CALL6:%.*]] = select <4 x i1> [[DATA15]], <4 x i32> splat (i32 -1), <4 x i32> zeroinitializer
   %call8 = tail call spir_func <4 x i32> @_Z8isfiniteDv4_f(<4 x float> noundef %v) #2
 
 ; CHECK: [[DATA16:%.*]] = call spir_func <4 x i32> @_Z5isnanDv4_f(<4 x float> [[ARG1]]) #0
 ; CHECK-NEXT: [[DATA17:%.*]] = trunc <4 x i32> [[DATA16]] to <4 x i8>
 ; CHECK-NEXT: [[DATA18:%.*]] = trunc <4 x i8> [[DATA17]] to <4 x i1>
-; CHECK-NEXT: [[CALL7:%.*]] = select <4 x i1> [[DATA18]], <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1>, <4 x i32> zeroinitializer
+; CHECK-NEXT: [[CALL7:%.*]] = select <4 x i1> [[DATA18]], <4 x i32> splat (i32 -1), <4 x i32> zeroinitializer
   %call9 = tail call spir_func <4 x i32> @_Z5isnanDv4_f(<4 x float> noundef %v) #2
 
 ; CHECK: [[DATA19:%.*]] = call spir_func <4 x i32> @_Z5isinfDv4_f(<4 x float> [[ARG1]]) #0
 ; CHECK-NEXT: [[DATA20:%.*]] = trunc <4 x i32> [[DATA19]] to <4 x i8>
 ; CHECK-NEXT: [[DATA21:%.*]] = trunc <4 x i8> [[DATA20]] to <4 x i1>
-; CHECK-NEXT: [[CALL8:%.*]] = select <4 x i1> [[DATA21]], <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1>, <4 x i32> zeroinitializer
+; CHECK-NEXT: [[CALL8:%.*]] = select <4 x i1> [[DATA21]], <4 x i32> splat (i32 -1), <4 x i32> zeroinitializer
   %call10 = tail call spir_func <4 x i32> @_Z5isinfDv4_f(<4 x float> noundef %v) #2
 
 ; CHECK: [[DATA22:%.*]] = call spir_func <4 x i32> @_Z7signbitDv4_f(<4 x float> [[ARG1]]) #0
 ; CHECK-NEXT: [[DATA23:%.*]] = trunc <4 x i32> [[DATA22]] to <4 x i8>
 ; CHECK-NEXT: [[DATA24:%.*]] = trunc <4 x i8> [[DATA23]] to <4 x i1>
-; CHECK-NEXT: [[CALL9:%.*]] = select <4 x i1> [[DATA24]], <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1>, <4 x i32> zeroinitializer
+; CHECK-NEXT: [[CALL9:%.*]] = select <4 x i1> [[DATA24]], <4 x i32> splat (i32 -1), <4 x i32> zeroinitializer
   %call11 = tail call spir_func <4 x i32> @_Z7signbitDv4_f(<4 x float> noundef %v) #2
   ret void
 }

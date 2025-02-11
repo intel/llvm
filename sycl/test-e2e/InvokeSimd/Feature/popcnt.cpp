@@ -1,6 +1,6 @@
 // NOTE: The feature is not yet supported, there is a discussion on the
 // feasibility of tests
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
@@ -48,7 +48,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(VL)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;

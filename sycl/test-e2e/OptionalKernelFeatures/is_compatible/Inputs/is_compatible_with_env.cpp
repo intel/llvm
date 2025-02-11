@@ -1,4 +1,5 @@
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 int main() {
   sycl::device dev;

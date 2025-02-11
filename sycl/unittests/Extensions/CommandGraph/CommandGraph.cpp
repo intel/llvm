@@ -7,8 +7,48 @@
 //===----------------------------------------------------------------------===//
 #include "Common.hpp"
 
+#include <map>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi;
+
+// Helper function for testing weak_object and owner_less for different graph
+// types
+template <typename T>
+void TestGraphTypeInMaps(const T &Graph1, const T &Graph2) {
+  weak_object<T> WeakGraph1 = Graph1;
+  weak_object<T> WeakGraph2 = Graph2;
+
+  // Use the graph type directly in a map
+  std::map<T, int, owner_less<T>> GraphMap;
+  ASSERT_NO_THROW(GraphMap.insert({Graph1, 1}));
+  ASSERT_NO_THROW(GraphMap.insert({Graph2, 2}));
+
+  // Use the weak_object graph type in a map
+  std::map<weak_object<T>, int, owner_less<T>> WeakGraphMap;
+  ASSERT_NO_THROW(WeakGraphMap.insert({WeakGraph1, 1}));
+  ASSERT_NO_THROW(WeakGraphMap.insert({WeakGraph2, 2}));
+}
+
+// Test creating and using ext::oneapi::weak_object and owner_less for
+// command_graph class in a map
+TEST_F(CommandGraphTest, OwnerLessGraph) {
+
+  using ModifiableGraphT =
+      experimental::command_graph<experimental::graph_state::modifiable>;
+  using ExecutableGraphT =
+      experimental::command_graph<experimental::graph_state::executable>;
+  experimental::command_graph Graph2{Queue.get_context(), Dev};
+
+  // Test the default template parameter command_graph explicitly
+  TestGraphTypeInMaps<experimental::command_graph<>>(Graph, Graph2);
+
+  TestGraphTypeInMaps<ModifiableGraphT>(Graph, Graph2);
+
+  auto ExecGraph = Graph.finalize();
+  auto ExecGraph2 = Graph2.finalize();
+  TestGraphTypeInMaps<ExecutableGraphT>(ExecGraph, ExecGraph2);
+}
 
 TEST_F(CommandGraphTest, AddNode) {
   auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);

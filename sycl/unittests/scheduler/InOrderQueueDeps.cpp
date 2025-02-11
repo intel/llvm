@@ -11,6 +11,7 @@
 
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
 #include <memory>
@@ -86,9 +87,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
 bool BarrierCalled = false;
 ur_event_handle_t ExpectedEvent = nullptr;
-ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
+ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
-      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
   EXPECT_EQ(*params.pnumEventsInWaitList, 1u);
   EXPECT_EQ(ExpectedEvent, **params.pphEventWaitList);
   BarrierCalled = true;
@@ -106,7 +107,8 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
   BarrierCalled = false;
 
   context Ctx{Plt.get_devices()[0]};
@@ -187,6 +189,37 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   // native device events for device kernel submitted to the same in-order queue
   // don't need to be explicitly passed as dependencies
   EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
+}
+
+// Test that barrier is not filtered out when waitlist contains an event
+// produced by command which is bypassing the scheduler.
+TEST_F(SchedulerTest, BypassSchedulerWithBarrier) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
+  BarrierCalled = false;
+
+  context Ctx{Plt};
+  queue Q1{Ctx, default_selector_v, property::queue::in_order()};
+  queue Q2{Ctx, default_selector_v, property::queue::in_order()};
+  static constexpr size_t Size = 10;
+
+  int *X = malloc_host<int>(Size, Ctx);
+
+  // Submit a command which bypasses the scheduler.
+  auto FillEvent = Q2.memset(X, 0, sizeof(int) * Size);
+  // Submit a barrier which depends on that event.
+  ExpectedEvent = detail::getSyclObjImpl(FillEvent)->getHandle();
+  auto BarrierQ1 = Q1.ext_oneapi_submit_barrier({FillEvent});
+  Q1.wait();
+  Q2.wait();
+  // Verify that barrier is not filtered out.
+  EXPECT_EQ(BarrierCalled, true);
+
+  free(X, Ctx);
 }
 
 } // anonymous namespace

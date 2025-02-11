@@ -52,6 +52,7 @@ int main() {
     return 1;
   }
   std::cout << "PASSED\n";
+  free(result, q);
   return 0;
 }
 

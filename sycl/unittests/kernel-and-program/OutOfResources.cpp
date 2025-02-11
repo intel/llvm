@@ -11,8 +11,8 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -27,11 +27,11 @@ class OutOfResourcesKernel2;
 MOCK_INTEGRATION_HEADER(OutOfResourcesKernel1)
 MOCK_INTEGRATION_HEADER(OutOfResourcesKernel2)
 
-static sycl::unittest::UrImage Img[2] = {
+static sycl::unittest::MockDeviceImage Img[2] = {
     sycl::unittest::generateDefaultImage({"OutOfResourcesKernel1"}),
     sycl::unittest::generateDefaultImage({"OutOfResourcesKernel2"})};
 
-static sycl::unittest::UrImageArray<2> ImgArray{Img};
+static sycl::unittest::MockDeviceImageArray<2> ImgArray{Img};
 
 static int nProgramCreate = 0;
 static volatile bool outOfResourcesToggle = false;

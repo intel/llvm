@@ -33,4 +33,7 @@ add_llvm_tool(sycl-post-link
   LLVMGenXIntrinsics
   )
 
+setup_host_tool(sycl-post-link SYCL_POST_LINK
+  sycl-post-link_exe sycl-post-link_target)
+
 target_link_libraries(sycl-post-link PRIVATE LLVMGenXIntrinsics)

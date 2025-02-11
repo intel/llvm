@@ -1,7 +1,11 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+
+// UNSUPPORTED: hip || level_zero
+// UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
+// Also, the feature is not fully implemented in the Level Zero stack.
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 // Print test names and pass status
 // #define VERBOSE_LV1
@@ -16,8 +20,8 @@
 #include "helpers/common.hpp"
 #include "helpers/sampling.hpp"
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
-#include <random>
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 
@@ -127,7 +131,17 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                     unsigned int seed = 0) {
   using VecType = sycl::vec<DType, NChannels>;
 
-  sycl::device dev;
+  sycl::device dev{};
+  // skip half tests if not supported
+  if constexpr (std::is_same_v<DType, sycl::half>) {
+    if (!dev.has(sycl::aspect::fp16)) {
+#ifdef VERBOSE_PRINT
+      std::cout << "Test skipped due to lack of device support for fp16\n";
+#endif
+      return false;
+    }
+  }
+
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
@@ -284,7 +298,8 @@ bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
   // normalized and unnormalized coords.
   sycl::addressing_mode addrModes[4] = {
       sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
-      sycl::addressing_mode::clamp_to_edge, sycl::addressing_mode::clamp};
+      sycl::addressing_mode::clamp_to_edge,
+      sycl::addressing_mode::ext_oneapi_clamp_to_border};
 
   sycl::filtering_mode filtModes[2] = {sycl::filtering_mode::nearest,
                                        sycl::filtering_mode::linear};
@@ -311,7 +326,7 @@ bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
       syclexp::bindless_image_sampler samp(addrMode, normMode, filtMode);
 
 #if defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
-      util::printTestInfo(samp, offset);
+      sampling_helpers::printTestInfo(samp, offset);
 #endif
 
       bindless_helpers::printTestName<NDims>("Running 1D short", dims,
@@ -440,7 +455,8 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
   // normalized and unnormalized coords.
   sycl::addressing_mode addrModes[4] = {
       sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
-      sycl::addressing_mode::clamp_to_edge, sycl::addressing_mode::clamp};
+      sycl::addressing_mode::clamp_to_edge,
+      sycl::addressing_mode::ext_oneapi_clamp_to_border};
 
   sycl::filtering_mode filtModes[2] = {sycl::filtering_mode::nearest,
                                        sycl::filtering_mode::linear};
@@ -467,7 +483,7 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
       syclexp::bindless_image_sampler samp(addrMode, normMode, filtMode);
 
 #if defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
-      util::printTestInfo(samp, offset);
+      sampling_helpers::printTestInfo(samp, offset);
 #endif
 
       bindless_helpers::printTestName<NDims>("Running 2D short", dims,
@@ -634,11 +650,13 @@ bool runAll(sycl::range<NDims> dims, sycl::range<NDims> localSize, float offset,
 
 int main() {
 
-  unsigned int seed = 0;
+  const unsigned int seed = 0;
+  const float offset = 20.0;
+
   std::cout << "Running 1D Sampled Image Tests!\n";
-  bool result1D = runAll<1>({256}, {32}, 20, seed);
+  bool result1D = runAll<1>({128}, {32}, offset, seed);
   std::cout << "Running 2D Sampled Image Tests!\n";
-  bool result2D = runAll<2>({256, 256}, {32, 32}, 20, seed);
+  bool result2D = runAll<2>({16, 16}, {8, 8}, offset, seed);
 
   if (result1D && result2D) {
     std::cout << "All tests passed!\n";

@@ -754,7 +754,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // Can setup link between cl and host allocations only
           if ((Context == nullptr) != (Record->MCurContext == nullptr)) {
             // Linked commands assume that the host allocation is reused by the
-            // plugin runtime and that can lead to unnecessary copy overhead on
+            // unified runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the
             // allocations in this case.
             // However, if the user explicitly requests use of pinned host
@@ -1024,7 +1024,7 @@ Command *Scheduler::GraphBuilder::addCG(
   }
 
   // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
+  for (const detail::EventImplPtr &e : Events) {
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }

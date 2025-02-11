@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/sampler.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -19,19 +20,21 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
                            filtering_mode filteringMode,
                            const property_list &propList)
     : MCoordNormMode(normalizationMode), MAddrMode(addressingMode),
-      MFiltMode(filteringMode), MPropList(propList) {}
+      MFiltMode(filteringMode), MPropList(propList) {
+  verifyProps(MPropList);
+}
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
-  const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
+  const AdapterPtr &Adapter = getSyclObjImpl(syclContext)->getAdapter();
   ur_sampler_handle_t Sampler{};
-  Plugin->call<UrApiKind::urSamplerCreateWithNativeHandle>(
+  Adapter->call<UrApiKind::urSamplerCreateWithNativeHandle>(
       reinterpret_cast<ur_native_handle_t>(clSampler),
       getSyclObjImpl(syclContext)->getHandleRef(), nullptr, &Sampler);
 
   MContextToSampler[syclContext] = Sampler;
   bool NormalizedCoords;
 
-  Plugin->call<UrApiKind::urSamplerGetInfo>(
+  Adapter->call<UrApiKind::urSamplerGetInfo>(
       Sampler, UR_SAMPLER_INFO_NORMALIZED_COORDS, sizeof(ur_bool_t),
       &NormalizedCoords, nullptr);
   MCoordNormMode = NormalizedCoords
@@ -39,7 +42,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
                        : coordinate_normalization_mode::unnormalized;
 
   ur_sampler_addressing_mode_t AddrMode;
-  Plugin->call<UrApiKind::urSamplerGetInfo>(
+  Adapter->call<UrApiKind::urSamplerGetInfo>(
       Sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
       sizeof(ur_sampler_addressing_mode_t), &AddrMode, nullptr);
   switch (AddrMode) {
@@ -62,7 +65,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
   }
 
   ur_sampler_filter_mode_t FiltMode;
-  Plugin->call<UrApiKind::urSamplerGetInfo>(
+  Adapter->call<UrApiKind::urSamplerGetInfo>(
       Sampler, UR_SAMPLER_INFO_FILTER_MODE, sizeof(ur_sampler_filter_mode_t),
       &FiltMode, nullptr);
   switch (FiltMode) {
@@ -82,8 +85,8 @@ sampler_impl::~sampler_impl() {
     for (auto &Iter : MContextToSampler) {
       // TODO catch an exception and add it to the list of asynchronous
       // exceptions
-      const PluginPtr &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
-      Plugin->call<UrApiKind::urSamplerRelease>(Iter.second);
+      const AdapterPtr &Adapter = getSyclObjImpl(Iter.first)->getAdapter();
+      Adapter->call<UrApiKind::urSamplerRelease>(Iter.second);
     }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sample_impl", e);
@@ -130,16 +133,16 @@ ur_sampler_handle_t sampler_impl::getOrCreateSampler(const context &Context) {
 
   ur_result_t errcode_ret = UR_RESULT_SUCCESS;
   ur_sampler_handle_t resultSampler = nullptr;
-  const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
+  const AdapterPtr &Adapter = getSyclObjImpl(Context)->getAdapter();
 
-  errcode_ret = Plugin->call_nocheck<UrApiKind::urSamplerCreate>(
+  errcode_ret = Adapter->call_nocheck<UrApiKind::urSamplerCreate>(
       getSyclObjImpl(Context)->getHandleRef(), &desc, &resultSampler);
 
   if (errcode_ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Images are not supported by this device.");
 
-  Plugin->checkUrResult(errcode_ret);
+  Adapter->checkUrResult(errcode_ret);
   std::lock_guard<std::mutex> Lock(MMutex);
   MContextToSampler[Context] = resultSampler;
 
@@ -153,6 +156,12 @@ filtering_mode sampler_impl::get_filtering_mode() const { return MFiltMode; }
 coordinate_normalization_mode
 sampler_impl::get_coordinate_normalization_mode() const {
   return MCoordNormMode;
+}
+
+void sampler_impl::verifyProps(const property_list &Props) const {
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
+                                                NoAllowedPropertiesCheck);
 }
 
 } // namespace detail

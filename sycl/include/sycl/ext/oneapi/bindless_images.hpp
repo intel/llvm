@@ -1369,7 +1369,7 @@ inline event queue::ext_oneapi_copy(
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
       [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, DestImgDesc); },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1383,7 +1383,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
                             DestImgDesc, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1396,7 +1396,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_copy(Src, Dest, DestImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1412,7 +1412,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
                             DestImgDesc, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1425,7 +1425,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_copy(Src, Dest, DestImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1441,7 +1441,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
                             DestImgDesc, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1451,7 +1451,7 @@ inline event queue::ext_oneapi_copy(
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return submit(
       [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc); },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1466,7 +1466,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
                             DestExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1479,7 +1479,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1496,7 +1496,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
                             DestExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1509,7 +1509,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1526,7 +1526,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
                             DestExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1538,7 +1538,7 @@ inline event queue::ext_oneapi_copy(
       [&](handler &CGH) {
         CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1553,7 +1553,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
                             DeviceRowPitch, HostExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1567,46 +1567,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
       },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    event DepEvent, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvent);
-        CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
-      },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
-      },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, ImageDesc); },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1622,7 +1583,7 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
                             DeviceRowPitch, HostExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1636,7 +1597,7 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_copy(
@@ -1652,7 +1613,392 @@ inline event queue::ext_oneapi_copy(
         CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
                             DeviceRowPitch, HostExtent, CopyExtent);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
@@ -1664,7 +2010,7 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
@@ -1676,7 +2022,7 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
@@ -1687,7 +2033,7 @@ inline event queue::ext_oneapi_wait_external_semaphore(
       [&](handler &CGH) {
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
@@ -1699,7 +2045,7 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_wait_external_semaphore(
@@ -1712,7 +2058,7 @@ inline event queue::ext_oneapi_wait_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle, WaitValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
@@ -1723,7 +2069,7 @@ inline event queue::ext_oneapi_signal_external_semaphore(
       [&](handler &CGH) {
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
@@ -1735,7 +2081,7 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
@@ -1747,7 +2093,7 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
@@ -1758,7 +2104,7 @@ inline event queue::ext_oneapi_signal_external_semaphore(
       [&](handler &CGH) {
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
@@ -1771,7 +2117,7 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvent);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 inline event queue::ext_oneapi_signal_external_semaphore(
@@ -1784,7 +2130,7 @@ inline event queue::ext_oneapi_signal_external_semaphore(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle, SignalValue);
       },
-      CodeLoc);
+      TlsCodeLocCapture.query());
 }
 
 } // namespace _V1

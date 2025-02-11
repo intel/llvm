@@ -42,6 +42,8 @@
 // RUN: | FileCheck --check-prefix=CHECK-SYCL-FP-ATOMICS %s
 // RUN: %clang_cc1 %s -fsycl-is-device -triple amdgcn-amdhsa-amdhsa -E -dM \
 // RUN: | FileCheck --check-prefix=CHECK-SYCL-FP-ATOMICS %s
+// RUN: %clang_cc1 %s -fsycl-is-device -triple x86_64-unknown-linux-gnu -fsycl-is-native-cpu  \
+// RUN: -E -dM | FileCheck --check-prefix=CHECK-SYCL-FP-ATOMICS %s
 // CHECK-SYCL-FP-ATOMICS: #define SYCL_USE_NATIVE_FP_ATOMICS
 // CHECK-SYCL-FP-ATOMICS-NEG-NOT: #define SYCL_USE_NATIVE_FP_ATOMICS
 

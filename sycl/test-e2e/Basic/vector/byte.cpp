@@ -1,7 +1,7 @@
 // RUN: %{build} %cxx_std_optionc++17 -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -std=c++17 -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes %cxx_std_optionc++17 -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
@@ -13,7 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/vector_convert.hpp>
+#include <sycl/vector.hpp>
 
 #include <cstddef> // std::byte
 #include <tuple>   // std::ignore

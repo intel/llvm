@@ -55,7 +55,7 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 ; CHECK-NO-LOWERING: }
 
 ; With -O0, we only lower ESIMD code, but no other optimizations
-; CHECK-O0: define dso_local spir_kernel void @ESIMD_kernel() #{{[0-9]}} !sycl_explicit_simd !3 !intel_reqd_sub_group_size !4 {
+; CHECK-O0: define dso_local spir_kernel void @ESIMD_kernel() #{{[0-9]}} !sycl_explicit_simd !{{[0-9]}} !intel_reqd_sub_group_size !{{[0-9]}} {
 ; CHECK-O0: entry:
 ; CHECK-O0:   %0 = load <3 x i64>, {{.*}} addrspacecast {{.*}} @__spirv_BuiltInGlobalInvocationId
 ; CHECK-O0:   %1 = extractelement <3 x i64> %0, i64 0

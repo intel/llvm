@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.ze.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.ze.out
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.ze.out
 
 #include <level_zero/ze_api.h>
 

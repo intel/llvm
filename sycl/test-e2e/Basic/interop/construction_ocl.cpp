@@ -1,6 +1,6 @@
 // REQUIRES: opencl, opencl_icd
 // RUN: %{build} %opencl_lib -o %t.ocl.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.ocl.out
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.ocl.out
 
 #include <CL/cl.h>
 #include <sycl/backend.hpp>

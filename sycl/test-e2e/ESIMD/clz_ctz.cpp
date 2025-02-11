@@ -106,9 +106,8 @@ int main() {
   Passed &= test<int32_t, true>(q);
   Passed &= test<uint32_t, false>(q);
   Passed &= test<int32_t, false>(q);
-// TODO: Enable once GPU driver issue is fixed
-#if 0
-   Passed &= test<uint8_t, true>(q);
+
+  Passed &= test<uint8_t, true>(q);
   Passed &= test<int8_t, true>(q);
   Passed &= test<uint8_t, false>(q);
   Passed &= test<int8_t, false>(q);
@@ -117,6 +116,6 @@ int main() {
   Passed &= test<int16_t, true>(q);
   Passed &= test<uint16_t, false>(q);
   Passed &= test<int16_t, false>(q);
-#endif
+
   return !Passed;
 }

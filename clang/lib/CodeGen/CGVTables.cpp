@@ -20,7 +20,6 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <algorithm>
 #include <cstdio>
@@ -803,6 +802,12 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
     }
 
     auto getSpecialVirtualFn = [&](StringRef name) -> llvm::Constant * {
+      // There is no guarantee that special function for handling pure virtual
+      // calls will be provided by a SYCL backend compiler and therefore we
+      // simply emit nullptr here.
+      if (CGM.getLangOpts().SYCLIsDevice)
+        return llvm::ConstantPointerNull::get(CGM.GlobalsInt8PtrTy);
+
       // FIXME(PR43094): When merging comdat groups, lld can select a local
       // symbol as the signature symbol even though it cannot be accessed
       // outside that symbol's TU. The relative vtables ABI would make

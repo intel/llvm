@@ -15,9 +15,9 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/TestKernel.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <detail/context_impl.hpp>
@@ -51,10 +51,10 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
                                            &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       sycl::unittest::generateDefaultImage({"InfoTestKernel"});
 
-  static sycl::unittest::UrImageArray<1> DevImageArray = {&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{
       Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
@@ -89,9 +89,9 @@ TEST(GetProfilingInfo, command_exception_check) {
                                            &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       sycl::unittest::generateDefaultImage({"InfoTestKernel"});
-  static sycl::unittest::UrImageArray<1> DevImageArray = {&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{Ctx, Dev};
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
@@ -190,9 +190,9 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
                                            &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       sycl::unittest::generateDefaultImage({"InfoTestKernel"});
-  static sycl::unittest::UrImageArray<1> DevImageArray = {&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
   sycl::event event;
@@ -230,10 +230,10 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
                                            &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       sycl::unittest::generateDefaultImage({"InfoTestKernel"});
 
-  static sycl::unittest::UrImageArray<1> DevImageArray = {&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
   sycl::event event;
@@ -372,9 +372,9 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
                                           &redefinedDeviceGetInfoAcc);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       sycl::unittest::generateDefaultImage({"InfoTestKernel"});
-  static sycl::unittest::UrImageArray<1> DevImageArray = {&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{
       Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
@@ -412,9 +412,9 @@ TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
                                           &redefinedDeviceGetInfoAcc);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       sycl::unittest::generateDefaultImage({"InfoTestKernel"});
-  static sycl::unittest::UrImageArray<1> DevImageArray = {&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{
       Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};

@@ -88,7 +88,6 @@ void test_non_templated_host() {
 void test_deduce() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  using namespace syclcompat::experimental; // for memcpy_direction
   auto default_queue = syclcompat::get_default_queue();
   if (!default_queue.get_device().has(sycl::aspect::usm_host_allocations))
     return; // Skip unsupported
@@ -100,33 +99,35 @@ void test_deduce() {
   // * to host
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, h_ptr,
                                                      h_ptr) ==
-         memcpy_direction::device_to_device);
-  assert(syclcompat::detail::deduce_memcpy_direction(
-             default_queue, h_ptr, sys_ptr) == memcpy_direction::host_to_host);
+         syclcompat::detail::memcpy_direction::device_to_device);
+  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, h_ptr,
+                                                     sys_ptr) ==
+         syclcompat::detail::memcpy_direction::host_to_host);
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, h_ptr,
                                                      d_ptr) ==
-         memcpy_direction::device_to_device);
+         syclcompat::detail::memcpy_direction::device_to_device);
 
   // * to sys
-  assert(syclcompat::detail::deduce_memcpy_direction(
-             default_queue, sys_ptr, h_ptr) == memcpy_direction::host_to_host);
+  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, sys_ptr,
+                                                     h_ptr) ==
+         syclcompat::detail::memcpy_direction::host_to_host);
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, sys_ptr,
                                                      sys_ptr) ==
-         memcpy_direction::host_to_host);
+         syclcompat::detail::memcpy_direction::host_to_host);
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, sys_ptr,
                                                      d_ptr) ==
-         memcpy_direction::device_to_host);
+         syclcompat::detail::memcpy_direction::device_to_host);
 
   // * to dev
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, d_ptr,
                                                      h_ptr) ==
-         memcpy_direction::device_to_device);
+         syclcompat::detail::memcpy_direction::device_to_device);
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, d_ptr,
                                                      sys_ptr) ==
-         memcpy_direction::host_to_device);
+         syclcompat::detail::memcpy_direction::host_to_device);
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, d_ptr,
                                                      d_ptr) ==
-         memcpy_direction::device_to_device);
+         syclcompat::detail::memcpy_direction::device_to_device);
 
   std::free(sys_ptr);
   syclcompat::free(h_ptr);

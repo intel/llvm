@@ -1,6 +1,15 @@
 // REQUIRES: sg-8
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
+// not supported
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
+
+// Timeout on CPU. Enable when fixed.
+// Depends on SPIR-V Backend & run-time drivers version.
+// UNSUPPORTED: spirv-backend && cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
 // The test verifies sort API extension.
 // Currently it checks the following combinations:
@@ -115,7 +124,7 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
 
        CGH.parallel_for<KernelNameJoint<IntWrapper<Dims>,
                                         UseGroupWrapper<UseGroup>, T, Compare>>(
-           NDRange, [=](sycl::nd_item<Dims> ID) [[intel::reqd_sub_group_size(
+           NDRange, [=](sycl::nd_item<Dims> ID) [[sycl::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
              auto Group = [&]() {
                if constexpr (UseGroup == UseGroupT::SubGroup)
@@ -282,7 +291,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 
        CGH.parallel_for<KernelNameOverGroup<
            IntWrapper<Dims>, UseGroupWrapper<UseGroup>, T, Compare>>(
-           NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+           NDRange, [=](sycl::nd_item<Dims> id) [[sycl::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
              const size_t GlobalLinearID = id.get_global_linear_id();
 

@@ -311,9 +311,6 @@ struct build_options {
 };
 using build_options_key = build_options;
 
-template<>
-struct is_property_key<build_options_key> : std::true_type {};
-
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -344,9 +341,6 @@ struct save_log {
   save_log(std::string *to);  (1)
 };
 using save_log_key = save_log;
-
-template<>
-struct is_property_key<save_log_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----

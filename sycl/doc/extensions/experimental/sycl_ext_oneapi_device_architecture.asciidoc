@@ -163,6 +163,17 @@ Intel Xeon processor codenamed Granite Rapids.
 The utility of this enumeration is currently limited.
 See the section "Limitations with the experimental version" for details.
 
+a|
+[source]
+----
+intel_cpu_dmr
+----
+|-
+|
+Intel Xeon processor codenamed Diamond Rapids.
+The utility of this enumeration is currently limited.
+See the section "Limitations with the experimental version" for details.
+
 3+^|*Intel GPU family*
 
 a|
@@ -397,6 +408,22 @@ intel_gpu_lnl_m
 a|
 [source]
 ----
+intel_gpu_ptl_h
+----
+|-
+|Panther Lake H Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_ptl_u
+----
+|-
+|Panther Lake U Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_8_0_0 = intel_gpu_bdw
 intel_gpu_9_0_9 = intel_gpu_skl
 intel_gpu_9_1_9 = intel_gpu_kbl
@@ -424,6 +451,8 @@ intel_gpu_12_71_4 = intel_gpu_mtl_h
 intel_gpu_12_74_4 = intel_gpu_arl_h
 intel_gpu_20_1_4 = intel_gpu_bmg_g21
 intel_gpu_20_4_4 = intel_gpu_lnl_m
+intel_gpu_30_0_4 = intel_gpu_ptl_h
+intel_gpu_30_1_1 = intel_gpu_ptl_u
 ----
 |-
 |Aliases for Intel graphics architectures.
@@ -551,6 +580,9 @@ a|
 amd_gpu_gfx700
 amd_gpu_gfx701
 amd_gpu_gfx702
+amd_gpu_gfx703
+amd_gpu_gfx704
+amd_gpu_gfx705
 ----
 |-
 |AMD GCN 2.0 architecture.
@@ -1109,7 +1141,7 @@ option.
 These are the target names of the form "intel_gpu_*", "nvidia_gpu_*", or
 "amd_gpu_*".
 
-The architecture enumerations `intel_cpu_spr` and `intel_cpu_gnr` do
+The architecture enumerations `intel_cpu_spr`, `intel_cpu_gnr` and `intel_cpu_dmr` do
 not currently work with any of the APIs described in this extension.
 They cannot be used with the `if_architecture_is` function, the
 `device::ext_oneapi_architecture_is` function, or the

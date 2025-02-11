@@ -7,12 +7,22 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
-// UNSUPPORTED: accelerator
+// REQUIRES: aspect-usm_device_allocations
 
+// UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
+
+// -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
+
+// Note: this 'invoking clang++' version for SYCL language support is temporary,
+// and will be replaced by the SYCL_JIT version soon.
+
 // RUN: %{run} %t.out
+// RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 auto constexpr AddEmH = R"===(
@@ -157,6 +167,7 @@ void test_build_and_run() {
       kbSrc, devs,
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
+
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
 
@@ -271,8 +282,7 @@ void test_esimd() {
   sycl::free(C, q);
 }
 
-int main() {
-
+int main(int argc, char *argv[]) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   test_build_and_run();
   test_error();

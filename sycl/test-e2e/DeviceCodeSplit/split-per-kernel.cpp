@@ -1,10 +1,9 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-device-code-split=per_kernel -o %t.out \
 // RUN: -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
-//
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class Kern1;
 class Kern2;

@@ -24,7 +24,7 @@
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 #include <cstdint>
 

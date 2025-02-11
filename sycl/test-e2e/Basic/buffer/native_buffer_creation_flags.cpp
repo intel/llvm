@@ -20,7 +20,7 @@ int main() {
   Q.submit([&](handler &Cgh) {
     // Now that we have a read-write host allocation, check that the native
     // buffer is created with the UR_MEM_FLAG_USE_HOST_POINTER flag.
-    // CHECK: urMemBufferCreate
+    // CHECK: <--- urMemBufferCreate
     // CHECK-SAME: UR_MEM_FLAG_USE_HOST_POINTER
     auto BufAcc = Buf.get_access<access::mode::read>(Cgh);
     Cgh.single_task<Foo>([=]() { int A = BufAcc[0]; });

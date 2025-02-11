@@ -1,9 +1,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t.out
 // RUN: %{run} %t.out
 //
-// The OpenCL GPU backends do not currently support device_global backend
-// calls.
 // UNSUPPORTED: opencl && gpu
+// UNSUPPORTED-TRACKER: GSD-4287
 //
 // Tests basic device_global with device_image_scope access through device
 // kernels.

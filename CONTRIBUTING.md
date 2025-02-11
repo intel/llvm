@@ -58,7 +58,7 @@ To contribute:
   - [The seven rules of a great Git commit message](https://cbea.ms/git-commit)
     are recommended read and follow.
 - To a reasonable extent, title tags can be used to signify the component
-  changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
+  changed, e.g.: `[UR]`, `[CUDA]`, `[Doc]`.
 - Create a pull request (PR) for your changes following
   [Creating a pull request instructions](https://help.github.com/articles/creating-a-pull-request/).
   - Make sure PR has a good description explaining all of the changes made,

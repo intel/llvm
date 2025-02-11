@@ -134,9 +134,9 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(
-            CGH, oneapiext::launch_config<sycl::range<1>>{sycl::range<1>{N}},
-            [=](sycl::item<1> Item) { MemAcc[Item] = 49; });
+        oneapiext::parallel_for(CGH,
+                                oneapiext::launch_config{sycl::range<1>{N}},
+                                [=](sycl::item<1> Item) { MemAcc[Item] = 49; });
       });
     }
   }
@@ -150,8 +150,7 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(CGH,
-                                oneapiext::launch_config<sycl::range<2>>{Range},
+        oneapiext::parallel_for(CGH, oneapiext::launch_config{Range},
                                 [=](sycl::item<2> Item) { MemAcc[Item] = 50; });
       });
     }
@@ -166,8 +165,7 @@ int main() {
     {
       oneapiext::submit(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(CGH,
-                                oneapiext::launch_config<sycl::range<3>>{Range},
+        oneapiext::parallel_for(CGH, oneapiext::launch_config{Range},
                                 [=](sycl::item<3> Item) { MemAcc[Item] = 51; });
       });
     }
@@ -183,7 +181,7 @@ int main() {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
         oneapiext::nd_launch(
             CGH,
-            oneapiext::launch_config<sycl::nd_range<1>>{
+            oneapiext::launch_config{
                 sycl::nd_range<1>{sycl::range<1>{N}, sycl::range{8}}},
             [=](sycl::nd_item<1> Item) { MemAcc[Item.get_global_id()] = 52; });
       });
@@ -201,7 +199,7 @@ int main() {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
         oneapiext::nd_launch(
             CGH,
-            oneapiext::launch_config<sycl::nd_range<2>>{
+            oneapiext::launch_config{
                 sycl::nd_range<2>{Range, sycl::range{8, 8}}},
             [=](sycl::nd_item<2> Item) { MemAcc[Item.get_global_id()] = 53; });
       });
@@ -219,7 +217,7 @@ int main() {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
         oneapiext::nd_launch(
             CGH,
-            oneapiext::launch_config<sycl::nd_range<3>>{
+            oneapiext::launch_config{
                 sycl::nd_range<3>{Range, sycl::range{8, 8, 8}}},
             [=](sycl::nd_item<3> Item) { MemAcc[Item.get_global_id()] = 54; });
       });

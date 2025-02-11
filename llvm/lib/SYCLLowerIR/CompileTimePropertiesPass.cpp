@@ -362,19 +362,24 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
   }
 
-  if (AttrKindStr == "sycl-work-group-size" ||
-      AttrKindStr == "sycl-work-group-size-hint") {
-    // Split values in the comma-separated list integers.
-    SmallVector<StringRef, 3> ValStrs;
-    Attr.getValueAsString().split(ValStrs, ',');
+  static constexpr std::tuple<const char *, const char *> SimpleWGAttrs[] = {
+      {"sycl-work-group-size", "reqd_work_group_size"},
+      {"sycl-work-group-size-hint", "work_group_size_hint"},
+      {"sycl-max-work-group-size", "max_work_group_size"},
+  };
 
-    size_t NumDims = ValStrs.size();
-    assert(NumDims <= 3 &&
-           "sycl-work-group-size and sycl-work-group-size-hint currently only "
-           "support up to three values");
+  for (auto &[AttrKind, MDStr] : SimpleWGAttrs) {
+    if (AttrKindStr != AttrKind)
+      continue;
+    // Split values in the comma-separated list integers.
+    SmallVector<StringRef, 3> AttrValStrs;
+    Attr.getValueAsString().split(AttrValStrs, ',');
+
+    size_t NumDims = AttrValStrs.size();
+    assert(NumDims <= 3 && "Incorrect number of values for kernel property");
 
     // SYCL work-group sizes must be reversed for SPIR-V.
-    std::reverse(ValStrs.begin(), ValStrs.end());
+    std::reverse(AttrValStrs.begin(), AttrValStrs.end());
 
     // Use integer pointer size as closest analogue to size_t.
     IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
@@ -383,7 +388,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
     // Get the integers from the strings.
     SmallVector<Metadata *, 3> MDVals;
-    for (StringRef ValStr : ValStrs)
+    for (StringRef ValStr : AttrValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
     while (MDVals.size() < 3)
@@ -397,10 +402,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                            Type::getInt32Ty(Ctx), NumDims))));
     }
 
-    const char *MDName = (AttrKindStr == "sycl-work-group-size")
-                             ? "reqd_work_group_size"
-                             : "work_group_size_hint";
-    return std::pair<std::string, MDNode *>(MDName, MDNode::get(Ctx, MDVals));
+    return std::pair<std::string, MDNode *>(MDStr, MDNode::get(Ctx, MDVals));
   }
 
   if (AttrKindStr == "sycl-sub-group-size") {
@@ -410,6 +412,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
         Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
     SmallVector<Metadata *, 1> MD{MDVal};
     return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
+                                            MDNode::get(Ctx, MD));
+  }
+
+  if (AttrKindStr == "sycl-max-linear-work-group-size") {
+    auto MaxLinearSize = getAttributeAsInteger<uint64_t>(Attr);
+    // Use integer pointer size as closest analogue to size_t.
+    IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
+    IntegerType *SizeTTy = Type::getIntNTy(Ctx, IntPtrTy->getBitWidth());
+    unsigned SizeTBitSize = SizeTTy->getBitWidth();
+
+    // Get the integers from the strings.
+    Metadata *MD = ConstantAsMetadata::get(Constant::getIntegerValue(
+        SizeTTy, APInt(SizeTBitSize, MaxLinearSize, 10)));
+
+    return std::pair<std::string, MDNode *>("max_linear_work_group_size",
                                             MDNode::get(Ctx, MD));
   }
 

@@ -120,6 +120,10 @@ struct CppEmitter {
   LogicalResult emitAttribute(Location loc, Attribute attr);
 
   /// Emits operation 'op' with/without training semicolon or returns failure.
+  ///
+  /// For operations that should never be followed by a semicolon, like ForOp,
+  /// the `trailingSemicolon` argument is ignored and a semicolon is not
+  /// emitted.
   LogicalResult emitOperation(Operation &op, bool trailingSemicolon);
 
   /// Emits type 'type' or returns failure.
@@ -384,6 +388,13 @@ static LogicalResult printOperation(CppEmitter &emitter,
   return emitter.emitOperand(assignOp.getValue());
 }
 
+static LogicalResult printOperation(CppEmitter &emitter, emitc::LoadOp loadOp) {
+  if (failed(emitter.emitAssignPrefix(*loadOp)))
+    return failure();
+
+  return emitter.emitOperand(loadOp.getOperand());
+}
+
 static LogicalResult printBinaryOperation(CppEmitter &emitter,
                                           Operation *operation,
                                           StringRef binaryOperator) {
@@ -464,7 +475,10 @@ static LogicalResult printOperation(CppEmitter &emitter,
                                     emitc::SwitchOp switchOp) {
   raw_indented_ostream &os = emitter.ostream();
 
-  os << "\nswitch (" << emitter.getOrCreateName(switchOp.getArg()) << ") {";
+  os << "\nswitch (";
+  if (failed(emitter.emitOperand(switchOp.getArg())))
+    return failure();
+  os << ") {";
 
   for (auto pair : llvm::zip(switchOp.getCases(), switchOp.getCaseRegions())) {
     os << "\ncase " << std::get<0>(pair) << ": {\n";
@@ -482,7 +496,7 @@ static LogicalResult printOperation(CppEmitter &emitter,
   if (failed(emitSwitchCase(emitter, os, switchOp.getDefaultRegion())))
     return failure();
 
-  os.unindent() << "}";
+  os.unindent() << "}\n}";
   return success();
 }
 
@@ -1011,9 +1025,9 @@ static LogicalResult printFunctionBody(CppEmitter &emitter,
       if (emitter.hasValueInScope(arg))
         return functionOp->emitOpError(" block argument #")
                << arg.getArgNumber() << " is out of scope";
-      if (isa<ArrayType>(arg.getType()))
+      if (isa<ArrayType, LValueType>(arg.getType()))
         return functionOp->emitOpError("cannot emit block argument #")
-               << arg.getArgNumber() << " with array type";
+               << arg.getArgNumber() << " with type " << arg.getType();
       if (failed(
               emitter.emitType(block.getParentOp()->getLoc(), arg.getType()))) {
         return failure();
@@ -1029,16 +1043,7 @@ static LogicalResult printFunctionBody(CppEmitter &emitter,
         return failure();
     }
     for (Operation &op : block.getOperations()) {
-      // When generating code for an emitc.if or cf.cond_br op no semicolon
-      // needs to be printed after the closing brace.
-      // When generating code for an emitc.for and emitc.verbatim op, printing a
-      // trailing semicolon is handled within the printOperation function.
-      bool trailingSemicolon =
-          !isa<cf::CondBranchOp, emitc::DeclareFuncOp, emitc::ForOp,
-               emitc::IfOp, emitc::SwitchOp, emitc::VerbatimOp>(op);
-
-      if (failed(emitter.emitOperation(
-              op, /*trailingSemicolon=*/trailingSemicolon)))
+      if (failed(emitter.emitOperation(op, /*trailingSemicolon=*/true)))
         return failure();
     }
   }
@@ -1055,6 +1060,11 @@ static LogicalResult printOperation(CppEmitter &emitter,
       functionOp.getBlocks().size() > 1) {
     return functionOp.emitOpError(
         "with multiple blocks needs variables declared at top");
+  }
+
+  if (llvm::any_of(functionOp.getArgumentTypes(), llvm::IsaPred<LValueType>)) {
+    return functionOp.emitOpError()
+           << "cannot emit lvalue type as argument type";
   }
 
   if (llvm::any_of(functionOp.getResultTypes(), llvm::IsaPred<ArrayType>)) {
@@ -1246,6 +1256,12 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
       val.toString(strValue, 0, 0, false);
       os << strValue;
       switch (llvm::APFloatBase::SemanticsToEnum(val.getSemantics())) {
+      case llvm::APFloatBase::S_IEEEhalf:
+        os << "f16";
+        break;
+      case llvm::APFloatBase::S_BFloat:
+        os << "bf16";
+        break;
       case llvm::APFloatBase::S_IEEEsingle:
         os << "f";
         break;
@@ -1265,17 +1281,19 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
 
   // Print floating point attributes.
   if (auto fAttr = dyn_cast<FloatAttr>(attr)) {
-    if (!isa<Float32Type, Float64Type>(fAttr.getType())) {
-      return emitError(loc,
-                       "expected floating point attribute to be f32 or f64");
+    if (!isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(
+            fAttr.getType())) {
+      return emitError(
+          loc, "expected floating point attribute to be f16, bf16, f32 or f64");
     }
     printFloat(fAttr.getValue());
     return success();
   }
   if (auto dense = dyn_cast<DenseFPElementsAttr>(attr)) {
-    if (!isa<Float32Type, Float64Type>(dense.getElementType())) {
-      return emitError(loc,
-                       "expected floating point attribute to be f32 or f64");
+    if (!isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(
+            dense.getElementType())) {
+      return emitError(
+          loc, "expected floating point attribute to be f16, bf16, f32 or f64");
     }
     os << '{';
     interleaveComma(dense, os, [&](const APFloat &val) { printFloat(val); });
@@ -1543,7 +1561,7 @@ LogicalResult CppEmitter::emitOperation(Operation &op, bool trailingSemicolon) {
                 emitc::CallOpaqueOp, emitc::CastOp, emitc::CmpOp,
                 emitc::ConditionalOp, emitc::ConstantOp, emitc::DeclareFuncOp,
                 emitc::DivOp, emitc::ExpressionOp, emitc::ForOp, emitc::FuncOp,
-                emitc::GlobalOp, emitc::IfOp, emitc::IncludeOp,
+                emitc::GlobalOp, emitc::IfOp, emitc::IncludeOp, emitc::LoadOp,
                 emitc::LogicalAndOp, emitc::LogicalNotOp, emitc::LogicalOrOp,
                 emitc::MulOp, emitc::RemOp, emitc::ReturnOp, emitc::SubOp,
                 emitc::SwitchOp, emitc::UnaryMinusOp, emitc::UnaryPlusOp,
@@ -1587,6 +1605,12 @@ LogicalResult CppEmitter::emitOperation(Operation &op, bool trailingSemicolon) {
        shouldBeInlined(cast<emitc::ExpressionOp>(op))))
     return success();
 
+  // Never emit a semicolon for some operations, especially if endening with
+  // `}`.
+  trailingSemicolon &=
+      !isa<cf::CondBranchOp, emitc::DeclareFuncOp, emitc::ForOp, emitc::IfOp,
+           emitc::IncludeOp, emitc::SwitchOp, emitc::VerbatimOp>(op);
+
   os << (trailingSemicolon ? ";\n" : "\n");
 
   return success();
@@ -1628,6 +1652,14 @@ LogicalResult CppEmitter::emitType(Location loc, Type type) {
   }
   if (auto fType = dyn_cast<FloatType>(type)) {
     switch (fType.getWidth()) {
+    case 16: {
+      if (llvm::isa<Float16Type>(type))
+        return (os << "_Float16"), success();
+      else if (llvm::isa<BFloat16Type>(type))
+        return (os << "__bf16"), success();
+      else
+        return emitError(loc, "cannot emit float type ") << type;
+    }
     case 32:
       return (os << "float"), success();
     case 64:
@@ -1675,6 +1707,8 @@ LogicalResult CppEmitter::emitType(Location loc, Type type) {
       os << "[" << dim << "]";
     return success();
   }
+  if (auto lType = dyn_cast<emitc::LValueType>(type))
+    return emitType(loc, lType.getValueType());
   if (auto pType = dyn_cast<emitc::PointerType>(type)) {
     if (isa<ArrayType>(pType.getPointee()))
       return emitError(loc, "cannot emit pointer to array type ") << type;

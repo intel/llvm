@@ -21,8 +21,8 @@
  */
 
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_BUILTIN __spirv_ocl_sqrt
 #define __CLC_FUNCTION sqrt
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin.inc>

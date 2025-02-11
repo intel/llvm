@@ -1327,6 +1327,20 @@ public:
     } else if (NameRef.starts_with("bitfield_extract_signed") ||
                NameRef.starts_with("bitfield_extract_unsigned")) {
       addUnsignedArgs(1, 2);
+    } else if (NameRef.starts_with("dot_")) {
+      if (NameRef.contains("4x8packed")) {
+        addUnsignedArgs(0, 1);
+        if (NameRef == "dot_acc_sat_4x8packed_uu_uint")
+          addUnsignedArg(2);
+      } else {
+        if (NameRef.ends_with("_uu")) {
+          addUnsignedArgs(0, 1);
+          if (NameRef.starts_with("dot_acc_sat"))
+            addUnsignedArg(2);
+        } else if (NameRef.ends_with("_su"))
+          addUnsignedArg(1);
+        NameRef = NameRef.drop_back(std::string("_uu").length());
+      }
     }
 
     // Store the final version of a function name
@@ -1471,8 +1485,8 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
     OSS << VectorNumElements;
     break;
   case 16:
-    assert(ElementBitSize == 8 &&
-           "16 elements vector allowed only for char builtins");
+    assert((ElementBitSize == 8 || ElementBitSize == 16) &&
+           "16 elements vector allowed only for char and short builtins");
     OSS << VectorNumElements;
     break;
   default:
