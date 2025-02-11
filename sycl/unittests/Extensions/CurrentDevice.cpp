@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/oneapi/experimental/current_device.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/current_device.hpp>
 
 #include <helpers/UrMock.hpp>
 
@@ -46,7 +46,8 @@ protected:
                                               &redefinedMockDevicesGet);
   }
 
-  template <ur_device_type_t UrDeviceType> inline void ChangeDeviceTypeTo() {
+  template <ur_device_type_t UrDeviceType>
+  inline void ChangeMockedDeviceTypeTo() {
     mock::getCallbacks().set_replace_callback(
         "urDeviceGetInfo",
         &sycl::unittest::MockAdapter::mock_urDeviceGetInfo<UrDeviceType>);
@@ -74,10 +75,10 @@ TEST_F(CurrentDeviceTest,
        CheckGetCurrentDeviceReturnDefaultSelectorByDefaultInTwoThreads) {
   SetTwoDevices();
 
-  ChangeDeviceTypeTo<UR_DEVICE_TYPE_CPU>();
+  ChangeMockedDeviceTypeTo<UR_DEVICE_TYPE_CPU>();
   sycl::device cpu_device;
 
-  ChangeDeviceTypeTo<UR_DEVICE_TYPE_GPU>();
+  ChangeMockedDeviceTypeTo<UR_DEVICE_TYPE_GPU>();
   sycl::device gpu_device;
 
   ASSERT_TRUE(cpu_device.is_cpu());
