@@ -164,54 +164,26 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
       dbgs() << BuiltinCall.getRequiredAccuracy().value() << "\n";
   });
 
-  StringSet<> RecognizedAttrs = {FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR};
-  if (BuiltinCall.hasUnrecognizedFPAttrs(RecognizedAttrs)) {
+  const FPBuiltinReplacement Replacement =
+      TLI.selectFnForFPBuiltinCalls(BuiltinCall, TTI);
+
+  switch (Replacement()) {
+  case FPBuiltinReplacement::Unexpected0dot5:
+    report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
+    return false;
+  case FPBuiltinReplacement::UnrecognizedFPAttrs:
     report_fatal_error(
         Twine(BuiltinCall.getCalledFunction()->getName()) +
             Twine(" was called with unrecognized floating-point attributes.\n"),
         false);
     return false;
-  }
-
-  Triple T(BuiltinCall.getModule()->getTargetTriple());
-  // for fpbuiltin.sqrt, it should always use the native operation for
-  // x86-based targets because the native instruction is faster (even faster
-  // than the low-accuracy SVML implementation).
-  if (T.isX86() && BuiltinCall.getIntrinsicID() == Intrinsic::fpbuiltin_sqrt &&
-      TTI.haveFastSqrt(BuiltinCall.getOperand(0)->getType()))
-    return replaceWithLLVMIR(BuiltinCall);
-
-  // Several functions for "sycl" and "cuda" requires "0.5" accuracy levels,
-  // which means correctly rounded results. For now x86 host and NVPTX
-  // AltMathLibrary doesn't have such ability. For such accuracy level, the
-  // fpbuiltins should be replaced by equivalent IR operation or llvmbuiltins.
-  if ((T.isX86() || T.isNVPTX()) &&
-      BuiltinCall.getRequiredAccuracy().value() == 0.5) {
-    switch (BuiltinCall.getIntrinsicID()) {
-    case Intrinsic::fpbuiltin_fadd:
-    case Intrinsic::fpbuiltin_fsub:
-    case Intrinsic::fpbuiltin_fmul:
-    case Intrinsic::fpbuiltin_fdiv:
-    case Intrinsic::fpbuiltin_frem:
-    case Intrinsic::fpbuiltin_sqrt:
-    case Intrinsic::fpbuiltin_ldexp:
-      return replaceWithLLVMIR(BuiltinCall);
-    default:
-      report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
-    }
-  }
-
-  // AltMathLibrary don't have implementation for CUDA approximate precision
-  // builtins. Lets map them on NVPTX intrinsics. If no appropriate intrinsics
-  // are known - skip to emit an error.
-  if (T.isNVPTX() && BuiltinCall.getRequiredAccuracy().value() > 0.5)
+  case FPBuiltinReplacement::ReplaceWithApproxNVPTXCallsOrFallback: {
     if (replaceWithApproxNVPTXCallsOrFallback(
             BuiltinCall, BuiltinCall.getRequiredAccuracy()))
       return true;
-
-  /// Call TLI to select a function implementation to call
-  StringRef ImplName = TLI.selectFPBuiltinImplementation(&BuiltinCall);
-  if (ImplName.empty()) {
+    [[fallthrough]];
+  }
+  case FPBuiltinReplacement::NoSuitableReplacement: {
     LLVM_DEBUG(dbgs() << "No matching implementation found!\n");
     std::string RequiredAccuracy;
     if (BuiltinCall.getRequiredAccuracy() == std::nullopt)
@@ -228,10 +200,15 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
         false);
     return false;
   }
-
-  LLVM_DEBUG(dbgs() << "Selected " << ImplName << "\n");
-
-  return replaceWithAltMathFunction(BuiltinCall, ImplName);
+  case FPBuiltinReplacement::ReplaceWithLLVMIR:
+    return replaceWithLLVMIR(BuiltinCall);
+  case FPBuiltinReplacement::ReplaceWithAltMathFunction:
+    LLVM_DEBUG(dbgs() << "Selected " << Replacement.altMathFunctionImplName()
+                      << "\n");
+    return replaceWithAltMathFunction(BuiltinCall,
+                                      Replacement.altMathFunctionImplName());
+  }
+  return false;
 }
 
 static bool runImpl(const TargetLibraryInfo &TLI,
