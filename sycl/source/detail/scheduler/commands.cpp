@@ -3601,8 +3601,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     if (auto Result =
             MQueue->getAdapter()
-                ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
-                    MQueue->getHandleRef(), CmdBufferCG->MCommandBuffer,
+                ->call_nocheck<UrApiKind::urCommandBufferEnqueueExp>(
+                    CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
                     RawEvents.size(),
                     RawEvents.empty() ? nullptr : &RawEvents[0], Event);
         Result != UR_RESULT_SUCCESS)
