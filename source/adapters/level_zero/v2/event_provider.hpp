@@ -23,10 +23,16 @@ namespace v2 {
 
 using event_flags_t = uint32_t;
 enum event_flag_t {
-  EVENT_FLAGS_COUNTER = UR_BIT(0),
+  EVENT_FLAGS_HOST_VISIBLE = UR_BIT(0),
   EVENT_FLAGS_PROFILING_ENABLED = UR_BIT(1),
+  EVENT_FLAGS_COUNTER = UR_BIT(2),
+  EVENT_FLAGS_INTERRUPT = UR_BIT(3),
+  EVENT_FLAGS_IMM_CMDLIST = UR_BIT(4),
+  EVENT_FLAGS_MULTIDEVICE = UR_BIT(6),
+  EVENT_FLAGS_DEVICE = UR_BIT(7), // if set, subsequent bits are device id
+  MAX_EVENT_FLAG_BITS = 8,
 };
-static constexpr size_t EVENT_FLAGS_USED_BITS = 2;
+static constexpr size_t EVENT_FLAGS_USED_BITS = 9;
 
 class event_provider;
 
