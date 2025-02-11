@@ -417,6 +417,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 240,
   /// Enumerator for ::urCommandBufferAppendUSMAdviseExp
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 241,
+  /// Enumerator for ::urCommandBufferEnqueueExp
+  UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 242,
   /// Enumerator for ::urCommandBufferUpdateSignalEventExp
   UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP = 243,
   /// Enumerator for ::urCommandBufferUpdateWaitEventsExp
@@ -427,8 +429,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
   /// Enumerator for ::urPhysicalMemGetInfo
   UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
-  /// Enumerator for ::urEnqueueCommandBufferExp
-  UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP = 250,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -7044,8 +7044,8 @@ typedef enum ur_command_t {
   UR_COMMAND_READ_HOST_PIPE = 25,
   /// Event created by ::urEnqueueWriteHostPipe
   UR_COMMAND_WRITE_HOST_PIPE = 26,
-  /// Event created by ::urEnqueueCommandBufferExp
-  UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP = 0x1000,
+  /// Event created by ::urCommandBufferEnqueueExp
+  UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,
   /// Event created by ::urBindlessImagesWaitExternalSemaphoreExp
   UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP = 0x2000,
   /// Event created by ::urBindlessImagesSignalExternalSemaphoreExp
@@ -11001,8 +11001,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
 ///         + `NULL == hCommandBuffer`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -11012,11 +11012,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
-    /// [in] The queue to submit this command-buffer for execution.
-    ur_queue_handle_t hQueue,
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// [in] Handle of the command-buffer object.
     ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] The queue to submit this command-buffer for execution.
+    ur_queue_handle_t hQueue,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -13496,18 +13496,6 @@ typedef struct ur_enqueue_events_wait_with_barrier_ext_params_t {
 } ur_enqueue_events_wait_with_barrier_ext_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urEnqueueCommandBufferExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_command_buffer_exp_params_t {
-  ur_queue_handle_t *phQueue;
-  ur_exp_command_buffer_handle_t *phCommandBuffer;
-  uint32_t *pnumEventsInWaitList;
-  const ur_event_handle_t **pphEventWaitList;
-  ur_event_handle_t **pphEvent;
-} ur_enqueue_command_buffer_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14185,6 +14173,18 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
   ur_event_handle_t **pphEvent;
   ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_usm_advise_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferEnqueueExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_enqueue_exp_params_t {
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  ur_queue_handle_t *phQueue;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_command_buffer_enqueue_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferUpdateKernelLaunchExp
