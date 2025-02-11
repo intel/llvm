@@ -264,6 +264,7 @@ def open_check_file(file_name):
 # check if compiler supports CL command line options
 cl_options = False
 sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
+lit_config.note(sp[1])
 if sp[0] == 0:
     cl_options = True
     config.available_features.add("cl_options")
@@ -324,6 +325,7 @@ config.substitutions.append(("%level_zero_options", level_zero_options))
 sp = subprocess.getstatusoutput(
     config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
 )
+lit_config.note(sp[1])
 if sp[0] == 0:
     config.available_features.add("level_zero_dev_kit")
     config.substitutions.append(("%level_zero_options", level_zero_options))
@@ -351,6 +353,7 @@ sp = subprocess.getstatusoutput(
     + " -fsycl -fpreview-breaking-changes "
     + check_preview_breaking_changes_file
 )
+lit_config.note(sp[1])
 if sp[0] == 0:
     config.available_features.add("preview-breaking-changes-supported")
 
