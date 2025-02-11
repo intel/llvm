@@ -28,7 +28,7 @@ runs:
     env:
       TARGET_DEVICE: ${{ inputs.target_devices }}
     run: |
-      case "$RUNNER_TAG" in:
+      case "$RUNNER_TAG" in
         '["Linux", "gen12"]' | '["Linux", "pvc"]') ;;
         *)
           echo "#"
@@ -38,7 +38,7 @@ runs:
       esac
 
       # input.target_devices is not directly used, as this allows code injection
-      case "$TARGET_DEVICE" in:
+      case "$TARGET_DEVICE" in
         level_zero:*) ;;
         *)
           echo "#"
