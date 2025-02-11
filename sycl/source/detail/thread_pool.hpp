@@ -75,12 +75,12 @@ public:
   }
 
   ~ThreadPool() {
-    try {
-      std::cout << "~ThreadPool()" << std::endl;
-      finishAndWait();
-    } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
-    }
+    // try {
+    //   std::cout << "~ThreadPool()" << std::endl;
+    //   finishAndWait();
+    // } catch (std::exception &e) {
+    //   __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
+    // }
   }
 
   void finishAndWait() {

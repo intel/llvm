@@ -328,6 +328,7 @@ void shutdown_early() {
 }
 
 void shutdown_late() {
+  std::cout << "shutdown_late()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -354,6 +355,8 @@ void shutdown_late() {
   // Release the rest of global resources.
   delete Handler;
   Handler = nullptr;
+
+  std::cout << "shutdown_late() done" << std::endl;
 }
 
 #ifdef _WIN32
