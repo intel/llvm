@@ -569,16 +569,20 @@ public:
     // mock::getCallbacks() is an application lifetime object, we need to reset
     // these between tests
 
-#ifdef _WIN32
-    detail::GlobalHandler::instance().releaseDefaultContexts();
-#else
-    detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
-    detail::GlobalHandler::instance().releaseDefaultContexts();
-    // clear platform cache in case subsequent tests want a different backend,
-    // this forces platforms to be reconstructed (and thus queries about UR
-    // backend info to be called again)
+    detail::shutdown_early();
+
+    // #ifdef _WIN32
+    //     detail::GlobalHandler::instance().releaseDefaultContexts();
+    // #else
+    //     detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
+    //     detail::GlobalHandler::instance().releaseDefaultContexts();
+    //     // clear platform cache in case subsequent tests want a different
+    //     backend,
+    //     // this forces platforms to be reconstructed (and thus queries about
+    //     UR
+    //     // backend info to be called again)
     detail::GlobalHandler::instance().getPlatformCache().clear();
-#endif
+    // #endif
 
     mock::getCallbacks().resetCallbacks();
   }
