@@ -1,11 +1,11 @@
 // REQUIRES: gpu
 // RUN: %{build} -o %t.exe
-// RUN: %{run} %t.exe 2> %t.out || true
+// RUN: %{run} %t.exe 2> %t.out
 
 // RUN: FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
-// XFAIL: *
+// XFAIL: !arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16416
 
 #include <stdio.h>
