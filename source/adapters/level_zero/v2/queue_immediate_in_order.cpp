@@ -698,21 +698,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy(
   // TODO: parametrize latency tracking with 'blocking'
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMMemcpy");
 
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
-
-  auto [pWaitEvents, numWaitEvents] =
-      getWaitListView(phEventWaitList, numEventsInWaitList);
-
-  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-             (commandListManager.getZeCommandList(), pDst, pSrc, size,
-              zeSignalEvent, numWaitEvents, pWaitEvents));
-
-  if (blocking) {
-    ZE2UR_CALL(zeCommandListHostSynchronize,
-               (commandListManager.getZeCommandList(), UINT64_MAX));
-  }
+  UR_CALL(commandListManager.appendUSMMemcpy(blocking, pDst, pSrc, size,
+                                             numEventsInWaitList,
+                                             phEventWaitList, phEvent));
 
   return UR_RESULT_SUCCESS;
 }
