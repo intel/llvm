@@ -391,10 +391,10 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
                               const ur_event_native_properties_t *pProperties,
                               ur_event_handle_t *phEvent) try {
   if (!hNativeEvent) {
-    assert((hContext->nativeEventsPool.getFlags() & v2::EVENT_FLAGS_COUNTER) ==
-           0);
+    assert((hContext->getNativeEventsPool().getFlags() &
+            v2::EVENT_FLAGS_COUNTER) == 0);
 
-    *phEvent = hContext->nativeEventsPool.allocate();
+    *phEvent = hContext->getNativeEventsPool().allocate();
     ZE2UR_CALL(zeEventHostSignal, ((*phEvent)->getZeEvent()));
   } else {
     *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);

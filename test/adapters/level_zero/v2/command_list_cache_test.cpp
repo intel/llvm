@@ -198,13 +198,14 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
         }
       }
 
-      ASSERT_EQ(context->commandListCache.getNumImmediateCommandLists(), 0);
-      ASSERT_EQ(context->commandListCache.getNumRegularCommandLists(), 0);
+      ASSERT_EQ(context->getCommandListCache().getNumImmediateCommandLists(),
+                0);
+      ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
     } // Queues scope
 
-    ASSERT_EQ(context->commandListCache.getNumImmediateCommandLists(),
+    ASSERT_EQ(context->getCommandListCache().getNumImmediateCommandLists(),
               NumUniqueQueueTypes);
-    ASSERT_EQ(context->commandListCache.getNumRegularCommandLists(), 0);
+    ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
   }
 }
 
@@ -229,7 +230,7 @@ TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {
         ASSERT_EQ(urQueueCreate(context, device, &QueueProps, Queue.ptr()),
                   UR_RESULT_SUCCESS);
 
-        ASSERT_LE(context->commandListCache.getNumImmediateCommandLists(),
+        ASSERT_LE(context->getCommandListCache().getNumImmediateCommandLists(),
                   NumThreads);
       }
     });
@@ -239,6 +240,6 @@ TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {
     Thread.join();
   }
 
-  ASSERT_LE(context->commandListCache.getNumImmediateCommandLists(),
+  ASSERT_LE(context->getCommandListCache().getNumImmediateCommandLists(),
             NumThreads);
 }

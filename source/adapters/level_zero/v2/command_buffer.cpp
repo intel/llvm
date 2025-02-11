@@ -65,8 +65,8 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   uint32_t queueGroupOrdinal =
       device->QueueGroup[queue_group_type::Compute].ZeOrdinal;
   v2::raii::command_list_unique_handle zeCommandList =
-      context->commandListCache.getRegularCommandList(device->ZeDevice, true,
-                                                      queueGroupOrdinal, true);
+      context->getCommandListCache().getRegularCommandList(
+          device->ZeDevice, true, queueGroupOrdinal, true);
 
   *commandBuffer = new ur_exp_command_buffer_handle_t_(
       context, device, std::move(zeCommandList), commandBufferDesc);
