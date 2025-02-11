@@ -168,6 +168,8 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
       TLI.selectFnForFPBuiltinCalls(BuiltinCall, TTI);
 
   switch (Replacement()) {
+  default:
+    llvm_unreachable("Unexpected replacement");
   case FPBuiltinReplacement::Unexpected0dot5:
     report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
     return false;
@@ -208,7 +210,6 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
     return replaceWithAltMathFunction(BuiltinCall,
                                       Replacement.altMathFunctionImplName());
   }
-  return false;
 }
 
 static bool runImpl(const TargetLibraryInfo &TLI,

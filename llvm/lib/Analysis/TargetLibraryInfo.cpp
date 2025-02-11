@@ -1382,9 +1382,10 @@ FPBuiltinReplacement TargetLibraryInfoImpl::selectFnForFPBuiltinCalls(
       TTI.haveFastSqrt(BuiltinCall.getOperand(0)->getType()))
     return FPBuiltinReplacement(FPBuiltinReplacement::ReplaceWithLLVMIR);
   // Several functions for SYCL and CUDA requires "0.5" accuracy levels,
-  // which means correctly rounded results. For now x86 host AltMathLibrary
-  // doesn't have such ability. For such accuracy level, the fpbuiltins
-  // should be replaced by equivalent IR operation or llvmbuiltins.
+  // which means correctly rounded results. For now x86 host and NVPTX
+  // AltMathLibrary doesn't have such ability. For such accuracy level,
+  // the fpbuiltins should be replaced by equivalent IR operation or
+  // llvmbuiltins.
   if ((T.isX86() || T.isNVPTX()) && Accuracy == 0.5) {
     if (DefaultOpIsCorrectlyRounded(BuiltinCall))
       return FPBuiltinReplacement(FPBuiltinReplacement::ReplaceWithLLVMIR);
