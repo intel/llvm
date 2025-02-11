@@ -8061,7 +8061,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
     return KnownArchs.lookup(TC);
 
   llvm::DenseSet<StringRef> Archs;
-  for (auto *Arg : Args) {
+  for (auto *Arg : C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind)) {
     // Extract any '--[no-]offload-arch' arguments intended for this toolchain.
     std::unique_ptr<llvm::opt::Arg> ExtractedArg = nullptr;
     if (Kind == Action::OFK_SYCL) {
@@ -8150,13 +8150,29 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
     return Archs;
 
   if (Archs.empty()) {
-    if (Kind == Action::OFK_Cuda)
+    if (Kind == Action::OFK_Cuda) {
       Archs.insert(OffloadArchToString(OffloadArch::CudaDefault));
-    else if (Kind == Action::OFK_HIP)
+    } else if (Kind == Action::OFK_HIP) {
       Archs.insert(OffloadArchToString(OffloadArch::HIPDefault));
-    else if (Kind == Action::OFK_OpenMP)
-      Archs.insert(StringRef());
-    else if (Kind == Action::OFK_SYCL) {
+    } else if (Kind == Action::OFK_OpenMP) {
+      // Accept legacy `-march` device arguments for OpenMP.
+      if (auto *Arg = C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind)
+                          .getLastArg(options::OPT_march_EQ)) {
+        Archs.insert(Arg->getValue());
+      } else {
+        auto ArchsOrErr = TC->getSystemGPUArchs(Args);
+        if (!ArchsOrErr) {
+          TC->getDriver().Diag(diag::err_drv_undetermined_gpu_arch)
+              << llvm::Triple::getArchTypeName(TC->getArch())
+              << llvm::toString(ArchsOrErr.takeError()) << "--offload-arch";
+        } else if (!ArchsOrErr->empty()) {
+          for (auto Arch : *ArchsOrErr)
+            Archs.insert(Args.MakeArgStringRef(Arch));
+        } else {
+          Archs.insert(StringRef());
+        }
+      }
+    } else if (Kind == Action::OFK_SYCL) {
       // For SYCL offloading, we need to check the triple for NVPTX or AMDGPU.
       // The default arch is set for NVPTX if not provided.  For AMDGPU, emit
       // an error as the user is responsible to set the arch.
