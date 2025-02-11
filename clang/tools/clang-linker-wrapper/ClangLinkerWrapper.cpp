@@ -2362,14 +2362,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         HasNonSYCLOffloadKinds = true;
     }
 
-    // Write any remaining device inputs to an output file.
-    SmallVector<StringRef> InputFiles;
-    for (const OffloadFile &File : Input) {
-      auto FileNameOrErr = writeOffloadFile(File);
-      if (!FileNameOrErr)
-        return FileNameOrErr.takeError();
-      InputFiles.emplace_back(*FileNameOrErr);
-    }
     if (HasSYCLOffloadKind) {
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
