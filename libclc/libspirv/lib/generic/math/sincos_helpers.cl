@@ -20,10 +20,11 @@
  * THE SOFTWARE.
  */
 
-#include <core/clc_core.h>
-#include <clc/math/tables.h>
-#include <libspirv/spirv.h>
+#include <clc/integer/clc_mul_hi.h>
 #include <clc/math/math.h>
+#include <clc/math/tables.h>
+#include <clc/shared/clc_max.h>
+#include <libspirv/spirv.h>
 
 #include "sincos_helpers.h"
 
