@@ -4,8 +4,8 @@
 // Test checks that the default context contains all of the root devices that
 // are associated with this platform.
 
-#include <sycl/detail/core.hpp>
 #include <algorithm>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
