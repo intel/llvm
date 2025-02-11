@@ -1,4 +1,4 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_mipmap
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
