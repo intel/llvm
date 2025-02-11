@@ -582,14 +582,6 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
     CurFn->addFnAttr("min-legal-vector-width",
                      llvm::utostr(LargestVectorWidth));
 
-  // Add vscale_range attribute if appropriate.
-  std::optional<std::pair<unsigned, unsigned>> VScaleRange =
-      getContext().getTargetInfo().getVScaleRange(getLangOpts());
-  if (VScaleRange) {
-    CurFn->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
-        getLLVMContext(), VScaleRange->first, VScaleRange->second));
-  }
-
   // If we generated an unreachable return block, delete it now.
   if (ReturnBlock.isValid() && ReturnBlock.getBlock()->use_empty()) {
     Builder.ClearInsertionPoint();
@@ -1398,6 +1390,15 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
       if (FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>())
         Fn->addFnAttr("referenced-indirectly");
+
+  // Add vscale_range attribute if appropriate.
+  std::optional<std::pair<unsigned, unsigned>> VScaleRange =
+      getContext().getTargetInfo().getVScaleRange(
+          getLangOpts(), FD ? IsArmStreamingFunction(FD, true) : false);
+  if (VScaleRange) {
+    CurFn->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
+        getLLVMContext(), VScaleRange->first, VScaleRange->second));
+  }
 
   llvm::BasicBlock *EntryBB = createBasicBlock("entry", CurFn);
 
