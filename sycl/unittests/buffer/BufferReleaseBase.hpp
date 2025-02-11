@@ -49,6 +49,9 @@ protected:
   }
   void TearDown() override {
     sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
+#ifdef _WIN32
+    sycl::detail::shutdown_early();
+#endif
   }
 
   template <typename Buffer>
