@@ -5594,7 +5594,9 @@ static void handlePatchableFunctionEntryAttr(Sema &S, Decl *D,
 
 static bool SYCLAliasValid(ASTContext &Context, unsigned BuiltinID) {
   constexpr llvm::StringLiteral Prefix = "__builtin_intel_sycl";
-  return Context.BuiltinInfo.getName(BuiltinID).starts_with(Prefix);
+  std::string BuiltinNameStr = Context.BuiltinInfo.getName(BuiltinID);
+  StringRef BuiltinName = BuiltinNameStr;
+  return BuiltinName.starts_with(Prefix);
 }
 
 static void handleBuiltinAliasAttr(Sema &S, Decl *D,
