@@ -1,5 +1,9 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_image_array
-// REQUIRES: cuda
+
+// UNSUPPORTED: level_zero
+// UNSUPPORTED-INTENDED: Undetermined issue causing data and invalid pointer
+// errors.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
