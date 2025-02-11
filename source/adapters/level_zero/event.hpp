@@ -24,6 +24,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include "./v2/event_provider.hpp"
 #include "common.hpp"
 #include "queue.hpp"
 
@@ -138,6 +139,8 @@ struct ur_event_handle_t_ : _ur_object {
 
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
+
+  v2::event_flags_t Flags;
 
   // In case we use device-only events this holds their host-visible
   // counterpart. If this event is itself host-visble then HostVisibleEvent
