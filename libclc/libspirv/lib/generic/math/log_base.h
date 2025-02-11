@@ -20,7 +20,7 @@
  * THE SOFTWARE.
  */
 
-#include <math/math.h>
+#include <clc/math/math.h>
 
 /*
    Algorithm:
