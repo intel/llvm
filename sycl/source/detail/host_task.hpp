@@ -17,7 +17,6 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/interop_handle.hpp>
-#include <detail/global_handler.hpp>
 
 namespace sycl {
 inline namespace _V1 {
