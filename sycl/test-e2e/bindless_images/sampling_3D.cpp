@@ -1,7 +1,9 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 
 // UNSUPPORTED: arch-amd_gpu_gfx90a
+// UNSUPPORTED: arch-amd_gpu_gfx1030
 // UNSUPPORTED-INTENDED: AMD gfx90a devices don't support 3D linear filter mode
+// UNSUPPORTED-INTENDED: AMD gfx1030 devices don't support the 3D sampler tested here
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
