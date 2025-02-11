@@ -102,6 +102,30 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_command_list_manager::appendUSMMemcpy(
+    bool blocking, void *pDst, const void *pSrc, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMMemcpy");
+
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
+
+  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
+
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (zeCommandList.get(), pDst, pSrc, size, zeSignalEvent,
+              numWaitEvents, pWaitEvents));
+
+  if (blocking) {
+    ZE2UR_CALL(zeCommandListHostSynchronize, (zeCommandList.get(), UINT64_MAX));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ze_command_list_handle_t ur_command_list_manager::getZeCommandList() {
   return zeCommandList.get();
 }
