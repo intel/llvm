@@ -51,6 +51,7 @@ runs:
       cd "./llvm-ci-perf-results"
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
+      git pull
       git add .
       git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
       git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
