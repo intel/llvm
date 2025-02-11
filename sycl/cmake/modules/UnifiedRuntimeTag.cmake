@@ -4,4 +4,4 @@
 # Date:   Wed Feb 5 15:39:15 2025 +0000
 #     Merge pull request #2496 from GeorgeWeb/georgi/bindless-hip
 #     [UR][Bindless] Initial implementation of bindless images for HIP
-set(UNIFIED_RUNTIME_TAG ad6851850ee031226cf880d51112532f5572ea3a)
+set(UNIFIED_RUNTIME_TAG 05726ce9d167d094be0feb069ae5eb8872cce628)
