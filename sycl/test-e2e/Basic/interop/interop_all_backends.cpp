@@ -1,8 +1,8 @@
-// XFAIL: any-device-is-cuda
+// XFAIL: target-nvidia
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16070
-// RUN: %if any-device-is-opencl %{ %{build} -o %t-opencl.out %}
-// RUN: %if any-device-is-cuda %{ %{build} -isystem %sycl_include -DBUILD_FOR_CUDA -o %t-cuda.out %}
-// RUN: %if any-device-is-hip %{ %{build} -DBUILD_FOR_HIP -o %t-hip.out %}
+// RUN: %if target-spir %{ %{build} -o %t-opencl.out %}
+// RUN: %if target-nvidia %{ %{build} -isystem %sycl_include -DBUILD_FOR_CUDA -o %t-cuda.out %}
+// RUN: %if target-amd %{ %{build} -DBUILD_FOR_HIP -o %t-hip.out %}
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
