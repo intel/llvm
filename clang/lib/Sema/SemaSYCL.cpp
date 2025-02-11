@@ -439,6 +439,8 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
   ASTContext &Context = S.getASTContext();
 
   //--- check types ---
+  if (Ty->isDependentType())
+    return;
 
   // zero length arrays
   if (isZeroSizedArray(S, Ty)) {
