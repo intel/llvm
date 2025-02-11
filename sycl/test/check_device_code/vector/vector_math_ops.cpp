@@ -119,7 +119,7 @@ SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLINS0_3EXT6ONEAPI8BFLOAT16EEENS0_3VECIS5_LI3EEERKS7_S9__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIX24IS_OP_AVAILABLE_FOR_TYPEIST4PLUSIVET_EENS0_3VECIS5_LI3EEEE4TYPEERKSB_SF__EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I_I]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I12_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I_I]]
@@ -134,7 +134,7 @@ SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 // CHECK-NEXT:    store i16 [[CALL_I_I3_I_I_I_I]], ptr [[ARRAYIDX_I_I_I14_I_I]], align 2, !tbaa [[TBAA88:![0-9]+]], !noalias [[META79]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP90:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailplINS0_3ext6oneapi8bfloat16EEENS0_3vecIS5_Li3EEERKS7_S9_.exit:
+// CHECK:       _ZN4sycl3_V16detailplINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIX24is_op_available_for_typeISt4plusIvET_EENS0_3vecIS5_Li3EEEE4typeERKSB_SF_.exit:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[RES_I_I]], align 8, !noalias [[META79]]
 // CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META79]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[RES_I_I]]), !noalias [[META73]]
@@ -223,7 +223,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILGTINS0_3EXT6ONEAPI8BFLOAT16EEENS0_3VECISLI4EEERKNS6_IS5_LI4EEESA__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILGTINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIX24IS_OP_AVAILABLE_FOR_TYPEIST7GREATERIVET_EENS0_3VECISLI4EEEE4TYPEERKNSA_IS5_LI4EEESG__EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I_I]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I14_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I_I]]
@@ -235,7 +235,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 // CHECK-NEXT:    store i16 [[CONV6_I_I]], ptr [[ARRAYIDX_I_I_I16_I_I]], align 2, !tbaa [[TBAA88]], !noalias [[META127]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP128:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailgtINS0_3ext6oneapi8bfloat16EEENS0_3vecIsLi4EEERKNS6_IS5_Li4EEESA_.exit:
+// CHECK:       _ZN4sycl3_V16detailgtINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIX24is_op_available_for_typeISt7greaterIvET_EENS0_3vecIsLi4EEEE4typeERKNSA_IS5_Li4EEESG_.exit:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[RES_I_I]], align 8, !noalias [[META127]]
 // CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META127]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[RES_I_I]]), !noalias [[META121]]
