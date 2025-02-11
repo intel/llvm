@@ -1,7 +1,5 @@
-# commit 9d6542bac16db69d907002cb0f8c724c7a50d2dc
-# Merge: 0e6adfb6 04882ba3
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Feb 6 11:30:48 2025 +0000
-#     Merge pull request #2655 from hvdijk/nativecpu-null-phevent
-#     [NativeCPU] Handle null phEvent.
-set(UNIFIED_RUNTIME_TAG 9d6542bac16db69d907002cb0f8c724c7a50d2dc)
+# commit 4ae15957e0c7575cde45d9d3ae01bd334e052e95
+# Author: Rafal Bielski <rafal.bielski@codeplay.com>
+# Date:   Fri Feb 7 19:22:22 2025 +0000
+#    Avoid unnecessary calls to cuFuncSetAttribute
+set(UNIFIED_RUNTIME_TAG cuda-avoid-cuFuncSetAttribute)
