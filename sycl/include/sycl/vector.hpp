@@ -435,7 +435,6 @@ private:
   template <typename T1, int T2> friend class __SYCL_EBO vec;
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
-  template <typename T1, int T2> friend class detail::vec_arith_common;
 };
 ///////////////////////// class sycl::vec /////////////////////////
 
