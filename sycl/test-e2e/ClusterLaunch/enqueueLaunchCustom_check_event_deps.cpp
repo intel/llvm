@@ -1,6 +1,6 @@
 // Checks whether or not event Dependencies are honored by
 // urEnqueueKernelLaunchCustomExp
-// REQUIRES: aspect-ext_oneapi_cuda_cluster_group
+// REQUIRES: target-nvidia, aspect-ext_oneapi_cuda_cluster_group
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_90 -o %t.out
 // RUN: %{run} %t.out
 
