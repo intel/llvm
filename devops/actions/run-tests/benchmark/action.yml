@@ -9,14 +9,43 @@ name: 'Run compute-benchmarks'
 #
 # https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#accessing-your-secrets
 #
+# This action also expects a RUNNER_TAG environment variable to be set to the
+# runner tag used to run this workflow: Currently, only gen12 and pvc on Linux
+# are fully supported. Although this workflow won't stop you from running other
+# devices, note that only gen12 and pvc has been tested to work.
+#
 
 inputs:
   target_devices:
-    required: true
+    type: string
+    required: True
 
 runs:
   using: "composite"
   steps:
+  - name: Check specified runner type / target backend
+    shell: bash
+    env:
+      TARGET_DEVICE: ${{ inputs.target_devices }}
+    run: |
+      case "$RUNNER_TAG" in:
+        '["Linux", "gen12"]' | '["Linux", "pvc"]') ;;
+        *)
+          echo "#"
+          echo "# WARNING: Only gen12/pvc on Linux is fully supported."
+          echo "# This workflow is not guaranteed to work with other runners."
+          echo "#" ;;
+      esac
+
+      # input.target_devices is not directly used, as this allows code injection
+      case "$TARGET_DEVICE" in:
+        level_zero:*) ;;
+        *)
+          echo "#"
+          echo "# WARNING: Only level_zero backend is fully supported."
+          echo "# This workflow is not guaranteed to work with other backends."
+          echo "#" ;;
+      esac
   - name: Run compute-benchmarks
     shell: bash
     run: |
