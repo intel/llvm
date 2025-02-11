@@ -359,6 +359,11 @@ template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::opencl)
+      throw exception(make_error_code(errc::invalid),
+                      "info::device::execution_capabilities is available for "
+                      "backend::opencl only");
+
     ur_device_exec_capability_flag_t result;
     Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
         Dev->getHandleRef(),
@@ -863,7 +868,9 @@ struct get_device_info_impl<
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
-             (architecture::intel_gpu_lnl_m == DeviceArch)) {
+             (architecture::intel_gpu_lnl_m == DeviceArch) ||
+             (architecture::intel_gpu_ptl_h == DeviceArch) ||
+             (architecture::intel_gpu_ptl_u == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
