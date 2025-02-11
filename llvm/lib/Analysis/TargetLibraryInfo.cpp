@@ -1354,7 +1354,8 @@ StringRef TargetLibraryInfoImpl::selectFPBuiltinImplementation(
 }
 
 FPBuiltinReplacement TargetLibraryInfoImpl::selectFnForFPBuiltinCalls(
-    const FPBuiltinIntrinsic &BuiltinCall, const TargetTransformInfo &TTI) const {
+    const FPBuiltinIntrinsic &BuiltinCall,
+    const TargetTransformInfo &TTI) const {
   auto DefaultOpIsCorrectlyRounded = [](const FPBuiltinIntrinsic &BuiltinCall) {
     switch (BuiltinCall.getIntrinsicID()) {
     case Intrinsic::fpbuiltin_fadd:

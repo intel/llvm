@@ -84,45 +84,46 @@ public:
     NotLibFunc
   };
 
-/// Contains all possible FPBuiltin replacement choices by
-/// selectFnForFPBuiltinCalls function.
-struct FPBuiltinReplacement {
-  enum Kind {
-    Unexpected0dot5,
-    UnrecognizedFPAttrs,
-    NoSuitableReplacement,
-    ReplaceWithLLVMIR,
-    ReplaceWithAltMathFunction,
-    ReplaceWithApproxNVPTXCallsOrFallback
+  /// Contains all possible FPBuiltin replacement choices by
+  /// selectFnForFPBuiltinCalls function.
+  struct FPBuiltinReplacement {
+    enum Kind {
+      Unexpected0dot5,
+      UnrecognizedFPAttrs,
+      NoSuitableReplacement,
+      ReplaceWithLLVMIR,
+      ReplaceWithAltMathFunction,
+      ReplaceWithApproxNVPTXCallsOrFallback
+    };
+
+    FPBuiltinReplacement(Kind K, const StringRef &ImplName = StringRef())
+        : RepKind(K), AltMathFunctionImplName(ImplName) {
+      // Check that ImplName is non-empty only if K is
+      // ReplaceWithAltMathFunction.
+      assert((K != Kind::ReplaceWithAltMathFunction || !ImplName.empty()) &&
+             "Expected non-empty function name");
+    }
+    FPBuiltinReplacement(const FPBuiltinReplacement &O)
+        : RepKind(O()), AltMathFunctionImplName(O.altMathFunctionImplName()) {}
+    FPBuiltinReplacement &operator=(const FPBuiltinReplacement &O) {
+      this->RepKind = O();
+      this->AltMathFunctionImplName = O.altMathFunctionImplName();
+      return *this;
+    }
+    ~FPBuiltinReplacement() {}
+    Kind operator()() const { return RepKind; }
+    bool isReplaceble() const { return RepKind > Kind::NoSuitableReplacement; }
+    const StringRef &altMathFunctionImplName() const {
+      return AltMathFunctionImplName;
+    }
+
+  private:
+    /// In case of RepKind = Kind::ReplaceWithAltMathFunction
+    /// AltMathFunctionImplName also contains the name of the alternate math
+    /// function implementation.
+    Kind RepKind;
+    StringRef AltMathFunctionImplName;
   };
-
-  FPBuiltinReplacement(Kind K, const StringRef &ImplName = StringRef())
-      : RepKind(K), AltMathFunctionImplName(ImplName) {
-    // Check that ImplName is non-empty only if K is ReplaceWithAltMathFunction.
-    assert((K != Kind::ReplaceWithAltMathFunction || !ImplName.empty()) &&
-           "Expected non-empty function name");
-  }
-  FPBuiltinReplacement(const FPBuiltinReplacement &O)
-      : RepKind(O()), AltMathFunctionImplName(O.altMathFunctionImplName()) {}
-  FPBuiltinReplacement &operator=(const FPBuiltinReplacement &O) {
-    this->RepKind = O();
-    this->AltMathFunctionImplName = O.altMathFunctionImplName();
-    return *this;
-  }
-  ~FPBuiltinReplacement() {}
-  Kind operator()() const { return RepKind; }
-  bool isReplaceble() const { return RepKind > Kind::NoSuitableReplacement; }
-  const StringRef &altMathFunctionImplName() const {
-    return AltMathFunctionImplName;
-  }
-
-private:
-  /// In case of RepKind = Kind::ReplaceWithAltMathFunction
-  /// AltMathFunctionImplName also contains the name of the alternate math
-  /// function implementation.
-  Kind RepKind;
-  StringRef AltMathFunctionImplName;
-};
 
 /// Implementation of the target library information.
 ///
@@ -267,8 +268,8 @@ public:
 
   // Select an alternate math library implementation that meets the criteria
   // described by an FPBuiltinIntrinsic call.
-  StringRef selectFPBuiltinImplementation(const FPBuiltinIntrinsic *Builtin)
-    const;
+  StringRef
+  selectFPBuiltinImplementation(const FPBuiltinIntrinsic *Builtin) const;
 
   /// Returns the replacement choice for the given FPBuiltinIntrinsic call.
   FPBuiltinReplacement
