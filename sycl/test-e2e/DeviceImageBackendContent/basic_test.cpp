@@ -1,4 +1,6 @@
-// RUN: %{build} -std=c++20 -o %t.out
+// DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
+
+// RUN: %{build} %{cpp20} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
