@@ -482,6 +482,11 @@ CODEGENOPT(OptimizeSYCLFramework, 1, 0)
 /// operations and no fp64 computation operations (requires Intel GPU backend
 /// supporting fp64 partial emulation)
 CODEGENOPT(FP64ConvEmu, 1, 0)
+
+/// Enables emitting Import Call sections on supported targets that can be used
+/// by the Windows kernel to enable import call optimization.
+CODEGENOPT(ImportCallOptimization, 1, 0)
+
 /// FIXME: Make DebugOptions its own top-level .def file.
 #include "DebugOptions.def"
 
