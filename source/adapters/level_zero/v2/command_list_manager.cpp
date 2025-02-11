@@ -19,7 +19,7 @@ ur_command_list_manager::ur_command_list_manager(
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
     ur_queue_t_ *queue)
     : context(context), device(device),
-      eventPool(context->eventPoolCache.borrow(device->Id.value(), flags)),
+      eventPool(context->getEventPoolCache().borrow(device->Id.value(), flags)),
       zeCommandList(std::move(commandList)), queue(queue) {
   UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
   UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));

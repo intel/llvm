@@ -65,7 +65,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     : hContext(hContext), hDevice(hDevice), flags(pProps ? pProps->flags : 0),
       commandListManager(
           hContext, hDevice,
-          hContext->commandListCache.getImmediateCommandList(
+          hContext->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice, true, getZeOrdinal(hDevice),
               true /* always enable copy offload */,
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
