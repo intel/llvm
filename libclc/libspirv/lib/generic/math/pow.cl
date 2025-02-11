@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <config.h>
+#include <clc/math/clc_subnormal_config.h>
 #include <math/clc_pow.h>
 #include <clc/math/math.h>
 

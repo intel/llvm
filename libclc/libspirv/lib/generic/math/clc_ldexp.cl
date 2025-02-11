@@ -21,12 +21,14 @@
  */
 
 #include <clc/clcmacro.h>
+#include <clc/integer/clc_add_sat.h>
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
 #include <clc/relational/clc_isinf.h>
 #include <clc/relational/clc_isnan.h>
+#include <clc/shared/clc_clamp.h>
 #include <core/clc_core.h>
-#include <clc/math/tables.h>
 #include <libspirv/spirv.h>
-#include <clc/math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_ldexp(float x, int n) {
 
