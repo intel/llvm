@@ -456,8 +456,7 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
   // Sub-reference array or pointer, then proceed with that type.
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
-  // checked in Sema::checkTypeSupport
-  // __int128, __int128_t, __uint128_t, long double, __float128
+
   if (((Ty->isFloat128Type() ||
         (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
        !Context.getTargetInfo().hasFloat128Type()) ||

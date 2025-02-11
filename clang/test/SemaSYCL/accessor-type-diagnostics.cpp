@@ -2,12 +2,19 @@
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -fsyntax-only %s
 // RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
 // RUN:  -aux-triple x86_64-pc-windows-msvc -fsyntax-only %s
+// RUN: %clang_cc1 -triple nvptx64 -fsycl-is-device -verify=supported \
+// RUN:  -aux-triple x86_64-unknown-linux-gnu -fsyntax-only %s
+// RUN: %clang_cc1 -triple nvptx64 -fsycl-is-device -verify=supported \
+// RUN:  -aux-triple x86_64-pc-windows-msvc -fsyntax-only %s
 //
 // Ensure SYCL type restrictions are applied to accessors as well.
 
 #include "Inputs/sycl.hpp"
 
 using namespace sycl;
+
+// if type is supported, no diagnostics should be raised
+// supported-no-diagnostics
 
 //alias template
 template <typename...>
