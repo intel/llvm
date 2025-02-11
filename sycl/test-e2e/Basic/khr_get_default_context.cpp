@@ -17,7 +17,8 @@ int main() {
     auto root_devs = plt.get_devices();
 
     for (const auto &dev : root_devs)
-      if (std::find(def_ctx_devs.begin(), def_ctx_devs.end(), dev) == def_ctx_devs.end())
+      if (std::find(def_ctx_devs.begin(), def_ctx_devs.end(), dev) ==
+          def_ctx_devs.end())
         return 1;
   }
 
