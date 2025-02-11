@@ -2,9 +2,8 @@
 // using fp64 can be compiled AOT.
 
 // REQUIRES: ocloc, opencl-aot, any-device-is-cpu
-// REQUIRES: build-and-run-mode
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 
 // ocloc on windows does not have support for PVC, so this command will
