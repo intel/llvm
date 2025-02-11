@@ -299,6 +299,7 @@ void GlobalHandler::drainThreadPool() {
 }
 
 void shutdown_early() {
+  std::cout << "shutdown_early()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -320,6 +321,7 @@ void shutdown_early() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
+  std::cout << "finishAndWait() done" << std::endl;
   // This releases OUR reference to the default context, but
   // other may yet have refs
   Handler->releaseDefaultContexts();
