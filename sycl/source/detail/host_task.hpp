@@ -36,7 +36,9 @@ public:
 
   void call(HostProfilingInfo *HPI) {
     std::cout << "host_task call()" << std::endl;
-    if(!GlobalHandler::instance().isOkToDefer()){ return; }
+    if (!GlobalHandler::instance().isOkToDefer()) {
+      return;
+    }
 
     if (HPI)
       HPI->start();
@@ -47,7 +49,9 @@ public:
 
   void call(HostProfilingInfo *HPI, interop_handle handle) {
     std::cout << "host_task call()" << std::endl;
-    if(!GlobalHandler::instance().isOkToDefer()){ return; }
+    if (!GlobalHandler::instance().isOkToDefer()) {
+      return;
+    }
 
     if (HPI)
       HPI->start();
