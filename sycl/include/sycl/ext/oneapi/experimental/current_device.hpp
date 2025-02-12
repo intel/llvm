@@ -15,7 +15,8 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::this_thread {
 
 namespace detail {
-thread_local sycl::device current_device = sycl::device{sycl::default_selector_v};
+thread_local sycl::device current_device =
+    sycl::device{sycl::default_selector_v};
 } // namespace detail
 
 /// @return The current default device for the calling host thread. If

@@ -161,8 +161,7 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   switch (*params->ppropName) {
   case UR_DEVICE_INFO_TYPE: {
     if (*params->ppPropValue)
-      *static_cast<ur_device_type_t *>(*params->ppPropValue) =
-          UrDeviceType;
+      *static_cast<ur_device_type_t *>(*params->ppPropValue) = UrDeviceType;
     if (*params->ppPropSizeRet)
       **params->ppPropSizeRet = sizeof(UrDeviceType);
     return UR_RESULT_SUCCESS;

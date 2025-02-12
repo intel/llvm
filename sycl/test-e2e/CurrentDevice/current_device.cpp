@@ -1,4 +1,4 @@
-// REQUIRES: cpu, gpu
+// REQUIRES: any-device-is-cpu, any-device-is-gpu
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
