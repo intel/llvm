@@ -10,7 +10,6 @@
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
 
-#include <detail/global_handler.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
 
@@ -109,9 +108,6 @@ protected:
     mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                             &redefinedDeviceGetInfoAfter);
   }
-#ifdef _WIN32
-  void TearDown() override { sycl::detail::shutdown_early(); }
-#endif
 
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;

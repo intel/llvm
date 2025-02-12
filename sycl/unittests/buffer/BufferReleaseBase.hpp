@@ -16,7 +16,6 @@
 #include <gtest/gtest.h>
 
 #include <detail/buffer_impl.hpp>
-#include <detail/global_handler.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <gmock/gmock.h>
 
@@ -49,9 +48,6 @@ protected:
   }
   void TearDown() override {
     sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
-#ifdef _WIN32
-    sycl::detail::shutdown_early();
-#endif
   }
 
   template <typename Buffer>
