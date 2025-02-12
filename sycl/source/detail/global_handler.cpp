@@ -39,6 +39,11 @@ SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 // forward decl
 void shutdown_early();
 void shutdown_late();
+#ifdef _WIN32
+extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
+                                             DWORD fdwReason,
+                                             LPVOID lpReserved);
+#endif
 
 // Utility class to track references on object.
 // Used for GlobalHandler now and created as thread_local object on the first
@@ -243,6 +248,17 @@ struct StaticVarShutdownHandler {
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
+      // Detect module handle here. If we can't find it, then
+      // we are statically linked and need to call shutdown_early() as well.
+      HMODULE hModule = nullptr;
+      if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, &DllMain,
+                              &hModule) == TRUE) {
+        // GetModuleHandleEx failed.  Statically linked.
+        std::cout << "StaticVarShutdownHandler calling shutdown_early()"
+                  << std::endl;
+        shutdown_early();
+      }
+
       shutdown_late();
 #else
       shutdown_early();
@@ -384,6 +400,9 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
     try {
+      // CP
+      std::cout << "DllMain(PROCESS_DETACH) calling shutdown_early()"
+                << std::endl;
       shutdown_early();
     } catch (std::exception &e) {
       std::cout << "exception in DLL_PROCESS_DETACH" << e.what() << std::endl;
