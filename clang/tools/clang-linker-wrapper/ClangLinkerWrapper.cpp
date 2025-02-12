@@ -47,7 +47,6 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -55,7 +54,6 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
-#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
@@ -156,7 +154,7 @@ static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 static bool UseSYCLPostLinkTool;
 
-SmallString<128> SPIRVDumpDir;
+static SmallString<128> SPIRVDumpDir;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
@@ -886,9 +884,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
             ",+SPV_INTEL_optnone"
             ",+SPV_KHR_non_semantic_info"
             ",+SPV_KHR_cooperative_matrix"
-            ",+SPV_EXT_shader_atomic_float16_add";
-  if (IsCPU)
-    ExtArg += ",+SPV_INTEL_fp_max_error";
+            ",+SPV_EXT_shader_atomic_float16_add"
+            ",+SPV_INTEL_fp_max_error";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
@@ -1490,7 +1487,7 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
       if (Magic == file_magic::spirv_object)
         return createStringError(
             "SPIR-V fat objects must be generated with --offload-new-driver");
-      auto Arg = Args.MakeArgString(
+      const auto *Arg = Args.MakeArgString(
           "sycl-" +
           (Triple.isSPIROrSPIRV() ? Triple.str() + "-" : Triple.str()) + "=" +
           ObjectFilePath);
@@ -2247,7 +2244,7 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
 
-  auto Bin = Input.front().getBinary();
+  const auto *Bin = Input.front().getBinary();
   DAL.AddJoinedArg(
       nullptr, Tbl.getOption(OPT_sycl_backend_compile_options_from_image_EQ),
       Args.MakeArgString(Bin->getString(COMPILE_OPTS)));
@@ -2374,14 +2371,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         HasNonSYCLOffloadKinds = true;
     }
 
-    // Write any remaining device inputs to an output file.
-    SmallVector<StringRef> InputFiles;
-    for (const OffloadFile &File : Input) {
-      auto FileNameOrErr = writeOffloadFile(File);
-      if (!FileNameOrErr)
-        return FileNameOrErr.takeError();
-      InputFiles.emplace_back(*FileNameOrErr);
-    }
     if (HasSYCLOffloadKind) {
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
