@@ -6,7 +6,7 @@
 // RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
-// XFAIL: spirv-backend && run-mode
+// XFAIL: spirv-backend && gpu && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 // Test is flaky on required platforms, disable until it can be fixed
