@@ -1,7 +1,7 @@
 // REQUIRES: any-device-is-cpu, any-device-is-gpu
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 // E2E tests for sycl_ext_oneapi_current_device
 
