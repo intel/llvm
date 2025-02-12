@@ -2007,7 +2007,6 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferFillExp);
   SET_UNSUPPORTED(pDdiTable->pfnAppendUSMPrefetchExp);
   SET_UNSUPPORTED(pDdiTable->pfnAppendUSMAdviseExp);
-  SET_UNSUPPORTED(pDdiTable->pfnEnqueueExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateKernelLaunchExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateSignalEventExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateWaitEventsExp);

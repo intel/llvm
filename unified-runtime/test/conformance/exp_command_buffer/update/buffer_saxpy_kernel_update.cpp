@@ -133,7 +133,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferSaxpyKernelTest);
 
 TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   ASSERT_SUCCESS(urQueueFinish(queue));
@@ -192,7 +192,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(
       urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 

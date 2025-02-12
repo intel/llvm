@@ -583,9 +583,6 @@ etors:
 - name: COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
   desc: Enumerator for $xCommandBufferAppendUSMAdviseExp
   value: '241'
-- name: COMMAND_BUFFER_ENQUEUE_EXP
-  desc: Enumerator for $xCommandBufferEnqueueExp
-  value: '242'
 - name: COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP
   desc: Enumerator for $xCommandBufferUpdateSignalEventExp
   value: '243'
@@ -601,6 +598,9 @@ etors:
 - name: PHYSICAL_MEM_GET_INFO
   desc: Enumerator for $xPhysicalMemGetInfo
   value: '249'
+- name: ENQUEUE_COMMAND_BUFFER_EXP
+  desc: Enumerator for $xEnqueueCommandBufferExp
+  value: '250'
 ---
 type: enum
 desc: Defines structure types

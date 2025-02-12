@@ -33,7 +33,7 @@ TEST_P(CommandEventSyncUpdateTest, USMMemcpyExp) {
       &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read ptr 1 based on event returned from command-buffer command
@@ -60,7 +60,7 @@ TEST_P(CommandEventSyncUpdateTest, USMMemcpyExp) {
   // Get a new signal event for command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
@@ -89,7 +89,7 @@ TEST_P(CommandEventSyncUpdateTest, USMFillExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
@@ -116,7 +116,7 @@ TEST_P(CommandEventSyncUpdateTest, USMFillExp) {
   // Get a new signal event for command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
@@ -151,7 +151,7 @@ TEST_P(CommandEventSyncUpdateTest, USMFillLargePatternExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
@@ -178,7 +178,7 @@ TEST_P(CommandEventSyncUpdateTest, USMFillLargePatternExp) {
   // Get a new signal event for command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
@@ -213,7 +213,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferCopyExp) {
       1, &sync_points[0], 1, &external_events[0], nullptr, &external_events[1],
       &command_handles[0]));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read buffer 1 based on event returned from command-buffer command
@@ -240,7 +240,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferCopyExp) {
   // Get a new signal event for command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(
@@ -285,7 +285,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferCopyRectExp) {
       &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read buffer 1 based on event returned from command-buffer command
@@ -312,7 +312,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferCopyRectExp) {
   // Get a new signal event for command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(
@@ -341,7 +341,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferReadExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Overwrite buffer 0 based on event returned from command-buffer command,
@@ -374,7 +374,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferReadExp) {
   // Get a new signal event for command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[4]));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   uint32_t patternA = 0xF;
@@ -417,7 +417,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferReadRectExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Overwrite buffer 0 based on event returned from command-buffer command,
@@ -450,7 +450,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferReadRectExp) {
   // Get a new signal event for command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[4]));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   uint32_t patternA = 0xF;
@@ -486,7 +486,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferWriteExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Read back buffer 0 based on event returned from command-buffer command
@@ -514,7 +514,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferWriteExp) {
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urEnqueueMemBufferRead(
       queue, buffers[0], false, 0, allocation_size, host_enqueue_ptr.data(), 1,
@@ -554,7 +554,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferWriteRectExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Read back buffer 0 based on event returned from command-buffer command
@@ -582,7 +582,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferWriteRectExp) {
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urEnqueueMemBufferRead(
       queue, buffers[0], false, 0, allocation_size, host_enqueue_ptr.data(), 1,
@@ -616,7 +616,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferFillLargePatternExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read buffer 0 based on event returned from command-buffer command
@@ -644,7 +644,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferFillLargePatternExp) {
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urEnqueueMemBufferRead(
       queue, buffers[0], false, 0, allocation_size, host_enqueue_ptr.data(), 1,
@@ -672,7 +672,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferFillExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read buffer 0 based on event returned from command-buffer command
@@ -700,7 +700,7 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferFillExp) {
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urEnqueueMemBufferRead(
       queue, buffers[0], false, 0, allocation_size, host_enqueue_ptr.data(), 1,
@@ -727,7 +727,7 @@ TEST_P(CommandEventSyncUpdateTest, USMPrefetchExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
@@ -755,7 +755,7 @@ TEST_P(CommandEventSyncUpdateTest, USMPrefetchExp) {
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
                                     device_ptrs[0], allocation_size, 1,
@@ -782,7 +782,7 @@ TEST_P(CommandEventSyncUpdateTest, USMAdviseExp) {
       &external_events[1], &command_handles[0]));
   ASSERT_NE(nullptr, command_handles[0]);
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
@@ -810,7 +810,7 @@ TEST_P(CommandEventSyncUpdateTest, USMAdviseExp) {
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[3]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
                                     device_ptrs[0], allocation_size, 1,
@@ -860,7 +860,7 @@ TEST_P(CommandEventSyncUpdateTest, MultipleEventCommands) {
       &external_events[5], &command_handles[2]));
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue read ptr 1 based on event returned from command-buffer command
@@ -916,7 +916,7 @@ TEST_P(CommandEventSyncUpdateTest, MultipleEventCommands) {
   ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
                                                      &external_events[11]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   std::array<uint32_t, elements> host_enqueue_ptrA2, host_enqueue_ptrB2,

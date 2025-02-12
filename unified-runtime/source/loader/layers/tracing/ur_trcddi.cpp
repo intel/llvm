@@ -8135,12 +8135,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferEnqueueExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -8153,33 +8153,34 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// phEvent are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) {
-  auto pfnEnqueueExp = getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
+  auto pfnCommandBufferExp =
+      getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
 
-  if (nullptr == pfnEnqueueExp)
+  if (nullptr == pfnCommandBufferExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_command_buffer_enqueue_exp_params_t params = {&hCommandBuffer, &hQueue,
+  ur_enqueue_command_buffer_exp_params_t params = {&hQueue, &hCommandBuffer,
                                                    &numEventsInWaitList,
                                                    &phEventWaitList, &phEvent};
   uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
-                                 "urCommandBufferEnqueueExp", &params);
+      getContext()->notify_begin(UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP,
+                                 "urEnqueueCommandBufferExp", &params);
 
   auto &logger = getContext()->logger;
-  logger.info("   ---> urCommandBufferEnqueueExp\n");
+  logger.info("   ---> urEnqueueCommandBufferExp\n");
 
-  ur_result_t result = pfnEnqueueExp(
-      hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+  ur_result_t result = pfnCommandBufferExp(
+      hQueue, hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
 
-  getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
-                           "urCommandBufferEnqueueExp", &params, &result,
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP,
+                           "urEnqueueCommandBufferExp", &params, &result,
                            instance);
 
   if (logger.getLevel() <= logger::Level::INFO) {
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP, &params);
-    logger.info("   <--- urCommandBufferEnqueueExp({}) -> {};\n",
+        args_str, UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP, &params);
+    logger.info("   <--- urEnqueueCommandBufferExp({}) -> {};\n",
                 args_str.str(), result);
   }
 
@@ -9328,9 +9329,6 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnAppendUSMAdviseExp =
       ur_tracing_layer::urCommandBufferAppendUSMAdviseExp;
 
-  dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
-  pDdiTable->pfnEnqueueExp = ur_tracing_layer::urCommandBufferEnqueueExp;
-
   dditable.pfnUpdateKernelLaunchExp = pDdiTable->pfnUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
       ur_tracing_layer::urCommandBufferUpdateKernelLaunchExp;
@@ -9542,6 +9540,9 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
   pDdiTable->pfnKernelLaunchCustomExp =
       ur_tracing_layer::urEnqueueKernelLaunchCustomExp;
+
+  dditable.pfnCommandBufferExp = pDdiTable->pfnCommandBufferExp;
+  pDdiTable->pfnCommandBufferExp = ur_tracing_layer::urEnqueueCommandBufferExp;
 
   dditable.pfnCooperativeKernelLaunchExp =
       pDdiTable->pfnCooperativeKernelLaunchExp;
