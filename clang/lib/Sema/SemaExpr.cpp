@@ -7111,6 +7111,19 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
       return ExprError();
   }
 
+  // Diagnose function pointers in SYCL.
+  if (!FDecl && !getLangOpts().SYCLAllowFuncPtr && getLangOpts().SYCLIsDevice &&
+      !isUnevaluatedContext()) {
+    bool MaybeConstantExpr = false;
+    Expr *NonDirectCallee = TheCall->getCallee();
+    if (!NonDirectCallee->isValueDependent())
+      MaybeConstantExpr =
+          NonDirectCallee->isCXX11ConstantExpr(getASTContext());
+    if (!MaybeConstantExpr)
+      SYCL().DiagIfDeviceCode(TheCall->getExprLoc(), diag::err_sycl_restrict)
+          << SemaSYCL::KernelCallFunctionPointer;
+  }
+
   return CheckForImmediateInvocation(MaybeBindToTemporary(TheCall), FDecl);
 }
 

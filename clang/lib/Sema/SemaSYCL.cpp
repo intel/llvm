@@ -682,17 +682,6 @@ public:
         SemaSYCLRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
             << Name << "SYCL device";
       }
-    } else if (!SemaSYCLRef.getLangOpts().SYCLAllowFuncPtr &&
-               !e->isTypeDependent() &&
-               !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
-      bool MaybeConstantExpr = false;
-      Expr *NonDirectCallee = e->getCallee();
-      if (!NonDirectCallee->isValueDependent())
-        MaybeConstantExpr =
-            NonDirectCallee->isCXX11ConstantExpr(SemaSYCLRef.getASTContext());
-      if (!MaybeConstantExpr)
-        SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-            << SemaSYCL::KernelCallFunctionPointer;
     }
     return true;
   }
