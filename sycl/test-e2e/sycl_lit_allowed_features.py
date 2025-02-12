@@ -31,8 +31,6 @@ partial_set_of_features = {
     # target backend:
     "cuda",
     "hip",
-    "hip_amd",
-    "hip_nvidia",
     "opencl",
     "level_zero",
     "level-zero",
@@ -74,6 +72,10 @@ partial_set_of_features = {
     "any-device-is-native_cpu",
     # any-target-is-:
     "any-target-is-spir",
+    "any-target-is-native_cpu",
+    "any-target-is-nvidia",
+    "any-target-is-amd",
+    "any-target-is-native_cpu",
     # sg-sizes (should we allow any sg-X?):
     "sg-8",
     "sg-16",
