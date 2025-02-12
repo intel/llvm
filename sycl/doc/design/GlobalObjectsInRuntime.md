@@ -62,12 +62,22 @@ have been gotten, and teardown the plugins/adapters themselves.  Additionally,
 we need to stop deferring any new buffer releases and clean up any memory 
 whose release was deferred. 
 
-To this end, the shutdown occurs in two phases: early and late.  In the early
-shutdown we stop deferring, tell the scheduler to prepare for release, and
+To this end, the shutdown occurs in two phases: early and late. The purpose
+for eary shutdown is primarily to stop any further deferring of memory release.
+This is because the deferred memory release is based on threads and on Windows
+the threads will be abandoned. So as soon as possible we want to stop deferring
+memory and try to let go any that has been deferred.  The purpose for late 
+shutdown is to hold onto the handles and adapters longer than the user's
+application. We don't want to initiate late shutdown until after all the users 
+static and thread local vars have been destroyed, in case those destructors are 
+calling SYCL. 
+
+In the early shutdown we stop deferring, tell the scheduler to prepare for release, and
 try releasing the memory that has been deferred so far.  Following this, if 
 the user has any global or static handles to sycl objects, they'll be destroyed.
 Finally, the late shutdown routine is called the last of the UR handles and 
 adapters are let go, as is the GlobalHandler itself.
+
 
 #### Threads
 The deferred memory marshalling is built on a thread pool, but there is a
@@ -89,6 +99,12 @@ For the deferred memory itself, there is no issue here. The Windows OS will
 reclaim the memory for us. The issue of which we must be wary is placing UR 
 handles (and similar) in host threads. The RAII mechanism of unique and 
 shared pointers will not work in any thread that is abandoned on Windows. 
+
+One last note about threads. It is entirely the OS's discretion on when to
+start or schedule a thread. If the main process is very busy then it is 
+possible that threads the SYCL library creates (host_tasks/thread_pool)
+won't even be started until AFTER the host application main() function is done. 
+This is not a normal occurrence, but it can happen if there is no call to queue.wait()
 
 
 ### Linux
@@ -112,8 +128,7 @@ times, the memory leak may impact code performance.
 
 ### Windows
 
-Differing from Linux, on Windows the "early_shutdown()" is begun by the DLL `DllMain`
-function with `DLL_PROCESS_DETACH` reason. 
+Differing from Linux, on Windows the "early_shutdown()" is begun by std::atexit() 
 
 The "late_shutdown()" is begun by the destruction of a 
 static StaticVarShutdownHandler object, which is initialized by 

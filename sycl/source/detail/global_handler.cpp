@@ -235,8 +235,8 @@ void GlobalHandler::releaseDefaultContexts() {
 // Shutdown is split into two parts. shutdown_early() stops any more
 // objects from being deferred and takes an initial pass at freeing them.
 // shutdown_late() finishes and releases the adapters and the GlobalHandler.
-// For Windows, early shutdown is called from DllMain, and late shutdown is
-// here. For Linux, early shutdown is here, and late shutdown is called from
+// For Windows, early shutdown is called from std::atexit(), and late shutdown
+// is here. For Linux, early shutdown is here, and late shutdown is called from
 // a low priority destructor.
 struct StaticVarShutdownHandler {
   ~StaticVarShutdownHandler() {
@@ -254,6 +254,16 @@ struct StaticVarShutdownHandler {
 };
 
 void GlobalHandler::registerStaticVarShutdownHandler() {
+#ifdef _WIN32
+  std::atexit([]() {
+    try {
+      shutdown_early();
+    } catch (std::exception &e) {
+      std::cout << "exception in atexit/shutdown_early() " << e.what()
+                << std::endl;
+    }
+  });
+#endif
   static StaticVarShutdownHandler handler{};
 }
 
@@ -299,6 +309,7 @@ void GlobalHandler::drainThreadPool() {
 }
 
 void shutdown_early() {
+  // CP
   std::cout << "shutdown_early()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
@@ -321,6 +332,7 @@ void shutdown_early() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
+  // CP
   std::cout << "finishAndWait() done" << std::endl;
   // This releases OUR reference to the default context, but
   // other may yet have refs
@@ -328,6 +340,7 @@ void shutdown_early() {
 }
 
 void shutdown_late() {
+  // CP
   std::cout << "shutdown_late()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
@@ -356,20 +369,11 @@ void shutdown_late() {
   delete Handler;
   Handler = nullptr;
 
+  // CP
   std::cout << "shutdown_late() done" << std::endl;
 }
 
 #ifdef _WIN32
-// a simple wrapper to catch and stream any exception then continue
-template <typename F> void safe_call(F func) {
-  try {
-    func();
-  } catch (const std::exception &e) {
-    std::cerr << "exception in DllMain DLL_PROCESS_DETACH " << e.what()
-              << std::endl;
-  }
-}
-std::atomic<long> dllRefCount = 0;
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
@@ -388,16 +392,11 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
-    dllRefCount--;
-    if (dllRefCount == 0) {
-      safe_call([]() { shutdown_early(); });
-    }
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
 
-    dllRefCount++;
     break;
   case DLL_THREAD_ATTACH:
     break;

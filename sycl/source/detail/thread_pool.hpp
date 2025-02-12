@@ -55,6 +55,7 @@ class ThreadPool {
   }
 
   void start() {
+    // CP
     std::cout << "thread_pool start()" << std::endl;
     MLaunchedThreads.reserve(MThreadCount);
 
@@ -75,6 +76,7 @@ public:
   }
 
   ~ThreadPool() {
+    // CP
     // try {
     //   std::cout << "~ThreadPool()" << std::endl;
     //   finishAndWait();
@@ -84,6 +86,7 @@ public:
   }
 
   void finishAndWait() {
+    // CP
     std::cout << "finishAndWait()" << std::endl;
     {
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
