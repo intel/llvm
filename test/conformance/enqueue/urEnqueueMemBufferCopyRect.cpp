@@ -177,13 +177,17 @@ struct urEnqueueMemBufferCopyRectTest : uur::urQueueTest {
   ur_mem_handle_t src_buffer = nullptr;
   ur_mem_handle_t dst_buffer = nullptr;
   std::vector<uint32_t> input;
+  ur_rect_region_t src_region{size, 1, 1};
+  ur_rect_offset_t src_origin{0, 0, 0};
+  ur_rect_offset_t dst_origin{0, 0, 0};
+  size_t src_row_pitch = size;
+  size_t src_slice_pitch = size;
+  const size_t dst_row_pitch = size;
+  size_t dst_slice_pitch = size;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueMemBufferCopyRectTest);
 
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleQueue) {
-  ur_rect_region_t src_region{size, 1, 1};
-  ur_rect_offset_t src_origin{0, 0, 0};
-  ur_rect_offset_t dst_origin{0, 0, 0};
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueMemBufferCopyRect(nullptr, src_buffer, dst_buffer,
                                               src_origin, dst_origin,
@@ -192,9 +196,6 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleQueue) {
 }
 
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleBufferSrc) {
-  ur_rect_region_t src_region{size, 1, 1};
-  ur_rect_offset_t src_origin{0, 0, 0};
-  ur_rect_offset_t dst_origin{0, 0, 0};
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueMemBufferCopyRect(queue, nullptr, dst_buffer,
                                               src_origin, dst_origin,
@@ -203,9 +204,6 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleBufferSrc) {
 }
 
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleBufferDst) {
-  ur_rect_region_t src_region{size, 1, 1};
-  ur_rect_offset_t src_origin{0, 0, 0};
-  ur_rect_offset_t dst_origin{0, 0, 0};
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueMemBufferCopyRect(queue, src_buffer, nullptr,
                                               src_origin, dst_origin,
@@ -216,9 +214,6 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullHandleBufferDst) {
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  ur_rect_region_t src_region{size, 1, 1};
-  ur_rect_offset_t src_origin{0, 0, 0};
-  ur_rect_offset_t dst_origin{0, 0, 0};
   ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
                        queue, src_buffer, dst_buffer, src_origin, dst_origin,
                        src_region, size, size, size, size, 1, nullptr, nullptr),
@@ -241,6 +236,79 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ASSERT_SUCCESS(urEventRelease(validEvent));
+}
+TEST_P(urEnqueueMemBufferCopyRectTest, InvalidSize) {
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
+  // region.width == 0 || region.height == 0 || region.width == 0
+  src_region.width = 0;
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, src_row_pitch, src_slice_pitch,
+                       dst_row_pitch, dst_slice_pitch, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
+
+  // srcRowPitch != 0 && srcRowPitch < region.width
+  src_region.width = src_row_pitch + 1;
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, src_row_pitch, src_slice_pitch,
+                       dst_row_pitch, dst_slice_pitch, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
+
+  // dstRowPitch != 0 && dstRowPitch < region.width
+  src_region.width = dst_row_pitch + 1;
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, src_row_pitch, src_slice_pitch,
+                       dst_row_pitch, dst_slice_pitch, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
+
+  // srcSlicePitch != 0 && srcSlicePitch < region.height * (srcRowPitch != 0 ?
+  // srcRowPitch : region.width)
+  src_region.width = size;
+  src_row_pitch = 16;
+  src_slice_pitch = (src_region.height * src_row_pitch) - 1;
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, src_row_pitch, src_slice_pitch,
+                       dst_row_pitch, dst_slice_pitch, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
+
+  // srcSlicePitch != 0 && srcSlicePitch % (srcRowPitch != 0 ? srcRowPitch :
+  // region.width) != 0
+  src_slice_pitch = size + 1;
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, src_row_pitch, src_slice_pitch,
+                       dst_row_pitch, dst_slice_pitch, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
+
+  // dstSlicePitch != 0 && dstSlicePitch < region.height * (dstRowPitch != 0 ?
+  // dstRowPitch : region.width)
+  src_slice_pitch = size;
+  dst_slice_pitch = (src_region.height * src_slice_pitch) - 1;
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, src_row_pitch, src_slice_pitch,
+                       dst_row_pitch, dst_slice_pitch, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
+
+  // If the combination of srcOrigin, region, srcRowPitch, and srcSlicePitch
+  // results in an out-of-bounds access.
+  src_origin = {std::numeric_limits<uint64_t>::max(), 1, 1};
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, size, size, size, size, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
+
+  // If the combination of dstOrigin, region, dstRowPitch, and dstSlicePitch
+  // results in an out-of-bounds access.
+  dst_origin = {std::numeric_limits<uint64_t>::max(), 1, 1};
+  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
+                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
+                       src_region, size, size, size, size, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 using urEnqueueMemBufferCopyRectMultiDeviceTest =
@@ -280,18 +348,4 @@ TEST_P(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
   }
 
   EXPECT_SUCCESS(urMemRelease(dst_buffer));
-}
-
-TEST_P(urEnqueueMemBufferCopyRectTest, InvalidSize) {
-  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
-  // out-of-bounds access with potential overflow
-  ur_rect_region_t src_region{size, 1, 1};
-  ur_rect_offset_t src_origin{std::numeric_limits<uint64_t>::max(), 1, 1};
-  ur_rect_offset_t dst_origin{0, 0, 0};
-
-  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
-                       queue, src_buffer, dst_buffer, src_origin, dst_origin,
-                       src_region, size, size, size, size, 0, nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_SIZE);
 }

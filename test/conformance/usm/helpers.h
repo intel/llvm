@@ -12,7 +12,7 @@
 namespace uur {
 
 using USMAllocTestParams =
-    std::tuple<uur::BoolTestParam, uint32_t, size_t, ur_usm_advice_flags_t>;
+    std::tuple<uur::BoolTestParam, uint32_t, size_t, ur_usm_advice_flag_t>;
 
 struct urUSMAllocTest : uur::urQueueTestWithParam<uur::USMAllocTestParams> {
   void SetUp() override {
@@ -42,7 +42,7 @@ struct urUSMAllocTest : uur::urQueueTestWithParam<uur::USMAllocTestParams> {
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   const uint32_t alignment = std::get<1>(getParam());
   size_t allocation_size = std::get<2>(getParam());
-  const ur_usm_advice_flags_t advice_flags = std::get<3>(getParam());
+  const ur_usm_advice_flag_t advice_flags = std::get<3>(getParam());
   void *ptr = nullptr;
 };
 
@@ -68,7 +68,7 @@ inline std::string printUSMAllocTestString(
   return platform_device_name + "__" + ss.str();
 }
 
-static std::vector<ur_usm_advice_flags_t> usm_alloc_test_parameters{
+static std::vector<ur_usm_advice_flag_t> usm_advice_test_parameters{
     UR_USM_ADVICE_FLAG_DEFAULT,
     UR_USM_ADVICE_FLAG_SET_READ_MOSTLY,
     UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY,

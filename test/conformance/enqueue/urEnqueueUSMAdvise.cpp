@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "../usm/helpers.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
@@ -20,18 +21,17 @@ struct urEnqueueUSMAdviseWithParamTest
 };
 UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMAdviseWithParamTest,
-    ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
+    ::testing::ValuesIn(uur::usm_advice_test_parameters),
     uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
 
 TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
-  // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning
-  // about the hint being unsupported.
-  // TODO: codify this in the spec and account for it in the CTS.
   UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
 
   ur_event_handle_t advise_event = nullptr;
-  ASSERT_SUCCESS(urEnqueueUSMAdvise(queue, ptr, allocation_size, getParam(),
-                                    &advise_event));
+  ur_result_t result = urEnqueueUSMAdvise(queue, ptr, allocation_size,
+                                          getParam(), &advise_event);
+  EXPECT_TRUE(result == UR_RESULT_SUCCESS ||
+              result == UR_RESULT_ERROR_ADAPTER_SPECIFIC);
 
   ASSERT_NE(advise_event, nullptr);
   ASSERT_SUCCESS(urQueueFlush(queue));
@@ -54,15 +54,14 @@ struct urEnqueueUSMAdviseTest : uur::urUSMDeviceAllocTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMAdviseTest);
 
 TEST_P(urEnqueueUSMAdviseTest, MultipleParamsSuccess) {
-  // HIP and CUDA return UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning
-  // about the hint being unsupported.
-  // TODO: codify this in the spec and account for it in the CTS.
   UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
 
-  ASSERT_SUCCESS(urEnqueueUSMAdvise(queue, ptr, allocation_size,
-                                    UR_USM_ADVICE_FLAG_SET_READ_MOSTLY |
-                                        UR_USM_ADVICE_FLAG_BIAS_CACHED,
-                                    nullptr));
+  ur_result_t result = urEnqueueUSMAdvise(queue, ptr, allocation_size,
+                                          UR_USM_ADVICE_FLAG_SET_READ_MOSTLY |
+                                              UR_USM_ADVICE_FLAG_BIAS_CACHED,
+                                          nullptr);
+  EXPECT_TRUE(result == UR_RESULT_SUCCESS ||
+              result == UR_RESULT_ERROR_ADAPTER_SPECIFIC);
 }
 
 TEST_P(urEnqueueUSMAdviseTest, InvalidNullHandleQueue) {

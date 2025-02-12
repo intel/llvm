@@ -28,7 +28,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
         testing::Values(0), testing::Values(0),
-        ::testing::ValuesIn(uur::usm_alloc_test_parameters)),
+        ::testing::ValuesIn(uur::usm_advice_test_parameters)),
     uur::printUSMAllocTestString<urUSMHostAllocTest>);
 
 TEST_P(urUSMHostAllocTest, Success) {
@@ -144,7 +144,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     testing::Combine(
         testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
         testing::Values(4, 8, 16, 32, 64), testing::Values(8, 512, 2048),
-        ::testing::ValuesIn(uur::usm_alloc_test_parameters)),
+        ::testing::ValuesIn(uur::usm_advice_test_parameters)),
     uur::printUSMAllocTestString<urUSMHostAllocAlignmentTest>);
 
 TEST_P(urUSMHostAllocAlignmentTest, SuccessAlignedAllocations) {

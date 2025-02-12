@@ -85,6 +85,18 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleQueue) {
                    UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
+TEST_P(urEnqueueKernelLaunchTest, InvalidNullPointer) {
+  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
+                                         &global_size, nullptr, 0, nullptr,
+                                         nullptr),
+                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                         &global_offset, nullptr, nullptr, 0,
+                                         nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleKernel) {
   ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, nullptr, n_dimensions,
                                          &global_offset, &global_size, nullptr,
