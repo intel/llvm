@@ -22,7 +22,6 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "./v2/event_provider.hpp"
 #include "common.hpp"
 #include "queue.hpp"
 
@@ -169,8 +168,9 @@ struct ur_context_handle_t_ : _ur_object {
   // head.
   //
   // Cache of event pools to which host-visible events are added to.
-  using ZeEventPoolCache = std::list<ze_event_pool_handle_t>;
-  std::vector<ZeEventPoolCache> ZeEventPoolCaches;
+  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{30};
+  std::vector<std::unordered_map<ze_device_handle_t, size_t>>
+      ZeEventPoolCacheDeviceMap{30};
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -213,54 +213,124 @@ struct ur_context_handle_t_ : _ur_object {
   // slot for a host-visible event. The ProfilingEnabled tells is we need a
   // slot for an event with profiling capabilities.
   ur_result_t getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                             v2::event_flags_t Flags,
-                                             ur_device_handle_t Device);
+                                             bool HostVisible,
+                                             bool ProfilingEnabled,
+                                             ur_device_handle_t Device,
+                                             bool CounterBasedEventEnabled,
+                                             bool UsingImmCmdList,
+                                             bool InterruptBasedEventEnabled);
 
   // Get ur_event_handle_t from cache.
-  ur_event_handle_t getEventFromContextCache(v2::event_flags_t Flags,
-                                             ur_device_handle_t Device);
+  ur_event_handle_t getEventFromContextCache(bool HostVisible,
+                                             bool WithProfiling,
+                                             ur_device_handle_t Device,
+                                             bool CounterBasedEventEnabled,
+                                             bool InterruptBasedEventEnabled);
 
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
 
-  std::list<ze_event_pool_handle_t> *
-  getZeEventPoolCache(v2::event_flags_t Flags, ze_device_handle_t ZeDevice,
-                      size_t DeviceId) {
-    size_t index = 0;
-    index |= uint64_t(Flags);
-    if (ZeDevice) {
-      index |= v2::EVENT_FLAGS_DEVICE | (DeviceId << v2::MAX_EVENT_FLAG_BITS);
-    }
+  enum EventPoolCacheType {
+    HostVisibleCacheType,
+    HostInvisibleCacheType,
+    HostVisibleCounterBasedRegularCacheType,
+    HostInvisibleCounterBasedRegularCacheType,
+    HostVisibleCounterBasedImmediateCacheType,
+    HostInvisibleCounterBasedImmediateCacheType,
 
-    if (index >= ZeEventPoolCaches.size()) {
-      ZeEventPoolCaches.resize(index + 1);
+    HostVisibleInterruptBasedRegularCacheType,
+    HostInvisibleInterruptBasedRegularCacheType,
+    HostVisibleInterruptBasedImmediateCacheType,
+    HostInvisibleInterruptBasedImmediateCacheType,
+
+    HostVisibleInterruptAndCounterBasedRegularCacheType,
+    HostInvisibleInterruptAndCounterBasedRegularCacheType,
+    HostVisibleInterruptAndCounterBasedImmediateCacheType,
+    HostInvisibleInterruptAndCounterBasedImmediateCacheType
+  };
+
+  std::list<ze_event_pool_handle_t> *
+  getZeEventPoolCache(bool HostVisible, bool WithProfiling,
+                      bool CounterBasedEventEnabled, bool UsingImmediateCmdList,
+                      bool InterruptBasedEventEnabled,
+                      ze_device_handle_t ZeDevice) {
+    EventPoolCacheType CacheType;
+
+    calculateCacheIndex(HostVisible, CounterBasedEventEnabled,
+                        UsingImmediateCmdList, InterruptBasedEventEnabled,
+                        CacheType);
+    if (ZeDevice) {
+      auto ZeEventPoolCacheMap =
+          WithProfiling ? &ZeEventPoolCacheDeviceMap[CacheType * 2]
+                        : &ZeEventPoolCacheDeviceMap[CacheType * 2 + 1];
+      if (ZeEventPoolCacheMap->find(ZeDevice) == ZeEventPoolCacheMap->end()) {
+        ZeEventPoolCache.emplace_back();
+        ZeEventPoolCacheMap->insert(
+            std::make_pair(ZeDevice, ZeEventPoolCache.size() - 1));
+      }
+      return &ZeEventPoolCache[(*ZeEventPoolCacheMap)[ZeDevice]];
+    } else {
+      return WithProfiling ? &ZeEventPoolCache[CacheType * 2]
+                           : &ZeEventPoolCache[CacheType * 2 + 1];
     }
-    return &ZeEventPoolCaches[index];
   }
 
-  /*
-    std::list<ze_event_pool_handle_t> *
-    getZeEventPoolCache(v2::event_flags_t Flags, ze_device_handle_t ZeDevice) {
-      size_t index = 0;
-      index |= Flags;
-      bool WithProfiling = Flags & v2::EVENT_FLAGS_PROFILING_ENABLED;
-
-      if (ZeDevice) {
-        auto ZeEventPoolCacheMap =
-            WithProfiling ? &ZeEventPoolCachesDeviceMap[index * 2]
-                          : &ZeEventPoolCachesDeviceMap[index * 2 + 1];
-        if (ZeEventPoolCacheMap->find(ZeDevice) == ZeEventPoolCacheMap->end()) {
-          ZeEventPoolCaches.emplace_back();
-          ZeEventPoolCacheMap->insert(
-              std::make_pair(ZeDevice, ZeEventPoolCaches.size() - 1));
+  ur_result_t calculateCacheIndex(bool HostVisible,
+                                  bool CounterBasedEventEnabled,
+                                  bool UsingImmediateCmdList,
+                                  bool InterruptBasedEventEnabled,
+                                  EventPoolCacheType &CacheType) {
+    if (InterruptBasedEventEnabled) {
+      if (CounterBasedEventEnabled) {
+        if (HostVisible) {
+          if (UsingImmediateCmdList) {
+            CacheType = HostVisibleInterruptAndCounterBasedImmediateCacheType;
+          } else {
+            CacheType = HostVisibleInterruptAndCounterBasedRegularCacheType;
+          }
+        } else {
+          if (UsingImmediateCmdList) {
+            CacheType = HostInvisibleInterruptAndCounterBasedImmediateCacheType;
+          } else {
+            CacheType = HostInvisibleInterruptAndCounterBasedRegularCacheType;
+          }
         }
-        return &ZeEventPoolCaches[(*ZeEventPoolCacheMap)[ZeDevice]];
       } else {
-        return WithProfiling ? &ZeEventPoolCaches[index * 2]
-                             : &ZeEventPoolCaches[index * 2 + 1];
+        if (HostVisible) {
+          if (UsingImmediateCmdList) {
+            CacheType = HostVisibleInterruptBasedImmediateCacheType;
+          } else {
+            CacheType = HostVisibleInterruptBasedRegularCacheType;
+          }
+        } else {
+          if (UsingImmediateCmdList) {
+            CacheType = HostInvisibleInterruptBasedImmediateCacheType;
+          } else {
+            CacheType = HostInvisibleInterruptBasedRegularCacheType;
+          }
+        }
+      }
+    } else {
+      if (CounterBasedEventEnabled && HostVisible && !UsingImmediateCmdList) {
+        CacheType = HostVisibleCounterBasedRegularCacheType;
+      } else if (CounterBasedEventEnabled && !HostVisible &&
+                 !UsingImmediateCmdList) {
+        CacheType = HostInvisibleCounterBasedRegularCacheType;
+      } else if (CounterBasedEventEnabled && HostVisible &&
+                 UsingImmediateCmdList) {
+        CacheType = HostVisibleCounterBasedImmediateCacheType;
+      } else if (CounterBasedEventEnabled && !HostVisible &&
+                 UsingImmediateCmdList) {
+        CacheType = HostInvisibleCounterBasedImmediateCacheType;
+      } else if (!CounterBasedEventEnabled && HostVisible) {
+        CacheType = HostVisibleCacheType;
+      } else {
+        CacheType = HostInvisibleCacheType;
       }
     }
-  */
+
+    return UR_RESULT_SUCCESS;
+  }
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
@@ -309,6 +379,7 @@ private:
     MAX_EVENT_FLAG_BITS =
         5, // this is used as an offset for embedding device id
   };
+
   // Mutex to control operations on event caches.
   ur_mutex EventCacheMutex;
 
@@ -341,6 +412,7 @@ private:
     if (index >= EventCaches.size()) {
       EventCaches.resize(index + 1);
     }
+
     return &EventCaches[index];
   }
 };
