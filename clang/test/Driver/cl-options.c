@@ -818,3 +818,20 @@
 // ARM64EC_OVERRIDE: warning: /arm64EC has been overridden by specified target: x86_64-pc-windows-msvc; option ignored
 
 void f(void) { }
+
+// RUN: %clang_cl -### -fsycl -foffload-fp32-prec-div -- %s 2>&1 | FileCheck -check-prefix=CHECK-PREC-DIV %s
+// RUN: %clang_cl -### -fsycl -foffload-fp32-prec-sqrt -- %s 2>&1 | FileCheck -check-prefix=CHECK-PREC-SQRT %s
+// RUN: %clang_cl -### -fsycl -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -- %s 2>&1 | FileCheck -check-prefix=CHECK-PREC-DIV-SQRT %s
+// RUN: %clang_cl -### -fsycl -foffload-fp32-prec-sqrt -foffload-fp32-prec-div -- %s 2>&1 | FileCheck -check-prefix=CHECK-PREC-DIV-SQRT %s
+// RUN: %clang_cl -### -fsycl -fno-offload-fp32-prec-div -- %s 2>&1 | FileCheck -check-prefix=CHECK-PREC-DIV %s
+// RUN: %clang_cl -### -fsycl -fno-offload-fp32-prec-sqrt -- %s 2>&1 | FileCheck -check-prefix=CHECK-PREC-SQRT %s
+// RUN: %clang_cl -### -fsycl -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-PREC-DIV-SQRT %s
+// RUN: %clang_cl -### -fsycl -fno-offload-fp32-prec-sqrt -fno-offload-fp32-prec-div -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-PREC-DIV-SQRT %s
+
+
+// CHECK-PREC-DIV-NOT: "-foffload-fp32-prec-div"
+// CHECK-PREC-SQRT-NOT: "-foffload-fp32-prec-sqrt"
+// CHECK-PREC-DIV-SQRT-NOT: "-foffload-fp32-prec-div" "-foffload-fp32-prec-sqrt"
+// CHECK-NO-PREC-DIV: "-fno-offload-fp32-prec-div"
+// CHECK-NO-PREC-SQRT: "-fno-offload-fp32-prec-sqrt"
+// CHECK-NO-PREC-DIV-SQRT:  "-fno-offload-fp32-prec-div" "-fno-offload-fp32-prec-sqrt"
