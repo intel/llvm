@@ -17,19 +17,24 @@ from lit.llvm.subst import ToolSubst, FindTool
 # See sycl/test-e2e/sycl_lit_allowed_features.py.
 from sycl_lit_allowed_features import get_sycl_lit_allowed_features
 
+
 # config.available_features is a list. This class behaves like a normal list,
 # but its "add()" method also checks if the feature being added is known, i.e.
 # contained in the set of all alowed features.
 class AvailableFeatures(list):
     def __init__(self):
-            super().__init__()
-            self.allowed_features = get_sycl_lit_allowed_features()
+        super().__init__()
+        self.allowed_features = get_sycl_lit_allowed_features()
 
     def add(self, entry):
         if entry in self.allowed_features:
             self.append(entry)
         else:
-            raise ValueError("feature " + entry + " is not allowed. Please update the set in sycl/test-e2e/sycl_lit_allowed_features.py.")
+            raise ValueError(
+                "feature "
+                + entry
+                + " is not allowed. Please update the set in sycl/test-e2e/sycl_lit_allowed_features.py."
+            )
 
 
 # Configuration file for the 'lit' test runner.
@@ -247,6 +252,7 @@ def get_device_family_from_arch(arch):
             return device_family
     return None
 
+
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
@@ -273,6 +279,7 @@ if lit_config.params.get("enable-perf-tests", False):
 
 if lit_config.params.get("spirv-backend", False):
     config.available_features.add("spirv-backend")
+
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the

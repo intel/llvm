@@ -37,6 +37,12 @@ partial_set_of_features = {
     "level_zero",
     "level-zero",
     "native_cpu",
+    # target:
+    "target-nvidia",
+    "target-native_cpu",
+    "target-amd",
+    "target-spir",
+    "spirv-backend",
     # tools:
     "sycl-ls",
     "cm-compiler",
@@ -66,6 +72,8 @@ partial_set_of_features = {
     "any-device-is-opencl",
     "any-device-is-level_zero",
     "any-device-is-native_cpu",
+    # any-target-is-:
+    "any-target-is-spir",
     # sg-sizes (should we allow any sg-X?):
     "sg-8",
     "sg-16",
