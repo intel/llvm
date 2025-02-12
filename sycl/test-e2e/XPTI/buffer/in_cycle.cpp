@@ -45,7 +45,7 @@ bool func(sycl::queue &Queue, int depth = 0) {
   }
 
   if (depth > 0)
-    MismatchFound &= func(Queue, depth - 1);
+    MismatchFound |= func(Queue, depth - 1);
   return MismatchFound;
 }
 int main() {
@@ -66,7 +66,7 @@ int main() {
   // CHECK:{{[0-9]+}}|Release buffer|[[USERID3]]|[[BEID3]]
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID3]]
   for (int i = 0; i < 3; i++)
-    MismatchFound &= func(Queue);
+    MismatchFound |= func(Queue);
   return MismatchFound;
 }
 

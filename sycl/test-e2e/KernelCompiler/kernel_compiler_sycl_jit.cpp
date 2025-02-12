@@ -7,31 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
+// REQUIRES: aspect-usm_device_allocations
+
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 1
 // RUN: %{l0_leak_check} %{run} %t.out 1
-
-// -- Test again, with caching.
-
-// DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
-// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
-
-// -- Add leak check.
-// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
-// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
-
-// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
-// CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
-// CHECK-WRITTEN-TO-CACHE: [kernel_compiler Persistent Cache]: binary has been cached
-
-// CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
-// CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
-// CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -97,6 +80,18 @@ void vector_add_esimd(float *A, float *B, float *C) {
     simd<float, VL> vc = va + vb;
     vc.copy_to(C + offset);
     }
+)===";
+
+auto constexpr DeviceCodeSplitSource = R"===(
+#include <sycl/sycl.hpp>
+
+template<typename T, unsigned WG = 16> SYCL_EXTERNAL 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::nd_range_kernel<1>)
+[[sycl::reqd_work_group_size(WG)]]
+void vec_add(T* in1, T* in2, T* out){
+  size_t id = sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
+  out[id] = in1[id] + in2[id];
+}
 )===";
 
 auto constexpr BadSource = R"===(
@@ -214,6 +209,75 @@ int test_build_and_run() {
   test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
   test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 
+  // Create and compile new bundle with different header.
+  std::string AddEmHModified = AddEmH;
+  AddEmHModified[AddEmHModified.find('5')] = '7';
+  syclex::include_files incFiles2{"intermediate/AddEm.h", AddEmHModified};
+  incFiles2.add("intermediate/PlusEm.h", PlusEmH);
+  source_kb kbSrc2 = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, SYCLSource,
+      syclex::properties{incFiles2});
+
+  exe_kb kbExe3 = syclex::build(kbSrc2);
+  sycl::kernel k3 = kbExe3.ext_oneapi_get_kernel("ff_cp");
+  test_1(q, k3, 37 + 7);
+
+  // Can we still run the original compilation?
+  sycl::kernel k4 = kbExe1.ext_oneapi_get_kernel("ff_cp");
+  test_1(q, k4, 37 + 5);
+
+  return 0;
+}
+
+int test_device_code_split() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, DeviceCodeSplitSource);
+
+  // Test explicit device code split
+  std::vector<std::string> names{"vec_add<float>", "vec_add<int>",
+                                 "vec_add<short>"};
+  auto build = [&](const std::string &mode) -> size_t {
+    exe_kb kbExe = syclex::build(
+        kbSrc, syclex::properties{
+                   syclex::registered_kernel_names{names},
+                   syclex::build_options{"-fsycl-device-code-split=" + mode}});
+    return std::distance(kbExe.begin(), kbExe.end());
+  };
+
+  size_t perKernelNImg = build("per_kernel");
+  size_t perSourceNImg = build("per_source");
+  size_t offNImg = build("off");
+  size_t autoNImg = build("auto");
+
+  assert(perKernelNImg == 3);
+  assert(perSourceNImg == 1);
+  assert(offNImg == 1);
+  assert(autoNImg >= offNImg && autoNImg <= perKernelNImg);
+
+  // Test implicit device code split
+  names = {"vec_add<float, 8>", "vec_add<float, 16>"};
+  exe_kb kbDiffWorkGroupSizes = syclex::build(
+      kbSrc, syclex::properties{syclex::registered_kernel_names{names}});
+  assert(std::distance(kbDiffWorkGroupSizes.begin(),
+                       kbDiffWorkGroupSizes.end()) == 2);
+
   return 0;
 }
 
@@ -325,9 +389,7 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
   CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
-  CheckUnsupported({"-fsycl-device-code-split=kernel"});
   CheckUnsupported({"-fno-sycl-device-code-split-esimd"});
-  CheckUnsupported({"-fsycl-dead-args-optimization"});
 
   return 0;
 }
@@ -390,8 +452,8 @@ int test_warning() {
 int main(int argc, char **) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   int optional_tests = (argc > 1) ? test_warning() : 0;
-  return test_build_and_run() || test_esimd() || test_unsupported_options() ||
-         test_error() || optional_tests;
+  return test_build_and_run() || test_device_code_split() || test_esimd() ||
+         test_unsupported_options() || test_error() || optional_tests;
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

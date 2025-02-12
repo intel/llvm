@@ -397,28 +397,66 @@ def generate_float_conversion(src, dst, size, mode, sat):
                 print("  {SRC}{N} abs_x = __spirv_ocl_fabs(x);".format(SRC=src, N=size))
                 print("  {SRC}{N} abs_y = __spirv_ocl_fabs(y);".format(SRC=src, N=size))
             print(
-                "  return {BOOL_CONVERT}(abs_y > abs_x) ? r:  __spirv_ocl_nextafter(r, __spirv_ocl_sign(r) * ({DST}{N})-INFINITY);".format(
+                "  {DST}{N} sel = {BOOL_CONVERT}(abs_y > abs_x) ? r:  __spirv_ocl_nextafter(r, __spirv_ocl_sign(r) * ({DST}{N})-INFINITY);".format(
                     DST=dst,
                     N=size,
                     BOOL_CONVERT=clc_core_fn_name(bool_type[dst], size=size),
                 )
             )
+            if dst == "half" and src in int_types and sizeof_type[src] >= 2:
+                dst_max = limit_max[dst]
+                # short is 16 bits signed, so the maximum value rounded to zero
+                # is 0x1.ffcp+14 (0x1p+15 == 32768 > 0x7fff == 32767)
+                if src == "short":
+                    dst_max = "0x1.ffcp+14"
+                print(
+                    "  return __clc_clamp(sel, ({DST}{N}){DST_MIN}, ({DST}{N}){DST_MAX});".format(
+                        DST=dst, N=size, DST_MIN=limit_min[dst], DST_MAX=dst_max
+                    )
+                )
+            else:
+                print("  return sel;")
+
         if mode == "_rtp":
             print(
-                "  return {BOOL_CONVERT}(y < x) ? r : __spirv_ocl_nextafter(r, ({DST}{N})INFINITY);".format(
+                "  {DST}{N} sel = {BOOL_CONVERT}(y < x) ? r : __spirv_ocl_nextafter(r, ({DST}{N})INFINITY);".format(
                     DST=dst,
                     N=size,
                     BOOL_CONVERT=clc_core_fn_name(bool_type[dst], size=size),
                 )
             )
+            if dst == "half" and src in int_types and sizeof_type[src] >= 2:
+                print(
+                    "  return __clc_max(sel, ({DST}{N}){DST_MIN});".format(
+                        DST=dst, N=size, DST_MIN=limit_min[dst]
+                    )
+                )
+            else:
+                print("  return sel;")
+
         if mode == "_rtn":
             print(
-                "  return {BOOL_CONVERT}(y > x) ? r : __spirv_ocl_nextafter(r, ({DST}{N})-INFINITY);".format(
+                "  {DST}{N} sel = {BOOL_CONVERT}(y > x) ? r : __spirv_ocl_nextafter(r, ({DST}{N})-INFINITY);".format(
                     DST=dst,
                     N=size,
                     BOOL_CONVERT=clc_core_fn_name(bool_type[dst], size=size),
                 )
             )
+            if dst == "half" and src in int_types and sizeof_type[src] >= 2:
+                dst_max = limit_max[dst]
+                # short is 16 bits signed, so the maximum value rounded to
+                # negative infinity is 0x1.ffcp+14 (0x1p+15 == 32768 > 0x7fff
+                # == 32767)
+                if src == "short":
+                    dst_max = "0x1.ffcp+14"
+                print(
+                    "  return __clc_min(sel, ({DST}{N}){DST_MAX});".format(
+                        DST=dst, N=size, DST_MAX=dst_max
+                    )
+                )
+            else:
+                print("  return sel;")
+
 
     # Footer
     print("}")

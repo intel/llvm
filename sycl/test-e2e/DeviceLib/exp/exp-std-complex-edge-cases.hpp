@@ -335,7 +335,7 @@ template <typename T> bool test() {
         CHECK(!std::signbit(r.real()), passed, i);
 #ifdef _WIN32
         // This check fails on win, temporary skipping:
-        // CMPLRLLVM-61834
+        // CMPLRLLVM-64900
         // TODO: Delete this macro block when fixed
         if (std::is_same_v<typename decltype(r)::value_type, float>)
           continue;

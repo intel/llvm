@@ -322,6 +322,13 @@ static cl::opt<bool> ClDumpStrictInstructions(
     cl::desc("print out instructions with default strict semantics"),
     cl::Hidden, cl::init(false));
 
+static cl::opt<bool> ClDumpStrictIntrinsics(
+    "msan-dump-strict-intrinsics",
+    cl::desc("Prints 'unknown' intrinsics that were handled heuristically. "
+             "Use -msan-dump-strict-instructions to print intrinsics that "
+             "could not be handled exactly nor heuristically."),
+    cl::Hidden, cl::init(false));
+
 static cl::opt<int> ClInstrumentationWithCallThreshold(
     "msan-instrumentation-with-call-threshold",
     cl::desc(
@@ -681,7 +688,9 @@ private:
   FunctionCallee MemmoveFn, MemcpyFn, MemsetFn;
 
   /// MSan runtime replacements for memset with address space.
-  FunctionCallee MemsetOffloadFn[kNumberOfAddressSpace];
+  FunctionCallee MemmoveOffloadFn[kNumberOfAddressSpace][kNumberOfAddressSpace],
+      MemcpyOffloadFn[kNumberOfAddressSpace][kNumberOfAddressSpace],
+      MemsetOffloadFn[kNumberOfAddressSpace];
 
   /// KMSAN callback for task-local function argument shadow.
   StructType *MsanContextStateTy;
@@ -765,50 +774,112 @@ Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
   });
 }
 
-static void extendSpirKernelArgs(Module &M) {
-  SmallVector<Constant *, 8> SpirKernelsMetadata;
+static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
+  if (G->user_empty())
+    return true;
+  // Skip instrumenting on "__MsanKernelMetadata" etc.
+  if (G->getName().starts_with("__Msan"))
+    return true;
+  if (G->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+  if (G->getName().starts_with("__usid_str"))
+    return true;
+  if (G->getAddressSpace() == kSpirOffloadLocalAS ||
+      G->getAddressSpace() == kSpirOffloadConstantAS)
+    return true;
+  return false;
+}
+
+static void instrumentSPIRModule(Module &M) {
 
   const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
-  // SpirKernelsMetadata only saves fixed kernels, and is described by
-  // following structure:
-  //  uptr unmangled_kernel_name
-  //  uptr unmangled_kernel_name_size
-  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
-  for (Function &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
+  // Instrument __MsanKernelMetadata, which records information of sanitized
+  // kernel
+  {
+    SmallVector<Constant *, 8> SpirKernelsMetadata;
 
-    if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
-        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
-      continue;
+    // SpirKernelsMetadata only saves fixed kernels, and is described by
+    // following structure:
+    //  uptr unmangled_kernel_name
+    //  uptr unmangled_kernel_name_size
+    StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+    for (Function &F : M) {
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+        continue;
 
-    auto KernelName = F.getName();
-    auto *KernelNameGV = getOrCreateGlobalString(M, "__msan_kernel", KernelName,
-                                                 kSpirOffloadConstantAS);
-    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
-        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-        ConstantInt::get(IntptrTy, KernelName.size())));
+      if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
+          F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+        continue;
+
+      auto KernelName = F.getName();
+      auto *KernelNameGV = getOrCreateGlobalString(
+          M, "__msan_kernel", KernelName, kSpirOffloadConstantAS);
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size())));
+    }
+
+    // Create global variable to record spirv kernels' information
+    ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+    Constant *MetadataInitializer =
+        ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+    GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
+        M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+        MetadataInitializer, "__MsanKernelMetadata", nullptr,
+        GlobalValue::NotThreadLocal, 1);
+    MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+    // Add device global attributes
+    MsanSpirKernelMetadata->addAttribute(
+        "sycl-device-global-size",
+        std::to_string(DL.getTypeAllocSize(ArrayTy)));
+    MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+    MsanSpirKernelMetadata->addAttribute("sycl-host-access",
+                                         "0"); // read only
+    MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                         "_Z20__MsanKernelMetadata");
+    MsanSpirKernelMetadata->setDSOLocal(true);
   }
 
-  // Create global variable to record spirv kernels' information
-  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
-  Constant *MetadataInitializer =
-      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
-  GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__MsanKernelMetadata", nullptr,
-      GlobalValue::NotThreadLocal, 1);
-  MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
-  // Add device global attributes
-  MsanSpirKernelMetadata->addAttribute(
-      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
-  MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
-  MsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z20__MsanKernelMetadata");
-  MsanSpirKernelMetadata->setDSOLocal(true);
+  // Handle global variables:
+  //   - Skip sanitizing unsupported variables
+  //   - Instrument __MsanDeviceGlobalMetadata for device globals
+  do {
+    SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+    // Device global meta data is described by a structure
+    //  size_t device_global_size
+    //  size_t beginning address of the device global
+    StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+    for (auto &G : M.globals()) {
+      if (isUnsupportedDeviceGlobal(&G)) {
+        for (auto *User : G.users())
+          if (auto *Inst = dyn_cast<Instruction>(User))
+            Inst->setNoSanitizeMetadata();
+        continue;
+      }
+
+      DeviceGlobalMetadata.push_back(ConstantStruct::get(
+          StructTy,
+          ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
+          ConstantExpr::getPointerCast(&G, IntptrTy)));
+    }
+
+    if (DeviceGlobalMetadata.empty())
+      break;
+
+    // Create meta data global to record device globals' information
+    ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+    Constant *MetadataInitializer =
+        ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+    GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
+        M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+        MetadataInitializer, "__MsanDeviceGlobalMetadata", nullptr,
+        GlobalValue::NotThreadLocal, 1);
+    MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  } while (false);
 }
 
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
@@ -825,7 +896,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   }
 
   if (TargetTriple.isSPIROrSPIRV()) {
-    extendSpirKernelArgs(M);
+    instrumentSPIRModule(M);
     Modified = true;
   }
 
@@ -948,7 +1019,7 @@ static Constant *getOrInsertGlobal(Module &M, StringRef Name, Type *Ty) {
   // FIXME: spirv target doesn't support TLS, need to handle it later.
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     return M.getOrInsertGlobal(Name, Ty, [&] {
-      return new GlobalVariable(M, Ty, false, GlobalVariable::ExternalLinkage,
+      return new GlobalVariable(M, Ty, false, GlobalVariable::InternalLinkage,
                                 Constant::getNullValue(Ty), Name, nullptr,
                                 GlobalVariable::NotThreadLocal,
                                 kSpirOffloadGlobalAS);
@@ -1088,11 +1159,23 @@ void MemorySanitizer::initializeCallbacks(Module &M,
   } else {
     for (unsigned FirstArgAS = 0; FirstArgAS < kNumberOfAddressSpace;
          FirstArgAS++) {
-      const std::string Suffix = "_p" + itostr(FirstArgAS);
+      const std::string Suffix1 = "_p" + itostr(FirstArgAS);
       PointerType *FirstArgPtrTy = IRB.getPtrTy(FirstArgAS);
       MemsetOffloadFn[FirstArgAS] = M.getOrInsertFunction(
-          "__msan_memset" + Suffix, TLI.getAttrList(C, {1}, /*Signed=*/true),
+          "__msan_memset" + Suffix1, TLI.getAttrList(C, {1}, /*Signed=*/true),
           FirstArgPtrTy, FirstArgPtrTy, IRB.getInt32Ty(), IntptrTy);
+
+      for (unsigned SecondArgAS = 0; SecondArgAS < kNumberOfAddressSpace;
+           SecondArgAS++) {
+        const std::string Suffix2 = Suffix1 + "_p" + itostr(SecondArgAS);
+        PointerType *SecondArgPtrTy = IRB.getPtrTy(SecondArgAS);
+        MemmoveOffloadFn[FirstArgAS][SecondArgAS] =
+            M.getOrInsertFunction("__msan_memmove" + Suffix2, FirstArgPtrTy,
+                                  FirstArgPtrTy, SecondArgPtrTy, IntptrTy);
+        MemcpyOffloadFn[FirstArgAS][SecondArgAS] =
+            M.getOrInsertFunction("__msan_memcpy" + Suffix2, FirstArgPtrTy,
+                                  FirstArgPtrTy, SecondArgPtrTy, IntptrTy);
+      }
     }
   }
 
@@ -1320,8 +1403,6 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
     Addr = XCHG->getPointerOperand();
   else if (const auto *ASC = dyn_cast<AddrSpaceCastInst>(&I))
     Addr = ASC->getPointerOperand();
-  else if (isa<MemCpyInst>(&I))
-    I.setNoSanitizeMetadata();
   else if (isa<AllocaInst>(&I))
     I.setNoSanitizeMetadata();
   else if (const auto *CI = dyn_cast<CallInst>(&I)) {
@@ -3180,9 +3261,19 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///
   /// Similar situation exists for memcpy and memset.
   void visitMemMoveInst(MemMoveInst &I) {
+    if (SpirOrSpirv && ((isa<Instruction>(I.getArgOperand(0)) &&
+                         cast<Instruction>(I.getArgOperand(0))
+                             ->getMetadata(LLVMContext::MD_nosanitize)) ||
+                        (isa<Instruction>(I.getArgOperand(1)) &&
+                         cast<Instruction>(I.getArgOperand(1))
+                             ->getMetadata(LLVMContext::MD_nosanitize))))
+      return;
+
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
-    IRB.CreateCall(MS.MemmoveFn,
+    IRB.CreateCall(SpirOrSpirv ? MS.MemmoveOffloadFn[I.getDestAddressSpace()]
+                                                    [I.getSourceAddressSpace()]
+                               : MS.MemmoveFn,
                    {I.getArgOperand(0), I.getArgOperand(1),
                     IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
     I.eraseFromParent();
@@ -3203,9 +3294,19 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// __msan_memcpy(). Should this be wrong, such as when implementing memcpy()
   /// itself, instrumentation should be disabled with the no_sanitize attribute.
   void visitMemCpyInst(MemCpyInst &I) {
+    if (SpirOrSpirv && ((isa<Instruction>(I.getArgOperand(0)) &&
+                         cast<Instruction>(I.getArgOperand(0))
+                             ->getMetadata(LLVMContext::MD_nosanitize)) ||
+                        (isa<Instruction>(I.getArgOperand(1)) &&
+                         cast<Instruction>(I.getArgOperand(1))
+                             ->getMetadata(LLVMContext::MD_nosanitize))))
+      return;
+
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
-    IRB.CreateCall(MS.MemcpyFn,
+    IRB.CreateCall(SpirOrSpirv ? MS.MemcpyOffloadFn[I.getDestAddressSpace()]
+                                                   [I.getSourceAddressSpace()]
+                               : MS.MemcpyFn,
                    {I.getArgOperand(0), I.getArgOperand(1),
                     IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
     I.eraseFromParent();
@@ -3220,10 +3321,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     IRBuilder<> IRB(&I);
     IRB.CreateCall(
-        SpirOrSpirv ? MS.MemsetOffloadFn[cast<PointerType>(
-                                             I.getArgOperand(0)->getType())
-                                             ->getAddressSpace()]
-                    : MS.MemsetFn,
+        SpirOrSpirv ? MS.MemsetOffloadFn[I.getDestAddressSpace()] : MS.MemsetFn,
         {I.getArgOperand(0),
          IRB.CreateIntCast(I.getArgOperand(1), IRB.getInt32Ty(), false),
          IRB.CreateIntCast(I.getArgOperand(2), MS.IntptrTy, false)});
@@ -3330,7 +3428,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///
   /// We special-case intrinsics where this approach fails. See llvm.bswap
   /// handling as an example of that.
-  bool handleUnknownIntrinsic(IntrinsicInst &I) {
+  bool handleUnknownIntrinsicUnlogged(IntrinsicInst &I) {
     unsigned NumArgOperands = I.arg_size();
     if (NumArgOperands == 0)
       return false;
@@ -3354,6 +3452,18 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     // FIXME: detect and handle SSE maskstore/maskload
     return false;
+  }
+
+  bool handleUnknownIntrinsic(IntrinsicInst &I) {
+    if (handleUnknownIntrinsicUnlogged(I)) {
+      if (ClDumpStrictIntrinsics)
+        dumpInst(I);
+
+      LLVM_DEBUG(dbgs() << "UNKNOWN INTRINSIC HANDLED HEURISTICALLY: " << I
+                        << "\n");
+      return true;
+    } else
+      return false;
   }
 
   void handleInvariantGroup(IntrinsicInst &I) {
@@ -3858,6 +3968,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void handleMaskedExpandLoad(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
     Value *Ptr = I.getArgOperand(0);
+    MaybeAlign Align = I.getParamAlign(0);
     Value *Mask = I.getArgOperand(1);
     Value *PassThru = I.getArgOperand(2);
 
@@ -3875,10 +3986,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Type *ShadowTy = getShadowTy(&I);
     Type *ElementShadowTy = cast<VectorType>(ShadowTy)->getElementType();
     auto [ShadowPtr, OriginPtr] =
-        getShadowOriginPtr(Ptr, IRB, ElementShadowTy, {}, /*isStore*/ false);
+        getShadowOriginPtr(Ptr, IRB, ElementShadowTy, Align, /*isStore*/ false);
 
-    Value *Shadow = IRB.CreateMaskedExpandLoad(
-        ShadowTy, ShadowPtr, Mask, getShadow(PassThru), "_msmaskedexpload");
+    Value *Shadow =
+        IRB.CreateMaskedExpandLoad(ShadowTy, ShadowPtr, Align, Mask,
+                                   getShadow(PassThru), "_msmaskedexpload");
 
     setShadow(&I, Shadow);
 
@@ -3890,6 +4002,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRBuilder<> IRB(&I);
     Value *Values = I.getArgOperand(0);
     Value *Ptr = I.getArgOperand(1);
+    MaybeAlign Align = I.getParamAlign(1);
     Value *Mask = I.getArgOperand(2);
 
     if (ClCheckAccessAddress) {
@@ -3901,9 +4014,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Type *ElementShadowTy =
         getShadowTy(cast<VectorType>(Values->getType())->getElementType());
     auto [ShadowPtr, OriginPtrs] =
-        getShadowOriginPtr(Ptr, IRB, ElementShadowTy, {}, /*isStore*/ true);
+        getShadowOriginPtr(Ptr, IRB, ElementShadowTy, Align, /*isStore*/ true);
 
-    IRB.CreateMaskedCompressStore(Shadow, ShadowPtr, Mask);
+    IRB.CreateMaskedCompressStore(Shadow, ShadowPtr, Align, Mask);
 
     // TODO: Store origins.
   }
@@ -4302,6 +4415,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///     shadow[out] =
   ///         intrinsic(shadow[var1], shadow[var2], opType) | shadow[opType]
   ///
+  /// CAUTION: this assumes that the intrinsic will handle arbitrary
+  ///          bit-patterns (for example, if the intrinsic accepts floats for
+  ///          var1, we require that it doesn't care if inputs are NaNs).
+  ///
   /// For example, this can be applied to the Arm NEON vector table intrinsics
   /// (tbl{1,2,3,4}).
   ///
@@ -4316,7 +4433,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // Don't use getNumOperands() because it includes the callee
     for (unsigned int i = 0; i < I.arg_size() - trailingVerbatimArgs; i++) {
       Value *Shadow = getShadow(&I, i);
-      ShadowArgs.push_back(Shadow);
+
+      // Shadows are integer-ish types but some intrinsics require a
+      // different (e.g., floating-point) type.
+      ShadowArgs.push_back(
+          IRB.CreateBitCast(Shadow, I.getArgOperand(i)->getType()));
     }
 
     for (unsigned int i = I.arg_size() - trailingVerbatimArgs; i < I.arg_size();
@@ -4337,7 +4458,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       CombinedShadow = IRB.CreateOr(Shadow, CombinedShadow, "_msprop");
     }
 
-    setShadow(&I, CombinedShadow);
+    setShadow(&I, IRB.CreateBitCast(CombinedShadow, getShadowTy(&I)));
 
     setOriginForNaryOp(I);
   }
@@ -6483,7 +6604,7 @@ struct VarArgI386Helper : public VarArgHelperBase {
       Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C);
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
-                             PointerType::get(RegSaveAreaPtrTy, 0));
+                             PointerType::get(*MS.C, 0));
       Value *RegSaveAreaPtr =
           IRB.CreateLoad(RegSaveAreaPtrTy, RegSaveAreaPtrPtr);
       Value *RegSaveAreaShadowPtr, *RegSaveAreaOriginPtr;
@@ -6568,7 +6689,7 @@ struct VarArgGenericHelper : public VarArgHelperBase {
       Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C);
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
-                             PointerType::get(RegSaveAreaPtrTy, 0));
+                             PointerType::get(*MS.C, 0));
       Value *RegSaveAreaPtr =
           IRB.CreateLoad(RegSaveAreaPtrTy, RegSaveAreaPtrPtr);
       Value *RegSaveAreaShadowPtr, *RegSaveAreaOriginPtr;

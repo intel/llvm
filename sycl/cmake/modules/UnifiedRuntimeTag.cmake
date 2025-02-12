@@ -1,7 +1,7 @@
-# commit 13f5e52ac047bb81f478f0dbe9416a8bc179130a
-# Merge: fe6c83a3 fa1e678a
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Mon Dec 30 15:14:19 2024 +0000
-#     Merge pull request #2484 from zhaomaosu/move-clean-shadow-to-launchinfo
-#     [DevMSAN] Move clean shadow into launch info
-set(UNIFIED_RUNTIME_TAG 13f5e52ac047bb81f478f0dbe9416a8bc179130a)
+# commit 064d3560cbcc24a40380b57adb3690b2bc256d6e
+# Merge: 739d8a75 e1bbdad9
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Wed Feb 12 10:20:12 2025 +0000
+#     Merge pull request #2672 from lukaszstolarczuk/umf-with-icx-build-0.11.0-dev2
+#     common: Bump UMF version to v0.11.0-dev2
+set(UNIFIED_RUNTIME_TAG 064d3560cbcc24a40380b57adb3690b2bc256d6e)

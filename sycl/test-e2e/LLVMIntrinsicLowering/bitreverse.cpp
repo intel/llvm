@@ -1,6 +1,9 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv.
 
-// UNSUPPORTED: hip || cuda
+// UNSUPPORTED: target-amd || target-nvidia
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16318, CMPLRLLVM-62187
 
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir

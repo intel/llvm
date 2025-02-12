@@ -1227,7 +1227,8 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
       PM.getDeviceImage(DeviceGlobalEntry->MImages, Context, Device);
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
-  device_image_plain BuiltImage = PM.build(DeviceImage, {Device}, {});
+  device_image_plain BuiltImage =
+      PM.build(std::move(DeviceImage), {Device}, {});
   return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
 }
 
@@ -1643,7 +1644,8 @@ void MemoryManager::copy_image_bindless(
          "Copy image bindless must be called with a valid device queue");
   assert((Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
           Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST ||
-          Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) &&
+          Flags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+          Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) &&
          "Invalid flags passed to copy_image_bindless.");
   if (!Dst || !Src)
     throw sycl::exception(

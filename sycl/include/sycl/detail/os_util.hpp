@@ -79,7 +79,7 @@ public:
   /// Make all directories on the path, throws on error.
   static int makeDir(const char *Dir);
 
-  /// Checks if specified path is present
+  /// Checks if specified path is present.
   static bool isPathPresent(const std::string &Path) {
 #ifdef __SYCL_RT_OS_WINDOWS
     struct _stat Stat;
@@ -95,7 +95,7 @@ public:
 // exporting them as ABI. They are only used in persistent cache
 // implementation and should not be exposed to the end users.
 // Get size of directory in bytes.
-size_t getDirectorySize(const std::string &Path);
+size_t getDirectorySize(const std::string &Path, bool ignoreErrors = false);
 
 // Get size of file in bytes.
 size_t getFileSize(const std::string &Path);
@@ -103,7 +103,8 @@ size_t getFileSize(const std::string &Path);
 // Function to recursively iterate over the directory and execute
 // 'Func' on each regular file.
 void fileTreeWalk(const std::string Path,
-                  std::function<void(const std::string)> Func);
+                  std::function<void(const std::string)> Func,
+                  bool ignoreErrors = false);
 
 } // namespace detail
 } // namespace _V1
