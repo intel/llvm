@@ -8,7 +8,7 @@
 // The main header of the Explicit SIMD API.
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#pragma once 
 
 // clang-format off
 ///
