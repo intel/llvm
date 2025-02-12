@@ -1,5 +1,4 @@
-// TODO: Remove `__SYCL_USE_LIBSYCL8_VEC_IMPL` once it's auto-set.
-// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes -D__SYCL_USE_LIBSYCL8_VEC_IMPL=0
+// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/sycl.hpp>

@@ -24,11 +24,7 @@
 
 // See vec::DataType definitions for more details
 #ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
-#else
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
-#endif
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE !__SYCL_USE_LIBSYCL8_VEC_IMPL
 #endif
 
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
@@ -318,14 +314,18 @@ public:
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class __SYCL_EBO vec
-    : public detail::vec_arith<DataT, NumElements>,
-      public detail::ApplyIf<
-          NumElements == 1,
-          detail::ScalarConversionOperatorsMixIn<vec<DataT, NumElements>>>,
-      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
-      // Keep it last to simplify ABI layout test:
-      public detail::vec_base<DataT, NumElements> {
+class __SYCL_EBO vec :
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+    public detail::vec_arith<DataT, NumElements>,
+#else
+    public detail::VecOperators<vec<DataT, NumElements>>::Combined,
+#endif
+    public detail::ApplyIf<
+        NumElements == 1,
+        detail::ScalarConversionOperatorsMixIn<vec<DataT, NumElements>>>,
+    public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
+    // Keep it last to simplify ABI layout test:
+    public detail::vec_base<DataT, NumElements> {
   static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
                 "DataT must be cv-unqualified");
 
@@ -408,6 +408,7 @@ public:
   constexpr vec &operator=(const vec &) = default;
   constexpr vec &operator=(vec &&) = default;
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
   // Template required to prevent ambiguous overload with the copy assignment
   // when NumElements == 1. The template prevents implicit conversion from
   // vec<_, 1> to DataT.
@@ -427,6 +428,14 @@ public:
     *this = Rhs.template as<vec>();
     return *this;
   }
+#else
+  template <typename T>
+  typename std::enable_if_t<std::is_convertible_v<T, DataT>, vec &>
+  operator=(const T &Rhs) {
+    *this = vec{static_cast<DataT>(Rhs)};
+    return *this;
+  }
+#endif
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
@@ -536,8 +545,10 @@ public:
             int... T5>
   friend class detail::SwizzleOp;
   template <typename T1, int T2> friend class __SYCL_EBO vec;
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
+#endif
 };
 ///////////////////////// class sycl::vec /////////////////////////
 
