@@ -1,7 +1,7 @@
-# commit 9d6542bac16db69d907002cb0f8c724c7a50d2dc
-# Merge: 0e6adfb6 04882ba3
+# commit 064d3560cbcc24a40380b57adb3690b2bc256d6e
+# Merge: 739d8a75 e1bbdad9
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Feb 6 11:30:48 2025 +0000
-#     Merge pull request #2655 from hvdijk/nativecpu-null-phevent
-#     [NativeCPU] Handle null phEvent.
-set(UNIFIED_RUNTIME_TAG 9d6542bac16db69d907002cb0f8c724c7a50d2dc)
+# Date:   Wed Feb 12 10:20:12 2025 +0000
+#     Merge pull request #2672 from lukaszstolarczuk/umf-with-icx-build-0.11.0-dev2
+#     common: Bump UMF version to v0.11.0-dev2
+set(UNIFIED_RUNTIME_TAG 064d3560cbcc24a40380b57adb3690b2bc256d6e)
