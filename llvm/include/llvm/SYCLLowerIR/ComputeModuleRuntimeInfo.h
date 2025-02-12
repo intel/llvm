@@ -34,8 +34,9 @@ bool isModuleUsingMsan(const Module &M);
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 using EntryPointSet = SetVector<Function *>;
 
-PropSetRegTy computeBF16DeviceLibProperties(const Module &M,
-                                            const std::string &SYCLDeviceLibName);
+PropSetRegTy
+computeBF16DeviceLibProperties(const Module &M,
+                               const std::string &SYCLDeviceLibName);
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
