@@ -1,4 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+
+// UNSUPPORTED: hip || level_zero
+// UNSUPPORTED-INTENDED: Returning non-FP values from fetching fails on HIP.
+// Also, the feature is not fully implemented in the Level Zero stack.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

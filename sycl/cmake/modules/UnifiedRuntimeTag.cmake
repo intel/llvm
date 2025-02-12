@@ -1,7 +1,7 @@
-# commit 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b
-# Merge: c270a6b8 264d0468
+# commit 98756a20d7792636c87b6193fe1ff47ec4f78914
+# Merge: 34c21d7f 8b22ed83
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Jan 28 15:16:58 2025 +0000
-#     Merge pull request #2594 from kbenzie/benie/cl-core-functions-no-dlopen
-#     Fix invalid use of dlopen()
-set(UNIFIED_RUNTIME_TAG 3a1b4c7b9ba952fad6f6ad36c01101bbf368347b)
+# Date:   Tue Feb 11 12:09:29 2025 +0000
+#     Merge pull request #2688 from Bensuo/revert_2606
+#     Revert "Merge pull request #2606 from Bensuo/cmd-buf_enqueue_refactor"
+set(UNIFIED_RUNTIME_TAG 98756a20d7792636c87b6193fe1ff47ec4f78914)

@@ -953,15 +953,6 @@ exec_graph_impl::~exec_graph_impl() {
         }
       }
     }
-
-    for (auto &Iter : MCommandMap) {
-      if (auto Command = Iter.second; Command) {
-        ur_result_t Res = Adapter->call_nocheck<
-            sycl::detail::UrApiKind::urCommandBufferReleaseCommandExp>(Command);
-        (void)Res;
-        assert(Res == UR_RESULT_SUCCESS);
-      }
-    }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~exec_graph_impl", e);
   }
