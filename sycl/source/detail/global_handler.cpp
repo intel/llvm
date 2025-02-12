@@ -243,17 +243,8 @@ struct StaticVarShutdownHandler {
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
-
-#ifndef __SYCL_BUILD_SYCL_DLL
-      // with static linking, DllMain is not called. So we call shutdown_early()
-      // here. CP
-      std::cout << "StaticVarShutdownHandler calling shutdown_early()"
-                << std::endl;
-      shutdown_early();
-#endif
-
       shutdown_late();
-#else // _WIN32
+#else
       shutdown_early();
 #endif
     } catch (std::exception &e) {
@@ -392,17 +383,12 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
-#ifdef __SYCL_BUILD_SYCL_DLL
-    // CP
-    std::cout << "DLL_PROCESS_DETACH syclx.dll calling shutdown_early()"
-              << std::endl;
     try {
       shutdown_early();
     } catch (std::exception &e) {
       std::cout << "exception in DLL_PROCESS_DETACH" << e.what() << std::endl;
       return FALSE;
     }
-#endif
 
     break;
   case DLL_PROCESS_ATTACH:

@@ -129,8 +129,7 @@ times, the memory leak may impact code performance.
 ### Windows
 
 Differing from Linux, on Windows the "early_shutdown()" is begun by 
-DllMain(PROCESS_DETACH), unless the sycl library is linked statically
-to an app, in which case we do it immediately before late_shutdown(). 
+DllMain(PROCESS_DETACH). 
 
 The "late_shutdown()" is begun by the destruction of a 
 static StaticVarShutdownHandler object, which is initialized by 
