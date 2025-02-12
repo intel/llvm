@@ -161,7 +161,7 @@ BINOP(ShiftLeft                , <<)                                           \
 BINOP(ShiftRight               , >>)                                           \
 UOP(std::negate<void>          , -)                                            \
 UOP(std::logical_not<void>     , !)                                            \
-/* UOP(std::bit_not<void>         , ~) */                                      \
+UOP(std::bit_not<void>         , ~)                                            \
 UOP(UnaryPlus                  , +)                                            \
 OPASSIGN(std::plus<void>       , +=)                                           \
 OPASSIGN(std::minus<void>      , -=)                                           \
@@ -333,7 +333,10 @@ template <typename Self> struct VecOperators {
 
 #define __SYCL_VEC_UOP_MIXIN(OP, OPERATOR)                                     \
   template <typename Op>                                                       \
-  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OP>>> {               \
+  struct OpMixin<                                                              \
+      Op, std::enable_if_t<std::is_same_v<Op, OP> && /* bit_not is handled     \
+                                                        separately below */    \
+                           !std::is_same_v<Op, std::bit_not<void>>>> {         \
     friend auto operator OPERATOR(const Self &v) { return apply<OP>(v); }      \
   };
 
