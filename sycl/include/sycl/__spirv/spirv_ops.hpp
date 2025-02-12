@@ -899,6 +899,20 @@ template <typename ValueT, typename IdT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
     __spirv_GroupNonUniformShuffle(__spv::Scope::Flag, ValueT, IdT) noexcept;
 
+template <typename ValueT, typename IdT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+    __spirv_GroupNonUniformShuffleXor(__spv::Scope::Flag, ValueT, IdT) noexcept;
+
+template <typename ValueT, typename IdT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT ValueT
+    __spirv_GroupNonUniformShuffleUp(__spv::Scope::Flag, ValueT, IdT) noexcept;
+
+template <typename ValueT, typename IdT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
+    __SYCL_EXPORT ValueT __spirv_GroupNonUniformShuffleDown(__spv::Scope::Flag,
+                                                            ValueT,
+                                                            IdT) noexcept;
+
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT bool
 __spirv_GroupNonUniformAll(__spv::Scope::Flag, bool);
 

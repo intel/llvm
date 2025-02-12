@@ -46,25 +46,6 @@
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
 #endif
 
-// TODO: Remove these function definitions once they exist in the DPC++ compiler
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__INTEL_LLVM_COMPILER)
-template <typename T>
-__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT
-    __attribute__((noduplicate)) T
-    __spirv_GroupNonUniformShuffle(__spv::Scope::Flag, T, unsigned) noexcept;
-
-template <typename T>
-__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT
-    __attribute__((noduplicate)) T
-    __spirv_GroupNonUniformShuffleDown(__spv::Scope::Flag, T,
-                                       unsigned) noexcept;
-
-template <typename T>
-__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT
-    __attribute__((noduplicate)) T
-    __spirv_GroupNonUniformShuffleUp(__spv::Scope::Flag, T, unsigned) noexcept;
-#endif
-
 namespace syclcompat {
 
 namespace detail {
