@@ -868,7 +868,9 @@ struct get_device_info_impl<
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
-             (architecture::intel_gpu_lnl_m == DeviceArch)) {
+             (architecture::intel_gpu_lnl_m == DeviceArch) ||
+             (architecture::intel_gpu_ptl_h == DeviceArch) ||
+             (architecture::intel_gpu_ptl_u == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},

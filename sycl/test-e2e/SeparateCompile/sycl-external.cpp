@@ -12,7 +12,7 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %t2.o %t.a -Wno-unused-command-line-argument -o %t2.exe
 // RUN: %{run} %t2.exe
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64059
 
 #include <iostream>

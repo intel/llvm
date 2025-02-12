@@ -305,7 +305,7 @@ std::optional<float> FPBuiltinIntrinsic::getRequiredAccuracy() const {
 }
 
 bool FPBuiltinIntrinsic::hasUnrecognizedFPAttrs(
-    const StringSet<> recognizedAttrs) {
+    const StringSet<> recognizedAttrs) const {
   AttributeSet FnAttrs = getAttributes().getFnAttrs();
   for (const Attribute &Attr : FnAttrs) {
     if (!Attr.isStringAttribute())

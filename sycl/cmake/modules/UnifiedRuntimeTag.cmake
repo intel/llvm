@@ -1,9 +1,7 @@
-# commit 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990
-# Merge: 4643d1c0 3ed86fae
+# commit 064d3560cbcc24a40380b57adb3690b2bc256d6e
+# Merge: 739d8a75 e1bbdad9
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Jan 29 13:55:27 2025 +0000
-#
-#    Merge pull request #2578 from Bensuo/ewan/remove_command_ref_counting
-#
-#    Remove command-buffer command handle ref counting
-set(UNIFIED_RUNTIME_TAG 14f4a3ba70b91b3adc411ec6bfc8ae86e948a990)
+# Date:   Wed Feb 12 10:20:12 2025 +0000
+#     Merge pull request #2672 from lukaszstolarczuk/umf-with-icx-build-0.11.0-dev2
+#     common: Bump UMF version to v0.11.0-dev2
+set(UNIFIED_RUNTIME_TAG 064d3560cbcc24a40380b57adb3690b2bc256d6e)

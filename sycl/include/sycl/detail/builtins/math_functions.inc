@@ -198,7 +198,7 @@ template <typename T0, typename T1>
 inline constexpr bool builtin_ptr_check_v =
     (std::is_pointer_v<T1> ||
      (is_multi_ptr_v<T1> && has_writeable_addr_space_v<T1>)) &&
-    is_valid_elem_type_v<T1, simplify_if_swizzle_t<T0>>;
+    std::is_same_v<get_elem_type_t<T1>, simplify_if_swizzle_t<T0>>;
 
 template <typename T0, typename T1>
 inline constexpr bool builtin_enable_ptr_v =

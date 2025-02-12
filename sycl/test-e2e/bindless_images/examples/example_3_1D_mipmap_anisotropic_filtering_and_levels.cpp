@@ -1,4 +1,5 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_mipmap
+// REQUIRES: aspect-ext_oneapi_mipmap_anisotropy
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

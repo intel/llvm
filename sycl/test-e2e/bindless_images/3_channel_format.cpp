@@ -3,6 +3,10 @@
 // Test requires at least this version of the Intel GPU driver on Arc.
 // REQUIRES-INTEL-DRIVER: lin: 32370
 
+// UNSUPPORTED: hip || level_zero
+// UNSUPPORTED-INTENDED: Unimplemented in the HIP adapter yet.
+// Also, the feature is not fully implemented in the Level Zero stack.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 

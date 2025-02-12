@@ -1,4 +1,4 @@
-// REQUIRES: accelerator
+// REQUIRES: target-spir, accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s

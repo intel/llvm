@@ -5,6 +5,10 @@
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -g -O2 -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+
+// UNSUPPORTED: cpu || gpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16979
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/group_local_memory.hpp>

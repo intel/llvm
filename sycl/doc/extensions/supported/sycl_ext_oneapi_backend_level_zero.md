@@ -300,6 +300,8 @@ data to the host to access the data. Users can get type of the allocation using 
     Queue.submit([&](handler &CGH) {
         auto BufferAcc = Buffer.get_access<access::mode::write>(CGH);
         CGH.host_task([=](const interop_handle &IH) {
+            ze_context_handle_t ZeContext =
+                IH.get_native_context<backend::ext_oneapi_level_zero>();
             void *DevicePtr =
                 IH.get_native_mem<backend::ext_oneapi_level_zero>(BufferAcc);
             ze_memory_allocation_properties_t MemAllocProperties{};

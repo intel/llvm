@@ -1,4 +1,4 @@
-// REQUIRES: accelerator
+// REQUIRES: target-spir, accelerator
 // https://github.com/intel/llvm/issues/14308
 // Temporarily re-enabled for testing purposes.
 // If you are facing issues with this test, please leave a comment in:
@@ -194,10 +194,11 @@ template <int TestNumber> int test_array_th_nb_pipe(sycl::queue Queue) {
 
   sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   for (size_t i = 0; i != N; ++i) {
-    if (readHostBuffer[i] != i)
+    if (readHostBuffer[i] != i) {
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
                 << readHostBuffer[i] << " Vs expected " << i << std::endl;
-    return -1;
+      return -1;
+    }
   }
 
   return 0;
@@ -309,10 +310,11 @@ template <int TestNumber> int test_array_th_bl_pipe(sycl::queue Queue) {
 
   sycl::host_accessor readHostBuffer(writeBuf, sycl::read_only);
   for (size_t i = 0; i != N; ++i) {
-    if (readHostBuffer[i] != i)
+    if (readHostBuffer[i] != i) {
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
                 << readHostBuffer[i] << " Vs expected " << i << std::endl;
-    return -1;
+      return -1;
+    }
   }
 
   return 0;
@@ -343,14 +345,8 @@ int main() {
   Error |= test_simple_bl_pipe<forward_bl_pipe, /*test number*/ 8>(Queue);
   Error |= test_simple_bl_pipe<templ_bl_pipe<0>, /*test number*/ 9>(Queue);
   Error |= test_multiple_bl_pipe</*test number*/ 10>(Queue);
-
-  // Test for an array data passing through a pipe
-  // These two tests are failing in post-commit testing (
-  // https://github.com/intel/llvm/issues/16693 ) disabling them, rather than
-  // the entire test.
-
-  // Error |= test_array_th_nb_pipe</*test number*/ 11>(Queue);
-  // Error |= test_array_th_bl_pipe</*test number*/ 12>(Queue);
+  Error |= test_array_th_nb_pipe</*test number*/ 11>(Queue);
+  Error |= test_array_th_bl_pipe</*test number*/ 12>(Queue);
 
   // TODO Remove when #14308 is closed
   std::cerr << "DEBUG: Finished with result " << Error << std::endl;

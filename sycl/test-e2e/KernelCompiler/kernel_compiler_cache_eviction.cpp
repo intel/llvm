@@ -18,7 +18,7 @@
 
 // -- Test again, with caching.
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir SYCL_CACHE_MAX_SIZE=30000
-// RUN: %if run-mode %{rm -rf %t/cache_dir%}
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
 
 // CHECK: [Persistent Cache]: enabled

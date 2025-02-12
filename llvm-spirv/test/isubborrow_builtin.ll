@@ -62,7 +62,7 @@ define spir_func void @test_builtin_isubborrowcc(i8 %a, i8 %b) {
 ; CHECK-LLVM:   %2 = extractvalue { i8, i1 } %1, 0
 ; CHECK-LLVM:   %3 = extractvalue { i8, i1 } %1, 1
 ; CHECK-LLVM:   %4 = zext i1 %3 to i8
-; CHECK-LLVM:   %5 = insertvalue { i8, i8 } undef, i8 %2, 0
+; CHECK-LLVM:   %5 = insertvalue { i8, i8 } poison, i8 %2, 0
 ; CHECK-LLVM:   %6 = insertvalue { i8, i8 } %5, i8 %4, 1
 ; CHECK-LLVM:   store { i8, i8 } %6, ptr %0, align 1
 ; CHECK-LLVM:   ret void
@@ -86,7 +86,7 @@ define spir_func void @test_builtin_isubborrowss(i16 %a, i16 %b) {
 ; CHECK-LLVM:   %2 = extractvalue { i16, i1 } %1, 0
 ; CHECK-LLVM:   %3 = extractvalue { i16, i1 } %1, 1
 ; CHECK-LLVM:   %4 = zext i1 %3 to i16
-; CHECK-LLVM:   %5 = insertvalue { i16, i16 } undef, i16 %2, 0
+; CHECK-LLVM:   %5 = insertvalue { i16, i16 } poison, i16 %2, 0
 ; CHECK-LLVM:   %6 = insertvalue { i16, i16 } %5, i16 %4, 1
 ; CHECK-LLVM:   store { i16, i16 } %6, ptr %0, align 2
 ; CHECK-LLVM:   ret void
@@ -110,7 +110,7 @@ define spir_func void @test_builtin_isubborrowii(i32 %a, i32 %b) {
 ; CHECK-LLVM:   %2 = extractvalue { i32, i1 } %1, 0
 ; CHECK-LLVM:   %3 = extractvalue { i32, i1 } %1, 1
 ; CHECK-LLVM:   %4 = zext i1 %3 to i32
-; CHECK-LLVM:   %5 = insertvalue { i32, i32 } undef, i32 %2, 0
+; CHECK-LLVM:   %5 = insertvalue { i32, i32 } poison, i32 %2, 0
 ; CHECK-LLVM:   %6 = insertvalue { i32, i32 } %5, i32 %4, 1
 ; CHECK-LLVM:   store { i32, i32 } %6, ptr %0, align 4
 ; CHECK-LLVM:   ret void
@@ -134,7 +134,7 @@ define spir_func void @test_builtin_isubborrowll(i64 %a, i64 %b) {
 ; CHECK-LLVM:   %2 = extractvalue { i64, i1 } %1, 0
 ; CHECK-LLVM:   %3 = extractvalue { i64, i1 } %1, 1
 ; CHECK-LLVM:   %4 = zext i1 %3 to i64
-; CHECK-LLVM:   %5 = insertvalue { i64, i64 } undef, i64 %2, 0
+; CHECK-LLVM:   %5 = insertvalue { i64, i64 } poison, i64 %2, 0
 ; CHECK-LLVM:   %6 = insertvalue { i64, i64 } %5, i64 %4, 1
 ; CHECK-LLVM:   store { i64, i64 } %6, ptr %0, align 8
 ; CHECK-LLVM:   ret void
@@ -158,7 +158,7 @@ define spir_func void @test_builtin_isubborrowDv4_xS_(<4 x i32> %a, <4 x i32> %b
 ; CHECK-LLVM:   %2 = extractvalue { <4 x i32>, <4 x i1> } %1, 0
 ; CHECK-LLVM:   %3 = extractvalue { <4 x i32>, <4 x i1> } %1, 1
 ; CHECK-LLVM:   %4 = zext <4 x i1> %3 to <4 x i32>
-; CHECK-LLVM:   %5 = insertvalue { <4 x i32>, <4 x i32> } undef, <4 x i32> %2, 0
+; CHECK-LLVM:   %5 = insertvalue { <4 x i32>, <4 x i32> } poison, <4 x i32> %2, 0
 ; CHECK-LLVM:   %6 = insertvalue { <4 x i32>, <4 x i32> } %5, <4 x i32> %4, 1
 ; CHECK-LLVM:   store { <4 x i32>, <4 x i32> } %6, ptr %0, align 16
 ; CHECK-LLVM:   ret void
@@ -185,7 +185,7 @@ define spir_func void @test_builtin_isubborrow_anon(i32 %a, i32 %b) {
 ; CHECK-LLVM:  %3 = extractvalue { i32, i1 } %2, 0
 ; CHECK-LLVM:  %4 = extractvalue { i32, i1 } %2, 1
 ; CHECK-LLVM:  %5 = zext i1 %4 to i32
-; CHECK-LLVM:  %6 = insertvalue { i32, i32 } undef, i32 %3, 0
+; CHECK-LLVM:  %6 = insertvalue { i32, i32 } poison, i32 %3, 0
 ; CHECK-LLVM:  %7 = insertvalue { i32, i32 } %6, i32 %5, 1
 ; CHECK-LLVM:  store { i32, i32 } %7, ptr addrspace(4) %1, align 4
 ; CHECK-LLVM:  ret void

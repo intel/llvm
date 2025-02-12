@@ -77,7 +77,7 @@ jobs:
             tests_selector: e2e
 
           - name: OCL CPU (AMD)
-            runner: '["Linux", "amdgpu"]'
+            runner: '["Linux", "amdcpu"]'
             image_options: -u 1001
             target_devices: opencl:cpu
             tests_selector: e2e

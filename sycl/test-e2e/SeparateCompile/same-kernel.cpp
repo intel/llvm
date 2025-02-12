@@ -15,7 +15,7 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %t-same-kernel-a.o %t-same-kernel-b.o -Wno-unused-command-line-argument -o %t-same-kernel.exe
 // RUN: %{run} %t-same-kernel.exe
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64059
 
 #include <sycl/detail/core.hpp>

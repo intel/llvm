@@ -380,6 +380,10 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     K = CXCursor_UnexposedStmt;
     break;
 
+  case Stmt::SYCLKernelCallStmtClass:
+    K = CXCursor_UnexposedStmt;
+    break;
+
   case Stmt::IntegerLiteralClass:
     K = CXCursor_IntegerLiteral;
     break;
@@ -913,6 +917,12 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OpenACCShutdownConstructClass:
     K = CXCursor_OpenACCShutdownConstruct;
+    break;
+  case Stmt::OpenACCSetConstructClass:
+    K = CXCursor_OpenACCSetConstruct;
+    break;
+  case Stmt::OpenACCUpdateConstructClass:
+    K = CXCursor_OpenACCUpdateConstruct;
     break;
   case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
     K = CXCursor_OMPTargetParallelGenericLoopDirective;

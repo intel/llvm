@@ -27,7 +27,7 @@ RUN --mount=type=secret,id=github_token \
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 
-USER sycl_ci
+USER sycl
 
 ENTRYPOINT ["/bin/bash", "/drivers_entrypoint.sh"]
 
