@@ -24,11 +24,7 @@
 
 // See vec::DataType definitions for more details
 #ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
-#else
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
-#endif
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE __SYCL_USE_PREVIEW_VEC_IMPL
 #endif
 
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
@@ -318,14 +314,18 @@ public:
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class __SYCL_EBO vec
-    : public detail::vec_arith<DataT, NumElements>,
-      public detail::ApplyIf<
-          NumElements == 1,
-          detail::ScalarConversionOperatorsMixIn<vec<DataT, NumElements>>>,
-      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
-      // Keep it last to simplify ABI layout test:
-      public detail::vec_base<DataT, NumElements> {
+class __SYCL_EBO vec :
+#if __SYCL_USE_PREVIEW_VEC_IMPL
+    public detail::VecOperators<vec<DataT, NumElements>>::Combined,
+#else
+    public detail::vec_arith<DataT, NumElements>,
+#endif
+    public detail::ApplyIf<
+        NumElements == 1,
+        detail::ScalarConversionOperatorsMixIn<vec<DataT, NumElements>>>,
+    public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
+    // Keep it last to simplify ABI layout test:
+    public detail::vec_base<DataT, NumElements> {
   static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
                 "DataT must be cv-unqualified");
 
@@ -408,23 +408,10 @@ public:
   constexpr vec &operator=(const vec &) = default;
   constexpr vec &operator=(vec &&) = default;
 
-  // Template required to prevent ambiguous overload with the copy assignment
-  // when NumElements == 1. The template prevents implicit conversion from
-  // vec<_, 1> to DataT.
-  template <typename Ty = DataT>
-  typename std::enable_if_t<detail::is_fundamental_or_half_or_bfloat16<Ty>,
-                            vec &>
-  operator=(const DataT &Rhs) {
-    *this = vec{Rhs};
-    return *this;
-  }
-
-  // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      !std::is_same_v<Ty, rel_t> && std::is_convertible_v<Ty, rel_t>, vec &>
-  operator=(const vec<rel_t, NumElements> &Rhs) {
-    *this = Rhs.template as<vec>();
+  template <typename T>
+  typename std::enable_if_t<std::is_convertible_v<T, DataT>, vec &>
+  operator=(const T &Rhs) {
+    *this = vec{static_cast<DataT>(Rhs)};
     return *this;
   }
 
@@ -536,8 +523,10 @@ public:
             int... T5>
   friend class detail::SwizzleOp;
   template <typename T1, int T2> friend class __SYCL_EBO vec;
+#if !__SYCL_USE_PREVIEW_VEC_IMPL
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
+#endif
 };
 ///////////////////////// class sycl::vec /////////////////////////
 

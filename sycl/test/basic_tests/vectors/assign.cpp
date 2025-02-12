@@ -1,5 +1,4 @@
-// TODO: Remove `__SYCL_USE_PREVIEW_VEC_IMPL` once it's auto-set.
-// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes -D__SYCL_USE_PREVIEW_VEC_IMPL=1
+// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/sycl.hpp>
@@ -24,8 +23,8 @@ using sw_double_2 = decltype(std::declval<vec<double, 4>>().swizzle<1, 2>());
 // clang-format off
 
 static_assert(               std::is_assignable_v<vec<half, 1>, half>);
-static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, float>);
-static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, double>);
+static_assert(               std::is_assignable_v<vec<half, 1>, float>);
+static_assert(               std::is_assignable_v<vec<half, 1>, double>);
 static_assert(               std::is_assignable_v<vec<half, 1>, vec<half, 1>>);
 static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<float, 1>>);
 static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<double, 1>>);
