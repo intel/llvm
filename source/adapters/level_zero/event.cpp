@@ -1341,19 +1341,6 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   bool ProfilingEnabled =
       ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
-  v2::event_flags_t Flags = 0;
-  if (ProfilingEnabled)
-    Flags |= v2::EVENT_FLAGS_PROFILING_ENABLED;
-  if (UsingImmediateCommandlists)
-    Flags |= v2::EVENT_FLAGS_IMM_CMDLIST;
-  if (HostVisible)
-    Flags |= v2::EVENT_FLAGS_HOST_VISIBLE;
-  if (IsMultiDevice)
-    Flags |= v2::EVENT_FLAGS_MULTIDEVICE;
-  if (CounterBasedEventEnabled)
-    Flags |= v2::EVENT_FLAGS_COUNTER;
-  if (InterruptBasedEventEnabled)
-    Flags |= v2::EVENT_FLAGS_INTERRUPT;
 
   ur_device_handle_t Device = nullptr;
 
@@ -1361,7 +1348,9 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
     Device = Queue->Device;
   }
 
-  if (auto CachedEvent = Context->getEventFromContextCache(Flags, Device)) {
+  if (auto CachedEvent = Context->getEventFromContextCache(
+          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled,
+          InterruptBasedEventEnabled)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -1371,8 +1360,10 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
 
   size_t Index = 0;
 
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index,
-                                                         Flags, Device))
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
+          CounterBasedEventEnabled, UsingImmediateCommandlists,
+          InterruptBasedEventEnabled))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
@@ -1409,7 +1400,6 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   if (HostVisible)
     (*RetEvent)->HostVisibleEvent =
         reinterpret_cast<ur_event_handle_t>(*RetEvent);
-  (*RetEvent)->Flags = Flags;
 
   return UR_RESULT_SUCCESS;
 }
