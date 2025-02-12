@@ -67,7 +67,7 @@ is substituted with just `[Optional run_launcher if that is configured]`.
 Another little nuance is `%{sycl_triple}` substitution. It is constructed by
 concatenating triples for all the devices from `sycl_devices` supported by a
 given test. After that there is also a convenient `%{build}` substitution that
-is equivalent to `%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s`.
+is equivalent to `%clangxx -fsycl %{sycl_target_opts} %s`.
 
 ## Prerequisites
 
@@ -180,15 +180,9 @@ at the full path specified by this variable.
 
 ***LEVEL_ZERO_LIBS_DIR*** - path to Level Zero libraries.
 
-***CUDA_INCLUDE*** - path to CUDA headers.
+***CUDA_INCLUDE*** - path to CUDA headers (autodetected).
 
-***CUDA_LIBS_DIR*** - path to CUDA libraries.
-
-***HIP_PLATFORM*** - platform selection for HIP targeted devices.
-Defaults to AMD if no value is given. Supported values are:
-
-* **AMD**    - for HIP to target AMD GPUs
-* **NVIDIA** - for HIP to target NVIDIA GPUs
+***CUDA_LIBS_DIR*** - path to CUDA libraries (autodetected).
 
 ***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
 may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
@@ -256,6 +250,11 @@ place. No new tests should use these features:
 * **gpu-intel-pvc** - Intel GPU PVC availability;
 * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
 
+### Use the LLVM SPIR-V Backend to generate SPIR-V code
+It's possible to use the LLVM SPIR-V Backend instead of the `llvm-spirv` tool
+to convert LLVM IR to SPIR-V. This feature must be set manually by passing the
+`spirv-backend` parameter to `llvm-lit`.
+
 ### llvm-lit parameters
 
 Following options can be passed to llvm-lit tool through --param option to
@@ -289,9 +288,9 @@ configure specific single test execution in the command line:
 * **level_zero_libs_dir** - directory containing Level_Zero native libraries,
   can be also set by CMake variable LEVEL_ZERO_LIBS_DIR.
 * **cuda_include** - directory containing CUDA SDK headers, can be also set by
-  CMake variable CUDA_INCLUDE.
+  CMake variable CUDA_INCLUDE (autodetected).
 * **cuda_libs_dir** - directory containing CUDA SDK libraries, can be also set
-  by CMake variable CUDA_LIBS_DIR.
+  by CMake variable CUDA_LIBS_DIR (autodetected).
 * **run_launcher** - part of `%{run*}` expansion/substitution to alter execution
   of the test by, e.g., running it through Valgrind.
 

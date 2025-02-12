@@ -58,6 +58,7 @@
 #include <libspirv/workitem/get_global_size.h>
 #include <libspirv/workitem/get_group_id.h>
 #include <libspirv/workitem/get_local_id.h>
+#include <libspirv/workitem/get_local_linear_id.h>
 #include <libspirv/workitem/get_local_size.h>
 #include <libspirv/workitem/get_max_sub_group_size.h>
 #include <libspirv/workitem/get_num_groups.h>
@@ -91,5 +92,8 @@
 /* 6.11.13 Image Read and Write Functions */
 #include <libspirv/image/image.h>
 #include <libspirv/image/image_defines.h>
+
+/* Pointer Conversion */
+#include <libspirv/conversion/GenericCastToPtrExplicit.h>
 
 #pragma OPENCL EXTENSION all : disable

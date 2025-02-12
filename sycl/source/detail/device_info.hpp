@@ -359,6 +359,11 @@ template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::opencl)
+      throw exception(make_error_code(errc::invalid),
+                      "info::device::execution_capabilities is available for "
+                      "backend::opencl only");
+
     ur_device_exec_capability_flag_t result;
     Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
         Dev->getHandleRef(),
@@ -722,6 +727,7 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
 constexpr std::pair<const int, oneapi_exp_arch> IntelCPUArchitectures[] = {
     {8, oneapi_exp_arch::intel_cpu_spr},
     {9, oneapi_exp_arch::intel_cpu_gnr},
+    {10, oneapi_exp_arch::intel_cpu_dmr},
 };
 
 template <>
@@ -843,9 +849,28 @@ struct get_device_info_impl<
           {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
       };
+    else if (architecture::intel_cpu_dmr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 16, 0, 0, 0, matrix_type::tf32, matrix_type::tf32,
+           matrix_type::fp32, matrix_type::fp32},
+      };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
-             (architecture::intel_gpu_lnl_m == DeviceArch)) {
+             (architecture::intel_gpu_lnl_m == DeviceArch) ||
+             (architecture::intel_gpu_ptl_h == DeviceArch) ||
+             (architecture::intel_gpu_ptl_u == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},

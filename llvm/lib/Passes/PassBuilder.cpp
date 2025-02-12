@@ -163,6 +163,7 @@
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+#include "llvm/SYCLLowerIR/SYCLOptimizeBackToBackBarrier.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
@@ -237,8 +238,8 @@
 #include "llvm/Transforms/Instrumentation/PGOCtxProfLowering.h"
 #include "llvm/Transforms/Instrumentation/PGOForceFunctionAttrs.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
-#include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
 #include "llvm/Transforms/Instrumentation/RealtimeSanitizer.h"
+#include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
 #include "llvm/Transforms/Instrumentation/SanitizerBinaryMetadata.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
@@ -510,6 +511,9 @@ PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
   PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
 #define MACHINE_FUNCTION_PASS(NAME, CREATE_PASS)                               \
   PIC->addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
+#define MACHINE_FUNCTION_PASS_WITH_PARAMS(NAME, CLASS, CREATE_PASS, PARSER,    \
+                                          PARAMS)                              \
+  PIC->addClassToPassName(CLASS, NAME);
 #include "llvm/Passes/MachinePassRegistry.def"
     });
   }
@@ -836,6 +840,21 @@ Expected<EmbedBitcodeOptions> parseEmbedBitcodePassOptions(StringRef Params) {
   return Result;
 }
 
+Expected<LowerAllowCheckPass::Options>
+parseLowerAllowCheckPassOptions(StringRef Params) {
+  LowerAllowCheckPass::Options Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    return make_error<StringError>(
+        formatv("invalid LowerAllowCheck pass parameter '{0}' ", ParamName)
+            .str(),
+        inconvertibleErrorCode());
+  }
+  return Result;
+}
+
 Expected<MemorySanitizerOptions> parseMSanPassOptions(StringRef Params) {
   MemorySanitizerOptions Result;
   while (!Params.empty()) {
@@ -1057,6 +1076,8 @@ Expected<GVNOptions> parseGVNOptions(StringRef Params) {
       Result.setLoadPRESplitBackedge(Enable);
     } else if (ParamName == "memdep") {
       Result.setMemDep(Enable);
+    } else if (ParamName == "memoryssa") {
+      Result.setMemorySSA(Enable);
     } else {
       return make_error<StringError>(
           formatv("invalid GVN pass parameter '{0}' ", ParamName).str(),
@@ -1299,30 +1320,49 @@ parseRegAllocFastPassOptions(PassBuilder &PB, StringRef Params) {
   return Opts;
 }
 
-Expected<BoundsCheckingPass::BoundsCheckingOptions>
+Expected<BoundsCheckingPass::Options>
 parseBoundsCheckingOptions(StringRef Params) {
-  BoundsCheckingPass::BoundsCheckingOptions Options(
-      BoundsCheckingPass::ReportingMode::Trap, false);
+  BoundsCheckingPass::Options Options;
   while (!Params.empty()) {
     StringRef ParamName;
     std::tie(ParamName, Params) = Params.split(';');
     if (ParamName == "trap") {
-      Options.Mode = BoundsCheckingPass::ReportingMode::Trap;
+      Options.Rt = std::nullopt;
     } else if (ParamName == "rt") {
-      Options.Mode = BoundsCheckingPass::ReportingMode::FullRuntime;
+      Options.Rt = {
+          /*MinRuntime=*/false,
+          /*MayReturn=*/true,
+      };
     } else if (ParamName == "rt-abort") {
-      Options.Mode = BoundsCheckingPass::ReportingMode::FullRuntimeAbort;
+      Options.Rt = {
+          /*MinRuntime=*/false,
+          /*MayReturn=*/false,
+      };
     } else if (ParamName == "min-rt") {
-      Options.Mode = BoundsCheckingPass::ReportingMode::MinRuntime;
+      Options.Rt = {
+          /*MinRuntime=*/true,
+          /*MayReturn=*/true,
+      };
     } else if (ParamName == "min-rt-abort") {
-      Options.Mode = BoundsCheckingPass::ReportingMode::MinRuntimeAbort;
+      Options.Rt = {
+          /*MinRuntime=*/true,
+          /*MayReturn=*/false,
+      };
     } else if (ParamName == "merge") {
       Options.Merge = true;
     } else {
-      return make_error<StringError>(
-          formatv("invalid BoundsChecking pass parameter '{0}' ", ParamName)
-              .str(),
-          inconvertibleErrorCode());
+      StringRef ParamEQ;
+      StringRef Val;
+      std::tie(ParamEQ, Val) = ParamName.split('=');
+      int8_t Id;
+      if (ParamEQ == "guard" && !Val.getAsInteger(0, Id)) {
+        Options.GuardKind = Id;
+      } else {
+        return make_error<StringError>(
+            formatv("invalid BoundsChecking pass parameter '{0}' ", ParamName)
+                .str(),
+            inconvertibleErrorCode());
+      }
     }
   }
   return Options;
