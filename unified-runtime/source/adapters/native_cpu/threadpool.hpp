@@ -23,7 +23,7 @@
 
 namespace native_cpu {
 
-using worker_task_t = std::shared_ptr<std::packaged_task<void(size_t)>>;
+using worker_task_t = std::packaged_task<void(size_t)>;
 
 namespace detail {
 
@@ -54,7 +54,7 @@ public:
         lock.unlock();
 
         // Execute the task
-        (*task)(m_threadId);
+        task(m_threadId);
         --m_numTasks;
       }
     });
@@ -62,11 +62,11 @@ public:
     m_isRunning.store(true, std::memory_order_release);
   }
 
-  inline void schedule(const worker_task_t &task) {
+  inline void schedule(worker_task_t &&task) {
     {
       std::lock_guard<std::mutex> lock(m_workMutex);
       // Add the task to the queue
-      m_tasks.push(task);
+      m_tasks.emplace(std::move(task));
       ++m_numTasks;
     }
     m_startWorkCondition.notify_one();
@@ -134,9 +134,9 @@ public:
     m_isRunning.store(false, std::memory_order_release);
   }
 
-  inline void schedule(const worker_task_t &task) {
+  inline void schedule(worker_task_t &&task) {
     // Schedule the task on the best available worker thread
-    this->best_worker().schedule(task);
+    this->best_worker().schedule(std::move(task));
   }
 
   inline bool is_running() const noexcept {
@@ -200,11 +200,13 @@ public:
 
   threadpool_interface() : threadpool() {}
 
-  template <class T> auto schedule_task(T &&task) {
-    auto workerTask =
-        std::make_shared<std::packaged_task<void(size_t)>>(std::move(task));
-    threadpool.schedule(workerTask);
-    return workerTask->get_future();
+  template <class T>
+  std::enable_if_t<!std::is_lvalue_reference_v<T>, std::future<void>>
+  schedule_task(T &&task) {
+    auto workerTask = std::packaged_task<void(size_t)>(std::move(task));
+    auto ret = workerTask.get_future();
+    threadpool.schedule(std::move(workerTask));
+    return ret;
   }
 };
 
