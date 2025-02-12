@@ -1,7 +1,7 @@
-# commit 98756a20d7792636c87b6193fe1ff47ec4f78914
-# Merge: 34c21d7f 8b22ed83
+# commit 064d3560cbcc24a40380b57adb3690b2bc256d6e
+# Merge: 739d8a75 e1bbdad9
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Feb 11 12:09:29 2025 +0000
-#     Merge pull request #2688 from Bensuo/revert_2606
-#     Revert "Merge pull request #2606 from Bensuo/cmd-buf_enqueue_refactor"
-set(UNIFIED_RUNTIME_TAG 98756a20d7792636c87b6193fe1ff47ec4f78914)
+# Date:   Wed Feb 12 10:20:12 2025 +0000
+#     Merge pull request #2672 from lukaszstolarczuk/umf-with-icx-build-0.11.0-dev2
+#     common: Bump UMF version to v0.11.0-dev2
+set(UNIFIED_RUNTIME_TAG 064d3560cbcc24a40380b57adb3690b2bc256d6e)
