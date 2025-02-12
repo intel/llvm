@@ -275,8 +275,6 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     imgType = VK_IMAGE_TYPE_3D;
   }
 
-  using VecType = sycl::vec<DType, NChannels>;
-
   VkFormat format = vkutil::to_vulkan_format(COrder, CType);
   const size_t imageSizeBytes = numElems * NChannels * sizeof(DType);
 
@@ -316,7 +314,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   printString("Populating staging buffer\n");
   // Populate staging memory
-  VecType *inputStagingData = nullptr;
+  DType *inputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, inputStagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
@@ -329,8 +327,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     return i;
   };
   for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] =
-        bindless_helpers::init_vector<DType, NChannels>(getInputValue(i));
+    DType v = getInputValue(i);
+    for (int j = 0; j < NChannels; ++j)
+      inputStagingData[i * NChannels + j] = v;
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 

@@ -303,31 +303,29 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
 
   printString("Populating staging buffer\n");
   // Populate staging memory
-  using VecType = sycl::vec<DType, NChannels>;
-  auto init =
-      bindless_helpers::init_vector<DType, NChannels>(static_cast<DType>(0));
-
-  std::vector<VecType> input_vector_0(num_elems, init);
+  std::vector<DType> input_vector_0(num_elems * NChannels,
+                                    static_cast<DType>(0));
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_0);
 
-  VecType *inputStagingData = nullptr;
+  DType *inputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, inVkImgRes1.stagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
-  for (int i = 0; i < num_elems; ++i) {
+  for (int i = 0; i < (num_elems * NChannels); ++i) {
     inputStagingData[i] = input_vector_0[i];
   }
   vkUnmapMemory(vk_device, inVkImgRes1.stagingMemory);
 
-  std::vector<VecType> input_vector_1(num_elems, init);
+  std::vector<DType> input_vector_1(num_elems * NChannels,
+                                    static_cast<DType>(0));
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_1);
 
   VK_CHECK_CALL(vkMapMemory(vk_device, inVkImgRes2.stagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
-  for (int i = 0; i < num_elems; ++i) {
+  for (int i = 0; i < (num_elems * NChannels); ++i) {
     inputStagingData[i] = input_vector_1[i];
   }
   vkUnmapMemory(vk_device, inVkImgRes2.stagingMemory);
@@ -535,22 +533,21 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   printString("Validating\n");
   // Validate that SYCL made changes to the memory
   bool validated = true;
-  VecType *outputStagingData = nullptr;
+  DType *outputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, outVkImgRes.stagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&outputStagingData));
-  for (int i = 0; i < num_elems; ++i) {
-    VecType expected = input_vector_0[i] + input_vector_1[i];
-    for (int j = 0; j < NChannels; ++j) {
-      // Use helper function to determine if data is accepted
-      // For integers, exact results are expected
-      // For floats, accepted error variance is passed
-      if (!util::is_equal(outputStagingData[i][j], expected[j])) {
-        std::cerr << "Result mismatch! actual[" << i << "][" << j
-                  << "] == " << outputStagingData[i][j]
-                  << " : expected == " << expected[j] << "\n";
-        validated = false;
-      }
+
+  for (int i = 0; i < (num_elems * NChannels); ++i) {
+    DType expected = input_vector_0[i] + input_vector_1[i];
+    // Use helper function to determine if data is accepted
+    // For integers, exact results are expected
+    // For floats, accepted error variance is passed
+    if (!util::is_equal(outputStagingData[i], expected)) {
+      std::cerr << "Result mismatch! actual[" << i
+                << "] == " << outputStagingData[i]
+                << " : expected == " << expected << "\n";
+      validated = false;
     }
     if (!validated)
       break;

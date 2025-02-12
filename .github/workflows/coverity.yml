@@ -8,6 +8,7 @@ permissions: read-all
 
 jobs:
   coverity:
+    if: github.repository == 'intel/llvm'
     name: Coverity
     runs-on: [Linux, build]
     container:
@@ -52,7 +53,7 @@ jobs:
       run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build
 
     - name: Compress results
-      run: tar -czf intel_llvm.tgz cov-int
+      run: tar -I pigz -cf intel_llvm.tgz cov-int
 
     - name: Submit build
       run: |
