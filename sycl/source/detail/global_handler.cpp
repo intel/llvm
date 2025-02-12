@@ -238,8 +238,9 @@ void GlobalHandler::releaseDefaultContexts() {
 // Shutdown is split into two parts. shutdown_early() stops any more
 // objects from being deferred and takes an initial pass at freeing them.
 // shutdown_late() finishes and releases the adapters and the GlobalHandler.
-// For Windows, early shutdown is called from std::atexit(), and late shutdown
-// is here. For Linux, early shutdown is here, and late shutdown is called from
+// For Windows, early shutdown is typically called from DllMain,
+// and late shutdown is here.
+// For Linux, early shutdown is here, and late shutdown is called from
 // a low priority destructor.
 struct StaticVarShutdownHandler {
 
@@ -310,7 +311,7 @@ void GlobalHandler::drainThreadPool() {
 
 void shutdown_early() {
   // CP
-  std::cout << "shutdown_early()" << std::endl;
+  // std::cout << "shutdown_early()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -333,7 +334,7 @@ void shutdown_early() {
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
   // CP
-  std::cout << "finishAndWait() done" << std::endl;
+  // std::cout << "finishAndWait() done" << std::endl;
   // This releases OUR reference to the default context, but
   // other may yet have refs
   Handler->releaseDefaultContexts();
@@ -341,7 +342,7 @@ void shutdown_early() {
 
 void shutdown_late() {
   // CP
-  std::cout << "shutdown_late()" << std::endl;
+  // std::cout << "shutdown_late()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -370,7 +371,7 @@ void shutdown_late() {
   Handler = nullptr;
 
   // CP
-  std::cout << "shutdown_late() done" << std::endl;
+  // std::cout << "shutdown_late() done" << std::endl;
 }
 
 #ifdef _WIN32
@@ -394,8 +395,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 
     try {
       // CP
-      std::cout << "DllMain(PROCESS_DETACH) calling shutdown_early()"
-                << std::endl;
+      // std::cout << "DllMain(PROCESS_DETACH) calling shutdown_early()"
+      //          << std::endl;
       shutdown_early();
     } catch (std::exception &e) {
       std::cout << "exception in DLL_PROCESS_DETACH" << e.what() << std::endl;
@@ -416,9 +417,10 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 BOOL isLinkedStatically() {
-  // if the exePath is the same as the dllPath, then we are linked statically
-  // or, if a module handle is not retrievable.
-  // but otherwise, we are dynamically linked or loaded.
+  // If the exePath is the same as the dllPath,
+  // or if the module handle for DllMain is not retrievable,
+  // then we are linked statically
+  // Otherwise we are dynamically linked or loaded.
   HMODULE hModule = nullptr;
   auto LpModuleAddr = reinterpret_cast<LPCSTR>(&DllMain);
   if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
@@ -427,7 +429,6 @@ BOOL isLinkedStatically() {
     if (GetModuleFileNameA(hModule, dllPath, MAX_PATH)) {
       char exePath[MAX_PATH];
       if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
-
         if (std::string(dllPath) == std::string(exePath)) {
           return true;
         }

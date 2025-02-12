@@ -100,7 +100,7 @@ reclaim the memory for us. The issue of which we must be wary is placing UR
 handles (and similar) in host threads. The RAII mechanism of unique and 
 shared pointers will not work in any thread that is abandoned on Windows. 
 
-One last note about threads. It is entirely the OS's discretion on when to
+One last note about threads. It is entirely the OS's discretion when to
 start or schedule a thread. If the main process is very busy then it is 
 possible that threads the SYCL library creates (host_tasks/thread_pool)
 won't even be started until AFTER the host application main() function is done. 
@@ -129,7 +129,7 @@ times, the memory leak may impact code performance.
 ### Windows
 
 Differing from Linux, on Windows the "early_shutdown()" is begun by 
-DllMain(PROCESS_DETACH). 
+DllMain(PROCESS_DETACH), unless statically linked. 
 
 The "late_shutdown()" is begun by the destruction of a 
 static StaticVarShutdownHandler object, which is initialized by 
