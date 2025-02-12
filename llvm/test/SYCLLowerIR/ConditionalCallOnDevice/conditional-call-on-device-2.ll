@@ -42,8 +42,8 @@ entry:
   ret void
 }
 
-; CHECK: declare spir_func void @call_if_on_device_conditionally1_PREFIX_1(ptr, ptr, i32, i32)
-; CHECK: declare spir_func void @call_if_on_device_conditionally2_PREFIX_2(ptr, ptr, i32, i32)
+; CHECK: declare spir_func void @call_if_on_device_conditionally1_PREFIX_1(ptr[[VAL1:.*]], ptr[[VAL2:.*]], i32[[VAL3:.*]], i32[[VAL4:.*]])
+; CHECK: declare spir_func void @call_if_on_device_conditionally2_PREFIX_2(ptr[[VAL1:.*]], ptr[[VAL2:.*]], i32[[VAL3:.*]], i32[[VAL4:.*]])
 
 attributes #2 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #6 = { convergent inlinehint mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
