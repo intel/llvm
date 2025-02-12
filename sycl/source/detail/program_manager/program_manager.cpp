@@ -610,7 +610,7 @@ static bool selectBF16Devicelib(RTDeviceBinaryImage *BinImage,
                                 const device &Dev) {
   const RTDeviceBinaryImage::PropertyRange &BF16DeviceLibTypeProp =
       BinImage->getDeviceLibBF16Type();
-  unsigned BF16Type =
+  uint32_t BF16Type =
       DeviceBinaryProperty(*(BF16DeviceLibTypeProp.begin())).asUint32();
 
   enum { BF16_FALLBACK = 0, BF16_NATIVE };
