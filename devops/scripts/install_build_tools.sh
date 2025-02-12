@@ -10,7 +10,6 @@ apt update && apt install -yqq \
       python3-psutil \
       python-is-python3 \
       python3-pip \
-      zstd \
       ocl-icd-opencl-dev \
       vim \
       libffi-dev \
@@ -21,6 +20,7 @@ apt update && apt install -yqq \
       zstd \
       zip \
       unzip \
+      pigz \
       jq \
       curl \
       libhwloc-dev \
