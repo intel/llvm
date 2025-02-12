@@ -14,28 +14,6 @@ import lit.util
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
-# See sycl/test-e2e/sycl_lit_allowed_features.py.
-from sycl_lit_allowed_features import get_sycl_lit_allowed_features
-
-
-# config.available_features is a list. This class behaves like a normal list,
-# but its "add()" method also checks if the feature being added is known, i.e.
-# contained in the set of all alowed features.
-class AvailableFeatures(list):
-    def __init__(self):
-        super().__init__()
-        self.allowed_features = get_sycl_lit_allowed_features()
-
-    def add(self, entry):
-        if entry in self.allowed_features:
-            self.append(entry)
-        else:
-            raise ValueError(
-                "feature "
-                + entry
-                + " is not allowed. Please update the set in sycl/test-e2e/sycl_lit_allowed_features.py."
-            )
-
 
 # Configuration file for the 'lit' test runner.
 config.backend_to_target = {
