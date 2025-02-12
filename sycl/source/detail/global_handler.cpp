@@ -239,23 +239,21 @@ void GlobalHandler::releaseDefaultContexts() {
 // is here. For Linux, early shutdown is here, and late shutdown is called from
 // a low priority destructor.
 struct StaticVarShutdownHandler {
-#ifdef _WIN32
-  StaticVarShutdownHandler() {
-    std::atexit([]() {
-      try {
-        shutdown_early();
-      } catch (std::exception &e) {
-        std::cout << "exception in atexit/shutdown_early() " << e.what()
-                  << std::endl;
-      }
-    });
-  }
-#endif
+
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
+
+#ifndef __SYCL_BUILD_SYCL_DLL
+      // with static linking, DllMain is not called. So we call shutdown_early()
+      // here. CP
+      std::cout << "StaticVarShutdownHandler calling shutdown_early()"
+                << std::endl;
+      shutdown_early();
+#endif
+
       shutdown_late();
-#else
+#else // _WIN32
       shutdown_early();
 #endif
     } catch (std::exception &e) {
@@ -393,6 +391,18 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   case DLL_PROCESS_DETACH:
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
+
+#ifdef __SYCL_BUILD_SYCL_DLL
+    // CP
+    std::cout << "DLL_PROCESS_DETACH syclx.dll calling shutdown_early()"
+              << std::endl;
+    try {
+      shutdown_early();
+    } catch (std::exception &e) {
+      std::cout << "exception in DLL_PROCESS_DETACH" << e.what() << std::endl;
+      return FALSE;
+    }
+#endif
 
     break;
   case DLL_PROCESS_ATTACH:
