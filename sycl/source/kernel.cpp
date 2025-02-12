@@ -101,6 +101,14 @@ kernel::get_info(const device &Device, const range<3> &WGSize) const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::get_info<Namespace::info::DescType::Desc>(const device &) const;
+
+#include <sycl/info/ext_intel_kernel_info_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
     const device &, const sycl::range<3> &) const;
