@@ -101,10 +101,10 @@ int main() {
       krn.get_info<info::kernel_device_specific::compile_num_sub_groups>(dev);
   assert(compileNumSg <= maxNumSg);
 
+  size_t spillMemSz = 0;
   if (dev.has(aspect::ext_intel_spill_memory_size)) {
-    const size_t spillMemSz = krn.get_info<
+    spillMemSz = krn.get_info<
         ext::intel::info::kernel_device_specific::spill_memory_size>(dev);
-    assert(spillMemSz >= 0);
   }
 
   // Use ext_oneapi_get_kernel_info extension and check that answers match.
