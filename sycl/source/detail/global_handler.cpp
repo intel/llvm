@@ -239,6 +239,18 @@ void GlobalHandler::releaseDefaultContexts() {
 // is here. For Linux, early shutdown is here, and late shutdown is called from
 // a low priority destructor.
 struct StaticVarShutdownHandler {
+#ifdef _WIN32
+  StaticVarShutdownHandler() {
+    std::atexit([]() {
+      try {
+        shutdown_early();
+      } catch (std::exception &e) {
+        std::cout << "exception in atexit/shutdown_early() " << e.what()
+                  << std::endl;
+      }
+    });
+  }
+#endif
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
@@ -254,16 +266,6 @@ struct StaticVarShutdownHandler {
 };
 
 void GlobalHandler::registerStaticVarShutdownHandler() {
-#ifdef _WIN32
-  std::atexit([]() {
-    try {
-      shutdown_early();
-    } catch (std::exception &e) {
-      std::cout << "exception in atexit/shutdown_early() " << e.what()
-                << std::endl;
-    }
-  });
-#endif
   static StaticVarShutdownHandler handler{};
 }
 

@@ -31,9 +31,6 @@ using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using AdapterPtr = std::shared_ptr<Adapter>;
 
-// Forward declaration
-void shutdown_early();
-
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
 /// As user code can call SYCL Runtime functions from destructor of global
