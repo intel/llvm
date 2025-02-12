@@ -48,6 +48,9 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * libhwloc-dev or hwloc-devel package on linux
 * C++ compiler
   * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+* `zstd` version 1.5.6 or later (Optional)
+   * For Ubuntu, you can obtain it by `apt install libzstd-dev`
+   * For Windows, you can build `zstd` manually from source [using Visual Studio](https://github.com/facebook/zstd?tab=readme-ov-file#visual-studio-windows) and then add the `zstd` install directory to the `PATH` environment variable.
 
 Alternatively, you can create a Docker image that has everything you need for
 building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
