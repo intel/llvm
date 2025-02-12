@@ -40,9 +40,7 @@ SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 void shutdown_early();
 void shutdown_late();
 #ifdef _WIN32
-extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
-                                             DWORD fdwReason,
-                                             LPVOID lpReserved);
+BOOL isLinkedStatically();
 #endif
 
 // Utility class to track references on object.
@@ -248,14 +246,9 @@ struct StaticVarShutdownHandler {
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
-      // Detect module handle here. If we can't find it, then
-      // we are statically linked and need to call shutdown_early() as well.
-      HMODULE hModule = nullptr;
-      if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, &DllMain,
-                              &hModule) == TRUE) {
-        // GetModuleHandleEx failed.  Statically linked.
-        std::cout << "StaticVarShutdownHandler calling shutdown_early()"
-                  << std::endl;
+      // If statically linked, DllMain will not be called. So we do its work
+      // here.
+      if (isLinkedStatically()) {
         shutdown_early();
       }
 
@@ -421,6 +414,29 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     break;
   }
   return TRUE; // Successful DLL_PROCESS_ATTACH.
+}
+BOOL isLinkedStatically() {
+  // if the exePath is the same as the dllPath, then we are linked statically
+  // or, if a module handle is not retrievable.
+  // but otherwise, we are dynamically linked or loaded.
+  HMODULE hModule = nullptr;
+  auto LpModuleAddr = reinterpret_cast<LPCSTR>(&DllMain);
+  if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
+                         &hModule)) {
+    char dllPath[MAX_PATH];
+    if (GetModuleFileNameA(hModule, dllPath, MAX_PATH)) {
+      char exePath[MAX_PATH];
+      if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+
+        if (std::string(dllPath) == std::string(exePath)) {
+          return true;
+        }
+      }
+    }
+  } else {
+    return true;
+  }
+  return false;
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global
