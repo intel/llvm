@@ -22,7 +22,9 @@ void threadFunction(sycl::buffer<int, 1> &Buf) {
   });
 }
 int main() {
+#if __linux__
   setenv("SYCL_UR_TRACE", "-1", 1);
+#endif
 
   std::vector<std::thread> Threads;
   Threads.reserve(NThreads);
