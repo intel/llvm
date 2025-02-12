@@ -620,11 +620,7 @@ static bool selectBF16Devicelib(RTDeviceBinaryImage *BinImage,
   bool NativeBF16Supported =
       (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
                  NativeBF16ExtName) != DeviceExtensions.end());
-  if ((NativeBF16Supported && (BF16Type == BF16_FALLBACK)) ||
-      (!NativeBF16Supported && (BF16Type == BF16_NATIVE)))
-    return false;
-
-  return true;
+  return NativeBF16Supported == (BF16Type == BF16_NATIVE);
 }
 
 static bool checkLinkingSupport(const device &Dev,
