@@ -11,9 +11,6 @@
 // XFAIL: target-amd
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15742
 
-// XFAIL: spirv-backend && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>

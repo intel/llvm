@@ -6,9 +6,6 @@
 //
 // UNSUPPORTED: target-nvidia || target-amd
 
-// XFAIL: spirv-backend && run-mode
-// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
-
 // UNSUPPORTED: igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17008
 
