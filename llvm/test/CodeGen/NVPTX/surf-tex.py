@@ -265,7 +265,7 @@ def gen_suld_tests(target, global_surf):
   }
   ; CHECK-LABEL: .entry ${test_name}_global
   ; CHECK: ${instruction} ${reg_ret}, [${global_surf}, ${reg_access}]
-  define void @${test_name}_global(${retty}* %ret, ${access}) {
+  define ptx_kernel void @${test_name}_global(${retty}* %ret, ${access}) {
     %gs = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_surf})
     %val = tail call ${retty} @${intrinsic}(i64 %gs, ${access})
     store ${retty} %val, ${retty}* %ret
@@ -357,7 +357,7 @@ def gen_sust_tests(target, global_surf):
   }
   ; CHECK-LABEL: .entry ${test_name}_global
   ; CHECK: ${instruction} [${global_surf}, ${reg_access}], ${reg_value}
-  define void @${test_name}_global(${value}, ${access}) {
+  define ptx_kernel void @${test_name}_global(${value}, ${access}) {
     %gs = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_surf})
     tail call void @${intrinsic}(i64 %gs, ${access}, ${value})
     ret void
@@ -606,7 +606,7 @@ def gen_tex_tests(target, global_tex, global_sampler):
   }
   ; CHECK-LABEL: .entry ${test_name}_global
   ; CHECK: ${instruction} ${ptx_ret}, [${global_tex}, ${ptx_global_sampler} ${ptx_access}]
-  define void @${test_name}_global(${retty}* %ret, ${access}) {
+  define ptx_kernel void @${test_name}_global(${retty}* %ret, ${access}) {
     %gt = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_tex})
     ${get_sampler_handle}
     %val = tail call ${retty} @${intrinsic}(i64 %gt, ${sampler} ${access})
@@ -790,7 +790,7 @@ def gen_tld4_tests(target, global_tex, global_sampler):
   }
   ; CHECK-LABEL: .entry ${test_name}_global
   ; CHECK: ${instruction} ${ptx_ret}, [${global_tex}, ${ptx_global_sampler} ${ptx_access}]
-  define void @${test_name}_global(${retty}* %ret, ${access}) {
+  define ptx_kernel void @${test_name}_global(${retty}* %ret, ${access}) {
     %gt = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_tex})
     ${get_sampler_handle}
     %val = tail call ${retty} @${intrinsic}(i64 %gt, ${sampler} ${access})
