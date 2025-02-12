@@ -941,7 +941,9 @@ def W_Joined : Joined<["-"], "W">, Group<W_Group>,
 def Xanalyzer : Separate<["-"], "Xanalyzer">,
   HelpText<"Pass <arg> to the static analyzer">, MetaVarName<"<arg>">,
   Group<StaticAnalyzer_Group>;
-def Xarch__ : JoinedAndSeparate<["-"], "Xarch_">, Flags<[NoXarchOption]>;
+def Xarch__ : JoinedAndSeparate<["-"], "Xarch_">, Flags<[NoXarchOption]>,
+  HelpText<"Pass <arg> to the compiliation if the target matches <arch>">,
+  MetaVarName<"<arch> <arg>">;
 def Xarch_host : Separate<["-"], "Xarch_host">, Flags<[NoXarchOption]>,
   HelpText<"Pass <arg> to the CUDA/HIP host compilation">, MetaVarName<"<arg>">;
 def Xarch_device : Separate<["-"], "Xarch_device">, Flags<[NoXarchOption]>,
@@ -1189,8 +1191,8 @@ def fno_bundle_offload_arch : Flag<["-"], "fno-bundle-offload-arch">,
             "uses the bundle tag `nvptx64-nvidia-cuda` when used. "
             "This allows .o files to contain .bc bundles that are unspecific "
             "to a particular arch version.">;
-def offload_arch_EQ : Joined<["--"], "offload-arch=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, FlangOption]>,
+def offload_arch_EQ : Joined<["--"], "offload-arch=">,
+  Visibility<[ClangOption, FlangOption]>, Flags<[NoXarchOption]>,
   HelpText<"Specify an offloading device architecture for CUDA, HIP, or OpenMP. (e.g. sm_35). "
            "If 'native' is used the compiler will detect locally installed architectures. "
            "For HIP offloading, the device architecture can be followed by target ID features "
