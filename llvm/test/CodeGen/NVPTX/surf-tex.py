@@ -264,15 +264,8 @@ def gen_suld_tests(target, global_surf):
     ret void
   }
   ; CHECK-LABEL: .entry ${test_name}_global
-<<<<<<< HEAD
-  ; CHECK-CUDA: mov.u64 [[REG${reg_id}:%.*]], ${global_surf}
-  ; CHECK-CUDA: ${instruction} ${reg_ret}, [[[REG${reg_id}]], ${reg_access}]
-  ; CHECK-NVCL: ${instruction} ${reg_ret}, [${global_surf}, ${reg_access}]
-  define ptx_kernel void @${test_name}_global(${retty}* %ret, ${access}) {
-=======
   ; CHECK: ${instruction} ${reg_ret}, [${global_surf}, ${reg_access}]
   define void @${test_name}_global(${retty}* %ret, ${access}) {
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
     %gs = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_surf})
     %val = tail call ${retty} @${intrinsic}(i64 %gs, ${access})
     store ${retty} %val, ${retty}* %ret
@@ -363,15 +356,8 @@ def gen_sust_tests(target, global_surf):
     ret void
   }
   ; CHECK-LABEL: .entry ${test_name}_global
-<<<<<<< HEAD
-  ; CHECK-CUDA: mov.u64 [[REG${reg_id}:%.*]], ${global_surf}
-  ; CHECK-CUDA: ${instruction} [[[REG${reg_id}]], ${reg_access}], ${reg_value}
-  ; CHECK-NVCL: ${instruction} [${global_surf}, ${reg_access}], ${reg_value}
-  define ptx_kernel void @${test_name}_global(${value}, ${access}) {
-=======
   ; CHECK: ${instruction} [${global_surf}, ${reg_access}], ${reg_value}
   define void @${test_name}_global(${value}, ${access}) {
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
     %gs = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_surf})
     tail call void @${intrinsic}(i64 %gs, ${access}, ${value})
     ret void
@@ -619,15 +605,8 @@ def gen_tex_tests(target, global_tex, global_sampler):
     ret void
   }
   ; CHECK-LABEL: .entry ${test_name}_global
-<<<<<<< HEAD
-  ; CHECK-CUDA: mov.u64 [[REG${reg_id}:%.*]], ${global_tex}
-  ; CHECK-CUDA: ${instruction} ${ptx_ret}, [[[REG${reg_id}]], ${ptx_global_sampler} ${ptx_access}]
-  ; CHECK-NVCL: ${instruction} ${ptx_ret}, [${global_tex}, ${ptx_global_sampler} ${ptx_access}]
-  define ptx_kernel void @${test_name}_global(${retty}* %ret, ${access}) {
-=======
   ; CHECK: ${instruction} ${ptx_ret}, [${global_tex}, ${ptx_global_sampler} ${ptx_access}]
   define void @${test_name}_global(${retty}* %ret, ${access}) {
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
     %gt = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_tex})
     ${get_sampler_handle}
     %val = tail call ${retty} @${intrinsic}(i64 %gt, ${sampler} ${access})
@@ -810,15 +789,8 @@ def gen_tld4_tests(target, global_tex, global_sampler):
     ret void
   }
   ; CHECK-LABEL: .entry ${test_name}_global
-<<<<<<< HEAD
-  ; CHECK-CUDA: mov.u64 [[REG${reg_id}:%.*]], ${global_tex}
-  ; CHECK-CUDA: ${instruction} ${ptx_ret}, [[[REG${reg_id}]], ${ptx_global_sampler} ${ptx_access}]
-  ; CHECK-NVCL: ${instruction} ${ptx_ret}, [${global_tex}, ${ptx_global_sampler} ${ptx_access}]
-  define ptx_kernel void @${test_name}_global(${retty}* %ret, ${access}) {
-=======
   ; CHECK: ${instruction} ${ptx_ret}, [${global_tex}, ${ptx_global_sampler} ${ptx_access}]
   define void @${test_name}_global(${retty}* %ret, ${access}) {
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
     %gt = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1i64(i64 addrspace(1)* @${global_tex})
     ${get_sampler_handle}
     %val = tail call ${retty} @${intrinsic}(i64 %gt, ${sampler} ${access})

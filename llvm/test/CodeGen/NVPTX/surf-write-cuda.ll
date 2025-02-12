@@ -10,15 +10,6 @@ declare void @llvm.nvvm.sust.b.1d.i32.trap(i64, i32, i32)
 declare i64 @llvm.nvvm.texsurf.handle.internal.p1(ptr addrspace(1))
 
 
-<<<<<<< HEAD
-; SM20-LABEL: .entry foo
-; SM30-LABEL: .entry foo
-define ptx_kernel void @foo(i64 %img, i32 %val, i32 %idx) {
-; SM20: ld.param.u64    %rd[[SURFREG:[0-9]+]], [foo_param_0];
-; SM20: sust.b.1d.b32.trap [%rd[[SURFREG]], {%r{{[0-9]+}}}], {%r{{[0-9]+}}}
-; SM30: ld.param.u64    %rd[[SURFREG:[0-9]+]], [foo_param_0];
-; SM30: sust.b.1d.b32.trap [%rd[[SURFREG]], {%r{{[0-9]+}}}], {%r{{[0-9]+}}}
-=======
 define void @foo(i64 %img, i32 %val, i32 %idx) {
 ; CHECK-LABEL: foo(
 ; CHECK:       {
@@ -31,7 +22,6 @@ define void @foo(i64 %img, i32 %val, i32 %idx) {
 ; CHECK-NEXT:    ld.param.u32 %r2, [foo_param_2];
 ; CHECK-NEXT:    sust.b.1d.b32.trap [%rd1, {%r2}], {%r1};
 ; CHECK-NEXT:    ret;
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
   tail call void @llvm.nvvm.sust.b.1d.i32.trap(i64 %img, i32 %idx, i32 %val)
   ret void
 }
@@ -40,13 +30,6 @@ define void @foo(i64 %img, i32 %val, i32 %idx) {
 @surf0 = internal addrspace(1) global i64 0, align 8
 
 
-<<<<<<< HEAD
-
-; SM20-LABEL: .entry bar
-; SM30-LABEL: .entry bar
-define ptx_kernel void @bar(i32 %val, i32 %idx) {
-; SM30: mov.u64 %rd[[SURFHANDLE:[0-9]+]], surf0
-=======
 define void @bar(i32 %val, i32 %idx) {
 ; CHECK-LABEL: bar(
 ; CHECK:       {
@@ -58,7 +41,6 @@ define void @bar(i32 %val, i32 %idx) {
 ; CHECK-NEXT:    ld.param.u32 %r2, [bar_param_1];
 ; CHECK-NEXT:    sust.b.1d.b32.trap [surf0, {%r2}], {%r1};
 ; CHECK-NEXT:    ret;
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
   %surfHandle = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1(ptr addrspace(1) @surf0)
   tail call void @llvm.nvvm.sust.b.1d.i32.trap(i64 %surfHandle, i32 %idx, i32 %val)
   ret void

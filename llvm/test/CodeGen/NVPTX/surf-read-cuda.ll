@@ -10,32 +10,21 @@ declare i32 @llvm.nvvm.suld.1d.i32.trap(i64, i32)
 declare i64 @llvm.nvvm.texsurf.handle.internal.p1(ptr addrspace(1))
 
 
-<<<<<<< HEAD
-; SM20-LABEL: .entry foo
-; SM30-LABEL: .entry foo
-define ptx_kernel void @foo(i64 %img, ptr %red, i32 %idx) {
-; SM20: ld.param.u64    %rd[[SURFREG:[0-9]+]], [foo_param_0];
-; SM20: suld.b.1d.b32.trap {%r[[RED:[0-9]+]]}, [%rd[[SURFREG]], {%r{{[0-9]+}}}]
-; SM30: ld.param.u64    %rd[[SURFREG:[0-9]+]], [foo_param_0];
-; SM30: suld.b.1d.b32.trap {%r[[RED:[0-9]+]]}, [%rd[[SURFREG]], {%r{{[0-9]+}}}]
-=======
 define void @foo(i64 %img, ptr %red, i32 %idx) {
 ; CHECK-LABEL: foo(
 ; CHECK:       {
 ; CHECK-NEXT:    .reg .b32 %r<3>;
 ; CHECK-NEXT:    .reg .f32 %f<2>;
-; CHECK-NEXT:    .reg .b64 %rd<4>;
+; CHECK-NEXT:    .reg .b64 %rd<3>;
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  // %bb.0:
 ; CHECK-NEXT:    ld.param.u64 %rd1, [foo_param_0];
-; CHECK-NEXT:    ld.param.u64 %rd2, [foo_param_1];
-; CHECK-NEXT:    cvta.to.global.u64 %rd3, %rd2;
 ; CHECK-NEXT:    ld.param.u32 %r1, [foo_param_2];
 ; CHECK-NEXT:    suld.b.1d.b32.trap {%r2}, [%rd1, {%r1}];
+; CHECK-NEXT:    ld.param.u64 %rd2, [foo_param_1];
 ; CHECK-NEXT:    cvt.rn.f32.s32 %f1, %r2;
-; CHECK-NEXT:    st.global.f32 [%rd3], %f1;
+; CHECK-NEXT:    st.f32 [%rd2], %f1;
 ; CHECK-NEXT:    ret;
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
   %val = tail call i32 @llvm.nvvm.suld.1d.i32.trap(i64 %img, i32 %idx)
   %ret = sitofp i32 %val to float
   store float %ret, ptr %red
@@ -44,28 +33,20 @@ define void @foo(i64 %img, ptr %red, i32 %idx) {
 
 @surf0 = internal addrspace(1) global i64 0, align 8
 
-<<<<<<< HEAD
-; SM20-LABEL: .entry bar
-; SM30-LABEL: .entry bar
-define ptx_kernel void @bar(ptr %red, i32 %idx) {
-; SM30: mov.u64 %rd[[SURFHANDLE:[0-9]+]], surf0
-=======
 define void @bar(ptr %red, i32 %idx) {
 ; CHECK-LABEL: bar(
 ; CHECK:       {
 ; CHECK-NEXT:    .reg .b32 %r<3>;
 ; CHECK-NEXT:    .reg .f32 %f<2>;
-; CHECK-NEXT:    .reg .b64 %rd<4>;
+; CHECK-NEXT:    .reg .b64 %rd<3>;
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  // %bb.0:
 ; CHECK-NEXT:    ld.param.u64 %rd1, [bar_param_0];
-; CHECK-NEXT:    cvta.to.global.u64 %rd2, %rd1;
 ; CHECK-NEXT:    ld.param.u32 %r1, [bar_param_1];
 ; CHECK-NEXT:    suld.b.1d.b32.trap {%r2}, [surf0, {%r1}];
 ; CHECK-NEXT:    cvt.rn.f32.s32 %f1, %r2;
-; CHECK-NEXT:    st.global.f32 [%rd2], %f1;
+; CHECK-NEXT:    st.f32 [%rd1], %f1;
 ; CHECK-NEXT:    ret;
->>>>>>> f9c8c01d38f8 ([NVPTX] Aggressively try to replace image handles with references (#119730))
   %surfHandle = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1(ptr addrspace(1) @surf0)
   %val = tail call i32 @llvm.nvvm.suld.1d.i32.trap(i64 %surfHandle, i32 %idx)
   %ret = sitofp i32 %val to float
