@@ -22,6 +22,8 @@ void threadFunction(sycl::buffer<int, 1> &Buf) {
   });
 }
 int main() {
+  setenv("SYCL_UR_TRACE", "-1", 1);
+
   std::vector<std::thread> Threads;
   Threads.reserve(NThreads);
 
