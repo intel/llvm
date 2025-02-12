@@ -189,4 +189,11 @@ TEST_P(urEventSetCallbackNegativeTest, InvalidEnumeration) {
       UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
+TEST_P(urEventSetCallbackNegativeTest, UnsupportedEnumeration) {
+  ASSERT_EQ_RESULT(
+      urEventSetCallback(event, ur_execution_info_t::UR_EXECUTION_INFO_QUEUED,
+                         emptyCallback, nullptr),
+      UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
+}
+
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventSetCallbackNegativeTest);
