@@ -611,7 +611,13 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-asan-cpu", "internal"},
       {"libsycl-asan-dg2", "internal"},
       {"libsycl-asan-pvc", "internal"}};
-  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {{"libsycl-msan", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {
+      {"libsycl-msan", "internal"},
+      {"libsycl-msan-cpu", "internal"},
+      // Currently, we only provide aot msan libdevice for PVC and CPU.
+      // For DG2, we just use libsycl-msan as placeholder.
+      {"libsycl-msan", "internal"},
+      {"libsycl-msan-pvc", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -769,7 +775,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   if (SanitizeVal == "address")
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
-    addLibraries(SYCLDeviceMsanLibs);
+    addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
 #endif
 
   if (isNativeCPU)
@@ -2055,9 +2061,18 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
-  } else if (IsJIT)
+    // -foffload-fp32-prec-[sqrt/div]
+    if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
+        Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
+      BeArgs.push_back("-ze-fp32-correctly-rounded-divide-sqrt");
+  } else if (IsJIT) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
+    // -foffload-fp32-prec-div JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_div);
+    // -foffload-fp32-prec-sqrt JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_sqrt);
+  }
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");

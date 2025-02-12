@@ -1,7 +1,7 @@
-# commit 08d36b76a5b1c4f080e3301507a39525ab5ab365
-# Merge: 4c504dbc e6b61c67
+# commit 064d3560cbcc24a40380b57adb3690b2bc256d6e
+# Merge: 739d8a75 e1bbdad9
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Feb 4 13:14:19 2025 +0000
-#     Merge pull request #2614 from kurapov-peter/spills
-#     Add UR_KERNEL_INFO_SPILL_MEM_SIZE kernel info prop
-set(UNIFIED_RUNTIME_TAG 08d36b76a5b1c4f080e3301507a39525ab5ab365)
+# Date:   Wed Feb 12 10:20:12 2025 +0000
+#     Merge pull request #2672 from lukaszstolarczuk/umf-with-icx-build-0.11.0-dev2
+#     common: Bump UMF version to v0.11.0-dev2
+set(UNIFIED_RUNTIME_TAG 064d3560cbcc24a40380b57adb3690b2bc256d6e)
