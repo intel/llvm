@@ -2,8 +2,8 @@
 # used in XFAIL, UNSUPPORTED and REQUIRES.
 
 # To use:
-# from sycl_lit_features import get_all_sycl_lit_features
-# all_features = get_all_sycl_lit_features()
+# from sycl_lit_allowed_features import get_sycl_lit_allowed_features
+# allowed_features = get_sycl_lit_allowed_features()
 
 # Note:
 # The set below (partial_set_of_features) is maintained manually. If the new
@@ -100,7 +100,7 @@ def parse_defines(path, macro, prefix):
         return features
 
 
-def get_all_sycl_lit_features():
+def get_sycl_lit_allowed_features():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     aspects = parse_defines(
         current_dir + "/../include/sycl/info/aspects.def", "__SYCL_ASPECT", "aspect"

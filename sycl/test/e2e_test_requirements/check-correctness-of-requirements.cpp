@@ -4,7 +4,7 @@
 // If this test fails:
 // 1. there is some typo/deleted feature requested in the new/modified test.
 // 2. ...or, there is some new feature. In this case please update the set of
-//    features in sycl/test-e2e/sycl_lit_features.py.
+//    features in sycl/test-e2e/sycl_lit_allowed_features.py.
 //
 // Get a set of all features passed to "REQUIRES", "XFAIL" and "UNSUPPORTED":
 // RUN: llvm-lit --show-used-features %S/../../test-e2e > %t
