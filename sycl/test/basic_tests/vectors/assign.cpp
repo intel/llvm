@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes
+// TODO: Remove `__SYCL_USE_PREVIEW_VEC_IMPL` once it's auto-set.
+// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes -D__SYCL_USE_PREVIEW_VEC_IMPL=1
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/sycl.hpp>
@@ -14,17 +15,20 @@ using sw_float_2 = decltype(std::declval<vec<float, 4>>().swizzle<1, 2>());
 using sw_double_1 = decltype(std::declval<vec<double, 4>>().swizzle<1>());
 using sw_double_2 = decltype(std::declval<vec<double, 4>>().swizzle<1, 2>());
 
+#if __INTEL_PREVIEW_BREAKING_CHANGES
+#define NOT_IN_PREVIEW !
+#else
+#define NOT_IN_PREVIEW
+#endif
+
 // clang-format off
 
-// NOTE: Empty space is for the future markup using NOT_IN_PREVIEW/PREVIEW_ONLY
-// macros.
-
 static_assert(               std::is_assignable_v<vec<half, 1>, half>);
-static_assert(               std::is_assignable_v<vec<half, 1>, float>);
-static_assert(               std::is_assignable_v<vec<half, 1>, double>);
+static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, float>);
+static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, double>);
 static_assert(               std::is_assignable_v<vec<half, 1>, vec<half, 1>>);
-static_assert(               std::is_assignable_v<vec<half, 1>, vec<float, 1>>);
-static_assert(               std::is_assignable_v<vec<half, 1>, vec<double, 1>>);
+static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<float, 1>>);
+static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<double, 1>>);
 static_assert(               std::is_assignable_v<vec<half, 1>, sw_half_1>);
 static_assert(               std::is_assignable_v<vec<half, 1>, sw_float_1>);
 static_assert(               std::is_assignable_v<vec<half, 1>, sw_double_1>);
@@ -48,7 +52,11 @@ static_assert(              !std::is_assignable_v<vec<half, 2>, sw_double_2>);
 static_assert(               std::is_assignable_v<vec<float, 1>, half>);
 static_assert(               std::is_assignable_v<vec<float, 1>, float>);
 static_assert(               std::is_assignable_v<vec<float, 1>, double>);
+#if __SYCL_DEVICE_ONLY__
 static_assert(               std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
+#else
+static_assert(NOT_IN_PREVIEW std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
+#endif
 static_assert(               std::is_assignable_v<vec<float, 1>, vec<float, 1>>);
 static_assert(               std::is_assignable_v<vec<float, 1>, vec<double, 1>>);
 static_assert(               std::is_assignable_v<vec<float, 1>, sw_half_1>);
