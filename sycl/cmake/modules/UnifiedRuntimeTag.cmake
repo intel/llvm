@@ -4,4 +4,3 @@
 # Date:   Thu Feb 6 17:59:43 2025 +0000
 #     Merge pull request #2606 from Bensuo/cmd-buf_enqueue_refactor
 #     Rename urCommandBufferEnqueueExp to urEnqueueCommandBufferExp
-set(UNIFIED_RUNTIME_TAG yc/0211-ur-test)

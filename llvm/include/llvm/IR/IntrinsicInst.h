@@ -718,7 +718,7 @@ public:
   /// Check the callsite attributes for this FPBuiltinIntrinsic against a list
   /// of FP attributes that the caller knows how to process to see if the
   /// current intrinsic has unrecognized attributes
-  bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs);
+  bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs) const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
