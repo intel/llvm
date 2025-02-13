@@ -7117,8 +7117,7 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     bool MaybeConstantExpr = false;
     Expr *NonDirectCallee = TheCall->getCallee();
     if (!NonDirectCallee->isValueDependent())
-      MaybeConstantExpr =
-          NonDirectCallee->isCXX11ConstantExpr(getASTContext());
+      MaybeConstantExpr = NonDirectCallee->isCXX11ConstantExpr(getASTContext());
     if (!MaybeConstantExpr)
       SYCL().DiagIfDeviceCode(TheCall->getExprLoc(), diag::err_sycl_restrict)
           << SemaSYCL::KernelCallFunctionPointer;
