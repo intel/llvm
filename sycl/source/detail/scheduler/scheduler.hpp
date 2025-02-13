@@ -479,10 +479,10 @@ public:
 
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                  ContextImplPtr Context);
+                                  const ContextImplPtr &Context);
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
-                                  ContextImplPtr Context);
+                                  const ContextImplPtr &Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;
