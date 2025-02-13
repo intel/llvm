@@ -73,6 +73,7 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
       isa<CXXConstructExpr>(Expr) ||
       isa<CXXDeleteExpr>(Expr) ||
       isa<CXXNoexceptExpr>(Expr) ||
+      isa<CXXDeclcallExpr>(Expr) ||
       isa<CXXPseudoDestructorExpr>(Expr) ||
       isa<CXXScalarValueInitExpr>(Expr) ||
       isa<CXXThisExpr>(Expr) ||

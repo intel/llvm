@@ -149,12 +149,12 @@ public:
 
   llvm::Constant *EmitNullMemberPointer(const MemberPointerType *MPT) override;
 
-  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD) override;
+  llvm::Constant *EmitMemberFunctionPointer(const CXXMethodDecl *MD, bool AllowVirtual) override;
   llvm::Constant *EmitMemberDataPointer(const MemberPointerType *MPT,
                                         CharUnits offset) override;
-  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT) override;
+  llvm::Constant *EmitMemberPointer(const APValue &MP, QualType MPT, bool AllowVirtual) override;
   llvm::Constant *BuildMemberPointer(const CXXMethodDecl *MD,
-                                     CharUnits ThisAdjustment);
+                                     CharUnits ThisAdjustment, bool AllowVirtual = true);
 
   llvm::Value *EmitMemberPointerComparison(CodeGenFunction &CGF,
                                            llvm::Value *L, llvm::Value *R,
@@ -1156,19 +1156,19 @@ ItaniumCXXABI::EmitMemberDataPointer(const MemberPointerType *MPT,
 }
 
 llvm::Constant *
-ItaniumCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD) {
-  return BuildMemberPointer(MD, CharUnits::Zero());
+ItaniumCXXABI::EmitMemberFunctionPointer(const CXXMethodDecl *MD, bool AllowVirtual) {
+  return BuildMemberPointer(MD, CharUnits::Zero(), AllowVirtual);
 }
 
 llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
-                                                  CharUnits ThisAdjustment) {
+                                                  CharUnits ThisAdjustment, bool AllowVirtual) {
   assert(MD->isInstance() && "Member function must not be static!");
 
   CodeGenTypes &Types = CGM.getTypes();
 
   // Get the function pointer (or index if this is a virtual function).
   llvm::Constant *MemPtr[2];
-  if (MD->isVirtual()) {
+  if (MD->isVirtual() && AllowVirtual) {
     uint64_t Index = CGM.getItaniumVTableContext().getMethodVTableIndex(MD);
     uint64_t VTableOffset;
     if (CGM.getLangOpts().RelativeCXXABIVTables) {
@@ -1247,7 +1247,8 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
 }
 
 llvm::Constant *ItaniumCXXABI::EmitMemberPointer(const APValue &MP,
-                                                 QualType MPType) {
+                                                 QualType MPType, bool AllowVirtual) {
+  
   const MemberPointerType *MPT = MPType->castAs<MemberPointerType>();
   const ValueDecl *MPD = MP.getMemberPointerDecl();
   if (!MPD)
@@ -1256,7 +1257,7 @@ llvm::Constant *ItaniumCXXABI::EmitMemberPointer(const APValue &MP,
   CharUnits ThisAdjustment = getContext().getMemberPointerPathAdjustment(MP);
 
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(MPD)) {
-    llvm::Constant *Src = BuildMemberPointer(MD, ThisAdjustment);
+    llvm::Constant *Src = BuildMemberPointer(MD, ThisAdjustment, AllowVirtual);
     QualType SrcType = getContext().getMemberPointerType(
         MD->getType(), /*Qualifier=*/std::nullopt, MD->getParent());
     return pointerAuthResignMemberFunctionPointer(Src, MPType, SrcType, CGM);

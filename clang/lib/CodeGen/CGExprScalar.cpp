@@ -828,6 +828,32 @@ public:
   Value *VisitCXXNoexceptExpr(const CXXNoexceptExpr *E) {
     return Builder.getInt1(E->getValue());
   }
+  
+  Value *VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
+    Expr::EvalResult Eval;
+    if (E->getType()->isMemberFunctionPointerType()) {
+      //E->dump();
+      const UnaryOperator * uo = cast<UnaryOperator>(E->getOperand());
+      const ValueDecl *decl = cast<DeclRefExpr>(uo->getSubExpr())->getDecl();
+      
+      // A member function pointer.
+      if (const CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(decl))
+        return CGF.CGM.getCXXABI().EmitMemberFunctionPointer(method, !E->isDevirtualized());
+      
+      assert(false);
+      return nullptr;
+    } else if (E->EvaluateAsConstantExpr(Eval, CGF.getContext())) {
+      APValue &Value = Eval.Val;
+    
+      //return ConstantEmitter(CGF).tryEmitAbstract(E->getOperand(), E->getType());
+      return ConstantEmitter(CGF).tryEmitAbstract(Value, E->getType());
+    } else {
+      return Visit(E->getOperand());
+    }
+    //
+    //assert(false);
+    //return nullptr;
+  }
 
   // Binary Operators.
   Value *EmitMul(const BinOpInfo &Ops) {

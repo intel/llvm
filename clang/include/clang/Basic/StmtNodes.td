@@ -166,6 +166,7 @@ def OverloadExpr : StmtNode<Expr, 1>;
 def UnresolvedLookupExpr : StmtNode<OverloadExpr>;
 def UnresolvedMemberExpr : StmtNode<OverloadExpr>;
 def CXXNoexceptExpr : StmtNode<Expr>;
+def CXXDeclcallExpr : StmtNode<Expr>;
 def PackExpansionExpr : StmtNode<Expr>;
 def SizeOfPackExpr : StmtNode<Expr>;
 def PackIndexingExpr : StmtNode<Expr>;

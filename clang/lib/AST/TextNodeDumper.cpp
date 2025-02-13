@@ -861,6 +861,8 @@ void TextNodeDumper::Visit(const APValue &Value, QualType Ty) {
       OS << MemDecl->getDeclName();
     else
       OS << "null";
+    if (Value.isDeVirtualized())
+      OS << " (devirtualized)";
     return;
   }
   case APValue::AddrLabelDiff:
@@ -1809,6 +1811,15 @@ void TextNodeDumper::VisitCXXUnresolvedConstructExpr(
   dumpType(Node->getTypeAsWritten());
   if (Node->isListInitialization())
     OS << " list";
+}
+
+void TextNodeDumper::VisitCXXNoexceptExpr(const CXXNoexceptExpr *Node) {
+  if (Node->isValueDependent())
+    OS << " noexcept(<dependent>)";
+  else if (Node->getValue()) 
+    OS << " noexcept(true)";
+  else 
+    OS << " noexcept(false)";
 }
 
 void TextNodeDumper::VisitCXXConstructExpr(const CXXConstructExpr *Node) {

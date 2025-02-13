@@ -7492,6 +7492,85 @@ ExprResult Sema::ActOnNoexceptExpr(SourceLocation KeyLoc, SourceLocation,
   return BuildCXXNoexceptExpr(KeyLoc, Operand, RParen);
 }
 
+ExprResult Sema::BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
+                                      SourceLocation RParen) {
+  // in template ... do it later
+  if (Operand->isInstantiationDependent()) {
+    return new (Context)
+        CXXDeclcallExpr(Context.DependentTy, Operand, false, KeyLoc, RParen);
+  }
+  
+  // unwrap parens
+  Operand = Operand->IgnoreParens();
+  CallExpr * CE = dyn_cast<CallExpr>(Operand);
+  
+  if (CE == nullptr) {
+    Diag(Operand->getExprLoc(), diag::err_declcall_must_contain_a_call);
+    Operand->dump();
+    return ExprError();
+  }
+  
+  const auto mustBeEvaluableInCompileTime = [this](Expr * e) {
+    Expr::EvalResult Eval;
+    if (!e->isValueDependent() && !e->EvaluateAsConstantExpr(Eval, Context)) {
+      return false;
+    }
+    return true;
+  };
+  
+  
+  
+  if (CE->getCallee() == nullptr) {
+    return ExprError();
+  }
+
+  // Check if we are calling a method (it can be static.)
+  CXXMethodDecl * method = dyn_cast_or_null<CXXMethodDecl>(CE->getCalleeDecl()) ;
+  
+  bool MemberCallHasQualifierAndIsVirtual = false;
+  
+  // transform method call
+  if (method && method->isInstance()) {
+    const auto memberCallHasQualifier = [](const CallExpr * e) {
+      const MemberExpr *ME = dyn_cast<MemberExpr>(e->getCallee()->IgnoreParens());
+      if (!ME) 
+        return false;
+    
+      return ME->hasQualifier();
+    };
+    
+    MemberCallHasQualifierAndIsVirtual = method->isVirtual() && memberCallHasQualifier(CE);
+    
+    // member function pointer
+    const auto T = QualType(method->getFunctionType(), 0);
+  
+    // create reference to the function
+    auto * DRE = DeclRefExpr::Create(
+        Context, NestedNameSpecifierLoc(), SourceLocation(), method,
+        /*RefersToEnclosingVariableOrCapture=*/false, CE->getExprLoc(),
+        T, CE->getValueKind(), nullptr, nullptr, NOUR_None);
+    
+    // get its address
+    Operand = CreateBuiltinUnaryOp(CE->getSourceRange().getBegin(), UO_AddrOf, DRE, false).get();
+  } else {
+    
+    // convert function to pointer
+    Operand = CallExprUnaryConversions(CE->getCallee()->IgnoreParens()).get();
+  }
+
+  if (!mustBeEvaluableInCompileTime(Operand)) {
+    Diag(CE->getExprLoc(), diag::err_declcall_must_be_constant_evaluable);
+  }
+
+  return new (Context)
+      CXXDeclcallExpr(Operand->getType(), Operand, MemberCallHasQualifierAndIsVirtual, KeyLoc, RParen);
+}
+
+ExprResult Sema::ActOnDeclcallExpr(SourceLocation KeyLoc, SourceLocation,
+                                   Expr *Operand, SourceLocation RParen) {
+  return BuildCXXDeclcallExpr(KeyLoc, Operand, RParen);
+}
+
 static void MaybeDecrementCount(
     Expr *E, llvm::DenseMap<const VarDecl *, int> &RefsMinusAssignments) {
   DeclRefExpr *LHS = nullptr;

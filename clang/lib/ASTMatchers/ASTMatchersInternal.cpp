@@ -921,6 +921,8 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNewExpr> cxxNewExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDeleteExpr> cxxDeleteExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNoexceptExpr>
     cxxNoexceptExpr;
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXDeclcallExpr>
+    cxxDeclcallExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, ArraySubscriptExpr>
     arraySubscriptExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, ArrayInitIndexExpr>

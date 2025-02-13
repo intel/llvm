@@ -2309,6 +2309,12 @@ void ASTStmtReader::VisitCXXNoexceptExpr(CXXNoexceptExpr *E) {
   E->Operand = Record.readSubExpr();
 }
 
+void ASTStmtReader::VisitCXXDeclcallExpr(CXXDeclcallExpr *E) {
+  VisitExpr(E);
+  E->Range = readSourceRange();
+  E->Operand = Record.readSubExpr();
+}
+
 void ASTStmtReader::VisitPackExpansionExpr(PackExpansionExpr *E) {
   VisitExpr(E);
   E->EllipsisLoc = readSourceLocation();
@@ -4511,6 +4517,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CXX_NOEXCEPT:
       S = new (Context) CXXNoexceptExpr(Empty);
+      break;
+
+    case EXPR_CXX_DECLCALL:
+      S = new (Context) CXXDeclcallExpr(Empty);
       break;
 
     case EXPR_PACK_EXPANSION:

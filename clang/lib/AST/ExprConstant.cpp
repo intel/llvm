@@ -1627,7 +1627,7 @@ namespace {
     }
 
     void moveInto(APValue &V) const {
-      V = APValue(getDecl(), isDerivedMember(), Path);
+      V = APValue(getDecl(), isDerivedMember(), Path, DeVirtualized);
     }
     void setFrom(const APValue &V) {
       assert(V.isMemberPointer());
@@ -1635,6 +1635,7 @@ namespace {
       DeclAndIsDerivedMember.setInt(V.isMemberPointerToDerivedMember());
       Path.clear();
       llvm::append_range(Path, V.getMemberPointerPath());
+      DeVirtualized = V.isDeVirtualized();
     }
 
     /// DeclAndIsDerivedMember - The member declaration, and a flag indicating
@@ -1644,6 +1645,7 @@ namespace {
     /// Path - The path of base/derived classes from the member declaration's
     /// class (exclusive) to the class type of the member pointer (inclusive).
     SmallVector<const CXXRecordDecl*, 4> Path;
+    bool DeVirtualized = false;
 
     /// Perform a cast towards the class of the Decl (either up or down the
     /// hierarchy).
@@ -5288,21 +5290,27 @@ static bool EvaluateObjectArgument(EvalInfo &Info, const Expr *Object,
 ///        creating a bound member function.
 /// \return The field or method declaration to which the member pointer refers,
 ///         or 0 if evaluation fails.
-static const ValueDecl *HandleMemberPointerAccess(EvalInfo &Info,
+
+struct MemberPointerAccessResult {
+  const ValueDecl * Decl;
+  bool DeVirtualized = false;
+};
+
+static const MemberPointerAccessResult HandleMemberPointerAccess(EvalInfo &Info,
                                                   QualType LVType,
                                                   LValue &LV,
                                                   const Expr *RHS,
                                                   bool IncludeMember = true) {
   MemberPtr MemPtr;
   if (!EvaluateMemberPointer(RHS, MemPtr, Info))
-    return nullptr;
+    return {nullptr};
 
   // C++11 [expr.mptr.oper]p6: If the second operand is the null pointer to
   // member value, the behavior is undefined.
   if (!MemPtr.getDecl()) {
     // FIXME: Specific diagnostic.
     Info.FFDiag(RHS);
-    return nullptr;
+    return {nullptr};
   }
 
   if (MemPtr.isDerivedMember()) {
@@ -5315,7 +5323,7 @@ static const ValueDecl *HandleMemberPointerAccess(EvalInfo &Info,
     if (LV.Designator.MostDerivedPathLength + MemPtr.Path.size() >
         LV.Designator.Entries.size()) {
       Info.FFDiag(RHS);
-      return nullptr;
+      return {nullptr};
     }
     unsigned PathLengthToMember =
         LV.Designator.Entries.size() - MemPtr.Path.size();
@@ -5325,7 +5333,7 @@ static const ValueDecl *HandleMemberPointerAccess(EvalInfo &Info,
       const CXXRecordDecl *MPDecl = MemPtr.Path[I];
       if (LVDecl->getCanonicalDecl() != MPDecl->getCanonicalDecl()) {
         Info.FFDiag(RHS);
-        return nullptr;
+        return {nullptr};
       }
     }
     // MemPtr.Path only contains the base classes of the class directly
@@ -5350,7 +5358,7 @@ static const ValueDecl *HandleMemberPointerAccess(EvalInfo &Info,
     // Truncate the lvalue to the appropriate derived class.
     if (!CastToDerivedClass(Info, RHS, LV, MemPtr.getContainingRecord(),
                             PathLengthToMember))
-      return nullptr;
+      return {nullptr};
   } else if (!MemPtr.Path.empty()) {
     // Extend the LValue path with the member pointer's path.
     LV.Designator.Entries.reserve(LV.Designator.Entries.size() +
@@ -5365,33 +5373,33 @@ static const ValueDecl *HandleMemberPointerAccess(EvalInfo &Info,
     for (unsigned I = 1, N = MemPtr.Path.size(); I != N; ++I) {
       const CXXRecordDecl *Base = MemPtr.Path[N - I - 1];
       if (!HandleLValueDirectBase(Info, RHS, LV, RD, Base))
-        return nullptr;
+        return {nullptr};
       RD = Base;
     }
     // Finally cast to the class containing the member.
     if (!HandleLValueDirectBase(Info, RHS, LV, RD,
                                 MemPtr.getContainingRecord()))
-      return nullptr;
+      return {nullptr};
   }
 
   // Add the member. Note that we cannot build bound member functions here.
   if (IncludeMember) {
     if (const FieldDecl *FD = dyn_cast<FieldDecl>(MemPtr.getDecl())) {
       if (!HandleLValueMember(Info, RHS, LV, FD))
-        return nullptr;
+        return {nullptr};
     } else if (const IndirectFieldDecl *IFD =
                  dyn_cast<IndirectFieldDecl>(MemPtr.getDecl())) {
       if (!HandleLValueIndirectMember(Info, RHS, LV, IFD))
-        return nullptr;
+        return {nullptr};
     } else {
       llvm_unreachable("can't construct reference to bound member function");
     }
   }
 
-  return MemPtr.getDecl();
+  return {MemPtr.getDecl(), MemPtr.DeVirtualized};
 }
 
-static const ValueDecl *HandleMemberPointerAccess(EvalInfo &Info,
+static const MemberPointerAccessResult HandleMemberPointerAccess(EvalInfo &Info,
                                                   const BinaryOperator *BO,
                                                   LValue &LV,
                                                   bool IncludeMember = true) {
@@ -5402,7 +5410,7 @@ static const ValueDecl *HandleMemberPointerAccess(EvalInfo &Info,
       MemberPtr MemPtr;
       EvaluateMemberPointer(BO->getRHS(), MemPtr, Info);
     }
-    return nullptr;
+    return {nullptr};
   }
 
   return HandleMemberPointerAccess(Info, BO->getLHS()->getType(), LV,
@@ -8612,7 +8620,7 @@ public:
     case BO_PtrMemD:
     case BO_PtrMemI: {
       LValue Obj;
-      if (!HandleMemberPointerAccess(Info, E, Obj))
+      if (!HandleMemberPointerAccess(Info, E, Obj).Decl)
         return false;
       APValue Result;
       if (!handleLValueToRValueConversion(Info, E, E->getType(), Obj, Result))
@@ -8748,14 +8756,15 @@ public:
         HasQualifier = ME->hasQualifier();
       } else if (const BinaryOperator *BE = dyn_cast<BinaryOperator>(Callee)) {
         // Indirect bound member calls ('.*' or '->*').
-        const ValueDecl *D =
+        const auto &&[Decl, DeVirtualized] =
             HandleMemberPointerAccess(Info, BE, ObjectArg, false);
-        if (!D)
+        if (!Decl)
           return false;
-        Member = dyn_cast<CXXMethodDecl>(D);
+        Member = dyn_cast<CXXMethodDecl>(Decl);
         if (!Member)
           return Error(Callee);
         This = &ObjectArg;
+        HasQualifier = DeVirtualized;
       } else if (const auto *PDE = dyn_cast<CXXPseudoDestructorExpr>(Callee)) {
         if (!Info.getLangOpts().CPlusPlus20)
           Info.CCEDiag(PDE, diag::note_constexpr_pseudo_destructor);
@@ -9245,7 +9254,7 @@ public:
 
     case BO_PtrMemD:
     case BO_PtrMemI:
-      return HandleMemberPointerAccess(this->Info, E, Result);
+      return HandleMemberPointerAccess(this->Info, E, Result).Decl;
     }
   }
 
@@ -9595,7 +9604,7 @@ bool LValueExprEvaluator::VisitMaterializeTemporaryExpr(
 
     case SubobjectAdjustment::MemberPointerAdjustment:
       if (!HandleMemberPointerAccess(this->Info, Type, Result,
-                                     Adjustments[I].Ptr.RHS))
+                                     Adjustments[I].Ptr.RHS).Decl)
         return false;
       Type = Adjustments[I].Ptr.MPT->getPointeeType();
       break;
@@ -10052,6 +10061,10 @@ public:
     evaluateLValue(SL, Result);
     Result.addArray(Info, E, cast<ConstantArrayType>(ArrayTy));
     return true;
+  }
+  
+  bool VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
+     return Visit(E->getOperand());
   }
 
   bool VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *E) {
@@ -11121,6 +11134,13 @@ public:
 
   bool VisitCastExpr(const CastExpr *E);
   bool VisitUnaryAddrOf(const UnaryOperator *E);
+  bool VisitCXXDeclcallExpr(const CXXDeclcallExpr *E) {
+    bool out = Visit(E->getOperand());
+    if (out && E->isDevirtualized()) {
+      Result.DeVirtualized = true;
+    }
+    return out;
+  }
 };
 } // end anonymous namespace
 
@@ -11182,6 +11202,7 @@ bool MemberPointerExprEvaluator::VisitUnaryAddrOf(const UnaryOperator *E) {
   // member can be formed.
   return Success(cast<DeclRefExpr>(E->getSubExpr())->getDecl());
 }
+
 
 //===----------------------------------------------------------------------===//
 // Record Evaluation
@@ -22349,6 +22370,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::SYCLBuiltinNumFieldsExprClass:
   case Expr::SYCLBuiltinNumBasesExprClass:
   case Expr::CXXReflectExprClass:
+  case Expr::CXXDeclcallExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {

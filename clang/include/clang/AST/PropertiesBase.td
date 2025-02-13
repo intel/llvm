@@ -466,11 +466,14 @@ let Class = PropertyTypeCase<APValue, "MemberPointer"> in {
   def : Property<"memberPath", Array<CXXRecordDeclRef>> {
     let Read = [{ node.getMemberPointerPath() }];
   }
+  def : Property<"isDeVirtualized", Bool> {
+    let Read = [{ node.isDeVirtualized() }];
+  }
   def : Creator<[{
     APValue result;
     unsigned pathSize = memberPath.size();
     const CXXRecordDecl **pathArray =
-        result.setMemberPointerUninit(member, isDerived, pathSize).data();
+        result.setMemberPointerUninit(member, isDerived, pathSize, isDeVirtualized).data();
     for (unsigned i = 0; i < pathSize; ++i)
       pathArray[i] = memberPath[i]->getCanonicalDecl();
     return result;

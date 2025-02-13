@@ -3779,6 +3779,10 @@ public:
   ExprResult RebuildCXXNoexceptExpr(SourceRange Range, Expr *Arg) {
     return SemaRef.BuildCXXNoexceptExpr(Range.getBegin(), Arg, Range.getEnd());
   }
+  
+  ExprResult RebuildCXXDeclcallExpr(SourceRange Range, Expr *Arg) {
+    return SemaRef.BuildCXXDeclcallExpr(Range.getBegin(), Arg, Range.getEnd());
+  }
 
   UnsignedOrNone
   ComputeSizeOfPackExprWithoutSubstitution(ArrayRef<TemplateArgument> PackArgs);
@@ -16769,6 +16773,21 @@ TreeTransform<Derived>::TransformCXXNoexceptExpr(CXXNoexceptExpr *E) {
 
   return getDerived().RebuildCXXNoexceptExpr(E->getSourceRange(),SubExpr.get());
 }
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCXXDeclcallExpr(CXXDeclcallExpr *E) {
+  // we need to instantiate referenced functions, so it's evaluated scope
+  ExprResult SubExpr = getDerived().TransformExpr(E->getOperand());
+  if (SubExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() && SubExpr.get() == E->getOperand())
+    return E;
+
+  return getDerived().RebuildCXXDeclcallExpr(E->getSourceRange(),SubExpr.get());
+}
+
 
 template<typename Derived>
 ExprResult

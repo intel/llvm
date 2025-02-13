@@ -4343,6 +4343,48 @@ public:
   }
 };
 
+/// Represents a C++26 declcall expression (C++ [??]).
+///
+/// An object which gives you member function pointer or function pointer
+class CXXDeclcallExpr : public Expr {
+  friend class ASTStmtReader;
+
+  Stmt *Operand;
+  SourceRange Range;
+  
+  bool Devirtualize = false;
+public:
+  CXXDeclcallExpr(QualType Ty, Expr *Operand, bool Devirtualize,
+                  SourceLocation Keyword, SourceLocation RParen)
+      : Expr(CXXDeclcallExprClass, Ty, VK_PRValue, OK_Ordinary),
+        Operand(Operand), Range(Keyword, RParen), Devirtualize(Devirtualize) {
+    setDependence(computeDependence(this));
+  }
+
+  CXXDeclcallExpr(EmptyShell Empty) : Expr(CXXDeclcallExprClass, Empty) {}
+
+  Expr *getOperand() const { return static_cast<Expr *>(Operand); }
+
+  SourceLocation getBeginLoc() const { return Range.getBegin(); }
+  SourceLocation getEndLoc() const { return Range.getEnd(); }
+  SourceRange getSourceRange() const { return Range; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXDeclcallExprClass;
+  }
+  
+  bool isDevirtualized() const {
+    return Devirtualize;
+  }
+
+  // Iterators
+  child_range children() { return child_range(&Operand, &Operand + 1); }
+
+  const_child_range children() const {
+    return const_child_range(&Operand, &Operand + 1);
+  }
+};
+
 /// Represents a C++11 pack expansion that produces a sequence of
 /// expressions.
 ///

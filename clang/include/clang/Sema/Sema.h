@@ -8730,6 +8730,11 @@ public:
   ExprResult BuildCXXNoexceptExpr(SourceLocation KeyLoc, Expr *Operand,
                                   SourceLocation RParen);
 
+  ExprResult ActOnDeclcallExpr(SourceLocation KeyLoc, SourceLocation LParen,
+                               Expr *Operand, SourceLocation RParen);
+  ExprResult BuildCXXDeclcallExpr(SourceLocation KeyLoc, Expr *Operand,
+                                  SourceLocation RParen);
+
   ExprResult ActOnStartCXXMemberReference(Scope *S, Expr *Base,
                                           SourceLocation OpLoc,
                                           tok::TokenKind OpKind,

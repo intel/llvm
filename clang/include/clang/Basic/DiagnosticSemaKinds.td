@@ -10161,6 +10161,13 @@ def note_inequality_comparison_to_or_assign : Note<
 def err_incomplete_type_used_in_type_trait_expr : Error<
   "incomplete type %0 used in type trait expression">, NoSFINAE;
 
+def err_declcall_must_contain_a_call : Error<
+  "declcall doesn't contain a call">;
+def err_declcall_not_implemented_for : Error<
+  "declcall doesn't support %0 yet">;
+def err_declcall_must_be_constant_evaluable : Error<
+  "declcall must not depend on runtime known value">;
+
 // C++20 constinit and require_constant_initialization attribute
 def warn_cxx20_compat_constinit
     : Warning<"'constinit' specifier is incompatible with C++ standards before "
