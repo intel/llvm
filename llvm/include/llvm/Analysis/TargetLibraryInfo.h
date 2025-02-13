@@ -10,8 +10,11 @@
 #define LLVM_ANALYSIS_TARGETLIBRARYINFO_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/TargetParser/Triple.h"
@@ -79,6 +82,47 @@ public:
 
     NumLibFuncs,
     NotLibFunc
+  };
+
+  /// Contains all possible FPBuiltin replacement choices by
+  /// selectFnForFPBuiltinCalls function.
+  struct FPBuiltinReplacement {
+    enum Kind {
+      Unexpected0dot5,
+      UnrecognizedFPAttrs,
+      NoSuitableReplacement,
+      ReplaceWithLLVMIR,
+      ReplaceWithAltMathFunction,
+      ReplaceWithApproxNVPTXCallsOrFallback
+    };
+
+    FPBuiltinReplacement(Kind K, const StringRef &ImplName = StringRef())
+        : RepKind(K), AltMathFunctionImplName(ImplName) {
+      // Check that ImplName is non-empty only if K is
+      // ReplaceWithAltMathFunction.
+      assert((K != Kind::ReplaceWithAltMathFunction || !ImplName.empty()) &&
+             "Expected non-empty function name");
+    }
+    FPBuiltinReplacement(const FPBuiltinReplacement &O)
+        : RepKind(O()), AltMathFunctionImplName(O.altMathFunctionImplName()) {}
+    FPBuiltinReplacement &operator=(const FPBuiltinReplacement &O) {
+      this->RepKind = O();
+      this->AltMathFunctionImplName = O.altMathFunctionImplName();
+      return *this;
+    }
+    ~FPBuiltinReplacement() {}
+    Kind operator()() const { return RepKind; }
+    bool isReplaceble() const { return RepKind > Kind::NoSuitableReplacement; }
+    const StringRef &altMathFunctionImplName() const {
+      return AltMathFunctionImplName;
+    }
+
+  private:
+    /// In case of RepKind = Kind::ReplaceWithAltMathFunction
+    /// AltMathFunctionImplName also contains the name of the alternate math
+    /// function implementation.
+    Kind RepKind;
+    StringRef AltMathFunctionImplName;
   };
 
 /// Implementation of the target library information.
@@ -221,6 +265,16 @@ public:
   /// Calls addAltMathFunctions with a known preset of functions for the
   /// given alternate math library.
   void addAltMathFunctionsFromLib(enum AltMathLibrary AltLib);
+
+  // Select an alternate math library implementation that meets the criteria
+  // described by an FPBuiltinIntrinsic call.
+  StringRef
+  selectFPBuiltinImplementation(const FPBuiltinIntrinsic *Builtin) const;
+
+  /// Returns the replacement choice for the given FPBuiltinIntrinsic call.
+  FPBuiltinReplacement
+  selectFnForFPBuiltinCalls(const FPBuiltinIntrinsic &BuiltinCall,
+                            const TargetTransformInfo &TTI) const;
 
   /// Select an alternate math library implementation that meets the criteria
   /// described by an FPBuiltinIntrinsic call.
@@ -454,6 +508,7 @@ public:
       // clang-format off
     case LibFunc_acos:         case LibFunc_acosf:      case LibFunc_acosl:
     case LibFunc_asin:         case LibFunc_asinf:      case LibFunc_asinl:
+    case LibFunc_atan2:        case LibFunc_atan2f:     case LibFunc_atan2l:
     case LibFunc_atan:         case LibFunc_atanf:      case LibFunc_atanl:
     case LibFunc_ceil:         case LibFunc_ceilf:      case LibFunc_ceill:
     case LibFunc_copysign:     case LibFunc_copysignf:  case LibFunc_copysignl:
@@ -608,6 +663,16 @@ public:
   /// \copydoc TargetLibraryInfoImpl::getSizeTSize()
   unsigned getSizeTSize(const Module &M) const { return Impl->getSizeTSize(M); }
 
+  /// Returns an IntegerType corresponding to size_t.
+  IntegerType *getSizeTType(const Module &M) const {
+    return IntegerType::get(M.getContext(), getSizeTSize(M));
+  }
+
+  /// Returns a constant materialized as a size_t type.
+  ConstantInt *getAsSizeT(uint64_t V, const Module &M) const {
+    return ConstantInt::get(getSizeTType(M), V);
+  }
+
   /// \copydoc TargetLibraryInfoImpl::getIntSize()
   unsigned getIntSize() const {
     return Impl->getIntSize();
@@ -635,6 +700,13 @@ public:
   /// Check if the function "F" is listed in a library known to LLVM.
   bool isKnownVectorFunctionInLibrary(StringRef F) const {
     return this->isFunctionVectorizable(F);
+  }
+
+  /// Returns the replacement choice for the given FPBuiltinIntrinsic call.
+  FPBuiltinReplacement
+  selectFnForFPBuiltinCalls(const FPBuiltinIntrinsic &BuiltinCall,
+                            const TargetTransformInfo &TTI) const {
+    return Impl->selectFnForFPBuiltinCalls(BuiltinCall, TTI);
   }
 };
 

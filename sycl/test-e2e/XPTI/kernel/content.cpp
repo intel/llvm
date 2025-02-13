@@ -32,8 +32,8 @@ int main() {
     auto sumR = reduction(sumBuf, cgh, plus<>());
     // Reduction kernel is used, strategy and hence number of kernel arguments
     // is hw-dependent.
-    // CHECK-OPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:3|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, {{1.*}}
-    // CHECK-NOOPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 7 ]]:3|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, {{2.*}}
+    // CHECK-OPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 6 ]]:11|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, {{1.*}}
+    // CHECK-NOOPT:Node create|{{.*}}reduction{{.*}}test1{{.*}}|{{.*}}.cpp:[[# @LINE - 7 ]]:11|{{{.*}}, 1, 1}, {{{.*}}, 1, 1}, {0, 0, 0}, {{2.*}}
     cgh.parallel_for<class test1>(
         range<1>{1024}, sumR,
         [=](id<1> idx, auto &sum) { sum += inputValues[idx]; });
@@ -48,8 +48,8 @@ int main() {
     myQueue.submit([&](handler &cgh) {
       auto in = in_buf.template get_access<access::mode::read>(cgh);
       auto out = out_buf.template get_access<access::mode::read_write>(cgh);
-      // CHECK-OPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 3 ]]:5|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 2
-      // CHECK-NOOPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 4 ]]:5|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 8
+      // CHECK-OPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 3 ]]:13|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 2
+      // CHECK-NOOPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 4 ]]:13|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 8
       cgh.parallel_for<class test2>(
           nd_range<3>({128, 4, 2}, {32, 2, 1}, {16, 1, 0}), [=](nd_item<3> it) {
             auto sg = it.get_sub_group();

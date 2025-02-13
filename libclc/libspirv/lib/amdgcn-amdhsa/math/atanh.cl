@@ -27,4 +27,4 @@ half __ocml_atanh_f16(half);
 #define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
 #endif // cl_khr_fp16
 
-#include <math/unary_builtin.inc>
+#include <clc/math/unary_builtin_scalarize.inc>

@@ -17,7 +17,13 @@
 #include "rtc/DeviceCompilation.h"
 #include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
+
+#include <llvm/ADT/StringExtras.h>
 #include <llvm/Support/Error.h>
+#include <llvm/Support/TimeProfiler.h>
+
+#include <clang/Driver/Options.h>
+
 #include <sstream>
 
 using namespace jit_compiler;
@@ -237,6 +243,8 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
 extern "C" KF_EXPORT_SYMBOL RTCResult
 compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
             View<const char *> UserArgs) {
+  std::string BuildLog;
+
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
     return errorTo<RTCResult>(UserArgListOrErr.takeError(),
@@ -244,7 +252,25 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
-  std::string BuildLog;
+  llvm::StringRef TraceFileName;
+  if (auto *Arg =
+          UserArgList.getLastArg(clang::driver::options::OPT_ftime_trace_EQ)) {
+    TraceFileName = Arg->getValue();
+    int Granularity =
+        500; // microseconds. Same default as in `clang::FrontendOptions`.
+    if (auto *Arg = UserArgList.getLastArg(
+            clang::driver::options::OPT_ftime_trace_granularity_EQ)) {
+      if (!llvm::to_integer(Arg->getValue(), Granularity)) {
+        BuildLog += "warning: ignoring malformed argument: '" +
+                    Arg->getAsString(UserArgList) + "'\n";
+      }
+    }
+    bool Verbose =
+        UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_verbose);
+
+    llvm::timeTraceProfilerInitialize(Granularity, /*ProcName=*/"sycl-rtc",
+                                      Verbose);
+  }
 
   auto ModuleOrErr =
       compileDeviceCode(SourceFile, IncludeFiles, UserArgList, BuildLog);
@@ -266,17 +292,27 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     return errorTo<RTCResult>(PostLinkResultOrError.takeError(),
                               "Post-link phase failed");
   }
-  RTCBundleInfo BundleInfo;
-  std::tie(BundleInfo, Module) = std::move(*PostLinkResultOrError);
+  auto [BundleInfo, Modules] = std::move(*PostLinkResultOrError);
 
-  auto BinaryInfoOrError =
-      translation::KernelTranslator::translateBundleToSPIRV(
-          *Module, JITContext::getInstance());
-  if (!BinaryInfoOrError) {
-    return errorTo<RTCResult>(BinaryInfoOrError.takeError(),
-                              "SPIR-V translation failed");
+  for (auto [DevImgInfo, Module] : llvm::zip_equal(BundleInfo, Modules)) {
+    auto BinaryInfoOrError =
+        translation::KernelTranslator::translateDevImgToSPIRV(
+            *Module, JITContext::getInstance());
+    if (!BinaryInfoOrError) {
+      return errorTo<RTCResult>(BinaryInfoOrError.takeError(),
+                                "SPIR-V translation failed");
+    }
+    DevImgInfo.BinaryInfo = std::move(*BinaryInfoOrError);
   }
-  BundleInfo.BinaryInfo = std::move(*BinaryInfoOrError);
+
+  if (llvm::timeTraceProfilerEnabled()) {
+    auto Error = llvm::timeTraceProfilerWrite(
+        TraceFileName, /*FallbackFileName=*/"trace.json");
+    llvm::timeTraceProfilerCleanup();
+    if (Error) {
+      return errorTo<RTCResult>(std::move(Error), "Trace file writing failed");
+    }
+  }
 
   return RTCResult{std::move(BundleInfo), BuildLog.c_str()};
 }

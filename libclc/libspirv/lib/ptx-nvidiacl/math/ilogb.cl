@@ -12,12 +12,12 @@
 #include <math/math.h>
 #include <libspirv/spirv.h>
 
-_CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __nv_ilogbf, float)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_ilogb, __nv_ilogbf, float)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __nv_ilogb, double)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_ilogb, __nv_ilogb, double)
 #endif
 
 #ifdef cl_khr_fp16

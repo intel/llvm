@@ -74,6 +74,13 @@ private:
   friend struct detail::LaunchConfigAccess;
 };
 
+#ifdef __cpp_deduction_guides
+// CTAD work-around to avoid warning from GCC when using default deduction
+// guidance.
+launch_config(detail::AllowCTADTag)
+    -> launch_config<void, empty_properties_t, void>;
+#endif // __cpp_deduction_guides
+
 namespace detail {
 // Helper for accessing the members of launch_config.
 template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
@@ -89,10 +96,19 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
   }
 };
 
-template <typename CommandGroupFunc>
-void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+template <typename CommandGroupFunc, typename PropertiesT>
+void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
-  Q.submit_without_event(std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT>(
+      Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+}
+
+template <typename CommandGroupFunc, typename PropertiesT>
+event submit_with_event_impl(queue &Q, PropertiesT Props,
+                             CommandGroupFunc &&CGF,
+                             const sycl::detail::code_location &CodeLoc) {
+  return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
+      Props, detail::type_erased_cgfo_ty{CGF}, nullptr, CodeLoc);
 }
 } // namespace detail
 
@@ -100,9 +116,8 @@ template <typename CommandGroupFunc, typename PropertiesT>
 void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
-  std::ignore = Props;
   sycl::ext::oneapi::experimental::detail::submit_impl(
-      Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
+      Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc>
@@ -116,8 +131,8 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
-  std::ignore = Props;
-  return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  return sycl::ext::oneapi::experimental::detail::submit_with_event_impl(
+      Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc>

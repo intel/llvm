@@ -38,9 +38,9 @@ inline ur_result_t after_urEventGetProfilingInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-thread_local size_t counter_urEnqueueEventsWaitWithBarrier = 0;
-inline ur_result_t after_urEnqueueEventsWaitWithBarrier(void *) {
-  ++counter_urEnqueueEventsWaitWithBarrier;
+inline thread_local size_t counter_urEnqueueEventsWaitWithBarrierExt = 0;
+inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *) {
+  ++counter_urEnqueueEventsWaitWithBarrierExt;
   return UR_RESULT_SUCCESS;
 }
 
@@ -51,7 +51,7 @@ public:
 protected:
   void SetUp() override {
     counter_urEnqueueTimestampRecordingExp = 0;
-    counter_urEnqueueEventsWaitWithBarrier = 0;
+    counter_urEnqueueEventsWaitWithBarrierExt = 0;
     LatestProfilingQuery = std::nullopt;
   }
 
@@ -67,7 +67,8 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrier",
+      &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx, sycl::default_selector_v};
@@ -79,7 +80,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
   // TODO: We expect two barriers for now, while marker events leak. Adjust when
   //       addressed.
-  ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrier);
+  ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrierExt);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -98,7 +99,8 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedInOrderQueue) {
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrier",
+      &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{
@@ -109,7 +111,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedInOrderQueue) {
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
-  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrier);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrierExt);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -156,7 +158,8 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingInOrderQueue) {
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrier",
+      &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
@@ -169,7 +172,7 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingInOrderQueue) {
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
-  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrier);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrierExt);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
@@ -208,7 +211,8 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueue) {
   mock::getCallbacks().set_after_callback(
       "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
   mock::getCallbacks().set_after_callback(
-      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &after_urEnqueueEventsWaitWithBarrierExt);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
@@ -220,5 +224,5 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueue) {
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
   ASSERT_EQ(size_t{0}, counter_urEnqueueTimestampRecordingExp);
-  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrier);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrierExt);
 }

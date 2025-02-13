@@ -24,6 +24,22 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp;
 
+// Utility for converting a swizzle to a vector or preserve the type if it isn't
+// a swizzle.
+template <typename T> struct simplify_if_swizzle {
+  using type = T;
+};
+
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct simplify_if_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                     OperationCurrentT, Indexes...>> {
+  using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
+};
+
+template <typename T>
+using simplify_if_swizzle_t = typename simplify_if_swizzle<T>::type;
+
 // --------- is_* traits ------------------ //
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<vec<T, N>> : std::true_type {};
@@ -31,14 +47,24 @@ template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
 
 template <typename T, typename = void>
 struct is_ext_vector : std::false_type {};
+template <typename T, typename = void>
+struct is_valid_type_for_ext_vector : std::false_type {};
 #if defined(__has_extension)
 #if __has_extension(attribute_ext_vector_type)
 template <typename T, int N>
-struct is_ext_vector<T __attribute__((ext_vector_type(N)))> : std::true_type {};
+using ext_vector = T __attribute__((ext_vector_type(N)));
+template <typename T, int N>
+struct is_ext_vector<ext_vector<T, N>> : std::true_type {};
+template <typename T>
+struct is_valid_type_for_ext_vector<T, std::void_t<ext_vector<T, 2>>>
+    : std::true_type {};
 #endif
 #endif
 template <typename T>
 inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
+template <typename T>
+inline constexpr bool is_valid_type_for_ext_vector_v =
+    is_valid_type_for_ext_vector<T>::value;
 
 template <typename> struct is_swizzle : std::false_type {};
 template <typename VecT, typename OperationLeftT, typename OperationRightT,

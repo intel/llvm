@@ -5,5 +5,6 @@ recommonmark==0.7.1
 sphinx-automodapi==0.18.0
 sphinx-bootstrap-theme==0.8.1
 sphinxcontrib-applehelp==2.0.0
+sphinx-reredirects==0.1.2
 furo==2024.8.6
 myst-parser==4.0.0

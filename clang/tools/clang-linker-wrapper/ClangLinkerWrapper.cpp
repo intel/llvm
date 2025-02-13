@@ -47,7 +47,6 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -55,7 +54,6 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
-#include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
@@ -156,7 +154,7 @@ static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 static bool UseSYCLPostLinkTool;
 
-SmallString<128> SPIRVDumpDir;
+static SmallString<128> SPIRVDumpDir;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
@@ -192,12 +190,13 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE)                                                    \
-  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
-  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
-                                                std::size(NAME##_init) - 1);
+#define OPTTABLE_STR_TABLE_CODE
 #include "LinkerWrapperOpts.inc"
-#undef PREFIX
+#undef OPTTABLE_STR_TABLE_CODE
+
+#define OPTTABLE_PREFIXES_TABLE_CODE
+#include "LinkerWrapperOpts.inc"
+#undef OPTTABLE_PREFIXES_TABLE_CODE
 
 static constexpr OptTable::Info InfoTable[] = {
 #define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
@@ -207,7 +206,8 @@ static constexpr OptTable::Info InfoTable[] = {
 
 class WrapperOptTable : public opt::GenericOptTable {
 public:
-  WrapperOptTable() : opt::GenericOptTable(InfoTable) {}
+  WrapperOptTable()
+      : opt::GenericOptTable(OptionStrTable, OptionPrefixesTable, InfoTable) {}
 };
 
 const OptTable &getOptTable() {
@@ -550,7 +550,7 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-compression-level=") + Arg->getValue()));
 
-  SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux"};
+  SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux-gnu"};
   for (const auto &[File, Arch] : InputFiles)
     Targets.push_back(Saver.save("hip-amdgcn-amd-amdhsa--" + Arch));
   CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
@@ -874,9 +874,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
             ",+SPV_INTEL_optnone"
             ",+SPV_KHR_non_semantic_info"
             ",+SPV_KHR_cooperative_matrix"
-            ",+SPV_EXT_shader_atomic_float16_add";
-  if (IsCPU)
-    ExtArg += ",+SPV_INTEL_fp_max_error";
+            ",+SPV_EXT_shader_atomic_float16_add"
+            ",+SPV_INTEL_fp_max_error";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
@@ -1478,7 +1477,7 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
       if (Magic == file_magic::spirv_object)
         return createStringError(
             "SPIR-V fat objects must be generated with --offload-new-driver");
-      auto Arg = Args.MakeArgString(
+      const auto *Arg = Args.MakeArgString(
           "sycl-" +
           (Triple.isSPIROrSPIRV() ? Triple.str() + "-" : Triple.str()) + "=" +
           ObjectFilePath);
@@ -1531,13 +1530,18 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   };
 
   // Forward all of the `--offload-opt` and similar options to the device.
-  CmdArgs.push_back("-flto");
   for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
     CmdArgs.append(
         {"-Xlinker",
          Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
 
-  if (!Triple.isNVPTX())
+  if (Triple.isNVPTX() || Triple.isAMDGPU()) {
+    CmdArgs.push_back("-foffload-lto");
+  } else {
+    CmdArgs.push_back("-flto");
+  }
+
+  if (!Triple.isNVPTX() && !Triple.isSPIRV())
     CmdArgs.push_back("-Wl,--no-undefined");
 
   if (IsSYCLKind && Triple.isNVPTX())
@@ -1546,7 +1550,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back(InputFile);
 
   // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isAMDGPU() && !Triple.isNVPTX()) {
+  if (!Triple.isAMDGPU() && !Triple.isNVPTX() && !Triple.isSPIRV()) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
@@ -1671,6 +1675,8 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     // Return empty file
     return StringRef("");
   }
+  case Triple::loongarch64:
+    return generic::clang(InputFiles, Args);
   default:
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
@@ -2228,7 +2234,7 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
 
-  auto Bin = Input.front().getBinary();
+  const auto *Bin = Input.front().getBinary();
   DAL.AddJoinedArg(
       nullptr, Tbl.getOption(OPT_sycl_backend_compile_options_from_image_EQ),
       Args.MakeArgString(Bin->getString(COMPILE_OPTS)));
@@ -2355,14 +2361,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         HasNonSYCLOffloadKinds = true;
     }
 
-    // Write any remaining device inputs to an output file.
-    SmallVector<StringRef> InputFiles;
-    for (const OffloadFile &File : Input) {
-      auto FileNameOrErr = writeOffloadFile(File);
-      if (!FileNameOrErr)
-        return FileNameOrErr.takeError();
-      InputFiles.emplace_back(*FileNameOrErr);
-    }
     if (HasSYCLOffloadKind) {
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.

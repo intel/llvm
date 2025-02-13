@@ -40,6 +40,7 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * amdgcn-amd-amdhsa - generate code ahead of time for HIP target;
     * native_cpu - allows to run SYCL applications with no need of an 
     additional backend (note that this feature is WIP and experimental, and 
     currently overrides all the other specified SYCL targets when enabled.)

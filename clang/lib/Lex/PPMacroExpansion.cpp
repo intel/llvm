@@ -14,11 +14,9 @@
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
-#include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/CodeCompletionHandler.h"
@@ -38,11 +36,9 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
@@ -1808,8 +1804,9 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
                                            diag::err_feature_check_malformed);
         if (!II)
           return false;
-        else if (II->getBuiltinID() != 0) {
-          switch (II->getBuiltinID()) {
+        auto BuiltinID = II->getBuiltinID();
+        if (BuiltinID != 0) {
+          switch (BuiltinID) {
           case Builtin::BI__builtin_cpu_is:
             return getTargetInfo().supportsCpuIs();
           case Builtin::BI__builtin_cpu_init:
@@ -1824,8 +1821,11 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
           case Builtin::BI__builtin_intel_fpga_reg:
             return LangOpts.SYCLIsDevice;
           default:
+            // __has_builtin should return false for aux builtins.
+            if (getBuiltinInfo().isAuxBuiltinID(BuiltinID))
+              return false;
             return Builtin::evaluateRequiredTargetFeatures(
-                getBuiltinInfo().getRequiredFeatures(II->getBuiltinID()),
+                getBuiltinInfo().getRequiredFeatures(BuiltinID),
                 getTargetInfo().getTargetOpts().FeatureMap);
           }
           return true;

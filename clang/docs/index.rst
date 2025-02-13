@@ -22,6 +22,7 @@ Using Clang as a Compiler
    ClangCommandLineReference
    AttributeReference
    DiagnosticsReference
+   WarningSuppressionMappings
    CrossCompilation
    ClangStaticAnalyzer
    ThreadSafetyAnalysis
@@ -39,6 +40,7 @@ Using Clang as a Compiler
    SanitizerStats
    SanitizerSpecialCaseList
    BoundsSafety
+   BoundsSafetyAdoptionGuide
    BoundsSafetyImplPlans
    ControlFlowIntegrity
    LTOVisibility

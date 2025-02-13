@@ -220,10 +220,9 @@ public:
       ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj,      /* Serialized spec constants. */
-                 ur_device_handle_t, /* UR device handle pointer */
-                 std::string         /* Kernel Name */
-                 >;
+      std::pair<ur_device_handle_t, /* UR device handle pointer */
+                std::string         /* Kernel Name */
+                >;
 
   using KernelFastCacheValT =
       std::tuple<ur_kernel_handle_t,    /* UR kernel handle pointer. */
@@ -420,7 +419,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
-      traceKernel("Kernel fetched.", std::get<2>(CacheKey), true);
+      traceKernel("Kernel fetched.", CacheKey.second, true);
       return It->second;
     }
     return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
@@ -442,13 +441,14 @@ public:
         return;
 
       // Save reference between the program and the fast cache key.
+      std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
       MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
     }
 
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
-    traceKernel("Kernel inserted.", std::get<2>(CacheKey), true);
+    traceKernel("Kernel inserted.", CacheKey.second, true);
     MKernelFastCache.emplace(CacheKey, CacheVal);
   }
 
@@ -495,16 +495,18 @@ public:
             LockedCacheKP.get().erase(NativePrg);
           }
 
-          // Remove corresponding entries from KernelFastCache.
-          auto FastCacheKeyItr =
-              MProgramToKernelFastCacheKeyMap.find(NativePrg);
-          if (FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
-            for (const auto &FastCacheKey : FastCacheKeyItr->second) {
-              std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
-              MKernelFastCache.erase(FastCacheKey);
-              traceKernel("Kernel evicted.", std::get<2>(FastCacheKey), true);
+          {
+            // Remove corresponding entries from KernelFastCache.
+            std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+            if (auto FastCacheKeyItr =
+                    MProgramToKernelFastCacheKeyMap.find(NativePrg);
+                FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
+              for (const auto &FastCacheKey : FastCacheKeyItr->second) {
+                MKernelFastCache.erase(FastCacheKey);
+                traceKernel("Kernel evicted.", FastCacheKey.second, true);
+              }
+              MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
             }
-            MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
           }
 
           // Remove entry from ProgramCache KeyMap.
@@ -617,6 +619,7 @@ public:
   ///
   /// This member function should only be used in unit tests.
   void reset() {
+    std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
     std::lock_guard<std::mutex> L1(MProgramCacheMutex);
     std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
     std::lock_guard<std::mutex> L3(MKernelFastCacheMutex);
@@ -624,9 +627,7 @@ public:
     MKernelsPerProgramCache = KernelCacheT{};
     MKernelFastCache = KernelFastCacheT{};
     MProgramToKernelFastCacheKeyMap.clear();
-
     // Clear the eviction lists and its mutexes.
-    std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
     MEvictionList.clear();
   }
 

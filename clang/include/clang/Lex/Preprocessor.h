@@ -860,7 +860,7 @@ private:
       auto *Info = State.dyn_cast<ModuleMacroInfo*>();
       if (!Info) {
         Info = new (PP.getPreprocessorAllocator())
-            ModuleMacroInfo(State.get<MacroDirective *>());
+            ModuleMacroInfo(cast<MacroDirective *>(State));
         State = Info;
       }
 
@@ -893,7 +893,7 @@ private:
     MacroDirective *getLatest() const {
       if (auto *Info = State.dyn_cast<ModuleMacroInfo*>())
         return Info->MD;
-      return State.get<MacroDirective*>();
+      return cast<MacroDirective *>(State);
     }
 
     void setLatest(MacroDirective *MD) {
@@ -946,7 +946,7 @@ private:
         if (Overrides.empty())
           return;
         Info = new (PP.getPreprocessorAllocator())
-            ModuleMacroInfo(State.get<MacroDirective *>());
+            ModuleMacroInfo(cast<MacroDirective *>(State));
         State = Info;
       }
       Info->OverriddenMacros.clear();
@@ -2272,6 +2272,11 @@ public:
     }
   }
 
+  /// Determine whether the next preprocessor token to be
+  /// lexed is a '('.  If so, consume the token and return true, if not, this
+  /// method should have no observable side-effect on the lexed tokens.
+  bool isNextPPTokenLParen();
+
 private:
   /// Identifiers used for SEH handling in Borland. These are only
   /// allowed in particular circumstances
@@ -2648,11 +2653,6 @@ private:
                                   ArrayRef<Token> tokens);
 
   void removeCachedMacroExpandedTokensOfLastLexer();
-
-  /// Determine whether the next preprocessor token to be
-  /// lexed is a '('.  If so, consume the token and return true, if not, this
-  /// method should have no observable side-effect on the lexed tokens.
-  bool isNextPPTokenLParen();
 
   /// After reading "MACRO(", this method is invoked to read all of the formal
   /// arguments specified for the macro invocation.  Returns null on error.

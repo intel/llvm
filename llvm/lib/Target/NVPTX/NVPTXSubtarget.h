@@ -18,7 +18,6 @@
 #include "NVPTXISelLowering.h"
 #include "NVPTXInstrInfo.h"
 #include "NVPTXRegisterInfo.h"
-#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include <string>
@@ -46,7 +45,7 @@ class NVPTXSubtarget : public NVPTXGenSubtargetInfo {
   const NVPTXTargetMachine &TM;
   NVPTXInstrInfo InstrInfo;
   NVPTXTargetLowering TLInfo;
-  SelectionDAGTargetInfo TSInfo;
+  std::unique_ptr<const SelectionDAGTargetInfo> TSInfo;
 
   // NVPTX does not have any call stack frame, but need a NVPTX specific
   // FrameLowering class because TargetFrameLowering is abstract.
@@ -59,6 +58,8 @@ public:
   NVPTXSubtarget(const Triple &TT, const std::string &CPU,
                  const std::string &FS, const NVPTXTargetMachine &TM);
 
+  ~NVPTXSubtarget() override;
+
   const TargetFrameLowering *getFrameLowering() const override {
     return &FrameLowering;
   }
@@ -69,9 +70,8 @@ public:
   const NVPTXTargetLowering *getTargetLowering() const override {
     return &TLInfo;
   }
-  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
-    return &TSInfo;
-  }
+
+  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override;
 
   bool hasAtomAddF64() const { return SmVersion >= 60; }
   bool hasAtomScope() const { return SmVersion >= 60; }
@@ -114,7 +114,14 @@ public:
   // - 0 represents base GPU model,
   // - non-zero value identifies particular architecture-accelerated variant.
   bool hasAAFeatures() const { return getFullSmVersion() % 10; }
-  std::string getTargetName() const { return TargetName; }
+
+  // If the user did not provide a target we default to the `sm_30` target.
+  std::string getTargetName() const {
+    return TargetName.empty() ? "sm_30" : TargetName;
+  }
+  bool hasTargetName() const { return !TargetName.empty(); }
+
+  bool hasNativeBF16Support(int Opcode) const;
 
   // Get maximum value of required alignments among the supported data types.
   // From the PTX ISA doc, section 8.2.3:
@@ -124,6 +131,8 @@ public:
   //  set of equivalent memory operations with a scalar data-type, executed in
   //  an unspecified order on the elements in the vector.
   unsigned getMaxRequiredAlignment() const { return 8; }
+  // Emulated loops with 32-bit/64-bit CAS generate better SASS than 16-bit CAS
+  unsigned getMinCmpXchgSizeInBits() const { return 32; }
 
   unsigned getPTXVersion() const { return PTXVersion; }
 

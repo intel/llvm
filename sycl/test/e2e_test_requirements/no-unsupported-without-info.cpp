@@ -32,7 +32,7 @@
 // RUN: grep -rI "UNSUPPORTED:" %S/../../test-e2e \
 // RUN: -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "UNSUPPORTED:" | \
-// RUN: grep -Pv "UNSUPPORTED-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
+// RUN: grep -Pv "(?:UNSUPPORTED-TRACKER:\s+(?:(?:https:\/\/github.com\/[\w\d-]+\/[\w\d-]+\/issues\/[\d]+)|(?:[\w]+-[\d]+)))|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-UNSUPPORTED-WITHOUT-INFO
 // RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
 //
@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 381
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 371
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -62,7 +62,6 @@
 // CHECK: AOT/early_aot.cpp
 // CHECK-NEXT: AOT/gpu.cpp
 // CHECK-NEXT: AOT/multiple-devices.cpp
-// CHECK-NEXT: Adapters/enqueue-arg-order-buffer.cpp
 // CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
 // CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
 // CHECK-NEXT: Adapters/interop-l0-direct.cpp
@@ -250,11 +249,6 @@
 // CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
 // CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
 // CHECK-NEXT: KernelAndProgram/undefined-symbol.cpp
-// CHECK-NEXT: KernelCompiler/kernel_compiler_opencl.cpp
-// CHECK-NEXT: KernelCompiler/kernel_compiler_sycl.cpp
-// CHECK-NEXT: KernelCompiler/kernel_compiler_sycl_jit.cpp
-// CHECK-NEXT: KernelCompiler/multi_device.cpp
-// CHECK-NEXT: KernelCompiler/sycl_device_flags.cpp
 // CHECK-NEXT: LLVMIntrinsicLowering/bitreverse.cpp
 // CHECK-NEXT: LLVMIntrinsicLowering/sub_byte_bitreverse.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
@@ -264,9 +258,7 @@
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops_int8_packed.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_sizes.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SG32/get_coord_int8_matB.cpp
+// CHECK-NEXT: Matrix/SG32/get_coordinate_ops.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_all_sizes.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_apply_bf16.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_apply_two_matrices.cpp
@@ -281,25 +273,22 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_half.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_out_bounds.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_ss_int8.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_su_int8.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_transposeC.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_unaligned_k.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_us_int8.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_uu_int8.cpp
 // CHECK-NEXT: Matrix/joint_matrix_annotated_ptr.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_prefetch.cpp
 // CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/joint_matrix_out_bounds.cpp
 // CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/joint_matrix_unaligned_k.cpp
 // CHECK-NEXT: NewOffloadDriver/aot-gpu.cpp
 // CHECK-NEXT: NewOffloadDriver/spirv_device_obj_smoke.cpp
 // CHECK-NEXT: NonUniformGroups/ballot_group.cpp
+// CHECK-NEXT: NonUniformGroups/fixed_size_group.cpp
 // CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
@@ -358,6 +347,7 @@
 // CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
+// CHECK-NEXT: Regression/no-split-reqd-wg-size-2.cpp
 // CHECK-NEXT: Regression/no-split-reqd-wg-size.cpp
 // CHECK-NEXT: Regression/reduction_resource_leak_usm.cpp
 // CHECK-NEXT: Regression/static-buffer-dtor.cpp

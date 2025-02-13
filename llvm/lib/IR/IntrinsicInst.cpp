@@ -224,7 +224,7 @@ void DbgAssignIntrinsic::setAddress(Value *V) {
 void DbgAssignIntrinsic::setKillAddress() {
   if (isKillAddress())
     return;
-  setAddress(UndefValue::get(getAddress()->getType()));
+  setAddress(PoisonValue::get(getAddress()->getType()));
 }
 
 bool DbgAssignIntrinsic::isKillAddress() const {
@@ -305,7 +305,7 @@ std::optional<float> FPBuiltinIntrinsic::getRequiredAccuracy() const {
 }
 
 bool FPBuiltinIntrinsic::hasUnrecognizedFPAttrs(
-    const StringSet<> recognizedAttrs) {
+    const StringSet<> recognizedAttrs) const {
   AttributeSet FnAttrs = getAttributes().getFnAttrs();
   for (const Attribute &Attr : FnAttrs) {
     if (!Attr.isStringAttribute())

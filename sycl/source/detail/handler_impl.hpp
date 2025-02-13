@@ -196,7 +196,12 @@ public:
   bool MIsTopCodeLoc = true;
 
   /// List of work group memory objects associated with this handler
-  std::vector<std::shared_ptr<detail::work_group_memory_impl>> MWorkGroupMemoryObjects;
+  std::vector<std::shared_ptr<detail::work_group_memory_impl>>
+      MWorkGroupMemoryObjects;
+
+  /// Potential event mode for the result event of the command.
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
 };
 
 } // namespace detail

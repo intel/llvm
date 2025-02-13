@@ -248,7 +248,8 @@ public:
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
   std::vector<ur_event_handle_t>
-  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
+  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
+                      bool HasEventMode) const;
 
   bool isHostTask() const;
 

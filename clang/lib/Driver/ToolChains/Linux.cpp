@@ -180,15 +180,6 @@ std::string Linux::getMultiarchTriple(const Driver &D,
 
 static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
   if (Triple.isMIPS()) {
-    if (Triple.isAndroid()) {
-      StringRef CPUName;
-      StringRef ABIName;
-      tools::mips::getMipsCPUAndABI(Args, Triple, CPUName, ABIName);
-      if (CPUName == "mips32r6")
-        return "libr6";
-      if (CPUName == "mips32r2")
-        return "libr2";
-    }
     // lib32 directory has a special meaning on MIPS targets.
     // It contains N32 ABI binaries. Use this folder if produce
     // code for N32 ABI only.
@@ -260,6 +251,24 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
       // Android emulates a 16k page size for app testing on x86_64 machines.
       ExtraOpts.push_back("-z");
       ExtraOpts.push_back("max-page-size=16384");
+    }
+    if (Triple.isAndroidVersionLT(29)) {
+      // https://github.com/android/ndk/issues/1196
+      // The unwinder used by the crash handler on versions of Android prior to
+      // API 29 did not correctly handle binaries built with rosegment, which is
+      // enabled by default for LLD. Android only supports LLD, so it's not an
+      // issue that this flag is not accepted by other linkers.
+      ExtraOpts.push_back("--no-rosegment");
+    }
+    if (!Triple.isAndroidVersionLT(28)) {
+      // Android supports relr packing starting with API 28 and had its own
+      // flavor (--pack-dyn-relocs=android) starting in API 23.
+      // TODO: It's possible to use both with --pack-dyn-relocs=android+relr,
+      // but we need to gather some data on the impact of that form before we
+      // can know if it's a good default.
+      // On the other hand, relr should always be an improvement.
+      ExtraOpts.push_back("--use-android-relr-tags");
+      ExtraOpts.push_back("--pack-dyn-relocs=relr");
     }
   }
 
@@ -772,9 +781,9 @@ void Linux::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
   }
 }
 
-void Linux::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void Linux::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                ArgStringList &CC1Args) const {
-  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+  SYCLInstallation->addSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 bool Linux::isPIEDefault(const llvm::opt::ArgList &Args) const {
@@ -818,6 +827,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   const bool IsRISCV64 = getTriple().getArch() == llvm::Triple::riscv64;
   const bool IsSystemZ = getTriple().getArch() == llvm::Triple::systemz;
   const bool IsHexagon = getTriple().getArch() == llvm::Triple::hexagon;
+  const bool IsAndroid = getTriple().isAndroid();
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   Res |= SanitizerKind::Address;
   Res |= SanitizerKind::PointerCompare;
@@ -826,7 +836,6 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   Res |= SanitizerKind::Fuzzer;
   Res |= SanitizerKind::FuzzerNoLink;
   Res |= SanitizerKind::KernelAddress;
-  Res |= SanitizerKind::Memory;
   Res |= SanitizerKind::Vptr;
   Res |= SanitizerKind::SafeStack;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsLoongArch64)
@@ -837,6 +846,8 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64 || IsSystemZ ||
       IsLoongArch64 || IsRISCV64)
     Res |= SanitizerKind::Thread;
+  if (IsX86_64 || IsAArch64)
+    Res |= SanitizerKind::Type;
   if (IsX86_64 || IsSystemZ || IsPowerPC64)
     Res |= SanitizerKind::KernelMemory;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsMIPS || IsArmArch ||
@@ -850,6 +861,8 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   }
   if (IsX86_64)
     Res |= SanitizerKind::NumericalStability;
+  if (!IsAndroid)
+    Res |= SanitizerKind::Memory;
 
   // Work around "Cannot represent a difference across sections".
   if (getTriple().getArch() == llvm::Triple::ppc64)

@@ -196,7 +196,6 @@ variables in production code.</span>
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
 | `SYCL_UR_TRACE` | Integer | Described [below](#sycl_ur_trace-options)  | Enable specified level of tracing for UR. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |

@@ -19,7 +19,8 @@ namespace detail {
 // sycl::detail namespace, like in the following code:
 //    sycl::vec<int , 1> a, b;
 //    memcpy(&a, &b, sizeof(sycl::vec<int , 1>));
-inline void memcpy_no_adl(void *Dst, const void *Src, size_t Size) {
+template <typename T1, typename T2>
+inline void memcpy_no_adl(T1 *Dst, const T2 *Src, size_t Size) {
 #ifdef __SYCL_DEVICE_ONLY__
   __builtin_memcpy(Dst, Src, Size);
 #else

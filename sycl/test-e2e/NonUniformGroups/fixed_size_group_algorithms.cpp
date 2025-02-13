@@ -4,9 +4,14 @@
 // RUN: %if any-device-is-cpu && opencl-aot %{ %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -o %t.x86.out %s %}
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
+// REQUIRES: build-and-run-mode
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_fixed_size_group
+
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64702
+// The test is disabled for spirv-backend while we investigate the root cause.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>

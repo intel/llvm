@@ -18,7 +18,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel = comdat any
 
 @__msan_kernel = internal addrspace(1) constant [55 x i8] c"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel\00"
 @__MsanKernelMetadata = appending dso_local local_unnamed_addr addrspace(1) global [1 x { i64, i64 }] [{ i64, i64 } { i64 ptrtoint (ptr addrspace(1) @__msan_kernel to i64), i64 54 }] #0
-; CHECK-IR: @__MsanKernelMetadata {{.*}} !spirv.Decorations
+; CHECK-IR: @__MsanKernelMetadata = dso_local local_unnamed_addr addrspace(1) global %0 { {{.*}} }, !spirv.Decorations
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 @__asan_func = internal addrspace(2) constant [106 x i8] c"typeinfo name for main::'lambda'(sycl::_V1::handler&)::operator()(sycl::_V1::handler&) const::MyKernelR_4\00"
 

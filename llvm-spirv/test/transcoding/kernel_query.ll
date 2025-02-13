@@ -40,10 +40,10 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV-DAG: Name [[BlockGlb2:[0-9]+]] "__block_literal_global.1"
 ; CHECK-SPIRV-DAG: Name [[BlockGlb3:[0-9]+]] "__block_literal_global.2"
 ; CHECK-SPIRV-DAG: Name [[BlockGlb4:[0-9]+]] "__block_literal_global.3"
-; CHECK-SPIRV-DAG: EntryPoint [[#]] [[BlockKer1:[0-9]+]] "__device_side_enqueue_block_invoke_kernel"
-; CHECK-SPIRV-DAG: EntryPoint [[#]] [[BlockKer2:[0-9]+]] "__device_side_enqueue_block_invoke_2_kernel"
-; CHECK-SPIRV-DAG: EntryPoint [[#]] [[BlockKer3:[0-9]+]] "__device_side_enqueue_block_invoke_3_kernel"
-; CHECK-SPIRV-DAG: EntryPoint [[#]] [[BlockKer4:[0-9]+]] "__device_side_enqueue_block_invoke_4_kernel"
+; CHECK-SPIRV-DAG: Name [[BlockKer1:[0-9]+]] "__device_side_enqueue_block_invoke_kernel"
+; CHECK-SPIRV-DAG: Name [[BlockKer2:[0-9]+]] "__device_side_enqueue_block_invoke_2_kernel"
+; CHECK-SPIRV-DAG: Name [[BlockKer3:[0-9]+]] "__device_side_enqueue_block_invoke_3_kernel"
+; CHECK-SPIRV-DAG: Name [[BlockKer4:[0-9]+]] "__device_side_enqueue_block_invoke_4_kernel"
 
 ; CHECK-LLVM: [[BlockTy:%[0-9a-z\.]+]] = type { i32, i32 }
 %1 = type <{ i32, i32 }>

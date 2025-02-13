@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda || hip
-// REQUIRES: gpu,linux,sg-16
+// REQUIRES: sg-16
 // RUN: %{build} -DTO_PASS -o %t.out.pass
 // RUN: %{run} %t.out.pass
 // RUN: %{build} -o %t.out
@@ -7,6 +6,7 @@
 // The test is failing when writing directly to output buffer.
 // If temporary variable is used (see TO_PASS mode) the test succeeded.
 // XFAIL: gpu && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16412
 #include "include/asmhelper.h"
 #include <iostream>
 #include <vector>

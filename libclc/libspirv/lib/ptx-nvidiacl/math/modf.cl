@@ -46,6 +46,7 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_modf, double,
 #endif
 
 #ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 __CLC_MODF(__nv_modff, float, half)
 
 _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_modf, half,

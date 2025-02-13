@@ -15,6 +15,7 @@
 #include <stddef.h> // for size_t
 #include <stdint.h> // for uint32_t
 #include <type_traits>
+#include <utility> // for pair
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__
@@ -444,6 +445,47 @@ template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
 __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint64_t *Ptr,
                                 dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint8_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint8_t *Ptr,
+                                dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint16_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint16_t *Ptr,
+                                dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint32_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint32_t *Ptr,
+                                dataT Data) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
+                               uint64_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint64_t *Ptr,
+                                dataT Data) noexcept;
+
 template <int W, int rW>
 extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<rW>
 __spirv_FixedSqrtINTEL(sycl::detail::ap_int<W> a, bool S, int32_t I, int32_t rI,
@@ -1091,6 +1133,14 @@ extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
 extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
     __clc_native_exp2(__ocl_vec_t<_Float16, 16>);
 
+// FIXME: __clc symbols are intended to be internal symbols to libclc/libspirv
+// and should not be relied upon externally; consider them deprecated. We can't,
+// however, explicitly declare __spirv_ocl versions of these builtins as that
+// interferes with the implicit declarations provided by clang. This results in
+// legitimate calls being seen as ambiguous and causing errors. Since these
+// symbols are intended to expose native versions of bfloat16 builtins for
+// NVPTX, we should probably just be exposing builtins with actual bfloat16
+// types, not unsigned integer types.
 #define __CLC_BF16(...)                                                        \
   extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT __VA_ARGS__ __clc_fabs(           \
       __VA_ARGS__) noexcept;                                                   \
@@ -1124,6 +1174,13 @@ extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
 
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL std::pair<__ocl_vec_t<T, N>, __ocl_vec_t<T, N>>
+__spirv_IAddCarry(__ocl_vec_t<T, N> src0, __ocl_vec_t<T, N> src1);
+
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL std::pair<__ocl_vec_t<T, N>, __ocl_vec_t<T, N>>
+__spirv_ISubBorrow(__ocl_vec_t<T, N> src0, __ocl_vec_t<T, N> src1);
 template <typename RetT, typename... ArgsT>
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
 __spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,

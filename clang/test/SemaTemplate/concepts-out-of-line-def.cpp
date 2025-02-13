@@ -703,6 +703,25 @@ C v;
 
 } // namespace GH93099
 
+namespace GH115098 {
+
+template <typename... Ts> struct c {
+  template <typename T>
+    requires(sizeof...(Ts) > 0)
+  friend bool operator==(c, c);
+};
+
+template <typename... Ts> struct d {
+  template <typename T>
+    requires(sizeof...(Ts) > 0)
+  friend bool operator==(d, d);
+};
+
+template struct c<int>;
+template struct d<int, int>;
+
+} // namespace GH115098
+
 namespace GH114685 {
 
 template <typename T> struct ptr {
@@ -718,3 +737,17 @@ ptr<U> make_item(auto &&args)
 ptr<char> p;
 
 } // namespace GH114685
+
+namespace GH123472 {
+
+consteval bool fn() { return true; }
+
+struct S {
+  template <typename T>
+  static consteval void mfn() requires (bool(&fn));
+};
+
+template <typename T>
+consteval void S::mfn() requires (bool(&fn)) {}
+
+}

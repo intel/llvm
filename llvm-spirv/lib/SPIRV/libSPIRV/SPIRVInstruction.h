@@ -298,6 +298,11 @@ public:
 
   /// Get operand as value.
   /// If the operand is a literal, return it as a uint32 constant.
+  const SPIRVValue *getOpValue(int I) const {
+    return isOperandLiteral(I) ? Module->getLiteralAsConstant(Ops[I])
+                               : getValue(Ops[I]);
+  }
+
   SPIRVValue *getOpValue(int I) {
     return isOperandLiteral(I) ? Module->getLiteralAsConstant(Ops[I])
                                : getValue(Ops[I]);
@@ -318,6 +323,9 @@ public:
     return Operands;
   }
 
+  virtual const SPIRVValue *getOperand(unsigned I) const {
+    return getOpValue(I);
+  }
   virtual SPIRVValue *getOperand(unsigned I) { return getOpValue(I); }
 
   bool hasExecScope() const { return SPIRV::hasExecScope(OpCode); }
@@ -1698,10 +1706,8 @@ _SPIRV_OP(SignBitSet)
 _SPIRV_OP(Any)
 _SPIRV_OP(All)
 _SPIRV_OP(BitCount)
+_SPIRV_OP(ArithmeticFenceEXT)
 #undef _SPIRV_OP
-#define _SPIRV_OP_INTERNAL(x) typedef SPIRVUnaryInst<internal::Op##x> SPIRV##x;
-_SPIRV_OP_INTERNAL(ArithmeticFenceINTEL)
-#undef _SPIRV_OP_INTERNAL
 
 class SPIRVAccessChainBase : public SPIRVInstTemplateBase {
 public:
@@ -1737,6 +1743,16 @@ public:
            OpCode == OpUntypedInBoundsAccessChainKHR ||
            OpCode == OpUntypedPtrAccessChainKHR ||
            OpCode == OpUntypedInBoundsPtrAccessChainKHR;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    if (isUntyped())
+      return getVec(CapabilityUntypedPointersKHR);
+    return {};
+  }
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    if (isUntyped())
+      return ExtensionID::SPV_KHR_untyped_pointers;
+    return {};
   }
 };
 
@@ -2702,6 +2718,22 @@ class SPIRVGroupNonUniformBallotInst : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityGroupNonUniformBallot);
+  }
+
+  VersionNumber getRequiredSPIRVVersion() const override {
+    switch (OpCode) {
+    case OpGroupNonUniformBroadcast: {
+      assert(Ops.size() == 3 && "Expecting (Execution, Value, Id) operands");
+      if (!isConstantOpCode(getOperand(2)->getOpCode())) {
+        // Before version 1.5, Id must come from a constant instruction.
+        return VersionNumber::SPIRV_1_5;
+      }
+      break;
+    }
+    default:
+      break;
+    }
+    return VersionNumber::SPIRV_1_3;
   }
 };
 
@@ -3695,6 +3727,26 @@ _SPIRV_OP(CooperativeMatrixStoreChecked, false, 8, true, 8)
 _SPIRV_OP(CooperativeMatrixConstructChecked, true, 8)
 #undef _SPIRV_OP
 
+class SPIRVCooperativeMatrixOffsetInstructionsINTELInstBase
+    : public SPIRVInstTemplateBase {
+protected:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_joint_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityCooperativeMatrixOffsetInstructionsINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<                                                   \
+      SPIRVCooperativeMatrixOffsetInstructionsINTELInstBase,                   \
+      internal::Op##x##INTEL, __VA_ARGS__>                                     \
+      SPIRV##x##INTEL;
+_SPIRV_OP(CooperativeMatrixLoadOffset, true, 8, true, 5)
+_SPIRV_OP(CooperativeMatrixStoreOffset, false, 7, true, 6)
+#undef _SPIRV_OP
+
 class SPIRVCooperativeMatrixInvocationInstructionsINTELInstBase
     : public SPIRVInstTemplateBase {
 protected:
@@ -4255,7 +4307,9 @@ public:
     validate();
   }
 
-  SPIRVUntypedPrefetchKHR() : SPIRVInstruction(OC) {
+  SPIRVUntypedPrefetchKHR()
+      : SPIRVInstruction(OC), PtrTy(SPIRVID_INVALID),
+        NumBytes(SPIRVID_INVALID) {
     setHasNoId();
     setHasNoType();
   }

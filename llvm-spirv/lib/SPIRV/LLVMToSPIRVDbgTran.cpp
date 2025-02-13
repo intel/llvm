@@ -161,7 +161,7 @@ void LLVMToSPIRVDbgTran::finalizeDebugValue(
   DIExpression *Expr = DbgValue->getExpression();
   if (!isNonSemanticDebugInfo()) {
     if (DbgValue->getNumVariableLocationOps() > 1) {
-      Val = UndefValue::get(Val->getType());
+      Val = PoisonValue::get(Val->getType());
       Expr = DIExpression::get(M->getContext(), {});
     }
   }
@@ -500,6 +500,8 @@ SPIRVWord LLVMToSPIRVDbgTran::mapDebugFlags(DINode::DIFlags DFlags) {
   if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
     if (DFlags & DINode::FlagBitField)
       Flags |= SPIRVDebug::FlagBitField;
+  if (DFlags & DINode::FlagEnumClass)
+    Flags |= SPIRVDebug::FlagIsEnumClass;
   return Flags;
 }
 
@@ -687,7 +689,7 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeOpenCL(const DICompositeType *AT) {
   SPIRVWordVec LowerBounds(N);
   for (unsigned I = 0; I < N; ++I) {
     DISubrange *SR = cast<DISubrange>(AR[I]);
-    ConstantInt *Count = SR->getCount().get<ConstantInt *>();
+    ConstantInt *Count = cast<ConstantInt *>(SR->getCount());
     if (AT->isVector()) {
       assert(N == 1 && "Multidimensional vector is not expected!");
       Ops[ComponentCountIdx] = static_cast<SPIRVWord>(Count->getZExtValue());
@@ -708,7 +710,7 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeOpenCL(const DICompositeType *AT) {
       if (auto *DIExprLB = dyn_cast<MDNode>(RawLB))
         LowerBounds[I] = transDbgEntry(DIExprLB)->getId();
       else {
-        ConstantInt *ConstIntLB = SR->getLowerBound().get<ConstantInt *>();
+        ConstantInt *ConstIntLB = cast<ConstantInt *>(SR->getLowerBound());
         LowerBounds[I] = SPIRVWriter->transValue(ConstIntLB, nullptr)->getId();
       }
     } else {
@@ -731,7 +733,7 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeNonSemantic(const DICompositeType *AT) {
   Ops.resize(SubrangesIdx + N);
   for (unsigned I = 0; I < N; ++I) {
     DISubrange *SR = cast<DISubrange>(AR[I]);
-    ConstantInt *Count = SR->getCount().get<ConstantInt *>();
+    ConstantInt *Count = cast<ConstantInt *>(SR->getCount());
     if (AT->isVector()) {
       assert(N == 1 && "Multidimensional vector is not expected!");
       Ops[ComponentCountIdx] = static_cast<SPIRVWord>(Count->getZExtValue());
@@ -807,13 +809,13 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
       ConstantInt *IntNode = nullptr;
       switch (Idx) {
       case LowerBoundIdx:
-        IntNode = ST->getLowerBound().get<ConstantInt *>();
+        IntNode = cast<ConstantInt *>(ST->getLowerBound());
         break;
       case UpperBoundIdx:
-        IntNode = ST->getUpperBound().get<ConstantInt *>();
+        IntNode = cast<ConstantInt *>(ST->getUpperBound());
         break;
       case CountIdx:
-        IntNode = ST->getCount().get<ConstantInt *>();
+        IntNode = cast<ConstantInt *>(ST->getCount());
         break;
       }
       Ops[Idx] = IntNode ? SPIRVWriter->transValue(IntNode, nullptr)->getId()
@@ -828,7 +830,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
       Ops[StrideIdx] = transDbgEntry(Node)->getId();
     else
       Ops[StrideIdx] =
-          SPIRVWriter->transValue(ST->getStride().get<ConstantInt *>(), nullptr)
+          SPIRVWriter->transValue(cast<ConstantInt *>(ST->getStride()), nullptr)
               ->getId();
   }
   return BM->addDebugInfo(SPIRVDebug::TypeSubrange, getVoidTy(), Ops);

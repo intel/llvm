@@ -178,7 +178,6 @@ void AMDGCN::Linker::constructLinkAndEmitSpirvCommand(
   llvm::opt::ArgStringList TrArgs{
       "--spirv-max-version=1.6",
       "--spirv-ext=+all",
-      "--spirv-allow-extra-diexpressions",
       "--spirv-allow-unknown-intrinsics",
       "--spirv-lower-const-expr",
       "--spirv-preserve-auxdata",
@@ -247,7 +246,7 @@ void HIPAMDToolChain::addClangTargetOptions(
           DeviceOffloadingKind == Action::OFK_SYCL) &&
          "Only HIP and SYCL offloading kinds are supported for GPUs.");
 
-  CC1Args.push_back("-fcuda-is-device");
+  CC1Args.append({"-fcuda-is-device", "-fno-threadsafe-statics"});
 
   if (!DriverArgs.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                           false))
@@ -284,7 +283,7 @@ void HIPAMDToolChain::addClangTargetOptions(
   }
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||

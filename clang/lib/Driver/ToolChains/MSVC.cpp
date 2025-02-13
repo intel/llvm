@@ -126,6 +126,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   else if (TC.getTriple().isWindowsArm64EC())
     CmdArgs.push_back("-machine:arm64ec");
 
+  if (const Arg *A = Args.getLastArg(options::OPT_fveclib)) {
+    StringRef V = A->getValue();
+    if (V == "ArmPL")
+      CmdArgs.push_back(Args.MakeArgString("--dependent-lib=amath"));
+  }
+
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
@@ -504,7 +510,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ArgList &Args)
     : ToolChain(D, Triple, Args), CudaInstallation(D, Triple, Args),
-      RocmInstallation(D, Triple, Args), SYCLInstallation(D) {
+      RocmInstallation(D, Triple, Args), SYCLInstallation(D, Triple, Args) {
   getProgramPaths().push_back(getDriver().Dir);
 
   std::optional<llvm::StringRef> VCToolsDir, VCToolsVersion;
@@ -583,9 +589,9 @@ void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
   RocmInstallation->AddHIPIncludeArgs(DriverArgs, CC1Args);
 }
 
-void MSVCToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void MSVCToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
-  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+  SYCLInstallation->addSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 void MSVCToolChain::AddHIPRuntimeLibArgs(const ArgList &Args,

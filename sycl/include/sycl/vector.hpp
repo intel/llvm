@@ -32,9 +32,10 @@
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
-#include <sycl/detail/type_traits.hpp>         // for is_floating_point
+#include <sycl/detail/named_swizzles_mixin.hpp>
+#include <sycl/detail/type_traits.hpp> // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
-#include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
+#include <sycl/half_type.hpp> // for StorageT, half, Vec16...
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
@@ -112,12 +113,11 @@ public:
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Vec, typename T, int N, typename = void>
-struct ScalarConversionOperatorMixIn {};
+template <typename Self> class ScalarConversionOperatorMixIn {
+  using T = typename from_incomplete<Self>::element_type;
 
-template <typename Vec, typename T, int N>
-struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
-  operator T() const { return (*static_cast<const Vec *>(this))[0]; }
+public:
+  operator T() const { return (*static_cast<const Self *>(this))[0]; }
 };
 
 template <typename T>
@@ -125,6 +125,113 @@ inline constexpr bool is_fundamental_or_half_or_bfloat16 =
     std::is_fundamental_v<T> || std::is_same_v<std::remove_const_t<T>, half> ||
     std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16>;
 
+// Proposed SYCL specification changes have sycl::vec having different ctors
+// available based on the number of elements. Without C++20's concepts we'll
+// have to use partial specialization to represent that. This is a helper to do
+// that. An alternative could be to have different specializations of the
+// `sycl::vec` itself but then we'd need to outline all the common interfaces to
+// re-use them.
+//
+// Note: the functional changes haven't been implemented yet, we've split
+// vec_base in advance as a way to make changes easier to review/verify.
+//
+// Another note: `vector_t` is going to be removed, so corresponding ctor was
+// kept inside `sycl::vec` to have all `vector_t` functionality in a single
+// place.
+template <typename DataT, int NumElements> class vec_base {
+  // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#memory-layout-and-alignment
+  // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
+  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
+  // This represent type of underlying value. There should be only one field
+  // in the class, so vec<float, 16> should be equal to float16 in memory.
+  using DataType = std::array<DataT, AdjustedNum>;
+
+protected:
+  // fields
+  // Alignment is the same as size, to a maximum size of 64. SPEC requires
+  // "The elements of an instance of the SYCL vec class template are stored
+  // in memory sequentially and contiguously and are aligned to the size of
+  // the element type in bytes multiplied by the number of elements."
+  static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
+  alignas(alignment) DataType m_Data;
+
+  template <size_t... Is>
+  constexpr vec_base(const std::array<DataT, NumElements> &Arr,
+                     std::index_sequence<Is...>)
+      : m_Data{Arr[Is]...} {}
+
+  template <typename CtorArgTy>
+  static constexpr bool AllowArgTypeInVariadicCtor = []() constexpr {
+    if constexpr (std::is_convertible_v<CtorArgTy, DataT>) {
+      return true;
+    } else if constexpr (is_vec_or_swizzle_v<CtorArgTy>) {
+      if constexpr (CtorArgTy::size() == 1 &&
+                    std::is_convertible_v<typename CtorArgTy::element_type,
+                                          DataT>) {
+        // Temporary workaround because swizzle's `operator DataT` is a
+        // template.
+        return true;
+      }
+      return std::is_same_v<typename CtorArgTy::element_type, DataT>;
+    } else {
+      return false;
+    }
+  }();
+
+  template <typename T> static constexpr int num_elements() {
+    if constexpr (is_vec_or_swizzle_v<T>)
+      return T::size();
+    else
+      return 1;
+  }
+
+  // Utility trait for creating an std::array from an vector argument.
+  template <typename DataT_, typename T> class FlattenVecArg {
+    template <std::size_t... Is>
+    static constexpr auto helper(const T &V, std::index_sequence<Is...>) {
+      // FIXME: Swizzle's `operator[]` for expression trees seems to be broken
+      // and returns values of the underlying vector of some of the operands. On
+      // the other hand, `getValue()` gives correct results. This can be changed
+      // to using `operator[]` once the bug is fixed.
+      if constexpr (is_swizzle_v<T>)
+        return std::array{static_cast<DataT_>(V.getValue(Is))...};
+      else
+        return std::array{static_cast<DataT_>(V[Is])...};
+    }
+
+  public:
+    constexpr auto operator()(const T &A) const {
+      if constexpr (is_vec_or_swizzle_v<T>) {
+        return helper(A, std::make_index_sequence<T ::size()>());
+      } else {
+        return std::array{static_cast<DataT_>(A)};
+      }
+    }
+  };
+
+  // Alias for shortening the vec arguments to array converter.
+  template <typename DataT_, typename... ArgTN>
+  using VecArgArrayCreator = ArrayCreator<DataT_, FlattenVecArg, ArgTN...>;
+
+public:
+  constexpr vec_base() = default;
+  constexpr vec_base(const vec_base &) = default;
+  constexpr vec_base(vec_base &&) = default;
+  constexpr vec_base &operator=(const vec_base &) = default;
+  constexpr vec_base &operator=(vec_base &&) = default;
+
+  explicit constexpr vec_base(const DataT &arg)
+      : vec_base(RepeatValue<NumElements>(arg),
+                 std::make_index_sequence<NumElements>()) {}
+
+  template <typename... argTN,
+            typename = std::enable_if_t<
+                ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
+                ((num_elements<argTN>() + ...)) == NumElements>>
+  constexpr vec_base(const argTN &...args)
+      : vec_base{VecArgArrayCreator<DataT, argTN...>::Create(args...),
+                 std::make_index_sequence<NumElements>()} {}
+};
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -133,8 +240,12 @@ inline constexpr bool is_fundamental_or_half_or_bfloat16 =
 template <typename DataT, int NumElements>
 class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
-      public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
-                                                   DataT, NumElements> {
+      public detail::ApplyIf<
+          NumElements == 1,
+          detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>>>,
+      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
+      // Keep it last to simplify ABI layout test:
+      public detail::vec_base<DataT, NumElements> {
   static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
                 "DataT must be cv-unqualified");
 
@@ -143,13 +254,7 @@ class __SYCL_EBO vec
                 "or 16 are supported");
   static_assert(sizeof(bool) == sizeof(uint8_t), "bool size is not 1 byte");
 
-  // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#memory-layout-and-alignment
-  // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
-  static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
-
-  // This represent type of underlying value. There should be only one field
-  // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType = std::array<DataT, AdjustedNum>;
+  using Base = detail::vec_base<DataT, NumElements>;
 
 #ifdef __SYCL_DEVICE_ONLY__
   using element_type_for_vector_t = typename detail::map_type<
@@ -174,50 +279,26 @@ public:
                                   element_type_for_vector_t __attribute__((
                                       ext_vector_type(NumElements)))>;
 
+  // Make it a template to avoid ambiguity with `vec(const DataT &)` when
+  // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
+  // so we don't even need a smart `enable_if` condition here, the mere fact of
+  // this being a template makes the other ctor preferred.
+  template <
+      typename vector_t_ = vector_t,
+      typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
+  constexpr vec(vector_t_ openclVector) {
+    this->m_Data = sycl::bit_cast<decltype(this->m_Data)>(openclVector);
+  }
+
+  /* @SYCL2020
+   * Available only when: compiled for the device.
+   * Converts this SYCL vec instance to the underlying backend-native vector
+   * type defined by vector_t.
+   */
+  operator vector_t() const { return sycl::bit_cast<vector_t>(this->m_Data); }
+
 private:
 #endif // __SYCL_DEVICE_ONLY__
-
-  static constexpr int getNumElements() { return NumElements; }
-
-  // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
-  template <int Counter, int MaxValue, class...>
-  struct SizeChecker : std::conditional_t<Counter == MaxValue, std::true_type,
-                                          std::false_type> {};
-
-  template <int Counter, int MaxValue, typename DataT_, class... tail>
-  struct SizeChecker<Counter, MaxValue, DataT_, tail...>
-      : std::conditional_t<Counter + 1 <= MaxValue,
-                           SizeChecker<Counter + 1, MaxValue, tail...>,
-                           std::false_type> {};
-
-  // Utility trait for creating an std::array from an vector argument.
-  template <typename DataT_, typename T> class FlattenVecArg {
-    template <std::size_t... Is>
-    static constexpr auto helper(const T &V, std::index_sequence<Is...>) {
-      // FIXME: Swizzle's `operator[]` for expression trees seems to be broken
-      // and returns values of the underlying vector of some of the operands. On
-      // the other hand, `getValue()` gives correct results. This can be changed
-      // to using `operator[]` once the bug is fixed.
-      if constexpr (detail::is_swizzle_v<T>)
-        return std::array{static_cast<DataT_>(V.getValue(Is))...};
-      else
-        return std::array{static_cast<DataT_>(V[Is])...};
-    }
-
-  public:
-    constexpr auto operator()(const T &A) const {
-      if constexpr (detail::is_vec_or_swizzle_v<T>) {
-        return helper(A, std::make_index_sequence<T ::size()>());
-      } else {
-        return std::array{static_cast<DataT_>(A)};
-      }
-    }
-  };
-
-  // Alias for shortening the vec arguments to array converter.
-  template <typename DataT_, typename... ArgTN>
-  using VecArgArrayCreator =
-      detail::ArrayCreator<DataT_, FlattenVecArg, ArgTN...>;
 
   template <int... Indexes>
   using Swizzle =
@@ -229,27 +310,6 @@ private:
       detail::SwizzleOp<const vec, detail::GetOp<DataT>, detail::GetOp<DataT>,
                         detail::GetOp, Indexes...>;
 
-  // Shortcuts for args validation in vec(const argTN &... args) ctor.
-  template <typename CtorArgTy>
-  static constexpr bool AllowArgTypeInVariadicCtor = []() constexpr {
-    // FIXME: This logic implements the behavior of the previous implementation.
-    if constexpr (detail::is_vec_or_swizzle_v<CtorArgTy>) {
-      if constexpr (CtorArgTy::size() == 1)
-        return std::is_convertible_v<typename CtorArgTy::element_type, DataT>;
-      else
-        return std::is_same_v<typename CtorArgTy::element_type, DataT>;
-    } else {
-      return std::is_convertible_v<CtorArgTy, DataT>;
-    }
-  }();
-
-  template <typename T> static constexpr int num_elements() {
-    if constexpr (detail::is_vec_or_swizzle_v<T>)
-      return T::size();
-    else
-      return 1;
-  }
-
   // Element type for relational operator return value.
   using rel_t = detail::fixed_width_signed<sizeof(DataT)>;
 
@@ -259,35 +319,13 @@ public:
   using element_type = DataT;
   using value_type = DataT;
 
-  /****************** Constructors **************/
-  vec() = default;
-  constexpr vec(const vec &Rhs) = default;
-  constexpr vec(vec &&Rhs) = default;
-
-private:
-  // Implementation detail for the next public ctor.
-  template <size_t... Is>
-  constexpr vec(const std::array<DataT, NumElements> &Arr,
-                std::index_sequence<Is...>)
-      : m_Data{Arr[Is]...} {}
-
-public:
-  explicit constexpr vec(const DataT &arg)
-      : vec{detail::RepeatValue<NumElements>(arg),
-            std::make_index_sequence<NumElements>()} {}
-
-  // Constructor from values of base type or vec of base type. Checks that
-  // base types are match and that the NumElements == sum of lengths of args.
-  template <typename... argTN,
-            typename = std::enable_if_t<
-                ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
-                ((num_elements<argTN>() + ...)) == NumElements>>
-  constexpr vec(const argTN &...args)
-      : vec{VecArgArrayCreator<DataT, argTN...>::Create(args...),
-            std::make_index_sequence<NumElements>()} {}
+  using Base::Base;
+  constexpr vec(const vec &) = default;
+  constexpr vec(vec &&) = default;
 
   /****************** Assignment Operators **************/
-  constexpr vec &operator=(const vec &Rhs) = default;
+  constexpr vec &operator=(const vec &) = default;
+  constexpr vec &operator=(vec &&) = default;
 
   // Template required to prevent ambiguous overload with the copy assignment
   // when NumElements == 1. The template prevents implicit conversion from
@@ -309,33 +347,13 @@ public:
     return *this;
   }
 
-#ifdef __SYCL_DEVICE_ONLY__
-  // Make it a template to avoid ambiguity with `vec(const DataT &)` when
-  // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
-  // so we don't even need a smart `enable_if` condition here, the mere fact of
-  // this being a template makes the other ctor preferred.
-  template <
-      typename vector_t_ = vector_t,
-      typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
-  constexpr vec(vector_t_ openclVector) {
-    m_Data = sycl::bit_cast<DataType>(openclVector);
-  }
-
-  /* @SYCL2020
-   * Available only when: compiled for the device.
-   * Converts this SYCL vec instance to the underlying backend-native vector
-   * type defined by vector_t.
-   */
-  operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
-#endif // __SYCL_DEVICE_ONLY__
-
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
   static constexpr size_t size() noexcept { return NumElements; }
   __SYCL2020_DEPRECATED(
       "get_size() is deprecated, please use byte_size() instead")
   static constexpr size_t get_size() { return byte_size(); }
-  static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
+  static constexpr size_t byte_size() noexcept { return sizeof(Base); }
 
 private:
   // getValue should be able to operate on different underlying
@@ -352,10 +370,10 @@ private:
 
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
-      return sycl::bit_cast<RetType>(m_Data[Index]);
+      return sycl::bit_cast<RetType>(this->m_Data[Index]);
     else
 #endif
-      return static_cast<RetType>(m_Data[Index]);
+      return static_cast<RetType>(this->m_Data[Index]);
   }
 
 public:
@@ -375,34 +393,14 @@ public:
     return this;
   }
 
-  const DataT &operator[](int i) const { return m_Data[i]; }
+  const DataT &operator[](int i) const { return this->m_Data[i]; }
 
-  DataT &operator[](int i) { return m_Data[i]; }
-
-  // Begin hi/lo, even/odd, xyzw, and rgba swizzles. @{
-private:
-  // Indexer used in the swizzles.def
-  // Currently it is defined as a template struct. Replacing it with a constexpr
-  // function would activate a bug in MSVC that is fixed only in v19.20.
-  // Until then MSVC does not recognize such constexpr functions as const and
-  // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index> struct Indexer {
-    static constexpr int value = Index;
-  };
-
-public:
-#ifdef __SYCL_ACCESS_RETURN
-#error "Undefine __SYCL_ACCESS_RETURN macro"
-#endif
-#define __SYCL_ACCESS_RETURN this
-#include "swizzles.def"
-#undef __SYCL_ACCESS_RETURN
-  // }@ End of hi/lo, even/odd, xyzw, and rgba swizzles.
+  DataT &operator[](int i) { return this->m_Data[i]; }
 
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t Offset, multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
     for (int I = 0; I < NumElements; I++) {
-      m_Data[I] = *multi_ptr<const DataT, Space, DecorateAddress>(
+      this->m_Data[I] = *multi_ptr<const DataT, Space, DecorateAddress>(
           Ptr + Offset * NumElements + I);
     }
   }
@@ -425,7 +423,7 @@ public:
   }
   void load(size_t Offset, const DataT *Ptr) {
     for (int I = 0; I < NumElements; ++I)
-      m_Data[I] = Ptr[Offset * NumElements + I];
+      this->m_Data[I] = Ptr[Offset * NumElements + I];
   }
 
   template <access::address_space Space, access::decorated DecorateAddress>
@@ -433,7 +431,7 @@ public:
              multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
     for (int I = 0; I < NumElements; I++) {
       *multi_ptr<DataT, Space, DecorateAddress>(Ptr + Offset * NumElements +
-                                                I) = m_Data[I];
+                                                I) = this->m_Data[I];
     }
   }
   template <int Dimensions, access::mode Mode,
@@ -449,17 +447,8 @@ public:
   }
   void store(size_t Offset, DataT *Ptr) const {
     for (int I = 0; I < NumElements; ++I)
-      Ptr[Offset * NumElements + I] = m_Data[I];
+      Ptr[Offset * NumElements + I] = this->m_Data[I];
   }
-
-private:
-  // fields
-  // Alignment is the same as size, to a maximum size of 64. SPEC requires
-  // "The elements of an instance of the SYCL vec class template are stored
-  // in memory sequentially and contiguously and are aligned to the size of
-  // the element type in bytes multiplied by the number of elements."
-  static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
-  alignas(alignment) DataType m_Data;
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -468,7 +457,6 @@ private:
   template <typename T1, int T2> friend class __SYCL_EBO vec;
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
-  template <typename T1, int T2> friend class detail::vec_arith_common;
 };
 ///////////////////////// class sycl::vec /////////////////////////
 
@@ -560,8 +548,32 @@ template <typename T> struct LShift {
 // Actual computation performed on conversion or assignment operators.
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
-class SwizzleOp {
+class SwizzleOp : public detail::NamedSwizzlesMixinBoth<
+                      SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                OperationCurrentT, Indexes...>,
+                      sizeof...(Indexes)> {
   using DataT = typename VecT::element_type;
+
+public:
+  using element_type = DataT;
+  using value_type = DataT;
+
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  static constexpr size_t size() noexcept { return sizeof...(Indexes); }
+
+  template <int Num = size()>
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  size_t get_size() const {
+    return byte_size<Num>();
+  }
+
+  template <int Num = size()> size_t byte_size() const noexcept {
+    return sizeof(DataT) * (Num == 3 ? 4 : Num);
+  }
+
+private:
   // Certain operators return a vector with a different element type. Also, the
   // left and right operand types may differ. CommonDataT selects a result type
   // based on these types to ensure that the result value can be represented.
@@ -593,7 +605,6 @@ class SwizzleOp {
   using CommonDataT = std::conditional_t<
       sizeof(DataT) >= sizeof(std::common_type_t<OpLeftDataT, OpRightDataT>),
       DataT, std::common_type_t<OpLeftDataT, OpRightDataT>>;
-  static constexpr int getNumElements() { return sizeof...(Indexes); }
 
   using rel_t = detail::rel_t<DataT>;
   using vec_t = vec<DataT, sizeof...(Indexes)>;
@@ -608,7 +619,7 @@ class SwizzleOp {
 
   template <typename OperationRightT_,
             template <typename> class OperationCurrentT_, int... Idx_>
-  using NewRelOp = SwizzleOp<vec<rel_t, VecT::getNumElements()>,
+  using NewRelOp = SwizzleOp<vec<rel_t, VecT::size()>,
                              SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                        OperationCurrentT, Indexes...>,
                              OperationRightT_, OperationCurrentT_, Idx_...>;
@@ -621,12 +632,12 @@ class SwizzleOp {
                             OperationCurrentT_, Idx_...>;
 
   template <int IdxNum, typename T = void>
-  using EnableIfOneIndex = typename std::enable_if_t<
-      1 == IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
+  using EnableIfOneIndex =
+      typename std::enable_if_t<1 == IdxNum && SwizzleOp::size() == IdxNum, T>;
 
   template <int IdxNum, typename T = void>
-  using EnableIfMultipleIndexes = typename std::enable_if_t<
-      1 != IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
+  using EnableIfMultipleIndexes =
+      typename std::enable_if_t<1 != IdxNum && SwizzleOp::size() == IdxNum, T>;
 
   template <typename T>
   using EnableIfScalarType =
@@ -647,40 +658,22 @@ class SwizzleOp {
       SwizzleOp<const VecT, GetOp<DataT>, GetOp<DataT>, GetOp, Indices...>;
 
 public:
-  using element_type = DataT;
-  using value_type = DataT;
-
 #ifdef __SYCL_DEVICE_ONLY__
   using vector_t = typename vec_t::vector_t;
 #endif // __SYCL_DEVICE_ONLY__
 
   const DataT &operator[](int i) const {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     return (*m_Vector)[Idxs[i]];
   }
 
   template <typename _T = VecT>
   std::enable_if_t<!std::is_const_v<_T>, DataT> &operator[](int i) {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     return (*m_Vector)[Idxs[i]];
   }
 
-  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return size(); }
-  static constexpr size_t size() noexcept { return getNumElements(); }
-
-  template <int Num = getNumElements()>
-  __SYCL2020_DEPRECATED(
-      "get_size() is deprecated, please use byte_size() instead")
-  size_t get_size() const {
-    return byte_size<Num>();
-  }
-
-  template <int Num = getNumElements()> size_t byte_size() const noexcept {
-    return sizeof(DataT) * (Num == 3 ? 4 : Num);
-  }
-
-  template <typename T, int IdxNum = getNumElements(),
+  template <typename T, int IdxNum = size(),
             typename = EnableIfOneIndex<IdxNum>,
             typename = EnableIfScalarType<T>>
   operator T() const {
@@ -884,8 +877,7 @@ public:
   __SYCL_RELLOGOP(||, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
 #undef __SYCL_RELLOGOP
 
-  template <int IdxNum = getNumElements(),
-            typename = EnableIfMultipleIndexes<IdxNum>>
+  template <int IdxNum = size(), typename = EnableIfMultipleIndexes<IdxNum>>
   SwizzleOp &operator=(const vec<DataT, IdxNum> &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
@@ -894,15 +886,14 @@ public:
     return *this;
   }
 
-  template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
+  template <int IdxNum = size(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     (*m_Vector)[Idxs[0]] = Rhs;
     return *this;
   }
 
-  template <int IdxNum = getNumElements(),
-            EnableIfMultipleIndexes<IdxNum, bool> = true>
+  template <int IdxNum = size(), EnableIfMultipleIndexes<IdxNum, bool> = true>
   SwizzleOp &operator=(const DataT &Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     for (auto Idx : Idxs) {
@@ -911,7 +902,7 @@ public:
     return *this;
   }
 
-  template <int IdxNum = getNumElements(), typename = EnableIfOneIndex<IdxNum>>
+  template <int IdxNum = size(), typename = EnableIfOneIndex<IdxNum>>
   SwizzleOp &operator=(DataT &&Rhs) {
     std::array<int, IdxNum> Idxs{Indexes...};
     (*m_Vector)[Idxs[0]] = Rhs;
@@ -1060,24 +1051,22 @@ public:
     return NewLHOp<RhsOperation, LShift, Indexes...>(m_Vector, *this, Rhs);
   }
 
-  template <
-      typename T1, typename T2, typename T3, template <typename> class T4,
-      int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+  template <typename T1, typename T2, typename T3, template <typename> class T4,
+            int... T5,
+            typename = typename std::enable_if_t<sizeof...(T5) == size()>>
   SwizzleOp &operator=(const SwizzleOp<T1, T2, T3, T4, T5...> &Rhs) {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       (*m_Vector)[Idxs[I]] = Rhs.getValue(I);
     }
     return *this;
   }
 
-  template <
-      typename T1, typename T2, typename T3, template <typename> class T4,
-      int... T5,
-      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+  template <typename T1, typename T2, typename T3, template <typename> class T4,
+            int... T5,
+            typename = typename std::enable_if_t<sizeof...(T5) == size()>>
   SwizzleOp &operator=(SwizzleOp<T1, T2, T3, T4, T5...> &&Rhs) {
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       (*m_Vector)[Idxs[I]] = Rhs.getValue(I);
     }
@@ -1194,26 +1183,24 @@ public:
     return NewRelOp<RhsOperation, LogicalOr, Indexes...>(NULL, *this, Rhs);
   }
 
-  // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
-  // Indexer used in the swizzles.def.
-  // Currently it is defined as a template struct. Replacing it with a constexpr
-  // function would activate a bug in MSVC that is fixed only in v19.20.
-  // Until then MSVC does not recognize such constexpr functions as const and
-  // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index> struct Indexer {
-    static constexpr int IDXs[sizeof...(Indexes)] = {Indexes...};
-    static constexpr int value = IDXs[Index >= getNumElements() ? 0 : Index];
-  };
+  static constexpr int get_vec_idx(int idx) {
+    int counter = 0;
+    int result = -1;
+    ((result = counter++ == idx ? Indexes : result), ...);
+    return result;
+  }
 
 public:
-#ifdef __SYCL_ACCESS_RETURN
-#error "Undefine __SYCL_ACCESS_RETURN macro"
-#endif
-#define __SYCL_ACCESS_RETURN m_Vector
-#include "swizzles.def"
-#undef __SYCL_ACCESS_RETURN
-  // End of hi/lo, even/odd, xyzw, and rgba swizzles.
+  template <int... swizzleIndexes>
+  ConstSwizzle<get_vec_idx(swizzleIndexes)...> swizzle() const {
+    return m_Vector;
+  }
+
+  template <int... swizzleIndexes>
+  Swizzle<get_vec_idx(swizzleIndexes)...> swizzle() {
+    return m_Vector;
+  }
 
   // Leave store() interface to automatic conversion to vec<>.
   // Load to vec_t and then assign to swizzle.
@@ -1228,7 +1215,7 @@ public:
   vec<convertT, sizeof...(Indexes)> convert() const {
     // First materialize the swizzle to vec_t and then apply convert() to it.
     vec_t Tmp;
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       Tmp[I] = (*m_Vector)[Idxs[I]];
     }
@@ -1267,10 +1254,10 @@ private:
   // or reading values from actual vector. Perform implicit type conversion when
   // the number of elements == 1
 
-  template <int IdxNum = getNumElements()>
+  template <int IdxNum = size()>
   CommonDataT getValue(EnableIfOneIndex<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
-      std::array<int, getNumElements()> Idxs{Indexes...};
+      std::array<int, size()> Idxs{Indexes...};
       return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<CommonDataT>();
@@ -1278,10 +1265,10 @@ private:
               m_RightOperation.getValue(Index));
   }
 
-  template <int IdxNum = getNumElements()>
+  template <int IdxNum = size()>
   DataT getValue(EnableIfMultipleIndexes<IdxNum, size_t> Index) const {
     if (std::is_same_v<OperationCurrentT<DataT>, GetOp<DataT>>) {
-      std::array<int, getNumElements()> Idxs{Indexes...};
+      std::array<int, size()> Idxs{Indexes...};
       return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<DataT>();
@@ -1292,7 +1279,7 @@ private:
   template <template <typename> class Operation, typename RhsOperation>
   void operatorHelper(const RhsOperation &Rhs) const {
     Operation<DataT> Op;
-    std::array<int, getNumElements()> Idxs{Indexes...};
+    std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       DataT Res = Op((*m_Vector)[Idxs[I]], Rhs.getValue(I));
       (*m_Vector)[Idxs[I]] = Res;
@@ -1307,6 +1294,7 @@ private:
 
   // friends
   template <typename T1, int T2> friend class sycl::vec;
+  template <typename, int> friend class sycl::detail::vec_base;
 
   template <typename T1, typename T2, typename T3, template <typename> class T4,
             int... T5>

@@ -1,0 +1,33 @@
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.2 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+; CHECK: define spir_kernel void @testMaxByteOffsetId(
+; CHECK-SAME: ptr addrspace(1) dereferenceable(24) %p,
+; CHECK-SAME: ptr addrspace(1) dereferenceable(48) %q)
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %fn "testMaxByteOffsetId"
+               OpName %p "p"
+               OpName %q "q"
+               OpDecorateId %p MaxByteOffsetId %mbo
+               OpDecorateId %q MaxByteOffsetId %spec
+       %void = OpTypeVoid
+        %i32 = OpTypeInt 32 0
+        %ptr = OpTypePointer CrossWorkgroup %i32
+       %fnTy = OpTypeFunction %void %ptr %ptr
+        %mbo = OpConstant %i32 24
+       %spec = OpSpecConstantOp %i32 IAdd %mbo %mbo
+
+         %fn = OpFunction %void None %fnTy
+          %p = OpFunctionParameter %ptr
+          %q = OpFunctionParameter %ptr
+      %entry = OpLabel
+
+               OpReturn
+               OpFunctionEnd

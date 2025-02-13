@@ -178,6 +178,7 @@ LANGOPT(PointerAuthInitFini, 1, 0, "sign function pointers in init/fini arrays")
 LANGOPT(PointerAuthInitFiniAddressDiscrimination, 1, 0,
         "incorporate address discrimination in authenticated function pointers in init/fini arrays")
 LANGOPT(PointerAuthELFGOT, 1, 0, "authenticate pointers from GOT")
+LANGOPT(AArch64JumpTableHardening, 1, 0, "use hardened lowering for jump-table dispatch")
 
 LANGOPT(DoubleSquareBracketAttributes, 1, 0, "'[[]]' attributes extension for all language standard modes")
 LANGOPT(ExperimentalLateParseAttributes, 1, 0, "experimental late parsing of attributes")
@@ -376,6 +377,8 @@ BENIGN_ENUM_LANGOPT(FPEvalMethod, FPEvalMethodKind, 2, FEM_UnsetOnCommandLine, "
 ENUM_LANGOPT(Float16ExcessPrecision, ExcessPrecisionKind, 2, FPP_Standard, "Intermediate truncation behavior for Float16 arithmetic")
 ENUM_LANGOPT(BFloat16ExcessPrecision, ExcessPrecisionKind, 2, FPP_Standard, "Intermediate truncation behavior for BFloat16 arithmetic")
 BENIGN_ENUM_LANGOPT(FPAccuracy, FPAccuracyKind, 3, FPA_Default, "Accuracy for floating point operations and library functions")
+LANGOPT(OffloadFP32PrecDiv, 1, 1, "Return correctly rounded results of fdiv")
+LANGOPT(OffloadFP32PrecSqrt, 1, 1, "Return correctly rounded results of sqrt")
 LANGOPT(NoBitFieldTypeAlign , 1, 0, "bit-field type alignment")
 LANGOPT(HexagonQdsp6Compat , 1, 0, "hexagon-qdsp6 backward compatibility")
 LANGOPT(ObjCAutoRefCount , 1, 0, "Objective-C automated reference counting")
@@ -564,6 +567,8 @@ BENIGN_LANGOPT(CheckConstexprFunctionBodies, 1, 1,
                "be used in a constant expression.")
 
 LANGOPT(BoundsSafety, 1, 0, "Bounds safety extension for C")
+
+LANGOPT(PreserveVec3Type, 1, 0, "Preserve 3-component vector type")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

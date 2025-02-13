@@ -111,7 +111,11 @@
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
+// CHECK-NEXT: ext/oneapi/experimental/event_mode_property.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
+// CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.hpp
+// CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.def
+// CHECK-NEXT: ext/oneapi/experimental/detail/properties/node_properties.def
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cl.h
 // CHECK-NEXT: CL/cl.h

@@ -339,9 +339,17 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
            const context &TargetContext, const async_handler Handler = {}) {
   auto KeepOwnership =
       Backend == backend::ext_oneapi_cuda || Backend == backend::ext_oneapi_hip;
-  return detail::make_queue(detail::ur::cast<ur_native_handle_t>(BackendObject),
-                            false, TargetContext, nullptr, KeepOwnership, {},
-                            Handler, Backend);
+  if constexpr (Backend == backend::ext_oneapi_level_zero) {
+    return detail::make_queue(
+        detail::ur::cast<ur_native_handle_t>(
+            std::get<ze_command_queue_handle_t>(BackendObject.NativeHandle)),
+        false, TargetContext, nullptr, KeepOwnership, {}, Handler, Backend);
+  }
+  if constexpr (Backend != backend::ext_oneapi_level_zero) {
+    return detail::make_queue(
+        detail::ur::cast<ur_native_handle_t>(BackendObject), false,
+        TargetContext, nullptr, KeepOwnership, {}, Handler, Backend);
+  }
 }
 
 template <backend Backend>
@@ -350,8 +358,16 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeEvent == true,
 make_event(const typename backend_traits<Backend>::template input_type<event>
                &BackendObject,
            const context &TargetContext) {
-  return detail::make_event(detail::ur::cast<ur_native_handle_t>(BackendObject),
-                            TargetContext, Backend);
+  if constexpr (Backend == backend::ext_oneapi_level_zero) {
+    return detail::make_event(
+        detail::ur::cast<ur_native_handle_t>(BackendObject.NativeHandle),
+        TargetContext, Backend);
+  }
+  if constexpr (Backend != backend::ext_oneapi_level_zero) {
+    return detail::make_event(
+        detail::ur::cast<ur_native_handle_t>(BackendObject), TargetContext,
+        Backend);
+  }
 }
 
 template <backend Backend>

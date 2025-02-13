@@ -21,7 +21,7 @@ config.suffixes = ['.cl', '.ll', '.spt', '.spvasm']
 # excludes: A list of directories  and fles to exclude from the testsuite.
 config.excludes = ['CMakeLists.txt']
 
-if config.spirv_tools_found:
+if config.libspirv_dis:
     config.available_features.add('libspirv_dis')
 
 if not config.spirv_skip_debug_info_tests:

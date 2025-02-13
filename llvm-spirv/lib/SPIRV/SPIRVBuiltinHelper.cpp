@@ -90,7 +90,8 @@ BuiltinCallMutator::BuiltinCallMutator(BuiltinCallMutator &&Other)
 Value *BuiltinCallMutator::doConversion() {
   assert(CI && "Need to have a call instruction to do the conversion");
   auto Mangler = makeMangler(CI, Rules);
-  for (unsigned I = 0; I < Args.size(); I++) {
+  for (unsigned I = 0, E = std::min(Args.size(), PointerTypes.size()); I < E;
+       I++) {
     Mangler->getTypeMangleInfo(I).PointerTy =
         dyn_cast<TypedPointerType>(PointerTypes[I]);
   }
