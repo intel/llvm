@@ -17,14 +17,14 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
 TEST_P(urMemBufferPartitionWithFlagsTest, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
   if (getParam() == UR_MEM_FLAG_WRITE_ONLY) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                         uur::NativeCPU{});
   }
 
   if (getParam() == UR_MEM_FLAG_READ_ONLY) {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                         uur::NativeCPU{});
   }
 
   uur::raii::Mem buffer = nullptr;

@@ -32,7 +32,7 @@ ur_command_list_manager::~ur_command_list_manager() {
 }
 
 ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
-    ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking, size_t srcOffset,
+    ur_mem_buffer_t *src, ur_mem_buffer_t *dst, bool blocking, size_t srcOffset,
     size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
     ur_command_t commandType) {
@@ -41,8 +41,8 @@ ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      device, ur_mem_handle_t_::device_access_mode_t::read_only, srcOffset,
-      size, [&](void *src, void *dst, size_t size) {
+      device, ur_mem_buffer_t::device_access_mode_t::read_only, srcOffset, size,
+      [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (zeCommandList.get(), dst, src, size, nullptr,
                            waitListView.num, waitListView.handles));
@@ -50,7 +50,7 @@ ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
       }));
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      device, ur_mem_handle_t_::device_access_mode_t::write_only, dstOffset,
+      device, ur_mem_buffer_t::device_access_mode_t::write_only, dstOffset,
       size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (zeCommandList.get(), dst, src, size, nullptr,
@@ -70,7 +70,7 @@ ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
 }
 
 ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
-    ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking,
+    ur_mem_buffer_t *src, ur_mem_buffer_t *dst, bool blocking,
     ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
     ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
     size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
@@ -84,7 +84,7 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      device, ur_mem_handle_t_::device_access_mode_t::read_only, 0,
+      device, ur_mem_buffer_t::device_access_mode_t::read_only, 0,
       src->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (zeCommandList.get(), dst, src, size, nullptr,
@@ -92,7 +92,7 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
         waitListView.clear();
       }));
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      device, ur_mem_handle_t_::device_access_mode_t::write_only, 0,
+      device, ur_mem_buffer_t::device_access_mode_t::write_only, 0,
       dst->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (zeCommandList.get(), dst, src, size, nullptr,
@@ -210,14 +210,15 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy(
 }
 
 ur_result_t ur_command_list_manager::appendMemBufferRead(
-    ur_mem_handle_t hBuffer, bool blockingRead, size_t offset, size_t size,
+    ur_mem_handle_t hMem, bool blockingRead, size_t offset, size_t size,
     void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferRead");
 
+  auto hBuffer = hMem->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_usm_handle_t_ dstHandle(context, size, pDst);
+  ur_usm_handle_t dstHandle(context, size, pDst);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
                                                           hBuffer->getMutex());
@@ -228,14 +229,15 @@ ur_result_t ur_command_list_manager::appendMemBufferRead(
 }
 
 ur_result_t ur_command_list_manager::appendMemBufferWrite(
-    ur_mem_handle_t hBuffer, bool blockingWrite, size_t offset, size_t size,
+    ur_mem_handle_t hMem, bool blockingWrite, size_t offset, size_t size,
     const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferWrite");
 
+  auto hBuffer = hMem->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_usm_handle_t_ srcHandle(context, size, pSrc);
+  ur_usm_handle_t srcHandle(context, size, pSrc);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
                                                           hBuffer->getMutex());
@@ -246,10 +248,13 @@ ur_result_t ur_command_list_manager::appendMemBufferWrite(
 }
 
 ur_result_t ur_command_list_manager::appendMemBufferCopy(
-    ur_mem_handle_t hBufferSrc, ur_mem_handle_t hBufferDst, size_t srcOffset,
+    ur_mem_handle_t hSrc, ur_mem_handle_t hDst, size_t srcOffset,
     size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferCopy");
+
+  auto hBufferSrc = hSrc->getBuffer();
+  auto hBufferDst = hDst->getBuffer();
 
   UR_ASSERT(srcOffset + size <= hBufferSrc->getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
@@ -266,14 +271,15 @@ ur_result_t ur_command_list_manager::appendMemBufferCopy(
 }
 
 ur_result_t ur_command_list_manager::appendMemBufferReadRect(
-    ur_mem_handle_t hBuffer, bool blockingRead, ur_rect_offset_t bufferOrigin,
+    ur_mem_handle_t hMem, bool blockingRead, ur_rect_offset_t bufferOrigin,
     ur_rect_offset_t hostOrigin, ur_rect_region_t region, size_t bufferRowPitch,
     size_t bufferSlicePitch, size_t hostRowPitch, size_t hostSlicePitch,
     void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferReadRect");
 
-  ur_usm_handle_t_ dstHandle(context, 0, pDst);
+  auto hBuffer = hMem->getBuffer();
+  ur_usm_handle_t dstHandle(context, 0, pDst);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
                                                           hBuffer->getMutex());
@@ -286,14 +292,15 @@ ur_result_t ur_command_list_manager::appendMemBufferReadRect(
 }
 
 ur_result_t ur_command_list_manager::appendMemBufferWriteRect(
-    ur_mem_handle_t hBuffer, bool blockingWrite, ur_rect_offset_t bufferOrigin,
+    ur_mem_handle_t hMem, bool blockingWrite, ur_rect_offset_t bufferOrigin,
     ur_rect_offset_t hostOrigin, ur_rect_region_t region, size_t bufferRowPitch,
     size_t bufferSlicePitch, size_t hostRowPitch, size_t hostSlicePitch,
     void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferWriteRect");
 
-  ur_usm_handle_t_ srcHandle(context, 0, pSrc);
+  auto hBuffer = hMem->getBuffer();
+  ur_usm_handle_t srcHandle(context, 0, pSrc);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
                                                           hBuffer->getMutex());
@@ -306,12 +313,15 @@ ur_result_t ur_command_list_manager::appendMemBufferWriteRect(
 }
 
 ur_result_t ur_command_list_manager::appendMemBufferCopyRect(
-    ur_mem_handle_t hBufferSrc, ur_mem_handle_t hBufferDst,
-    ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
-    ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
-    size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    ur_mem_handle_t hSrc, ur_mem_handle_t hDst, ur_rect_offset_t srcOrigin,
+    ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
+    size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferCopyRect");
+
+  auto hBufferSrc = hSrc->getBuffer();
+  auto hBufferDst = hDst->getBuffer();
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> lock(
       this->Mutex, hBufferSrc->getMutex(), hBufferDst->getMutex());
@@ -333,8 +343,8 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy2D(
 
   std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
-  ur_usm_handle_t_ srcHandle(context, 0, pSrc);
-  ur_usm_handle_t_ dstHandle(context, 0, pDst);
+  ur_usm_handle_t srcHandle(context, 0, pSrc);
+  ur_usm_handle_t dstHandle(context, 0, pDst);
 
   return appendRegionCopyUnlocked(&srcHandle, &dstHandle, blocking, zeroOffset,
                                   zeroOffset, region, srcPitch, 0, dstPitch, 0,

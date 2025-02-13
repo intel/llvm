@@ -15,8 +15,8 @@
 
 #include "context.hpp"
 #include "event.hpp"
+#include "helpers/image_helpers.hpp"
 #include "helpers/memory_helpers.hpp"
-#include "image.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
 #include "ur_interface_loader.hpp"
@@ -1485,83 +1485,6 @@ ur_result_t urEnqueueUSMMemcpy2D(
       0,                             /*DstSlicePitch=*/
       Blocking, NumEventsInWaitList, EventWaitList, Event,
       PreferCopyEngineUsage(Queue->Device, Queue->Context, Src, Dst));
-}
-
-static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
-                                  const ur_image_desc_t *ImageDesc,
-                                  ZeStruct<ze_image_desc_t> &ZeImageDesc) {
-
-  auto [ZeImageFormatType, ZeImageFormatTypeSize] =
-      getImageFormatTypeAndSize(ImageFormat);
-
-  if (ZeImageFormatTypeSize == 0) {
-    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
-  }
-
-  // TODO: populate the layout mapping
-  ze_image_format_layout_t ZeImageFormatLayout;
-  switch (ImageFormat->channelOrder) {
-  case UR_IMAGE_CHANNEL_ORDER_RGBA: {
-    switch (ZeImageFormatTypeSize) {
-    case 8:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8;
-      break;
-    case 16:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16;
-      break;
-    case 32:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
-      break;
-    default:
-      logger::error("urMemImageCreate: unexpected data type Size\n");
-      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
-    }
-    break;
-  }
-  default:
-    logger::error("format layout = {}", ImageFormat->channelOrder);
-    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
-    break;
-  }
-
-  ze_image_format_t ZeFormatDesc = {
-      ZeImageFormatLayout, ZeImageFormatType,
-      // TODO: are swizzles deducted from image_format->image_channel_order?
-      ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
-      ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
-
-  ze_image_type_t ZeImageType;
-  switch (ImageDesc->type) {
-  case UR_MEM_TYPE_IMAGE1D:
-    ZeImageType = ZE_IMAGE_TYPE_1D;
-    break;
-  case UR_MEM_TYPE_IMAGE2D:
-    ZeImageType = ZE_IMAGE_TYPE_2D;
-    break;
-  case UR_MEM_TYPE_IMAGE3D:
-    ZeImageType = ZE_IMAGE_TYPE_3D;
-    break;
-  case UR_MEM_TYPE_IMAGE1D_ARRAY:
-    ZeImageType = ZE_IMAGE_TYPE_1DARRAY;
-    break;
-  case UR_MEM_TYPE_IMAGE2D_ARRAY:
-    ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
-    break;
-  default:
-    logger::error("urMemImageCreate: unsupported image type");
-    return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
-  }
-
-  ZeImageDesc.arraylevels = ZeImageDesc.flags = 0;
-  ZeImageDesc.type = ZeImageType;
-  ZeImageDesc.format = ZeFormatDesc;
-  ZeImageDesc.width = ur_cast<uint64_t>(ImageDesc->width);
-  ZeImageDesc.height = ur_cast<uint64_t>(ImageDesc->height);
-  ZeImageDesc.depth = ur_cast<uint64_t>(ImageDesc->depth);
-  ZeImageDesc.arraylevels = ur_cast<uint32_t>(ImageDesc->arraySize);
-  ZeImageDesc.miplevels = ImageDesc->numMipLevel;
-
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemImageCreate(

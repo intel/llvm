@@ -113,15 +113,12 @@ TEST_P(urMemGetInfoTest, InvalidNullPointerPropSizeRet) {
 }
 
 struct urMemGetInfoImageTest : uur::urMemImageTest {
-  void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-    uur::urMemImageTest::SetUp();
-  }
+  void SetUp() override { uur::urMemImageTest::SetUp(); }
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemGetInfoImageTest);
 
 TEST_P(urMemGetInfoImageTest, SuccessSize) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   const ur_mem_info_t property_name = UR_MEM_INFO_SIZE;
   size_t property_size = 0;

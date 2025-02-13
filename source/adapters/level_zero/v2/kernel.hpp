@@ -105,7 +105,7 @@ private:
 
   struct pending_memory_allocation_t {
     ur_mem_handle_t hMem;
-    ur_mem_handle_t_::device_access_mode_t mode;
+    ur_mem_buffer_t::device_access_mode_t mode;
     uint32_t argIndex;
   };
 

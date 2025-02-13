@@ -15,6 +15,7 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool_cache.hpp"
+#include "memory.hpp"
 #include "queue_api.hpp"
 
 #include "ur/ur.hpp"
@@ -44,7 +45,7 @@ private:
   void deferEventFree(ur_event_handle_t hEvent) override;
 
   ur_result_t enqueueGenericFillUnlocked(
-      ur_mem_handle_t hBuffer, size_t offset, size_t patternSize,
+      ur_mem_buffer_t *hBuffer, size_t offset, size_t patternSize,
       const void *pPattern, size_t size, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
       ur_command_t commandType);

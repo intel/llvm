@@ -16,7 +16,7 @@ bool operator==(ur_image_format_t lhs, ur_image_format_t rhs) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessFormat) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_FORMAT;
@@ -36,7 +36,7 @@ TEST_P(urMemImageGetInfoTest, SuccessFormat) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessElementSize) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_ELEMENT_SIZE;
@@ -54,7 +54,7 @@ TEST_P(urMemImageGetInfoTest, SuccessElementSize) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessRowPitch) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_ROW_PITCH;
@@ -75,7 +75,7 @@ TEST_P(urMemImageGetInfoTest, SuccessRowPitch) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessSlicePitch) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_SLICE_PITCH;
@@ -95,7 +95,7 @@ TEST_P(urMemImageGetInfoTest, SuccessSlicePitch) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessWidth) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_WIDTH;
@@ -115,7 +115,7 @@ TEST_P(urMemImageGetInfoTest, SuccessWidth) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessHeight) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_HEIGHT;
@@ -135,7 +135,7 @@ TEST_P(urMemImageGetInfoTest, SuccessHeight) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessDepth) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_DEPTH;
@@ -155,7 +155,7 @@ TEST_P(urMemImageGetInfoTest, SuccessDepth) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessArraySize) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_ARRAY_SIZE;
@@ -175,7 +175,7 @@ TEST_P(urMemImageGetInfoTest, SuccessArraySize) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessNumMipMaps) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_NUM_MIP_LEVELS;
@@ -195,7 +195,7 @@ TEST_P(urMemImageGetInfoTest, SuccessNumMipMaps) {
 }
 
 TEST_P(urMemImageGetInfoTest, SuccessNumSamples) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   size_t property_size = 0;
   const ur_image_info_t property_name = UR_IMAGE_INFO_NUM_SAMPLES;
@@ -237,7 +237,7 @@ TEST_P(urMemImageGetInfoTest, InvalidSizeZero) {
 
 TEST_P(urMemImageGetInfoTest, InvalidSizeSmall) {
   // This fail is specific to the "Multi device testing" ci job.
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   int property_size = 0;
   ASSERT_EQ_RESULT(urMemImageGetInfo(image, UR_IMAGE_INFO_FORMAT,
