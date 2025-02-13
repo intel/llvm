@@ -1683,11 +1683,25 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   }
 }
 
+<<<<<<< HEAD
 void diagnosticHandler(const DiagnosticInfo &DI) {
   std::string ErrStorage;
   raw_string_ostream OS(ErrStorage);
   DiagnosticPrinterRawOStream DP(OS);
   DI.print(DP);
+=======
+Error containerizeRawImage(std::unique_ptr<MemoryBuffer> &Img, OffloadKind Kind,
+                           const ArgList &Args) {
+  llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  if (Kind != OFK_OpenMP || !Triple.isSPIRV() ||
+      Triple.getVendor() != llvm::Triple::Intel)
+    return Error::success();
+  return offloading::intel::containerizeOpenMPSPIRVImage(Img);
+}
+
+Expected<StringRef> writeOffloadFile(const OffloadFile &File) {
+  const OffloadBinary &Binary = *File.getBinary();
+>>>>>>> f7b3559ce07c83625bbe81a30a4da8ccef9ab53f
 
   switch (DI.getSeverity()) {
   case DS_Error:
@@ -2100,22 +2114,19 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
   switch (Kind) {
   case OFK_OpenMP:
     if (Error Err = offloading::wrapOpenMPBinaries(
-            M, BuffersToWrap,
-            offloading::getOffloadEntryArray(M, "omp_offloading_entries"),
+            M, BuffersToWrap, offloading::getOffloadEntryArray(M),
             /*Suffix=*/"", /*Relocatable=*/Args.hasArg(OPT_relocatable)))
       return std::move(Err);
     break;
   case OFK_Cuda:
     if (Error Err = offloading::wrapCudaBinary(
-            M, BuffersToWrap.front(),
-            offloading::getOffloadEntryArray(M, "cuda_offloading_entries"),
+            M, BuffersToWrap.front(), offloading::getOffloadEntryArray(M),
             /*Suffix=*/"", /*EmitSurfacesAndTextures=*/false))
       return std::move(Err);
     break;
   case OFK_HIP:
     if (Error Err = offloading::wrapHIPBinary(
-            M, BuffersToWrap.front(),
-            offloading::getOffloadEntryArray(M, "hip_offloading_entries")))
+            M, BuffersToWrap.front(), offloading::getOffloadEntryArray(M)))
       return std::move(Err);
     break;
   default:
@@ -2436,10 +2447,27 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         }
       }
 
+<<<<<<< HEAD
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
       auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
       if (!OutputFile)
         return OutputFile.takeError();
+=======
+      // Manually containerize offloading images not in ELF format.
+      if (Error E = containerizeRawImage(*FileOrErr, Kind, LinkerArgs))
+        return E;
+
+      std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+      OffloadingImage TheImage{};
+      TheImage.TheImageKind =
+          Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
+      TheImage.TheOffloadKind = Kind;
+      TheImage.StringData["triple"] =
+          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      TheImage.StringData["arch"] =
+          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ));
+      TheImage.Image = std::move(*FileOrErr);
+>>>>>>> f7b3559ce07c83625bbe81a30a4da8ccef9ab53f
 
       // SYCL offload kind images are all ready to be sent to host linker.
       // TODO: Currently, device code wrapping for SYCL offload happens in a
