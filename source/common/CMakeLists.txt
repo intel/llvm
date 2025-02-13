@@ -11,6 +11,14 @@ else()
     set(UMF_BUILD_LEVEL_ZERO_PROVIDER OFF CACHE INTERNAL "Build Level Zero Provider")
 endif()
 
+if (UR_BUILD_ADAPTER_CUDA)
+    find_package(CUDA 10.1 REQUIRED)
+    set(UMF_BUILD_CUDA_PROVIDER ON CACHE INTERNAL "Build UMF CUDA provider")
+    set(UMF_CUDA_INCLUDE_DIR "${CUDA_INCLUDE_DIRS}" CACHE INTERNAL "CUDA headers")
+else()
+    set(UMF_BUILD_CUDA_PROVIDER OFF CACHE INTERNAL "Build UMF CUDA provider")
+endif()
+
 add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
@@ -32,12 +40,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 222dd3d107cf1f97259ecb4bae45df3b8905725b (HEAD -> main, tag: v0.11.0-dev2)
+    # commit ace9f4a60b686463fdad15cd016c548237cb79e0
     # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Fri Feb 7 14:43:25 2025 +0100
-    # Merge pull request #1084 from lukaszstolarczuk/fix-icx-build
-    # Fix icx build
-    set(UMF_TAG v0.11.0-dev2)
+    # Date:   Mon Feb 10 11:39:15 2025 +0100
+    # Merge pull request #1088 from ldorau/Fix_remove_CUDA_ERROR_INVALID_RESOURCE_TYPE
+    set(UMF_TAG ace9f4a60b686463fdad15cd016c548237cb79e0)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -66,7 +73,6 @@ else()
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
   set(UMF_BUILD_LIBUMF_POOL_DISJOINT ON CACHE INTERNAL "Build Disjoint Pool")
-  set(UMF_BUILD_CUDA_PROVIDER ON CACHE INTERNAL "Build UMF CUDA provider")
 
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)
