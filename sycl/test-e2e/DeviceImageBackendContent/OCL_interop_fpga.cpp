@@ -1,5 +1,5 @@
-// REQUIRES: opencl, opencl_icd, aspect-usm_shared_allocations, !accelerator
-// RUN: %{build} %opencl_lib -fno-sycl-dead-args-optimization -o %t.out
+// REQUIRES: opencl, opencl_icd, opencl-aot, accelerator, aspect-usm_shared_allocations
+// RUN: %{build} -fno-sycl-dead-args-optimization %opencl_lib -fsycl-targets=spir64_fpga -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/backend.hpp>
@@ -27,11 +27,9 @@ int main() {
   // TODO: Remove it once these limitations are no longer there.
 #ifndef __SYCL_DEVICE_ONLY__
   // First, run the kernel using the SYCL API.
-
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt);
   sycl::kernel_id iota_id = syclexp::get_kernel_id<iota>();
   sycl::kernel k_iota = bundle.get_kernel(iota_id);
-
   int *ptr = sycl::malloc_shared<int>(1, q);
   *ptr = 0;
   q.submit([&](sycl::handler &cgh) {
@@ -56,9 +54,10 @@ int main() {
   auto clContext = sycl::get_native<sycl::backend::opencl>(ctxt);
   auto clDevice = sycl::get_native<sycl::backend::opencl>(d);
   cl_int status;
-  auto clProgram = clCreateProgramWithIL(
-      clContext, reinterpret_cast<const void *>(bytes.data()), bytes.size(),
-      &status);
+  size_t lengths = bytes.size();
+  const unsigned char *data = (const unsigned char *)(bytes.data());
+  auto clProgram = clCreateProgramWithBinary(clContext, 1, &clDevice, &lengths,
+                                             &data, nullptr, &status);
   assert(status == CL_SUCCESS);
   status = clBuildProgram(clProgram, 1, &clDevice, "", nullptr, nullptr);
   assert(status == CL_SUCCESS);
