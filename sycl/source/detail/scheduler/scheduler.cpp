@@ -302,10 +302,20 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     waitForRecordToFinish(Record, Lock);
   }
   {
+    // If allowWait is false, it means the application is shutting down.
+    // On Windows we can't safely wait on threads, because they have likely been
+    // abandoned. So we will try to get the lock. If we can, great, we'll remove
+    // the record. But if we can't, we just skip. The OS will reclaim the
+    // memory.
     WriteLockT Lock = StrictLock ? acquireWriteLock()
                                  : WriteLockT(MGraphLock, std::try_to_lock);
-    if (!Lock.owns_lock())
-      return false;
+    if (!Lock.owns_lock()) {
+
+      if (allowWait)
+        return false; // Record was not removed, the caller may try again.
+      else
+        return true; // skip.
+    }
     MGraphBuilder.decrementLeafCountersForRecord(Record);
     MGraphBuilder.cleanupCommandsForRecord(Record);
     MGraphBuilder.removeRecordForMemObj(MemObj);
