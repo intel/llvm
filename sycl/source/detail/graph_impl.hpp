@@ -1152,6 +1152,8 @@ public:
     return MBarrierDependencyMap[Queue];
   }
 
+  unsigned long long getID() const { return MID; }
+
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
   /// @param NodeFunc A function which receives as input a node in the graph to
@@ -1230,6 +1232,10 @@ private:
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MBarrierDependencyMap;
+
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -1328,6 +1334,8 @@ public:
   void update(const std::vector<std::shared_ptr<node_impl>> Nodes);
 
   void updateImpl(std::shared_ptr<node_impl> NodeImpl);
+
+  unsigned long long getID() const { return MID; }
 
 private:
   /// Create a command-group for the node and add it to command-buffer by going
@@ -1440,13 +1448,18 @@ private:
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
   std::multimap<node_impl::id_type, std::shared_ptr<node_impl>> MIDCache;
+
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
 class dynamic_parameter_impl {
 public:
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
                          size_t ParamSize, const void *Data)
-      : MGraph(GraphImpl), MValueStorage(ParamSize) {
+      : MGraph(GraphImpl), MValueStorage(ParamSize),
+        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
@@ -1454,7 +1467,8 @@ public:
   /// Parameter size is taken from member of raw_kernel_arg object.
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl, size_t,
                          raw_kernel_arg *Data)
-      : MGraph(GraphImpl) {
+      : MGraph(GraphImpl),
+        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     size_t RawArgSize = Data->MArgSize;
     const void *RawArgData = Data->MArgData;
     MValueStorage.reserve(RawArgSize);
@@ -1525,6 +1539,8 @@ public:
                                int ArgIndex,
                                const sycl::detail::AccessorBaseHost *Acc);
 
+  unsigned long long getID() const { return MID; }
+
   // Weak ptrs to node_impls which will be updated
   std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
   // Dynamic command-groups which will be updated
@@ -1532,6 +1548,11 @@ public:
 
   std::shared_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
+
+private:
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
 class dynamic_command_group_impl
@@ -1572,6 +1593,13 @@ public:
 
   /// List of nodes using this dynamic command-group.
   std::vector<std::weak_ptr<node_impl>> MNodes;
+
+  unsigned long long getID() const { return MID; }
+
+private:
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 } // namespace detail
 } // namespace experimental
