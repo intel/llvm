@@ -22,10 +22,9 @@
 
 namespace jit_compiler {
 
-using SourceHash = DynArray<uint8_t>;
-llvm::Expected<SourceHash>
-calculateSourceHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-                  const llvm::opt::InputArgList &UserArgList);
+llvm::Expected<std::string>
+calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+              const llvm::opt::InputArgList &UserArgList);
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,

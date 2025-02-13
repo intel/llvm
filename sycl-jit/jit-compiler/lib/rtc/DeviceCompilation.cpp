@@ -35,6 +35,7 @@
 #include <llvm/SYCLLowerIR/ModuleSplitter.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
 #include <llvm/Support/BLAKE3.h>
+#include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
 
@@ -152,14 +153,14 @@ protected:
     ArrayRef<uint8_t> PreprocessedData(
         (const uint8_t *)PreprocessedSource.data(), PreprocessedSource.size());
 
-    HashValue = BLAKE3::hash(PreprocessedData);
+    Hash = BLAKE3::hash(PreprocessedData);
   }
 
 public:
-  BLAKE3Result<> takeHashValue() { return std::move(HashValue); }
+  BLAKE3Result<> takeHash() { return std::move(Hash); }
 
 private:
-  BLAKE3Result<> HashValue;
+  BLAKE3Result<> Hash;
 };
 
 class RTCToolActionBase : public ToolAction {
@@ -208,7 +209,7 @@ protected:
       return false;
     }
 
-    HashValue = HPA.takeHashValue();
+    Hash = HPA.takeHash();
     Executed = true;
     return true;
   }
@@ -216,10 +217,10 @@ protected:
   bool hasExecuted() override { return Executed; }
 
 public:
-  BLAKE3Result<> takeHashValue() { return std::move(HashValue); }
+  BLAKE3Result<> takeHash() { return std::move(Hash); }
 
 private:
-  BLAKE3Result<> HashValue;
+  BLAKE3Result<> Hash;
   bool Executed = false;
 };
 
@@ -353,11 +354,11 @@ static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
       });
 }
 
-Expected<SourceHash>
-jit_compiler::calculateSourceHash(InMemoryFile SourceFile,
-                                  View<InMemoryFile> IncludeFiles,
-                                  const InputArgList &UserArgList) {
-  TimeTraceScope TTS{"calculateSourceHash"};
+Expected<std::string>
+jit_compiler::calculateHash(InMemoryFile SourceFile,
+                            View<InMemoryFile> IncludeFiles,
+                            const InputArgList &UserArgList) {
+  TimeTraceScope TTS{"calculateHash"};
 
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
@@ -375,8 +376,17 @@ jit_compiler::calculateSourceHash(InMemoryFile SourceFile,
 
   GetSourceHashAction Action;
   if (!Tool.run(&Action)) {
-    BLAKE3Result<> HashValue = Action.takeHashValue();
-    return DynArray<uint8_t>(HashValue.begin(), HashValue.end());
+    BLAKE3Result<> SourceHash = Action.takeHash();
+    // The adjusted command line contains the DPCPP root and clang major
+    // version.
+    BLAKE3Result<> CommandLineHash =
+        BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
+
+    std::string EncodedHash =
+        encodeBase64(SourceHash) + encodeBase64(CommandLineHash);
+    // Make the encoding filesystem-friendly.
+    std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
+    return std::move(EncodedHash);
   }
 
   return createStringError("Calculating source hash failed");

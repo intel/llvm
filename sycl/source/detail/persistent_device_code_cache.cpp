@@ -558,8 +558,7 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
 }
 
 void PersistentDeviceCodeCache::putDeviceCodeIRToDisc(
-    const std::vector<device> &Devices, const std::string &BuildOptionsString,
-    const std::string &SourceStr, const std::vector<char> &IR) {
+    const std::string &Key, const std::vector<char> &IR) {
 
   repopulateCacheSizeFile(getRootDir());
 
@@ -574,8 +573,7 @@ void PersistentDeviceCodeCache::putDeviceCodeIRToDisc(
   // Total size of the item that we are writing to the cache.
   size_t TotalSize = 0;
 
-  std::string DirName =
-      getDeviceCodeIRPath(Devices, BuildOptionsString, SourceStr);
+  std::string DirName = getDeviceCodeIRPath(Key);
 
   try {
     OSUtil::makeDir(DirName.c_str());
@@ -713,13 +711,11 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
   return Binaries;
 }
 
-std::vector<char> PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(
-    const std::vector<device> &Devices, const std::string &BuildOptionsString,
-    const std::string &SourceStr) {
+std::vector<char>
+PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(const std::string &Key) {
   std::vector<char> IR;
 
-  std::string DirName =
-      getDeviceCodeIRPath(Devices, BuildOptionsString, SourceStr);
+  std::string DirName = getDeviceCodeIRPath(Key);
 
   if (DirName.empty() || !OSUtil::isPathPresent(DirName))
     return {};
@@ -946,27 +942,15 @@ std::string PersistentDeviceCodeCache::getCompiledKernelItemPath(
          std::to_string(StringHasher(SourceString));
 }
 
-std::string PersistentDeviceCodeCache::getDeviceCodeIRPath(
-    const std::vector<device> &Devices, const std::string &BuildOptionsString,
-    const std::string &SourceString) {
-  assert(!Devices.empty());
-
+std::string
+PersistentDeviceCodeCache::getDeviceCodeIRPath(const std::string &Key) {
   std::string cache_root{getRootDir()};
   if (cache_root.empty()) {
     trace("Disable persistent cache due to unconfigured cache root.");
     return {};
   }
 
-  std::string DevicesString;
-  for (const auto &Dev : Devices)
-    DevicesString += getDeviceIDString(Dev) + ",";
-
-  std::hash<std::string> StringHasher{};
-
-  return cache_root + "/ext_kernel_compiler" + "/" +
-         std::to_string(StringHasher(DevicesString)) + "/" +
-         std::to_string(StringHasher(BuildOptionsString)) + "/" +
-         std::to_string(StringHasher(SourceString));
+  return cache_root + "/ext_kernel_compiler" + "/" + Key;
 }
 
 /* Returns true if persistent cache is enabled.

@@ -56,6 +56,28 @@ private:
   sycl::detail::string ErrorMessage;
 };
 
+class RTCHashResult {
+public:
+  explicit RTCHashResult(const char *PreprocLog)
+      : Failed{true}, Hash{}, PreprocLog{PreprocLog} {}
+  RTCHashResult(const char *Hash, const char *PreprocLog)
+      : Failed{false}, Hash{Hash}, PreprocLog{PreprocLog} {}
+
+  bool failed() { return Failed; }
+
+  const char *getPreprocLog() { return PreprocLog.c_str(); }
+
+  const char *getHash() {
+    assert(!failed() && "No hash");
+    return Hash.c_str();
+  }
+
+private:
+  bool Failed;
+  sycl::detail::string Hash;
+  sycl::detail::string PreprocLog;
+};
+
 class RTCResult {
 public:
   explicit RTCResult(const char *BuildLog)
@@ -107,6 +129,10 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
 KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
     const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
     View<unsigned char> SpecConstBlob);
+
+KF_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
+                                             View<InMemoryFile> IncludeFiles,
+                                             View<const char *> UserArgs);
 
 KF_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                        View<InMemoryFile> IncludeFiles,

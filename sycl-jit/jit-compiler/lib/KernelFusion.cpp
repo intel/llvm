@@ -247,6 +247,33 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
   return JITResult{FusedKernelInfo};
 }
 
+extern "C" KF_EXPORT_SYMBOL RTCHashResult
+calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+              View<const char *> UserArgs) {
+  auto UserArgListOrErr = parseUserArgs(UserArgs);
+  if (!UserArgListOrErr) {
+    return errorTo<RTCHashResult>(UserArgListOrErr.takeError(),
+                                  "Parsing of user arguments failed");
+  }
+  llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
+
+  auto Start = std::chrono::high_resolution_clock::now();
+  auto HashOrError = calculateHash(SourceFile, IncludeFiles, UserArgList);
+  if (!HashOrError) {
+    return errorTo<RTCHashResult>(HashOrError.takeError(), "Hashing failed");
+  }
+  auto Hash = *HashOrError;
+  auto Stop = std::chrono::high_resolution_clock::now();
+
+  std::chrono::duration<double, std::milli> HashTime = Stop - Start;
+  if (UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_EQ)) {
+    llvm::dbgs() << "Hashing of " << SourceFile.Path << " took "
+                 << int(HashTime.count()) << " ms\n";
+  }
+
+  return RTCHashResult{Hash.c_str(), /*PreprocLog=*/""};
+}
+
 extern "C" KF_EXPORT_SYMBOL RTCResult
 compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
             View<const char *> UserArgs, View<char> CachedIR, bool SaveIR) {
@@ -280,18 +307,6 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     llvm::timeTraceProfilerInitialize(Granularity, /*ProcName=*/"sycl-rtc",
                                       Verbose);
   }
-
-  // TODO(julian): Expose as a separate API.
-  auto Start = std::chrono::high_resolution_clock::now();
-  auto HashOrError = calculateSourceHash(SourceFile, IncludeFiles, UserArgList);
-  if (!HashOrError) {
-    return errorTo<RTCResult>(HashOrError.takeError(), "Source hashing failed");
-  }
-  auto SourceHash = *HashOrError;
-  auto Stop = std::chrono::high_resolution_clock::now();
-
-  std::chrono::duration<double, std::milli> HashTime = Stop - Start;
-  llvm::dbgs() << "Hashing took " << int(HashTime.count()) << "ms\n";
 
   std::unique_ptr<llvm::Module> Module;
 

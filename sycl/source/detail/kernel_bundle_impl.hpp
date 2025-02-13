@@ -497,26 +497,9 @@ public:
     if (MLanguage == syclex::source_language::sycl_jit) {
       // Build device images via the program manager.
       const std::string &SourceStr = std::get<std::string>(MSource);
-
-      std::string BuildOptionsString;
-      std::vector<char> CachedIR;
-      std::unique_ptr<std::vector<char>> SavedIRPtr;
-      if (PersistentDeviceCodeCache::isEnabled()) {
-        BuildOptionsString = syclex::detail::userArgsAsString(BuildOptions);
-        CachedIR = PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(
-            MDevices, BuildOptionsString, SourceStr);
-        SavedIRPtr = std::make_unique<std::vector<char>>();
-      }
-
       auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
-          SourceStr, MIncludePairs, BuildOptions, LogPtr, RegisteredKernelNames,
-          CachedIR, SavedIRPtr.get());
-
-      if (PersistentDeviceCodeCache::isEnabled() && !SavedIRPtr->empty()) {
-        PersistentDeviceCodeCache::putDeviceCodeIRToDisc(
-            MDevices, BuildOptionsString, SourceStr, *SavedIRPtr);
-        SavedIRPtr.reset();
-      }
+          SourceStr, MIncludePairs, BuildOptions, LogPtr,
+          RegisteredKernelNames);
 
       auto &PM = detail::ProgramManager::getInstance();
       PM.addImages(Binaries);

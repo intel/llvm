@@ -51,8 +51,7 @@ public:
       const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames,
-      const std::vector<char> &CachedIR, std::vector<char> *SavedIRPtr);
+      const std::vector<std::string> &RegisteredKernelNames);
 
   bool isAvailable() { return Available; }
 
@@ -94,11 +93,14 @@ private:
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
   using MaterializeSpecConstFuncT =
       decltype(::jit_compiler::materializeSpecConstants) *;
+  using CalculateHashFuncT =
+      decltype(::jit_compiler::calculateHash) *;
   using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
   MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
+  CalculateHashFuncT CalculateHashHandle = nullptr;
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;

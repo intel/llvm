@@ -178,12 +178,13 @@ public:
                             const std::string &BuildOptionsString,
                             const std::string &SourceString);
 
-  /* Get directory name when storing runtime compiled device code IR ( via
-   * kernel_compiler, sycl_jit language).
+  /* Get directory name when storing runtime compiled device code IR (via
+   * kernel_compiler, sycl_jit language). The key is computed in the sycl-jit
+   * library, and encompasses the preprocesses source code, build options and
+   * compiler location. The frontend invocation (whose output we cache here) is
+   * device-agnostic, hence the device (list) is not part of the lookup.
    */
-  static std::string getDeviceCodeIRPath(const std::vector<device> &Devices,
-                                         const std::string &BuildOptionsString,
-                                         const std::string &SourceString);
+  static std::string getDeviceCodeIRPath(const std::string &Key);
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
@@ -200,10 +201,7 @@ public:
                             const std::string &BuildOptionsString,
                             const std::string &SourceStr);
 
-  static std::vector<char>
-  getDeviceCodeIRFromDisc(const std::vector<device> &Devices,
-                          const std::string &BuildOptionsString,
-                          const std::string &SourceStr);
+  static std::vector<char> getDeviceCodeIRFromDisc(const std::string &Key);
 
   /* Stores build program in persistent cache
    */
@@ -219,9 +217,7 @@ public:
                                       const std::string &SourceStr,
                                       const ur_program_handle_t &NativePrg);
 
-  static void putDeviceCodeIRToDisc(const std::vector<device> &Devices,
-                                    const std::string &BuildOptionsString,
-                                    const std::string &SourceStr,
+  static void putDeviceCodeIRToDisc(const std::string &Key,
                                     const std::vector<char> &IR);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
