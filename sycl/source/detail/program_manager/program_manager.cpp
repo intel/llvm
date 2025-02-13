@@ -1821,6 +1821,20 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
+static bool skipEmptyImage(sycl_device_binary RawImg) {
+  // bfloat16 devicelib image must be kept.
+  sycl_device_binary_property_set ImgPS;
+  for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
+       ++ImgPS) {
+    if (ImgPS->Name &&
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_BF16_TYPE, ImgPS->Name)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
@@ -1829,11 +1843,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
     if (EntriesB == EntriesE) {
-      std::unique_ptr<RTDeviceBinaryImage> Img =
-          std::make_unique<RTDeviceBinaryImage>(RawImg);
-      const RTDeviceBinaryImage::PropertyRange &BF16DeviceLibType =
-          Img->getDeviceLibBF16Type();
-      if (!BF16DeviceLibType.isAvailable())
+      if (skipEmptyImage(RawImg))
         continue;
     }
 
