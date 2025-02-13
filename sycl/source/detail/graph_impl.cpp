@@ -1081,15 +1081,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
                (CurrentPartition->MSchedule.front()->MCGType ==
                 sycl::detail::CGType::CodeplayHostTask)) {
-      // If we have pending updates then we need to make sure that they are
-      // completed before the host-task is enqueued, to ensure it has received
-      // those updates prior to calling node->getCGCopy()
-      if (MUpdateEvents.size() > 0) {
-        for (auto &Event : MUpdateEvents) {
-          Event->wait_and_throw(Event);
-        }
-        MUpdateEvents.clear();
-      }
 
       auto NodeImpl = CurrentPartition->MSchedule.front();
       // Schedule host task
@@ -1389,7 +1380,7 @@ void exec_graph_impl::update(std::shared_ptr<node_impl> Node) {
 }
 
 void exec_graph_impl::update(
-    const std::vector<std::shared_ptr<node_impl>> Nodes) {
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) {
 
   if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -1445,6 +1436,34 @@ void exec_graph_impl::update(
   NeedScheduledUpdate |= MExecutionEvents.size() > 0;
 
   if (NeedScheduledUpdate) {
+    // Copy the list of nodes as we may need to modify it
+    auto NodesCopy = Nodes;
+
+    // If the graph contains host tasks we need special handling here because
+    // their state lives in the graph object itself, so we must do the update
+    // immediately here. Whereas all other command state lives in the backend so
+    // it can be scheduled along with other commands.
+    if (MContainsHostTask) {
+      std::vector<std::shared_ptr<node_impl>> HostTasks;
+      // Remove any nodes that are host tasks and put them in HostTasks
+      auto RemovedIter = std::remove_if(
+          NodesCopy.begin(), NodesCopy.end(),
+          [&HostTasks](const std::shared_ptr<node_impl> &Node) -> bool {
+            if (Node->MNodeType == node_type::host_task) {
+              HostTasks.push_back(Node);
+              return true;
+            }
+            return false;
+          });
+      // Clean up extra elements in NodesCopy after the remove
+      NodesCopy.erase(RemovedIter, NodesCopy.end());
+
+      // Update host-tasks synchronously
+      for (auto &HostTaskNode : HostTasks) {
+        updateImpl(HostTaskNode);
+      }
+    }
+
     auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
         sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
         sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
@@ -1452,14 +1471,10 @@ void exec_graph_impl::update(
 
     auto UpdateEvent =
         sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-            this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
+            this, std::move(NodesCopy), AllocaQueue, UpdateRequirements,
+            MExecutionEvents);
 
-    // If the graph contains host-task(s) we need to track update events so we
-    // can explicitly wait on them before enqueue further host-tasks to ensure
-    // updates have taken effect.
-    if (MContainsHostTask) {
-      MUpdateEvents.push_back(UpdateEvent);
-    }
+    MExecutionEvents.push_back(UpdateEvent);
   } else {
     for (auto &Node : Nodes) {
       updateImpl(Node);

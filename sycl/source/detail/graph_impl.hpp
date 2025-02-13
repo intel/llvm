@@ -1333,7 +1333,7 @@ public:
 
   void update(std::shared_ptr<graph_impl> GraphImpl);
   void update(std::shared_ptr<node_impl> Node);
-  void update(const std::vector<std::shared_ptr<node_impl>> Nodes);
+  void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
 
   void updateImpl(std::shared_ptr<node_impl> NodeImpl);
 
@@ -1454,12 +1454,10 @@ private:
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
-  // True if this graph contains any host-tasks, controls whether we store
-  // events in MUpdateEvents.
+
+  // True if this graph contains any host-tasks, indicates we need special
+  // handling for them during update().
   bool MContainsHostTask = false;
-  // Contains events for updates submitted through the scheduler as we need to
-  // wait on them when enqueuing host-tasks.
-  std::vector<sycl::detail::EventImplPtr> MUpdateEvents;
 };
 
 class dynamic_parameter_impl {
