@@ -5,10 +5,10 @@
 // The test checks that multiple calls to the same template instantiation of a
 // group local memory function result in separate allocations.
 
-// CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
-// CHECK-NEXT: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
-// CHECK-NEXT: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
-// CHECK-NEXT: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
+// CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
+// CHECK-NEXT: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
+// CHECK-NEXT: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
+// CHECK-NEXT: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>

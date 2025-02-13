@@ -12,10 +12,10 @@ target triple = "spir64-unknown-unknown"
 %"class.sycl::_V1::detail::array" = type { [1 x i64] }
 %"class.sycl::_V1::id" = type { %"class.sycl::_V1::detail::array" }
 
-; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
-; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
-; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
-; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] undef, align 4
+; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
+; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
+; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
+; CHECK: @WGLocalMem{{.*}} = internal addrspace(3) global [4 x i8] poison, align 4
 
 ; Function Attrs: alwaysinline
 define internal spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlNS0_7nd_itemILi1EEEE_clES5_() #0 {
