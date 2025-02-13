@@ -4,4 +4,4 @@
 # Date:   Wed Feb 12 10:20:12 2025 +0000
 #     Merge pull request #2672 from lukaszstolarczuk/umf-with-icx-build-0.11.0-dev2
 #     common: Bump UMF version to v0.11.0-dev2
-set(UNIFIED_RUNTIME_TAG 064d3560cbcc24a40380b57adb3690b2bc256d6e)
+set(UNIFIED_RUNTIME_TAG bd346bc21d96cafc88079f67a374196d3e8eea17)
