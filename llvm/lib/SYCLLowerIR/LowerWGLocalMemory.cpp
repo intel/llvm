@@ -109,15 +109,15 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   unsigned LocalAS =
       CI->getFunctionType()->getReturnType()->getPointerAddressSpace();
   auto *LocalMemArrayGV =
-      new GlobalVariable(M,                                // module
-                         LocalMemArrayTy,                  // type
-                         false,                            // isConstant
-                         GlobalValue::InternalLinkage,     // Linkage
-                         UndefValue::get(LocalMemArrayTy), // Initializer
-                         LOCALMEMORY_GV_PREF,              // Name prefix
-                         nullptr,                          // InsertBefore
-                         GlobalVariable::NotThreadLocal,   // ThreadLocalMode
-                         LocalAS                           // AddressSpace
+      new GlobalVariable(M,                                 // module
+                         LocalMemArrayTy,                   // type
+                         false,                             // isConstant
+                         GlobalValue::InternalLinkage,      // Linkage
+                         PoisonValue::get(LocalMemArrayTy), // Initializer
+                         LOCALMEMORY_GV_PREF,               // Name prefix
+                         nullptr,                           // InsertBefore
+                         GlobalVariable::NotThreadLocal,    // ThreadLocalMode
+                         LocalAS                            // AddressSpace
       );
   LocalMemArrayGV->setAlignment(Align(Alignment));
 
@@ -203,7 +203,7 @@ static bool dynamicWGLocalMemory(Module &M) {
         usesKernelArgForDynWGLocalMem(TT)
             ? GlobalValue::LinkOnceODRLinkage
             : GlobalValue::ExternalLinkage, // Linkage
-        usesKernelArgForDynWGLocalMem(TT) ? UndefValue::get(LocalMemArrayTy)
+        usesKernelArgForDynWGLocalMem(TT) ? PoisonValue::get(LocalMemArrayTy)
                                           : nullptr, // Initializer
         DYNAMIC_LOCALMEM_GV,                         // Name prefix
         nullptr,                                     // InsertBefore
