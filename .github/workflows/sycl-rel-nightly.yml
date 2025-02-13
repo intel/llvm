@@ -12,6 +12,7 @@ jobs:
   # since the last run. More precisely, it checks if the last commit is older
   # than 24h. That means the previous Nightly already tested this commit.
   check_for_new_commits:
+    if: github.repository == 'intel/llvm'
     runs-on: ubuntu-latest
     name: Check for new commits
     outputs:
@@ -101,6 +102,7 @@ jobs:
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: sycl-rel-6_0_0
+      devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -130,6 +132,7 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
       ref: sycl-rel-6_0_0
+      devops_ref: sycl
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -151,6 +154,7 @@ jobs:
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
       ref: sycl-rel-6_0_0
+      devops_ref: sycl
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
