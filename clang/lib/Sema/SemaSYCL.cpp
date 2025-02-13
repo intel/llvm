@@ -7506,3 +7506,18 @@ StmtResult SemaSYCL::BuildSYCLKernelCallStmt(FunctionDecl *FD,
 
   return NewBody;
 }
+
+bool SemaSYCL::hasSYCLAddIRAttributesFunctionAttr(const Decl *D,
+                                                  StringRef Attr) {
+  if (const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    if (hasDependentExpr(A->args_begin(), A->args_size()))
+      return false;
+    auto NameValuePairs = A->getAttributeNameValuePairs(D->getASTContext());
+    for (const auto &Pair : NameValuePairs) {
+      if (Pair.first == Attr) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
