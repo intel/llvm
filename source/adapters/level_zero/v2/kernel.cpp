@@ -20,6 +20,7 @@
 #include "../helpers/kernel_helpers.hpp"
 #include "../platform.hpp"
 #include "../program.hpp"
+#include "../sampler.hpp"
 #include "../ur_interface_loader.hpp"
 
 ur_single_device_kernel_t::ur_single_device_kernel_t(ur_device_handle_t hDevice,
@@ -290,9 +291,14 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
   for (auto &pending : pending_allocations) {
     void *zePtr = nullptr;
     if (pending.hMem) {
-      // NULL is a valid value
-      zePtr = pending.hMem->getDevicePtr(hDevice, pending.mode, 0,
-                                         pending.hMem->getSize(), migrate);
+      if (!pending.hMem->isImage()) {
+        auto hBuffer = pending.hMem->getBuffer();
+        zePtr = hBuffer->getDevicePtr(hDevice, pending.mode, 0,
+                                      hBuffer->getSize(), migrate);
+      } else {
+        auto hImage = static_cast<ur_mem_image_t *>(pending.hMem->getImage());
+        zePtr = reinterpret_cast<void *>(hImage->getZeImage());
+      }
     }
     UR_CALL(setArgPointer(pending.argIndex, nullptr, zePtr));
   }
@@ -378,17 +384,15 @@ ur_result_t urKernelRelease(
 }
 
 ur_result_t urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] argument properties
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    const void *pArgValue) try {
-  TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgValue");
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    size_t argSize,    ///< [in] size of argument type
+    const ur_kernel_arg_value_properties_t
+        *pProperties, ///< [in][optional] argument properties
+    const void
+        *pArgValue ///< [in] argument value represented as matching arg type.
+    ) try {
+  TRACK_SCOPE_LATENCY("urKernelSetArgValue");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
   return hKernel->setArgValue(argIndex, argSize, pProperties, pArgValue);
@@ -397,15 +401,14 @@ ur_result_t urKernelSetArgValue(
 }
 
 ur_result_t urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] argument properties
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    const void *pArgValue) try {
-  TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgPointer");
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *pProperties, ///< [in][optional] argument properties
+    const void
+        *pArgValue ///< [in] argument value represented as matching arg type.
+    ) try {
+  TRACK_SCOPE_LATENCY("urKernelSetArgPointer");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
   return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
@@ -413,28 +416,28 @@ ur_result_t urKernelSetArgPointer(
   return exceptionToResult(std::current_exception());
 }
 
-static ur_mem_handle_t_::device_access_mode_t memAccessFromKernelProperties(
+static ur_mem_buffer_t::device_access_mode_t memAccessFromKernelProperties(
     const ur_kernel_arg_mem_obj_properties_t *pProperties) {
   if (pProperties) {
     switch (pProperties->memoryAccess) {
     case UR_MEM_FLAG_READ_WRITE:
-      return ur_mem_handle_t_::device_access_mode_t::read_write;
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
     case UR_MEM_FLAG_WRITE_ONLY:
-      return ur_mem_handle_t_::device_access_mode_t::write_only;
+      return ur_mem_buffer_t::device_access_mode_t::write_only;
     case UR_MEM_FLAG_READ_ONLY:
-      return ur_mem_handle_t_::device_access_mode_t::read_only;
+      return ur_mem_buffer_t::device_access_mode_t::read_only;
     default:
-      return ur_mem_handle_t_::device_access_mode_t::read_write;
+      return ur_mem_buffer_t::device_access_mode_t::read_write;
     }
   }
-  return ur_mem_handle_t_::device_access_mode_t::read_write;
+  return ur_mem_buffer_t::device_access_mode_t::read_write;
 }
 
 ur_result_t
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *pProperties,
                      ur_mem_handle_t hArgValue) try {
-  TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgMemObj");
+  TRACK_SCOPE_LATENCY("urKernelSetArgMemObj");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
@@ -450,7 +453,7 @@ ur_result_t
 urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
                     size_t argSize,
                     const ur_kernel_arg_local_properties_t *pProperties) try {
-  TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgLocal");
+  TRACK_SCOPE_LATENCY("urKernelSetArgLocal");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
@@ -696,5 +699,18 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
              (hKernel->getZeHandle(hDevice), &totalGroupCount));
   *pGroupCountRet = totalGroupCount;
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      const ur_kernel_arg_sampler_properties_t *pProperties,
+                      ur_sampler_handle_t hArgValue) try {
+  TRACK_SCOPE_LATENCY("urKernelSetArgSampler");
+  std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+  std::ignore = pProperties;
+  return hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+                              &hArgValue->ZeSampler);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 } // namespace ur::level_zero

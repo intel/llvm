@@ -10,7 +10,12 @@
 
 #include "sampler.hpp"
 #include "logger/ur_logger.hpp"
-#include "ur_level_zero.hpp"
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+#include "v2/context.hpp"
+#else
+#include "context.hpp"
+#endif
 
 namespace ur::level_zero {
 
@@ -31,7 +36,7 @@ ur_result_t urSamplerCreate(
   // TODO: figure out if we instead need explicit copying for acessing
   // the sampler from other devices in the context.
   //
-  ur_device_handle_t Device = Context->Devices[0];
+  ur_device_handle_t Device = Context->getDevices()[0];
 
   ze_sampler_handle_t ZeSampler;
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
@@ -95,7 +100,7 @@ ur_result_t urSamplerCreate(
     }
   }
 
-  ZE2UR_CALL(zeSamplerCreate, (Context->ZeContext, Device->ZeDevice,
+  ZE2UR_CALL(zeSamplerCreate, (Context->getZeHandle(), Device->ZeDevice,
                                &ZeSamplerDesc, // TODO: translate properties
                                &ZeSampler));
 

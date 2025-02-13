@@ -8,10 +8,7 @@
 #include <uur/known_failure.h>
 
 struct urMemImageCreateWithNativeHandleTest : uur::urMemImageTest {
-  void SetUp() {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-    UUR_RETURN_ON_FATAL_FAILURE(urMemImageTest::SetUp());
-  }
+  void SetUp() { UUR_RETURN_ON_FATAL_FAILURE(urMemImageTest::SetUp()); }
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urMemImageCreateWithNativeHandleTest);
 

@@ -488,8 +488,6 @@ struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithVirtualMemory);
 
 TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
   size_t work_dim = 1;
   size_t global_offset = 0;
   size_t global_size = alloc_size / sizeof(uint32_t);

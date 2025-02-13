@@ -8,7 +8,6 @@
 
 struct urEnqueueMemImageWriteTest : uur::urMemImageQueueTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMemImageQueueTest::SetUp());
   }
 };
@@ -84,7 +83,7 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidNullPtrEventWaitList) {
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin1D) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   std::vector<uint32_t> input(width * 4, 42);
   ur_rect_offset_t bad_origin{1, 0, 0};
@@ -95,7 +94,7 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin1D) {
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin2D) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   std::vector<uint32_t> input(width * height * 4, 42);
   ur_rect_offset_t bad_origin{0, 1, 0};
@@ -106,7 +105,7 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin2D) {
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin3D) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   std::vector<uint32_t> input(width * height * depth * 4, 42);
   ur_rect_offset_t bad_origin{0, 0, 1};
@@ -117,7 +116,7 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin3D) {
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidRegion1D) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   std::vector<uint32_t> input(width * 4, 42);
   ur_rect_region_t bad_region{width + 1, 1, 1};
@@ -128,7 +127,7 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidRegion1D) {
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidRegion2D) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   std::vector<uint32_t> input(width * height * 4, 42);
   ur_rect_region_t bad_region{width, height + 1, 1};
@@ -139,7 +138,7 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidRegion2D) {
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidRegion3D) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   std::vector<uint32_t> input(width * height * depth * 4, 42);
   ur_rect_region_t bad_region{width, height, depth + 1};
