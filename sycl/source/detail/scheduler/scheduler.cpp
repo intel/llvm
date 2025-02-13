@@ -285,6 +285,9 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
   // abandon them. But no worries, the memory WILL be reclaimed.
   bool allowWait =
       MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
+  if (!allowWait) {
+    StrictLock = false;
+  }
 #else
   bool allowWait = true;
 #endif
