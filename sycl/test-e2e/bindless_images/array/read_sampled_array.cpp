@@ -3,7 +3,7 @@
 
 // UNSUPPORTED: level_zero
 // UNSUPPORTED-INTENDED: Linear sampling rounds differently on Intel devices
-// compared to what is expected.
+// compared to CUDA. This difference in rounding needs to be accounted for.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
