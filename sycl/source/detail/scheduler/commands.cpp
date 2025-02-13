@@ -3729,7 +3729,13 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
         }
       }
     }
-    MGraph->updateImpl(Node);
+  }
+
+  auto PartitionedNodes = MGraph->getPartitionForNodes(MNodes);
+  auto Device = MQueue->get_device();
+  for (auto It = PartitionedNodes.begin(); It != PartitionedNodes.end(); It++) {
+    auto CommandBuffer = It->first->MCommandBuffers[Device];
+    MGraph->updateImpl(CommandBuffer, It->second);
   }
 
   return UR_RESULT_SUCCESS;
