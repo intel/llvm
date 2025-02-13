@@ -76,7 +76,6 @@ jobs:
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
 
           - name: Intel L0 Battlemage GPU
             runner: '["Linux", "bmg"]'
