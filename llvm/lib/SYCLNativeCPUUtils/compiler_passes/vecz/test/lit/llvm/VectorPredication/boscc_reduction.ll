@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 
 declare i64 @__mux_get_global_id(i32)
 
-define spir_kernel void @foo(float addrspace(1)* nocapture readonly %a, i32 addrspace(1)* nocapture %out) {
+define spir_kernel void @foo(float addrspace(1)* readonly %a, i32 addrspace(1)* %out) {
 entry:
   %call = tail call i64 @__mux_get_global_id(i32 0) #2
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %a, i64 %call
@@ -41,6 +41,6 @@ if.end:                                           ; preds = %if.then, %entry
   ret void
 }
 
-; CHECK: define spir_kernel void @__vecz_nxv2_vp_foo(ptr addrspace(1) nocapture readonly %a, ptr addrspace(1) nocapture %out)
+; CHECK: define spir_kernel void @__vecz_nxv2_vp_foo(ptr addrspace(1) readonly %a, ptr addrspace(1) %out)
 ; CHECK:  [[CMP:%.*]] = fcmp oeq <vscale x 2 x float> %{{.*}}, zeroinitializer
 ; CHECK:  %{{.*}} = call i1 @llvm.vp.reduce.or.nxv2i1(i1 false, <vscale x 2 x i1> [[CMP]], {{.*}}, i32 {{.*}})
