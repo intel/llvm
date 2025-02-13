@@ -1,7 +1,7 @@
-# commit 064d3560cbcc24a40380b57adb3690b2bc256d6e
-# Merge: 739d8a75 e1bbdad9
+# commit cc60d0872f1ffe0656bc9ec25db5b5cbb3cbafd6
+# Merge: 0c11a742 ec5a3bd1
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Wed Feb 12 10:20:12 2025 +0000
-#     Merge pull request #2672 from lukaszstolarczuk/umf-with-icx-build-0.11.0-dev2
-#     common: Bump UMF version to v0.11.0-dev2
-set(UNIFIED_RUNTIME_TAG 064d3560cbcc24a40380b57adb3690b2bc256d6e)
+# Date:   Thu Feb 6 17:59:43 2025 +0000
+#     Merge pull request #2606 from Bensuo/cmd-buf_enqueue_refactor
+#     Rename urCommandBufferEnqueueExp to urEnqueueCommandBufferExp
+set(UNIFIED_RUNTIME_TAG cc60d0872f1ffe0656bc9ec25db5b5cbb3cbafd6)

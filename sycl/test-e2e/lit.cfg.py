@@ -322,9 +322,13 @@ if cl_options:
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
 sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
+    config.dpcpp_compiler + " -v -fsycl  "
+    + os.path.join(config.sycl_obj_root, check_l0_file)
+    + level_zero_options
 )
+print("LEVEL ZERO DEVKIT:", sp[1])
 if sp[0] == 0:
+    print("HAS LEVEL ZERO DEVKIT")
     config.available_features.add("level_zero_dev_kit")
     config.substitutions.append(("%level_zero_options", level_zero_options))
 else:
@@ -348,9 +352,10 @@ with open_check_file(check_preview_breaking_changes_file) as fp:
 
 sp = subprocess.getstatusoutput(
     config.dpcpp_compiler
-    + " -fsycl -fpreview-breaking-changes "
-    + check_preview_breaking_changes_file
+    + " -v -fsycl -fpreview-breaking-changes "
+    + os.path.join(config.sycl_obj_root, check_preview_breaking_changes_file)
 )
+print("PREVIEW BREAKING CHANGES:", sp[1])
 if sp[0] == 0:
     config.available_features.add("preview-breaking-changes-supported")
 
@@ -416,9 +421,13 @@ if cl_options:
 config.substitutions.append(("%cuda_options", cuda_options))
 
 sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
+    config.dpcpp_compiler + " -v -fsycl  "
+    + os.path.join(config.sycl_obj_root, check_cuda_file)
+    + cuda_options
 )
+print("CUDA DEVKIT:", sp[1])
 if sp[0] == 0:
+    print("HAS CUDA DEVKIT")
     config.available_features.add("cuda_dev_kit")
     config.substitutions.append(("%cuda_options", cuda_options))
 else:
