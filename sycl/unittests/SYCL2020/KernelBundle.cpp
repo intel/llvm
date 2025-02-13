@@ -487,14 +487,6 @@ ur_result_t redefinedDevicePartitionAfter(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-#ifndef _WIN32
-// While the Mock object is created anew for each test, the SYCL
-// GlobalHandler is not. It is the same across all tests in a
-// single executable.  Some of the mock callbacks modify the
-// global platforms/devices. On Linux, we can clear these
-// changes by faking shutdown. But on Windows we can't do that.
-// To avoid conflicts,  this test is being skipped on Windows.
-// It would pass if placed in its own suite.
 TEST(KernelBundle, DescendentDevice) {
   // Mock a non-OpenCL adapter since use of descendent devices of context
   // members is not supported there yet.
@@ -529,7 +521,6 @@ TEST(KernelBundle, DescendentDevice) {
 
   EXPECT_EQ(KernelBundle, RetKernelBundle);
 }
-#endif
 
 TEST(KernelBundle, CheckIfBundleHasIncompatibleKernel) {
   sycl::unittest::UrMock<> Mock;

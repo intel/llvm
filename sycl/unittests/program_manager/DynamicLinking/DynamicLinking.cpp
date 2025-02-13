@@ -253,13 +253,6 @@ TEST(DynamicLinking, AheadOfTime) {
             AOT_CASE_PRG_NATIVE * AOT_CASE_PRG_DEP_NATIVE);
 }
 
-#ifndef _WIN32
-// The 'setupRuntimeLinkingMock' used by other tests results in
-// changes to the global platforms/devices that will result
-// in a test failure if not cleared. On Linux, the Mock's destructor
-// fakes shutdown to clear them. But on Windows we can't
-// do that hack. So we skip this test. It would pass
-// if placed in its own test suite.
 TEST(DynamicLinking, AheadOfTimeUnsupported) {
   try {
     sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
@@ -273,7 +266,6 @@ TEST(DynamicLinking, AheadOfTimeUnsupported) {
                            "unsupported for the backend");
   }
 }
-#endif
 
 static ur_result_t redefined_urProgramCompileExp(void *pParams) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
