@@ -1,7 +1,7 @@
 // Test -fsycl-allow-device-image-dependencies with a single dynamic library on Windows
 // and Linux.
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: target-nvidia || target-amd
 
 // RUN: %clangxx -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs \
 // RUN:    %S/Inputs/a.cpp                                                              \

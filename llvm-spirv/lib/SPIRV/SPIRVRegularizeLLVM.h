@@ -51,6 +51,11 @@ public:
   // Lower functions
   bool regularize();
 
+  // SPIR-V disallows functions being entrypoints and called
+  // LLVM doesn't. This adds a wrapper around the entry point
+  // that later SPIR-V writer renames.
+  void addKernelEntryPoint(Module *M);
+
   /// Some LLVM intrinsics that have no SPIR-V counterpart may be wrapped in
   /// @spirv.llvm_intrinsic_* function. During reverse translation from SPIR-V
   /// to LLVM IR we can detect this @spirv.llvm_intrinsic_* function and

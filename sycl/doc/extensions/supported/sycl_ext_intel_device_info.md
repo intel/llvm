@@ -62,7 +62,7 @@ The device ID can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the device Universal Unique ID (UUID).
 
-This new device descriptor is currently only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior would be to expose the UUIDs of all supported devices which enables detection of total number of unique devices.
+The DPC++ default behavior would be to expose the UUIDs of all supported devices which enables detection of total number of unique devices.
 
 
 ## Version ##
@@ -100,11 +100,6 @@ The UUID can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the PCI address in BDF format.  BDF format contains the address as: `domain:bus:device.function`.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
-**Note:** The environment variable SYCL\_ENABLE\_PCI must be set to 1 to obtain the PCI address.
-
-
 ## Version ##
 
 All versions of the extension support this query.
@@ -139,8 +134,6 @@ The PCI address can be obtained using the standard get\_info() interface.
 # Intel GPU Execution Unit SIMD Width #
 
 A new device descriptor will be added which will provide the physical SIMD width of an execution unit on an Intel GPU.  This data will be used to calculate the computational capabilities of the device.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -179,8 +172,6 @@ The physical EU SIMD width can be obtained using the standard get\_info() interf
 A new device descriptor will be added which will provide the number of execution units on an Intel GPU.  If the device is a subdevice, then the number of EUs in the subdevice is returned.
 
 This new device descriptor will provide the same information as "max\_compute\_units" does today.  We would like to have an API which is specific for Intel GPUs.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -355,8 +346,6 @@ Then the number of hardware threads per EU can be obtained using the standard ge
 
 A new device descriptor will be added which will provide the maximum memory bandwidth.  If the device is a subdevice, then the maximum bandwidth of the subdevice is returned.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
 
 ## Version ##
 
@@ -397,9 +386,6 @@ Beware that when other processes or threads are using this device when this call
 is made, the value it returns may be stale even before it is returned to the
 caller.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform. NOTE: one may need to set
-ZES_ENABLE_SYSMAN=1 to fully enable this extension.
-
 
 ## Version ##
 
@@ -436,7 +422,6 @@ Then the free device memory  can be obtained using the standard get\_info() inte
 
 A new device descriptor is added which provides the maximum clock rate of device's global memory.
 
-This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 
@@ -473,7 +458,6 @@ Then the memory clock rate can be obtained using the standard get\_info() interf
 
 A new device descriptor is added which provides the maximum bus width between device and memory.
 
-This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 
