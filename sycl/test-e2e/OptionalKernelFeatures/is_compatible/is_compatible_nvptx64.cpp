@@ -1,5 +1,4 @@
-// REQUIRES: cuda, opencl, gpu, cpu
-// REQUIRES: build-and-run-mode
+// REQUIRES: target-nvidia, opencl, gpu, cpu
 
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %S/Inputs/is_compatible_with_env.cpp -o %t.out
 
