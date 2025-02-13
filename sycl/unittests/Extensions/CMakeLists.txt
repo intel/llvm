@@ -1,6 +1,7 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_sycl_unittest(ExtensionsTests OBJECT
+  CurrentDevice.cpp
   DefaultContext.cpp
   FPGADeviceSelectors.cpp
   DeviceArchitecture.cpp
