@@ -136,10 +136,6 @@ static const std::string &getDPCPPRoot() {
 namespace {
 
 class HashPreprocessedAction : public PreprocessorFrontendAction {
-
-public:
-  BLAKE3Result<LLVM_BLAKE3_OUT_LEN> HashValue;
-
 protected:
   void ExecuteAction() override {
     CompilerInstance &CI = getCompilerInstance();
@@ -153,11 +149,17 @@ protected:
 
     DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
 
-    llvm::ArrayRef<uint8_t> PreprocessedData(
+    ArrayRef<uint8_t> PreprocessedData(
         (const uint8_t *)PreprocessedSource.data(), PreprocessedSource.size());
 
     HashValue = BLAKE3::hash(PreprocessedData);
   }
+
+public:
+  BLAKE3Result<> takeHashValue() { return std::move(HashValue); }
+
+private:
+  BLAKE3Result<> HashValue;
 };
 
 class RTCToolActionBase : public ToolAction {
@@ -193,10 +195,10 @@ public:
 
 protected:
   virtual bool hasExecuted() = 0;
-  virtual bool executeAction(CompilerInstance &, FileManager *Files) = 0;
+  virtual bool executeAction(CompilerInstance &, FileManager *) = 0;
 };
 
-struct GetSourceHashAction : public RTCToolActionBase {
+class GetSourceHashAction : public RTCToolActionBase {
 protected:
   bool executeAction(CompilerInstance &CI, FileManager *Files) override {
     HashPreprocessedAction HPA;
@@ -205,19 +207,20 @@ protected:
     if (!Success) {
       return false;
     }
-    // TODO(Lukas): Avoid copy
-    HashValue = HPA.HashValue;
+
+    HashValue = HPA.takeHashValue();
     Executed = true;
     return true;
   }
 
   bool hasExecuted() override { return Executed; }
 
-private:
-  bool Executed = false;
-
 public:
-  BLAKE3Result<LLVM_BLAKE3_OUT_LEN> HashValue;
+  BLAKE3Result<> takeHashValue() { return std::move(HashValue); }
+
+private:
+  BLAKE3Result<> HashValue;
+  bool Executed = false;
 };
 
 struct GetLLVMModuleAction : public RTCToolActionBase {
@@ -294,8 +297,11 @@ public:
   }
 };
 
-void adjustArgs(const InputArgList &UserArgList, const std::string &DPCPPRoot,
-                SmallVectorImpl<std::string> &CommandLine) {
+} // anonymous namespace
+
+static void adjustArgs(const InputArgList &UserArgList,
+                       const std::string &DPCPPRoot,
+                       SmallVectorImpl<std::string> &CommandLine) {
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
@@ -319,9 +325,9 @@ void adjustArgs(const InputArgList &UserArgList, const std::string &DPCPPRoot,
   }
 }
 
-void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
-               InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-               DiagnosticConsumer *Consumer) {
+static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
+                      InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+                      DiagnosticConsumer *Consumer) {
   Tool.setDiagnosticConsumer(Consumer);
   // Suppress message "Error while processing" being printed to stdout.
   Tool.setPrintErrorMessage(false);
@@ -347,7 +353,34 @@ void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
       });
 }
 
-} // anonymous namespace
+Expected<SourceHash>
+jit_compiler::calculateSourceHash(InMemoryFile SourceFile,
+                                  View<InMemoryFile> IncludeFiles,
+                                  const InputArgList &UserArgList) {
+  TimeTraceScope TTS{"calculateSourceHash"};
+
+  const std::string &DPCPPRoot = getDPCPPRoot();
+  if (DPCPPRoot == InvalidDPCPPRoot) {
+    return createStringError("Could not locate DPCPP root directory");
+  }
+
+  SmallVector<std::string> CommandLine;
+  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+
+  FixedCompilationDatabase DB{".", CommandLine};
+  ClangTool Tool{DB, {SourceFile.Path}};
+
+  clang::IgnoringDiagConsumer DiagConsumer;
+  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, &DiagConsumer);
+
+  GetSourceHashAction Action;
+  if (!Tool.run(&Action)) {
+    BLAKE3Result<> HashValue = Action.takeHashValue();
+    return DynArray<uint8_t>(HashValue.begin(), HashValue.end());
+  }
+
+  return createStringError("Calculating source hash failed");
+}
 
 Expected<std::unique_ptr<llvm::Module>>
 jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
@@ -380,33 +413,6 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   return createStringError(BuildLog);
 }
 
-Expected<SourceHash>
-jit_compiler::calculateSourceHash(InMemoryFile SourceFile,
-                                  View<InMemoryFile> IncludeFiles,
-                                  const InputArgList &UserArgList) {
-  TimeTraceScope TTS{"calculateSourceHash"};
-
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
-
-  SmallVector<std::string> CommandLine;
-  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
-
-  FixedCompilationDatabase DB{".", CommandLine};
-  ClangTool Tool{DB, {SourceFile.Path}};
-
-  clang::IgnoringDiagConsumer DiagConsumer;
-  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, &DiagConsumer);
-
-  GetSourceHashAction Action;
-  if (!Tool.run(&Action)) {
-    return DynArray<uint8_t>(Action.HashValue.begin(), Action.HashValue.end());
-  }
-
-  return createStringError("Calculating source hash failed");
-}
 // This function is a simplified copy of the device library selection process in
 // `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
 // (no AoT, no third-party GPUs, no native CPU). Keep in sync!
