@@ -322,7 +322,7 @@ if cl_options:
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
 sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + "-v -fsycl  "
+    config.dpcpp_compiler + " -v -fsycl  "
     + os.path.join(config.sycl_obj_root, check_l0_file)
     + level_zero_options
 )
@@ -352,7 +352,7 @@ with open_check_file(check_preview_breaking_changes_file) as fp:
 
 sp = subprocess.getstatusoutput(
     config.dpcpp_compiler
-    + "-v -fsycl -fpreview-breaking-changes "
+    + " -v -fsycl -fpreview-breaking-changes "
     + os.path.join(config.sycl_obj_root, check_preview_breaking_changes_file)
 )
 print("PREVIEW BREAKING CHANGES:", sp[1])
@@ -421,7 +421,7 @@ if cl_options:
 config.substitutions.append(("%cuda_options", cuda_options))
 
 sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + "-v -fsycl  "
+    config.dpcpp_compiler + " -v -fsycl  "
     + os.path.join(config.sycl_obj_root, check_cuda_file)
     + cuda_options
 )
