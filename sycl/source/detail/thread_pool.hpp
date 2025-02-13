@@ -55,8 +55,6 @@ class ThreadPool {
   }
 
   void start() {
-    // CP
-    // std::cout << "thread_pool start()" << std::endl;
     MLaunchedThreads.reserve(MThreadCount);
 
     MJobsInPool.store(0);
@@ -75,19 +73,7 @@ public:
     start();
   }
 
-  ~ThreadPool() {
-    // CP
-    // try {
-    //   std::cout << "~ThreadPool()" << std::endl;
-    //   finishAndWait();
-    // } catch (std::exception &e) {
-    //   __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
-    // }
-  }
-
   void finishAndWait() {
-    // CP
-    // std::cout << "finishAndWait()" << std::endl;
     {
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
       MStop = true;

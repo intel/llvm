@@ -310,8 +310,6 @@ void GlobalHandler::drainThreadPool() {
 }
 
 void shutdown_early() {
-  // CP
-  // std::cout << "shutdown_early()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -333,16 +331,12 @@ void shutdown_early() {
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
-  // CP
-  // std::cout << "finishAndWait() done" << std::endl;
   // This releases OUR reference to the default context, but
   // other may yet have refs
   Handler->releaseDefaultContexts();
 }
 
 void shutdown_late() {
-  // CP
-  // std::cout << "shutdown_late()" << std::endl;
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -369,9 +363,6 @@ void shutdown_late() {
   // Release the rest of global resources.
   delete Handler;
   Handler = nullptr;
-
-  // CP
-  // std::cout << "shutdown_late() done" << std::endl;
 }
 
 #ifdef _WIN32
@@ -394,9 +385,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
     try {
-      // CP
-      // std::cout << "DllMain(PROCESS_DETACH) calling shutdown_early()"
-      //          << std::endl;
       shutdown_early();
     } catch (std::exception &e) {
       std::cout << "exception in DLL_PROCESS_DETACH" << e.what() << std::endl;

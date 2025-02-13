@@ -34,8 +34,6 @@ public:
   bool isInteropTask() const { return !!MInteropTask; }
 
   void call(HostProfilingInfo *HPI) {
-    // CP
-    // std::cout << "host_task call()" << std::endl;
     if (!GlobalHandler::instance().isOkToDefer()) {
       return;
     }
@@ -48,8 +46,6 @@ public:
   }
 
   void call(HostProfilingInfo *HPI, interop_handle handle) {
-    // CP
-    // std::cout << "host_task call()" << std::endl;
     if (!GlobalHandler::instance().isOkToDefer()) {
       return;
     }
