@@ -1994,7 +1994,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         }
       }
     }
-    m_DeviceImages.insert(std::move(Img));
+    m_DeviceImages.insert({RawImg, std::move(Img)});
   }
 }
 
@@ -3501,6 +3501,120 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
             ArchName == "intel_cpu_gnr")));
 }
 
+void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
+{
+    // No need in fair partial cleanup at shutdown
+  if (!GlobalHandler::instance().isOkToDefer() || !(DeviceBinaries && DeviceBinaries->NumDeviceBinaries))
+    return;
+
+  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr> DeviceImagesToCleanup;
+  for (int I = 0; I < DeviceBinaries->NumDeviceBinaries; I++) {
+    sycl_device_binary RawImg = &(DeviceBinaries->DeviceBinaries[I]);
+    auto node = m_DeviceImages.extract(RawImg);
+    assert(!node.empty() && "Attempt to remove device image that has never been registered");
+    DeviceImagesToCleanup.insert(std::move(node));
+  }
+  std::cout << "DeviceImagesToCleanup.size() = " << DeviceImagesToCleanup.size() << std::endl;
+
+  for (auto& [DeviceBinary, DeviceImage] : DeviceImagesToCleanup)
+  {
+    auto It = m_BinImg2KernelIDs.find(DeviceImage.get());
+    assert((It != m_BinImg2KernelIDs.end()) && "Attempt to find device image that has never been registered");
+    //It->second is std::shared_ptr<std::vector<kernel_id>>>;
+    for (auto& KernelId : *It->second)
+    {
+      auto KernelIdMapping = m_KernelIDs2BinImage.equal_range(KernelId);
+      size_t MatchingImages = 0;
+      for (auto& Item = KernelIdMapping.first; Item != KernelIdMapping.second;)
+      {
+        if (Item->second == DeviceImage.get())
+          Item = m_KernelIDs2BinImage.erase(Item);
+        else
+          Item++;
+        MatchingImages++;
+      }
+      // if kernel is represented by only 1 image
+      if (MatchingImages == 1)
+      {
+        auto KernelNameIt = std::find_if(m_KernelName2KernelIDs.begin(), m_KernelName2KernelIDs.end(), [&KernelId](const auto& NameToId) { return NameToId.second == KernelId; } );
+        assert((KernelNameIt != m_KernelName2KernelIDs.end()) && "Attempt to remove kernel that has never been registered");
+
+        //remove Everything associated with this KernelName
+        m_KernelUsesAssert.erase(KernelNameIt->first);
+        m_KernelImplicitLocalArgPos.erase(KernelNameIt->first);
+        m_MaterializedKernels.erase(KernelNameIt->first);
+        m_BuiltInKernelIDs.erase(KernelNameIt->first);
+        m_KernelName2KernelIDs.erase(KernelNameIt);
+      }
+    }
+    //C++20: to switch to erase_if
+    auto ServiceKernelsIt = m_ServiceKernels.begin();
+    while (ServiceKernelsIt != m_ServiceKernels.end())
+    {
+      if (ServiceKernelsIt->second == DeviceImage.get())
+        ServiceKernelsIt = m_ServiceKernels.erase(ServiceKernelsIt);
+      else
+        ServiceKernelsIt++;
+    }
+  
+    auto ExportedSymbolsIt = m_ExportedSymbolImages.begin();
+    while (ExportedSymbolsIt != m_ExportedSymbolImages.end())
+    {
+      if (ExportedSymbolsIt->second == DeviceImage.get())
+        ExportedSymbolsIt = m_ExportedSymbolImages.erase(ExportedSymbolsIt);
+      else
+        ExportedSymbolsIt++;
+    }
+
+    //set of dev images are used?
+    // auto VFIt = m_VFSet2BinImage.begin();
+    // while (VFIt != m_VFSet2BinImage.end())
+    // {
+    //   if (VFIt->second == DeviceImage.get())
+    //     VFIt = m_VFSet2BinImage.erase(VFIt);
+    //   else
+    //     VFIt++;
+    // }
+
+    // could be built with many images
+    // auto NativeProgIt = NativePrograms.begin();
+    // while (NativeProgIt != NativePrograms.end())
+    // {
+    //   if (NativeProgIt->second == DeviceImage.get())
+    //     NativeProgIt = NativePrograms.erase(NativeProgIt);
+    //   else
+    //     NativeProgIt++;
+    // }
+
+      /*
+
+
+  std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>
+      m_DeviceGlobals;
+  std::unordered_map<const void *, DeviceGlobalMapEntry *> m_Ptr2DeviceGlobal;
+
+  std::mutex m_DeviceGlobalsMutex;
+
+  using MaterializedEntries =
+      std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
+
+  
+  */
+
+  // Complete the rest of containers, probably some of them I do not need to cleanup.
+  // Measure latency now + after redo
+  // TO DO: to check if I could do the same by extracting same data as on registration step - should be faster
+  // write test first to check algorithm and then compare after it is redone
+  // Questions & problems:
+  // what to do with multiple images for one program
+  // what to do when this program is used? how to track? very likely will leave it as it is and let it fail, state this case as undefined behavior. Check if it is already stated somewhere to refer to.
+
+    m_EliminatedKernelArgMasks.erase(DeviceImage.get());
+
+    std::ignore = m_BinImg2KernelIDs.erase(It);
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
@@ -3511,6 +3625,5 @@ extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
-  (void)desc;
-  // TODO implement the function
+  sycl::detail::ProgramManager::getInstance().removeImages(desc);
 }

@@ -216,6 +216,8 @@ public:
                                                const ContextImplPtr Context);
 
   void addImages(sycl_device_binaries DeviceImages);
+  void removeImages(const sycl_device_binaries& DeviceImages);
+
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr &Context);
@@ -424,7 +426,7 @@ private:
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
-  std::unordered_set<RTDeviceBinaryImageUPtr> m_DeviceImages;
+  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr> m_DeviceImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
