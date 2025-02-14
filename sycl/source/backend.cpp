@@ -181,7 +181,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
       std::make_shared<event_impl>(UrEvent, Context));
 
   if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urEventRetain>(UrEvent);
+    __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(NativeHandle));
   return Event;
 }
 
@@ -205,7 +205,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
         "urProgramCreateWithNativeHandle resulted in a null program handle.");
 
   if (ContextImpl->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urProgramRetain>(UrProgram);
+    __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeHandle));
 
   std::vector<ur_device_handle_t> ProgramDevices;
   uint32_t NumDevices = 0;
@@ -352,7 +352,7 @@ kernel make_kernel(const context &TargetContext,
       &UrKernel);
 
   if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urKernelRetain>(UrKernel);
+    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeHandle));
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
