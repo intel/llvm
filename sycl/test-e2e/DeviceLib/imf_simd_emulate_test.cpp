@@ -9,6 +9,9 @@
 // XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
+// UNSUPPORTED: igc-dev
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17008
+
 #include "imf_utils.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>

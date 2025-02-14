@@ -1811,9 +1811,11 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
 }
 
 std::vector<node> modifiable_command_graph::get_nodes() const {
+  graph_impl::ReadLock Lock(impl->MMutex);
   return createNodesFromImpls(impl->MNodeStorage);
 }
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
+  graph_impl::ReadLock Lock(impl->MMutex);
   auto &Roots = impl->MRoots;
   std::vector<std::weak_ptr<node_impl>> Impls{};
 
