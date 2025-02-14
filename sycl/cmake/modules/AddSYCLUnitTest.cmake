@@ -46,6 +46,7 @@ macro(add_sycl_unittest test_dirname link_variant)
         LLVM_PROFILE_FILE="${SYCL_COVERAGE_PATH}/${test_dirname}.profraw"
         SYCL_CONFIG_FILE_NAME=null.cfg
         SYCL_DEVICELIB_NO_FALLBACK=1
+        SYCL_CACHE_PERSISTENT=0
         SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
         "PATH=${CMAKE_BINARY_DIR}/bin;$ENV{PATH}"
         ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
@@ -58,6 +59,7 @@ macro(add_sycl_unittest test_dirname link_variant)
         LLVM_PROFILE_FILE="${SYCL_COVERAGE_PATH}/${test_dirname}.profraw"
         SYCL_CONFIG_FILE_NAME=null.cfg
         SYCL_DEVICELIB_NO_FALLBACK=1
+        SYCL_CACHE_PERSISTENT=0
         SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
         "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/lib:$ENV{LD_LIBRARY_PATH}"
         ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
