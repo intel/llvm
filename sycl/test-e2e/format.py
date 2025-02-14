@@ -309,12 +309,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%{run-aux}"]
             )
 
-            ignore_line_filtering = (
-                "build-and-run-mode" in test.requires
-                and test.config.fallback_build_run_only
-            )
-            if not ignore_line_filtering and (
-                (is_run_line and test.config.test_mode == "build-only")
+            if ((is_run_line and test.config.test_mode == "build-only")
                 or (not is_run_line and test.config.test_mode == "run-only")
             ):
                 continue
