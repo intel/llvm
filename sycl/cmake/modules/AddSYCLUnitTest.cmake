@@ -7,6 +7,8 @@ macro(add_sycl_unittest test_dirname link_variant)
   set(LLVM_REQUIRES_EH ON)
   set(LLVM_REQUIRES_RTTI ON)
 
+  get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
+
   string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
   if (MSVC AND build_type_lower MATCHES "debug")
     set(sycl_obj_target "sycld_object")
@@ -47,7 +49,7 @@ macro(add_sycl_unittest test_dirname link_variant)
         SYCL_CONFIG_FILE_NAME=null.cfg
         SYCL_DEVICELIB_NO_FALLBACK=1
         SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-        "PATH=${CMAKE_BINARY_DIR}/bin;$ENV{PATH}"
+        "PATH=${SYCL_BINARY_DIR}/unittests/lib;${CMAKE_BINARY_DIR}/bin;$ENV{PATH}"
         ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
         DEPENDS
         ${test_dirname}
@@ -59,7 +61,7 @@ macro(add_sycl_unittest test_dirname link_variant)
         SYCL_CONFIG_FILE_NAME=null.cfg
         SYCL_DEVICELIB_NO_FALLBACK=1
         SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-        "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/lib:$ENV{LD_LIBRARY_PATH}"
+        "LD_LIBRARY_PATH=${SYCL_BINARY_DIR}/unittests/lib:${CMAKE_BINARY_DIR}/lib:$ENV{LD_LIBRARY_PATH}"
         ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
         DEPENDS
         ${test_dirname}
@@ -73,6 +75,7 @@ macro(add_sycl_unittest test_dirname link_variant)
       LLVMTestingSupport
       OpenCL-Headers
       unified-runtime::mock
+      mockOpenCL
       ${SYCL_LINK_LIBS}
     )
 
