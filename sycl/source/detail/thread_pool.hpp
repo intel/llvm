@@ -73,6 +73,16 @@ public:
     start();
   }
 
+  ~ThreadPool() {
+    try {
+#ifndef _WIN32
+      finishAndWait();
+#endif
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
+    }
+  }
+
   void finishAndWait() {
     {
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
