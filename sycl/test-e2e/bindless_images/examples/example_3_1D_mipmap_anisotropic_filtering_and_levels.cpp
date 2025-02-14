@@ -1,5 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: aspect-ext_oneapi_mipmap_anisotropy
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: mipmap not currently supported on AMD
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
