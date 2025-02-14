@@ -83,6 +83,10 @@ public:
       BuiltIn BI = static_cast<BuiltIn>(Literals.back());
       return getCapability(BI);
     }
+    case DecorationUniform:
+      if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+        return getVec(CapabilityUniformDecoration);
+      return getVec(CapabilityShader);
 
     default:
       return getCapability(Dec);
