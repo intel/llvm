@@ -55,12 +55,12 @@ int main() {
       cache_config(large_slm)};
 
   // CHECK: parallel_for with sycl::range
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for with sycl::range" << std::endl;
   q.parallel_for(range<2>{16, 16}, RangeKernelFunctor{}).wait();
 
   // CHECK: parallel_for_work_group(range, func)
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for_work_group(range, func)" << std::endl;
   q.submit([&](handler &cgh) {
     cgh.parallel_for_work_group<class hpar_range>(
@@ -69,7 +69,7 @@ int main() {
   });
 
   // CHECK: parallel_for_work_group(range, range, func)
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for_work_group(range, range, func)" << std::endl;
   q.submit([&](handler &cgh) {
     cgh.parallel_for_work_group<class hpar_range_range>(
@@ -87,7 +87,7 @@ int main() {
   buffer<int> sum_buf{&sum_result, 1};
 
   // CHECK: parallel_for with reduction
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for with reduction" << std::endl;
   q.submit([&](handler &cgh) {
     auto input_values = values_buf.get_access<access_mode::read>(cgh);
@@ -97,25 +97,25 @@ int main() {
   });
 
   // CHECK: KernelFunctor single_task
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "KernelFunctor single_task" << std::endl;
   q.single_task(KernelFunctor{}).wait();
 
   // CHECK: KernelFunctor parallel_for
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "KernelFunctor parallel_for" << std::endl;
   q.parallel_for(nd_range<2>{range<2>(4, 4), range<2>(2, 2)}, KernelFunctorND{})
       .wait();
 
   // CHECK: negative parallel_for with sycl::nd_range
-  // CHECK-NOT: ZE ---> zeKernelSetCacheConfig
+  // CHECK-NOT: zeKernelSetCacheConfig
   std::cout << "negative parallel_for with sycl::nd_range" << std::endl;
   q.parallel_for(nd_range<2>{range<2>(4, 4), range<2>(2, 2)},
                  [=](nd_item<2> i) {})
       .wait();
 
   // CHECK: negative parallel_for with KernelFunctor
-  // CHECK-NOT: ZE ---> zeKernelSetCacheConfig
+  // CHECK-NOT: zeKernelSetCacheConfig
   std::cout << "negative parallel_for with KernelFunctor" << std::endl;
   q.parallel_for(nd_range<2>{range<2>(4, 4), range<2>(2, 2)},
                  NegativeKernelFunctor{})
