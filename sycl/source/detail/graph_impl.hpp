@@ -1604,6 +1604,7 @@ public:
 
   /// Type of the CGs in this dynamic command-group
   sycl::detail::CGType MCGType = sycl::detail::CGType::None;
+
 private:
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
