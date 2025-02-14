@@ -29,12 +29,12 @@ attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memo
 !llvm.module.flags = !{!3, !4}
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 0.0.0", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, retainedTypes: !2, globals: !2, imports: !2, splitDebugInlining: false, nameTableKind: None)
-!1 = !DIFile(filename: "mrm-219/ParFor_WG_local_dilatation.cpp", directory: "llvm/tickets/DISubprogram")
+!1 = !DIFile(filename: "test.cpp", directory: "/")
 !2 = !{}
 !3 = !{i32 2, !"Debug Info Version", i32 3}
 !4 = !{i32 1, !"sycl-device", i32 1}
 !5 = distinct !DISubprogram(name: "getGlobalInvocationId<1>", linkageName: "_ZN7__spirv21getGlobalInvocationIdILi1EEEmv", scope: !7, file: !6, line: 201, type: !8, scopeLine: 201, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, templateParams: !2)
-!6 = !DIFile(filename: "build/bin/../include/sycl/__spirv/spirv_vars.hpp", directory: "llvm")
+!6 = !DIFile(filename: "header.hpp", directory: "/")
 !7 = !DINamespace(name: "__spirv", scope: null)
 !8 = distinct !DISubroutineType(types: !2)
 !9 = !DILocation(line: 201, column: 1, scope: !5)
@@ -55,15 +55,15 @@ attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memo
 ; CHECK: attributes #[[ATTR0:[0-9]+]] = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
 ;.
 ; CHECK: [[META0:![0-9]+]] = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: [[META1:![0-9]+]], producer: "{{.*}}clang version {{.*}}", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: [[META2:![0-9]+]], retainedTypes: [[META2]], globals: [[META2]], imports: [[META2]], splitDebugInlining: false, nameTableKind: None)
-; CHECK: [[META1]] = !DIFile(filename: "mrm-219/ParFor_WG_local_dilatation.cpp", directory: {{.*}})
+; CHECK: [[META1]] = !DIFile(filename: "test.cpp", directory: {{.*}})
 ; CHECK: [[META2]] = !{}
 ; CHECK: [[META3:![0-9]+]] = !{i32 2, !"Debug Info Version", i32 3}
 ; CHECK: [[META4:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
 ; CHECK: [[DBG5]] = distinct !DISubprogram(name: "getGlobalInvocationId<1>", linkageName: "_ZN7__spirv21getGlobalInvocationIdILi1EEEmv", scope: [[META7:![0-9]+]], file: [[META6:![0-9]+]], line: 201, type: [[META8:![0-9]+]], scopeLine: 201, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], templateParams: [[META2]])
-; CHECK: [[META6]] = !DIFile(filename: "build/bin/../include/sycl/__spirv/spirv_vars.hpp", directory: {{.*}})
+; CHECK: [[META6]] = !DIFile(filename: "header.hpp", directory: {{.*}})
 ; CHECK: [[META7]] = !DINamespace(name: "__spirv", scope: null)
 ; CHECK: [[META8]] = distinct !DISubroutineType(types: [[META2]])
 ; CHECK: [[DBG9]] = !DILocation(line: 201, column: 1, scope: [[DBG5]])
-; CHECK: [[DBG10]] = distinct !DISubprogram(name: "getGlobalInvocationId<1>_with_offset", linkageName: "_ZN7__spirv21getGlobalInvocationIdILi1EEEmv_with_offset", scope: [[META6]], file: [[META6]], type: [[META8]], flags: DIFlagArtificial, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]])
+; CHECK: [[DBG10]] = distinct !DISubprogram(name: "getGlobalInvocationId<1>", linkageName: "_ZN7__spirv21getGlobalInvocationIdILi1EEEmv", scope: [[META7]], file: [[META6]], line: 201, type: [[META8]], scopeLine: 201, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], templateParams: [[META2]])
 ; CHECK: [[DBG11]] = !DILocation(line: 201, column: 1, scope: [[DBG10]])
 ;.
