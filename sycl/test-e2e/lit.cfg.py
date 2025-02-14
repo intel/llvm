@@ -14,6 +14,7 @@ import lit.util
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
+
 # Configuration file for the 'lit' test runner.
 config.backend_to_target = {
     "level_zero": "target-spir",
@@ -32,6 +33,8 @@ config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
 config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
+
+config.available_features = AvailableFeatures()
 
 # name: The name of this test suite.
 config.name = "SYCL"
@@ -227,6 +230,7 @@ def get_device_family_from_arch(arch):
             return device_family
     return None
 
+
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
@@ -253,6 +257,7 @@ if lit_config.params.get("enable-perf-tests", False):
 
 if lit_config.params.get("spirv-backend", False):
     config.available_features.add("spirv-backend")
+
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
@@ -781,7 +786,7 @@ for sycl_device in config.sycl_devices:
             gpu_intel_pvc_2T_device_id = "3029"
             _, device_id = line.strip().split(":", 1)
             device_id = device_id.strip()
-            if device_id == gpu_intel_pvc_1T_device_id:             
+            if device_id == gpu_intel_pvc_1T_device_id:
                 config.available_features.add("gpu-intel-pvc-1T")
             if device_id == gpu_intel_pvc_2T_device_id:
                 config.available_features.add("gpu-intel-pvc-2T")
