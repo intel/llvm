@@ -2470,6 +2470,9 @@ void OMPClauseEnqueue::VisitOMPNoOpenMPClause(const OMPNoOpenMPClause *) {}
 void OMPClauseEnqueue::VisitOMPNoOpenMPRoutinesClause(
     const OMPNoOpenMPRoutinesClause *) {}
 
+void OMPClauseEnqueue::VisitOMPNoOpenMPConstructsClause(
+    const OMPNoOpenMPConstructsClause *) {}
+
 void OMPClauseEnqueue::VisitOMPNoParallelismClause(
     const OMPNoParallelismClause *) {}
 
