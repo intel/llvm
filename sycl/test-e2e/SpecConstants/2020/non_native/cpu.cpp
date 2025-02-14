@@ -1,5 +1,4 @@
 // REQUIRES: opencl-aot, cpu
-// REQUIRES: build-and-run-mode
 
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/common.cpp -o %t.out \
 // RUN:          -fsycl-dead-args-optimization

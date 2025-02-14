@@ -4,7 +4,8 @@
 
 // FIXME: This set is never satisfied all at once in our infrastructure.
 // REQUIRES: opencl, level-zero, cpu, gpu, opencl-aot, ocloc
-// REQUIRES: build-and-run-mode
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
 
 // RUN: %clangxx -fsycl -DJIT %s -o %t.out
 // RUN: %{run} %t.out

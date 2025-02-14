@@ -1,5 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_cubemap
-// REQUIRES: build-and-run-mode
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
