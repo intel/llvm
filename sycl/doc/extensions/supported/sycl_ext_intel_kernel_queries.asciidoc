@@ -1,0 +1,139 @@
+= sycl_ext_intel_kernel_queries
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+
+== Overview
+
+This extension contains a collection of queries that provide low-level
+information about kernels.
+These queries generally forward directly to the backend and expose concepts that
+are specific to a particular implementation.
+As a result, these queries may not be supported for all devices.
+Each query has an associate device aspect, which tells whether the query is
+supported on that device.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_KERNEL_QUERIES` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== Spill memory size
+
+This query returns the kernel's spill memory size that is allocated by the
+compiler, as reported by Level Zero.
+
+==== New device aspect
+
+This extension adds the following new device aspect.
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_spill_memory_size
+
+  // ...
+};
+
+}
+----
+
+'''
+
+`*ext_intel_spill_memory_size*`
+
+Indicates that the `spill_memory_size` kernel information descriptor may be used
+to query kernels for this device.
+
+'''
+
+==== New device specific kernel information descriptor
+
+This extension adds the following information descriptor that can be used with
+`kernel::get_info(const device&)`.
+
+'''
+
+`*ext::intel::info::kernel_device_specific::spill_memory_size*`
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::kernel_device_specific {
+struct spill_memory_size {
+  using return_type = size_t;
+};
+} // namespace sycl::ext::intel::info::kernel_device_specific
+----
+
+_Remarks:_ Template parameter to `kernel::get_info(const device&)`.
+
+_Returns:_ The spill memory size that is allocated by the compiler for this
+kernel for the given device.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_spill_memory_size`.
+
+'''

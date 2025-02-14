@@ -72,6 +72,15 @@ template <typename T> struct UrInfoCode;
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  template <> struct UrInfoCode<Namespace::info::DescType::Desc> {             \
+    static constexpr ur_kernel_info_t value =                                  \
+        static_cast<ur_kernel_info_t>(UrCode);                                 \
+  };
+
+#include <sycl/info/ext_intel_kernel_info_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
