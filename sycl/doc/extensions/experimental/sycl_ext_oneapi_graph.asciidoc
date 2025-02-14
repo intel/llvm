@@ -862,11 +862,11 @@ Table {counter: tableNumber}. Graph update capabilites for supported node types.
 |
 
 * Kernel function
-* Kernel Parameters
+* Kernel parameters
 * ND-range
 
 |
-* Kernel Parameters
+* Kernel parameters
 * ND-range
 
 |`node_type::host_task`

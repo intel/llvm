@@ -1,5 +1,4 @@
-
-// Tests whole graph update with a host-task in the graph
+// Tests whole graph update with a host-task in the graph using accessors
 
 #include "../graph_common.hpp"
 
@@ -37,7 +36,6 @@ void add_nodes_to_graph(
                                        access::target::host_task>(CGH);
         depends_on_helper(CGH, LastOperation);
         CGH.host_task([=]() {
-          // std::cout << "AccC[0] " << AccC[0] << std::endl;
           for (size_t i = 0; i < Size; i++) {
             AccC[i] += ModValue;
           }
@@ -112,7 +110,7 @@ int main() {
     event Event;
     for (unsigned n = 0; n < Iterations; n++) {
       Event = Queue.submit([&](handler &CGH) {
-        // CGH.depends_on(Event);
+        CGH.depends_on(Event);
         CGH.ext_oneapi_graph(GraphExec);
       });
     }
