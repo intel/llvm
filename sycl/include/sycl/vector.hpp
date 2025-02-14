@@ -427,9 +427,11 @@ public:
   using element_type = DataT;
   using value_type = DataT;
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 #ifdef __SYCL_DEVICE_ONLY__
   using vector_t = typename vec<DataT, NumElements>::vector_t;
 #endif // __SYCL_DEVICE_ONLY__
+#endif
 
   Swizzle() = delete;
   Swizzle(const Swizzle &) = delete;
@@ -501,6 +503,7 @@ class __SYCL_EBO vec :
 
   using Base = detail::vec_base<DataT, NumElements>;
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 #ifdef __SYCL_DEVICE_ONLY__
   using element_type_for_vector_t = typename detail::map_type<
       DataT,
@@ -545,6 +548,7 @@ public:
 
 private:
 #endif // __SYCL_DEVICE_ONLY__
+#endif
 
 #if __SYCL_USE_LIBSYCL8_VEC_IMPL
   template <int... Indexes>
@@ -622,6 +626,7 @@ public:
   static constexpr size_t get_size() { return byte_size(); }
   static constexpr size_t byte_size() noexcept { return sizeof(Base); }
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 private:
   // getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
@@ -644,6 +649,8 @@ private:
   }
 
 public:
+#endif
+
   // Out-of-class definition is in `sycl/detail/vector_convert.hpp`
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
