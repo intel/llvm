@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
 #include "llvm/TargetParser/Triple.h"
 
@@ -732,6 +733,15 @@ SYCLDeviceLibFuncMap SDLMap = {
      DeviceLibExt::cl_intel_devicelib_bfloat16},
 };
 
+// TODO: more robust check for all group sort fallback devicelib functions.
+static bool checkGroupSortFallback(const StringRef &FuncName) {
+  if (FuncName.starts_with("__devicelib_default_work_group_") ||
+      FuncName.starts_with("__devicelib_default_sub_group_"))
+    return true;
+  else
+    return false;
+}
+
 // Each fallback device library corresponds to one bit in "require mask" which
 // is an unsigned int32. getDeviceLibBit checks which fallback device library
 // is required for FuncName and returns the corresponding bit. The corresponding
@@ -746,6 +756,7 @@ SYCLDeviceLibFuncMap SDLMap = {
 // cl_intel_devicelib_imf_fp64:      0x80
 // cl_intel_devicelib_imf_bf16:      0x100
 // cl_intel_devicelib_bfloat16:      0x200
+// cl_intel_devicelib_gsort:         0x400
 uint32_t getDeviceLibBits(const std::string &FuncName) {
   auto DeviceLibFuncIter = SDLMap.find(FuncName);
   return ((DeviceLibFuncIter == SDLMap.end())
@@ -770,6 +781,10 @@ uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
     if (SF.getName().starts_with(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
       assert(SF.getCallingConv() == CallingConv::SPIR_FUNC);
       uint32_t DeviceLibBits = getDeviceLibBits(SF.getName().str());
+      if (!DeviceLibBits) {
+        if (checkGroupSortFallback(SF.getName()))
+          DeviceLibBits = 0x400;
+      }
       ReqMask |= DeviceLibBits;
     }
   }
