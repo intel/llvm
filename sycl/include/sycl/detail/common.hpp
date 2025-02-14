@@ -8,6 +8,9 @@
 
 #pragma once
 
+#ifndef _MSC_VER
+#include <dlfcn.h>
+#endif
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -378,6 +381,27 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 // in GCC when relying on default deductions on non-template ctors in template
 // classes.
 struct AllowCTADTag;
+
+// Look up a function name that was dynamically linked
+// This is used by the runtime where it needs to manipulate native handles (e.g.
+// retaining OpenCL handles). On Windows, the symbol name is looked up in
+// `winlibname`. In Linux, it uses `RTLD_DEFAULT`. The library must already have
+// been loaded (perhaps by UR).
+template <typename fn>
+fn *dynLookupFunction([[maybe_unused]] const char *winlibname,
+                      const char *name) {
+#ifdef _MSC_VER
+  auto handle = GetModuleHandleA(winlibname);
+  assert(handle);
+  auto *retVal = GetProcAddress(handle, name);
+#else
+  auto *retVal = dlsym(RTLD_DEFAULT, name);
+#endif
+  assert(retVal);
+  return reinterpret_cast<fn *>(retVal);
+}
+#define _OCL_GET_FUNCTION(FN)                                                  \
+  (::sycl::_V1::detail::dynLookupFunction<decltype(FN)>("OpenCL", #FN))
 
 } // namespace detail
 } // namespace _V1
