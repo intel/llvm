@@ -1858,16 +1858,6 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   if (Body && isa_and_nonnull<CoroutineBodyStmt>(Body))
     llvm::append_range(FnArgs, FD->parameters());
 
-  // Generate a dummy __host__ function for compiling CUDA sources in SYCL.
-  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
-      getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
-      FD->hasAttr<CUDADeviceAttr>()) {
-    if (FD->getReturnType()->isVoidType())
-      Builder.CreateRetVoid();
-    else
-      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
-    return;
-  }
   // When compiling a CUDA file in SYCL device mode,
   // set weak ODR linkage for possibly duplicated functions.
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
@@ -1884,7 +1874,16 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);
-  if (isa<CXXDestructorDecl>(FD))
+  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
+      getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
+      FD->hasAttr<CUDADeviceAttr>()) {
+    // Generate a dummy __host__ function for compiling CUDA sources in SYCL.
+    if (FD->getReturnType()->isVoidType())
+      Builder.CreateRetVoid();
+    else
+      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
+    Builder.ClearInsertionPoint();
+  } else if (isa<CXXDestructorDecl>(FD))
     EmitDestructorBody(Args);
   else if (isa<CXXConstructorDecl>(FD))
     EmitConstructorBody(Args);

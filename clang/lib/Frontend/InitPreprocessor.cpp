@@ -619,7 +619,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   // Not "standard" per se, but available even with the -undef flag.
   if (LangOpts.AsmPreprocessor)
     Builder.defineMacro("__ASSEMBLER__");
-  if (LangOpts.CUDA) {
+  if (LangOpts.CUDA || LangOpts.SYCLCUDACompat) {
     if (LangOpts.GPURelocatableDeviceCode)
       Builder.defineMacro("__CLANG_RDC__");
     if (!LangOpts.HIP)
@@ -1499,7 +1499,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   }
 
   // CUDA device path compilaton
-  if (LangOpts.CUDAIsDevice && !LangOpts.HIP && !LangOpts.isSYCL()) {
+  if ((LangOpts.SYCLIsDevice && LangOpts.SYCLCUDACompat) ||
+      (LangOpts.CUDAIsDevice && !LangOpts.HIP && !LangOpts.isSYCL())) {
     // The CUDA_ARCH value is set for the GPU target specified in the NVPTX
     // backend's target defines.
     // Note: SYCL targeting nvptx-cuda relies on __SYCL_CUDA_ARCH__ instead.
