@@ -151,10 +151,11 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
 class pipe;
 }
 
-namespace ext ::oneapi ::experimental {
-template <typename, typename>
-class work_group_memory;
+namespace ext::oneapi::experimental {
+template <typename, typename> class work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
+void prefetch(handler &CGH, void *Ptr, size_t NumBytes, prefetch_type Type);
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
@@ -514,7 +515,8 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
+  /// TODO: remove the first version of this func (the one without the
+  /// IsTopCodeLoc arg)
   ///   at the next ABI breaking window since removing it breaks ABI on windows.
   void saveCodeLoc(detail::code_location CodeLoc);
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
@@ -724,8 +726,9 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    MHostKernel =
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -3441,6 +3444,10 @@ private:
   void *MDstPtr = nullptr;
   /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// USM prefetch direction.
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
+#endif
   /// Pattern that is used to fill memory object in case command type is fill.
   std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
@@ -3724,6 +3731,28 @@ private:
   void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
+
+// Enqueue function extension's implementation USM prefetch, enabling USM
+// prefetch from both host to device, and device to host.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // With breaking changes enabled, the handler/CG Nodes have their fields
+  // modified. This function updates that field in the CG Node.
+  void ext_oneapi_prefetch_exp(const void *Ptr, size_t Count,
+                               ext::oneapi::experimental::prefetch_type Type);
+  // This is a separate function to keep the current handler.prefetch function
+  // the same.
+#else
+  // Without breaking changes, the handler/CG Nodes fields cannot be modified,
+  // meaning 1 CG node type cannot indicate both prefetch directions. Thus, the
+  // default handler.prefetch indicates host to device, and this function serves
+  // as device to host.
+  void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
+#endif
+  // Friend prefetch from the enqueue functions extension to allow call to
+  // private function ext_oneapi_prefetch_d2h
+  friend void sycl::ext::oneapi::experimental::prefetch(
+      handler &CGH, void *Ptr, size_t NumBytes,
+      sycl::ext::oneapi::experimental::prefetch_type Type);
 
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {

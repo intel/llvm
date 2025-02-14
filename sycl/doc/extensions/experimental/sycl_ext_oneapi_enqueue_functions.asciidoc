@@ -633,14 +633,22 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void prefetch(sycl::queue q, void* ptr, size_t numBytes);
+enum class prefetch_type { device, host };
 
-void prefetch(sycl::handler &h, void* ptr, size_t numBytes);
+void prefetch(sycl::queue q, void* ptr, size_t numBytes,
+              prefetch_type type = prefetch_type::device);
+
+void prefetch(sycl::handler &h, void* ptr, size_t numBytes,
+              prefetch_type type = prefetch_type::device);
 
 }
 ----
 !====
-_Effects_: Enqueues a `prefetch` to the `sycl::queue` or `sycl::handler`.
+_Effects_: Enqueues a `prefetch` to the `sycl::queue` or `sycl::handler`.  The
+`type` parameter tells the direction of the prefetch operation: When the value
+is `prefetch_type::device`, the memory is prefetched _to_ the device associated
+with the queue. When the value is `prefetch_type::host`, the memory is
+prefetched _to_ the host, regardless of the device on which it currently resides.
 
 a|
 [frame=all,grid=none]
