@@ -15,9 +15,9 @@
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{max_cache_size} = SYCL_CACHE_MAX_SIZE=10000
 // RUN: %{build} -o %t.out
-// RUN: %if run-mode %{rm -rf %t/cache_dir%}
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
-// RUN: %if run-mode %{rm -rf %t/cache_dir%}
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT
 
 #include <sycl/detail/core.hpp>
