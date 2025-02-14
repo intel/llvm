@@ -1,7 +1,7 @@
-# commit c5bf8fd5c92ab7a24b439cd89cefc9cd425ec787
-# Merge: e6d4355f 778085f7
+# commit 2a499d7b4d9a4ca2bf21c2e7ead3bc7b063038b3
+# Merge: c6347a85 3a7d16e6
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Mon Jan 13 10:41:50 2025 +0000
-#     Merge pull request #2479 from aarongreig/aaron/parameterizeDeviceTests
-#     Parameterize CTS tests across all available adapters and devices.
-set(UNIFIED_RUNTIME_TAG 3a7d16e6b8ca07c17d4f06fd04a362ab4ee77083)
+# Date:   Fri Feb 14 11:09:56 2025 +0000
+#     Merge pull request #2571 from omarahmed1111/enable-registry-of-level_zero_v2
+#     Enable the registry of level_zero_v2
+set(UNIFIED_RUNTIME_TAG 2a499d7b4d9a4ca2bf21c2e7ead3bc7b063038b3)
