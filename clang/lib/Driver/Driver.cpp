@@ -6488,9 +6488,11 @@ class OffloadingActionBuilder final {
                 break;
               }
             }
-            // Use of -fsycl-force-target allows to override the target used
-            // during the unbundling step.  Do not emit the diagnostic when this
-            // target is found in the found sections.
+            // Use of -fsycl-force-target=triple forces the compiler to use the
+            // specified target triple when extracting device code from any of
+            // the given objects on the command line. If the target specified
+            // in -fsycl-force-target is found in a fat object, do not emit the
+            // target mismatch warning.
             if (const Arg *ForceTarget = C.getInputArgs().getLastArg(
                     options::OPT_fsycl_force_target_EQ)) {
               StringRef Val(ForceTarget->getValue());
