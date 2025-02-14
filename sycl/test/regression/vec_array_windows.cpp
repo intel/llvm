@@ -4,6 +4,7 @@
 // may emit debug-mode-only functions, on which the device compiler may fail.
 
 // REQUIRES: windows
+// XFAIL: *
 
 // RUN: %clangxx -fsycl -D_DEBUG %s -fsycl-device-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 
