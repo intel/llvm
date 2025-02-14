@@ -220,10 +220,9 @@ public:
       ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj,      /* Serialized spec constants. */
-                 ur_device_handle_t, /* UR device handle pointer */
-                 std::string         /* Kernel Name */
-                 >;
+      std::pair<ur_device_handle_t, /* UR device handle pointer */
+                std::string         /* Kernel Name */
+                >;
 
   using KernelFastCacheValT =
       std::tuple<ur_kernel_handle_t,    /* UR kernel handle pointer. */
@@ -420,7 +419,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
-      traceKernel("Kernel fetched.", std::get<2>(CacheKey), true);
+      traceKernel("Kernel fetched.", CacheKey.second, true);
       return It->second;
     }
     return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
@@ -449,7 +448,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
-    traceKernel("Kernel inserted.", std::get<2>(CacheKey), true);
+    traceKernel("Kernel inserted.", CacheKey.second, true);
     MKernelFastCache.emplace(CacheKey, CacheVal);
   }
 
@@ -504,7 +503,7 @@ public:
                 FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
               for (const auto &FastCacheKey : FastCacheKeyItr->second) {
                 MKernelFastCache.erase(FastCacheKey);
-                traceKernel("Kernel evicted.", std::get<2>(FastCacheKey), true);
+                traceKernel("Kernel evicted.", FastCacheKey.second, true);
               }
               MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
             }

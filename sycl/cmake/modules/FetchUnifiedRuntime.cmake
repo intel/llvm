@@ -73,7 +73,13 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
 endif()
 
-if(SYCL_UR_USE_FETCH_CONTENT)
+set(UR_INTREE_SOURCE_DIR "${LLVM_SOURCE_DIR}/../unified-runtime")
+cmake_path(NORMAL_PATH UR_INTREE_SOURCE_DIR OUTPUT_VARIABLE UR_INTREE_SOURCE_DIR)
+
+if(IS_DIRECTORY "${UR_INTREE_SOURCE_DIR}")
+  set(UR_INTREE_BINARY_DIR ${LLVM_BINARY_DIR}/unified-runtime)
+  add_subdirectory(${UR_INTREE_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
+elseif(SYCL_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   # The fetch_adapter_source function can be used to perform a separate content

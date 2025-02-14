@@ -78,6 +78,9 @@ elif config.test_mode == "build-only":
 else:
     lit_config.error("Invalid argument for test-mode")
 
+# Dummy substitution to indicate line should be a run line
+config.substitutions.append(("%{run-aux}", ""))
+
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
     "COMPILER_PATH",
@@ -893,6 +896,14 @@ else:
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
     )
+
+if lit_config.params.get("print_features", False):
+    lit_config.note(
+        "Global features: {}".format(" ".join(sorted(config.available_features)))
+    )
+    lit_config.note("Per-device features:")
+    for dev, features in config.sycl_dev_features.items():
+        lit_config.note("\t{}: {}".format(dev, " ".join(sorted(features))))
 
 # Set timeout for a single test
 try:
