@@ -305,7 +305,7 @@ bool SYCL_JIT_Compilation_Available() {
 
 std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
     [[maybe_unused]] const std::string &SYCLSource,
-    [[maybe_unused]] const include_pairs_t& IncludePairs,
+    [[maybe_unused]] const include_pairs_t &IncludePairs,
     [[maybe_unused]] const std::vector<std::string> &UserArgs,
     [[maybe_unused]] std::string *LogPtr,
     [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
@@ -314,8 +314,8 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
   std::string Prefix = "rtc_" + std::to_string(CompilationID++) + "$";
   sycl_device_binaries Binaries =
       sycl::detail::jit_compiler::get_instance().compileSYCL(
-          SYCLSource, IncludePairs, UserArgs, LogPtr,
-          RegisteredKernelNames, Prefix);
+          SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames,
+          Prefix);
   return std::make_pair(Binaries, std::move(Prefix));
 #else
   throw sycl::exception(sycl::errc::build,

@@ -94,8 +94,7 @@ private:
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
   using MaterializeSpecConstFuncT =
       decltype(::jit_compiler::materializeSpecConstants) *;
-  using CalculateHashFuncT =
-      decltype(::jit_compiler::calculateHash) *;
+  using CalculateHashFuncT = decltype(::jit_compiler::calculateHash) *;
   using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
