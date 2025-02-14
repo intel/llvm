@@ -1,4 +1,4 @@
-// REQUIRES: linux && (gpu && level_zero)
+// REQUIRES: linux && (cpu || gpu && level_zero)
 // RUN: %{build} %device_msan_flags -O0 -g -o %t1.out
 // RUN: %{run} not %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -O1 -g -o %t2.out
@@ -9,8 +9,8 @@
 // XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
-// Test is flaky on CPU, disable until it can be fixed
-// UNSUPPORTED: cpu
+// Test is flaky on required platforms, disable until it can be fixed
+// UNSUPPORTED: true
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16978
 
 #include <sycl/detail/core.hpp>
