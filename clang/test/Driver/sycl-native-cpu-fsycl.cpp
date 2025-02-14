@@ -65,3 +65,10 @@
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL post link", inputs: ["[[LINK2]].bc"], output: "[[POSTL:.*]].table"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload wrapper", inputs: ["[[POSTL]].table"], output: "[[WRAP:.*]].o"
 //CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[FILE1HOST]].o", "[[FILE2HOST]].o", "[[KERNELO]].o", "[[WRAP]].o"], output: "{{.*}}"
+
+// check that -fsycl-libdevice-path is used correctly
+// RUN: %clangxx -ccc-print-phases -std=c++11 -fsycl -fsycl-targets=native_cpu \
+// RUN: -fno-sycl-device-lib=all -fsycl-libdevice-path=%S/Inputs/SYCL %s 2>&1 | FileCheck %s
+
+// CHECK:       [[LIBNATIVECPU:[0-9]*]]: input, "{{.*}}Inputs/SYCL/libsycl-nativecpu_utils.bc", ir, (device-sycl)
+// CHECK-NEXT:  linker, {{{.*}}, [[LIBNATIVECPU]]}, ir, (device-sycl)
