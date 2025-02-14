@@ -120,3 +120,12 @@ void redefineMockForKernelInterop(sycl::unittest::UrMock<> &Mock) {
   mock::getCallbacks().set_replace_callback("urProgramGetBuildInfo",
                                             &redefined_urProgramGetBuildInfo);
 }
+
+extern "C" {
+size_t mockOpenCLNumKernelRetains();
+size_t mockOpenCLNumQueueRetains();
+size_t mockOpenCLNumMemObjectRetains();
+size_t mockOpenCLNumContextRetains();
+size_t mockOpenCLNumDeviceRetains();
+size_t mockOpenCLNumEventRetains();
+}
