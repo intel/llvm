@@ -574,8 +574,7 @@ struct __SYCL_EXPORT
 };
 
 template <sycl::ext::oneapi::experimental::graph_state State>
-struct __SYCL_EXPORT
-    hash<sycl::ext::oneapi::experimental::command_graph<State>> {
+struct hash<sycl::ext::oneapi::experimental::command_graph<State>> {
   size_t operator()(const sycl::ext::oneapi::experimental::command_graph<State>
                         &Graph) const {
     auto ID = sycl::detail::getSyclObjImpl(Graph)->getID();
@@ -584,8 +583,7 @@ struct __SYCL_EXPORT
 };
 
 template <typename ValueT>
-struct __SYCL_EXPORT
-    hash<sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>> {
+struct hash<sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>> {
   size_t
   operator()(const sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>
                  &DynamicParam) const {
