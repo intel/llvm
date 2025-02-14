@@ -3709,25 +3709,37 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   Command::waitForEvents(MQueue, EventImpls, UREvent);
   MEvent->setHandle(UREvent);
 
-  for (auto &Node : MNodes) {
-    auto CG = static_cast<CGExecKernel *>(Node->MCommandGroup.get());
-    for (auto &Arg : CG->MArgs) {
-      if (Arg.MType != kernel_param_kind_t::kind_accessor) {
-        continue;
+  auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
+    if (Dep.MDepRequirement == Req) {
+      if (Dep.MAllocaCmd) {
+        Req->MData = Dep.MAllocaCmd->getMemAllocation();
+      } else {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "No allocation available for accessor when "
+                              "updating command buffer!");
       }
-      // Search through deps to get actual allocation for accessor args.
-      for (const DepDesc &Dep : MDeps) {
-        Requirement *Req = static_cast<AccessorImplHost *>(Arg.MPtr);
-        if (Dep.MDepRequirement == Req) {
-          if (Dep.MAllocaCmd) {
-            Req->MData = Dep.MAllocaCmd->getMemAllocation();
-          } else {
-            throw sycl::exception(make_error_code(errc::invalid),
-                                  "No allocation available for accessor when "
-                                  "updating command buffer!");
-          }
+    }
+  };
+
+  for (auto &Node : MNodes) {
+    CG *CG = Node->MCommandGroup.get();
+    switch (Node->MNodeType) {
+    case ext::oneapi::experimental::node_type::kernel: {
+      auto CGExec = static_cast<CGExecKernel *>(CG);
+      for (auto &Arg : CGExec->MArgs) {
+        if (Arg.MType != kernel_param_kind_t::kind_accessor) {
+          continue;
+        }
+        // Search through deps to get actual allocation for accessor args.
+        for (const DepDesc &Dep : MDeps) {
+          Requirement *Req = static_cast<AccessorImplHost *>(Arg.MPtr);
+          CheckAndFindAlloca(Req, Dep);
         }
       }
+      break;
+    }
+    default:
+      break;
     }
     MGraph->updateImpl(Node);
   }
