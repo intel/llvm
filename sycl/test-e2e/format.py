@@ -309,8 +309,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%{run-aux}"]
             )
 
-            if ((is_run_line and test.config.test_mode == "build-only")
-                or (not is_run_line and test.config.test_mode == "run-only")
+            if (is_run_line and test.config.test_mode == "build-only") or (
+                not is_run_line and test.config.test_mode == "run-only"
             ):
                 continue
 
