@@ -174,11 +174,11 @@ computeBF16DeviceLibProperties(const Module &M,
   {
     // Value '0' means fallback version and '1' means native version of
     // bfloat16 devicelib.
-    unsigned BF16DeviceLibType = 0;
+    uint32_t IsNativeBF16DeviceLib = 0;
     if (BF16DeviceLibName.find("native") != std::string::npos)
-      BF16DeviceLibType = 1;
-    std::map<StringRef, unsigned int> BF16TypeEntry = {
-        {"DeviceLibBF16Type", BF16DeviceLibType}};
+      IsNativeBF16DeviceLib = 1;
+    std::map<StringRef, uint32_t> BF16TypeEntry = {
+        {"DeviceLibBF16Type", IsNativeBF16DeviceLib}};
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_BF16_TYPE, BF16TypeEntry);
   }
 
