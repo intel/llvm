@@ -25,4 +25,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a \
 // RUN:   -fsycl-force-target=spir64 -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_DIAG
-// SPIR64_DIAG-NOT: linked binaries do not contain expected
+// SPIR64_DIAG-NOT: linked binaries do not contain expected {{.*}} target; found targets:
