@@ -51,8 +51,6 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
-  std::shared_ptr<DeviceInfo> DeviceInfo =
-      Device ? getDeviceInfo(Device) : nullptr;
 
   void *Allocated = nullptr;
 
@@ -75,7 +73,9 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   if (Type != AllocType::DEVICE_USM) {
     return UR_RESULT_SUCCESS;
   }
+
   assert(Device);
+  std::shared_ptr<DeviceInfo> DeviceInfo = getDeviceInfo(Device);
 
   auto AI = std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
                                                           Size,
