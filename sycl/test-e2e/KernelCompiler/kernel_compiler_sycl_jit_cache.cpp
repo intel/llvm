@@ -34,6 +34,18 @@ void vec_add(float* in1, float* in2, float* out){
 }
 )""";
 
+auto constexpr SYCLSourceWithInclude = R"""(
+  #include "myheader.h"
+  #include <sycl/sycl.hpp>
+  
+  extern "C" SYCL_EXTERNAL 
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
+  void KERNEL_NAME(float* in1, float* out){
+    size_t id = sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
+    out[id] = in1[id];
+  }
+  )""";
+
 static void dumpKernelIDs() {
   for (auto &kernelID : sycl::get_kernel_ids())
     std::cout << kernelID.get_name() << std::endl;
@@ -91,9 +103,27 @@ int test_persistent_cache() {
   // CHECK-EVICT: [kernel_compiler Persistent Cache]: device code IR has been cached
   exe_kb kbExe2b = syclex::build(kbSrc2);
 
-  // TODO: Add tests that `#include` files, either from the filesystem or
-  //       defined with the `include_files` property, after the persistent
-  //       cache becomes sensitive to includes.
+  source_kb kbSrc3 = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, SYCLSourceWithInclude,
+      syclex::properties{
+          syclex::include_files{"myheader.h", "#define KERNEL_NAME foo"}});
+
+  // New source string -> cache miss
+  // CHECK: [kernel_compiler Persistent Cache]: device code IR has been cached
+  exe_kb kbExe3a = syclex::build(kbSrc3);
+  dumpKernelIDs();
+  // CHECK: rtc_5$__sycl_kernel_foo
+
+  source_kb kbSrc4 = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, SYCLSourceWithInclude,
+      syclex::properties{
+          syclex::include_files{"myheader.h", "#define KERNEL_NAME bar"}});
+
+  // Same source string, but different header contents -> cache miss
+  // CHECK: [kernel_compiler Persistent Cache]: device code IR has been cached
+  exe_kb kbExe4a = syclex::build(kbSrc4);
+  dumpKernelIDs();
+  // CHECK: rtc_6$__sycl_kernel_bar
 
   return 0;
 }

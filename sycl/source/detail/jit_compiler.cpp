@@ -1258,7 +1258,9 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   std::string FinalSource = ss.str();
 
-  std::string SYCLFileName = CompilationID + ".cpp";
+  // The filename must be stable, because it is part of the preprocessed output
+  // and in consequence, the cache key.
+  std::string SYCLFileName = "rtc.cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
                                           FinalSource.c_str()};
 
