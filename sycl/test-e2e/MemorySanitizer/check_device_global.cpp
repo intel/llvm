@@ -9,6 +9,9 @@
 // XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
+// XFAIL: cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16978
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/usm.hpp>
