@@ -3738,15 +3738,6 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
       }
       break;
     }
-    case ext::oneapi::experimental::node_type::host_task: {
-      for (auto &Req : CG->getRequirements()) {
-        for (const DepDesc &Dep : MDeps) {
-          CheckAndFindAlloca(Req, Dep);
-        }
-      }
-
-      break;
-    }
     default:
       break;
     }
