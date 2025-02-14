@@ -300,11 +300,13 @@ public:
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImplPtr->getAdapter();
 
-    if (ContextImplPtr->getBackend() == backend::opencl)
-      Adapter->call<UrApiKind::urProgramRetain>(MProgram);
     ur_native_handle_t NativeProgram = 0;
     Adapter->call<UrApiKind::urProgramGetNativeHandle>(MProgram,
                                                        &NativeProgram);
+    if (ContextImplPtr->getBackend() == backend::opencl) {
+      auto *RetainFun = _OCL_GET_FUNCTION(clRetainProgram);
+      RetainFun(ur::cast<cl_program>(NativeProgram));
+    }
 
     return NativeProgram;
   }
