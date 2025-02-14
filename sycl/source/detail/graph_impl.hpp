@@ -444,43 +444,11 @@ public:
 
     NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
   }
-
+  /// Update this node with the command-group from another node.
+  /// @param Other The other node to update, must be of the same node type.
   void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    switch (MNodeType) {
-    case node_type::kernel: {
-      auto ExecCG =
-          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      auto OtherExecCG =
-          static_cast<sycl::detail::CGExecKernel *>(Other->MCommandGroup.get());
-
-      ExecCG->MArgs = OtherExecCG->MArgs;
-      ExecCG->MNDRDesc = OtherExecCG->MNDRDesc;
-      ExecCG->MKernelName = OtherExecCG->MKernelName;
-      ExecCG->getAccStorage() = OtherExecCG->getAccStorage();
-      ExecCG->getRequirements() = OtherExecCG->getRequirements();
-
-      auto &OldArgStorage = OtherExecCG->getArgsStorage();
-      auto &NewArgStorage = ExecCG->getArgsStorage();
-      // Rebuild the arg storage and update the args
-      rebuildArgStorage(ExecCG->MArgs, OldArgStorage, NewArgStorage);
-      break;
-    }
-    case node_type::host_task: {
-      auto HostTaskCG =
-          static_cast<sycl::detail::CGHostTask *>(MCommandGroup.get());
-      auto OtherHostTaskCG =
-          static_cast<sycl::detail::CGHostTask *>(Other->MCommandGroup.get());
-
-      HostTaskCG->MArgs = OtherHostTaskCG->MArgs;
-      HostTaskCG->getAccStorage() = OtherHostTaskCG->getAccStorage();
-      HostTaskCG->getRequirements() = OtherHostTaskCG->getRequirements();
-      HostTaskCG->MHostTask = OtherHostTaskCG->MHostTask;
-      HostTaskCG->getEvents() = OtherHostTaskCG->getEvents();
-      break;
-    }
-    default:
-      break;
-    }
+    assert(MNodeType == Other->MNodeType);
+    MCommandGroup = std::move(Other->getCGCopy());
   }
 
   id_type getID() const { return MID; }
