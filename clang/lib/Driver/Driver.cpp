@@ -6488,6 +6488,18 @@ class OffloadingActionBuilder final {
                 break;
               }
             }
+            // Use of -fsycl-force-target allows to override the target used
+            // during the unbundling step.  Do not emit the diagnostic when this
+            // target is found in the found sections.
+            if (const Arg *ForceTarget = C.getInputArgs().getLastArg(
+                    options::OPT_fsycl_force_target_EQ)) {
+              StringRef Val(ForceTarget->getValue());
+              llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
+              if (TT.normalize() == Section) {
+                SectionFound = true;
+                break;
+              }
+            }
           }
           if (SectionFound)
             continue;
