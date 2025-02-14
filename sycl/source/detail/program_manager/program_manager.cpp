@@ -1823,16 +1823,12 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
 
 static bool skipEmptyImage(sycl_device_binary RawImg) {
   // bfloat16 devicelib image must be kept.
-  sycl_device_binary_property_set ImgPS;
-  for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
-       ++ImgPS) {
-    if (ImgPS->Name &&
-        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_BF16_TYPE, ImgPS->Name)) {
-      return false;
-    }
-  }
-
-  return true;
+return !std::any_of(RawImg->PropertySetsBegin, RawImg->PropertySetsEnd,
+                    [](const _sycl_device_binary_property_set_struct &ImgPS) {
+                      return ImgPS->Name &&
+                             !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_BF16_TYPE,
+                                     ImgPS->Name);
+                    });
 }
 
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
