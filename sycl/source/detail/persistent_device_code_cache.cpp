@@ -950,7 +950,7 @@ PersistentDeviceCodeCache::getDeviceCodeIRPath(const std::string &Key) {
     return {};
   }
 
-  return cache_root + "/ext_kernel_compiler" + "/" + Key;
+  return cache_root + "/ext_kernel_compiler/" + Key;
 }
 
 /* Returns true if persistent cache is enabled.

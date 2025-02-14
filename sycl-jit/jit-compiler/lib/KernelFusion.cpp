@@ -265,8 +265,8 @@ calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   auto Hash = *HashOrError;
   auto Stop = std::chrono::high_resolution_clock::now();
 
-  std::chrono::duration<double, std::milli> HashTime = Stop - Start;
   if (UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_EQ)) {
+    std::chrono::duration<double, std::milli> HashTime = Stop - Start;
     llvm::dbgs() << "Hashing of " << SourceFile.Path << " took "
                  << int(HashTime.count()) << " ms\n";
   }
