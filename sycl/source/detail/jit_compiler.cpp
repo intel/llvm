@@ -1142,7 +1142,7 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
 
 sycl_device_binaries jit_compiler::createDeviceBinaryImage(
     const ::jit_compiler::RTCBundleInfo &BundleInfo,
-    const std::string &OffloadEntryPrefix) {
+    const std::string &Prefix) {
   DeviceBinariesCollection Collection;
 
   for (const auto &DevImgInfo : BundleInfo) {
@@ -1153,7 +1153,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaryImage(
       // entrypoints remain unchanged.
       // It seems to be OK to set zero for most of the information here, at
       // least that is the case for compiled SPIR-V binaries.
-      std::string PrefixedName = OffloadEntryPrefix + Symbol.c_str();
+      std::string PrefixedName = Prefix + Symbol.c_str();
       OffloadEntryContainer Entry{PrefixedName, /*Addr=*/nullptr, /*Size=*/0,
                                   /*Flags=*/0, /*Reserved=*/0};
       Binary.addOffloadEntry(std::move(Entry));
@@ -1236,10 +1236,11 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 sycl_device_binaries jit_compiler::compileSYCL(
-    const std::string &CompilationID, const std::string &SYCLSource,
+    const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
-    const std::vector<std::string> &RegisteredKernelNames) {
+    const std::vector<std::string> &RegisteredKernelNames,
+    const std::string &Prefix) {
   auto appendToLog = [LogPtr](const char *Msg) {
     if (LogPtr) {
       LogPtr->append(Msg);
@@ -1309,8 +1310,7 @@ sycl_device_binaries jit_compiler::compileSYCL(
     PersistentDeviceCodeCache::putDeviceCodeIRToDisc(CacheKey, SavedIR);
   }
 
-  return createDeviceBinaryImage(Result.getBundleInfo(),
-                                 /*OffloadEntryPrefix=*/CompilationID + '$');
+  return createDeviceBinaryImage(Result.getBundleInfo(), Prefix);
 }
 
 } // namespace detail
