@@ -258,10 +258,24 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMinimumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
+// TODO: detect -fno-honor-infinities instead of -ffast-math
+// See https://github.com/intel/llvm/issues/13813
+// This workaround is a vast improvement, but still falls short.
+// To correct it properly, we need to detect -fno-honor-infinities usage,
+// perhaps via a driver inserted macro.
+// See similar below in known_identity_impl<IsMaximumIdentityOp>
+#ifdef __FAST_MATH__
+  // -ffast-math implies -fno-honor-infinities,
+  // but neither affect ::has_infinity (which is correct behavior, if
+  // unexpected)
+  static constexpr AccumulatorT value =
+      (std::numeric_limits<AccumulatorT>::max)();
+#else
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? std::numeric_limits<AccumulatorT>::infinity()
           : (std::numeric_limits<AccumulatorT>::max)());
+#endif
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -295,11 +309,19 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMaximumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
+// TODO: detect -fno-honor-infinities instead of -ffast-math
+// See https://github.com/intel/llvm/issues/13813
+// and comments above in known_identity_impl<IsMinimumIdentityOp>
+#ifdef __FAST_MATH__
+  static constexpr AccumulatorT value =
+      (std::numeric_limits<AccumulatorT>::lowest)();
+#else
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? static_cast<AccumulatorT>(
                 -std::numeric_limits<AccumulatorT>::infinity())
           : std::numeric_limits<AccumulatorT>::lowest());
+#endif
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
