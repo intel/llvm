@@ -83,9 +83,9 @@ entry:
 ; CHECK: [[DBG10]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META11:![0-9]+]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
 ; CHECK: [[META11]] = !DISubroutineType(types: [[META12:![0-9]+]])
 ; CHECK: [[META12]] = !{null}
-; CHECK: [[DBG13]] = distinct !DISubprogram(name: "other_function_with_offset", linkageName: "_with_offset", scope: [[META1]], file: [[META1]], type: [[META11]], flags: DIFlagArtificial, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]])
+; CHECK: [[DBG13]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META11]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
 ; CHECK: [[DBG14]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META11]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
 ; CHECK: [[DBG15]] = !DILocation(line: 1, column: 2, scope: [[DBG14]])
-; CHECK: [[DBG16]] = distinct !DISubprogram(name: "example_kernel_with_offset", linkageName: "_with_offset", scope: [[META1]], file: [[META1]], type: [[META11]], flags: DIFlagArtificial, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: [[META0]])
+; CHECK: [[DBG16]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META11]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
 ; CHECK: [[DBG17]] = !DILocation(line: 1, column: 2, scope: [[DBG16]])
 ;.
