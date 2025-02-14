@@ -108,6 +108,13 @@ ur_result_t after_urKernelGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+size_t mockOpenCLNumKernelRetains();
+size_t mockOpenCLNumQueueRetains();
+size_t mockOpenCLNumMemObjectRetains();
+size_t mockOpenCLNumContextRetains();
+size_t mockOpenCLNumDeviceRetains();
+size_t mockOpenCLNumEventRetains();
+
 void redefineMockForKernelInterop(sycl::unittest::UrMock<> &Mock) {
   mock::getCallbacks().set_after_callback("urContextCreate",
                                           &after_urContextCreate);

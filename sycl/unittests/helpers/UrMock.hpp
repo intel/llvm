@@ -46,6 +46,11 @@
 
 #include <ur_mock_helpers.hpp>
 
+#ifdef __SYCL_RT_OS_WINDOWS
+#define NOMINMAX
+#include "windows.h"
+#endif
+
 namespace sycl {
 
 inline namespace _V1 {
@@ -531,6 +536,16 @@ inline ur_result_t mock_urCommandBufferAppendKernelLaunchExp(void *pParams) {
 
 } // namespace MockAdapter
 
+#ifdef __SYCL_RT_OS_WINDOWS
+inline void loadMockOpenCL() {
+  assert(LoadLibraryA("OpenCL.dll"));
+}
+#else
+inline void loadMockOpenCL() {
+  assert(dlopen("libOpenCL.so", RTLD_LAZY));
+}
+#endif
+
 /// The UrMock<> class sets up UR for adapter mocking with the set of default
 /// overrides above, and ensures the appropriate parts of the sycl runtime and
 /// UR mocking code are reset/torn down in between tests.
@@ -544,6 +559,12 @@ public:
   /// This ensures UR is setup for adapter mocking and also injects our default
   /// entry-point overrides into the mock adapter.
   UrMock() {
+    if constexpr (Backend == backend::opencl) {
+      // Some tests use the interop handles, so we need to ensure the fake
+      // OpenCL library is loaded
+      loadMockOpenCL();
+    }
+
 #define ADD_DEFAULT_OVERRIDE(func_name, func_override)                         \
   mock::getCallbacks().set_replace_callback(#func_name,                        \
                                             &MockAdapter::func_override);
