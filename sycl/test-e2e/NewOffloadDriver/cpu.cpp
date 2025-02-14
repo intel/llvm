@@ -7,10 +7,9 @@
 //===---------------------------------------------------------------------===//
 
 // REQUIRES: opencl-aot, cpu
-// REQUIRES: build-and-run-mode
 
 // Test with  `--offload-new-driver`
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %S/Inputs/aot.cpp -o %t.out
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %S/Inputs/aot.cpp -o %t.out
 // RUN: %{run} %t.out
 
 // Test that opencl-aot can handle multiple build options.

@@ -6,7 +6,8 @@
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="cuda:*"   %t-nvptx64-spir64.out
 
 // REQUIRES: opencl, cuda
-// REQUIRES: build-and-run-mode
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
 
 //==------- sycl-targets-order.cpp - SYCL -fsycl-targets order test --------==//
 //
