@@ -11681,11 +11681,14 @@ void Sema::CheckImplicitConversion(Expr *E, QualType T, SourceLocation CC,
                   result.Val,
                   Context.getFloatTypeSemantics(QualType(TargetBT, 0)),
                   Context.getFloatTypeSemantics(QualType(SourceBT, 0)))) {
-            if (getLangOpts().SYCLIsDevice)
-              SYCL().DiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
-            else
-              DiagnoseImpCast(*this, E, T, CC,
-                              diag::warn_imp_float_size_conversion);
+            if (getLangOpts().isSYCL()) {
+              if (getLangOpts().SYCLIsDevice)
+                SYCL().DiagIfDeviceCode(
+                    CC, diag::warn_sycl_imp_float_size_conversion);
+              else
+                DiagnoseImpCast(*this, E, T, CC,
+                                diag::warn_sycl_imp_float_size_conversion);
+            }
             return;
           }
         }
@@ -11693,15 +11696,18 @@ void Sema::CheckImplicitConversion(Expr *E, QualType T, SourceLocation CC,
         if (SourceMgr.isInSystemMacro(CC))
           return;
         // If there is a precision conversion between floating point types when
-        // -Wimplicit-float-size-conversion is passed but
+        // -Wsycl-implicit-float-size-conversion is passed but
         // -Wimplicit-float-conversion is not, make sure we emit at least a size
         // warning.
         if (Diags.isIgnored(diag::warn_impcast_float_precision, CC)) {
-          if (getLangOpts().SYCLIsDevice)
-            SYCL().DiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
-          else
-            DiagnoseImpCast(*this, E, T, CC,
-                            diag::warn_imp_float_size_conversion);
+          if (getLangOpts().isSYCL()) {
+            if (getLangOpts().SYCLIsDevice)
+              SYCL().DiagIfDeviceCode(
+                  CC, diag::warn_sycl_imp_float_size_conversion);
+            else
+              DiagnoseImpCast(*this, E, T, CC,
+                              diag::warn_sycl_imp_float_size_conversion);
+          }
         }
         DiagnoseImpCast(*this, E, T, CC, diag::warn_impcast_float_precision);
       }
