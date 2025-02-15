@@ -427,30 +427,124 @@ sycl::free(ptrX, myQueue);
 sycl::free(ptrY, myQueue);
 sycl::free(ptrZ, myQueue);
 sycl::free(ptrQ, myQueue);
-
 ```
 
-Example snippet showing how to use accessors with `dynamic_parameter` update:
+Example snippet showing how to update USM memory parameters using the `parallel_for`
+function and lambdas:
 
 ```c++
+...
+
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+queue Queue;
+sycl_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+const size_t Size = 1024;
+int *ptrX = malloc_shared<int>(Size, Queue);
+int *ptrY = malloc_shared<int>(Size, Queue);
+
+sycl_ext::dynamic_parameter dynParam(myGraph, ptrX);
+
+sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
+    CGH.parallel_for(range<1>(Size), [=](item<1> Id) {
+      // Get the USM pointer to use in the kernel.
+      auto Ptr = dynParam.get();
+
+      auto LinID = Id.get_linear_id();
+      Ptr[LinID] = 1;
+    });
+});
+
+auto execGraph = myGraph.finalize({sycl_ext::property::graph::updatable});
+Queue.ext_oneapi_graph(execGraph);
+
+// Change ptrX argument to ptrY.
+dynParam.update(ptrY);
+
+// Update kernelNode in the executable graph with the new parameters
+execGraph.update(kernelNode);
+
+// Execute the graph again.
+Queue.ext_oneapi_graph(execGraph);
+Queue.wait();
+
+sycl::free(ptrX, myQueue);
+sycl::free(ptrY, myQueue);
+```
+
+Example snippet showing how to update accessors with the `dynamic_accessor` class
+using a kernel bundle:
+
+```c++
+...
+
 sycl::buffer bufferA{...};
 sycl::buffer bufferB{...};
 
-// Create graph dynamic parameter using a placeholder accessor, since the
-// sycl::handler is not available here outside of the command-group scope.
-sycl_ext::dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
+// Create a dynamic accessor for bufferA.
+sycl_ext::dynamic_accessor dynAccessor(myGraph, bufferA);
 
 sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
-    // Require the accessor contained in the dynamic paramter
-    cgh.require(dynParamAccessor);
-    // Set the arg on the kernel using the dynamic parameter directly
-    cgh.set_args(dynParamAccessor);
+    // Set the dynamic accessor as an arg for the kernel.
+    cgh.set_args(dynAccessor);
     cgh.parallel_for(range {n}, builtinKernel);
 });
 
 ...
-// Update the dynamic parameter with a placeholder accessor from bufferB instead
-dynParamAccessor.update(bufferB.get_access());
+// Update the dynamic accessor to access bufferB instead.
+dynAccessor.update(bufferB);
+```
+
+### Dynamic Work Group Memory Update with Free Function Kernels
+
+Example snippet showing how to update work group memory using the
+`dynamic_work_group_memory` class and usm memory using the
+`dynamic_parameter` class while utilizing the free function kernel
+extension:
+
+```cpp
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((exp_ext::nd_range_kernel<1>))
+void freeFunction(sycl_ext::dynamic_work_group_memory<int[]> DynWorkGroupMemory,
+                  sycl_ext::dynamic_parameter<int *> DynPtr) {
+  sycl_ext::work_group_memory<int[]> LocalMem = DynWorkGroupMemory.get();
+  int *&Ptr = DynPtr.get();
+
+  ...
+  // Use Ptr and LocalMem directly to perform calculations.
+}
+
+void workGroupMemExample() {
+  queue Queue{};
+  sycl_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  int *PtrA = malloc_shared<int>(Size, Queue);
+  int *PtrB = malloc_shared<int>(Size, Queue);
+
+  sycl_ext::dynamic_work_group_memory<int[]> DynWorkGroupMemory{Graph,
+                                                                LocalMemSize};
+  sycl_ext::dynamic_parameter<int*> DynPtr(Graph, PtrA);
+
+  // Free Function Kernel
+  kernel_id Kernel_id = sycl_ext::get_kernel_id<freeFunction>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
+
+  auto Node = Graph.add([&](handler &CGH) {
+    CGH.set_arg(0, DynWorkGroupMemory);
+    CGH.set_arg(1, DynPtr);
+    CGH.parallel_for(nd_range({Size}, {LocalMemSize}), Kernel);
+  });
+
+  ...
+  int NewLocalMemSize = 1024;
+  // Update the size of the work group memory in Node to NewLocalMemSize.
+  DynWorkGroupMemory.update(NewLocalMemSize);
+  // Update the memory used in Node to PtrB.
+  DynPtr.update(PtrB);
+}
 ```
 
 ### Dynamic Command Groups
