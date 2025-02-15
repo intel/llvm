@@ -13,6 +13,7 @@
 #include <detail/jit_compiler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/os_util.hpp>
@@ -85,6 +86,15 @@ jit_compiler::jit_compiler()
             sycl::detail::ur::getOsLibraryFuncAddress(
                 LibraryPtr.get(), "materializeSpecConstants"));
     if (!this->MaterializeSpecConstHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->CalculateHashHandle = reinterpret_cast<CalculateHashFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
+                                                  "calculateHash"));
+    if (!this->CalculateHashHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
       return false;
@@ -1132,7 +1142,7 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
 
 sycl_device_binaries jit_compiler::createDeviceBinaryImage(
     const ::jit_compiler::RTCBundleInfo &BundleInfo,
-    const std::string &OffloadEntryPrefix) {
+    const std::string &Prefix) {
   DeviceBinariesCollection Collection;
 
   for (const auto &DevImgInfo : BundleInfo) {
@@ -1143,7 +1153,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaryImage(
       // entrypoints remain unchanged.
       // It seems to be OK to set zero for most of the information here, at
       // least that is the case for compiled SPIR-V binaries.
-      std::string PrefixedName = OffloadEntryPrefix + Symbol.c_str();
+      std::string PrefixedName = Prefix + Symbol.c_str();
       OffloadEntryContainer Entry{PrefixedName, /*Addr=*/nullptr, /*Size=*/0,
                                   /*Flags=*/0, /*Reserved=*/0};
       Binary.addOffloadEntry(std::move(Entry));
@@ -1226,10 +1236,16 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 sycl_device_binaries jit_compiler::compileSYCL(
-    const std::string &CompilationID, const std::string &SYCLSource,
+    const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
-    const std::vector<std::string> &RegisteredKernelNames) {
+    const std::vector<std::string> &RegisteredKernelNames,
+    const std::string &Prefix) {
+  auto appendToLog = [LogPtr](const char *Msg) {
+    if (LogPtr) {
+      LogPtr->append(Msg);
+    }
+  };
 
   // RegisteredKernelNames may contain template specializations, so we just put
   // them in main() which ensures they are instantiated.
@@ -1243,7 +1259,9 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   std::string FinalSource = ss.str();
 
-  std::string SYCLFileName = CompilationID + ".cpp";
+  // The filename must be stable, because it is part of the preprocessed output
+  // and in consequence, the cache key.
+  std::string SYCLFileName = "rtc.cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
                                           FinalSource.c_str()};
 
@@ -1260,18 +1278,39 @@ sycl_device_binaries jit_compiler::compileSYCL(
                  std::back_inserter(UserArgsView),
                  [](const auto &Arg) { return Arg.c_str(); });
 
-  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
+  std::string CacheKey;
+  std::vector<char> CachedIR;
+  if (PersistentDeviceCodeCache::isEnabled()) {
+    auto Result =
+        CalculateHashHandle(SourceFile, IncludeFilesView, UserArgsView);
 
-  if (LogPtr) {
-    LogPtr->append(Result.getBuildLog());
+    appendToLog(Result.getPreprocLog());
+    if (!Result.failed()) {
+      CacheKey = Result.getHash();
+      CachedIR = PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(CacheKey);
+    }
   }
 
+  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView,
+                                  CachedIR, /*SaveIR=*/!CacheKey.empty());
+
+  appendToLog(Result.getBuildLog());
   if (Result.failed()) {
     throw sycl::exception(sycl::errc::build, Result.getBuildLog());
   }
 
-  return createDeviceBinaryImage(Result.getBundleInfo(),
-                                 /*OffloadEntryPrefix=*/CompilationID + '$');
+  const auto &IR = Result.getDeviceCodeIR();
+  if (!CacheKey.empty() && !IR.empty()) {
+    // The RTC result contains the bitcode blob iff the frontend was invoked on
+    // the source string, meaning we encountered either a cache miss, or a cache
+    // hit that returned unusable IR (e.g. due to a bitcode version mismatch).
+    // There's no explicit mechanism to invalidate the cache entry - we just
+    // overwrite the entry with the newly compiled IR.
+    std::vector<char> SavedIR{IR.begin(), IR.end()};
+    PersistentDeviceCodeCache::putDeviceCodeIRToDisc(CacheKey, SavedIR);
+  }
+
+  return createDeviceBinaryImage(Result.getBundleInfo(), Prefix);
 }
 
 } // namespace detail

@@ -22,10 +22,14 @@
 
 namespace jit_compiler {
 
+llvm::Expected<std::string>
+calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+              const llvm::opt::InputArgList &UserArgList);
+
 llvm::Expected<std::unique_ptr<llvm::Module>>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                   const llvm::opt::InputArgList &UserArgList,
-                  std::string &BuildLog);
+                  std::string &BuildLog, llvm::LLVMContext &Context);
 
 llvm::Error linkDeviceLibraries(llvm::Module &Module,
                                 const llvm::opt::InputArgList &UserArgList,
@@ -39,6 +43,8 @@ performPostLink(std::unique_ptr<llvm::Module> Module,
 
 llvm::Expected<llvm::opt::InputArgList>
 parseUserArgs(View<const char *> UserArgs);
+
+void configureDiagnostics(llvm::LLVMContext &Context, std::string &BuildLog);
 
 } // namespace jit_compiler
 

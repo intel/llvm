@@ -48,10 +48,11 @@ public:
                            const std::vector<unsigned char> &SpecConstBlob);
 
   sycl_device_binaries compileSYCL(
-      const std::string &CompilationID, const std::string &SYCLSource,
+      const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames);
+      const std::vector<std::string> &RegisteredKernelNames,
+      const std::string &Prefix);
 
   bool isAvailable() { return Available; }
 
@@ -74,7 +75,7 @@ private:
 
   sycl_device_binaries
   createDeviceBinaryImage(const ::jit_compiler::RTCBundleInfo &BundleInfo,
-                          const std::string &OffloadEntryPrefix);
+                          const std::string &Prefix);
 
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
@@ -93,11 +94,13 @@ private:
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
   using MaterializeSpecConstFuncT =
       decltype(::jit_compiler::materializeSpecConstants) *;
+  using CalculateHashFuncT = decltype(::jit_compiler::calculateHash) *;
   using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
   MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
+  CalculateHashFuncT CalculateHashHandle = nullptr;
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
