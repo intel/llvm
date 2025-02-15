@@ -184,6 +184,17 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
       **params->ppPropSizeRet = sizeof(ur_device_handle_t *);
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+    if (*params->ppPropValue) {
+      auto RealVal = reinterpret_cast<size_t *>(*params->ppPropValue);
+      RealVal[0] = 123;
+      RealVal[1] = 101;
+      RealVal[2] = 321;
+    }
+    if (*params->ppPropSizeRet)
+      **params->ppPropSizeRet = 3 * sizeof(size_t);
+    return UR_RESULT_SUCCESS;
+  }
   case UR_DEVICE_INFO_EXTENSIONS: {
     if (*params->ppPropValue) {
       assert(*params->ppropSize >= sizeof(MockSupportedExtensions));
@@ -439,6 +450,24 @@ inline ur_result_t mock_urVirtualMemReserve(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+inline ur_result_t mock_urKernelGetSubGroupInfo(void *pParams) {
+  auto params =
+      reinterpret_cast<ur_kernel_get_sub_group_info_params_t *>(pParams);
+  switch (*params->ppropName) {
+  case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE:
+  case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
+    if (params->ppPropValue) {
+      auto RealVal = reinterpret_cast<uint32_t *>(*params->ppPropValue);
+      RealVal[0] = 123;
+    }
+    return UR_RESULT_SUCCESS;
+  }
+  default: {
+    return UR_RESULT_SUCCESS;
+  }
+  }
+}
+
 // Create dummy command buffer handle and store the provided descriptor as the
 // data
 inline ur_result_t mock_urCommandBufferCreateExp(void *pParams) {
@@ -551,6 +580,7 @@ public:
                          mock_urCommandBufferAppendKernelLaunchExp);
     ADD_DEFAULT_OVERRIDE(urCommandBufferGetInfoExp,
                          mock_urCommandBufferGetInfoExp);
+    ADD_DEFAULT_OVERRIDE(urKernelGetSubGroupInfo, mock_urKernelGetSubGroupInfo);
 #undef ADD_DEFAULT_OVERRIDE
 
     ur_loader_config_handle_t UrLoaderConfig = nullptr;
