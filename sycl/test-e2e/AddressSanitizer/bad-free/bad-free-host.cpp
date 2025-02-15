@@ -13,3 +13,4 @@ int main() {
 }
 // CHECK: ERROR: DeviceSanitizer: bad-free on address [[ADDR:0x.*]]
 // CHECK: [[ADDR]] may be allocated on Host Memory
+// CHECK-NOT: terminate called after throwing an instance

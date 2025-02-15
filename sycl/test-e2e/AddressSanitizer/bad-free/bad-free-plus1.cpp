@@ -31,3 +31,4 @@ int main() {
   // CHECK-DEVICE: in main {{.*bad-free-plus1.cpp:}}[[@LINE-11]]
   return 0;
 }
+// CHECK-NOT: terminate called after throwing an instance
