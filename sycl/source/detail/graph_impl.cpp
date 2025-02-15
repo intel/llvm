@@ -1375,20 +1375,14 @@ void exec_graph_impl::update(std::shared_ptr<node_impl> Node) {
   this->update(std::vector<std::shared_ptr<node_impl>>{Node});
 }
 
-void exec_graph_impl::update(
-    const std::vector<std::shared_ptr<node_impl>> Nodes) {
-
-  if (!MIsUpdatable) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "update() cannot be called on a executable graph "
-                          "which was not created with property::updatable");
-  }
+bool exec_graph_impl::needsScheduledUpdate(
+    const std::vector<std::shared_ptr<node_impl>> &Nodes,
+    std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements) {
 
   // If there are any accessor requirements, we have to update through the
   // scheduler to ensure that any allocations have taken place before trying to
   // update.
   bool NeedScheduledUpdate = false;
-  std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
   // At worst we may have as many requirements as there are for the entire graph
   // for updating.
   UpdateRequirements.reserve(MRequirements.size());
@@ -1431,37 +1425,44 @@ void exec_graph_impl::update(
   // ensure it is ordered correctly.
   NeedScheduledUpdate |= MExecutionEvents.size() > 0;
 
-  if (NeedScheduledUpdate) {
-    auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
-        sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
-        sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
-        sycl::async_handler{}, sycl::property_list{});
-    // Don't need to care about the return event here because it is synchronous
-    sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-        this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
-  } else {
-    for (auto &Node : Nodes) {
-      updateImpl(Node);
+  return NeedScheduledUpdate;
+}
+
+std::map<std::shared_ptr<partition>, std::vector<std::shared_ptr<node_impl>>>
+exec_graph_impl::getPartitionForNodes(
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) {
+
+  std::map<std::shared_ptr<partition>, std::vector<std::shared_ptr<node_impl>>>
+      PartitionedNodes;
+  for (const auto &Partition : MPartitions) {
+    std::vector<std::shared_ptr<node_impl>> NodesForPartition;
+
+    for (auto &N : Nodes) {
+      auto ExecNode = MIDCache.find(N->MID);
+      assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
+
+      if (std::find_if(Partition->MSchedule.begin(), Partition->MSchedule.end(),
+                       [ExecNode](const std::shared_ptr<node_impl> &P) {
+                         return P->MID == ExecNode->second->MID;
+                       }) != Partition->MSchedule.end()) {
+        NodesForPartition.push_back(N);
+      }
+    }
+    if (!NodesForPartition.empty()) {
+      PartitionedNodes.insert({Partition, NodesForPartition});
     }
   }
 
-  // Rebuild cached requirements for this graph with updated nodes
-  MRequirements.clear();
-  for (auto &Node : MNodeStorage) {
-    if (!Node->MCommandGroup)
-      continue;
-    MRequirements.insert(MRequirements.end(),
-                         Node->MCommandGroup->getRequirements().begin(),
-                         Node->MCommandGroup->getRequirements().end());
-  }
+  return PartitionedNodes;
 }
 
-void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
-  // Kernel node update is the only command type supported in UR for update.
-  // Updating any other types of nodes, e.g. empty & barrier nodes is a no-op.
-  if (Node->MCGType != sycl::detail::CGType::Kernel) {
-    return;
-  }
+void exec_graph_impl::populateUpdateStruct(
+    std::shared_ptr<node_impl> &Node,
+    std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+    std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
+    std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
+    sycl::detail::NDRDescT &NDRDesc,
+    ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
@@ -1472,7 +1473,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   // Copy args because we may modify them
   std::vector<sycl::detail::ArgDesc> NodeArgs = ExecCG.getArguments();
   // Copy NDR desc since we need to modify it
-  auto NDRDesc = ExecCG.MNDRDesc;
+  NDRDesc = ExecCG.MNDRDesc;
 
   ur_program_handle_t UrProgram = nullptr;
   ur_kernel_handle_t UrKernel = nullptr;
@@ -1535,17 +1536,12 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-  // Create update descriptor
 
   // Storage for individual arg descriptors
-  std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> MemobjDescs;
-  std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> PtrDescs;
-  std::vector<ur_exp_command_buffer_update_value_arg_desc_t> ValueDescs;
   MemobjDescs.reserve(MaskedArgs.size());
   PtrDescs.reserve(MaskedArgs.size());
   ValueDescs.reserve(MaskedArgs.size());
 
-  ur_exp_command_buffer_update_kernel_launch_desc_t UpdateDesc{};
   UpdateDesc.stype =
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC;
   UpdateDesc.pNext = nullptr;
@@ -1622,25 +1618,112 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   auto ExecNode = MIDCache.find(Node->MID);
   assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
+  ur_exp_command_buffer_command_handle_t Command =
+      MCommandMap[ExecNode->second];
+  UpdateDesc.hCommand = Command;
+
   // Update ExecNode with new values from Node, in case we ever need to
   // rebuild the command buffers
   ExecNode->second->updateFromOtherNode(Node);
 
-  ur_exp_command_buffer_command_handle_t Command =
-      MCommandMap[ExecNode->second];
-  ur_result_t Res = Adapter->call_nocheck<
-      sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
-      Command, &UpdateDesc);
-
+  // TODO
   if (UrProgram) {
     // We retained these objects by calling getOrCreateKernel()
     Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
     Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
   }
+}
 
-  if (Res != UR_RESULT_SUCCESS) {
-    throw sycl::exception(errc::invalid, "Error updating command_graph");
+void exec_graph_impl::update(
+    const std::vector<std::shared_ptr<node_impl>> Nodes) {
+
+  if (!MIsUpdatable) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "update() cannot be called on a executable graph "
+                          "which was not created with property::updatable");
   }
+
+  // If there are any accessor requirements, we have to update through the
+  // scheduler to ensure that any allocations have taken place before trying
+  // to update.
+  std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
+  bool NeedScheduledUpdate = needsScheduledUpdate(Nodes, UpdateRequirements);
+  if (NeedScheduledUpdate) {
+    auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
+        sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
+        sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
+        sycl::async_handler{}, sycl::property_list{});
+    // Don't need to care about the return event here because it is
+    // synchronous
+    sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
+        this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
+  } else {
+    // TODO - To get UR handles to free somehow
+    std::map<std::shared_ptr<partition>,
+             std::vector<std::shared_ptr<node_impl>>>
+        PartitionedNodes = getPartitionForNodes(Nodes);
+
+    for (auto It = PartitionedNodes.begin(); It != PartitionedNodes.end();
+         It++) {
+      auto CommandBuffer = It->first->MCommandBuffers[MDevice];
+      updateImpl(CommandBuffer, It->second);
+    }
+  }
+
+  // Rebuild cached requirements for this graph with updated nodes
+  MRequirements.clear();
+  for (auto &Node : MNodeStorage) {
+    if (!Node->MCommandGroup)
+      continue;
+    MRequirements.insert(MRequirements.end(),
+                         Node->MCommandGroup->getRequirements().begin(),
+                         Node->MCommandGroup->getRequirements().end());
+  }
+}
+
+void exec_graph_impl::updateImpl(
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    std::vector<std::shared_ptr<node_impl>> &Nodes) {
+
+  size_t numKernelUpdates = 0;
+  for (auto &N : Nodes) {
+    if (N->MCGType == sycl::detail::CGType::Kernel) {
+      numKernelUpdates++;
+    }
+  }
+
+  std::vector<std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>>
+      MemobjDescsList(numKernelUpdates);
+  std::vector<std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t>>
+      PtrDescsList(numKernelUpdates);
+  std::vector<std::vector<ur_exp_command_buffer_update_value_arg_desc_t>>
+      ValueDescsList(numKernelUpdates);
+  std::vector<sycl::detail::NDRDescT> NDRDescList(numKernelUpdates);
+  std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> UpdateDescList(
+      numKernelUpdates);
+
+  size_t c = 0;
+  for (auto &N : Nodes) {
+    // Kernel node update is the only command type supported in UR for update.
+    // Updating any other types of nodes, e.g. empty & barrier nodes is a no-op.
+    if (N->MCGType != sycl::detail::CGType::Kernel) {
+      continue;
+    }
+
+    auto &MemobjDescs = MemobjDescsList[c];
+    auto &PtrDescs = PtrDescsList[c];
+    auto &ValueDescs = ValueDescsList[c];
+    auto &NDRDesc = NDRDescList[c];
+    auto &UpdateDesc = UpdateDescList[c];
+    populateUpdateStruct(N, MemobjDescs, PtrDescs, ValueDescs, NDRDesc,
+                         UpdateDesc);
+    c++;
+  }
+
+  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
+      CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
 }
 
 modifiable_command_graph::modifiable_command_graph(

@@ -1301,7 +1301,12 @@ public:
   void update(std::shared_ptr<node_impl> Node);
   void update(const std::vector<std::shared_ptr<node_impl>> Nodes);
 
-  void updateImpl(std::shared_ptr<node_impl> NodeImpl);
+  void updateImpl(ur_exp_command_buffer_handle_t CommandBuffer,
+                  std::vector<std::shared_ptr<node_impl>> &Nodes);
+
+  // TODO comment
+  std::map<std::shared_ptr<partition>, std::vector<std::shared_ptr<node_impl>>>
+  getPartitionForNodes(const std::vector<std::shared_ptr<node_impl>> &Nodes);
 
   unsigned long long getID() const { return MID; }
 
@@ -1370,6 +1375,20 @@ private:
 
     Stream.close();
   }
+
+  // TODO comment
+  bool needsScheduledUpdate(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes,
+      std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements);
+
+  // TODO comment
+  void populateUpdateStruct(
+      std::shared_ptr<node_impl> &Node,
+      std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+      std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
+      std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
+      sycl::detail::NDRDescT &NDRDesc,
+      ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc);
 
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
