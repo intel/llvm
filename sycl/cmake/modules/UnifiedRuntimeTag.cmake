@@ -1,7 +1,13 @@
-# commit d03f19a88e42cb98be9604ff24b61190d1e48727
-# Merge: 3ce6fcc9 84454b0e
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Feb 13 11:43:34 2025 +0000
-#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
-#     Do not fetch cudart from gitlab for UMF
-set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)
+# commit 692bb0f6cf013935d2d5f6244af5e63507ade007 (tag: llvm-test-tag, origin/llvm-build, llvm-build)
+# Author: Lukasz Dorau <lukasz.dorau@intel.com>
+# Date:   Tue Feb 4 14:07:58 2025 +0100
+#
+#    Use UMF Proxy pool manager with UMF CUDA memory provider in UR
+#
+#    UMF Proxy pool manager is just a wrapper for the UMF memory provider
+#    (CUDA memory provider in this case) plus it adds also tracking of memory
+#    allocations.
+#
+#    Signed-off-by: Lukasz Dorau <lukasz.dorau@intel.com>
+#
+set(UNIFIED_RUNTIME_TAG llvm-test-tag)
