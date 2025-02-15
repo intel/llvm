@@ -697,6 +697,31 @@ static bool mustPreserveGV(const GlobalValue &GV) {
   return true;
 }
 
+void cleanupSYCLRegisteredKernels(Module *M) {
+  NamedMDNode *MD = M->getNamedMetadata("sycl_registered_kernels");
+  if (!MD)
+    return;
+
+  if (MD->getNumOperands() == 0)
+    return;
+
+  SmallVector<Metadata *, 8> OperandsToKeep;
+  MDNode *RegisterdKernels = MD->getOperand(0);
+  for (const MDOperand &Op : RegisterdKernels->operands()) {
+    auto RegisteredKernel = cast<MDNode>(Op);
+    // Ignore metadata nodes with wrong number of operands.
+    if (RegisteredKernel->getNumOperands() != 2)
+      continue;
+
+    StringRef MangledName =
+        cast<MDString>(RegisteredKernel->getOperand(1))->getString();
+    if (M->getFunction(MangledName))
+      OperandsToKeep.push_back(RegisteredKernel);
+  }
+  MD->clearOperands();
+  MD->addOperand(MDNode::get(M->getContext(), OperandsToKeep));
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
@@ -740,6 +765,7 @@ void ModuleDesc::cleanup() {
   // process all nodes in the named metadata and remove nodes which are
   // referencing kernels which are not included into submodule.
   processSubModuleNamedMetadata(M.get());
+  cleanupSYCLRegisteredKernels(M.get());
 }
 
 bool ModuleDesc::isSpecConstantDefault() const {
