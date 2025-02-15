@@ -248,46 +248,46 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                             -I${UR_SANITIZER_INCLUDE_DIR}
                             -I${CMAKE_CURRENT_SOURCE_DIR})
 
-  set(asan_pvc_compile_opts_obj -fsycl -c
+  set(sanitizer_pvc_compile_opts_obj -fsycl -c
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_pvc_target_opt}
                                 -D__LIBDEVICE_PVC__)
 
-  set(asan_cpu_compile_opts_obj -fsycl -c
+  set(sanitizer_cpu_compile_opts_obj -fsycl -c
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_cpu_target_opt}
                                 -D__LIBDEVICE_CPU__)
 
-  set(asan_dg2_compile_opts_obj -fsycl -c
+  set(sanitizer_dg2_compile_opts_obj -fsycl -c
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_dg2_target_opt}
                                 -D__LIBDEVICE_DG2__)
 
-  set(asan_pvc_compile_opts_bc  ${bc_device_compile_opts}
+  set(sanitizer_pvc_compile_opts_bc  ${bc_device_compile_opts}
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_PVC__)
 
-  set(asan_cpu_compile_opts_bc  ${bc_device_compile_opts}
+  set(sanitizer_cpu_compile_opts_bc  ${bc_device_compile_opts}
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_CPU__)
 
-  set(asan_dg2_compile_opts_bc  ${bc_device_compile_opts}
+  set(sanitizer_dg2_compile_opts_bc  ${bc_device_compile_opts}
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_DG2__)
 
-  set(asan_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+  set(sanitizer_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
                                             -foffload-lto=thin
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_pvc_target_opt}
                                             -D__LIBDEVICE_PVC__)
 
-  set(asan_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+  set(sanitizer_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
                                             -foffload-lto=thin
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_cpu_target_opt}
                                             -D__LIBDEVICE_CPU__)
 
-  set(asan_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+  set(sanitizer_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
                                             -foffload-lto=thin
                                             ${sanitizer_generic_compile_opts}
                                             ${sycl_dg2_target_opt}
@@ -373,16 +373,16 @@ else()
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
     # asan aot
-    set(asan_filetypes obj obj-new-offload bc)
+    set(sanitizer_filetypes obj obj-new-offload bc)
     set(asan_devicetypes pvc cpu dg2)
 
-    foreach(asan_ft IN LISTS asan_filetypes)
+    foreach(asan_ft IN LISTS sanitizer_filetypes)
       foreach(asan_device IN LISTS asan_devicetypes)
         compile_lib_ext(libsycl-asan-${asan_device}
                         SRC sanitizer/asan_rtl.cpp
                         FILETYPE ${asan_ft}
                         DEPENDENCIES ${asan_obj_deps}
-                        OPTS ${asan_${asan_device}_compile_opts_${asan_ft}})
+                        OPTS ${sanitizer_${asan_device}_compile_opts_${asan_ft}})
       endforeach()
     endforeach()
 
@@ -393,6 +393,19 @@ else()
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
+
+    set(msan_devicetypes pvc cpu)
+
+    foreach(msan_ft IN LISTS sanitizer_filetypes)
+      foreach(msan_device IN LISTS msan_devicetypes)
+        compile_lib_ext(libsycl-msan-${msan_device}
+                        SRC sanitizer/msan_rtl.cpp
+                        FILETYPE ${msan_ft}
+                        DEPENDENCIES ${msan_obj_deps}
+                        OPTS ${sanitizer_${msan_device}_compile_opts_${msan_ft}})
+      endforeach()
+    endforeach()
+
   endif()
 endif()
 

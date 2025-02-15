@@ -598,8 +598,8 @@ template <typename ValueT, class BinaryOperation>
 inline std::enable_if_t<ValueT::size() == 2, unsigned>
 compare_mask(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
   // Since compare returns 0 or 1, -compare will be 0x00000000 or 0xFFFFFFFF
-  return ((-compare(a[0], b[0], binary_op)) << 16) |
-         ((-compare(a[1], b[1], binary_op)) & 0xFFFF);
+  return ((-compare(a[0], b[0], binary_op)) & 0xFFFF) |
+         ((-compare(a[1], b[1], binary_op)) << 16u);
 }
 
 /// Performs 2 elements unordered comparison, compare result of each element is
@@ -613,8 +613,8 @@ template <typename ValueT, class BinaryOperation>
 inline std::enable_if_t<ValueT::size() == 2, unsigned>
 unordered_compare_mask(const ValueT a, const ValueT b,
                        const BinaryOperation binary_op) {
-  return ((-unordered_compare(a[0], b[0], binary_op)) << 16) |
-         ((-unordered_compare(a[1], b[1], binary_op)) & 0xFFFF);
+  return ((-unordered_compare(a[0], b[0], binary_op)) & 0xFFFF) |
+         ((-unordered_compare(a[1], b[1], binary_op)) << 16);
 }
 
 /// Compute vectorized max for two values, with each value treated as a vector

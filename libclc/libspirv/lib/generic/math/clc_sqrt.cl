@@ -11,7 +11,7 @@
 // Map the llvm sqrt intrinsic to an OpenCL function.
 #define __CLC_FUNCTION __clc_llvm_intr_sqrt
 #define __CLC_INTRINSIC "llvm.sqrt"
-#include <math/unary_intrin.inc>
+#include <clc/math/unary_intrin.inc>
 #undef __CLC_FUNCTION
 #undef __CLC_INTRINSIC
 

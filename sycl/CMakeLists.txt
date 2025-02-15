@@ -75,7 +75,7 @@ if(MSVC)
     add_link_options("LINKER:/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    check_linker_flag(CXX "LINKER:/OPT:REF LINKER:/OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "LINKER:/OPT:REF,/OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
       add_link_options("LINKER:/OPT:REF" "LINKER:/OPT:ICF")
     endif()
@@ -473,6 +473,10 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
+
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS clang-nvlink-wrapper)
+endif()
 
 if (WIN32)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_win_proxy_loader)

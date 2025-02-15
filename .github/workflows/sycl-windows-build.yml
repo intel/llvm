@@ -7,9 +7,6 @@ on:
         type: string
         required: false
         default: "default"
-      build_ref:
-        type: string
-        required: false
       build_configure_extra_args:
         type: string
         required: false
@@ -18,12 +15,9 @@ on:
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
-      merge_ref:
-        description: |
-          Commit-ish to merge post-checkout if non-empty. Must be reachable from
-          the default_branch input paramter.
+      ref:
         type: string
-        default: 'FETCH_HEAD'
+        required: False
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.gz
@@ -82,11 +76,20 @@ jobs:
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
     steps:
+    - name:  Detect hung tests
+      if: always()
+      shell: powershell
+      continue-on-error: true
+      run: |
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode
     - uses: actions/checkout@v4
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.ref || github.sha }} 
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
@@ -105,8 +108,7 @@ jobs:
     - uses: ./devops/actions/cached_checkout
       with:
         path: src
-        ref: ${{ inputs.build_ref || github.sha }}
-        merge_ref: ${{ inputs.merge_ref }}
+        ref: ${{ inputs.ref || github.sha }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Configure
       shell: cmd
@@ -135,10 +137,7 @@ jobs:
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash
-      run: |
-        if [[ ${{inputs.compiler}} == 'icx' ]]; then
-          export LIT_FILTER="SYCL"
-        fi
+      run: |      
         cmake --build build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
@@ -147,10 +146,7 @@ jobs:
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       shell: bash
-      run: |
-         if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_FILTER_OUT="host_tanpi_double_accuracy"
-         fi
+      run: |        
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
@@ -195,3 +191,12 @@ jobs:
         name: sycl_windows_default
         path: ${{ inputs.artifact_archive_name }}
         retention-days: ${{ inputs.retention-days }}
+    - name:  Detect hung tests
+      if: always()
+      shell: powershell
+      run: |
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode

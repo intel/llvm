@@ -15,6 +15,23 @@ from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
 # Configuration file for the 'lit' test runner.
+config.backend_to_target = {
+    "level_zero": "target-spir",
+    "opencl": "target-spir",
+    "cuda": "target-nvidia",
+    "hip": "target-amd",
+    "native_cpu": "target-native_cpu",
+}
+config.target_to_triple = {
+    "target-spir": "spir64",
+    "target-nvidia": "nvptx64-nvidia-cuda",
+    "target-amd": "amdgcn-amd-amdhsa",
+    "target-native_cpu": "native_cpu",
+}
+config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
+config.backend_to_triple = {
+    k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
+}
 
 # name: The name of this test suite.
 config.name = "SYCL"
@@ -45,6 +62,10 @@ if config.test_mode == "full":
     config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
+    # run-only uses external shell, some tests might have hacks to workaround
+    # failures caused by that.
+    config.available_features.add("test-mode-run-only")
+
     config.available_features.add("run-mode")
     if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
         config.available_features.add("build-and-run-mode")
@@ -52,8 +73,13 @@ elif config.test_mode == "run-only":
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
+    if not config.amd_arch:
+        config.amd_arch = "gfx1031"
 else:
     lit_config.error("Invalid argument for test-mode")
+
+# Dummy substitution to indicate line should be a run line
+config.substitutions.append(("%{run-aux}", ""))
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
@@ -225,6 +251,8 @@ if lit_config.params.get("ur_l0_leaks_debug"):
 if lit_config.params.get("enable-perf-tests", False):
     config.available_features.add("enable-perf-tests")
 
+if lit_config.params.get("spirv-backend", False):
+    config.available_features.add("spirv-backend")
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
@@ -524,18 +552,6 @@ for d in config.sycl_devices:
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
 
-# If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
-supported_hip_platforms = ["AMD", "NVIDIA"]
-if config.hip_platform == "":
-    config.hip_platform = "AMD"
-if config.hip_platform not in supported_hip_platforms:
-    lit_config.error(
-        "Unknown HIP platform '"
-        + config.hip_platform
-        + "' supported platforms are "
-        + ", ".join(supported_hip_platforms)
-    )
-
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
         if platform.system() == "Windows":
@@ -687,18 +703,25 @@ for aot_tool in aot_tools:
             "Couldn't find pre-installed AOT device compiler " + aot_tool
         )
 
+# Clear build targets when not in build-only, to populate according to devices
+if config.test_mode != "build-only":
+    config.sycl_build_targets = set()
+
 for sycl_device in config.sycl_devices:
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
     # Use short names for LIT rules.
     config.available_features.add("any-device-is-" + be)
 
+    target = config.backend_to_target[be]
+    config.sycl_build_targets.add(target)
+
+for target in config.sycl_build_targets:
+    config.available_features.add("any-target-is-" + target.replace("target-", ""))
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
 
-# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
-arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
@@ -838,8 +861,11 @@ for sycl_device in config.sycl_devices:
     features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
+    # Add corresponding target feature
+    target = config.backend_to_target[be]
+    features.add(target)
 
-    if be == "hip" and config.hip_platform == "AMD":
+    if be == "hip":
         if not config.amd_arch:
             # Guaranteed to be a single element in the set
             arch = [x for x in architecture_feature][0]
@@ -850,15 +876,9 @@ for sycl_device in config.sycl_devices:
                 )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
         llvm_config.with_system_environment("ROCM_PATH")
-        config.available_features.add("hip_amd")
-        arch_flag = (
-            "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
-        )
         config.substitutions.append(
             ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
         )
-    elif be == "hip" and config.hip_platform == "NVIDIA":
-        config.available_features.add("hip_nvidia")
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
@@ -871,14 +891,19 @@ if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clang", " true "))
 else:
     config.substitutions.append(
-        (
-            "%clangxx",
-            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
-        )
+        ("%clangxx", " " + config.dpcpp_compiler + " " + config.cxx_flags)
     )
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
     )
+
+if lit_config.params.get("print_features", False):
+    lit_config.note(
+        "Global features: {}".format(" ".join(sorted(config.available_features)))
+    )
+    lit_config.note("Per-device features:")
+    for dev, features in config.sycl_dev_features.items():
+        lit_config.note("\t{}: {}".format(dev, " ".join(sorted(features))))
 
 # Set timeout for a single test
 try:
