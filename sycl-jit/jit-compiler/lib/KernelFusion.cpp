@@ -252,15 +252,18 @@ calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
               View<const char *> UserArgs) {
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
-    return errorTo<RTCHashResult>(UserArgListOrErr.takeError(),
-                                  "Parsing of user arguments failed");
+    return RTCHashResult::failure(
+        formatError(UserArgListOrErr.takeError(),
+                    "Parsing of user arguments failed")
+            .c_str());
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
   auto Start = std::chrono::high_resolution_clock::now();
   auto HashOrError = calculateHash(SourceFile, IncludeFiles, UserArgList);
   if (!HashOrError) {
-    return errorTo<RTCHashResult>(HashOrError.takeError(), "Hashing failed");
+    return RTCHashResult::failure(
+        formatError(HashOrError.takeError(), "Hashing failed").c_str());
   }
   auto Hash = *HashOrError;
   auto Stop = std::chrono::high_resolution_clock::now();
@@ -271,7 +274,7 @@ calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                  << int(HashTime.count()) << " ms\n";
   }
 
-  return RTCHashResult{Hash.c_str(), /*PreprocLog=*/""};
+  return RTCHashResult::success(Hash.c_str());
 }
 
 extern "C" KF_EXPORT_SYMBOL RTCResult

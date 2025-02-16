@@ -1284,8 +1284,9 @@ sycl_device_binaries jit_compiler::compileSYCL(
     auto Result =
         CalculateHashHandle(SourceFile, IncludeFilesView, UserArgsView);
 
-    appendToLog(Result.getPreprocLog());
-    if (!Result.failed()) {
+    if (Result.failed()) {
+      appendToLog(Result.getPreprocLog());
+    } else {
       CacheKey = Result.getHash();
       CachedIR = PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(CacheKey);
     }

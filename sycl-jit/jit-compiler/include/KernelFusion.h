@@ -58,14 +58,20 @@ private:
 
 class RTCHashResult {
 public:
-  explicit RTCHashResult(const char *PreprocLog)
-      : Failed{true}, Hash{}, PreprocLog{PreprocLog} {}
-  RTCHashResult(const char *Hash, const char *PreprocLog)
-      : Failed{false}, Hash{Hash}, PreprocLog{PreprocLog} {}
+  static RTCHashResult success(const char *Hash) {
+    return RTCHashResult{/*Failed=*/false, Hash};
+  }
+
+  static RTCHashResult failure(const char *PreprocLog) {
+    return RTCHashResult{/*Failed=*/true, PreprocLog};
+  }
 
   bool failed() { return Failed; }
 
-  const char *getPreprocLog() { return PreprocLog.c_str(); }
+  const char *getPreprocLog() {
+    assert(failed() && "No preprocessor log");
+    return PreprocLog.c_str();
+  }
 
   const char *getHash() {
     assert(!failed() && "No hash");
@@ -73,6 +79,14 @@ public:
   }
 
 private:
+  RTCHashResult(bool Failed, const char *Str) : Failed(Failed) {
+    if (!Failed) {
+      this->Hash = Str;
+    } else {
+      this->PreprocLog = Str;
+    }
+  }
+
   bool Failed;
   sycl::detail::string Hash;
   sycl::detail::string PreprocLog;
