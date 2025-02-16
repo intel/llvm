@@ -1,4 +1,9 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_image_array
+
+// UNSUPPORTED: level_zero
+// UNSUPPORTED-INTENDED: Linear sampling rounds differently on Intel devices
+// compared to CUDA. This difference in rounding needs to be accounted for.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
