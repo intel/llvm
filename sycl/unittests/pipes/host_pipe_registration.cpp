@@ -9,6 +9,8 @@
 #include <cstring>
 #include <sycl/sycl.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 #include <detail/device_binary_image.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
@@ -38,7 +40,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   MockPropertySet PropSet;
   MockProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
-  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
+  PropSet.insert(llvm::util::PropertySetRegistry::SYCL_HOST_PIPES,
                  std::vector<MockProperty>{std::move(HostPipeInfo)});
 
   std::vector<MockOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});

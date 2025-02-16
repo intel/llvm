@@ -19,6 +19,8 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#include <llvm/Support/PropertySetIO.h>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -1083,7 +1085,7 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   // Create a property set for the argument usage masks of all kernels
   // (currently only one).
   PropertySetContainer ArgMaskPropSet{
-      __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO};
+      llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO};
 
   ArgMaskPropSet.addProperty(std::move(ArgMaskProp));
 
@@ -1108,7 +1110,7 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
           PropName.str(), Encoded.data(), Encoded.size(),
           sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY};
       PropertySetContainer ProgramMetadata{
-          __SYCL_PROPERTY_SET_PROGRAM_METADATA};
+          llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA};
       ProgramMetadata.addProperty(std::move(ReqdWorkGroupSizeProp));
       Binary.addProperty(std::move(ProgramMetadata));
     }
@@ -1116,7 +1118,8 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   if (Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     PropertyContainer NeedFinalization{
         __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
-    PropertySetContainer ProgramMetadata{__SYCL_PROPERTY_SET_PROGRAM_METADATA};
+    PropertySetContainer ProgramMetadata{
+        llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA};
     ProgramMetadata.addProperty(std::move(NeedFinalization));
     Binary.addProperty(std::move(ProgramMetadata));
   }
