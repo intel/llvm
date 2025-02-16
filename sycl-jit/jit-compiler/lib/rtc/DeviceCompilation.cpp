@@ -154,13 +154,19 @@ protected:
         (const uint8_t *)PreprocessedSource.data(), PreprocessedSource.size());
 
     Hash = BLAKE3::hash(PreprocessedData);
+    Executed = true;
   }
 
 public:
-  BLAKE3Result<> takeHash() { return std::move(Hash); }
+  BLAKE3Result<> takeHash() {
+    assert(Executed);
+    Executed = false;
+    return std::move(Hash);
+  }
 
 private:
   BLAKE3Result<> Hash;
+  bool Executed = false;
 };
 
 class RTCToolActionBase : public ToolAction {
@@ -217,7 +223,11 @@ protected:
   bool hasExecuted() override { return Executed; }
 
 public:
-  BLAKE3Result<> takeHash() { return std::move(Hash); }
+  BLAKE3Result<> takeHash() {
+    assert(Executed);
+    Executed = false;
+    return std::move(Hash);
+  }
 
 private:
   BLAKE3Result<> Hash;
@@ -247,7 +257,10 @@ protected:
 
 public:
   GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
-  std::unique_ptr<llvm::Module> takeModule() { return std::move(Module); }
+  std::unique_ptr<llvm::Module> takeModule() {
+    assert(Module);
+    return std::move(Module);
+  }
 
 private:
   LLVMContext &Context;
