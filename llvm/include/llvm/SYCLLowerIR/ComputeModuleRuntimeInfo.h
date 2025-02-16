@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/Support/PropertySetIO.h"
 #include <string>
 namespace llvm {
@@ -32,6 +33,10 @@ bool isModuleUsingAsan(const Module &M);
 bool isModuleUsingMsan(const Module &M);
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 using EntryPointSet = SetVector<Function *>;
+
+PropSetRegTy
+computeBF16DeviceLibProperties(const Module &M,
+                               const std::string &SYCLDeviceLibName);
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,

@@ -613,6 +613,26 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+// The input BinImage should be a devicelib image for bfloat16 conversions,
+// there will be 2 bfloat16 devicelib images for fallback and native version.
+// The native version must be used on platforms with bfloat16 extension.
+static bool selectBF16Devicelib(RTDeviceBinaryImage *BinImage,
+                                const device &Dev) {
+  const RTDeviceBinaryImage::PropertyRange &BF16DeviceLibTypeProp =
+      BinImage->getDeviceLibBF16Type();
+  uint32_t BF16Type =
+      DeviceBinaryProperty(*(BF16DeviceLibTypeProp.begin())).asUint32();
+
+  enum { BF16_FALLBACK = 0, BF16_NATIVE };
+  std::vector<std::string> DeviceExtensions =
+      Dev.get_info<info::device::extensions>();
+  std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
+  bool NativeBF16Supported =
+      (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
+                 NativeBF16ExtName) != DeviceExtensions.end());
+  return NativeBF16Supported == (BF16Type == BF16_NATIVE);
+}
+
 static bool checkLinkingSupport(const device &Dev,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
@@ -668,6 +688,9 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (Img->getFormat() != Format ||
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, Dev))
+        continue;
+      if (Img->getDeviceLibBF16Type().isAvailable() &&
+          !selectBF16Devicelib(Img, Dev))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -1798,6 +1821,20 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
+static bool skipEmptyImage(sycl_device_binary RawImg) {
+  // bfloat16 devicelib image must be kept.
+  sycl_device_binary_property_set ImgPS;
+  for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
+       ++ImgPS) {
+    if (ImgPS->Name &&
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_BF16_TYPE, ImgPS->Name)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
@@ -1805,8 +1842,10 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
-    if (EntriesB == EntriesE)
-      continue;
+    if (EntriesB == EntriesE) {
+      if (skipEmptyImage(RawImg))
+        continue;
+    }
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
     if (isDeviceImageCompressed(RawImg))
