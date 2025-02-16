@@ -1,7 +1,10 @@
-# commit d03f19a88e42cb98be9604ff24b61190d1e48727
-# Merge: 3ce6fcc9 84454b0e
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Feb 13 11:43:34 2025 +0000
-#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
-#     Do not fetch cudart from gitlab for UMF
-set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)
+# commit 56dd5137d3e0e39576291d72e216e94dd18b2f71
+# Author: Harald van Dijk <harald.vandijk@codeplay.com>
+# Date:   Thu Feb 13 16:28:42 2025 +0000
+# 
+#     [NativeCPU] Fix kernel argument passing.
+#     
+#     We were reading the kernel arguments at kernel execution time, but kernel
+#     arguments are allowed to change between enqueuing and executing. Make
+#     sure to create a copy of kernel arguments ahead of time.
+set(UNIFIED_RUNTIME_TAG 56dd5137d3e0e39576291d72e216e94dd18b2f71)
