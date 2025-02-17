@@ -27,7 +27,7 @@ You can also include additional benchmark parameters, such as environment variab
 
 Once all the required information is entered, click the "Run workflow" button to initiate a new workflow run. This will execute the benchmarks and then post the results as a comment on the specified Pull Request.
 
-It is recommended that all benchmark runs should be compared against `baseline` by passing `--compare baseline` to benchmark parameters. `baseline` is a well-established set of the latest data.
+By default, all benchmark runs are compared against `baseline`, which is a well-established set of the latest data.
 
 You must be a member of the `oneapi-src` organization to access these features.
 
