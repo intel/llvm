@@ -7112,9 +7112,9 @@ defm sycl_decompose_functor
            " decompose SYCL functor if possible (experimental, CUDA only)">>;
 defm sycl_cuda_compat
     : BoolFOption<"sycl-cuda-compatibility", LangOpts<"SYCLCUDACompat">, DefaultFalse,
-          PosFlag<SetTrue, [], [ClangOption, CLOption, DXCOption, CC1Option], "Enable CUDA compatibility mode. "
+          PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option], "Enable CUDA compatibility mode. "
           "This implies the definition of CUDA macros and the inclusion of implicit header files.">,
-          NegFlag<SetFalse, [], [ClangOption, CLOption, DXCOption, CC1Option], "Disable CUDA compatibility mode.">>;
+          NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option], "Disable CUDA compatibility mode.">>;
 def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
   HelpText<"Generate and use a custom linker script for huge device code "
            "sections">;

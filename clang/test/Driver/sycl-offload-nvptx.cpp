@@ -141,3 +141,11 @@
 //
 // CHK-CUDA-NO-LIB-NOT: provide path to different CUDA installation via '--cuda-path', or pass '-nocudalib' to build without linking with libdevice
 //
+
+// Check that flags linked to fsycl-cuda-compatibility are set correctly
+// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl -fsycl-cuda-compatibility \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-ACTIONS-CUDA-COMPAT %s
+// CHK-ACTIONS-CUDA-COMPAT: "-cc1" "-triple" "nvptx64-nvidia-cuda"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-cuda-compatibility"{{.*}} "-fdeclspec"{{.*}} "-fcuda-allow-variadic-functions"{{.*}} "-target-sdk-version=7.0"{{.*}} "-include" "__clang_cuda_runtime_wrapper.h"
+// CHK-ACTIONS-CUDA-COMPAT: "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-cuda-compatibility"{{.*}} "-fdeclspec"{{.*}} "-fcuda-allow-variadic-functions"{{.*}} "-aux-triple" "nvptx64-nvidia-cuda"{{.*}} "-target-sdk-version=7.0"{{.*}} "-include" "__clang_cuda_runtime_wrapper.h"
