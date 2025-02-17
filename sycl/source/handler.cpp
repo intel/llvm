@@ -301,7 +301,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 } // namespace detail
-
+handler::handler() {}
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
     : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
@@ -2147,6 +2147,31 @@ void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
+  void handler::reset() {
+  impl->reset();
+  MLocalAccStorage.clear();
+  MStreamStorage.clear();
+  /// Storage for a sycl::kernel object.
+  MKernel = nullptr;
+  MSrcPtr = nullptr;
+  /// Pointer to the dest host memory or accessor(depends on command type).
+  MDstPtr = nullptr;
+  MLength = 0;
+  MPattern.clear();
+  MHostKernel = nullptr;
+  MCodeLoc = {};
 
+  MIsFinalized = false;
+  // Handle MLastEvent
+  }
+
+  void handler::setQueue(const std::shared_ptr<detail::queue_impl> &Queue) {
+    if (MQueue)
+	    return;
+    impl = std::make_shared<detail::handler_impl>(std::move(Queue),
+                                                  nullptr,
+                                                  true);
+    MQueue = Queue;
+  }
 } // namespace _V1
 } // namespace sycl

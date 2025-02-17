@@ -44,6 +44,63 @@ public:
 
   handler_impl() = default;
 
+  void reset() {
+  MSubmissionState = HandlerSubmissionState::NO_STATE;
+
+  // Stores auxiliary resources used by internal operations.
+ MAuxiliaryResources.clear();
+
+  MKernelBundle = nullptr;
+
+  MAdvice = 0;
+
+  // 2D memory operation information.
+  MSrcPitch = 0;
+  MDstPitch = 0;
+  MWidth = 0;
+  MHeight = 0;
+
+  /// Offset into a device_global for copy operations.
+  MOffset = 0;
+  /// Boolean flag for whether the device_global had the device_image_scope
+  /// property.
+  MIsDeviceImageScoped = false;
+
+
+  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+
+   MKernelWorkGroupMemorySize = 0;
+
+  // Extra information for bindless image copy
+  MSrcImageDesc = {};
+  MDstImageDesc = {};
+  MSrcImageFormat = {};
+  MDstImageFormat = {};
+  MImageCopyFlags = {};
+
+  MSrcOffset = {};
+  MDestOffset = {};
+  MCopyExtent = {};
+
+  /// The list of arguments for the kernel.
+  MArgs.clear();
+
+  /// The list of associated accessors with this handler.
+  /// These accessors were created with this handler as argument or
+  /// have become required for this handler via require method.
+  MAssociatedAccesors.clear();
+
+  /// Struct that encodes global size, local size, ...
+   MNDRDesc = {};
+
+  /// Type of the command group, e.g. kernel, fill. Can also encode version.
+  /// Use getType and setType methods to access this variable unless
+  /// manipulations with version are required
+  MCGType = detail::CGType::None;
+
+  /// True if MCodeLoc is sycl entry point code location
+  bool MIsTopCodeLoc = true;
+  }
   void setStateExplicitKernelBundle() {
     if (MSubmissionState == HandlerSubmissionState::SPEC_CONST_SET_STATE)
       throw sycl::exception(
