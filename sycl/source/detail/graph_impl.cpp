@@ -1469,6 +1469,8 @@ void exec_graph_impl::update(
         sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
         sycl::async_handler{}, sycl::property_list{});
 
+    // Track the event for the update command since execution may be blocked by
+    // other scheduler commands
     auto UpdateEvent =
         sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
             this, std::move(NodesCopy), AllocaQueue, UpdateRequirements,
