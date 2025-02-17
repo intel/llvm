@@ -22,6 +22,8 @@ void bar1(const SomeFunc fptr) {
 
 template <auto f> void fooNTTP() { f(); }
 
+template <typename FTy> void templated(FTy f) { f(); } // #call-templated
+
 __attribute__((sycl_device)) void bar() {
   // OK
   constexpr auto f = t;
@@ -48,4 +50,8 @@ __attribute__((sycl_device)) void bar() {
   fff();
 
   fooNTTP<t>();
+
+  templated(t);
+  // expected-error@#call-templated {{SYCL kernel cannot call through a function pointer}}
+  // expected-note@-2 {{called by 'bar'}}
 }
