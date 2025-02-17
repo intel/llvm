@@ -219,6 +219,7 @@ jobs:
         --adapter ${{ matrix.adapter.str_name }}
         --compute-runtime ${{ inputs.compute_runtime_commit }}
         --build-igc
+        --compare baseline
         ${{ inputs.upload_report && '--output-html' || '' }}
         ${{ inputs.pr_no != 0 && '--output-markdown' || '' }}
         ${{ inputs.bench_script_params }}
