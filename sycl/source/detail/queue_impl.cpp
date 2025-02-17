@@ -481,7 +481,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
@@ -489,6 +489,17 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                   EventImpl);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
+        // connect returned event with dependent events
+        if (!isInOrder()) {
+          std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
+              EventImpl->getPreparedDepsEvents();
+          ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
+          for (const event &DepEvent : ExpandedDepEvents)
+            ExpandedDepEventImplPtrs.push_back(
+                detail::getSyclObjImpl(DepEvent));
+
+          EventImpl->cleanDepEventsThroughOneLevel();
+        }
       }
 
       if (isInOrder()) {

@@ -323,6 +323,7 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
                                            &redefinedextUSMEnqueueMemcpy);
   sycl::queue Queue = detail::createSyclObjFromImpl<queue>(QueueDevImpl);
 
+  // Mock up an incomplete host task
   auto HostTaskEvent =
       Queue.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
   std::shared_ptr<detail::event_impl> HostTaskEventImpl =
@@ -332,6 +333,7 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
   ASSERT_NE(Cmd, nullptr);
   Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  HostTaskEventImpl->setStateIncomplete();
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
@@ -341,6 +343,8 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
       detail::getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
 
+  // make HostTaskEvent completed, so SingleTaskEvent can be enqueued
+  HostTaskEventImpl->setComplete();
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
 
@@ -375,6 +379,7 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
   ASSERT_NE(Cmd, nullptr);
   Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  HostTaskEventImpl->setStateIncomplete();
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
@@ -384,6 +389,7 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
       detail::getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
 
+  HostTaskEventImpl->setComplete();
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
 
