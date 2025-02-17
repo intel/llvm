@@ -324,7 +324,8 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
                        const sycl::device &SyclDevice,
                        const sycl::property_list &PropList)
     : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-      MEventsMap(), MInorderQueueMap() {
+      MEventsMap(), MInorderQueueMap(),
+      MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
   checkGraphPropertiesAndThrow(PropList);
   if (PropList.has_property<property::graph::no_cycle_check>()) {
     MSkipCycleChecks = true;
@@ -913,7 +914,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
       MExecutionEvents(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
       MEnableProfiling(
-          PropList.has_property<property::graph::enable_profiling>()) {
+          PropList.has_property<property::graph::enable_profiling>()),
+      MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
   checkGraphPropertiesAndThrow(PropList);
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
@@ -949,15 +951,6 @@ exec_graph_impl::~exec_graph_impl() {
           (void)Res;
           assert(Res == UR_RESULT_SUCCESS);
         }
-      }
-    }
-
-    for (auto &Iter : MCommandMap) {
-      if (auto Command = Iter.second; Command) {
-        ur_result_t Res = Adapter->call_nocheck<
-            sycl::detail::UrApiKind::urCommandBufferReleaseCommandExp>(Command);
-        (void)Res;
-        assert(Res == UR_RESULT_SUCCESS);
       }
     }
   } catch (std::exception &e) {
@@ -1818,9 +1811,11 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
 }
 
 std::vector<node> modifiable_command_graph::get_nodes() const {
+  graph_impl::ReadLock Lock(impl->MMutex);
   return createNodesFromImpls(impl->MNodeStorage);
 }
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
+  graph_impl::ReadLock Lock(impl->MMutex);
   auto &Roots = impl->MRoots;
   std::vector<std::weak_ptr<node_impl>> Impls{};
 
@@ -2035,7 +2030,8 @@ void dynamic_parameter_impl::updateCGAccessor(
 
 dynamic_command_group_impl::dynamic_command_group_impl(
     const command_graph<graph_state::modifiable> &Graph)
-    : MGraph{sycl::detail::getSyclObjImpl(Graph)}, MActiveCGF(0) {}
+    : MGraph{sycl::detail::getSyclObjImpl(Graph)}, MActiveCGF(0),
+      MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
 
 void dynamic_command_group_impl::finalizeCGFList(
     const std::vector<std::function<void(handler &)>> &CGFList) {
@@ -2159,3 +2155,17 @@ void dynamic_command_group::set_active_index(size_t Index) {
 } // namespace ext
 } // namespace _V1
 } // namespace sycl
+
+size_t std::hash<sycl::ext::oneapi::experimental::node>::operator()(
+    const sycl::ext::oneapi::experimental::node &Node) const {
+  auto ID = sycl::detail::getSyclObjImpl(Node)->getID();
+  return std::hash<decltype(ID)>()(ID);
+}
+
+size_t
+std::hash<sycl::ext::oneapi::experimental::dynamic_command_group>::operator()(
+    const sycl::ext::oneapi::experimental::dynamic_command_group &DynamicCG)
+    const {
+  auto ID = sycl::detail::getSyclObjImpl(DynamicCG)->getID();
+  return std::hash<decltype(ID)>()(ID);
+}

@@ -5,13 +5,13 @@
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda
+// UNSUPPORTED: target-nvidia
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
-// XFAIL: hip
+// XFAIL: target-amd
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15742
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
 
 #include <iostream>

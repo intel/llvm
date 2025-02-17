@@ -1,7 +1,7 @@
-# commit 78e1b33271d28d26845a4bfae7ae3b72c14e0e63
-# Merge: 902bb2e2 94b32ac2
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Tue Jan 28 11:02:44 2025 +0000
-#     Merge pull request #2624 from RossBrunton/ross/msanfix
-#     Assert that Device is valid for memory poisoning
-set(UNIFIED_RUNTIME_TAG 78e1b33271d28d26845a4bfae7ae3b72c14e0e63)
+# commit d03f19a88e42cb98be9604ff24b61190d1e48727
+# Merge: 3ce6fcc9 84454b0e
+# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+# Date:   Thu Feb 13 11:43:34 2025 +0000
+#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
+#     Do not fetch cudart from gitlab for UMF
+set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)

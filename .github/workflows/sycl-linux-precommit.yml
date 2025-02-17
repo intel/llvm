@@ -51,45 +51,60 @@ jobs:
       changes: ${{ needs.detect_changes.outputs.filters }}
       e2e_binaries_artifact: sycl_e2e_bin_default
 
-  determine_arc_tests:
-    name: Decide which Arc tests to run
-    needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    runs-on: [Linux, aux-tasks]
-    timeout-minutes: 3
-    outputs:
-      arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
-    steps:
-      - name: Determine Arc tests
-        id: arc_tests
-        run: |
-          if [ "${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}" == "true" ]; then
-             echo 'arc_tests=""' >> "$GITHUB_OUTPUT"
-          elif [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          else
-            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
-          fi
-
   run_prebuilt_e2e_tests:
-    needs: [build]
+    needs: [build, detect_changes]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Intel
+          - name: GEN 12 Integrated
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+          - name: Intel Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            reset_intel_gpu: true
+            extra_lit_opts: --param matrix-xmx8=True
+          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
+            runner: '["Linux", "arc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            reset_intel_gpu: true
+            extra_lit_opts: --param matrix-xmx8=True
+            use_igc_dev: true
+          - name: E2E tests on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            extra_lit_opts: -j 50
+          - name: Dev IGC on Intel Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu
+            use_igc_dev: true
+            extra_lit_opts: -j 50
+          - name: Intel Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+            # The new Xe kernel driver used by BMG doesn't support resetting.
+            reset_intel_gpu: false
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
+      image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: --param fallback-to-build-if-requires-build-and-run=True ${{ matrix.extra_lit_opts }}
@@ -100,62 +115,6 @@ jobs:
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
       e2e_binaries_artifact: sycl_e2e_bin_default
       e2e_testing_mode: 'run-only'
-
-  test:
-    needs: [build, detect_changes, determine_arc_tests]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            reset_intel_gpu: false
-          - name: E2E tests on Intel Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
-            extra_lit_opts: --param matrix-xmx8=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
-          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
-            runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
-            extra_lit_opts: --param matrix-xmx8=True
-            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
-            use_igc_dev: true
-          - name: E2E tests on Intel Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            extra_lit_opts: -j 50
-          - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
-            use_igc_dev: true
-            extra_lit_opts: -j 50
-
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options }}
-      target_devices: ${{ matrix.target_devices }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      env: ${{ matrix.env || '{}' }}
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
@@ -170,6 +129,25 @@ jobs:
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
+
+  test:
+    needs: [build, detect_changes]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix. runner }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
 
       ref: ${{ github.sha }}
 

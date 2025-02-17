@@ -28,7 +28,7 @@ entry:
   %gid = alloca i64, align 8
   %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2, !dbg !10
 ; CHECK: [[I0:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 0) #1, !dbg [[DBG:![0-9]+]]
-; CHECK-NEXT: [[I1:%[0-9]]] = insertelement <3 x i64> undef, i64 [[I0]], i32 0, !dbg [[DBG]]
+; CHECK-NEXT: [[I1:%[0-9]]] = insertelement <3 x i64> poison, i64 [[I0]], i32 0, !dbg [[DBG]]
 ; CHECK-NEXT: [[I2:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 1) #1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I3:%[0-9]]] = insertelement <3 x i64> [[I1]], i64 [[I2]], i32 1, !dbg [[DBG]]
 ; CHECK-NEXT: [[I4:%[0-9]]] = call spir_func i64 @_Z13get_global_idj(i32 2) #1, !dbg [[DBG]]
