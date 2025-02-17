@@ -5,8 +5,8 @@
 // -foffload-fp32-prec-div -foffload-fp32-prec-sqrt are passed.
 
 #include <cmath>
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 constexpr float value = 560.0f;
 constexpr float divider = 280.0f;
@@ -25,7 +25,7 @@ template <typename T> int ulp_difference(const T &lhs, const T &rhs) {
 }
 
 void test_div() {
-  sycl::queue q(sycl::default_selector_v, sycl::property::queue::in_order());
+  sycl::queue q(sycl::default_selector_v);
   float *in_value = (float *)sycl::malloc_shared(sizeof(float), q);
   float *in_divider = (float *)sycl::malloc_shared(sizeof(float), q);
   float *output = (float *)sycl::malloc_shared(sizeof(float), q);
@@ -44,7 +44,7 @@ void test_div() {
 }
 
 void test_sqrt() {
-  sycl::queue q(sycl::default_selector_v, sycl::property::queue::in_order());
+  sycl::queue q(sycl::default_selector_v);
   float *in_value = (float *)sycl::malloc_shared(sizeof(float), q);
   float *output = (float *)sycl::malloc_shared(sizeof(float), q);
   *in_value = value;
