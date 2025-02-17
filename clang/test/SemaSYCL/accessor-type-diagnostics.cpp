@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify -verify=expected,all \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -fsyntax-only %s
 // RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify=expected,all \
 // RUN:  -aux-triple x86_64-pc-windows-msvc -fsyntax-only %s
