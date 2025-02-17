@@ -363,13 +363,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
-  Handler.saveCodeLoc(Loc, IsTopCodeLoc);
+  MHandler.setQueue(Self);
+  MHandler.reset();
+  auto &HandlerImpl = detail::getSyclObjImpl(MHandler);
+  MHandler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
     NestedCallsTracker tracker;
-    CGF(Handler);
+    CGF(MHandler);
   }
 
   // Scheduler will later omit events, that are not required to execute tasks.
@@ -378,11 +379,11 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   const CGType Type = HandlerImpl->MCGType;
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
-    Streams = std::move(Handler.MStreamStorage);
+    Streams = std::move(MHandler.MStreamStorage);
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+  auto Event = finalizeHandler(MHandler, SubmitInfo.PostProcessorFunc());
 
   addEvent(Event);
 

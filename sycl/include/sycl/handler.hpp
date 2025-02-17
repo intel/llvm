@@ -425,6 +425,8 @@ std::vector<kernel_param_desc_t> getKernelParamDescs() {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
+
+  handler();
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
@@ -3532,6 +3534,10 @@ private:
   }
   void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                  size_t Size, bool Block = false);
+
+  void setQueue(const std::shared_ptr<detail::queue_impl> &Queue);
+
+  void reset();
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
   friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;
