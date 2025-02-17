@@ -13,10 +13,10 @@
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir
-// DEFINE: %{max_cache_size} = SYCL_CACHE_MAX_SIZE=10000
+// DEFINE: %{max_cache_size} = SYCL_CACHE_MAX_SIZE=30000
 // RUN: %{build} -o %t.out
 // RUN: %{run-aux} rm -rf %t/cache_dir
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-UNLIM
 // RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT
 
@@ -63,7 +63,7 @@ int test_persistent_cache() {
       q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extensin: "
+                 "kernel bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
@@ -73,13 +73,14 @@ int test_persistent_cache() {
       ctx, syclex::source_language::sycl_jit, SYCLSource);
 
   // Bundle is entered into cache on first build.
-  // CHECK: [kernel_compiler Persistent Cache]: device code IR has been cached
+  // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY1:.*]]
+  // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe1a = syclex::build(kbSrc1);
   dumpKernelIDs();
   // CHECK: rtc_0$__sycl_kernel_vec_add
 
   // Cache hit! We get independent bundles with their own version of the kernel.
-  // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR
+  // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe1b = syclex::build(kbSrc1);
   dumpKernelIDs();
   // CHECK-DAG: rtc_0$__sycl_kernel_vec_add
@@ -89,18 +90,22 @@ int test_persistent_cache() {
       ctx, syclex::source_language::sycl_jit, SYCLSource);
 
   // Different source bundle, but identical source is a cache hit.
-  // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR
+  // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe2a = syclex::build(kbSrc2);
 
   // Different build_options means no cache hit.
-  // CHECK: [kernel_compiler Persistent Cache]: device code IR has been cached
+  // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY2:.*]]
+  // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY2]]
   std::vector<std::string> flags{"-g", "-fno-fast-math"};
   exe_kb kbExe1c =
       syclex::build(kbSrc1, syclex::properties{syclex::build_options{flags}});
 
   // The kbExe1c build should trigger eviction if cache size is limited.
-  // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR
-  // CHECK-EVICT: [kernel_compiler Persistent Cache]: device code IR has been cached
+  // CHECK-UNLIM: [kernel_compiler Persistent Cache]: using cached device code IR: {{.*}}/[[KEY1]]
+  // CHECK-EVICT: [Persistent Cache]: Cache eviction triggered.
+  // CHECK-EVICT: [Persistent Cache]: File removed: {{.*}}/[[KEY1]]
+  // CHECK-EVICT: [kernel_compiler Persistent Cache]: cache miss: [[KEY1]]
+  // CHECK-EVICT: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe2b = syclex::build(kbSrc2);
 
   source_kb kbSrc3 = syclex::create_kernel_bundle_from_source(
@@ -109,7 +114,8 @@ int test_persistent_cache() {
           syclex::include_files{"myheader.h", "#define KERNEL_NAME foo"}});
 
   // New source string -> cache miss
-  // CHECK: [kernel_compiler Persistent Cache]: device code IR has been cached
+  // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY3:.*]]
+  // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY3]]
   exe_kb kbExe3a = syclex::build(kbSrc3);
   dumpKernelIDs();
   // CHECK: rtc_5$__sycl_kernel_foo
@@ -120,7 +126,8 @@ int test_persistent_cache() {
           syclex::include_files{"myheader.h", "#define KERNEL_NAME bar"}});
 
   // Same source string, but different header contents -> cache miss
-  // CHECK: [kernel_compiler Persistent Cache]: device code IR has been cached
+  // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY4:.*]]
+  // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY4]]
   exe_kb kbExe4a = syclex::build(kbSrc4);
   dumpKernelIDs();
   // CHECK: rtc_6$__sycl_kernel_bar

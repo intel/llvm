@@ -574,16 +574,16 @@ void PersistentDeviceCodeCache::putDeviceCodeIRToDisc(
   size_t TotalSize = 0;
 
   std::string DirName = getDeviceCodeIRPath(Key);
+  std::string FileName = DirName + "/ir";
+  std::string FullFileName = FileName + ".bin";
 
   try {
     OSUtil::makeDir(DirName.c_str());
-    std::string FileName = DirName + "/ir";
-    std::string FullFileName = FileName + ".bin";
     LockCacheItem Lock{FileName};
     if (Lock.isOwned()) {
       writeBinaryDataToFile(FullFileName, IR);
       PersistentDeviceCodeCache::trace_KernelCompiler(
-          "device code IR has been cached: ", FullFileName);
+          "storing device code IR: ", FullFileName);
 
       TotalSize = getFileSize(FullFileName);
       saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
@@ -716,27 +716,29 @@ PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(const std::string &Key) {
   std::vector<char> IR;
 
   std::string DirName = getDeviceCodeIRPath(Key);
-
-  if (DirName.empty() || !OSUtil::isPathPresent(DirName))
-    return {};
-
   std::string FileName = DirName + "/ir";
   std::string FullFileName = FileName + ".bin";
-  if (OSUtil::isPathPresent(FullFileName)) {
-    if (!LockCacheItem::isLocked(FileName)) {
-      try {
-        IR = readBinaryDataFromFile(FullFileName);
 
-        // Explicitly update the access time of the file. This is required for
-        // eviction.
-        if (isEvictionEnabled())
-          saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
-      } catch (...) {
-        // If read was unsuccessfull try the next item
-        return {};
-      }
+  if (DirName.empty() || !OSUtil::isPathPresent(FullFileName)) {
+    trace_KernelCompiler("cache miss: ", Key);
+    return {};
+  }
+
+  if (!LockCacheItem::isLocked(FileName)) {
+    try {
+      IR = readBinaryDataFromFile(FullFileName);
+
+      // Explicitly update the access time of the file. This is required for
+      // eviction.
+      if (isEvictionEnabled())
+        saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
+    } catch (...) {
+      // If read was unsuccessfull give up
+      trace_KernelCompiler("cache miss: ", Key);
+      return {};
     }
   }
+
   PersistentDeviceCodeCache::trace_KernelCompiler(
       "using cached device code IR: ", FullFileName);
   return IR;
