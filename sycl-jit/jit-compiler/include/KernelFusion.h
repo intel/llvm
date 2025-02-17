@@ -70,26 +70,20 @@ public:
 
   const char *getPreprocLog() {
     assert(failed() && "No preprocessor log");
-    return PreprocLog.c_str();
+    return HashOrLog.c_str();
   }
 
   const char *getHash() {
     assert(!failed() && "No hash");
-    return Hash.c_str();
+    return HashOrLog.c_str();
   }
 
 private:
-  RTCHashResult(bool Failed, const char *Str) : Failed(Failed) {
-    if (!Failed) {
-      this->Hash = Str;
-    } else {
-      this->PreprocLog = Str;
-    }
-  }
+  RTCHashResult(bool Failed, const char *HashOrLog)
+      : Failed(Failed), HashOrLog(HashOrLog) {}
 
   bool Failed;
-  sycl::detail::string Hash;
-  sycl::detail::string PreprocLog;
+  sycl::detail::string HashOrLog;
 };
 
 class RTCResult {
