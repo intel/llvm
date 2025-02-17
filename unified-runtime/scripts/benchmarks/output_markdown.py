@@ -8,6 +8,7 @@ from benches.result import Result
 from options import options
 import math
 
+
 class OutputLine:
     def __init__(self, name):
         self.label = name
@@ -21,18 +22,22 @@ class OutputLine:
     def __repr__(self):
         return self.__str__()
 
+
 # Function to generate the markdown collapsible sections for each variant
 def generate_markdown_details(results: list[Result]):
     markdown_sections = []
 
-    markdown_sections.append(f"""
+    markdown_sections.append(
+        f"""
 <details>
 <summary>Benchmark details - environment, command...</summary>
-""")
+"""
+    )
 
     for res in results:
-        env_vars_str = '\n'.join(f"{key}={value}" for key, value in res.env.items())
-        markdown_sections.append(f"""
+        env_vars_str = "\n".join(f"{key}={value}" for key, value in res.env.items())
+        markdown_sections.append(
+            f"""
 <details>
 <summary>{res.label}</summary>
 
@@ -43,14 +48,22 @@ def generate_markdown_details(results: list[Result]):
 {' '.join(res.command)}
 
 </details>
-""")
-    markdown_sections.append(f"""
+"""
+        )
+    markdown_sections.append(
+        f"""
 </details>
-""")
+"""
+    )
     return "\n".join(markdown_sections)
 
+
 def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
-    summary_table = "| Benchmark | " + " | ".join(chart_data.keys()) + " | Relative perf | Change | - |\n"
+    summary_table = (
+        "| Benchmark | "
+        + " | ".join(chart_data.keys())
+        + " | Relative perf | Change | - |\n"
+    )
     summary_table += "|---" * (len(chart_data) + 4) + "|\n"
 
     # Collect all benchmarks and their results
@@ -61,7 +74,6 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
 
     # Generate the table rows
     output_detailed_list = []
-
 
     global_product = 1
     mean_cnt = 0
@@ -77,12 +89,17 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
 
         # Determine the best value
         for key, res in results.items():
-            if best_value is None or (res.lower_is_better and res.value < best_value) or (not res.lower_is_better and res.value > best_value):
+            if (
+                best_value is None
+                or (res.lower_is_better and res.value < best_value)
+                or (not res.lower_is_better and res.value > best_value)
+            ):
                 best_value = res.value
                 best_key = key
 
         # Generate the row with the best value highlighted
-        if options.verbose: print(f"Results: {results}")
+        if options.verbose:
+            print(f"Results: {results}")
         for key in chart_data.keys():
             if key in results:
                 intv = results[key].value
@@ -101,9 +118,9 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
                 v1 = results[key1].value
                 diff = None
                 if v0 != 0 and results[key0].lower_is_better:
-                    diff = v1/v0
+                    diff = v1 / v0
                 elif v1 != 0 and not results[key0].lower_is_better:
-                    diff = v0/v1
+                    diff = v0 / v1
 
                 if diff != None:
                     oln.row += f"{(diff * 100):.2f}%"
@@ -111,8 +128,9 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
 
         output_detailed_list.append(oln)
 
-
-    sorted_detailed_list = sorted(output_detailed_list, key=lambda x: (x.diff is not None, x.diff), reverse=True)
+    sorted_detailed_list = sorted(
+        output_detailed_list, key=lambda x: (x.diff is not None, x.diff), reverse=True
+    )
 
     diff_values = [oln.diff for oln in sorted_detailed_list if oln.diff is not None]
 
@@ -123,7 +141,9 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
             if oln.diff != None:
                 oln.row += f" | {(oln.diff - 1)*100:.2f}%"
                 delta = oln.diff - 1
-                oln.bars = round(10*(oln.diff - 1)/max_diff) if max_diff != 0.0 else 0
+                oln.bars = (
+                    round(10 * (oln.diff - 1) / max_diff) if max_diff != 0.0 else 0
+                )
                 if oln.bars == 0 or abs(delta) < options.epsilon:
                     oln.row += " | . |"
                 elif oln.bars > 0:
@@ -134,47 +154,54 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
                 mean_cnt += 1
                 if abs(delta) > options.epsilon:
                     if delta > 0:
-                        improved+=1
+                        improved += 1
                     else:
-                        regressed+=1
+                        regressed += 1
                 else:
-                    no_change+=1
+                    no_change += 1
 
                 global_product *= oln.diff
             else:
                 oln.row += " |   |"
 
-            if options.verbose: print(oln.row)
+            if options.verbose:
+                print(oln.row)
             summary_table += oln.row + "\n"
     else:
         for oln in sorted_detailed_list:
             oln.row += " |   |"
-            if options.verbose: print(oln.row)
+            if options.verbose:
+                print(oln.row)
             summary_table += oln.row + "\n"
 
     grouped_objects = collections.defaultdict(list)
 
     for oln in output_detailed_list:
         s = oln.label
-        prefix = re.match(r'^[^_\s]+', s)[0]
+        prefix = re.match(r"^[^_\s]+", s)[0]
         grouped_objects[prefix].append(oln)
 
     grouped_objects = dict(grouped_objects)
 
     if mean_cnt > 0:
-        global_mean = global_product ** (1/mean_cnt)
+        global_mean = global_product ** (1 / mean_cnt)
         summary_line = f"Total {mean_cnt} benchmarks in mean. "
-        summary_line += "\n" + f"Geomean {global_mean*100:.3f}%. \nImproved {improved} Regressed {regressed} (threshold {options.epsilon*100:.2f}%)"
+        summary_line += (
+            "\n"
+            + f"Geomean {global_mean*100:.3f}%. \nImproved {improved} Regressed {regressed} (threshold {options.epsilon*100:.2f}%)"
+        )
     else:
         summary_line = f"No diffs to calculate performance change"
 
-    if options.verbose: print(summary_line)
-
+    if options.verbose:
+        print(summary_line)
 
     summary_table = "\n## Performance change in benchmark groups\n"
 
     for name, outgroup in grouped_objects.items():
-        outgroup_s = sorted(outgroup, key=lambda x: (x.diff is not None, x.diff), reverse=True)
+        outgroup_s = sorted(
+            outgroup, key=lambda x: (x.diff is not None, x.diff), reverse=True
+        )
         product = 1.0
         n = len(outgroup_s)
         r = 0
@@ -194,7 +221,11 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
 <summary> Relative perf in group {name} ({n}): cannot calculate </summary>
 
 """
-        summary_table += "| Benchmark | " + " | ".join(chart_data.keys()) + " | Relative perf | Change | - |\n"
+        summary_table += (
+            "| Benchmark | "
+            + " | ".join(chart_data.keys())
+            + " | Relative perf | Change | - |\n"
+        )
         summary_table += "|---" * (len(chart_data) + 4) + "|\n"
 
         for oln in outgroup_s:
@@ -206,6 +237,7 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
 """
 
     return summary_line, summary_table
+
 
 def generate_markdown(name: str, chart_data: dict[str, list[Result]]):
     (summary_line, summary_table) = generate_summary_table_and_chart(chart_data)

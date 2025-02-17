@@ -9,7 +9,8 @@ from pathlib import Path
 from benches.result import Result, BenchmarkRun
 from options import Compare, options
 from datetime import datetime, timezone
-from utils.utils import run;
+from utils.utils import run
+
 
 class BenchmarkHistory:
     benchmark_run_index_max = 0
@@ -20,28 +21,30 @@ class BenchmarkHistory:
 
     def load_result(self, file_path: Path) -> BenchmarkRun:
         if file_path.exists():
-            with file_path.open('r') as file:
+            with file_path.open("r") as file:
                 data = json.load(file)
                 return BenchmarkRun.from_json(data)
         else:
             return None
 
     def load(self, n: int):
-        results_dir = Path(self.dir) / 'results'
+        results_dir = Path(self.dir) / "results"
         if not results_dir.exists() or not results_dir.is_dir():
             return []
 
         # Get all JSON files in the results directory
-        benchmark_files = list(results_dir.glob('*.json'))
+        benchmark_files = list(results_dir.glob("*.json"))
 
         # Extract index numbers and sort files by index number
         def extract_index(file_path: Path) -> int:
             try:
-                return int(file_path.stem.split('_')[0])
+                return int(file_path.stem.split("_")[0])
             except (IndexError, ValueError):
                 return -1
 
-        benchmark_files = [file for file in benchmark_files if extract_index(file) != -1]
+        benchmark_files = [
+            file for file in benchmark_files if extract_index(file) != -1
+        ]
         benchmark_files.sort(key=extract_index)
 
         # Load the first n benchmark files
@@ -61,11 +64,16 @@ class BenchmarkHistory:
             result = run("git rev-parse --short HEAD")
             git_hash = result.stdout.decode().strip()
         except:
-            git_hash = 'unknown'
+            git_hash = "unknown"
 
-        return BenchmarkRun(name = name, git_hash = git_hash, date = datetime.now(tz=timezone.utc), results = results)
+        return BenchmarkRun(
+            name=name,
+            git_hash=git_hash,
+            date=datetime.now(tz=timezone.utc),
+            results=results,
+        )
 
-    def save(self, save_name, results: list[Result], to_file = True):
+    def save(self, save_name, results: list[Result], to_file=True):
         benchmark_data = self.create_run(save_name, results)
         self.runs.append(benchmark_data)
 
@@ -73,12 +81,16 @@ class BenchmarkHistory:
             return
 
         serialized = benchmark_data.to_json()
-        results_dir = Path(os.path.join(self.dir, 'results'))
+        results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
         self.benchmark_run_index_max += 1
-        file_path = Path(os.path.join(results_dir, f"{self.benchmark_run_index_max}_{save_name}.json"))
-        with file_path.open('w') as file:
+        file_path = Path(
+            os.path.join(
+                results_dir, f"{self.benchmark_run_index_max}_{save_name}.json"
+            )
+        )
+        with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)
         print(f"Benchmark results saved to {file_path}")
 
@@ -104,10 +116,10 @@ class BenchmarkHistory:
             average_results.append(average_result)
 
         average_benchmark_run = BenchmarkRun(
-            results = average_results,
-            name = first_run.name,
-            git_hash = "average",
-            date = first_run.date # should this be different?
+            results=average_results,
+            name=first_run.name,
+            git_hash="average",
+            date=first_run.date,  # should this be different?
         )
 
         return average_benchmark_run

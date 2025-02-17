@@ -11,6 +11,7 @@ The script utilizes provided specifications to generate function objects and the
 such as function names, arguments, and types.
 The get_api_types() function generates all Printing API function objects, excluding "extras" functions.
 """
+
 import re
 
 from templates import helper as th

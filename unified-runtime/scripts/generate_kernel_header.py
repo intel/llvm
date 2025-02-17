@@ -1,11 +1,12 @@
 """
- Copyright (C) 2022 Intel Corporation
+Copyright (C) 2022 Intel Corporation
 
- Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- See LICENSE.TXT
- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+See LICENSE.TXT
+SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
+
 import argparse
 import os
 import re
@@ -47,6 +48,7 @@ ENTRY_POINT_TEMPLATE = """\
             "%s",
 """
 
+
 def generate_header(output_file, kernel_name_dict):
     """Render the template and write it to the output file."""
     file_name = os.path.basename(output_file)
@@ -81,7 +83,7 @@ def get_mangled_names(source_file, output_header):
             if writing and "19__pf_kernel_wrapper" not in line:
                 definitions.append(line.replace(",", "").strip()[1:-1])
             if "const char* const kernel_names[] = {" in line:
-                    writing = True
+                writing = True
 
     return definitions
 
@@ -89,9 +91,8 @@ def get_mangled_names(source_file, output_header):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-o",
-        "--output",
-        help="Full path to header file that will be generated.")
+        "-o", "--output", help="Full path to header file that will be generated."
+    )
     parser.add_argument("source_files", nargs="+")
     args = parser.parse_args()
 
@@ -99,8 +100,7 @@ def main():
 
     for source_file in args.source_files:
         program_name = os.path.splitext(os.path.basename(source_file))[0]
-        mangled_names[program_name] = get_mangled_names(
-            source_file, args.output)
+        mangled_names[program_name] = get_mangled_names(source_file, args.output)
     generate_header(args.output, mangled_names)
 
 
