@@ -999,7 +999,7 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
-
+  sycl::handler MHandler;
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
 
