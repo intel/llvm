@@ -229,7 +229,7 @@ params:
       desc: "[in][optional] pointer to native platform properties struct."
     - type: "$x_platform_handle_t*"
       name: phPlatform
-      desc: "[out] pointer to the handle of the platform object created."
+      desc: "[out][alloc] pointer to the handle of the platform object created."
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

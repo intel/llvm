@@ -116,7 +116,7 @@ params:
       desc: "[in][optional] pointer to linker options null-terminated string."
     - type: $x_program_handle_t*
       name: phProgram
-      desc: "[out] pointer to handle of program object created."
+      desc: "[out][alloc] pointer to handle of program object created."
 returns:
     - $X_RESULT_ERROR_INVALID_PROGRAM:
       - "If one of the programs in `phPrograms` isn't a valid program object."

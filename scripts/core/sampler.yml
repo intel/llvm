@@ -98,7 +98,7 @@ params:
       desc: "[in] pointer to the sampler description"
     - type: $x_sampler_handle_t*
       name: phSampler
-      desc: "[out] pointer to handle of sampler object created"
+      desc: "[out][alloc] pointer to handle of sampler object created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -233,7 +233,7 @@ params:
       desc: "[in][optional] pointer to native sampler properties struct."
     - type: "$x_sampler_handle_t*"
       name: phSampler
-      desc: "[out] pointer to the handle of the sampler object created."
+      desc: "[out][alloc] pointer to the handle of the sampler object created."
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

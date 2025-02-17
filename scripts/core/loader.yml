@@ -37,7 +37,7 @@ decl: static
 params:
     - type: $x_loader_config_handle_t*
       name: phLoaderConfig
-      desc: "[out] Pointer to handle of loader config object created."
+      desc: "[out][alloc] Pointer to handle of loader config object created."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the loader config object."
