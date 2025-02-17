@@ -1,0 +1,24 @@
+name: E2E Cuda
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  e2e-build-hw:
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks will not have the HW
+    name: Start e2e job
+    # use core flow, run it with cuda specific parameters
+    uses: ./.github/workflows/e2e_core.yml
+    with:
+      name: "CUDA"
+      runner_tag: "CUDA_E2E"
+      str_name: "cuda"
+      prefix: "ext_oneapi_"
+      config: "--cuda"
+      unit: "gpu"
+      extra_lit_flags: "-sv --max-time=3600"
+      xfail: "Regression/device_num.cpp"

@@ -1,0 +1,31 @@
+name: E2E Level Zero
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  e2e-build-hw:
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks will not have the HW
+    name: Start e2e job
+    # use core flow, run it with L0 specific parameters
+    uses: ./.github/workflows/e2e_core.yml
+    with:
+      name: "L0"
+      runner_tag: "L0_E2E"
+      str_name: "level_zero"
+      prefix: "ext_oneapi_"
+      config: ""
+      unit: "gpu"
+      # Failing tests
+      xfail: "InvokeSimd/Regression/call_vadd_1d_spill.cpp;InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp;ESIMD/mask_expand_load.cpp;Matrix/joint_matrix_prefetch.cpp;ESIMD/mask_expand_load.cpp;Matrix/SPVCooperativeMatrix/joint_matrix_prefetch.cpp;Matrix/joint_matrix_bf16_fill_k_cache_prefetch.cpp;Matrix/SPVCooperativeMatrix/element_wise_ops.cpp;"
+      # Unexpectedly Passed Tests
+      xfail_not: ""
+      # Flaky tests
+      filter_out: "Basic/accessor/accessor.cpp|DeviceArchitecture/device_architecture_comparison_on_device_aot.cpp|Graph/Explicit/interop-level-zero-launch-kernel.cpp|Graph/RecordReplay/interop-level-zero-launch-kernel.cpp|syclcompat/launch/launch_policy_lmem.cpp"
+      # These runners by default spawn upwards of 260 workers.
+      # We also add a time out just in case some test hangs
+      extra_lit_flags: "--param gpu-intel-pvc=True --param gpu-intel-pvc-1T=True -sv -j 100 --max-time=3600"
