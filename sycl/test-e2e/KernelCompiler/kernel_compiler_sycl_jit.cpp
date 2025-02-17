@@ -207,14 +207,13 @@ int test_build_and_run() {
   // directly.
   sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
 
-  // The templated function name will have been mangled. Mapping from original
-  // name to mangled is not yet supported. So we cannot yet do this:
-  // sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");
+  // The templated function name will have been mangled.
+  sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");
 
-  // Instead, we can TEMPORARILY use the mangled name. Once demangling is
-  // supported this might no longer work.
-  sycl::kernel k2 =
-      kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_S1_");
+  // We can also use the mangled name. This escape hatch might be removed in the
+  // future.
+  assert(
+      kbExe2.ext_oneapi_has_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_S1_"));
 
   // Test the kernels.
   test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
