@@ -19,6 +19,7 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <algorithm>
@@ -1122,14 +1123,24 @@ CodeGenModule::getVTableLinkage(const CXXRecordDecl *RD) {
         IsInNamedModule ? RD->getTemplateSpecializationKind()
                         : keyFunction->getTemplateSpecializationKind();
 
+    bool IndirectlyCallable = false;
+    if (getLangOpts().SYCLIsDevice && keyFunction &&
+        SemaSYCL::hasSYCLAddIRAttributesFunctionAttr(keyFunction,
+                                                     "indirectly-callable"))
+      IndirectlyCallable = true;
+
     switch (Kind) {
     case TSK_Undeclared:
     case TSK_ExplicitSpecialization:
       assert(
           (IsInNamedModule || def || CodeGenOpts.OptimizationLevel > 0 ||
-           CodeGenOpts.getDebugInfo() != llvm::codegenoptions::NoDebugInfo) &&
+           CodeGenOpts.getDebugInfo() != llvm::codegenoptions::NoDebugInfo ||
+           IndirectlyCallable) &&
           "Shouldn't query vtable linkage without the class in module units, "
           "key function, optimizations, or debug info");
+      if (IndirectlyCallable)
+        return llvm::GlobalVariable::LinkOnceODRLinkage;
+
       if (IsExternalDefinition && CodeGenOpts.OptimizationLevel > 0)
         return llvm::GlobalVariable::AvailableExternallyLinkage;
 
