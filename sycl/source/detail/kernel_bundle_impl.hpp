@@ -877,11 +877,12 @@ public:
   }
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept {
-    bool SetInDevImg = std::any_of(
-        begin(), end(), [SpecName](const device_image_plain &DeviceImage) {
-          return getSyclObjImpl(DeviceImage)
-              ->is_specialization_constant_set(SpecName);
-        });
+    bool SetInDevImg =
+        std::any_of(begin(), end(),
+                    [SpecName](const device_image_plain &DeviceImage) {
+                      return getSyclObjImpl(DeviceImage)
+                          ->is_specialization_constant_set(SpecName);
+                    });
     return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
