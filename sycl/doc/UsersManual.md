@@ -350,6 +350,18 @@ and not recommended to use in production environment.
 
 ## Other options
 
+**`-f[no-]offload-fp32-prec-sqrt`**
+
+    Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
+    Without this flag, the default precision requirement for `sycl::sqrt` is 3
+    ULP.
+
+**`-f[no-]offload-fp32-prec-div`**
+
+    Enable use of correctly rounded divide operation as defined by IEE754.
+    Without this flag, the default precision requirement for divide in SYCL is
+    2.5 ULP.
+
 **`-fsycl-device-only`**
 
     Compile only device part of the code and ignore host part.
