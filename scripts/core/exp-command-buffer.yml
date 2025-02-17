@@ -285,7 +285,7 @@ params:
       desc: "[in][optional] command-buffer descriptor."
     - type: "$x_exp_command_buffer_handle_t*"
       name: phCommandBuffer
-      desc: "[out] Pointer to command-Buffer handle."
+      desc: "[out][alloc] Pointer to command-Buffer handle."
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_DEVICE
@@ -386,10 +386,10 @@ params:
       desc: "[out][optional] Sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command. Only available if the
+      desc: "[out][optional][alloc] Handle to this command. Only available if the
       command-buffer is updatable."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
@@ -451,10 +451,10 @@ params:
       desc: "[out][optional] Sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_SIZE:
@@ -513,10 +513,10 @@ params:
       desc: "[out][optional] sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_SIZE:
@@ -580,10 +580,10 @@ params:
       desc: "[out][optional] Sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -639,10 +639,10 @@ params:
       desc: "[out][optional] Sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -698,10 +698,10 @@ params:
       desc: "[out][optional] Sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -772,10 +772,10 @@ params:
       desc: "[out][optional] Sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -846,10 +846,10 @@ params:
       desc: "[out][optional] Sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -982,10 +982,10 @@ params:
       desc: "[out][optional] sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -1043,10 +1043,10 @@ params:
       desc: "[out][optional] sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -1106,10 +1106,10 @@ params:
       desc: "[out][optional] sync point associated with this command."
     - type: $x_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
+      desc: "[out][optional][alloc] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional][alloc] Handle to this command."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -1152,7 +1152,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command-buffer execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [out][optional][alloc] return an event object that identifies this particular command-buffer execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_QUEUE
@@ -1213,7 +1213,7 @@ params:
       desc: "[in] Handle of the command-buffer command to update."
     - type: "$x_event_handle_t*"
       name: phSignalEvent
-      desc: "[out] Event to be signaled."
+      desc: "[out][alloc] Event to be signaled."
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS is not supported by the device associated with `hCommand`."

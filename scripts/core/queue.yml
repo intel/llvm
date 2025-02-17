@@ -161,7 +161,7 @@ params:
       desc: "[in][optional] pointer to queue creation properties."
     - type: $x_queue_handle_t*
       name: phQueue
-      desc: "[out] pointer to handle of queue object created"
+      desc: "[out][alloc] pointer to handle of queue object created"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_DEVICE
@@ -293,7 +293,7 @@ params:
     - type: "$x_queue_handle_t*"
       name: phQueue
       desc: |
-            [out] pointer to the handle of the queue object created.
+            [out][alloc] pointer to the handle of the queue object created.
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."

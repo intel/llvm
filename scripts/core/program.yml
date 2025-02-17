@@ -105,7 +105,7 @@ params:
       desc: "[in][optional] pointer to program creation properties."
     - type: $x_program_handle_t*
       name: phProgram
-      desc: "[out] pointer to handle of program object created."
+      desc: "[out][alloc] pointer to handle of program object created."
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
@@ -152,7 +152,7 @@ params:
       desc: "[in][optional] pointer to program creation properties."
     - type: $x_program_handle_t*
       name: phProgram
-      desc: "[out] pointer to handle of Program object created."
+      desc: "[out][alloc] pointer to handle of Program object created."
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
@@ -243,7 +243,7 @@ params:
       desc: "[in][optional] pointer to linker options null-terminated string."
     - type: $x_program_handle_t*
       name: phProgram
-      desc: "[out] pointer to handle of program object created."
+      desc: "[out][alloc] pointer to handle of program object created."
 returns:
     - $X_RESULT_ERROR_INVALID_PROGRAM:
       - "If one of the programs in `phPrograms` isn't a valid program object."
@@ -614,7 +614,7 @@ params:
       desc: "[in][optional] pointer to native program properties struct."
     - type: "$x_program_handle_t*"
       name: phProgram
-      desc: "[out] pointer to the handle of the program object created."
+      desc: "[out][alloc] pointer to the handle of the program object created."
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."
