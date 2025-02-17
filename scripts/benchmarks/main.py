@@ -189,9 +189,12 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         benchmark.teardown()
         print("complete.")
 
-    this_name = "This PR"
 
-    chart_data = {this_name : results}
+    this_name = options.current_run_name
+    chart_data = {}
+
+    if not options.dry_run:
+        chart_data = {this_name : results}
 
     history = BenchmarkHistory(directory)
     # limit how many files we load.
@@ -199,7 +202,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     history.load(1000)
 
     # remove duplicates. this can happen if e.g., --compare baseline is specified manually.
-    compare_names = list(dict.fromkeys(compare_names))
+    compare_names = list(dict.fromkeys(compare_names)) if compare_names is not None else []
 
     for name in compare_names:
         compare_result = history.get_compare(name)
@@ -207,7 +210,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             chart_data[name] = compare_result.results
 
     if options.output_markdown:
-        markdown_content = generate_markdown(this_name, chart_data)
+        markdown_content = generate_markdown(this_name, chart_data, options.output_markdown)
 
         with open('benchmark_results.md', 'w') as file:
             file.write(markdown_content)
@@ -251,7 +254,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-rebuild", help='Do not rebuild the benchmarks from scratch.', action="store_true")
     parser.add_argument("--env", type=str, help='Use env variable for a benchmark run.', action="append", default=[])
     parser.add_argument("--save", type=str, help='Save the results for comparison under a specified name.')
-    parser.add_argument("--compare", type=str, help='Compare results against previously saved data.', action="append", default=["baseline"])
+    parser.add_argument("--compare", type=str, help='Compare results against previously saved data.', action="append")
     parser.add_argument("--iterations", type=int, help='Number of times to run each benchmark to select a median value.', default=options.iterations)
     parser.add_argument("--stddev-threshold", type=float, help='If stddev pct is above this threshold, rerun all iterations', default=options.stddev_threshold)
     parser.add_argument("--timeout", type=int, help='Timeout for individual benchmarks in seconds.', default=options.timeout)
@@ -261,12 +264,13 @@ if __name__ == "__main__":
     parser.add_argument("--exit-on-failure", help='Exit on first failure.', action="store_true")
     parser.add_argument("--compare-type", type=str, choices=[e.value for e in Compare], help='Compare results against previously saved data.', default=Compare.LATEST.value)
     parser.add_argument("--compare-max", type=int, help='How many results to read for comparisions', default=options.compare_max)
+    parser.add_argument("--output-markdown", nargs='?', const=options.output_markdown, help='Specify whether markdown output should fit the content size limit for request validation')
     parser.add_argument("--output-html", help='Create HTML output', action="store_true", default=False)
-    parser.add_argument("--output-markdown", help='Create Markdown output', action="store_true", default=True)
     parser.add_argument("--dry-run", help='Do not run any actual benchmarks', action="store_true", default=False)
     parser.add_argument("--compute-runtime", nargs='?', const=options.compute_runtime_tag, help="Fetch and build compute runtime")
     parser.add_argument("--iterations-stddev", type=int, help="Max number of iterations of the loop calculating stddev after completed benchmark runs", default=options.iterations_stddev)
     parser.add_argument("--build-igc", help="Build IGC from source instead of using the OS-installed version", action="store_true", default=options.build_igc)
+    parser.add_argument("--relative-perf",  type=str, help="The name of the results which should be used as a baseline for metrics calculation", default=options.current_run_name)
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -283,12 +287,13 @@ if __name__ == "__main__":
     options.exit_on_failure = args.exit_on_failure
     options.compare = Compare(args.compare_type)
     options.compare_max = args.compare_max
-    options.output_html = args.output_html
     options.output_markdown = args.output_markdown
+    options.output_html = args.output_html
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
     options.build_igc = args.build_igc
+    options.current_run_name = args.relative_perf
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")

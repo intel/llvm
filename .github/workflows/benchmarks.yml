@@ -24,7 +24,7 @@ on:
         type: number
         required: true
       bench_script_params:
-        description: Parameters passed to script executing benchmark
+        description: Parameters passed to the script executing benchmark (recommended `--compare baseline`)
         type: string
         required: false
         default: ''
