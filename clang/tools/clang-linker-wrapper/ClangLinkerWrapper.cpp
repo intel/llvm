@@ -508,6 +508,11 @@ Expected<StringRef> ptxas(StringRef InputFile, const ArgList &Args,
   // Pass -v to ptxas if it was passed to the driver.
   if (Args.hasArg(OPT_verbose))
     CmdArgs.push_back("-v");
+  StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
+  if (Args.hasArg(OPT_debug))
+    CmdArgs.push_back("-g");
+  else
+    CmdArgs.push_back(Args.MakeArgString("-" + OptLevel));
   CmdArgs.push_back("--gpu-name");
   CmdArgs.push_back(Arch);
   CmdArgs.push_back("--output-file");
@@ -1521,6 +1526,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
+  StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
   SmallVector<StringRef, 16> CmdArgs{
       *ClangPath,
       "--no-default-config",
@@ -1528,9 +1534,12 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       *TempFileOrErr,
       Args.MakeArgString("--target=" + Triple.getTriple()),
       Triple.isAMDGPU() ? Args.MakeArgString("-mcpu=" + Arch)
-                        : Args.MakeArgString("-march=" + Arch)};
+                        : Args.MakeArgString("-march=" + Arch),
+      Args.MakeArgString("-" + OptLevel),
+  };
 
   // Forward all of the `--offload-opt` and similar options to the device.
+  CmdArgs.push_back("-flto");
   for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
     CmdArgs.append(
         {"-Xlinker",
@@ -1581,11 +1590,28 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.append({"-Xlinker", Args.MakeArgString(
                                     "-mllvm=" + StringRef(Arg->getValue()))});
 
+  if (Args.hasArg(OPT_debug))
+    CmdArgs.push_back("-g");
+
+  if (SaveTemps)
+    CmdArgs.push_back("-save-temps");
+
   if (SaveTemps && linkerSupportsLTO(Args))
     CmdArgs.push_back("-Wl,--save-temps");
 
   if (Args.hasArg(OPT_embed_bitcode))
     CmdArgs.push_back("-Wl,--lto-emit-llvm");
+
+  if (Verbose)
+    CmdArgs.push_back("-v");
+
+  if (!CudaBinaryPath.empty())
+    CmdArgs.push_back(Args.MakeArgString("--cuda-path=" + CudaBinaryPath));
+
+  for (StringRef Arg : Args.getAllArgValues(OPT_ptxas_arg))
+    llvm::copy(
+        SmallVector<StringRef>({"-Xcuda-ptxas", Args.MakeArgString(Arg)}),
+        std::back_inserter(CmdArgs));
 
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
     CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
@@ -1725,7 +1751,14 @@ std::unique_ptr<lto::LTO> createLTO(
   Conf.RemarksWithHotness = RemarksWithHotness;
   Conf.RemarksHotnessThreshold = RemarksHotnessThreshold;
   Conf.RemarksFormat = RemarksFormat;
-
+  
+  StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
+  Conf.MAttrs = Features;
+  std::optional<CodeGenOptLevel> CGOptLevelOrNone =
+      CodeGenOpt::parseLevel(OptLevel[1]);
+  assert(CGOptLevelOrNone && "Invalid optimization level");
+  Conf.CGOptLevel = *CGOptLevelOrNone;
+  Conf.OptLevel = OptLevel[1] - '0';
   Conf.DefaultTriple = Triple.getTriple();
 
   // TODO: Should we complain about combining --opt-level and -passes, as opt
