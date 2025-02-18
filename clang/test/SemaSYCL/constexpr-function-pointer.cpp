@@ -27,13 +27,12 @@ template <auto f> void fooNTTP() { f(); }
 
 template <typename FTy> void templated(FTy f) { f(); } // #call-templated
 
-void bar() {
+__attribute__((sycl_device)) void bar() {
   // OK
   constexpr auto f = t;
   f();
   const auto f1 = t;
-  // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
-  // expected-note@#from_device {{called by 'from_device'}}
+  // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
   f1();
   auto f2 = t;
   // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
@@ -58,13 +57,19 @@ void bar() {
   templated(t);
   // expected-error@#call-templated {{SYCL kernel cannot call through a function pointer}}
   // expected-note@-2 {{called by 'bar'}}
-  // expected-note@#from_device {{called by 'from_device'}}
 }
 
-__attribute__((sycl_device))  void from_device() {
+ void from_device() {
   bar(); // #from_device
 }
 
 void from_host() {
-  bar();
+  const auto f1 = t;
+  f1();
+  auto f2 = t;
+  f2();
+
+  fooNTTP<t>();
+
+  templated(t);
 }
