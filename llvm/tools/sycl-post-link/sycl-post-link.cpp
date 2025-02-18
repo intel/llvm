@@ -472,8 +472,8 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitExportedSymbols, EmitImportedSymbols,
                                    DeviceGlobals};
-      CopyTriple.Prop = saveModuleProperties(
-          MD, Props, I, Suffix, OutputFile.Target);
+      CopyTriple.Prop =
+          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
     }
     addTableRow(*Table, CopyTriple);
   }
@@ -481,13 +481,14 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
 
 void saveDeviceLibModule(
     std::vector<std::unique_ptr<util::SimpleTable>> &OutTables, int I,
-    LLVMContext &Context,
-    const std::string &DeviceLibFileName) {
+    LLVMContext &Context, const std::string &DeviceLibFileName) {
   SMDiagnostic Err;
   StringRef DeviceLibLoc = DeviceLibDir;
   std::string DeviceLibPath = DeviceLibLoc.str() + "/" + DeviceLibFileName;
-  std::unique_ptr<Module> DeviceLibIR = parseIRFile(DeviceLibPath, Err, Context);
-  llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR), DeviceLibFileName);
+  std::unique_ptr<Module> DeviceLibIR =
+      parseIRFile(DeviceLibPath, Err, Context);
+  llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
+                                             DeviceLibFileName);
   saveModule(OutTables, DeviceLibMD, I, DeviceLibFileName);
 }
 
