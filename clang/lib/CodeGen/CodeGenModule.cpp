@@ -1346,6 +1346,8 @@ void CodeGenModule::Release() {
             (CodeGenOpts.FPDenormalMode.Output != llvm::DenormalMode::IEEE));
     getModule().addModuleFlag(llvm::Module::Max, "nvvm-reflect-prec-sqrt",
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
+    getModule().addModuleFlag(llvm::Module::Max, "nvvm-reflect-prec-div",
+                              getTarget().getTargetOpts().NVVMCudaPrecDiv);
   }
 
   if (LangOpts.SYCLIsDevice) {

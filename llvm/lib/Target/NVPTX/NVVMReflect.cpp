@@ -181,6 +181,12 @@ static bool runNVVMReflect(Function &F, unsigned SmVersion) {
       if (auto *Flag = mdconst::extract_or_null<ConstantInt>(
               F.getParent()->getModuleFlag("nvvm-reflect-prec-sqrt")))
         ReflectVal = Flag->getSExtValue();
+    } else if (ReflectArg == "__CUDA_PREC_DIV") {
+      // Try to pull __CUDA_PREC_DIV from the nvvm-reflect-prec-div module
+      // flag.
+      if (auto *Flag = mdconst::extract_or_null<ConstantInt>(
+              F.getParent()->getModuleFlag("nvvm-reflect-prec-div")))
+        ReflectVal = Flag->getSExtValue();
     }
 
     // If the immediate user is a simple comparison we want to simplify it.
