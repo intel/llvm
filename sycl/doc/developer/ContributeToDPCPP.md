@@ -37,6 +37,33 @@ For any DPC++-related commit, the `[SYCL]` tag should be present in the
 commit message title. To a reasonable extent, additional tags can be used
 to signify the component changed, e.g.: `[UR]`, `[CUDA]`, `[Doc]`.
 
+## Release notes
+
+You are encouraged (but it is not required) to record your change into
+[release notes](/sycl/ReleaseNotes.md) under "Release notes for an upcoming
+release" section.
+
+A change should be noted there when:
+
+- A public interface (API, command line options, env variables, etc.) is being
+  changed
+- A bug is being fixed
+- Any change is being made which has an observable behavior (including
+  performance)
+
+A change should **not** be noted there when:
+
+- It has no functional and performance impact
+- It is about our CI infrastructure, testing infrastructure, or tests
+
+There are no strict guidelines on how to structure release notes, but for
+consistency it is better to follow the existing structure without disrupting it
+much. The structure we have been using so far is split by change type (i.e. new
+features and bug fixes) and then sub-split by component (i.e. compiler,
+runtime). Please use past tense when describing your change.
+
+When in doubt, you can always ask reviewers for help/guidance/suggestions.
+
 ## Using \<iostream\> 
 
 According to 

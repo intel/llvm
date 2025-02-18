@@ -1,3 +1,21 @@
+# Release notes for an upcoming release (dates TBD)
+
+## New Features
+
+- Added suport for ... intel/llvm#pr
+
+## Improvements
+
+- Improved handling of ... intel/llvm#pr
+
+## Bug Fixes
+
+- Fixed ... intel/llvm#pr
+
+## Misc
+
+- Did this and that ... intel/llvm#pr
+
 # Release notes Jul'24
 
 Release notes for commit range
