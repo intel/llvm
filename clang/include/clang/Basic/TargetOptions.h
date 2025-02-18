@@ -78,9 +78,6 @@ public:
   /// \brief If enabled, use precise square root
   bool NVVMCudaPrecSqrt = false;
 
-  /// \brief If enabled, use precise division
-  bool NVVMCudaPrecDiv = false;
-
   /// \brief If enabled, allow AMDGPU unsafe floating point atomics.
   bool AllowAMDGPUUnsafeFPAtomics = false;
 

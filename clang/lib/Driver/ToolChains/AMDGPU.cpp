@@ -1058,7 +1058,6 @@ llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
     // When using SYCL, sqrt and div is only correctly rounded if the flag is
     // specified
     CorrectSqrt = DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt) ||
-                  DriverArgs.hasArg(options::OPT_foffload_fp32_prec_div) ||
                   DriverArgs.hasArg(options::OPT_foffload_fp32_prec_sqrt);
   } else
     CorrectSqrt = DriverArgs.hasFlag(

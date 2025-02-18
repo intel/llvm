@@ -1446,11 +1446,6 @@ defm cuda_prec_sqrt : BoolFOption<"cuda-prec-sqrt",
   PosFlag<SetTrue, [], [ClangOption, CC1Option], "Specify">,
   NegFlag<SetFalse, [], [ClangOption, CC1Option], "Don't specify">,
   BothFlags<[], [ClangOption], " that sqrt is correctly rounded (for CUDA devices)">>;
-defm cuda_prec_div : BoolFOption<"cuda-prec-div",
-  TargetOpts<"NVVMCudaPrecDiv">, DefaultFalse,
-  PosFlag<SetTrue, [], [ClangOption, CC1Option], "Specify">,
-  NegFlag<SetFalse, [], [ClangOption, CC1Option], "Don't specify">,
-  BothFlags<[], [ClangOption], " that div is correctly rounded (for CUDA devices)">>;
 }
 
 def emit_static_lib : Flag<["--"], "emit-static-lib">,

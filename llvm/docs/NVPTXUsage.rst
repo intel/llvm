@@ -1041,19 +1041,17 @@ Flag                        Description
 =========================== ======================================================
 ``__CUDA_FTZ=[0,1]``        Use optimized code paths that flush subnormals to zero
 ``__CUDA_PREC_SQRT=[0,1]``  Use precise square root
-``__CUDA_PREC_DIV=[0,1]``   Use precise division
 =========================== ======================================================
 
-The value of these flags are determined by the "nvvm-reflect-ftz",
-"nvvm-reflect-prec-sqrt" and "nvvm-reflect-prec-div" module flags respectively.
-The following sets the ftz flag to 1, and the precise sqrt and div flag to 1.
+The value of these flags are determined by the "nvvm-reflect-ftz" and
+"nvvm-reflect-prec-sqrt" module flags respectively.
+The following sets the ftz flag to 1, and the precise sqrt flag to 1.
 
 .. code-block:: llvm
 
     !llvm.module.flags = !{!0, !1, !2}
     !0 = !{i32 4, !"nvvm-reflect-ftz", i32 1}
     !1 = !{i32 4, !"nvvm-reflect-prec-sqrt", i32 1}
-    !2 = !{i32 4, !"nvvm-reflect-prec-div", i32 1}
 
 (``i32 4`` indicates that the value set here overrides the value in another
 module we link with.  See the `LangRef <LangRef.html#module-flags-metadata>`

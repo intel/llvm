@@ -968,8 +968,6 @@ void CudaToolChain::addClangTargetOptions(
     if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt) ||
         DriverArgs.hasArg(options::OPT_foffload_fp32_prec_sqrt))
       CC1Args.push_back("-fcuda-prec-sqrt");
-    if (DriverArgs.hasArg(options::OPT_foffload_fp32_prec_div))
-      CC1Args.push_back("-fcuda-prec-div");
 
     bool FastRelaxedMath = DriverArgs.hasFlag(
         options::OPT_ffast_math, options::OPT_fno_fast_math, false);
