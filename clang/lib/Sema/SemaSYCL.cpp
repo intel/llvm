@@ -430,8 +430,11 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
   // inform the user of both, e.g. struct member usage vs declaration.
 
   bool Emitting = false;
+  ASTContext &Context = S.getASTContext();
 
   //--- check types ---
+  if (Ty->isDependentType())
+    return;
 
   // zero length arrays
   if (isZeroSizedArray(S, Ty)) {
@@ -450,13 +453,15 @@ static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
   while (Ty->isAnyPointerType() || Ty->isArrayType())
     Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
-  // __int128, __int128_t, __uint128_t, long double, __float128
-  if (Ty->isSpecificBuiltinType(BuiltinType::Int128) ||
-      Ty->isSpecificBuiltinType(BuiltinType::UInt128) ||
-      Ty->isSpecificBuiltinType(BuiltinType::LongDouble) ||
-      Ty->isSpecificBuiltinType(BuiltinType::BFloat16) ||
-      (Ty->isSpecificBuiltinType(BuiltinType::Float128) &&
-       !S.getASTContext().getTargetInfo().hasFloat128Type())) {
+  if (((Ty->isFloat128Type() ||
+        (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
+       !Context.getTargetInfo().hasFloat128Type()) ||
+      (Ty->isIntegerType() && Context.getTypeSize(Ty) == 128 &&
+       !Context.getTargetInfo().hasInt128Type()) ||
+      (Ty->isBFloat16Type() && !Context.getTargetInfo().hasBFloat16Type()) ||
+      // FIXME: this should have a TI check, but support isn't properly reported
+      // ...
+      (Ty->isSpecificBuiltinType(BuiltinType::LongDouble))) {
     S.DiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
         << Ty.getUnqualifiedType().getCanonicalType();
     Emitting = true;
