@@ -12,7 +12,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
-// #define VERBOSE_PRINT
+ #define VERBOSE_PRINT
 
 class image_addition;
 
@@ -61,7 +61,7 @@ int main() {
 
     sycl::ext::oneapi::experimental::unsampled_image_handle imgOut =
         sycl::ext::oneapi::experimental::create_image(imgMem2, desc, dev, ctxt);
-
+          sycl::range<1> r(1);
     q.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
         float sum = 0;
@@ -75,6 +75,10 @@ int main() {
 
         sum = px1[0] + px2[0];
         // Extension: write to image with handle
+        // Note this test passes with the upstream commit
+        // https://github.com/intel/llvm/commit/f9c8c01d38f8fbea81db99ab90b7d0f2bdcc8b4d
+        // merged only if the output is made via a buffer/accessor instead of (or in
+        // addition to!) write_image
         sycl::ext::oneapi::experimental::write_image<sycl::float4>(
             imgOut, int(id[0]), sycl::float4(sum));
       });
