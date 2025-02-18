@@ -138,7 +138,7 @@ bool hoistInstructions(BasicBlock &BB, BranchInst &Branch, bool exceptions) {
   bool modified = false;
   while (!BB.front().isTerminator()) {
     auto &I = BB.front();
-    I.moveBefore(&Branch);
+    I.moveBefore(*Branch.getParent(), Branch.getIterator());
     modified = true;
 
     if (!exceptions) {
