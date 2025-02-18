@@ -145,12 +145,12 @@ process_benchmarks() {
             # benchmark results are passing
             output_csv="./artifact/failed_tests/$output_csv_relpath"
             "./compute-benchmarks/build/bin/$testcase" --csv \
-                --iterations="$SANITIZED_COMPUTE_BENCH_ITERATIONS" \
-                    | tail +8 > "$output_csv"
-                    # The tail +8 filters out header lines not in csv format
+                --iterations="$SANITIZED_COMPUTE_BENCH_ITERATIONS" > "$output_csv"
 
             exit_status="$?"
             if [ "$exit_status" -eq 0 ] && [ -s "$output_csv" ]; then 
+                # Filter out header lines not in csv format:
+                tail +8 "$output_csv" > "$output_csv"
                 check_and_cache $output_csv_relpath
             else
                 echo "[ERROR] $testcase returned exit status $exit_status"
