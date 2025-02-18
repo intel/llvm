@@ -59,10 +59,6 @@ __attribute__((sycl_device)) void bar() {
   // expected-note@-2 {{called by 'bar'}}
 }
 
- void from_device() {
-  bar(); // #from_device
-}
-
 void from_host() {
   const auto f1 = t;
   f1();
