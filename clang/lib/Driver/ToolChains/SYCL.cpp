@@ -896,6 +896,8 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "asan-cpu",
     "asan-dg2",
     "msan",
+    "msan-pvc",
+    "msan-cpu",
 #endif
     "imf",
     "imf-fp64",
@@ -2061,9 +2063,18 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
-  } else if (IsJIT)
+    // -foffload-fp32-prec-[sqrt/div]
+    if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
+        Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
+      BeArgs.push_back("-ze-fp32-correctly-rounded-divide-sqrt");
+  } else if (IsJIT) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
+    // -foffload-fp32-prec-div JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_div);
+    // -foffload-fp32-prec-sqrt JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_sqrt);
+  }
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");
