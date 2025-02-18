@@ -8,7 +8,13 @@ set(CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules"
   )
 
-if(EXISTS ${FETCHCONTENT_BASE_DIR}/unified-runtime-src)
+set(UR_INTREE_SOURCE_DIR "${LLVM_SOURCE_DIR}/../unified-runtime")
+cmake_path(NORMAL_PATH UR_INTREE_SOURCE_DIR OUTPUT_VARIABLE UR_INTREE_SOURCE_DIR)
+
+if(IS_DIRECTORY "${UR_INTREE_SOURCE_DIR}")
+  set(UR_SANITIZER_INCLUDE_DIR
+      ${UR_INTREE_SOURCE_DIR}/source/loader/layers/sanitizer)
+elseif(EXISTS ${FETCHCONTENT_BASE_DIR}/unified-runtime-src)
   set(UR_SANITIZER_INCLUDE_DIR
       ${FETCHCONTENT_BASE_DIR}/unified-runtime-src/source/loader/layers/sanitizer)
 elseif(EXISTS ${SYCL_UR_SOURCE_DIR})
