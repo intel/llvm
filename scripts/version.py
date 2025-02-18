@@ -32,7 +32,9 @@ class Version:
 
     def __lt__(self, other) -> bool:
         if not isinstance(other, Version):
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
         return self.major < other.major or (
             self.major == other.major and self.minor < other.minor
         )

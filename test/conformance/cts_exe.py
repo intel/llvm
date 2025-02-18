@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
- Copyright (C) 2024 Intel Corporation
+Copyright (C) 2024 Intel Corporation
 
- Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
- See LICENSE.TXT
- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+See LICENSE.TXT
+SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
 # Printing conformance test output from gtest and checking failed tests with match files.
@@ -123,7 +123,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.test_command is None or args.failslist is None:
-        print("Usage: cts_exe.py --test_command (test binary) --failslist (match file) -- (test arguments)")
+        print(
+            "Usage: cts_exe.py --test_command (test binary) --failslist (match file) -- (test arguments)"
+        )
         sys.exit(1)
 
     base_invocation = [args.test_command] + args.rest

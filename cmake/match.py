@@ -22,8 +22,9 @@ import sys
 import re
 from enum import Enum
 
+
 ## @brief print a sequence of lines
-def print_lines(lines, hint = None):
+def print_lines(lines, hint=None):
     counter = 1
     for l in lines:
         hint_char = " "
@@ -34,7 +35,9 @@ def print_lines(lines, hint = None):
 
 
 ## @brief print the whole content of input and match files
-def print_content(input_lines, match_lines, ignored_lines, hint_input = None, hint_match = None):
+def print_content(
+    input_lines, match_lines, ignored_lines, hint_input=None, hint_match=None
+):
     print("------ Input Lines " + "-" * 61)
     print_lines(input_lines, hint_input)
     print("------ Match Lines " + "-" * 61)
@@ -91,10 +94,10 @@ def check_status(input_lines, match_lines):
 ## @brief pattern matching tags.
 ## Tags are expected to be at the start of the line.
 class Tag(Enum):
-    OPT = "{{OPT}}"         # makes the line optional
-    IGNORE = "{{IGNORE}}"   # ignores all input until next match or end of input file
-    NONDETERMINISTIC = "{{NONDETERMINISTIC}}" # switches on "deterministic mode"
-    COMMENT = "#"           # comment - line ignored
+    OPT = "{{OPT}}"  # makes the line optional
+    IGNORE = "{{IGNORE}}"  # ignores all input until next match or end of input file
+    NONDETERMINISTIC = "{{NONDETERMINISTIC}}"  # switches on "deterministic mode"
+    COMMENT = "#"  # comment - line ignored
 
 
 ## @brief main function for the match file processing script
@@ -106,7 +109,7 @@ def main():
     input_file = sys.argv[1]
     match_file = sys.argv[2]
 
-    with open(input_file, 'r') as input, open(match_file, 'r') as match:
+    with open(input_file, "r") as input, open(match_file, "r") as match:
         input_lines = input.readlines()
         # Filter out empty lines and comments (lines beginning with the comment
         # character, ignoring leading whitespace)
@@ -134,7 +137,9 @@ def main():
                 remaining_matches = set(range(len(match_lines))) - matched_lines
                 for m in remaining_matches:
                     line = match_lines[m]
-                    if line.startswith(Tag.OPT.value) or line.startswith(Tag.NONDETERMINISTIC.value):
+                    if line.startswith(Tag.OPT.value) or line.startswith(
+                        Tag.NONDETERMINISTIC.value
+                    ):
                         continue
                     print_match_not_found(m + 1, match_lines[m])
                     print_content(input_lines, match_lines, ignored_lines, hint_match=m)
@@ -143,38 +148,55 @@ def main():
                 sys.exit(0)
             elif status == Status.MATCH_END:
                 print_input_not_found(input_idx + 1, input_lines[input_idx])
-                print_content(input_lines, match_lines, ignored_lines, hint_input=input_idx)
+                print_content(
+                    input_lines, match_lines, ignored_lines, hint_input=input_idx
+                )
                 sys.exit(1)
         else:
-            if (status == Status.INPUT_AND_MATCH_END) or (status == Status.MATCH_END and Tag.IGNORE in tags_in_effect):
+            if (status == Status.INPUT_AND_MATCH_END) or (
+                status == Status.MATCH_END and Tag.IGNORE in tags_in_effect
+            ):
                 # all lines matched or the last line in match file is an ignore tag
                 sys.exit(0)
             elif status == Status.MATCH_END:
                 print_incorrect_match(input_idx + 1, input_lines[input_idx].strip(), "")
-                print_content(input_lines, match_lines, ignored_lines, hint_input=input_idx)
+                print_content(
+                    input_lines, match_lines, ignored_lines, hint_input=input_idx
+                )
                 sys.exit(1)
             elif status == Status.INPUT_END:
-            # If we get to the end of the input, but still have pending matches,
-            # then that's a failure unless all pending matches are optional -
-            # otherwise we're done
+                # If we get to the end of the input, but still have pending matches,
+                # then that's a failure unless all pending matches are optional -
+                # otherwise we're done
                 while match_idx < len(match_lines):
-                    if not (match_lines[match_idx].startswith(Tag.OPT.value) or
-                            match_lines[match_idx].startswith(Tag.IGNORE.value) or
-                            match_lines[match_idx].startswith(Tag.NONDETERMINISTIC.value)):
+                    if not (
+                        match_lines[match_idx].startswith(Tag.OPT.value)
+                        or match_lines[match_idx].startswith(Tag.IGNORE.value)
+                        or match_lines[match_idx].startswith(Tag.NONDETERMINISTIC.value)
+                    ):
                         print_incorrect_match(match_idx + 1, "", match_lines[match_idx])
-                        print_content(input_lines, match_lines, ignored_lines, hint_match=match_idx)
+                        print_content(
+                            input_lines,
+                            match_lines,
+                            ignored_lines,
+                            hint_match=match_idx,
+                        )
                         sys.exit(1)
                     match_idx += 1
                 sys.exit(0)
 
-        input_line = input_lines[input_idx].strip() if input_idx < len(input_lines) else ""
+        input_line = (
+            input_lines[input_idx].strip() if input_idx < len(input_lines) else ""
+        )
         match_line = match_lines[match_idx]
 
         # check for tags
         if match_line.startswith(Tag.OPT.value):
             tags_in_effect.append(Tag.OPT)
-            match_line = match_line[len(Tag.OPT.value):]
-        elif match_line.startswith(Tag.NONDETERMINISTIC.value) and not deterministic_mode:
+            match_line = match_line[len(Tag.OPT.value) :]
+        elif (
+            match_line.startswith(Tag.NONDETERMINISTIC.value) and not deterministic_mode
+        ):
             deterministic_mode = True
             match_idx = 0
             input_idx = 0
@@ -185,10 +207,10 @@ def main():
                 sys.exit(2)
             tags_in_effect.append(Tag.IGNORE)
             match_idx += 1
-            continue # line with ignore tag should be skipped
+            continue  # line with ignore tag should be skipped
 
         # split into parts at {{ }}
-        match_parts = re.split(r'\{{(.*?)\}}', match_line.strip())
+        match_parts = re.split(r"\{{(.*?)\}}", match_line.strip())
         pattern = ""
         for j, part in enumerate(match_parts):
             if j % 2 == 0:
@@ -218,7 +240,13 @@ def main():
                 input_idx += 1
             else:
                 print_incorrect_match(match_idx + 1, input_line, match_line.strip())
-                print_content(input_lines, match_lines, ignored_lines, hint_match=match_idx, hint_input=input_idx)
+                print_content(
+                    input_lines,
+                    match_lines,
+                    ignored_lines,
+                    hint_match=match_idx,
+                    hint_input=input_idx,
+                )
                 sys.exit(1)
 
 
