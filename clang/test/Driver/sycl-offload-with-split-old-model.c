@@ -155,9 +155,7 @@
 
 /// ###########################################################################
 
-/// Ahead of Time compilation for fpga, gen, cpu
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
-// RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-FPGA
+/// Ahead of Time compilation for gen, cpu
 // RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-GEN
 // RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown %s 2>&1 \
@@ -167,7 +165,6 @@
 // CHK-PHASES-AOT: 2: input, "[[INPUT]]", c++, (device-sycl)
 // CHK-PHASES-AOT: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
 // CHK-PHASES-AOT: 4: compiler, {3}, ir, (device-sycl)
-// CHK-PHASES-FPGA: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown)" {4}, c++-cpp-output
 // CHK-PHASES-GEN: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown)" {4}, c++-cpp-output
 // CHK-PHASES-CPU: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_x86_64-unknown-unknown)" {4}, c++-cpp-output
 // CHK-PHASES-AOT: 6: compiler, {5}, ir, (host-sycl)
@@ -180,18 +177,13 @@
 // CHK-PHASES-AOT: 13: backend-compiler, {12}, tempfilelist, (device-sycl)
 // CHK-PHASES-AOT: 14: file-table-tform, {10, 13}, tempfiletable, (device-sycl)
 // CHK-PHASES-AOT: 15: clang-offload-wrapper, {14}, object, (device-sycl)
-// CHK-PHASES-FPGA: 16: offload, "device-sycl (spir64_fpga-unknown-unknown)" {15}, object
 // CHK-PHASES-GEN: 16: offload, "device-sycl (spir64_gen-unknown-unknown)" {15}, object
 // CHK-PHASES-CPU: 16: offload, "device-sycl (spir64_x86_64-unknown-unknown)" {15}, object
 // CHK-PHASES-AOT: 17: linker, {8, 16}, image, (host-sycl)
 
 /// ###########################################################################
 
-/// Ahead of Time compilation for fpga, gen, cpu - tool invocation
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
-// RUN: %clang -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fintelfpga -Xshardware %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
+/// Ahead of Time compilation for gen, cpu - tool invocation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
@@ -199,16 +191,13 @@
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-o" "[[OUTPUT10:.+\.o]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
-// CHK-TOOLS-FPGA: sycl-post-link{{.*}} "-split=auto"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-GEN: sycl-post-link{{.*}} "-split=auto"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-CPU: sycl-post-link{{.*}} "-split=auto"{{.*}} "-spec-const=emulation"{{.*}} "-o" "spir64_x86_64,[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
 // CHK-TOOLS-AOT: llvm-foreach{{.*}} "--in-file-list=[[OUTPUT4]]" "--in-replace=[[OUTPUT4]]" "--out-ext=spv" "--out-file-list=[[OUTPUT5:.+\.txt]]" "--out-replace=[[OUTPUT5]]" "--" "{{.*}}llvm-spirv{{.*}}" "-o" "[[OUTPUT5]]" {{.*}} "[[OUTPUT4]]"
-// CHK-TOOLS-FPGA: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT6:.+\.txt]]{{.*}} "--" "{{.*}}aoc{{.*}} "-o" "[[OUTPUT6]]" "[[OUTPUT5]]"
 // CHK-TOOLS-GEN: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT6:.+\.txt]]{{.*}} "--" "{{.*}}ocloc{{.*}} "-output" "[[OUTPUT6]]" "-file" "[[OUTPUT5]]"
 // CHK-TOOLS-CPU: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT6:.+\.txt]]{{.*}} "--" "{{.*}}opencl-aot{{.*}} "-o=[[OUTPUT6]]" "--device=cpu" "[[OUTPUT5]]"
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-o" "[[OUTPUT7:.+\.table]]" "[[OUTPUT3]]" "[[OUTPUT6]]"
-// CHK-TOOLS-FPGA: clang-offload-wrapper{{.*}} "-o=[[OUTPUT8:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_fpga" "-kind=sycl" "-batch" "[[OUTPUT7]]"
 // CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT8:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_gen" "-kind=sycl" "-batch" "[[OUTPUT7]]"
 // CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT8:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_x86_64" "-kind=sycl" "-batch" "[[OUTPUT7]]"
 // CHK-TOOLS-AOT: clang{{.*}} "--target=[[HOST_TARGET]]" "-c" "-o" "[[OUTPUT9:.+\.o]]" "[[OUTPUT8]]"
@@ -219,10 +208,6 @@
 /// Check parallel compilation enforcement for split modules when running SPIR-V translation and AOT compilation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl-max-parallel-link-jobs=4 -fintelfpga -Xshardware %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=ocloc
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
@@ -233,7 +218,7 @@
 /// ###########################################################################
 
 /// offload with multiple targets, including AOT
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown,spir64_fpga-unknown-unknown,spir64_gen-unknown-unknown -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown,spir64_x86_64-unknown-unknown,spir64_gen-unknown-unknown -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG %s
 // CHK-PHASE-MULTI-TARG: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -264,7 +249,7 @@
 // CHK-PHASE-MULTI-TARG: 26: backend-compiler, {25}, tempfilelist, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 27: file-table-tform, {23, 26}, tempfiletable, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 28: clang-offload-wrapper, {27}, object, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 29: offload, "device-sycl (spir64_fpga-unknown-unknown)" {28}, object
+// CHK-PHASE-MULTI-TARG: 29: offload, "device-sycl (spir64_x86_64-unknown-unknown)" {28}, object
 // CHK-PHASE-MULTI-TARG: 30: linker, {4}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 31: sycl-post-link, {30}, tempfiletable, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 32: file-table-tform, {31}, tempfilelist, (device-sycl)
@@ -309,30 +294,14 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 // CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} "-split={{.*}}
 
-// Check no device code split mode is passed to sycl-post-link when -fsycl-device-code-split is not set and the target is FPGA
-// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-SPLIT
-
-// Check device code split mode is honored when -fsycl-device-code-split is set and the target is FPGA
-// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
-// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=auto -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
-// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_kernel -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
-// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_source -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-PER-SOURCE
-// RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=off -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-SPLIT
-
 // Check ESIMD device code split.
 // RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang    -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang    -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang_cl -### -fintelfpga -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // CHK-ESIMD-SPLIT: sycl-post-link{{.*}} "-split-esimd"
 
 // Check lowering of ESIMD device code.
 // RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang    -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang    -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang_cl -### -fintelfpga -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // CHK-ESIMD-LOWER: sycl-post-link{{.*}} "-lower-esimd"
 
 // Check -f[no]sycl-device-code-split-esimd option's effect on sycl-post-link invocation
