@@ -1174,17 +1174,17 @@ defm cx_fortran_rules: BoolOptionWithoutMarshalling<"f", "cx-fortran-rules",
 
  defm offload_fp32_prec_div: BoolOption<"f", "offload-fp32-prec-div",
    LangOpts<"OffloadFP32PrecDiv">, DefaultTrue,
-   PosFlag<SetTrue, [], [ClangOption, CC1Option], "fdiv operations in offload device "
+   PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option], "fdiv operations in offload device "
    "code are required to return correctly rounded results.">,
-   NegFlag<SetFalse, [], [ClangOption, CC1Option], "fdiv operations in offload device "
+   NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option], "fdiv operations in offload device "
    "code are not required to return correctly rounded results.">>,
    Group<f_Group>;
 
  defm offload_fp32_prec_sqrt: BoolOption<"f", "offload-fp32-prec-sqrt",
    LangOpts<"OffloadFP32PrecSqrt">, DefaultTrue,
-   PosFlag<SetTrue, [], [ClangOption, CC1Option], "sqrt operations in offload device "
+   PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option], "sqrt operations in offload device "
    "code are required to return correctly rounded results.">,
-   NegFlag<SetFalse, [], [ClangOption, CC1Option], "sqrt operations in offload device "
+   NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option], "sqrt operations in offload device "
    "code are not required to return correctly rounded results.">>,
    Group<f_Group>;
 
