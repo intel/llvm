@@ -76,11 +76,20 @@ jobs:
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
     steps:
+    - name:  Detect hung tests
+      if: always()
+      shell: powershell
+      continue-on-error: true
+      run: |
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode
     - uses: actions/checkout@v4
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.ref || github.sha }} 
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
@@ -182,3 +191,12 @@ jobs:
         name: sycl_windows_default
         path: ${{ inputs.artifact_archive_name }}
         retention-days: ${{ inputs.retention-days }}
+    - name:  Detect hung tests
+      if: always()
+      shell: powershell
+      run: |
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode
