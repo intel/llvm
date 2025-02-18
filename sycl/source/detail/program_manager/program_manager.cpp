@@ -613,24 +613,42 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
-// The input BinImage should be a devicelib image for bfloat16 conversions,
-// there will be 2 bfloat16 devicelib images for fallback and native version.
-// The native version must be used on platforms with bfloat16 extension.
-static bool selectBF16Devicelib(RTDeviceBinaryImage *BinImage,
-                                const device &Dev) {
-  const RTDeviceBinaryImage::PropertyRange &BF16DeviceLibTypeProp =
-      BinImage->getDeviceLibBF16Type();
-  uint32_t BF16Type =
-      DeviceBinaryProperty(*(BF16DeviceLibTypeProp.begin())).asUint32();
+// Quick check to see whether BinImage is a compiler-generated device image.
+static bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage) {
+  // SYCL devicelib image.
+  if (BinImage->getDeviceLibMetadata().isAvailable())
+    return true;
 
-  enum { BF16_FALLBACK = 0, BF16_NATIVE };
-  std::vector<std::string> DeviceExtensions =
-      Dev.get_info<info::device::extensions>();
-  std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
-  bool NativeBF16Supported =
-      (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
-                 NativeBF16ExtName) != DeviceExtensions.end());
-  return NativeBF16Supported == (BF16Type == BF16_NATIVE);
+  return false;
+}
+
+static bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
+                                             const device &Dev) {
+  // Decide whether a devicelib image should be used.
+  if (BinImage->getDeviceLibMetadata().isAvailable()) {
+    const RTDeviceBinaryImage::PropertyRange &DeviceLibMetaProp =
+        BinImage->getDeviceLibMetadata();
+    uint32_t DeviceLibMeta =
+        DeviceBinaryProperty(*(DeviceLibMetaProp.begin())).asUint32();
+    // Currently, only bfloat conversion devicelib are supported, so the prop
+    // DeviceLibMeta are only used to represent fallback or native version.
+    // For bfloat16 conversion devicelib, we have fallback and native version.
+    // The native should be used on platform which supports native bfloat16
+    // conversion capability and fallback version should be used on all other
+    // platforms. The native bfloat16 capability can be queried via extension.
+    // TODO: re-design the encode of the devicelib metadata if we must support
+    // more devicelib images in this way.
+    enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
+    std::vector<std::string> DeviceExtensions =
+        Dev.get_info<info::device::extensions>();
+    std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
+    bool NativeBF16Supported =
+        (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
+                   NativeBF16ExtName) != DeviceExtensions.end());
+    return NativeBF16Supported == (DeviceLibMeta == DEVICELIB_NATIVE);
+  }
+
+  return false;
 }
 
 static bool checkLinkingSupport(const device &Dev,
@@ -689,8 +707,8 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, Dev))
         continue;
-      if (Img->getDeviceLibBF16Type().isAvailable() &&
-          !selectBF16Devicelib(Img, Dev))
+      if (isSpecialDeviceImage(Img) &&
+          !isSpecialDeviceImageShouldBeUsed(Img, Dev))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -1827,7 +1845,7 @@ static bool skipEmptyImage(sycl_device_binary RawImg) {
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
-        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_BF16_TYPE, ImgPS->Name)) {
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
       return false;
     }
   }

@@ -202,7 +202,7 @@ public:
   // TODO: remove SYCL_DEVICELIB_REQ_MASK when devicelib online linking path
   // is totally removed.
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
-  static constexpr char SYCL_DEVICELIB_BF16_TYPE[] = "SYCL/BF16 devicelib type";
+  static constexpr char SYCL_DEVICELIB_METADATA[] = "SYCL/devicelib metadata";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_PROGRAM_METADATA[] = "SYCL/program metadata";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";

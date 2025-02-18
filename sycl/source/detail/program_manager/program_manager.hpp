@@ -74,6 +74,7 @@ class device_impl;
 using DeviceImplPtr = std::shared_ptr<device_impl>;
 class queue_impl;
 class event_impl;
+
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
 // If any update is made here, need to sync with DeviceLibExt definition
 // in llvm/tools/sycl-post-link/sycl-post-link.cpp

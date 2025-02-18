@@ -26,6 +26,8 @@ class Module;
 // DeviceLibExt is shared between sycl-post-link tool and sycl runtime.
 // If any change is made here, need to sync with DeviceLibExt definition
 // in sycl/source/detail/program_manager/program_manager.hpp
+// TODO: clear all these DeviceLibExt defs when begin to remove sycl
+// devicelib online link path.
 enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_assert,
   cl_intel_devicelib_math,

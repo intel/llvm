@@ -156,8 +156,8 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
 }
 
 PropSetRegTy
-computeBF16DeviceLibProperties(const Module &M,
-                               const std::string &BF16DeviceLibName) {
+computeDeviceLibProperties(const Module &M,
+                           const std::string &DeviceLibName) {
   PropSetRegTy PropSet;
 
   {
@@ -172,14 +172,14 @@ computeBF16DeviceLibProperties(const Module &M,
   }
 
   {
-    // Value '0' means fallback version and '1' means native version of
-    // bfloat16 devicelib.
+    // Currently, only bfloat16 conversion devicelib is supported, the
+    // meatdata value '0' means fallback version and '1' means native version.
     uint32_t IsNativeBF16DeviceLib = 0;
-    if (BF16DeviceLibName.find("native") != std::string::npos)
+    if (DeviceLibName.find("native") != std::string::npos)
       IsNativeBF16DeviceLib = 1;
-    std::map<StringRef, uint32_t> BF16TypeEntry = {
-        {"DeviceLibBF16Type", IsNativeBF16DeviceLib}};
-    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_BF16_TYPE, BF16TypeEntry);
+    std::map<StringRef, uint32_t> BF16DeviceLibMeta = {
+        {"DeviceLibMeta", IsNativeBF16DeviceLib}};
+    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_METADATA, BF16DeviceLibMeta);
   }
 
   return PropSet;

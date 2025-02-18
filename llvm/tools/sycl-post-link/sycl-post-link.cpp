@@ -311,8 +311,7 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
-                                 StringRef Suff, StringRef Target = "",
-                                 bool IsBF16DeviceLib = false) {
+                                 StringRef Suff, StringRef Target = "") {
 
   PropSetRegTy PropSet;
 
@@ -320,10 +319,10 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   // constant used, skip regular Prop emit. However, we have fallback and
   // native version of bf16 devicelib and we need new property values to
   // indicate all exported function.
-  if (!IsBF16DeviceLib)
+  if (!MD.isSYCLDeviceLib())
     PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
   else
-    PropSet = computeBF16DeviceLibProperties(MD.getModule(), MD.Name);
+    PropSet = computeDeviceLibProperties(MD.getModule(), MD.Name);
 
   // When the split mode is none, the required work group size will be added
   // to the whole module, which will make the runtime unable to
@@ -440,13 +439,12 @@ void addTableRow(util::SimpleTable &Table,
 //   IR component saving is skipped, and this file name is recorded as such in
 //   the result.
 void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-                module_split::ModuleDesc &MD, int I, StringRef IRFilename,
-                bool IsBF16DeviceLib = false) {
+                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
   MD.saveSplitInformationAsMetadata();
 
-  if (!IsBF16DeviceLib) {
+  if (!MD.isSYCLDeviceLib()) {
     if (!IRFilename.empty()) {
       // don't save IR, just record the filename
       BaseTriple.Ir = IRFilename.str();
@@ -455,8 +453,9 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
     }
   } else {
-    // For BF16 deviceLib Modules, don't need to do clean up, no entry-point
-    // is included.
+    // For deviceLib Modules, don't need to do clean up, no entry-point
+    // is included, the module only includes a bunch of exported functions
+    // intended to be invoked by user's device modules.
     BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
 
@@ -474,31 +473,22 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
                                    EmitExportedSymbols, EmitImportedSymbols,
                                    DeviceGlobals};
       CopyTriple.Prop = saveModuleProperties(
-          MD, Props, I, Suffix, OutputFile.Target, IsBF16DeviceLib);
+          MD, Props, I, Suffix, OutputFile.Target);
     }
     addTableRow(*Table, CopyTriple);
   }
 }
 
-void saveBF16DeviceLibModule(
+void saveDeviceLibModule(
     std::vector<std::unique_ptr<util::SimpleTable>> &OutTables, int I,
-    LLVMContext &Context) {
-  const std::string FallbackIR = "libsycl-fallback-bfloat16.bc";
-  const std::string NativeIR = "libsycl-native-bfloat16.bc";
+    LLVMContext &Context,
+    const std::string &DeviceLibFileName) {
   SMDiagnostic Err;
   StringRef DeviceLibLoc = DeviceLibDir;
-
-  std::string FallbackIRPath = DeviceLibLoc.str() + "/" + FallbackIR;
-  std::unique_ptr<Module> IRModule = parseIRFile(FallbackIRPath, Err, Context);
-  llvm::module_split::ModuleDesc LibIRMD(std::move(IRModule), FallbackIR);
-  saveModule(OutTables, LibIRMD, I, FallbackIR, true);
-
-  std::string NativeIRPath = DeviceLibLoc.str() + "/" + NativeIR;
-  std::unique_ptr<Module> IRModuleNative =
-      parseIRFile(NativeIRPath, Err, Context);
-  llvm::module_split::ModuleDesc LibIRMDNative(std::move(IRModuleNative),
-                                               NativeIR);
-  saveModule(OutTables, LibIRMDNative, ++I, NativeIR, true);
+  std::string DeviceLibPath = DeviceLibLoc.str() + "/" + DeviceLibFileName;
+  std::unique_ptr<Module> DeviceLibIR = parseIRFile(DeviceLibPath, Err, Context);
+  llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR), DeviceLibFileName);
+  saveModule(OutTables, DeviceLibMD, I, DeviceLibFileName);
 }
 
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
@@ -956,7 +946,8 @@ processInputModule(std::unique_ptr<Module> M, LLVMContext &Context) {
   }
 
   if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
-    saveBF16DeviceLibModule(Tables, ID, Context);
+    saveDeviceLibModule(Tables, ID, Context, "libsycl-fallback-bfloat16.bc");
+    saveDeviceLibModule(Tables, ID + 1, Context, "libsycl-native-bfloat16.bc");
   }
   return Tables;
 }
