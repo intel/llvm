@@ -40,11 +40,12 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit ace9f4a60b686463fdad15cd016c548237cb79e0
+    # commit c80d2b281826e70abee919aebe81a5593eabba98
     # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Mon Feb 10 11:39:15 2025 +0100
-    # Merge pull request #1088 from ldorau/Fix_remove_CUDA_ERROR_INVALID_RESOURCE_TYPE
-    set(UMF_TAG ace9f4a60b686463fdad15cd016c548237cb79e0)
+    # Date:   Tue Feb 18 19:50:49 2025 +0100
+    # Merge pull request #1081 from lplewa/benchmark_stability
+    # Improve benchmark stability.
+    set(UMF_TAG c80d2b281826e70abee919aebe81a5593eabba98)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -127,5 +128,4 @@ add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
 target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
-    umf::disjoint_pool
 )
