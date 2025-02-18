@@ -8,6 +8,7 @@ from typing import Optional
 from dataclasses_json import dataclass_json
 from datetime import datetime
 
+
 @dataclass_json
 @dataclass
 class Result:
@@ -29,10 +30,11 @@ class Result:
     date: Optional[datetime] = None
     suite: str = "Unknown"
 
+
 @dataclass_json
 @dataclass
 class BenchmarkRun:
     results: list[Result]
-    name: str = 'This PR'
-    git_hash: str = ''
+    name: str = "This PR"
+    git_hash: str = ""
     date: datetime = None

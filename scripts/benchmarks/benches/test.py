@@ -11,6 +11,7 @@ from utils.utils import run, create_build_path
 from options import options
 import os
 
+
 class TestSuite(Suite):
     def __init__(self):
         return
@@ -39,8 +40,9 @@ class TestSuite(Suite):
 
         return result
 
+
 class TestBench(Benchmark):
-    def __init__(self, name, value, diff, group = ''):
+    def __init__(self, name, value, diff, group=""):
         self.bname = name
         self.value = value
         self.diff = diff
@@ -59,7 +61,15 @@ class TestBench(Benchmark):
     def run(self, env_vars) -> list[Result]:
         random_value = self.value + random.uniform(-1 * (self.diff), self.diff)
         return [
-            Result(label=self.name(), explicit_group=self.group, value=random_value, command="", env={"A": "B"}, stdout="no output", unit="ms")
+            Result(
+                label=self.name(),
+                explicit_group=self.group,
+                value=random_value,
+                command="",
+                env={"A": "B"},
+                stdout="no output",
+                unit="ms",
+            )
         ]
 
     def teardown(self):

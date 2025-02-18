@@ -14,8 +14,10 @@ import os
 import csv
 import io
 
+
 def isUMFAvailable():
     return options.umf is not None
+
 
 class UMFSuite(Suite):
     def __init__(self, directory):
@@ -34,13 +36,14 @@ class UMFSuite(Suite):
     def benchmarks(self) -> list[Benchmark]:
         if not isUMFAvailable():
             return []
-        
+
         benches = [
             GBench(self),
             GBenchUmfProxy(self),
         ]
 
         return benches
+
 
 class ComputeUMFBenchmark(Benchmark):
     def __init__(self, bench, name):
@@ -69,7 +72,7 @@ class ComputeUMFBenchmark(Benchmark):
             print("UMF prefix path not provided")
             return
 
-        self.benchmark_bin = os.path.join(options.umf, 'benchmark', self.bench_name)
+        self.benchmark_bin = os.path.join(options.umf, "benchmark", self.bench_name)
 
     def run(self, env_vars) -> list[Result]:
         command = [
@@ -79,13 +82,25 @@ class ComputeUMFBenchmark(Benchmark):
         command += self.bin_args()
         env_vars.update(self.extra_env_vars())
 
-        result = self.run_bench(command, env_vars, add_sycl=False, ld_library=[self.oneapi.tbb_lib()])
+        result = self.run_bench(
+            command, env_vars, add_sycl=False, ld_library=[self.oneapi.tbb_lib()]
+        )
         parsed = self.parse_output(result)
         results = []
         for r in parsed:
             (config, pool, mean) = r
             label = f"{config} {pool}"
-            results.append(Result(label=label, value=mean, command=command, env=env_vars, stdout=result, unit="ns", explicit_group=config))
+            results.append(
+                Result(
+                    label=label,
+                    value=mean,
+                    command=command,
+                    env=env_vars,
+                    stdout=result,
+                    unit="ns",
+                    explicit_group=config,
+                )
+            )
         return results
 
     # Implementation with self.col_* indices could lead to the division by None
@@ -94,6 +109,7 @@ class ComputeUMFBenchmark(Benchmark):
 
     def teardown(self):
         return
+
 
 class GBench(ComputeUMFBenchmark):
     def __init__(self, bench):
@@ -107,7 +123,7 @@ class GBench(ComputeUMFBenchmark):
 
         self.idx_pool = 0
         self.idx_config = 1
-        self.name_separator = '/'
+        self.name_separator = "/"
 
         self.col_statistics_time = self.col_real_time
 
@@ -116,7 +132,7 @@ class GBench(ComputeUMFBenchmark):
 
     # --benchmark_format describes stdout output
     # --benchmark_out=<file> and --benchmark_out_format=<format>
-    # describe output to a file 
+    # describe output to a file
     def bin_args(self):
         return ["--benchmark_format=csv"]
 
@@ -129,13 +145,13 @@ class GBench(ComputeUMFBenchmark):
 
     # these benchmarks are not stable, so set this at a large value
     def stddev_threshold(self) -> float:
-        return 0.2 # 20%
+        return 0.2  # 20%
 
     def get_pool_and_config(self, full_name):
         list_split = full_name.split(self.name_separator, 1)
         if len(list_split) != 2:
             raise ValueError("Incorrect benchmark name format: ", full_name)
-        
+
         return list_split[self.idx_pool], list_split[self.idx_config]
 
     def get_mean(self, datarow):
@@ -167,7 +183,7 @@ class GBenchPreloaded(GBench):
         super().__init__(bench)
 
         self.lib_to_be_replaced = lib_to_be_replaced
-        self.replacing_lib = replacing_lib 
+        self.replacing_lib = replacing_lib
 
     def bin_args(self):
         full_args = super().bin_args()
@@ -202,7 +218,7 @@ class GBenchPreloaded(GBench):
                 raise ValueError(f"Error parsing output: {e}")
 
         return results
-    
+
 
 class GBenchUmfProxy(GBenchPreloaded):
     def __init__(self, bench):

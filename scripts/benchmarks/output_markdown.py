@@ -1,5 +1,5 @@
 # Copyright (C) 2024-2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM 
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 # Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -8,6 +8,7 @@ import collections
 from benches.result import Result
 from options import options, MarkdownSize
 import ast
+
 
 class OutputLine:
     def __init__(self, name):
@@ -24,6 +25,7 @@ class OutputLine:
     def __repr__(self):
         return self.__str__()
 
+
 # The number of the required columns in the markdown table,
 # independent of the chart_data content.
 # Required columns:
@@ -34,7 +36,7 @@ num_info_columns = 1
 
 # Number of columns required for relative performance change calculation.
 # In case of multiple provided saved baselines to compare, the relative
-# performance is not calculated, since the base (hopefully) usage case 
+# performance is not calculated, since the base (hopefully) usage case
 # for this script would be comparing the performance of PR with the main branch
 num_baselines_required_for_rel_change = 2
 
@@ -43,25 +45,25 @@ num_baselines_required_for_rel_change = 2
 max_markdown_size = 65536
 
 
-def is_relative_perf_comparison_to_be_performed(chart_data: 
-                                                dict[str, list[Result]], 
-                                                baseline_name: str):
-    return (len(chart_data) == num_baselines_required_for_rel_change) and \
-            (baseline_name in chart_data.keys())
-    
+def is_relative_perf_comparison_to_be_performed(
+    chart_data: dict[str, list[Result]], baseline_name: str
+):
+    return (len(chart_data) == num_baselines_required_for_rel_change) and (
+        baseline_name in chart_data.keys()
+    )
 
-def get_chart_markdown_header(chart_data: dict[str, list[Result]], 
-                              baseline_name: str):
-    summary_header = ''
+
+def get_chart_markdown_header(chart_data: dict[str, list[Result]], baseline_name: str):
+    summary_header = ""
     final_num_columns = num_info_columns
 
     if is_relative_perf_comparison_to_be_performed(chart_data, baseline_name):
-        summary_header = "| Benchmark | " + " | ".join(chart_data.keys()) + \
-                        " | Change |\n"
+        summary_header = (
+            "| Benchmark | " + " | ".join(chart_data.keys()) + " | Change |\n"
+        )
         final_num_columns += 1
     else:
-        summary_header = "| Benchmark | " + " | ".join(chart_data.keys()) + \
-                        " |\n"
+        summary_header = "| Benchmark | " + " | ".join(chart_data.keys()) + " |\n"
 
     summary_header += "|---" * (len(chart_data) + final_num_columns) + "|\n"
 
@@ -74,33 +76,32 @@ def get_improved_regressed_summary(is_improved: bool, rows_count: int):
         title = "Regressed"
 
     summary = (
-            "\n<details>\n"
-            "<summary>\n"        
-            f"{title} {rows_count} "
-            f"(threshold {options.epsilon*100:.2f}%)\n" 
-            "</summary>\n\n"
-            )
+        "\n<details>\n"
+        "<summary>\n"
+        f"{title} {rows_count} "
+        f"(threshold {options.epsilon*100:.2f}%)\n"
+        "</summary>\n\n"
+    )
 
     return summary
 
 
 def get_relative_perf_summary(group_size: int, group_name: str):
     summary = (
-            "\n<details>\n"
-            f"<summary> Relative perf in group {group_name} " 
-            f"({group_size})\n"
-            "</summary>\n\n"
-            )
+        "\n<details>\n"
+        f"<summary> Relative perf in group {group_name} "
+        f"({group_size})\n"
+        "</summary>\n\n"
+    )
 
     return summary
 
 
-def get_main_branch_run_name(chart_data: dict[str, list[Result]], 
-                             baseline_name: str):
+def get_main_branch_run_name(chart_data: dict[str, list[Result]], baseline_name: str):
     for key in chart_data.keys():
         if key != baseline_name:
             return key
-        
+
     return None
 
 
@@ -119,19 +120,21 @@ def get_explicit_group_name(result: Result):
         return explicit_group_name
     else:
         return "Other"
-    
+
 
 # Function to generate the markdown collapsible sections for each variant
-def generate_markdown_details(results: list[Result], 
-                              current_markdown_size: int, 
-                              markdown_size: MarkdownSize):
+def generate_markdown_details(
+    results: list[Result], current_markdown_size: int, markdown_size: MarkdownSize
+):
     markdown_sections = []
-    markdown_start = ("\n<details>\n"
-                      "<summary>Benchmark details - environment, command..." 
-                      "</summary>\n")
+    markdown_start = (
+        "\n<details>\n"
+        "<summary>Benchmark details - environment, command..."
+        "</summary>\n"
+    )
     markdown_sections.append(markdown_start)
 
-    for res in results:        
+    for res in results:
         env_dict = res.env
         command = res.command
 
@@ -146,22 +149,25 @@ def generate_markdown_details(results: list[Result],
         if isinstance(res.command, str):
             command = ast.literal_eval(res.command)
 
-        section = ("\n<details>\n"
-                    f"<summary>{res.label}</summary>\n\n"
-                    "#### Command:\n" 
-                    f"{' '.join(command)}\n\n")
-        
-        if env_dict:
-            env_vars_str = '\n'.join(f"{key}={value}" 
-                                 for key, value in env_dict.items())
-            section += (f"#### Environment Variables:\n {env_vars_str}\n")
+        section = (
+            "\n<details>\n"
+            f"<summary>{res.label}</summary>\n\n"
+            "#### Command:\n"
+            f"{' '.join(command)}\n\n"
+        )
 
-        section += "\n</details>\n" 
-            
+        if env_dict:
+            env_vars_str = "\n".join(
+                f"{key}={value}" for key, value in env_dict.items()
+            )
+            section += f"#### Environment Variables:\n {env_vars_str}\n"
+
+        section += "\n</details>\n"
+
         markdown_sections.append(section)
 
     markdown_sections.append("\n</details>\n")
-    
+
     full_markdown = "\n".join(markdown_sections)
 
     if markdown_size == MarkdownSize.FULL:
@@ -172,14 +178,16 @@ def generate_markdown_details(results: list[Result],
         else:
             return "\nBenchmark details contain too many chars to display\n"
 
-def generate_summary_table_and_chart(chart_data: dict[str, list[Result]], 
-                                     baseline_name: str, 
-                                     markdown_size: MarkdownSize):
-    summary_table = get_chart_markdown_header(chart_data=chart_data,
-                                              baseline_name=baseline_name)
+
+def generate_summary_table_and_chart(
+    chart_data: dict[str, list[Result]], baseline_name: str, markdown_size: MarkdownSize
+):
+    summary_table = get_chart_markdown_header(
+        chart_data=chart_data, baseline_name=baseline_name
+    )
 
     # Collect all benchmarks and their results
-    # key: benchmark name, 
+    # key: benchmark name,
     # value: dict(run_name : single_result_in_the_given_run)
     benchmark_results = collections.defaultdict(dict)
 
@@ -211,31 +219,33 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
 
                 are_suite_group_assigned = True
 
-            if best_value is None or \
-            (res.lower_is_better and res.value < best_value) or \
-            (not res.lower_is_better and res.value > best_value):
+            if (
+                best_value is None
+                or (res.lower_is_better and res.value < best_value)
+                or (not res.lower_is_better and res.value > best_value)
+            ):
                 best_value = res.value
                 best_key = key
 
         # Generate the row with all the results from saved runs specified by
         # --compare,
         # Highlight the best value in the row with data
-        if options.verbose: print(f"Results: {results}")
+        if options.verbose:
+            print(f"Results: {results}")
         for key in chart_data.keys():
             if key in results:
                 intv = results[key].value
                 if key == best_key:
                     # Highlight the best value
-                    oln.row += f" <ins>{intv:3f}</ins> {results[key].unit} |"  
+                    oln.row += f" <ins>{intv:3f}</ins> {results[key].unit} |"
                 else:
                     oln.row += f" {intv:.3f} {results[key].unit} |"
             else:
                 oln.row += " - |"
 
-        if is_relative_perf_comparison_to_be_performed(chart_data, 
-                                                       baseline_name):
+        if is_relative_perf_comparison_to_be_performed(chart_data, baseline_name):
             pr_key = baseline_name
-            main_key = get_main_branch_run_name(chart_data, baseline_name) 
+            main_key = get_main_branch_run_name(chart_data, baseline_name)
 
             if (pr_key in results) and (main_key in results):
                 pr_val = results[pr_key].value
@@ -251,12 +261,11 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
 
         output_detailed_list.append(oln)
 
+    sorted_detailed_list = sorted(
+        output_detailed_list, key=lambda x: (x.diff is not None, x.diff), reverse=True
+    )
 
-    sorted_detailed_list = sorted(output_detailed_list, key=lambda x:
-                                  (x.diff is not None, x.diff), reverse=True)
-
-    diff_values = [oln.diff for oln in sorted_detailed_list 
-                   if oln.diff is not None]
+    diff_values = [oln.diff for oln in sorted_detailed_list if oln.diff is not None]
 
     improved_rows = []
     regressed_rows = []
@@ -273,7 +282,8 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
                     else:
                         regressed_rows.append(oln.row + " | \n")
 
-            if options.verbose: print(oln.row)
+            if options.verbose:
+                print(oln.row)
 
             summary_table += oln.row + "\n"
     else:
@@ -283,66 +293,61 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
     regressed_rows.reverse()
 
     is_at_least_one_diff = False
-    summary_line = ''
-    
+    summary_line = ""
+
     if len(improved_rows) > 0:
         is_at_least_one_diff = True
         summary_line += get_improved_regressed_summary(
-            is_improved=True, 
-            rows_count=len(improved_rows)
-            )        
+            is_improved=True, rows_count=len(improved_rows)
+        )
         summary_line += get_chart_markdown_header(
-            chart_data=chart_data,
-            baseline_name=baseline_name
-            ) 
+            chart_data=chart_data, baseline_name=baseline_name
+        )
 
         for row in improved_rows:
-            summary_line += row 
+            summary_line += row
 
         summary_line += "\n</details>"
-    
+
     if len(regressed_rows) > 0:
         is_at_least_one_diff = True
         summary_line += get_improved_regressed_summary(
-            is_improved=False, 
-            rows_count=len(regressed_rows)
-            )
-            
+            is_improved=False, rows_count=len(regressed_rows)
+        )
+
         summary_line += get_chart_markdown_header(
-            chart_data=chart_data,
-            baseline_name=baseline_name
-            ) 
+            chart_data=chart_data, baseline_name=baseline_name
+        )
 
         for row in regressed_rows:
-            summary_line += row 
-        
+            summary_line += row
+
         summary_line += "\n</details>"
 
     if not is_at_least_one_diff:
         summary_line = f"No diffs to calculate performance change"
 
-    if options.verbose: print(summary_line)
+    if options.verbose:
+        print(summary_line)
 
     summary_table = "\n## Performance change in benchmark groups\n"
 
-    grouped_in_suites = collections.defaultdict(lambda: 
-                                                collections.defaultdict(list))
+    grouped_in_suites = collections.defaultdict(lambda: collections.defaultdict(list))
     for oln in output_detailed_list:
         grouped_in_suites[oln.suite][oln.explicit_group].append(oln)
-    
+
     for suite_name, suite_groups in grouped_in_suites.items():
         summary_table += f"<details><summary>{suite_name}</summary>\n\n"
 
         for name, outgroup in suite_groups.items():
-            outgroup_s = sorted(outgroup, key=lambda x: 
-                                (x.diff is not None, x.diff), reverse=True)
+            outgroup_s = sorted(
+                outgroup, key=lambda x: (x.diff is not None, x.diff), reverse=True
+            )
 
             summary_table += get_relative_perf_summary(
-                                                    group_size=len(outgroup_s), 
-                                                    group_name=name
-                                                    )
-            summary_table += get_chart_markdown_header(chart_data, 
-                                                       baseline_name) 
+                group_size=len(outgroup_s), group_name=name
+            )
+            summary_table += get_chart_markdown_header(chart_data, baseline_name)
 
             for oln in outgroup_s:
                 summary_table += f"{oln.row}\n"
@@ -356,28 +361,25 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
     else:
         full_content_size = len(summary_table) + len(summary_line)
 
-        if is_content_in_size_limit(content_size=full_content_size,
-                                     current_markdown_size=0):
+        if is_content_in_size_limit(
+            content_size=full_content_size, current_markdown_size=0
+        ):
             return summary_line, summary_table
         else:
-            if is_content_in_size_limit(content_size=len(summary_line), 
-                                        current_markdown_size=0):
-                return summary_line, ''
+            if is_content_in_size_limit(
+                content_size=len(summary_line), current_markdown_size=0
+            ):
+                return summary_line, ""
             else:
-                return (
-                    "\n# Summary\n"
-                    "Benchmark output is too large to display\n\n"
-                    )
+                return "\n# Summary\n" "Benchmark output is too large to display\n\n"
 
 
-def generate_markdown(name: str, 
-                      chart_data: dict[str, list[Result]],
-                      markdown_size: MarkdownSize):
+def generate_markdown(
+    name: str, chart_data: dict[str, list[Result]], markdown_size: MarkdownSize
+):
     (summary_line, summary_table) = generate_summary_table_and_chart(
-        chart_data, 
-        name, 
-        markdown_size
-        )
+        chart_data, name, markdown_size
+    )
 
     current_markdown_size = len(summary_line) + len(summary_table)
 
@@ -389,12 +391,9 @@ def generate_markdown(name: str,
     )
 
     if name in chart_data.keys():
-        markdown_details = generate_markdown_details(chart_data[name], 
-                                                     current_markdown_size,
-                                                     markdown_size)
-        generated_markdown += (
-            "\n# Details\n"
-            f"{markdown_details}\n"
+        markdown_details = generate_markdown_details(
+            chart_data[name], current_markdown_size, markdown_size
         )
+        generated_markdown += "\n# Details\n" f"{markdown_details}\n"
 
     return generated_markdown
