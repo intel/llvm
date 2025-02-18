@@ -20,7 +20,6 @@
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/Statistic.h>
 #include <llvm/Analysis/InstructionSimplify.h>
-#include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
@@ -28,6 +27,7 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
+#include <multi_llvm/dibuilder.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -682,7 +682,7 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
   // instructions and is used to avoid duplicate LLVM dbg.value's.
   SmallPtrSet<Value *, 4> VectorElements;
 
-  DIBuilder DIB(*Original->getModule(), false);
+  multi_llvm::DIBuilder DIB(*Original->getModule(), false);
 
   auto CreateAndInsertDIExpr = [&](auto InsertDIExpr) {
     const auto bitSize = Original->getType()->getScalarSizeInBits();
@@ -726,7 +726,8 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
 
     // Create new DbgVariableRecord across enabled SIMD lanes
     CreateAndInsertDIExpr([&](Value *LaneVal, DIExpression *DIExpr) {
-      DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc, Original);
+      DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc,
+                                  Original->getIterator());
     });
   }
 #endif
@@ -753,10 +754,11 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
     }
 
     // Create new llvm.dbg.value() intrinsic across enabled SIMD lanes
-    CreateAndInsertDIExpr([&](Value *const LaneVal,
-                              DIExpression *const DIExpr) {
-      DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc, Original);
-    });
+    CreateAndInsertDIExpr(
+        [&](Value *const LaneVal, DIExpression *const DIExpr) {
+          DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc,
+                                      Original->getIterator());
+        });
   }
 }
 

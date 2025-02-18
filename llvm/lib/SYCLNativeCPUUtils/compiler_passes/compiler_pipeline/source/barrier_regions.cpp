@@ -1151,9 +1151,9 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
         // multiple return instructions in a kernel, if it does then clone
         // the instruction first.
         if (nullptr == entry_call->getParent()) {
-          entry_call->insertBefore(new_ret);
+          entry_call->insertBefore(new_ret->getIterator());
         } else {
-          entry_call->clone()->insertBefore(new_ret);
+          entry_call->clone()->insertBefore(new_ret->getIterator());
         }
       }
     } else if (ReturnInst *ret =
