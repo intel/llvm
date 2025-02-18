@@ -282,7 +282,7 @@ PacketRange InstantiationPass::instantiateByCloning(Instruction *I) {
       continue;
     }
     Instruction *Clone = I->clone();
-    Clone->insertBefore(I);
+    Clone->insertBefore(I->getIterator());
     P[i] = Clone;
     Clones.push_back(Clone);
   }

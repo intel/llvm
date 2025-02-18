@@ -208,7 +208,7 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
             llvm::dyn_cast<llvm::ConstantExpr>(constant)) {
       newInst = constantExpr->getAsInstruction();
       // insert the instruction at the beginning of the entry block
-      newInst->insertBefore(useFunc->getEntryBlock().getFirstNonPHI());
+      newInst->insertBefore(useFunc->getEntryBlock().getFirstNonPHIIt());
     } else if (llvm::ConstantVector *constantVec =
                    llvm::dyn_cast<llvm::ConstantVector>(constant)) {
       // If it is a ConstantVector then only handle the case where it is
@@ -226,7 +226,7 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
       llvm::Type *i32Ty = llvm::Type::getInt32Ty(constant->getContext());
       auto insert = llvm::InsertElementInst::Create(
           undef, splatVal, llvm::ConstantInt::get(i32Ty, 0));
-      insert->insertBefore(useFunc->getEntryBlock().getFirstNonPHI());
+      insert->insertBefore(useFunc->getEntryBlock().getFirstNonPHIIt());
       llvm::Value *zeros = llvm::ConstantAggregateZero::get(
           llvm::FixedVectorType::get(i32Ty, numEls));
       newInst = new llvm::ShuffleVectorInst(insert, undef, zeros);
@@ -242,7 +242,7 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
         if (insertedIns) {
           insertNext->insertAfter(insertedIns);
         } else {
-          insertNext->insertBefore(useFunc->getEntryBlock().getFirstNonPHI());
+          insertNext->insertBefore(useFunc->getEntryBlock().getFirstNonPHIIt());
         }
         insertedIns = insertNext;
       }

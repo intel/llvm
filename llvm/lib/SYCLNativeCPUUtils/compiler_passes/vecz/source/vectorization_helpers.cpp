@@ -19,11 +19,11 @@
 #include <compiler/utils/attributes.h>
 #include <compiler/utils/metadata.h>
 #include <llvm/IR/Attributes.h>
-#include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <multi_llvm/dibuilder.h>
 
 #include <optional>
 
@@ -252,7 +252,7 @@ Function *cloneFunctionToVector(const VectorizationUnit &VU) {
   }
 
   for (auto *Placeholder : Placeholders) {
-    Placeholder->insertBefore(&*InsertPt);
+    Placeholder->insertBefore(InsertPt);
   }
 
   return VectorizedFn;
@@ -274,7 +274,7 @@ void cloneDebugInfo(const VectorizationUnit &VU) {
   }
 
   // Create a DISubprogram entry for the vectorized kernel
-  DIBuilder DIB(*VU.scalarFunction()->getParent(), false);
+  multi_llvm::DIBuilder DIB(*VU.scalarFunction()->getParent(), false);
   DICompileUnit *CU =
       DIB.createCompileUnit(dwarf::DW_LANG_OpenCL, ScalarDI->getFile(), "",
                             ScalarDI->isOptimized(), "", 0);
@@ -359,7 +359,8 @@ void cloneDebugInfo(const VectorizationUnit &VU) {
 
           // New llvm.dbg.value() with correct scope
           DIB.insertDbgValueIntrinsic(DVI->getValue(), VectorLocal,
-                                      DVI->getExpression(), VectorLoc, DVI);
+                                      DVI->getExpression(), VectorLoc,
+                                      DVI->getIterator());
         } else if (DbgDeclareInst *const DDI = dyn_cast<DbgDeclareInst>(DII)) {
           // Find DILocalVariable the intrinsic references
           const DILocalVariable *const ScalarLocal = DDI->getVariable();
@@ -379,7 +380,8 @@ void cloneDebugInfo(const VectorizationUnit &VU) {
 
           // New llvm.dbg.declare() with correct scope
           DIB.insertDeclare(DDI->getAddress(), VectorLocal,
-                            DDI->getExpression(), VectorLoc, DDI);
+                            DDI->getExpression(), VectorLoc,
+                            DDI->getIterator());
         } else {
           continue;  // No other DbgInfoIntrinsic subclasses
         }
