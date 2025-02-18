@@ -127,37 +127,39 @@ malloc commands.
 
 [source,c++]
 ----
+namespace syclex = sycl::ext::oneapi::experimental;
+
 int main(int argc, char *argv[])
 {
   queue q(property::queue::in_order);
 
-  ext::oneapi::experimental::memory_pool memPool(q.get_context(),
+  syclex::memory_pool memPool(q.get_context(),
     q.get_device(), usm::alloc::device);
   
   {
     // memory pool allocates memory from the SYCL runtime
-    void *temp = async_malloc_from_pool(q, 1024, memPool);
+    void *temp = syclex::async_malloc_from_pool(q, 1024, memPool);
 
     // memory allocation is used for first kernel
-    parallel_for(q, range{1024}, [=](id<1> idx) {
+    syclex::parallel_for(q, range{1024}, [=](id<1> idx) {
       do_something(idx, temp);
     });
 
     // memory is available to be used by another allocation
-    async_free(q, temp);
+    syclex::async_free(q, temp);
   }
 
   {
     // memory pool re-uses previously allocated memory
-    void *temp = async_malloc_from_pool(q, 1024, memPool);
+    void *temp = syclex::async_malloc_from_pool(q, 1024, memPool);
 
     // memory allocation is used for second kernel
-    parallel_for(q, range{1024}, [=](id<1> idx) {
+    syclex::parallel_for(q, range{1024}, [=](id<1> idx) {
       do_something_else(idx, temp);
     });
 
     // memory is available to be used by another allocation
-    async_free(q, temp);
+    syclex::async_free(q, temp);
   }
 
   // memory pool releases memory back to the SYCL runtime
@@ -170,33 +172,35 @@ an out-of-order SYCL queue and SYCL events to manage dependencies.
 
 [source,c++]
 ----
+namespace syclex = sycl::ext::oneapi::experimental;
+
 int main(int argc, char *argv[])
 {
   queue q;
 
-  ext::oneapi::experimental::memory_pool memPool(q.get_context(),
+  syclex::memory_pool memPool(q.get_context(),
     q.get_device(), usm::alloc::device);
   
   {
     void *temp = null;
 
     // memory pool allocates memory from the SYCL runtime
-    auto e1 = q.submit_with_event([&](handler &cgh) {
-      temp = async_malloc_from_pool(cgh, 1024, memPool);
+    auto e1 = syclex::submit_with_event(q, [&](handler &cgh) {
+      temp = syclex::async_malloc_from_pool(cgh, 1024, memPool);
     });
 
     // memory allocation is used for first kernel
-    auto e2 = q.submit_with_event([&](handler &cgh) {
+    auto e2 = syclex::submit_with_event(q, [&](handler &cgh) {
       cgh.depends_on(e1);
-      parallel_for(cgh, range{1024}, [=](id<1> idx) {
+      syclex::parallel_for(cgh, range{1024}, [=](id<1> idx) {
         do_something(idx, temp);
       });
     });
 
     // memory is available to be used by another allocation
-    auto e3 = q.submit_with_event([&](handler &cgh) {
+    auto e3 = syclex::submit_with_event(q, [&](handler &cgh) {
       cgh.depends_on(e2);
-      async_free(cgh, temp);
+      syclex::async_free(cgh, temp);
     });
   }
 
@@ -204,23 +208,23 @@ int main(int argc, char *argv[])
     void *temp = null;
 
     // memory pool re-uses previously allocated memory
-    auto e4 = q.submit_with_event([&](handler &cgh) {
+    auto e4 = syclex::submit_with_event(q, [&](handler &cgh) {
       cgh.depends_on(e3);
-      temp = async_malloc_from_pool(cgh, 1024, memPool);
+      temp = syclex::async_malloc_from_pool(cgh, 1024, memPool);
     });
 
     // memory allocation is used for second kernel
-    auto e5 = q.submit_with_event([&](handler &cgh) {
+    auto e5 = syclex::submit_with_event(q, [&](handler &cgh) {
       cgh.depends_on(e4);
-      parallel_for(cgh, range{1024}, [=](id<1> idx) {
+      syclex::parallel_for(cgh, range{1024}, [=](id<1> idx) {
         do_something_else(idx, temp);
       });
     });
 
     // memory is available to be used by another allocation
-    q.submit_with_event([&](handler &cgh) {
+    syclex::submit_with_event(q, [&](handler &cgh) {
       cgh.depends_on(e5);
-      async_free(cgh, temp);
+      syclex::async_free(cgh, temp);
     });
   }
 
@@ -239,26 +243,28 @@ provide the benefit of re-allocating memory from the memory pool.
 
 [source,c++]
 ----
+namespace syclex = sycl::ext::oneapi::experimental;
+
 int main(int argc, char *argv[])
 {
   queue q(property::queue::in_order);
 
-  ext::oneapi::experimental::memory_pool memPool
+  syclex::memory_pool memPool
     = q.get_context().ext_oneapi_get_default_memory_pool(usm::alloc::device);
 
   memPool.set_new_threshold(1024);
   
   {
     // memory pool allocates memory from the SYCL runtime
-    void *temp = async_malloc_from_pool(q, 1024, memPool);
+    void *temp = syclex::async_malloc_from_pool(q, 1024, memPool);
 
     // memory allocation is used for first kernel
-    parallel_for(q, range{1024}, [=](id<1> idx) {
+    syclex::parallel_for(q, range{1024}, [=](id<1> idx) {
       do_something(idx, temp);
     });
 
     // memory is available to be used by another allocation
-    async_free(q, temp);
+    syclex::async_free(q, temp);
   }
 
   // memory pool does not release memory back to the SYCL runtime as it is still
@@ -267,15 +273,15 @@ int main(int argc, char *argv[])
 
   {
     // memory pool re-uses previously allocated memory
-    void *temp = async_malloc_from_pool(q, 1024, memPool);
+    void *temp = syclex::async_malloc_from_pool(q, 1024, memPool);
 
     // memory allocation is used for second kernel
-    parallel_for(q, range{1024}, [=](id<1> idx) {
+    syclex::parallel_for(q, range{1024}, [=](id<1> idx) {
       do_something_else(idx, temp);
     });
 
     // memory is available to be used by another allocation
-    async_free(q, temp);
+    syclex::async_free(q, temp);
   }
 
   // again memory pool does not release memory back to the SYCL runtime
@@ -309,8 +315,8 @@ supports.
 === Memory pool
 
 This extension introduces the `memory_pool` class, which provides a handle to a
-memory pool owned by the SYCL runtime or a specific backend, and adheres to the
-SYCL common reference semantics.
+pool of memory managed by the SYCL runtime, and adheres to the SYCL common
+reference semantics.
 
 Memory pools have the following properties:
 
@@ -386,9 +392,9 @@ template <typename Properties = empty_properties_t>
 memory_pool(context ctx, Properties props = {});
 ----
 
-_Effects_: Constructs a memory pool associated with `ctx` and all SYCL devices
-associated with it, with the allocation kind `usm::alloc::host` and applying any
-properties in `props`.
+_Effects_: Constructs a memory pool which is associated with the context `ctx`
+and all SYCL devices associated with it, with the allocation kind
+`usm::alloc::host` and applying any properties in `props`.
 
 [source, c++]
 ----
@@ -396,8 +402,9 @@ template <typename Properties = empty_properties_t>
 memory_pool(context ctx, device dev, usm::alloc kind, Properties props = {});
 ----
 
-_Effects_: Constructs a memory pool associated with `ctx` and `dev`, with the
-allocation kind `kind` and applying any properties in `props`.
+_Effects_: Constructs a memory pool which is associated with the context `ctx`
+and device `dev`, with the allocation kind `kind` and applying any properties in
+`props`.
 
 _Throws_: An exception with the `errc::invalid` error code if `kind` is
 `usm::alloc::host`.
@@ -408,11 +415,11 @@ template <typename Properties = empty_properties_t>
 memory_pool(queue q, usm::alloc kind, Properties props = {});
 ----
 
-_Effects_: Constructs a memory pool associated with the SYCL context and device
-from `q` and `dev`, with the allocation kind `kind` and applying any properties
-in `props`. If `kind` is `usm::alloc::host` this is equivelant to calling
-`memory_pool(queue.get_context(), props)` otherwise this is equivelant to
-calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
+_Effects_: Constructs a memory pool which is associated with the context and
+device from the queue `q``, with the allocation kind `kind` and applying any
+properties in `props`. If `kind` is `usm::alloc::host` this is equivalent to
+calling `memory_pool(queue.get_context(), props)` otherwise this is equivalent
+to calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
 
 [source, c++]
 ----
@@ -420,14 +427,17 @@ template <typename Properties = empty_properties_t>
 memory_pool(context ctx, void *ptr, size_t size, Properties props = {});
 ----
 
-_Effects_: Constructs a memory pool associated with `ctx` which uses an existing
-USM memory allocation `ptr` of size (in bytes) `size`, and applying any
-properties in `props`. The memory pool will use the existing USM memory
-allocation instead of allocating from the SYCL runtime. The associated SYCL
-device and allocation kind of the memory pool is inferred from the `ptr`. If
-`ptr` is not a valid USM pointer of kind `usm::alloc::host`,
-`usm::alloc::device` or `usm::alloc::shared` the result is undefined behavior.
-The maximum size and initial threshold of the memory pool are set to `size`.
+_Effects_: Constructs a memory pool which is associated with context `ctx`, 
+uses an existing USM memory allocation `ptr` of size (in bytes) `size`,
+and applying any properties in `props`. The memory pool will use the existing
+USM memory allocation instead of allocating from the SYCL runtime. The
+associated device and allocation kind of the memory pool is inferred from the
+`ptr`. If `ptr` is not a valid USM pointer of kind `usm::alloc::host`,
+`usm::alloc::device` or `usm::alloc::shared` or the value `size` does not match
+the size of memory allocated for `ptr` the result is undefined behavior. If
+`ptr` is freed or the memory it points to is written to whilst the memory pool
+is still alive the result is undefined behavior. The maximum size and initial
+threshold of the memory pool are set to `size`.
 
 _Throws_: An exception with the `errc::invalid` error code if `props` contains
 the `maximum_size` or `initial_threshold` properties.
@@ -661,11 +671,11 @@ If a memory pool `pool` is provided the allocation kind is that of the memory
 pool, otherwise if an allocation kind `kind` parameter is provided, this is the
 allocation kind which is used. If a memory pool `pool` is provided, this must be
 associated with the same SYCL context and device as `q` or the SYCL queue
-associated with `h`. Memory is first allocated from the memory pool if possible,
-otherwise memory is allocated from the source to the memory pool to provide
-enough memory in the memory pool for the allocation. Accessing the memory at the
-address of the pointer returned by asynchronous malloc functions before the
-command has completed execution is undefined behavior.
+associated with `h`. Memory can either be allocated directly from the memory
+pool or allocated from the source to the memory pool to provide enough memory in
+the memory pool for the allocation. Accessing the memory at the address of the
+pointer returned by asynchronous malloc functions before the command has
+completed execution is undefined behavior.
 
 _Returns_: A pointer to the address of a memory reservation if `size` is
 non-zero, otherwise returns `nullptr`.
@@ -734,7 +744,7 @@ the CUDA stream-ordered allocator feature.
 
 == Issues
 
-. Should we allow mixing asynchronous and synchornous memory commands?
+. Should we allow mixing asynchronous and synchronous memory commands?
 +
 --
 *UNRESOLVED*: CUDA allows memory allocated with the asynchronous malloc command
