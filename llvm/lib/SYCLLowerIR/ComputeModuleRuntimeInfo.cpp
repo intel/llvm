@@ -155,9 +155,8 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
   return std::nullopt;
 }
 
-PropSetRegTy
-computeDeviceLibProperties(const Module &M,
-                           const std::string &DeviceLibName) {
+PropSetRegTy computeDeviceLibProperties(const Module &M,
+                                        const std::string &DeviceLibName) {
   PropSetRegTy PropSet;
 
   {
@@ -497,7 +496,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
 
       PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
-                   "uses-virtual-functions-set", AllSets);
+                  "uses-virtual-functions-set", AllSets);
     }
   }
 
