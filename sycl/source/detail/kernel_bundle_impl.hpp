@@ -381,6 +381,7 @@ public:
   kernel_bundle_impl(
       context Ctx, std::vector<device> Devs,
       const std::vector<kernel_id> &KernelIDs,
+      std::vector<std::string> &&KernelNames,
       std::unordered_map<std::string, std::string> &&MangledKernelNames,
       sycl_device_binaries Binaries, std::string &&Prefix,
       syclex::source_language Lang)
@@ -393,6 +394,7 @@ public:
     // loaded via the program manager have `kernel_id`s, they can't be looked up
     // from the (unprefixed) kernel name.
     MIsInterop = true;
+    MKernelNames = std::move(KernelNames);
     MMangledKernelNames = std::move(MangledKernelNames);
     MDeviceBinaries = Binaries;
     MPrefix = std::move(Prefix);
@@ -530,6 +532,7 @@ public:
       PM.addImages(Binaries);
 
       std::vector<kernel_id> KernelIDs;
+      std::vector<std::string> KernelNames;
       std::unordered_map<std::string, std::string> MangledKernelNames;
       // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
       // for offload entry names.
@@ -539,18 +542,14 @@ public:
         if (KernelName.find(Prefix) == 0) {
           KernelIDs.push_back(KernelID);
           KernelName.remove_prefix(Prefix.length());
+          KernelNames.emplace_back(KernelName);
           static constexpr std::string_view SYCLKernelMarker{"__sycl_kernel_"};
           if (KernelName.find(SYCLKernelMarker) == 0) {
-            // extern "C" declaration, register kernel without the marker.
+            // extern "C" declaration, implicitly register kernel without the
+            // marker.
             std::string_view KernelNameWithoutMarker{KernelName};
             KernelNameWithoutMarker.remove_prefix(SYCLKernelMarker.length());
             MangledKernelNames.emplace(KernelNameWithoutMarker, KernelName);
-          } else {
-            // The marker is baked into the mangling, and we cannot easily
-            // adjust it. Register an identity mapping as an escape hatch.
-            // Users shall use `registered_kernel_names` instead, as there's
-            // practically no way to guess the mangled name.
-            MangledKernelNames.emplace(KernelName, KernelName);
           }
         }
       }
@@ -569,8 +568,9 @@ public:
       }
 
       return std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, std::move(MangledKernelNames),
-          Binaries, std::move(Prefix), MLanguage);
+          MContext, MDevices, KernelIDs, std::move(KernelNames),
+          std::move(MangledKernelNames), Binaries, std::move(Prefix),
+          MLanguage);
     }
 
     ur_program_handle_t UrProgram = nullptr;
@@ -676,48 +676,46 @@ public:
                                                 KernelNames, MLanguage);
   }
 
-  std::string adjust_kernel_name(const std::string &Name,
-                                 syclex::source_language Lang) {
-    // Once name demangling support is in, we won't need this.
-    if (Lang != syclex::source_language::sycl &&
-        Lang != syclex::source_language::sycl_jit)
-      return Name;
+  std::string adjust_kernel_name(const std::string &Name) {
+    if (MLanguage == syclex::source_language::sycl_jit) {
+      auto It = MMangledKernelNames.find(Name);
+      return It == MMangledKernelNames.end() ? Name : It->second;
+    }
 
-    bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
-    return isMangled ? Name : "__sycl_kernel_" + Name;
+    if (MLanguage == syclex::source_language::sycl) {
+      bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
+      return isMangled ? Name : "__sycl_kernel_" + Name;
+    }
+
+    return Name;
+  }
+
+  bool is_kernel_name(const std::string &Name) {
+    return std::find(MKernelNames.begin(), MKernelNames.end(), Name) !=
+           MKernelNames.end();
   }
 
   bool ext_oneapi_has_kernel(const std::string &Name) {
-    if (MLanguage == syclex::source_language::sycl_jit) {
-      return MMangledKernelNames.count(Name);
-    }
-    auto it = std::find(MKernelNames.begin(), MKernelNames.end(),
-                        adjust_kernel_name(Name, MLanguage));
-    return it != MKernelNames.end();
+    return is_kernel_name(adjust_kernel_name(Name));
   }
 
   kernel
   ext_oneapi_get_kernel(const std::string &Name,
                         const std::shared_ptr<kernel_bundle_impl> &Self) {
+    if (MKernelNames.empty())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "'ext_oneapi_get_kernel' is only available in "
+                            "kernel_bundles successfully built from "
+                            "kernel_bundle<bundle_state::ext_oneapi_source>.");
+
+    std::string AdjustedName = adjust_kernel_name(Name);
+    if (!is_kernel_name(AdjustedName))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "kernel '" + Name + "' not found in kernel_bundle");
+
     if (MLanguage == syclex::source_language::sycl_jit) {
-      if (MMangledKernelNames.empty()) {
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "'ext_oneapi_get_kernel' is only available in kernel_bundles "
-            "successfully built from "
-            "kernel_bundle<bundle_state::ext_oneapi_source>.");
-      }
-
-      auto It = MMangledKernelNames.find(Name);
-      if (It == MMangledKernelNames.end()) {
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "kernel '" + Name +
-                                  "' not found in kernel_bundle");
-      }
-
-      const std::string &MangledName = It->second;
       auto &PM = ProgramManager::getInstance();
-      auto KID = PM.getSYCLKernelID(MPrefix + MangledName);
+      auto KID = PM.getSYCLKernelID(MPrefix + AdjustedName);
 
       for (const auto &DevImgWithDeps : MDeviceImages) {
         const auto &DevImg = DevImgWithDeps.getMain();
@@ -727,7 +725,7 @@ public:
         const auto &DevImgImpl = getSyclObjImpl(DevImg);
         auto UrProgram = DevImgImpl->get_ur_program_ref();
         auto [UrKernel, CacheMutex, ArgMask] =
-            PM.getOrCreateKernel(MContext, MangledName,
+            PM.getOrCreateKernel(MContext, AdjustedName,
                                  /*PropList=*/{}, UrProgram);
         auto KernelImpl = std::make_shared<kernel_impl>(
             UrKernel, getSyclObjImpl(MContext), DevImgImpl, Self, ArgMask,
@@ -737,18 +735,6 @@ public:
 
       assert(false && "Malformed RTC kernel bundle");
     }
-
-    if (MKernelNames.empty())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "'ext_oneapi_get_kernel' is only available in "
-                            "kernel_bundles successfully built from "
-                            "kernel_bundle<bundle_state:ext_oneapi_source>.");
-
-    std::string AdjustedName = adjust_kernel_name(Name, MLanguage);
-    if (!ext_oneapi_has_kernel(Name))
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "kernel '" + AdjustedName +
-                                "' not found in kernel_bundle");
 
     assert(MDeviceImages.size() > 0);
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
