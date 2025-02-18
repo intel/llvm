@@ -3566,7 +3566,6 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
         ExportedSymbolsIt++;
     }
 
-    //set of dev images are used?
     // auto VFIt = m_VFSet2BinImage.begin();
     // while (VFIt != m_VFSet2BinImage.end())
     // {
@@ -3586,21 +3585,8 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
     //     NativeProgIt++;
     // }
 
-      /*
 
-
-  std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>
-      m_DeviceGlobals;
-  std::unordered_map<const void *, DeviceGlobalMapEntry *> m_Ptr2DeviceGlobal;
-
-  std::mutex m_DeviceGlobalsMutex;
-
-  using MaterializedEntries =
-      std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
-
-  
-  */
-
+  // MUTEXES
   // Complete the rest of containers, probably some of them I do not need to cleanup.
   // Measure latency now + after redo
   // TO DO: to check if I could do the same by extracting same data as on registration step - should be faster
@@ -3608,6 +3594,8 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
   // Questions & problems:
   // what to do with multiple images for one program
   // what to do when this program is used? how to track? very likely will leave it as it is and let it fail, state this case as undefined behavior. Check if it is already stated somewhere to refer to.
+
+  // to break execution when image is not in deviceImages container - no need to continue
 
     m_EliminatedKernelArgMasks.erase(DeviceImage.get());
 

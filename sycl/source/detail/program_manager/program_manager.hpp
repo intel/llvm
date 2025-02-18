@@ -376,6 +376,7 @@ private:
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);
+protected:
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
