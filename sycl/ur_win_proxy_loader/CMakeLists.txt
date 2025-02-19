@@ -9,7 +9,7 @@ set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc
                "RC_INTERNAL_NAME=\"ur_win_proxy_loader\""
                "RC_PRODUCT_NAME=\"ur_win_proxy_loader\""
                "RC_PRODUCT_VERSION=\"${SYCL_VERSION_STRING}\""
-               "RC_COPYRIGHT=\"Copyright (C) Intel Corporation\"")
+               "RC_COPYRIGHT=\"Copyright (C) 2023 Intel Corporation\"")
 configure_file(../../llvm/resources/windows_version_resource.rc ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc @ONLY)
 add_library(ur_win_proxy_loader SHARED  ur_win_proxy_loader.cpp  ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
 install(TARGETS ur_win_proxy_loader
