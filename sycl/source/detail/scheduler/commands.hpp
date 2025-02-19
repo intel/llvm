@@ -748,9 +748,10 @@ void SetArgBasedOnType(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);
 
-template <typename FuncT>
-void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,
-                             std::vector<ArgDesc> &Args, FuncT Func) {
+template<typename T>
+void applyFuncOnFilteredArgs(
+    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
+    T Func) {
   if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
     for (ArgDesc &Arg : Args) {
       Func(Arg, Arg.MIndex);

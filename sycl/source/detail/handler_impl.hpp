@@ -44,63 +44,97 @@ public:
 
   handler_impl() = default;
 
-  void reset() {
-  MSubmissionState = HandlerSubmissionState::NO_STATE;
+  void reset(const std::shared_ptr<queue_impl> &SubmissionPrimaryQueue,
+             const std::shared_ptr<queue_impl> &SubmissionSecondaryQueue,
+             bool EventNeeded) {
+    MSubmissionState = HandlerSubmissionState::NO_STATE;
 
-  // Stores auxiliary resources used by internal operations.
- MAuxiliaryResources.clear();
+    MSubmissionPrimaryQueue = SubmissionPrimaryQueue;
+    MSubmissionSecondaryQueue = SubmissionSecondaryQueue;
 
-  MKernelBundle = nullptr;
+    MEventNeeded = EventNeeded;
 
-  MAdvice = 0;
+    // Stores auxiliary resources used by internal operations.
+    MAuxiliaryResources.clear();
 
-  // 2D memory operation information.
-  MSrcPitch = 0;
-  MDstPitch = 0;
-  MWidth = 0;
-  MHeight = 0;
+    MKernelBundle = nullptr;
 
-  /// Offset into a device_global for copy operations.
-  MOffset = 0;
-  /// Boolean flag for whether the device_global had the device_image_scope
-  /// property.
-  MIsDeviceImageScoped = false;
+    MAdvice = 0;
 
+    // 2D memory operation information.
+    MSrcPitch = 0;
+    MDstPitch = 0;
+    MWidth = 0;
+    MHeight = 0;
 
-  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    /// Offset into a device_global for copy operations.
+    MOffset = 0;
+    /// Boolean flag for whether the device_global had the device_image_scope
+    /// property.
+    MIsDeviceImageScoped = false;
 
-   MKernelWorkGroupMemorySize = 0;
+    HostPipeName.clear();
+    HostPipePtr = nullptr;
+    HostPipeBlocking = false;
+    HostPipeTypeSize = 0;
+    HostPipeRead = true;
 
-  // Extra information for bindless image copy
-  MSrcImageDesc = {};
-  MDstImageDesc = {};
-  MSrcImageFormat = {};
-  MDstImageFormat = {};
-  MImageCopyFlags = {};
+    MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
 
-  MSrcOffset = {};
-  MDestOffset = {};
-  MCopyExtent = {};
+    MKernelIsCooperative = false;
+    MKernelUsesClusterLaunch = false;
+    MKernelWorkGroupMemorySize = 0;
 
-  /// The list of arguments for the kernel.
-  MArgs.clear();
+    // Extra information for bindless image copy
+    MSrcImageDesc = {};
+    MDstImageDesc = {};
+    MSrcImageFormat = {};
+    MDstImageFormat = {};
+    MImageCopyFlags = {};
 
-  /// The list of associated accessors with this handler.
-  /// These accessors were created with this handler as argument or
-  /// have become required for this handler via require method.
-  MAssociatedAccesors.clear();
+    MSrcOffset = {};
+    MDestOffset = {};
+    MCopyExtent = {};
 
-  /// Struct that encodes global size, local size, ...
-   MNDRDesc = {};
+    MExternalSemaphore = nullptr;
+    MWaitValue.reset();
+    MSignalValue.reset();
 
-  /// Type of the command group, e.g. kernel, fill. Can also encode version.
-  /// Use getType and setType methods to access this variable unless
-  /// manipulations with version are required
-  MCGType = detail::CGType::None;
+    MUserFacingNodeType = sycl::ext::oneapi::experimental::node_type::empty;
+    MDynamicParameters.clear();
 
-  /// True if MCodeLoc is sycl entry point code location
-  bool MIsTopCodeLoc = true;
+    CGData.reset();
+    /// The list of arguments for the kernel.
+    MArgs.clear();
+
+    /// The list of associated accessors with this handler.
+    /// These accessors were created with this handler as argument or
+    /// have become required for this handler via require method.
+    MAssociatedAccesors.clear();
+
+    /// Struct that encodes global size, local size, ...
+    MNDRDesc = {};
+
+    /// Type of the command group, e.g. kernel, fill. Can also encode version.
+    /// Use getType and setType methods to access this variable unless
+    /// manipulations with version are required
+    MCGType = detail::CGType::None;
+
+    MGraph = nullptr;
+    MExecGraph = nullptr;
+    MSubgraphNode = nullptr;
+    MGraphNodeCG = nullptr;
+
+    MHostTask = nullptr;
+    MEventsWaitWithBarrier.clear();
+
+    /// True if MCodeLoc is sycl entry point code location
+    MIsTopCodeLoc = true;
+
+    MWorkGroupMemoryObjects.clear();
+    MEventMode = ext::oneapi::experimental::event_mode_enum::none;
   }
+
   void setStateExplicitKernelBundle() {
     if (MSubmissionState == HandlerSubmissionState::SPEC_CONST_SET_STATE)
       throw sycl::exception(
