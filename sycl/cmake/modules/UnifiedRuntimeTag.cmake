@@ -1,7 +1,6 @@
-# commit 3472b5bda88fc06560561d7538a9c21d02f749e7
-# Merge: 33c94851 da04d138
+# commit ba09d77a6058eb1cbee3317fb2a3059de9d007d9
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Jan 7 10:40:35 2025 +0000
-#     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
-#     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
-set(UNIFIED_RUNTIME_TAG da04d13807044aaf17615b66577fb0e832011ab1)
+# Date:   Mon Feb 10 11:17:33 2025 +0000
+#
+#     Set CMake version to v0.11.8
+set(UNIFIED_RUNTIME_TAG v0.11.8)
