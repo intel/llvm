@@ -15,17 +15,17 @@ target triple = "spir64-unknown-unknown"
 declare spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32) local_unnamed_addr #1
 
 define spir_kernel void @fused_0(ptr addrspace(1) nocapture align 16 %KernelOne__arg_accTmp,
-   ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accTmp3,
-   ptr addrspace(1) nocapture readonly align 4 %KernelOne__arg_accIn,
-   ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accIn6,
+   ptr readonly byval(%"class.sycl::_V1::range") align 8 captures(none) %KernelOne__arg_accTmp3,
+   ptr addrspace(1) readonly align 4 %KernelOne__arg_accIn,
+   ptr readonly byval(%"class.sycl::_V1::range") align 8 captures(none) %KernelOne__arg_accIn6,
    ptr addrspace(1) nocapture writeonly align 1 %KernelOne__arg_accTmp27,
-   ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accTmp210,
+   ptr readonly byval(%"class.sycl::_V1::range") align 8 captures(none) %KernelOne__arg_accTmp210,
    ptr addrspace(1) nocapture writeonly align 4 %KernelTwo__arg_accOut,
-   ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 %KernelTwo__arg_accOut3)
+   ptr readonly byval(%"class.sycl::_V1::range") align 8 captures(none) %KernelTwo__arg_accOut3)
      local_unnamed_addr #2 !sycl.kernel.promote !11 !sycl.kernel.promote.localsize !12 !sycl.kernel.promote.elemsize !13 {
 ; CHECK-LABEL: define spir_kernel void @fused_0(
-; CHECK-SAME: ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 [[KERNELONE__ARG_ACCTMP3:%[^,]*accTmp3]],
-; CHECK-SAME: ptr nocapture readonly byval(%"class.sycl::_V1::range") align 8 [[KERNELONE__ARG_ACCTMP210:%[^,]*accTmp210]]
+; CHECK-SAME: ptr readonly byval(%"class.sycl::_V1::range") align 8 captures(none) [[KERNELONE__ARG_ACCTMP3:%[^,]*accTmp3]],
+; CHECK-SAME: ptr readonly byval(%"class.sycl::_V1::range") align 8 captures(none) [[KERNELONE__ARG_ACCTMP210:%[^,]*accTmp210]]
 ; CHECK:         entry:
 ; CHECK:           [[TMP0:%.*]] = alloca i8, i64 3, align 1
 ; CHECK:           [[TMP1:%.*]] = alloca i8, i64 96, align 16
