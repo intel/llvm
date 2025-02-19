@@ -10,7 +10,6 @@
 #include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
-constexpr size_t Size = 1024;
 using DataType = int;
 
 namespace sycl_ext = sycl::ext::oneapi::experimental;
@@ -31,23 +30,27 @@ void copy_via_smem(DataType *a, DataType *b, sycl::nd_item<1> it) {
 
 int main() {
   sycl::queue queue;
-  DataType *a = sycl::malloc_device<DataType>(Size, queue);
-  DataType *b = sycl::malloc_device<DataType>(Size, queue);
-  std::vector<DataType> a_host(Size, 1.0);
-  std::vector<DataType> b_host(Size, -5.0);
+  auto size = std::min(
+      queue.get_device().get_info<sycl::info::device::max_work_group_size>(),
+      1024ul);
 
-  queue.copy(a_host.data(), a, Size).wait_and_throw();
+  DataType *a = sycl::malloc_device<DataType>(size, queue);
+  DataType *b = sycl::malloc_device<DataType>(size, queue);
+  std::vector<DataType> a_host(size, 1.0);
+  std::vector<DataType> b_host(size, -5.0);
+
+  queue.copy(a_host.data(), a, size).wait_and_throw();
 
   queue
       .submit([&](sycl::handler &cgh) {
-        cgh.parallel_for(sycl::nd_range<1>({Size}, {Size}),
+        cgh.parallel_for(sycl::nd_range<1>({size}, {size}),
                          sycl_ext::properties{sycl_ext::work_group_scratch_size(
-                             Size * sizeof(DataType))},
+                             size * sizeof(DataType))},
                          [=](sycl::nd_item<1> it) { copy_via_smem(a, b, it); });
       })
       .wait_and_throw();
 
-  queue.copy(b, b_host.data(), Size).wait_and_throw();
+  queue.copy(b, b_host.data(), size).wait_and_throw();
   for (size_t i = 0; i < b_host.size(); i++) {
     assert(b_host[i] == a_host[i]);
   }
