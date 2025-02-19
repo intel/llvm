@@ -3511,7 +3511,13 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
   for (int I = 0; I < DeviceBinaries->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinaries->DeviceBinaries[I]);
     auto node = m_DeviceImages.extract(RawImg);
-    assert(!node.empty() && "Attempt to remove device image that has never been registered");
+    if (node.empty())
+    {
+      if constexpr (DbgProgMgr > 0) {
+        std::cerr << "Attempt to remove device image that is not registered: RawImg = " << RawImg << std::endl;
+      }
+      continue;
+    }
     DeviceImagesToCleanup.insert(std::move(node));
   }
   std::cout << "DeviceImagesToCleanup.size() = " << DeviceImagesToCleanup.size() << std::endl;
@@ -3595,7 +3601,7 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
   // what to do with multiple images for one program
   // what to do when this program is used? how to track? very likely will leave it as it is and let it fail, state this case as undefined behavior. Check if it is already stated somewhere to refer to.
 
-  // to break execution when image is not in deviceImages container - no need to continue
+  // to add DbgProgMgr debug info
 
     m_EliminatedKernelArgMasks.erase(DeviceImage.get());
 

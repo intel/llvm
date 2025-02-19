@@ -247,7 +247,24 @@ private:
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
-        MPropertySet(std::move(PropertySet)) {}
+        MPropertySet(std::move(PropertySet)) {
+          MNativeHandle = {
+            MVersion,
+            MKind,
+            MFormat,
+            MDeviceTargetSpec.c_str(),
+            MCompileOptions.c_str(),
+            MLinkOptions.c_str(),
+            MManifest.empty() ? nullptr : &*MManifest.cbegin(),
+            MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
+            &*MBinary.begin(),
+            (&*MBinary.begin()) + MBinary.size(),
+            MOffloadEntries.begin(),
+            MOffloadEntries.end(),
+            MPropertySet.begin(),
+            MPropertySet.end(),
+        };
+        }
 
 public:
   /// Constructs an arbitrary device image.
@@ -300,22 +317,7 @@ public:
       : MockDeviceImage(std::move(OffloadEntries), {}) {}
 
   sycl_device_binary_struct convertToNativeType() {
-    return sycl_device_binary_struct{
-        MVersion,
-        MKind,
-        MFormat,
-        MDeviceTargetSpec.c_str(),
-        MCompileOptions.c_str(),
-        MLinkOptions.c_str(),
-        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
-        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
-        &*MBinary.begin(),
-        (&*MBinary.begin()) + MBinary.size(),
-        MOffloadEntries.begin(),
-        MOffloadEntries.end(),
-        MPropertySet.begin(),
-        MPropertySet.end(),
-    };
+    return MNativeHandle;
   }
   const unsigned char *getBinaryPtr() { return &*MBinary.begin(); }
 
@@ -330,6 +332,7 @@ private:
   std::vector<unsigned char> MBinary;
   internal::LifetimeExtender<MockOffloadEntry> MOffloadEntries;
   MockPropertySet MPropertySet;
+  sycl_device_binary_struct MNativeHandle;
 };
 
 /// Convenience wrapper around sycl_device_binaries_struct, that manages mock

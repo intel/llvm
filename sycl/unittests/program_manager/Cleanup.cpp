@@ -84,6 +84,7 @@ namespace CleanupImagesTest {
 class KernelA1;
 class KernelA2;
 class KernelB;
+class KernelC;
 } // namespace DynamicLinkingTest
 
 namespace sycl {
@@ -99,6 +100,7 @@ namespace detail {
 KERNEL_INFO(KernelA1)
 KERNEL_INFO(KernelA2)
 KERNEL_INFO(KernelB)
+KERNEL_INFO(KernelC)
 
 #undef KERNEL_INFO
 
@@ -106,6 +108,7 @@ KERNEL_INFO(KernelB)
 } // namespace _V1
 } // namespace sycl
 
+// TODO: to move to general file for this & dynamic linking
 namespace {
 std::vector<sycl::unittest::MockProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
@@ -165,6 +168,10 @@ static sycl::unittest::MockDeviceImage Imgs[2] = {
                   {"ImageBImported"}, 2,
                   SYCL_DEVICE_BINARY_TYPE_NATIVE,
                   __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN, {})};
+static sycl::unittest::MockDeviceImage ImgsForRemoval[1] = {
+    generateImage({"KernelC"}, {"ImageCExported"},
+                  {"ImageCImported"}, 1, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN, {})};
 
 TEST(ImageRemoval, Base) {
     ProgramManagerExposed PM;
@@ -184,15 +191,30 @@ TEST(ImageRemoval, Base) {
     };
 
     PM.addImages(&AllBinaries);
+
+    sycl_device_binary_struct NativeImagesForRemoval[1];
+    sycl_device_binaries_struct TestBinaries;
+
+    NativeImagesForRemoval[0] = ImgsForRemoval[0].convertToNativeType();
+
+    TestBinaries = sycl_device_binaries_struct{
+        SYCL_DEVICE_BINARIES_VERSION,
+        1,
+        NativeImagesForRemoval,
+        nullptr, // not used, put here for compatibility with OpenMP
+        nullptr, // not used, put here for compatibility with OpenMP
+    };
+
+    PM.addImages(&TestBinaries);
   
-    EXPECT_EQ(PM.getKernelID2BinImage().size(), 3u);
-    EXPECT_EQ(PM.getKernelName2KernelID().size(), 3u);
-    EXPECT_EQ(PM.getBinImage2KernelId().size(), 2u);
+    EXPECT_EQ(PM.getKernelID2BinImage().size(), 4u);
+    EXPECT_EQ(PM.getKernelName2KernelID().size(), 4u);
+    EXPECT_EQ(PM.getBinImage2KernelId().size(), 3u);
   
     EXPECT_EQ(PM.getServiceKernels().size(), 0u);
 
-    EXPECT_EQ(PM.getExportedSymbolImages().size(), 2u);
-    EXPECT_EQ(PM.getDeviceImages().size(), ImageCount);
+    EXPECT_EQ(PM.getExportedSymbolImages().size(), 3u);
+    EXPECT_EQ(PM.getDeviceImages().size(), ImageCount + 1);
   
     EXPECT_EQ(PM.getBuiltInKernelIds().size(), 0u);
     EXPECT_EQ(PM.getVFSet2BinImage().size(), 0u);
@@ -202,25 +224,16 @@ TEST(ImageRemoval, Base) {
     EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), 0u);
     EXPECT_EQ(PM.getMaterializedKernels().size(), 0u);
 
-    sycl_device_binary_struct NativeImageToRemove = Imgs[0].convertToNativeType();
-    sycl_device_binaries_struct BinaryToRemove = sycl_device_binaries_struct{
-        SYCL_DEVICE_BINARIES_VERSION,
-        1,
-        &NativeImageToRemove,
-        nullptr, // not used, put here for compatibility with OpenMP
-        nullptr, // not used, put here for compatibility with OpenMP
-    };
+    PM.removeImages(&TestBinaries);
 
-    PM.removeImages(&BinaryToRemove);
-
-    EXPECT_EQ(PM.getKernelID2BinImage().size(), 1u);
-    EXPECT_EQ(PM.getKernelName2KernelID().size(), 1u);
-    EXPECT_EQ(PM.getBinImage2KernelId().size(), 1u);
+    EXPECT_EQ(PM.getKernelID2BinImage().size(), 3u);
+    EXPECT_EQ(PM.getKernelName2KernelID().size(), 3u);
+    EXPECT_EQ(PM.getBinImage2KernelId().size(), 2u);
   
     EXPECT_EQ(PM.getServiceKernels().size(), 0u);
 
-    EXPECT_EQ(PM.getExportedSymbolImages().size(), 1u);
-    EXPECT_EQ(PM.getDeviceImages().size(), ImageCount - 1);
+    EXPECT_EQ(PM.getExportedSymbolImages().size(), 2u);
+    EXPECT_EQ(PM.getDeviceImages().size(), ImageCount);
   
     EXPECT_EQ(PM.getBuiltInKernelIds().size(), 0u);
     EXPECT_EQ(PM.getVFSet2BinImage().size(), 0u);
