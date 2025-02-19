@@ -341,13 +341,15 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH ${ARCH} )
   endif()
 
+  set( libspirv_dirs ${opencl_dirs} )
+
   set(IS_NATIVE_CPU_ARCH FALSE)
   if( ARCH IN_LIST NATIVECPU_SUPPORTED_ARCH )
     set(IS_NATIVE_CPU_ARCH TRUE)
   endif()
 
   if( IS_NATIVE_CPU_ARCH AND OS STREQUAL linux)
-    LIST( APPEND dirs native_cpu-unknown-linux )
+    LIST( APPEND libspirv_dirs native_cpu-unknown-linux )
   elseif( IS_NATIVE_CPU_ARCH AND NOT OS STREQUAL linux )
     message(WARNING "libclc is being built for an unsupported ARCH/OS"
       " configuration, some SYCL programs may fail to build.")
@@ -395,7 +397,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   libclc_configure_lib_source(
     libspirv_lib_files
     LIB_ROOT_DIR libspirv
-    DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
+    DIRS ${libspirv_dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
   )
 
   foreach( d ${${t}_devices} )
