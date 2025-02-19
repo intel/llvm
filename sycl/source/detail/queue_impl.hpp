@@ -1065,7 +1065,9 @@ protected:
   ur_exp_command_buffer_handle_t MInteropGraph{};
 #endif
 
-  sycl::handler MHandler;
+  // Caching pre-constructed handler to speed up submit(). There is no
+  // nested submit() calls, so we can use TLS.
+  thread_local static std::unique_ptr<sycl::handler> MHandler;
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
 
