@@ -180,6 +180,8 @@ translateArgType(kernel_param_kind_t Kind) {
     return PK::Stream;
   case kind::kind_work_group_memory:
     return PK::WorkGroupMemory;
+  case kind::kind_dynamic_work_group_memory:
+    return PK::DynamicWorkGroupMemory;
   case kind::kind_invalid:
     return PK::Invalid;
   }
