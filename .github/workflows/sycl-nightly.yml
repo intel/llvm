@@ -242,8 +242,6 @@ jobs:
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
     with:
       lookback_days: 100
-    env:
-      GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
       
   run-sycl-benchmarks:
     needs: [ubuntu2204_build, aggregate_benchmark_results]
