@@ -163,21 +163,6 @@ class Configuration:
         all_opts.read(self.config_path)
         all_opts.read(self.constants_path)
 
-        # It was decided that paths should be hardcoded throughout this workflow
-        # for security reasons and ease of readability purposes:
-
-        # SanitizedConfig.PERF_RES_PATH = \
-        #     self.__sanitize(all_opts["perf_res"]["path"], "perf_res.path")
-        # SanitizedConfig.ARTIFACT_OUTPUT_CACHE = \
-        #     self.__sanitize(all_opts["artifact"]["output_cache"],
-        #                     "artifact.output_cache")
-        # SanitizedConfig.BENCHMARK_LOG_SLOW = \
-        #     self.__sanitize(all_opts["benchmark_log"]["slow"],
-        #                     "benchmark_log.slow")
-        # SanitizedConfig.BENCHMARK_LOG_ERROR = \
-        #     self.__sanitize(all_opts["benchmark_log"]["error"],
-        #                     "benchmark_log.error")
-
         # Fields that are supposed to be python objects need to be changed to
         # python objects manually:
 
