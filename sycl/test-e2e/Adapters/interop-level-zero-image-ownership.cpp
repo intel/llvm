@@ -14,7 +14,7 @@
 // If ownership is ::transfer then the ~image destructor will end up calling
 // zeImageDestroy
 // CHECK: test  ownership::transfer
-// CHECK: ZE ---> zeImageDestroy
+// CHECK: zeImageDestroy
 
 // With ownership ::keep it is must be called manually.
 // CHECK: test  ownership::keep
