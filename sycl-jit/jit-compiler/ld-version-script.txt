@@ -5,6 +5,7 @@
     materializeSpecConstants;
     calculateHash;
     compileSYCL;
+    destroyBinary;
     resetJITConfiguration;
     addToJITConfiguration;
 

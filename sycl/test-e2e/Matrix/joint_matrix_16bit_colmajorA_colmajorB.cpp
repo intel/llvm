@@ -23,6 +23,10 @@
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
 
+// Only transpose on half data type
+// XFAIL: arch-intel_cpu_gnr
+// XFAIL-TRACKER: CMPLRLLVM-65499
+
 #include "common.hpp"
 
 constexpr size_t TM = 8;

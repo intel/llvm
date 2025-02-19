@@ -147,6 +147,8 @@ KF_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                        View<const char *> UserArgs,
                                        View<char> CachedIR, bool SaveIR);
 
+KF_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
+
 /// Clear all previously set options.
 KF_EXPORT_SYMBOL void resetJITConfiguration();
 
