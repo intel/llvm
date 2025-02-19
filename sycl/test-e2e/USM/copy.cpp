@@ -9,6 +9,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t1.out
 // RUN: %{run} %t1.out
 
+// UNSUPPORTED: spirv-backend && bmg
+// UNSUPPORTED-TRACKER: https://jira.devtools.intel.com/browse/CMPLRLLVM-64705
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

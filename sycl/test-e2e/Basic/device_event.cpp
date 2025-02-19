@@ -1,6 +1,10 @@
 // RUN: %{build} -o %t.run
 // RUN: %{run} %t.run
 
+// Timeout to triage and fix using the SPIR-V backend.
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: https://jira.devtools.intel.com/browse/CMPLRLLVM-64705
+
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
