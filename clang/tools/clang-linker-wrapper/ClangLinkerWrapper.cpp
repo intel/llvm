@@ -730,7 +730,7 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
     std::string SYCLDeviceLibLocParam = SYCLDeviceLibLoc->getValue();
     std::string AssertDeviceLibLoc =
-        SYCLDeviceLibLocParam + "/libsycl-fallback-cassert.bc";
+        SYCLDeviceLibLocParam + "/libsycl-native-bfloat16.bc";
     if (llvm::sys::fs::exists(AssertDeviceLibLoc)) {
       SYCLDeviceLibLocParam = "--device-lib-dir=" + SYCLDeviceLibLocParam;
       CmdArgs.push_back(Args.MakeArgString(StringRef(SYCLDeviceLibLocParam)));
