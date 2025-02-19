@@ -1,4 +1,4 @@
-// REQUIRES: xptifw, opencl
+// REQUIRES: xptifw, opencl, target-spir
 // RUN: %build_collector
 // RUN: %{build} -Wno-error=deprecated-declarations -O2 -o %t.opt.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.opt.out | FileCheck %s --check-prefix=CHECK-OPT
