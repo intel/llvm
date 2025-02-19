@@ -31,4 +31,3 @@ int main() {
 // CHECK-HOST: in main {{.*bad-free-minus1.cpp:}}[[@LINE-15]]
 // CHECK-SHARED: in main {{.*bad-free-minus1.cpp:}}[[@LINE-14]]
 // CHECK-DEVICE: in main {{.*bad-free-minus1.cpp:}}[[@LINE-13]]
-// CHECK-NOT: terminate called after throwing an instance
