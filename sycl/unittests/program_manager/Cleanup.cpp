@@ -78,7 +78,6 @@ std::unordered_map<std::string, std::map<std::vector<unsigned char>, ur_kernel_h
 namespace {
 std::vector<sycl::unittest::MockProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
-  sycl::unittest::MockPropertySet PropSet;
   std::vector<sycl::unittest::MockProperty> Props;
   for (const std::string &Symbol : Symbols) {
     std::vector<char> Storage(sizeof(uint32_t));
@@ -95,6 +94,25 @@ createPropertySet(const std::vector<std::string> &Symbols) {
   return Props;
 }
 
+std::vector<sycl::unittest::MockProperty>
+createVFPropertySet(const std::string &VFSets) {
+  std::vector<sycl::unittest::MockProperty> Props;
+  uint64_t PropSize = VFSets.size();
+  std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
+                            /* null terminator */ 1);
+  auto *SizePtr = reinterpret_cast<char *>(&PropSize);
+  std::uninitialized_copy(SizePtr, SizePtr + sizeof(uint64_t), Storage.data());
+  std::uninitialized_copy(VFSets.data(), VFSets.data() + PropSize,
+                          Storage.data() + /* bytes for size */ 8);
+  Storage.back() = '\0';
+  const std::string PropName = "virtual-functions-set";
+  sycl::unittest::MockProperty Prop(PropName, Storage,
+                                    SYCL_PROPERTY_TYPE_BYTE_ARRAY);
+
+  Props.push_back(Prop);
+  return Props;
+}
+
 std::string generateRefName(const std::string& ImageId, const std::string& FeatureName)
 {
   return FeatureName + "_" + ImageId;
@@ -107,16 +125,16 @@ generateImage(const std::string& ImageId) {
   std::initializer_list<std::string> KernelNames{ generateRefName(ImageId, "Kernel"), generateRefName(ImageId, "__sycl_service_kernel__") };
   const std::vector<std::string> ExportedSymbols{generateRefName(ImageId, "Exported")};
   const std::vector<std::string> &ImportedSymbols{generateRefName(ImageId, "Imported")};
-  const std::vector<std::string> &VirtualFunctions{generateRefName(ImageId, "VF")};
+  const std::string &VirtualFunctions{generateRefName(ImageId, "VF")};
 
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
                    createPropertySet(ExportedSymbols));
 
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
                    createPropertySet(ImportedSymbols));
-  // if (!VirtualFunctions.empty())
-  //   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
-  //                 createPropertySet(VirtualFunctions));
+
+    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
+                  createVFPropertySet(VirtualFunctions));
 
   std::vector<unsigned char> Bin{0};
 
@@ -158,6 +176,25 @@ void convertAndAddImages(ProgramManagerExposed& PM, std::array<sycl::unittest::M
     PM.addImages(&AllBinaries);
 }
 
+void checkAllInvolvedContainers(ProgramManagerExposed& PM, size_t ExpectedCount, const std::string& Comment)
+{
+    EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedCount) << Comment;
+    EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedCount) << Comment;
+    EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
+  
+    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
+
+    EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
+    EXPECT_EQ(PM.getDeviceImages().size(), ExpectedCount) << Comment;
+
+   // EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
+    EXPECT_EQ(PM.getNativePrograms().size(), 0u) << Comment;
+    EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), 0u) << Comment;
+    EXPECT_EQ(PM.getKernelUsesAssert().size(), 0u) << Comment;
+    EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), 0u) << Comment;
+    EXPECT_EQ(PM.getMaterializedKernels().size(), 0u) << Comment;
+}
+
 TEST(ImageRemoval, Base) {
     ProgramManagerExposed PM;
     
@@ -169,43 +206,11 @@ TEST(ImageRemoval, Base) {
     sycl_device_binaries_struct TestBinaries;
     convertAndAddImages(PM, ImagesToRemove, NativeImagesForRemoval, TestBinaries);
 
-    size_t ExpectedItemsCount = ImagesToRemove.size() + ImagesToKeep.size();
-
-    EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedItemsCount);
-    EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedItemsCount);
-    EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedItemsCount);
-  
-    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedItemsCount);
-
-    EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedItemsCount);
-    EXPECT_EQ(PM.getDeviceImages().size(), ExpectedItemsCount);
-
-    EXPECT_EQ(PM.getVFSet2BinImage().size(), 0u);
-    EXPECT_EQ(PM.getNativePrograms().size(), 0u);
-    EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), 0u);
-    EXPECT_EQ(PM.getKernelUsesAssert().size(), 0u);
-    EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), 0u);
-    EXPECT_EQ(PM.getMaterializedKernels().size(), 0u);
+    checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(), "Check failed before removal");
 
     PM.removeImages(&TestBinaries);
 
-    size_t ExpectedItemsCountAfterRemoval = ImagesToKeep.size();
-
-    EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedItemsCountAfterRemoval);
-    EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedItemsCountAfterRemoval);
-    EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedItemsCountAfterRemoval);
-  
-    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedItemsCountAfterRemoval);
-
-    EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedItemsCountAfterRemoval);
-    EXPECT_EQ(PM.getDeviceImages().size(), ExpectedItemsCountAfterRemoval);
-  
-    EXPECT_EQ(PM.getVFSet2BinImage().size(), 0u);
-    EXPECT_EQ(PM.getNativePrograms().size(), 0u);
-    EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), 0u);
-    EXPECT_EQ(PM.getKernelUsesAssert().size(), 0u);
-    EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), 0u);
-    EXPECT_EQ(PM.getMaterializedKernels().size(), 0u);
+    checkAllInvolvedContainers(PM, ImagesToKeep.size(), "Check failed after removal");
 }
 
 } // anonymous namespace
