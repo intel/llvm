@@ -1,4 +1,4 @@
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 // REQUIRES: aspect-ext_intel_legacy_image
 //
 // RUN: %{build} -o %t.out

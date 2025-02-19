@@ -26,7 +26,6 @@ string(CONCAT sycl_targets_opt
   "-fsycl-targets="
   "spir64_x86_64-unknown-unknown,"
   "spir64_gen-unknown-unknown,"
-  "spir64_fpga-unknown-unknown,"
   "spir64-unknown-unknown,"
   "spirv64-unknown-unknown")
 
