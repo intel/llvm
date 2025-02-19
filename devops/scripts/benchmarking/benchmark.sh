@@ -26,7 +26,7 @@ _validate_testname () {
 clone_perf_res() {
     echo "### Cloning llvm-ci-perf-results ($SANITIZED_PERF_RES_GIT_REPO:$SANITIZED_PERF_RES_GIT_BRANCH) ###"
     git clone -b "$SANITIZED_PERF_RES_GIT_BRANCH" "https://github.com/$SANITIZED_PERF_RES_GIT_REPO" ./llvm-ci-perf-results
-    [ "$?" -ne 0 ] && exit $? 
+    [ "$?" -ne 0 ] && exit "$?"
 }
 
 clone_compute_bench() {
@@ -34,7 +34,18 @@ clone_compute_bench() {
     git clone -b "$SANITIZED_COMPUTE_BENCH_GIT_BRANCH" \
               --recurse-submodules "https://github.com/$SANITIZED_COMPUTE_BENCH_GIT_REPO" \
               ./compute-benchmarks
-    [ "$?" -ne 0 ] && exit "$?"
+    if [ ! -d "./compute-benchmarks" ]; then
+        echo "Failed to clone compute-benchmarks."
+        exit 1
+    elif [ -n  "$SANITIZED_COMPUTE_BENCH_GIT_COMMIT" ]; then
+        cd ./compute-benchmarks
+        git checkout "$SANITIZED_COMPUTE_BENCH_GIT_COMMIT"
+        if [ "$?" -ne 0 ]; then
+            echo "Failed to get compute-benchmarks commit '$SANITIZED_COMPUTE_BENCH_GIT_COMMIT'."
+            exit 1
+        fi
+        cd -
+    fi
 }
 
 build_compute_bench() {

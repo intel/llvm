@@ -151,6 +151,7 @@ class Configuration:
             ("perf_res", "git_branch"),
             ("compute_bench", "git_repo"),
             ("compute_bench", "git_branch"),
+            ("compute_bench", "git_commit"),
         ]
         return self.__get_export_cmd(shell_constants, self.constants_path)
 
