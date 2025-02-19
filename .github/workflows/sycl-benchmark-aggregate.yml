@@ -36,6 +36,7 @@ jobs:
         sparse-checkout: |
           devops/scripts/benchmarking
           devops/benchmarking
+          devops/actions/benchmarking
     - name: Aggregate benchmark results and produce historical average
       uses: ./devops/actions/benchmarking/aggregate
       with:
