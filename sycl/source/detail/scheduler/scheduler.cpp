@@ -310,7 +310,6 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     WriteLockT Lock = StrictLock ? acquireWriteLock()
                                  : WriteLockT(MGraphLock, std::try_to_lock);
     if (!Lock.owns_lock()) {
-
       if (allowWait)
         return false; // Record was not removed, the caller may try again.
       else
