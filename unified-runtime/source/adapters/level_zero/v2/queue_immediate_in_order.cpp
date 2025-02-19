@@ -851,11 +851,13 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
 
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
-
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListManager.getZeCommandList(), UINT64_MAX));
   ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
              (commandListManager.getZeCommandList(), numCommandLists,
               phCommandLists, zeSignalEvent, numWaitEvents, pWaitEvents));
-
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListManager.getZeCommandList(), UINT64_MAX));
   return UR_RESULT_SUCCESS;
 }
 
