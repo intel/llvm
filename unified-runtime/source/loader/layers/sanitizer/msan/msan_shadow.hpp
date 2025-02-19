@@ -149,7 +149,6 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
       : MsanShadowMemoryGPU(Context, Device) {}
 
   static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 52 == 0xff0; }
-  static bool IsLocalMemory(uptr Ptr) { return Ptr >> 28 == 0x4000'0000'1ULL; }
 
   uptr MemToShadow(uptr Ptr) override;
 

@@ -332,7 +332,7 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
 }
 
 uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
-  assert(Ptr & 0xff00'0000'0000'0000ULL && "Ptr must be device USM");
+  assert(MsanShadowMemoryPVC::IsDeviceUSM(Ptr) && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xff00'0000'0000'0000ULL);
   } else {
@@ -341,7 +341,7 @@ uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
 }
 
 uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
-  assert(Ptr & 0xffff'0000'0000'0000ULL && "Ptr must be device USM");
+  assert(MsanShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
   } else {

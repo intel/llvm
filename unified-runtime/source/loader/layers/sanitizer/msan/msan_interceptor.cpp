@@ -276,10 +276,16 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
     for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
       const auto &GVInfo = GVInfos[i];
 
-      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
-                                                      GVInfo.Size, 0));
-      ContextInfo->MaxAllocatedSize =
-          std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
+      // Only support device global USM
+      if ((DeviceInfo->Type == DeviceType::GPU_PVC &&
+           MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
+          (DeviceInfo->Type == DeviceType::GPU_DG2 &&
+           MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
+        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
+                                                        GVInfo.Size, 0));
+        ContextInfo->MaxAllocatedSize =
+            std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
+      }
     }
   }
 
@@ -458,7 +464,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
   LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->MaxAllocatedSize, &LaunchInfo.Data->CleanShadow));
+      ContextInfo->MaxAllocatedSize, (void **)&LaunchInfo.Data->CleanShadow));
 
   const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
   uint32_t NumWG = 1;
@@ -488,9 +494,12 @@ ur_result_t MsanInterceptor::prepareLaunch(
   }
 
   getContext()->logger.info(
-      "launch_info {} (GlobalShadow={}, Device={}, Debug={})",
-      (void *)LaunchInfo.Data, LaunchInfo.Data->GlobalShadowOffset,
-      ToString(LaunchInfo.Data->DeviceTy), LaunchInfo.Data->Debug);
+      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, CleanShadow={}, "
+      "Device={}, Debug={})",
+      (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
+      (void *)LaunchInfo.Data->LocalShadowOffset,
+      (void *)LaunchInfo.Data->CleanShadow, ToString(LaunchInfo.Data->DeviceTy),
+      LaunchInfo.Data->Debug);
 
   ur_result_t URes =
       EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr));
@@ -570,7 +579,8 @@ USMLaunchInfo::~USMLaunchInfo() {
   [[maybe_unused]] ur_result_t Result;
   if (Data) {
     if (Data->CleanShadow) {
-      Result = getContext()->urDdiTable.USM.pfnFree(Context, Data->CleanShadow);
+      Result = getContext()->urDdiTable.USM.pfnFree(Context,
+                                                    (void *)Data->CleanShadow);
       assert(Result == UR_RESULT_SUCCESS);
     }
     Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);

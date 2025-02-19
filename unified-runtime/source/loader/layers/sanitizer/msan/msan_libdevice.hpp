@@ -51,13 +51,13 @@ struct MsanLaunchInfo {
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
 
+  uintptr_t CleanShadow = 0;
+
   DeviceType DeviceTy = DeviceType::UNKNOWN;
   uint32_t Debug = 0;
   uint32_t IsRecover = 0;
 
   MsanErrorReport Report;
-
-  void *CleanShadow = nullptr;
 };
 
 // Based on the observation, only the last 24 bits of the address of the private
