@@ -41,14 +41,16 @@ extern "C" {
 #endif
 
 %for spec in specs:
-%if len(spec['objects']):
+%if len(spec['objects']) and 'manifest' not in spec['name']:
 // ${th.subt(n, tags, spec['header']['desc'])}
 #if !defined(__GNUC__)
 #pragma region ${spec['name'].replace(' ', '_')}
 #endif
 %endif
 %for obj in spec['objects']:
-%if not re.match(r"class", obj['type']):
+%if "manifest" in obj['type']:
+<%continue%>
+%elif not re.match(r"class", obj['type']):
 ///////////////////////////////////////////////////////////////////////////////
 ## MACRO ######################################################################
 %if re.match(r"macro", obj['type']):
@@ -142,7 +144,7 @@ typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name']
 
 %endif  # not re.match(r"class", obj['type'])
 %endfor # obj in spec['objects']
-%if len(spec['objects']):
+%if len(spec['objects']) and 'manifest' not in spec['name']:
 #if !defined(__GNUC__)
 #pragma endregion
 #endif

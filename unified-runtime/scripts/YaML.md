@@ -9,7 +9,7 @@ This document describes the YaML format used by the scripts for the API specific
 
 ## YML Syntax
 * Each document in the yml file represents an entry in the specification.
-* Every document must have a `type` scalar: {`header`, `macro`, `typedef`, `const`, `enum`, `struct`, `handle`, `function`, `class`}
+* Every document must have a `type` scalar: {`header`, `macro`, `typedef`, `const`, `enum`, `struct`, `handle`, `function`, `class`, `manifest`}
 * All scalars must be strings. The document writer is responsible for using explicit string notification where the yml parser may perform implicit conversion.
 * Custom names must be tagged using `$` followed by the tag name. The tag names are defined in the `config.ini` section. There are two tag variations for replacement:
     - `$x` : lower_case
@@ -830,6 +830,17 @@ namespace ur {
 ```
 </td></tr>
 </table>
+
+#### type: manifest
+* A manifest encodes meta information about an adapter library.
+* These don't cause anything to be added to the spec or headers, they're intended to generate code for the loader.
+* A manifest requires the following scalar fields: {`name`, `backend`}
+  - `name` must be a string unique to the adapter.
+  - `name` should be identical to how the name appears in the adapter's library name. E.g. `libur_adapter_my_adapter` should have the name string `my_adapter`.
+  - `backend` must be an etor of `$x_adapter_backend_t`.
+  - `backend` must not be `$X_ADAPTER_BACKEND_UNKNOWN`.
+* a manifest requires the following sequence of scalars: {`device_types`}
+  - `device_types` must be an etor of `$x_device_type_t`
 
 ## Extensions
 * Each extensions must be defined in a unique `.yml` file
