@@ -135,6 +135,7 @@ generateImage(const std::string& ImageId) {
 
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
                   createVFPropertySet(VirtualFunctions));
+    setKernelUsesAssert(std::vector<std::string>{KernelNames.begin()[0]}, PropSet);
 
   std::vector<unsigned char> Bin{0};
 
@@ -190,9 +191,9 @@ void checkAllInvolvedContainers(ProgramManagerExposed& PM, size_t ExpectedCount,
    // EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
     EXPECT_EQ(PM.getNativePrograms().size(), 0u) << Comment;
     EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), 0u) << Comment;
-    EXPECT_EQ(PM.getKernelUsesAssert().size(), 0u) << Comment;
+
+    EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
     EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), 0u) << Comment;
-    EXPECT_EQ(PM.getMaterializedKernels().size(), 0u) << Comment;
 }
 
 TEST(ImageRemoval, Base) {

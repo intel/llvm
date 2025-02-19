@@ -3520,7 +3520,6 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
     }
     DeviceImagesToCleanup.insert(std::move(node));
   }
-  std::cout << "DeviceImagesToCleanup.size() = " << DeviceImagesToCleanup.size() << std::endl;
 
   for (auto& [DeviceBinary, DeviceImage] : DeviceImagesToCleanup)
   {
@@ -3548,7 +3547,6 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
         //remove Everything associated with this KernelName
         m_KernelUsesAssert.erase(KernelNameIt->first);
         m_KernelImplicitLocalArgPos.erase(KernelNameIt->first);
-        m_MaterializedKernels.erase(KernelNameIt->first);
         m_KernelName2KernelIDs.erase(KernelNameIt);
       }
     }
