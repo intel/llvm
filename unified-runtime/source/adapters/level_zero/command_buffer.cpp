@@ -1929,10 +1929,12 @@ ur_result_t updateKernelCommand(
   // the group count.
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   if ((NewGlobalWorkSize || NewLocalWorkSize) && Dim > 0) {
-    // If only a new local work size has been provided, use the previously
-    // global work size value to re-calculate group count
-    size_t *GlobalWorkSize =
-        NewGlobalWorkSize ? NewGlobalWorkSize : Command->GlobalWorkSize;
+    // If a new global work size is provided update that in the command,
+    // otherwise the previous work group size will be used
+    if (NewGlobalWorkSize) {
+      Command->WorkDim = Dim;
+      Command->setGlobalWorkSize(NewGlobalWorkSize);
+    }
     // If a new global work size is provided but a new local work size is not
     // then we still need to update local work size based on the size suggested
     // by the driver for the kernel.
@@ -1942,9 +1944,9 @@ ur_result_t updateKernelCommand(
     UR_CALL(getZeKernel(ZeDevice, Command->Kernel, &ZeKernel));
 
     uint32_t WG[3];
-    UR_CALL(calculateKernelWorkDimensions(ZeKernel, CommandBuffer->Device,
-                                          ZeThreadGroupDimensions, WG, Dim,
-                                          GlobalWorkSize, NewLocalWorkSize));
+    UR_CALL(calculateKernelWorkDimensions(
+        ZeKernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG, Dim,
+        Command->GlobalWorkSize, NewLocalWorkSize));
 
     auto MutableGroupCountDesc =
         std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();
