@@ -446,6 +446,16 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts = NewCompileOpts;
       OptPos = CompileOpts.find(TargetRegisterAllocMode);
     }
+    constexpr std::string_view ReplaceOpts[] = {"-foffload-fp32-prec-div",
+                                                "-foffload-fp32-prec-sqrt"};
+    for (const std::string_view Opt : ReplaceOpts) {
+      if (auto Pos = CompileOpts.find(Opt); Pos != std::string::npos) {
+        const char *BackendOption = nullptr;
+        PlatformImpl->getBackendOption(std::string(Opt).c_str(),
+                                       &BackendOption);
+        CompileOpts.replace(Pos, Opt.length(), BackendOption);
+      }
+    }
   }
 }
 
@@ -791,7 +801,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // Sharing is allowed within a single context only
     if (!ContextImpl->hasDevice(ParentDev))
       break;
-    RootDevImpl = ParentDev;
+    RootDevImpl = std::move(ParentDev);
   }
 
   ur_bool_t MustBuildOnSubdevice = true;
@@ -1048,11 +1058,9 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
-  SerializedObj SpecConsts;
-
   ur_device_handle_t UrDevice = DeviceImpl->getHandleRef();
 
-  auto key = std::make_tuple(std::move(SpecConsts), UrDevice, KernelName);
+  auto key = std::make_pair(UrDevice, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple

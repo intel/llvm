@@ -22,6 +22,9 @@ def err_drv_unsupported_option_argument : Error<
   "unsupported argument '%1' to option '%0'">;
 def err_drv_unsupported_option_argument_for_target : Error<
   "unsupported argument '%1' to option '%0' for target '%2'">;
+def err_drv_unsupported_opt_removed : Error<
+  "option '%0' is not supported and has been removed from the compiler. Please "
+  "see the compiler documentation for more details">;
 def err_drv_unknown_stdin_type : Error<
   "-E or -x required when input is from standard input">;
 def err_drv_unknown_stdin_type_clang_cl : Error<
@@ -886,6 +889,9 @@ def err_drv_loongarch_invalid_simd_option_combination : Error<
   "invalid option combination; LASX depends on LSX">;
 def err_drv_loongarch_invalid_msimd_EQ : Error<
   "invalid argument '%0' to -msimd=; must be one of: none, lsx, lasx">;
+
+def err_drv_loongarch_unsupported_with_linker_relaxation : Error<
+  "%0 is unsupported with LoongArch linker relaxation (-mrelax)">;
 
 def err_drv_expand_response_file : Error<
   "failed to expand response file: %0">;
