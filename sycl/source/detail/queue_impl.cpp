@@ -29,6 +29,8 @@ namespace detail {
 // Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
+thread_local sycl::handler queue_impl::MHandler;
+
 thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
@@ -363,8 +365,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  MHandler.setQueue(Self);
-  MHandler.reset();
+  MHandler.reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
   auto HandlerImpl = detail::getSyclObjImpl(MHandler);
   MHandler.saveCodeLoc(Loc, IsTopCodeLoc);
 
@@ -420,6 +421,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
 
+  MHandler.reset(nullptr, nullptr, nullptr, false);
   return Event;
 }
 
