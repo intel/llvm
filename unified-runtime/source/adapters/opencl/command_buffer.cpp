@@ -34,7 +34,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
 
   ur_queue_handle_t Queue = nullptr;
-  UR_RETURN_ON_FAILURE(urQueueCreate(hContext, hDevice, nullptr, &Queue));
+  ur_queue_properties_t QueueProperties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                           nullptr, 0};
+  const bool IsInOrder =
+      pCommandBufferDesc ? pCommandBufferDesc->isInOrder : false;
+  if (!IsInOrder) {
+    QueueProperties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+  }
+  UR_RETURN_ON_FAILURE(
+      urQueueCreate(hContext, hDevice, &QueueProperties, &Queue));
 
   cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
   cl_ext::clCreateCommandBufferKHR_fn clCreateCommandBufferKHR = nullptr;
@@ -67,7 +75,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
   try {
     auto URCommandBuffer = std::make_unique<ur_exp_command_buffer_handle_t_>(
-        Queue, hContext, hDevice, CLCommandBuffer, IsUpdatable);
+        Queue, hContext, hDevice, CLCommandBuffer, IsUpdatable, IsInOrder);
     *phCommandBuffer = URCommandBuffer.release();
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -148,11 +156,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   cl_command_properties_khr *Properties =
       hCommandBuffer->IsUpdatable ? UpdateProperties : nullptr;
+
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandNDRangeKernelKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, Properties,
       cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
-      pGlobalWorkSize, pLocalWorkSize, numSyncPointsInWaitList,
-      pSyncPointWaitList, pSyncPoint, OutCommandHandle));
+      pGlobalWorkSize, pLocalWorkSize, WaitListSize, SyncPointWaitList,
+      RetSyncPoint, OutCommandHandle));
 
   try {
     auto Handle = std::make_unique<ur_exp_command_buffer_command_handle_t_>(
@@ -219,11 +233,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCommandCopyBufferKHRCache,
           cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR));
 
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandCopyBufferKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
-      srcOffset, dstOffset, size, numSyncPointsInWaitList, pSyncPointWaitList,
-      pSyncPoint, nullptr));
+      srcOffset, dstOffset, size, WaitListSize, SyncPointWaitList, RetSyncPoint,
+      nullptr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -257,12 +276,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCommandCopyBufferRectKHRCache,
           cl_ext::CommandCopyBufferRectName, &clCommandCopyBufferRectKHR));
 
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandCopyBufferRectKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
       OpenCLOriginRect, OpenCLDstRect, OpenCLRegion, srcRowPitch, srcSlicePitch,
-      dstRowPitch, dstSlicePitch, numSyncPointsInWaitList, pSyncPointWaitList,
-      pSyncPoint, nullptr));
+      dstRowPitch, dstSlicePitch, WaitListSize, SyncPointWaitList, RetSyncPoint,
+      nullptr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -361,10 +385,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCommandFillBufferKHRCache,
           cl_ext::CommandFillBufferName, &clCommandFillBufferKHR));
 
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
   CL_RETURN_ON_FAILURE(clCommandFillBufferKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hBuffer), pPattern, patternSize, offset, size,
-      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint, nullptr));
+      WaitListSize, SyncPointWaitList, RetSyncPoint, nullptr));
 
   return UR_RESULT_SUCCESS;
 }
