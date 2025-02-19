@@ -60,6 +60,7 @@ enum class ParameterKind : uint32_t {
   SpecConstBuffer = 4,
   Stream = 5,
   WorkGroupMemory = 6,
+  DynamicWorkGroupMemory = 7,
   Invalid = 0xF,
 };
 
