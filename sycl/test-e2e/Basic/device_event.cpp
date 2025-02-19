@@ -2,7 +2,7 @@
 // RUN: %{run} %t.run
 
 // UNSUPPORTED: spirv-backend
-// UNSUPPORTED-TRACKER: https://jira.devtools.intel.com/browse/CMPLRLLVM-64705
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //

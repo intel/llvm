@@ -14,7 +14,7 @@
 // to be merged with intel/llvm to address an issue of mapping from SPIR-V
 // friendly builtins to Image Read/Write instructions After the 1 issue is
 // resolved and 2 is merged we will re-enable Image support.
-// UNSUPPORTED: spirv-backend && bmg
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/KhronosGroup/SPIRV-Headers/issues/487
 
 // RUN: %{build} %level_zero_options -o %t.out
