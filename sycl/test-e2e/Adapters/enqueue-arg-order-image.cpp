@@ -9,13 +9,13 @@
 // support, enforce it for this test.
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
-// 1. There is a SPIR-V spec issue that blocks generation of valid SPIR-V code for
-// the OpenCL environments support of the "Unknown" image format:
+// 1. There is a SPIR-V spec issue that blocks generation of valid SPIR-V code
+// for the OpenCL environments support of the "Unknown" image format:
 // https://github.com/KhronosGroup/SPIRV-Headers/issues/487
-// 2. The PR https://github.com/llvm/llvm-project/pull/127242 in upstream needs to be
-// merged with intel/llvm to address an issue of mapping from SPIR-V friendly builtins
-// to Image Read/Write instructions
-// After the 1 issue is resolved and 2 is merged we will re-enable Image support.
+// 2. The PR https://github.com/llvm/llvm-project/pull/127242 in upstream needs
+// to be merged with intel/llvm to address an issue of mapping from SPIR-V
+// friendly builtins to Image Read/Write instructions After the 1 issue is
+// resolved and 2 is merged we will re-enable Image support.
 // UNSUPPORTED: spirv-backend && bmg
 // UNSUPPORTED-TRACKER: https://github.com/KhronosGroup/SPIRV-Headers/issues/487
 

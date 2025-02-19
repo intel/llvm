@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.run
 // RUN: %{run} %t.run
 
-// Timeout to triage and fix using the SPIR-V backend.
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: https://jira.devtools.intel.com/browse/CMPLRLLVM-64705
 
