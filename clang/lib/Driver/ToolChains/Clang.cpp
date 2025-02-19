@@ -11135,23 +11135,9 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
-  bool DeviceLibDisable = false;
-  Arg *DeviceLibArg = TCArgs.getLastArg(options::OPT_fsycl_device_lib_EQ,
-                                        options::OPT_fno_sycl_device_lib_EQ);
-  if (DeviceLibArg &&
-      DeviceLibArg->getOption().matches(options::OPT_fno_sycl_device_lib_EQ)) {
-    for (StringRef Val : DeviceLibArg->getValues()) {
-      if (Val == "all") {
-        DeviceLibDisable = true;
-        break;
-      }
-    }
-  }
-
-  // Fallback spv is NOT involved in AOT compilation or
-  // '-fno-sycl-device-lib=all' is applied by user explicitly.
-  if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT() &&
-      !DeviceLibDisable) {
+  // For bfloat16 conversions LLVM IR devicelib, we only need to embed it
+  // when non-AOT compilation is used.
+  if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
     SYCLInstallationDetector SYCLInstall(TC.getDriver());
     SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
     SmallString<128> NativeBfloat16Name("libsycl-native-bfloat16.bc");
