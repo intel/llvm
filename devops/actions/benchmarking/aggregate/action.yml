@@ -66,14 +66,17 @@ runs:
   - name: Upload average to the repo
     shell: bash
     run: |
-      # TODO -- waiting on security clearance
       cd ./llvm-ci-perf-results
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
       git pull
-      git add .
-      git commit -m "[GHA] Aggregate median data from $SANITIZED_TIMESTAMP to $(date +%Y%m%d_%H%M%S)"
-      git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
+      if [ -n "$(git diff)" ]; then
+        git add .
+        git commit -m "[GHA] Aggregate median data from $SANITIZED_TIMESTAMP to $(date +%Y%m%d_%H%M%S)"
+        git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
+      else
+        echo "No changes to median, skipping push."
+      fi
   - name: Find aggregated average results artifact here
     if: always()
     shell: bash
