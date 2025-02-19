@@ -639,12 +639,10 @@ static bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
     // TODO: re-design the encode of the devicelib metadata if we must support
     // more devicelib images in this way.
     enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
-    std::vector<std::string> DeviceExtensions =
-        Dev.get_info<info::device::extensions>();
+    const std::shared_ptr<detail::device_impl> &DeviceImpl =
+        detail::getSyclObjImpl(Dev);
     std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
-    bool NativeBF16Supported =
-        (std::find(DeviceExtensions.begin(), DeviceExtensions.end(),
-                   NativeBF16ExtName) != DeviceExtensions.end());
+    bool NativeBF16Supported = (DeviceImpl->has_extension(NativeBF16ExtName));
     return NativeBF16Supported == (DeviceLibMeta == DEVICELIB_NATIVE);
   }
 
