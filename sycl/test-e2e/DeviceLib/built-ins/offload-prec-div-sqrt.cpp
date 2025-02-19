@@ -11,52 +11,46 @@
 constexpr float value = 560.0f;
 constexpr float divider = 280.0f;
 
-// Reference
-// https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-2020/util/accuracy.h
-template <typename T> T get_ulp_std(T x) {
-  const T inf = std::numeric_limits<T>::infinity();
-  const T negative = std::fabs(std::nextafter(x, -inf) - x);
-  const T positive = std::fabs(std::nextafter(x, inf) - x);
-  return std::fmin(negative, positive);
-}
+int32_t ulp_difference(float lhs, float rhs) {
+  int32_t lhsInt = *reinterpret_cast<int32_t *>(&lhs);
+  int32_t rhsInt = *reinterpret_cast<int32_t *>(&rhs);
 
-template <typename T> int ulp_difference(const T &lhs, const T &rhs) {
-  return get_ulp_std(lhs) - get_ulp_std(rhs);
+  return std::abs(lhsInt - rhsInt);
 }
 
 void test_div() {
   sycl::queue q(sycl::default_selector_v);
-  float *in_value = (float *)sycl::malloc_shared(sizeof(float), q);
-  float *in_divider = (float *)sycl::malloc_shared(sizeof(float), q);
+  float *inValue = (float *)sycl::malloc_shared(sizeof(float), q);
+  float *inDivider = (float *)sycl::malloc_shared(sizeof(float), q);
   float *output = (float *)sycl::malloc_shared(sizeof(float), q);
-  *in_value = value;
-  *in_divider = divider;
+  *inValue = value;
+  *inDivider = divider;
   q.submit([&](sycl::handler &h) {
      h.single_task([=] {
-       float res = *in_value / *in_divider;
+       float res = *inValue / *inDivider;
        *output = res;
      });
    }).wait();
 
   float hostRef = value / divider;
-  int ulpDiff = ulp_difference<float>(hostRef, *output);
+  int ulpDiff = ulp_difference(hostRef, *output);
   assert(std::abs(ulpDiff) < 1 && "Division is not precise");
 }
 
 void test_sqrt() {
   sycl::queue q(sycl::default_selector_v);
-  float *in_value = (float *)sycl::malloc_shared(sizeof(float), q);
+  float *inValue = (float *)sycl::malloc_shared(sizeof(float), q);
   float *output = (float *)sycl::malloc_shared(sizeof(float), q);
-  *in_value = value;
+  *inValue = value;
   q.submit([&](sycl::handler &h) {
      h.single_task([=] {
-       float res = sycl::sqrt(*in_value);
+       float res = sycl::sqrt(*inValue);
        *output = res;
      });
    }).wait();
 
   float hostRef = std::sqrt(value);
-  int ulpDiff = ulp_difference<float>(hostRef, *output);
+  int ulpDiff = ulp_difference(hostRef, *output);
   assert(std::abs(ulpDiff) < 1 && "Sqrt is not precise");
 }
 
