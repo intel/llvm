@@ -798,9 +798,10 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T>
 struct VecTypeIsProhibitedForNativeShuffle
-    : std::bool_constant<(detail::get_vec_size<T>::size > 1) &&
-                         check_type_in_v<vector_element_t<T>, double, long long,
-                                         unsigned long long, half>> {};
+    : std::bool_constant<
+          (detail::get_vec_size<T>::size > 1) &&
+          check_type_in_v<vector_element_t<T>, double, long, long long,
+                          unsigned long, unsigned long long, half>> {};
 
 // Native shuffle is supported if T is scalar arithmetic type or vector type
 // with arithmetic element type which is not in prohibited list.
