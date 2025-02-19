@@ -4,11 +4,9 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
-// UNSUPPORTED: target-amd
-// UNSUPPORTED-INTENDED: sycl_ext_oneapi_work_group_static is not supported on
-// AMD
 
-#define GRAPH_E2E_EXPLICIT
+// REQUIRES: aspect-usm_shared_allocations
 
-#include "../Inputs/work_group_static_memory.cpp"
+#define GRAPH_E2E_RECORD_REPLAY
+
+#include "../../Inputs/whole_update_host_task.cpp"

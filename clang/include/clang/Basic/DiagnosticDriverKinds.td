@@ -22,6 +22,9 @@ def err_drv_unsupported_option_argument : Error<
   "unsupported argument '%1' to option '%0'">;
 def err_drv_unsupported_option_argument_for_target : Error<
   "unsupported argument '%1' to option '%0' for target '%2'">;
+def err_drv_unsupported_opt_removed : Error<
+  "option '%0' is not supported and has been removed from the compiler. Please "
+  "see the compiler documentation for more details">;
 def err_drv_unknown_stdin_type : Error<
   "-E or -x required when input is from standard input">;
 def err_drv_unknown_stdin_type_clang_cl : Error<

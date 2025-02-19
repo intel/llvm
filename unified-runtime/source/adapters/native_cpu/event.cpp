@@ -146,7 +146,7 @@ void ur_event_handle_t_::wait() {
   // The callback may need to acquire the lock, so we unlock it here
   lock.unlock();
 
-  if (callback)
+  if (callback.valid())
     callback();
 }
 

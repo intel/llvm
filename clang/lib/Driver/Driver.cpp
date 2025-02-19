@@ -340,6 +340,17 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
                        DiagnosticsEngine::Warning;
       continue;
     }
+    // Emit an unsupported and removed diagnostic for any options that were
+    // previously supported and subsequently removed.  This is considered a
+    // special case scenario that is currently being used for FPGA related
+    // options that did not go through the regular deprecation process.
+    if (A->getOption().hasFlag(options::UnsupportedRemoved)) {
+      Diag(diag::err_drv_unsupported_opt_removed) << A->getAsString(Args);
+      ContainsError |= Diags.getDiagnosticLevel(
+                           diag::err_drv_unsupported_opt_removed,
+                           SourceLocation()) > DiagnosticsEngine::Warning;
+      continue;
+    }
 
     // Deprecated options emit a diagnostic about deprecation, but are still
     // supported until removed. It's possible to have a deprecated option which
@@ -890,6 +901,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
       ((T.getArch() == llvm::Triple::spir && A != "spir") ||
        (T.getArch() == llvm::Triple::spir64 && A != "spir64")))
     return false;
+
+  // spir64_fpga is not supported.
+  if (T.isSPIR() && T.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    return false;
   return true;
 }
 
@@ -900,10 +915,19 @@ static const char *getDefaultSYCLArch(Compilation &C) {
   return "spir64";
 }
 
-llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch) const {
+llvm::Triple Driver::getSYCLDeviceTriple(StringRef TargetArch,
+                                         const Arg *Arg) const {
   SmallVector<StringRef, 5> SYCLAlias = {
       "spir",       "spir64",  "spir64_fpga", "spir64_x86_64",
       "spir64_gen", "spirv32", "spirv64",     "nvptx64"};
+  // spir64_fpga is no longer supported.
+  llvm::Triple TargetTriple(TargetArch);
+  if (Arg && !Arg->isClaimed() && TargetTriple.isSPIR() &&
+      TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    Diag(diag::err_drv_unsupported_opt_removed)
+        << Arg->getSpelling().str() + TargetArch.str();
+    Arg->claim();
+  }
   if (llvm::is_contained(SYCLAlias, TargetArch)) {
     llvm::Triple TT;
     TT.setArchName(TargetArch);
@@ -1215,8 +1239,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         << ArgValue << A->getOption().getName();
   };
 
+  // TODO: Transition to using -fsycl-link as a flag as opposed to an option
+  // that takes an argument.  The use of 'default' is a temporary solution as we
+  // remove FPGA support.
   Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
-  checkSingleArgValidity(SYCLLink, {"early", "image"});
+  checkSingleArgValidity(SYCLLink, {"early", "image", "default"});
+
+  // Use of -fsycl-link=early and -fsycl-link=image are not supported.
+  if (SYCLLink && (SYCLLink->getValue() == StringRef("early") ||
+                   SYCLLink->getValue() == StringRef("image")))
+    Diag(diag::err_drv_unsupported_opt_removed)
+        << SYCLLink->getAsString(C.getInputArgs());
 
   Arg *DeviceCodeSplit =
       C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
@@ -1244,7 +1277,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
     StringRef Val(SYCLForceTarget->getValue());
-    llvm::Triple TT(getSYCLDeviceTriple(Val));
+    llvm::Triple TT(getSYCLDeviceTriple(Val, SYCLForceTarget));
     if (!isValidSYCLTriple(TT))
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
   }
@@ -2706,7 +2739,6 @@ void Driver::PrintHelp(bool ShowHidden) const {
                       VisibilityMask);
 }
 
-
 // Print the help from any of the given tools which are used for AOT
 // compilation for SYCL
 void Driver::PrintSYCLToolHelp(const Compilation &C) const {
@@ -2719,9 +2751,12 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     if (AV == "gen" || AV == "all")
       HelpArgs.push_back(std::make_tuple(getSYCLDeviceTriple("spir64_gen"),
                                          "ocloc", "--help", ""));
-    if (AV == "fpga" || AV == "all")
+    if (AV == "fpga") {
+      Diag(diag::err_drv_unsupported_opt_removed)
+          << A->getSpelling().str() + AV.str();
       HelpArgs.push_back(std::make_tuple(getSYCLDeviceTriple("spir64_fpga"),
                                          "aoc", "-help", "-sycl"));
+    }
     if (AV == "x86_64" || AV == "all")
       HelpArgs.push_back(std::make_tuple(getSYCLDeviceTriple("spir64_x86_64"),
                                          "opencl-aot", "--help", ""));
@@ -3979,9 +4014,9 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
 
   // Do not do the check if the default device is passed in -fsycl-targets
   // or if -fsycl-targets isn't passed (that implies default device)
-  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+  if (const Arg *A = Args.getLastArgNoClaim(options::OPT_fsycl_targets_EQ)) {
     for (const char *Val : A->getValues()) {
-      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
+      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val, A));
       if ((TT.isSPIROrSPIRV()) && TT.getSubArch() == llvm::Triple::NoSubArch)
         // Default triple found
         return false;
@@ -6629,7 +6664,8 @@ class OffloadingActionBuilder final {
               continue;
             }
 
-            llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
+            llvm::Triple TT(
+                C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
             std::string NormalizedName = TT.normalize();
 
             // Make sure we don't have a duplicate triple.
