@@ -36,7 +36,10 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-void event::wait() { impl->wait(impl); }
+void event::wait() {
+  if (impl)
+    impl->wait(impl);
+}
 
 void event::wait(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -44,7 +47,10 @@ void event::wait(const std::vector<event> &EventList) {
   }
 }
 
-void event::wait_and_throw() { impl->wait_and_throw(impl); }
+void event::wait_and_throw() {
+  if (impl)
+    impl->wait_and_throw(impl);
+}
 
 void event::wait_and_throw(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -55,8 +61,9 @@ void event::wait_and_throw(const std::vector<event> &EventList) {
 std::vector<event> event::get_wait_list() {
   std::vector<event> Result;
 
-  for (auto &EventImpl : impl->getWaitList())
-    Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
+  if (impl)
+    for (auto &EventImpl : impl->getWaitList())
+      Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
 
   return Result;
 }
@@ -67,18 +74,27 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
 template <typename Param>
 typename detail::is_event_info_desc<Param>::return_type
 event::get_info() const {
-  return impl->template get_info<Param>();
+  if (impl)
+    return impl->template get_info<Param>();
+  return {};
 }
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
 event::get_backend_info() const {
-  return impl->get_backend_info<Param>();
+  if (impl)
+    return impl->get_backend_info<Param>();
+  return {};
 }
+
+void event::make_empty() { impl.reset(); }
 
 template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type
 event::get_profiling_info() const {
+  if (!impl)
+    return {};
+
   if (impl->hasCommandGraph()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Profiling information is unavailable for events "
@@ -122,10 +138,16 @@ backend event::get_backend() const noexcept try {
   std::abort();
 }
 
-ur_native_handle_t event::getNative() const { return impl->getNative(); }
+ur_native_handle_t event::getNative() const {
+  if (impl)
+    return impl->getNative();
+  return {};
+}
 
 std::vector<ur_native_handle_t> event::getNativeVector() const {
-  std::vector<ur_native_handle_t> ReturnVector = {impl->getNative()};
+  std::vector<ur_native_handle_t> ReturnVector;
+  if (impl)
+    ReturnVector.push_back(impl->getNative());
   return ReturnVector;
 }
 

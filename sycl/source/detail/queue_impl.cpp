@@ -29,6 +29,8 @@ namespace detail {
 // Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
+thread_local std::unique_ptr<sycl::handler> queue_impl::MHandler;
+
 thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
@@ -363,27 +365,49 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  MHandler.setQueue(Self);
-  MHandler.reset();
-  auto &HandlerImpl = detail::getSyclObjImpl(MHandler);
-  MHandler.saveCodeLoc(Loc, IsTopCodeLoc);
 
-  {
-    NestedCallsTracker tracker;
-    CGF(MHandler);
-  }
-
-  // Scheduler will later omit events, that are not required to execute tasks.
-  // Host and interop tasks, however, are not submitted to low-level runtimes
-  // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
+  event Event;
   std::vector<StreamImplPtr> Streams;
-  if (Type == CGType::Kernel)
-    Streams = std::move(MHandler.MStreamStorage);
+  {
+    // RAII wrapper around MHandler. submit_impl() must not be called in the
+    // scope.
+    struct Wrapper {
+      sycl::handler *MHandlerPtr;
+      Wrapper(const std::shared_ptr<queue_impl> &Self,
+              queue_impl *PrimaryQueue,
+              queue_impl *SecondaryQueue,
+              bool CallerNeedsEvent)
+          : MHandlerPtr(MHandler.get()) {
+        if (MHandlerPtr)
+          MHandlerPtr->reset(Self, PrimaryQueue, SecondaryQueue,
+                             CallerNeedsEvent);
+        else {
+          MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
+              Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+          MHandlerPtr = MHandler.get();
+        }
+      }
+      ~Wrapper() { MHandlerPtr->reset(nullptr, nullptr, nullptr, false); }
+    } w(Self, PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent);
 
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+    w.MHandlerPtr->saveCodeLoc(Loc, IsTopCodeLoc);
 
-  auto Event = finalizeHandler(MHandler, SubmitInfo.PostProcessorFunc());
+    {
+      NestedCallsTracker tracker;
+      CGF(*w.MHandlerPtr);
+    }
+
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    const CGType Type = w.MHandlerPtr->impl->MCGType;
+    if (Type == CGType::Kernel)
+      Streams = std::move(w.MHandlerPtr->MStreamStorage);
+
+    w.MHandlerPtr->impl->MEventMode = SubmitInfo.EventMode();
+
+    Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+  }
 
   addEvent(Event);
 

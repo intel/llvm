@@ -301,23 +301,23 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 } // namespace detail
-handler::handler() {}
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                  std::move(SecondaryQueue),
+    : handler(Queue, Queue.get(), nullptr, CallerNeedsEvent) {}
+
+handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
+                 detail::queue_impl *PrimaryQueue,
+                 detail::queue_impl *SecondaryQueue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
+                                                  SecondaryQueue,
                                                   CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {}
+      MQueue(Queue) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
+    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))), MQueue(nullptr) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -1665,10 +1665,8 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  std::shared_ptr<detail::queue_impl> PrimaryQueue =
-      impl->MSubmissionPrimaryQueue;
   if ((!impl->MGraph &&
-       (PrimaryQueue->get_context() != ExecBundle.get_context())) ||
+       (impl->MSubmissionPrimaryQueue->get_context() != ExecBundle.get_context())) ||
       (impl->MGraph &&
        (impl->MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
@@ -1676,10 +1674,8 @@ void handler::use_kernel_bundle(
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
-  std::shared_ptr<detail::queue_impl> SecondaryQueue =
-      impl->MSubmissionSecondaryQueue;
-  if (SecondaryQueue &&
-      SecondaryQueue->get_context() != ExecBundle.get_context())
+  if (impl->MSubmissionSecondaryQueue &&
+    impl->MSubmissionSecondaryQueue->get_context() != ExecBundle.get_context())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the secondary queue is different from the "
@@ -1821,7 +1817,7 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+  for (detail::queue_impl *QueueImpl :
        {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
     if (QueueImpl &&
         !checkContextSupports(QueueImpl->getContextImplPtr(),
@@ -1832,7 +1828,7 @@ bool handler::supportsUSMMemcpy2D() {
 }
 
 bool handler::supportsUSMFill2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+  for (detail::queue_impl *QueueImpl :
        {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
     if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
                                            UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
@@ -1842,7 +1838,7 @@ bool handler::supportsUSMFill2D() {
 }
 
 bool handler::supportsUSMMemset2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+  for (detail::queue_impl *QueueImpl :
        {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
     if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
                                            UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
@@ -2147,31 +2143,35 @@ void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
-  void handler::reset() {
-  impl->reset();
-  MLocalAccStorage.clear();
-  MStreamStorage.clear();
-  /// Storage for a sycl::kernel object.
-  MKernel = nullptr;
-  MSrcPtr = nullptr;
-  /// Pointer to the dest host memory or accessor(depends on command type).
-  MDstPtr = nullptr;
-  MLength = 0;
-  MPattern.clear();
-  MHostKernel = nullptr;
-  MCodeLoc = {};
 
-  MIsFinalized = false;
-  // Handle MLastEvent
-  }
+void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
+                    detail::queue_impl *PrimaryQueue,
+                    detail::queue_impl *SecondaryQueue,
+                    bool CallerNeedsEvent) {
+  impl->reset(PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+  MQueue = Queue;
 
-  void handler::setQueue(const std::shared_ptr<detail::queue_impl> &Queue) {
-    if (MQueue)
-	    return;
-    impl = std::make_shared<detail::handler_impl>(std::move(Queue),
-                                                  nullptr,
-                                                  true);
-    MQueue = Queue;
+  // do cleanup on exit from submit_impl
+  if (!Queue) {
+    MLocalAccStorage.clear();
+    MStreamStorage.clear();
+    MKernelName = detail::string();
+    /// Storage for a sycl::kernel object.
+    MKernel = nullptr;
+    MSrcPtr = nullptr;
+    /// Pointer to the dest host memory or accessor (depends on command type).
+    MDstPtr = nullptr;
+    MLength = 0;
+    MPattern.clear();
+    MHostKernel = nullptr;
+    MCodeLoc = {};
+
+    MIsFinalized = false;
+    // creation of empty event::impl is too time-consuming, so reset impl to
+    // empty state
+    MLastEvent.make_empty();
   }
+}
+
 } // namespace _V1
 } // namespace sycl

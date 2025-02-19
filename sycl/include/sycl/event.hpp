@@ -147,6 +147,9 @@ public:
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
 
+  /// Reset event to empty state.
+  void make_empty();
+
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 

@@ -187,6 +187,14 @@ public:
     std::vector<AccessorImplHost *> MRequirements;
     /// List of events that order the execution of this CG
     std::vector<detail::EventImplPtr> MEvents;
+
+    void reset() {
+      MArgsStorage.clear();
+      MAccStorage.clear();
+      MSharedPtrStorage.clear();
+      MRequirements.clear();
+      MEvents.clear();
+    }
   };
 
   CG(CGType Type, StorageInitHelper D, detail::code_location loc = {},
