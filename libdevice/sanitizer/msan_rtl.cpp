@@ -141,20 +141,35 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
     ConvertGenericPointer(addr, as);
   }
 
-  if (as != ADDRESS_SPACE_GLOBAL || !(addr & 0xFF00000000000000))
-    return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-        ->CleanShadow;
-
   // Device USM only
-  auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                          ->GlobalShadowOffset;
-  auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                        ->GlobalShadowOffsetEnd;
-  if (addr < shadow_begin) {
-    return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
-  } else {
-    return addr - (0xff00'ffff'ffff'ffffULL - shadow_end);
+  if (as == ADDRESS_SPACE_GLOBAL && (addr & 0xFF00000000000000)) {
+    auto shadow_begin =
+        ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+            ->GlobalShadowOffset;
+    auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+                          ->GlobalShadowOffsetEnd;
+    if (addr < shadow_begin) {
+      return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
+    } else {
+      return addr - (0xff00'ffff'ffff'ffffULL - shadow_end);
+    }
+  } else if (as == ADDRESS_SPACE_LOCAL) {
+    // The size of SLM is 128KB on PVC
+    constexpr unsigned SLM_SIZE = 128 * 1024;
+    // work-group linear id
+    const auto wg_lid =
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
+
+    uptr shadow_ptr =
+        shadow_offset + (wg_lid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
+    return shadow_ptr;
   }
+
+  return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+      ->CleanShadow;
 }
 
 } // namespace
@@ -300,5 +315,54 @@ MSAN_MEMCPY(0)
 MSAN_MEMCPY(1)
 MSAN_MEMCPY(3)
 MSAN_MEMCPY(4)
+
+///
+/// Initialize shdadow memory of local memory
+///
+
+static __SYCL_CONSTANT__ const char __mem_set_shadow_local[] =
+    "[kernel] set_shadow_local(beg=%p, end=%p, val:%02X)\n";
+
+DEVICE_EXTERN_C_NOINLINE void __msan_set_shadow_static_local(uptr ptr,
+                                                             size_t size) {
+  if (!__MsanLaunchInfo.get())
+    return;
+
+  auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
+  for (size_t i = 0; i < size; ++i) {
+    ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0xff;
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
+                                shadow_address + size, 0xff));
+}
+
+static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_static_local_begin[] =
+    "[kernel] BEGIN __msan_unpoison_shadow_static_local\n";
+static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_static_local_end[] =
+    "[kernel] END   __msan_unpoison_shadow_static_local\n";
+
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow_static_local(uptr ptr,
+                                                                  size_t size) {
+  if (!__MsanLaunchInfo.get())
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__mem_unpoison_shadow_static_local_begin));
+
+  auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
+
+  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+
+  for (size_t i = 0; i < size; ++i) {
+    ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0;
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
+                                shadow_address + size, 0));
+
+  MSAN_DEBUG(__spirv_ocl_printf(__mem_unpoison_shadow_static_local_end));
+}
 
 #endif // __SPIR__ || __SPIRV__
