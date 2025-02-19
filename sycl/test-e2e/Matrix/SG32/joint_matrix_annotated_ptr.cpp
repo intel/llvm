@@ -16,7 +16,7 @@
 // RUN: %{run} %t.out
 
 // Currently row major B fails when annotated_ptr is used
-// XFAIL: gpu
+// XFAIL: gpu && !igc-dev
 // XFAIL-TRACKER: GSD-4181
 
 #include "common.hpp"

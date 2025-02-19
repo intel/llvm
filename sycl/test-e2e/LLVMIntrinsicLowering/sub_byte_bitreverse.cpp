@@ -3,7 +3,7 @@
 
 // UNSUPPORTED: target-amd || target-nvidia
 
-// XFAIL: gpu
+// XFAIL: gpu && !igc-dev
 // XFAIL-TRACKER: https://github.com/intel/intel-graphics-compiler/issues/330
 
 // XFAIL: spirv-backend

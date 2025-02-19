@@ -14,7 +14,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: gpu && run-mode
+// XFAIL: gpu && run-mode && !igc-dev
 // XFAIL-TRACKER: GSD-5768
 
 #include "common.hpp"
