@@ -15,7 +15,9 @@
 // UNSUPPORTED: gpu-intel-dg2, cpu
 // UNSUPPORTED-INTENDED: Checked load/stores are not supported by DG2 and CPU HW
 
-// RUN: %{build} -o %t.out
+// Make sure that at least some optimization level is used as we perform
+// reference matrix multiplication on host and that is very slow at O0.
+// RUN: %{build} -O2 -o %t.out
 // RUN: %{run} %t.out
 
 #include "common.hpp"

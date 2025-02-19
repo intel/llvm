@@ -1,4 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_1d_usm
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: Sampled fetch not currently supported on AMD
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
