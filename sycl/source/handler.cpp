@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
+#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include "ur_api.h"
 #include <algorithm>
 
@@ -1009,6 +1010,21 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     break;
   }
+  case kernel_param_kind_t::kind_dynamic_work_group_memory: {
+
+    auto *DynBase = static_cast<
+        ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
+
+    auto *DynWorkGroupBase = static_cast<
+        ext::oneapi::experimental::detail::dynamic_work_group_memory_base *>(
+        Ptr);
+
+    registerDynamicParameter(*DynBase, Index + IndexShift);
+
+    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
+           DynWorkGroupBase->BufferSize, Index + IndexShift);
+    break;
+  }
   case kernel_param_kind_t::kind_work_group_memory: {
     addArg(kernel_param_kind_t::kind_std_layout, nullptr,
            static_cast<detail::work_group_memory_impl *>(Ptr)->buffer_size,
@@ -1037,6 +1053,23 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
       std::make_shared<detail::work_group_memory_impl>(Arg));
   addArg(detail::kernel_param_kind_t::kind_work_group_memory,
          impl->MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
+}
+
+void handler::setArgHelper(
+    int ArgIndex,
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &DynWorkGroupMemParam) {
+
+  impl->MDynWorkGroupMemoryParams.push_back(
+      std::make_shared<
+          ext::oneapi::experimental::detail::dynamic_work_group_memory_base>(
+          DynWorkGroupMemParam));
+  addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
+         impl->MDynWorkGroupMemoryParams.back().get(), 0, ArgIndex);
+
+  // Register the dynamic parameter with the handler for later association
+  // with the node being added
+  registerDynamicParameter(DynWorkGroupMemParam, ArgIndex);
 }
 
 // The argument can take up more space to store additional information about

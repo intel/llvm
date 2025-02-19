@@ -199,6 +199,11 @@ public:
   std::vector<std::shared_ptr<detail::work_group_memory_impl>>
       MWorkGroupMemoryObjects;
 
+  /// List of dynamic work group memory objects associated with this handler
+  std::vector<std::shared_ptr<
+      ext::oneapi::experimental::detail::dynamic_work_group_memory_base>>
+      MDynWorkGroupMemoryParams;
+
   /// Potential event mode for the result event of the command.
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;

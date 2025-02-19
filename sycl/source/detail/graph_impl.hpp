@@ -1479,6 +1479,9 @@ private:
 
 class dynamic_parameter_impl {
 public:
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
+      : MGraph(GraphImpl) {}
+
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
                          size_t ParamSize, const void *Data)
       : MGraph(GraphImpl), MValueStorage(ParamSize),
@@ -1545,6 +1548,22 @@ public:
   /// called for accessor dynamic_parameters.
   /// @param Acc The new accessor value
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes and dynamic CGs. Should only be
+  /// called for dynamic_work_group_memory arguments parameter.
+  /// @param BufferSize The total size in bytes of the new work_group_memory
+  /// array
+  void updateWorkGroupMem(size_t BufferSize);
+
+  /// Static helper function for updating command-group
+  /// dynamic_work_group_memory arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param BufferSize The total size in bytes of the new work_group_memory
+  /// array
+  static void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> CG,
+                                   int ArgIndex, size_t BufferSize);
 
   /// Static helper function for updating command-group value arguments.
   /// @param CG The command-group to update the argument information for.
