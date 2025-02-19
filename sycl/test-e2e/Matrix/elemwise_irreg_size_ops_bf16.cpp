@@ -16,6 +16,9 @@
 // REQUIRES: cpu
 // REQUIRES: aspect-ext_intel_matrix
 
+// XFAIL: cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17079
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
