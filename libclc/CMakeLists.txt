@@ -34,11 +34,6 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   clc/lib/generic/SOURCES;
   # libspirv libraries
   libspirv/lib/generic/SOURCES;
-  libspirv/lib/amdgcn-amdhsa/SOURCES;
-  libspirv/lib/amdgcn/SOURCES;
-  libspirv/lib/ptx-nvidiacl/SOURCES;
-  libspirv/lib/r600/SOURCES;
-  libspirv/lib/native_cpu-unknown-linux/SOURCES;
 )
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
@@ -347,7 +342,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   endif()
 
   if( IS_NATIVE_CPU_ARCH AND OS STREQUAL linux)
-    LIST( APPEND dirs native_cpu-unknown-linux )
+    LIST( APPEND clc_dirs native_cpu-unknown-linux )
   elseif( IS_NATIVE_CPU_ARCH AND NOT OS STREQUAL linux )
     message(WARNING "libclc is being built for an unsupported ARCH/OS"
       " configuration, some SYCL programs may fail to build.")
@@ -395,7 +390,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   libclc_configure_lib_source(
     libspirv_lib_files
     LIB_ROOT_DIR libspirv
-    DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
+    DIRS ${opencl_dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
   )
 
   foreach( d ${${t}_devices} )
