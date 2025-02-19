@@ -51,6 +51,8 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
+  std::shared_ptr<DeviceInfo> DeviceInfo =
+      Device ? getDeviceInfo(Device) : nullptr;
 
   void *Allocated = nullptr;
 
@@ -73,9 +75,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   if (Type != AllocType::DEVICE_USM) {
     return UR_RESULT_SUCCESS;
   }
-
   assert(Device);
-  std::shared_ptr<DeviceInfo> DeviceInfo = getDeviceInfo(Device);
 
   auto AI = std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
                                                           Size,
@@ -452,11 +452,39 @@ ur_result_t MsanInterceptor::prepareLaunch(
   auto ContextInfo = getContextInfo(LaunchInfo.Context);
   LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+
   LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
   LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
       ContextInfo->MaxAllocatedSize, &LaunchInfo.Data->CleanShadow));
+
+  const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
+  uint32_t NumWG = 1;
+  for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+    NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
+             LocalWorkSize[Dim];
+  }
+
+  // Write shadow memory offset for local memory
+  {
+    if (DeviceInfo->Shadow->AllocLocalShadow(
+            Queue, NumWG, LaunchInfo.Data->LocalShadowOffset,
+            LaunchInfo.Data->LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+      getContext()->logger.warning(
+          "Failed to allocate shadow memory for local "
+          "memory, maybe the number of workgroup ({}) is too "
+          "large",
+          NumWG);
+      getContext()->logger.warning("Skip checking local memory of kernel <{}>",
+                                   GetKernelName(Kernel));
+    } else {
+      getContext()->logger.info("ShadowMemory(Local, WorkGroup={}, {} - {})",
+                                NumWG,
+                                (void *)LaunchInfo.Data->LocalShadowOffset,
+                                (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+    }
+  }
 
   getContext()->logger.info(
       "launch_info {} (GlobalShadow={}, Device={}, Debug={})",

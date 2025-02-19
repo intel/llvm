@@ -294,6 +294,43 @@ MsanShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
+                                                  uint32_t NumWG, uptr &Begin,
+                                                  uptr &End) {
+  const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
+  const size_t RequiredShadowSize = NumWG * LocalMemorySize;
+  static size_t LastAllocedSize = 0;
+  if (RequiredShadowSize > LastAllocedSize) {
+    auto ContextInfo = getMsanInterceptor()->getContextInfo(Context);
+    if (LocalShadowOffset) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                   (void *)LocalShadowOffset));
+      LocalShadowOffset = 0;
+      LastAllocedSize = 0;
+    }
+
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, RequiredShadowSize,
+        (void **)&LocalShadowOffset));
+
+    // Initialize shadow memory
+    ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)LocalShadowOffset,
+                                             0, RequiredShadowSize);
+    if (URes != UR_RESULT_SUCCESS) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                   (void *)LocalShadowOffset));
+      LocalShadowOffset = 0;
+      LastAllocedSize = 0;
+    }
+
+    LastAllocedSize = RequiredShadowSize;
+  }
+
+  Begin = LocalShadowOffset;
+  End = LocalShadowOffset + RequiredShadowSize - 1;
+  return UR_RESULT_SUCCESS;
+}
+
 uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
   assert(Ptr & 0xff00'0000'0000'0000ULL && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
