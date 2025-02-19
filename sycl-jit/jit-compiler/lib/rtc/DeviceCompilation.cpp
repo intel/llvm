@@ -147,13 +147,12 @@ protected:
     PreprocessorOutputOptions Opts;
     Opts.ShowCPP = 1;
     Opts.MinimizeWhitespace = 1;
+    // Make cache key insensitive to virtual source file and header locations.
+    Opts.ShowLineMarkers = 0;
 
     DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
 
-    ArrayRef<uint8_t> PreprocessedData(
-        (const uint8_t *)PreprocessedSource.data(), PreprocessedSource.size());
-
-    Hash = BLAKE3::hash(PreprocessedData);
+    Hash = BLAKE3::hash(arrayRefFromStringRef(PreprocessedSource));
     Executed = true;
   }
 

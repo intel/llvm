@@ -310,13 +310,11 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
     [[maybe_unused]] std::string *LogPtr,
     [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
 #if SYCL_EXT_JIT_ENABLE
-  static std::atomic_uintptr_t CompilationID;
-  std::string Prefix = "rtc_" + std::to_string(CompilationID++) + "$";
-  sycl_device_binaries Binaries =
-      sycl::detail::jit_compiler::get_instance().compileSYCL(
-          SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames,
-          Prefix);
-  return std::make_pair(Binaries, std::move(Prefix));
+  static std::atomic_uintptr_t CompilationCounter;
+  std::string CompilationID = "rtc_" + std::to_string(CompilationCounter++);
+  return sycl::detail::jit_compiler::get_instance().compileSYCL(
+      CompilationID, SYCLSource, IncludePairs, UserArgs, LogPtr,
+      RegisteredKernelNames);
 #else
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler via sycl-jit is not available");

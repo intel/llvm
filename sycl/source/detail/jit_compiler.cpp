@@ -1256,12 +1256,11 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   return Encoded;
 }
 
-sycl_device_binaries jit_compiler::compileSYCL(
-    const std::string &SYCLSource,
+std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
+    const std::string &CompilationID, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
-    const std::vector<std::string> &RegisteredKernelNames,
-    const std::string &Prefix) {
+    const std::vector<std::string> &RegisteredKernelNames) {
   auto appendToLog = [LogPtr](const char *Msg) {
     if (LogPtr) {
       LogPtr->append(Msg);
@@ -1280,9 +1279,7 @@ sycl_device_binaries jit_compiler::compileSYCL(
 
   std::string FinalSource = ss.str();
 
-  // The filename must be stable, because it is part of the preprocessed output
-  // and in consequence, the cache key.
-  std::string SYCLFileName = "rtc.cpp";
+  std::string SYCLFileName = CompilationID + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
                                           FinalSource.c_str()};
 
@@ -1332,7 +1329,9 @@ sycl_device_binaries jit_compiler::compileSYCL(
     PersistentDeviceCodeCache::putDeviceCodeIRToDisc(CacheKey, SavedIR);
   }
 
-  return createDeviceBinaries(Result.getBundleInfo(), Prefix);
+  std::string Prefix = CompilationID + '$';
+  return std::make_pair(createDeviceBinaries(Result.getBundleInfo(), Prefix),
+                        std::move(Prefix));
 }
 
 } // namespace detail
