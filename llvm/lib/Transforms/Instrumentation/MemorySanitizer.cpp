@@ -764,11 +764,7 @@ static void extendSpirKernelArgs(Module &M) {
 
     auto KernelName = F.getName();
     auto *KernelNameGV = getOrCreateGlobalString(M, "__msan_kernel", KernelName,
-<<<<<<< HEAD
                                                  kSpirOffloadConstantAS);
-=======
-                                                 kSpirOffloadGlobalAS);
->>>>>>> cbd6b7c78aea ([DeviceMSAN] Support MemorySanitizer for device offloading (#15955))
     SpirKernelsMetadata.emplace_back(ConstantStruct::get(
         StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
         ConstantInt::get(IntptrTy, KernelName.size())));
