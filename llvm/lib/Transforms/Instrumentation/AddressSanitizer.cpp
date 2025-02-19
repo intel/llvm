@@ -1808,7 +1808,7 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(
   //   size_t size,
   //   size_t size_with_redzone,
   // )
-  auto *LocalAddr = IRB.CreatePointerCast(NewCI, IntptrTy);
+  auto LocalAddr = IRB.CreatePointerCast(NewCI, IntptrTy);
   IRB.CreateCall(AsanSetShadowStaticLocalFunc,
                  {LocalAddr, Size, SizeWithRedZone});
 

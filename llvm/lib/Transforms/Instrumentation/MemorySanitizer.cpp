@@ -185,7 +185,6 @@
 #include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/MDBuilder.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
@@ -806,7 +805,6 @@ public:
   }
 
   bool instrumentModule();
-  void instrumentFunction(Function &F);
 
 private:
   void initializeCallbacks();
@@ -853,15 +851,6 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   MsanUnpoisonShadowStaticLocalFunc =
       M.getOrInsertFunction("__msan_unpoison_shadow_static_local",
                             IRB.getVoidTy(), IntptrTy, IntptrTy);
-
-  // MsanLaunchInfo = M.getOrInsertGlobal(
-  //     "__MsanLaunchInfo",
-  //     llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), [&] {
-  //       return new GlobalVariable(
-  //           M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
-  //           GlobalVariable::ExternalLinkage, nullptr, "__MsanLaunchInfo",
-  //           nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
-  //     });
 }
 
 // Handle global variables:
@@ -1050,11 +1039,6 @@ bool MemorySanitizerOnSpirv::instrumentModule() {
   return true;
 }
 
-void MemorySanitizerOnSpirv::instrumentFunction(Function &F) {
-  if (!IsSPIROrSPIRV)
-    return;
-}
-
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
                                            ModuleAnalysisManager &AM) {
   // Return early if nosanitize_memory module flag is present for the module.
@@ -1078,7 +1062,6 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
     MemorySanitizer Msan(*F.getParent(), Options);
     Modified |=
         Msan.sanitizeFunction(F, FAM.getResult<TargetLibraryAnalysis>(F));
-    MsanSpirv.instrumentFunction(F);
   }
 
   if (!Modified)
