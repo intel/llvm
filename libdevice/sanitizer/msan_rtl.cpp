@@ -126,7 +126,7 @@ void __msan_report_error(const uint32_t size,
                          const char __SYCL_CONSTANT__ *func) {
   __msan_internal_report_save(size, file, line, func);
 
-  auto launch = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
+  auto *launch = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
   if (!launch->IsRecover) {
     __devicelib_exit();
   }
@@ -141,13 +141,12 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
     ConvertGenericPointer(addr, as);
   }
 
+  auto *launch = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
+
   // Device USM only
   if (as == ADDRESS_SPACE_GLOBAL && (addr & 0xFF00000000000000)) {
-    auto shadow_begin =
-        ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-            ->GlobalShadowOffset;
-    auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                          ->GlobalShadowOffsetEnd;
+    auto shadow_begin = launch->GlobalShadowOffset;
+    auto shadow_end = launch->GlobalShadowOffsetEnd;
     if (addr < shadow_begin) {
       return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
     } else {
@@ -163,9 +162,13 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
         __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
         __spirv_BuiltInWorkgroupId.z;
 
-    uptr shadow_ptr =
-        shadow_offset + (wg_lid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
-    return shadow_ptr;
+    const auto shadow_offset = launch->LocalShadowOffset;
+
+    if (shadow_offset != 0) {
+      uptr shadow_ptr =
+          shadow_offset + (wg_lid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
+      return shadow_ptr;
+    }
   }
 
   return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
