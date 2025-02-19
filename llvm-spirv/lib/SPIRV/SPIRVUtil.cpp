@@ -2186,16 +2186,11 @@ bool lowerBuiltinCallsToVariables(Module *M) {
     for (auto *U : F.users()) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
-      const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
-      if (DLoc)
-        NewValue->setDebugLoc(DLoc);
+      IRBuilder<> Builder(CI);
+      Value *NewValue = Builder.CreateLoad(GVType, BV);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
-                                              "", CI->getIterator());
-        if (DLoc)
-          NewValue->setDebugLoc(DLoc);
+        NewValue = Builder.CreateExtractElement(NewValue, CI->getArgOperand(0));
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);
