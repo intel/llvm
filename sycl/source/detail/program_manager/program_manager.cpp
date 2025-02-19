@@ -3549,7 +3549,6 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
         m_KernelUsesAssert.erase(KernelNameIt->first);
         m_KernelImplicitLocalArgPos.erase(KernelNameIt->first);
         m_MaterializedKernels.erase(KernelNameIt->first);
-        m_BuiltInKernelIDs.erase(KernelNameIt->first);
         m_KernelName2KernelIDs.erase(KernelNameIt);
       }
     }
