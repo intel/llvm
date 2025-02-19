@@ -17,12 +17,12 @@ int main(int argc, char *argv[]) {
   auto ptr1 =
       malloc_shared<int>(1, Q, ext::oneapi::property::usm::device_read_only());
   // CHECK: ---> urUSMSharedAlloc
-  // CHECK:ZE ---> zeMemAllocShared
+  // CHECK: zeMemAllocShared
 
   auto ptr2 = aligned_alloc_shared<int>(
       1, 1, Q, ext::oneapi::property::usm::device_read_only());
   // CHECK: ---> urUSMSharedAlloc
-  // CHECK-NOT: ZE ---> zeMemAllocShared
+  // CHECK-NOT: zeMemAllocShared
 
   free(ptr1, Q);
   free(ptr2, Q);
