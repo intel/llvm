@@ -144,7 +144,11 @@ template <typename DataT, int NumElements> class vec_base {
   static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  using DataType = DataT[AdjustedNum];
+#else
   using DataType = std::array<DataT, AdjustedNum>;
+#endif
 
 protected:
   // fields
@@ -287,7 +291,12 @@ public:
       typename vector_t_ = vector_t,
       typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
   constexpr vec(vector_t_ openclVector) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    sycl::detail::memcpy_no_adl(&this->m_Data, &openclVector,
+                                sizeof(openclVector));
+#else
     this->m_Data = sycl::bit_cast<decltype(this->m_Data)>(openclVector);
+#endif
   }
 
   /* @SYCL2020
