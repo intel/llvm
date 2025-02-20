@@ -154,7 +154,6 @@
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/Stencil.cpp
-// CHECK-NEXT: ESIMD/PerformanceTests/invoke_simd_smoke.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/matrix_transpose.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/stencil2.cpp
 // CHECK-NEXT: ESIMD/api/bin_and_cmp_ops_heavy.cpp
