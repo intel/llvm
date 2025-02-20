@@ -1,7 +1,7 @@
-# commit 2a499d7b4d9a4ca2bf21c2e7ead3bc7b063038b3
-# Merge: c6347a85 3a7d16e6
+# commit d03f19a88e42cb98be9604ff24b61190d1e48727
+# Merge: 3ce6fcc9 84454b0e
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Fri Feb 14 11:09:56 2025 +0000
-#     Merge pull request #2571 from omarahmed1111/enable-registry-of-level_zero_v2
-#     Enable the registry of level_zero_v2
-set(UNIFIED_RUNTIME_TAG 2a499d7b4d9a4ca2bf21c2e7ead3bc7b063038b3)
+# Date:   Thu Feb 13 11:43:34 2025 +0000
+#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
+#     Do not fetch cudart from gitlab for UMF
+set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)
