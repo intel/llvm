@@ -137,14 +137,16 @@ jobs:
 
     - name: Test adapter specific
       env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE=1
+        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+        ZE_DEBUG: 1
       run: ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
       env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE=1
+        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+        ZE_DEBUG: 1
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600 -VV
 
     - name: Get information about platform
