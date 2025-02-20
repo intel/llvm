@@ -1,5 +1,7 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
 // UNSUPPORTED: target-nvidia || target-amd
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17165
 // TODO: rewrite this into a unit-test
 
 // RUN: %{build} -DGPU -o %t_gpu.out
