@@ -8,7 +8,7 @@
 
 // REQUIRES: opencl-aot, cpu
 
-// CPU AOT targets host isa, so we compile this on the system we execute tests on.
+// CPU AOT targets host isa, so we compile on the run system instead.
 // Test with  `--offload-new-driver`
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %S/Inputs/aot.cpp -o %t.out
 // RUN: %{run} %t.out
