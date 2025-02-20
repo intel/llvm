@@ -4,7 +4,6 @@
 // Test if div and sqrt become precise from IEEE-754 perspective when
 // -foffload-fp32-prec-div -foffload-fp32-prec-sqrt are passed.
 
-#include <bit>
 #include <cmath>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -13,8 +12,8 @@ constexpr float value = 560.0f;
 constexpr float divider = 279.9f;
 
 int32_t ulp_distance(float lhs, float rhs) {
-  int32_t lhsInt = std::bit_cast<int32_t>(lhs);
-  int32_t rhsInt = std::bit_cast<int32_t>(rhs);
+  int32_t lhsInt = sycl::bit_cast<int32_t>(lhs);
+  int32_t rhsInt = sycl::bit_cast<int32_t>(rhs);
 
   return std::abs(lhsInt - rhsInt);
 }
