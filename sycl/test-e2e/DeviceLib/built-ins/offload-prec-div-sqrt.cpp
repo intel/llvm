@@ -4,16 +4,17 @@
 // Test if div and sqrt become precise from IEEE-754 perspective when
 // -foffload-fp32-prec-div -foffload-fp32-prec-sqrt are passed.
 
+#include <bit>
 #include <cmath>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
 constexpr float value = 560.0f;
-constexpr float divider = 280.0f;
+constexpr float divider = 279.9f;
 
-int32_t ulp_difference(float lhs, float rhs) {
-  int32_t lhsInt = *reinterpret_cast<int32_t *>(&lhs);
-  int32_t rhsInt = *reinterpret_cast<int32_t *>(&rhs);
+int32_t ulp_distance(float lhs, float rhs) {
+  int32_t lhsInt = std::bit_cast<int32_t>(lhs);
+  int32_t rhsInt = std::bit_cast<int32_t>(rhs);
 
   return std::abs(lhsInt - rhsInt);
 }
@@ -33,8 +34,8 @@ void test_div() {
    }).wait();
 
   float hostRef = value / divider;
-  int ulpDiff = ulp_difference(hostRef, *output);
-  assert(std::abs(ulpDiff) < 1 && "Division is not precise");
+  int ulpDist = ulp_distance(hostRef, *output);
+  assert(ulpDist == 0 && "Division is not precise");
 }
 
 void test_sqrt() {
@@ -50,8 +51,8 @@ void test_sqrt() {
    }).wait();
 
   float hostRef = std::sqrt(value);
-  int ulpDiff = ulp_difference(hostRef, *output);
-  assert(std::abs(ulpDiff) < 1 && "Sqrt is not precise");
+  int ulpDist = ulp_distance(hostRef, *output);
+  assert(ulpDist == 0 && "Sqrt is not precise");
 }
 
 int main() {
