@@ -71,6 +71,7 @@ runs:
       echo "-----"
       ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
   - name: Push compute-benchmarks results
+    if: always()
     shell: bash
     run: |
       # TODO -- waiting on security clearance
