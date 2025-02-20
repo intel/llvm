@@ -69,7 +69,7 @@ runs:
       echo "-----"
       sycl-ls
       echo "-----"
-      ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s
+      ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s || exit 1
   - name: Push compute-benchmarks results
     if: always()
     shell: bash
