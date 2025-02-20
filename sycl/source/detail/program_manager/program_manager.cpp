@@ -1858,10 +1858,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
-    if (EntriesB == EntriesE) {
-      if (skipEmptyImage(RawImg))
-        continue;
-    }
+    if ((EntriesB == EntriesE) && skipEmptyImage(RawImg))
+      continue;
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
     if (isDeviceImageCompressed(RawImg))
