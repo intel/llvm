@@ -67,12 +67,6 @@ public:
   std::unordered_map<std::string, int> &getKernelImplicitLocalArgPos() {
     return m_KernelImplicitLocalArgPos;
   }
-
-  std::unordered_map<std::string,
-                     std::map<std::vector<unsigned char>, ur_kernel_handle_t>> &
-  getMaterializedKernels() {
-    return m_MaterializedKernels;
-  }
 };
 
 namespace {
@@ -228,6 +222,11 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
   EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedCount) << Comment;
   EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
   EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
+
+  // EXPECT_EQ(PM.getDeviveGlobals().size(), ExpectedCount) << Comment;
+  // EXPECT_EQ(PM.getPtrToDeviveGlobal().size(), ExpectedCount) << Comment;
+  // EXPECT_EQ(PM.getHostPipes().size(), ExpectedCount) << Comment;
+  // EXPECT_EQ(PM.getPtrToHostPipes().size(), ExpectedCount) << Comment;
 }
 
 TEST(ImageRemoval, BaseContainers) {

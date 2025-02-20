@@ -3507,6 +3507,7 @@ void ProgramManager::removeImages(const sycl_device_binaries &DeviceBinaries) {
       !(DeviceBinaries && DeviceBinaries->NumDeviceBinaries))
     return;
 
+  // MUTEXES
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       DeviceImagesToCleanup;
   for (int I = 0; I < DeviceBinaries->NumDeviceBinaries; I++) {
@@ -3567,21 +3568,47 @@ void ProgramManager::removeImages(const sycl_device_binaries &DeviceBinaries) {
         m_ExportedSymbolImages.erase(ESProp->Name);
       }
 
-    // could be built with many images
-    // auto NativeProgIt = NativePrograms.begin();
-    // while (NativeProgIt != NativePrograms.end())
-    // {
-    //   if (NativeProgIt->second == DeviceImage.get())
-    //     NativeProgIt = NativePrograms.erase(NativeProgIt);
-    //   else
-    //     NativeProgIt++;
-    // }
+      {
+        auto DeviceGlobals = DeviceImage->getDeviceGlobals();
+        for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
+          if (auto DevGlobalIt = m_DeviceGlobals.find(DeviceGlobal->Name);
+              DevGlobalIt != m_DeviceGlobals.end()) {
+            auto findDevGlobalByValue = std::find_if(
+                m_Ptr2DeviceGlobal.begin(), m_Ptr2DeviceGlobal.end(),
+                [&DevGlobalIt](const std::pair<const void *,
+                                               DeviceGlobalMapEntry *> &Entry) {
+                  return Entry.second == DevGlobalIt->second.get();
+                });
+            if (findDevGlobalByValue != m_Ptr2DeviceGlobal.end())
+              std::ignore = m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
+            std::ignore = m_DeviceGlobals.erase(DevGlobalIt);
+          }
+        }
+      }
 
-    // MUTEXES
-    // Questions & problems: what to do with multiple images for one
-    // program what to do when this program is used? how to track? very likely
-    // will leave it as it is and let it fail, state this case as undefined
-    // behavior. Check if it is already stated somewhere to refer to.
+      auto HostPipes = DeviceImage->getHostPipes();
+      for (const sycl_device_binary_property &HostPipe : HostPipes) {
+        if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
+            HostPipesIt != m_HostPipes.end()) {
+          auto findHostPipesByValue = std::find_if(
+              m_Ptr2HostPipe.begin(), m_Ptr2HostPipe.end(),
+              [&HostPipesIt](
+                  const std::pair<const void *, HostPipeMapEntry *> &Entry) {
+                return Entry.second == HostPipesIt->second.get();
+              });
+          if (findHostPipesByValue != m_Ptr2HostPipe.end())
+            std::ignore = m_Ptr2HostPipe.erase(findHostPipesByValue);
+          std::ignore = m_HostPipes.erase(HostPipesIt);
+        }
+      }
+
+      auto NativeProgIt = NativePrograms.begin();
+      while (NativeProgIt != NativePrograms.end()) {
+        if (NativeProgIt->second == DeviceImage.get())
+          NativeProgIt = NativePrograms.erase(NativeProgIt);
+        else
+          NativeProgIt++;
+      }
   }
 }
 
