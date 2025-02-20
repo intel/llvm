@@ -311,9 +311,9 @@ jobs:
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/cts
       with:
+        ref: ${{ inputs.tests_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
-        tests_ref: ${{ inputs.tests_ref }}
