@@ -37,12 +37,6 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t4.fat
 // RUN: %{run} %t4.fat
 
-// XFAIL:  *
-// XFAIL-TRACKER: CMPLRLLVM-65101
-
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: CMPLRLLVM-64059
-
 #include <sycl/detail/core.hpp>
 
 #include <iostream>

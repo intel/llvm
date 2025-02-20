@@ -336,6 +336,12 @@
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBX@Z
+??4?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@AEBU01@@Z
+??4?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@$$QEAU01@@Z
+??R?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@Z
+??R?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVnode@experimental@oneapi@ext@_V1@sycl@@@Z
+??4?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@$$QEAU01@@Z
+??4?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@AEBU01@@Z
 ??0event@_V1@sycl@@AEAA@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
 ??0event@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0event@_V1@sycl@@QEAA@AEBV012@@Z
@@ -3862,6 +3868,8 @@
 ?ext_oneapi_empty@queue@_V1@sycl@@QEBA_NXZ
 ?ext_oneapi_enable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
 ?ext_oneapi_fill2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
+?ext_oneapi_get_backend_impl@device_image_plain@detail@_V1@sycl@@IEBA?AW4backend@34@XZ
+?ext_oneapi_get_backend_content_view_impl@device_image_plain@detail@_V1@sycl@@IEBA?AU?$pair@PEBW4byte@std@@PEBW412@@std@@XZ
 ?ext_oneapi_get_composite_devices@platform@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?ext_oneapi_get_graph@queue@_V1@sycl@@QEBA?AV?$command_graph@$0A@@experimental@oneapi@ext@23@XZ

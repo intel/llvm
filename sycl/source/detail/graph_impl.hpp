@@ -444,26 +444,28 @@ public:
 
     NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
   }
-
+  /// Update this node with the command-group from another node.
+  /// @param Other The other node to update, must be of the same node type.
   void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    auto ExecCG =
-        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-    auto OtherExecCG =
-        static_cast<sycl::detail::CGExecKernel *>(Other->MCommandGroup.get());
-
-    ExecCG->MArgs = OtherExecCG->MArgs;
-    ExecCG->MNDRDesc = OtherExecCG->MNDRDesc;
-    ExecCG->MKernelName = OtherExecCG->MKernelName;
-    ExecCG->getAccStorage() = OtherExecCG->getAccStorage();
-    ExecCG->getRequirements() = OtherExecCG->getRequirements();
-
-    auto &OldArgStorage = OtherExecCG->getArgsStorage();
-    auto &NewArgStorage = ExecCG->getArgsStorage();
-    // Rebuild the arg storage and update the args
-    rebuildArgStorage(ExecCG->MArgs, OldArgStorage, NewArgStorage);
+    assert(MNodeType == Other->MNodeType);
+    MCommandGroup = Other->getCGCopy();
   }
 
   id_type getID() const { return MID; }
+
+  /// Returns true if this node can be updated
+  bool isUpdatable() const {
+    switch (MNodeType) {
+    case node_type::kernel:
+    case node_type::host_task:
+    case node_type::ext_oneapi_barrier:
+    case node_type::empty:
+      return true;
+
+    default:
+      return false;
+    }
+  }
 
 private:
   void rebuildArgStorage(std::vector<sycl::detail::ArgDesc> &Args,
@@ -1120,6 +1122,8 @@ public:
     return MBarrierDependencyMap[Queue];
   }
 
+  unsigned long long getID() const { return MID; }
+
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
   /// @param NodeFunc A function which receives as input a node in the graph to
@@ -1198,6 +1202,10 @@ private:
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MBarrierDependencyMap;
+
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -1293,9 +1301,11 @@ public:
 
   void update(std::shared_ptr<graph_impl> GraphImpl);
   void update(std::shared_ptr<node_impl> Node);
-  void update(const std::vector<std::shared_ptr<node_impl>> Nodes);
+  void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
 
   void updateImpl(std::shared_ptr<node_impl> NodeImpl);
+
+  unsigned long long getID() const { return MID; }
 
 private:
   /// Create a command-group for the node and add it to command-buffer by going
@@ -1408,13 +1418,22 @@ private:
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
   std::multimap<node_impl::id_type, std::shared_ptr<node_impl>> MIDCache;
+
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
+
+  // True if this graph contains any host-tasks, indicates we need special
+  // handling for them during update().
+  bool MContainsHostTask = false;
 };
 
 class dynamic_parameter_impl {
 public:
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
                          size_t ParamSize, const void *Data)
-      : MGraph(GraphImpl), MValueStorage(ParamSize) {
+      : MGraph(GraphImpl), MValueStorage(ParamSize),
+        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
@@ -1422,7 +1441,8 @@ public:
   /// Parameter size is taken from member of raw_kernel_arg object.
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl, size_t,
                          raw_kernel_arg *Data)
-      : MGraph(GraphImpl) {
+      : MGraph(GraphImpl),
+        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
     size_t RawArgSize = Data->MArgSize;
     const void *RawArgData = Data->MArgData;
     MValueStorage.reserve(RawArgSize);
@@ -1493,6 +1513,8 @@ public:
                                int ArgIndex,
                                const sycl::detail::AccessorBaseHost *Acc);
 
+  unsigned long long getID() const { return MID; }
+
   // Weak ptrs to node_impls which will be updated
   std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
   // Dynamic command-groups which will be updated
@@ -1500,6 +1522,11 @@ public:
 
   std::shared_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
+
+private:
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 
 class dynamic_command_group_impl
@@ -1512,7 +1539,7 @@ public:
   size_t getActiveIndex() const { return MActiveCGF; }
 
   /// Returns the number of CGs in the dynamic command-group.
-  size_t getNumCGs() const { return MKernels.size(); }
+  size_t getNumCGs() const { return MCommandGroups.size(); }
 
   /// Set the index of the active command-group.
   /// @param Index The new index.
@@ -1525,8 +1552,8 @@ public:
 
   /// Retrieve CG at the currently active index
   /// @param Shared pointer to the active CG object.
-  std::shared_ptr<sycl::detail::CG> getActiveKernel() const {
-    return MKernels[MActiveCGF];
+  std::shared_ptr<sycl::detail::CG> getActiveCG() const {
+    return MCommandGroups[MActiveCGF];
   }
 
   /// Graph this dynamic command-group is associated with.
@@ -1535,11 +1562,21 @@ public:
   /// Index of active command-group
   std::atomic<size_t> MActiveCGF;
 
-  /// List of kernel command-groups for dynamic command-group nodes
-  std::vector<std::shared_ptr<sycl::detail::CGExecKernel>> MKernels;
+  /// List of command-groups for dynamic command-group nodes
+  std::vector<std::shared_ptr<sycl::detail::CG>> MCommandGroups;
 
   /// List of nodes using this dynamic command-group.
   std::vector<std::weak_ptr<node_impl>> MNodes;
+
+  unsigned long long getID() const { return MID; }
+
+  /// Type of the CGs in this dynamic command-group
+  sycl::detail::CGType MCGType = sycl::detail::CGType::None;
+
+private:
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
 };
 } // namespace detail
 } // namespace experimental

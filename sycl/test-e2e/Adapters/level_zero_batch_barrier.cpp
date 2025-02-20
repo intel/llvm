@@ -23,22 +23,22 @@ int main(int argc, char *argv[]) {
 
   submit_kernel(q); // starts a batch
                     // CHECK: ---> urEnqueueKernelLaunch
-                    // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
+                    // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   // continue the batch
   event barrier = q.ext_oneapi_submit_barrier();
   // CHECK: ---> urEnqueueEventsWaitWithBarrierExt
-  // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
+  // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   submit_kernel(q);
   // CHECK: ---> urEnqueueKernelLaunch
-  // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
+  // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   // interop should close the batch
   ze_event_handle_t ze_event =
       get_native<backend::ext_oneapi_level_zero>(barrier);
   // CHECK: ---> urEventGetNativeHandle
-  // CHECK: ZE ---> zeCommandQueueExecuteCommandLists
+  // CHECK: zeCommandQueueExecuteCommandLists
   zeEventHostSynchronize(ze_event, UINT64_MAX);
 
   // CHECK: ---> urQueueFinish

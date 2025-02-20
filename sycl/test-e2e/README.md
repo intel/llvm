@@ -9,6 +9,8 @@
 * [Creating or modifying tests](#creating-or-modifying-tests)
   * [LIT feature checks](#lit-feature-checks)
   * [llvm-lit parameters](#llvm-lit-parameters)
+  * [Marking tests as expected to fail](#marking-tests-as-expected-to-fail)
+  * [Marking tests as unsupported](#marking-tests-as-unsupported)
 * [SYCL core header file](#sycl-core-header-file)
 
 ## Overview
@@ -180,9 +182,9 @@ at the full path specified by this variable.
 
 ***LEVEL_ZERO_LIBS_DIR*** - path to Level Zero libraries.
 
-***CUDA_INCLUDE*** - path to CUDA headers.
+***CUDA_INCLUDE*** - path to CUDA headers (autodetected).
 
-***CUDA_LIBS_DIR*** - path to CUDA libraries.
+***CUDA_LIBS_DIR*** - path to CUDA libraries (autodetected).
 
 ***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
 may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
@@ -288,9 +290,9 @@ configure specific single test execution in the command line:
 * **level_zero_libs_dir** - directory containing Level_Zero native libraries,
   can be also set by CMake variable LEVEL_ZERO_LIBS_DIR.
 * **cuda_include** - directory containing CUDA SDK headers, can be also set by
-  CMake variable CUDA_INCLUDE.
+  CMake variable CUDA_INCLUDE (autodetected).
 * **cuda_libs_dir** - directory containing CUDA SDK libraries, can be also set
-  by CMake variable CUDA_LIBS_DIR.
+  by CMake variable CUDA_LIBS_DIR (autodetected).
 * **run_launcher** - part of `%{run*}` expansion/substitution to alter execution
   of the test by, e.g., running it through Valgrind.
 
@@ -300,23 +302,6 @@ Example:
 llvm-lit --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
          SYCL/External/RSBench
 ```
-
-### SYCL core header file
-
-While SYCL specification dictates that the only user-visible interface is
-`<sycl/sycl.hpp>` header file we found out that as the implementation and
-multiple extensions grew, the compile time was getting worse and worse,
-negatively affecting our CI turnaround time. As such, we decided to use
-finer-grained includes for the end-to-end tests used in this project (under
-`sycl/test-e2e/` folder).
-
-At this moment all the tests have been updated to include a limited set of
-headers only. However, the work of eliminating unnecessary dependencies between
-implementation header files is still in progress and the final set of these
-"fine-grained" includes that might be officially documented and suggested for
-customers to use isn't determined yet. **Until then, code outside of this
-project must keep using `<sycl/sycl.hpp>` provided by the SYCL2020
-specification.**
 
 ### Marking tests as expected to fail
 
@@ -381,6 +366,23 @@ Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's a
 non-standard mechanism. Use `UNSUPPORTED: true` instead, we track `UNSUPPORTED`
 tests using the mechanism described above. Otherwise the test risks remaining
 untraceable.
+
+### SYCL core header file
+
+While SYCL specification dictates that the only user-visible interface is
+`<sycl/sycl.hpp>` header file we found out that as the implementation and
+multiple extensions grew, the compile time was getting worse and worse,
+negatively affecting our CI turnaround time. As such, we decided to use
+finer-grained includes for the end-to-end tests used in this project (under
+`sycl/test-e2e/` folder).
+
+At this moment all the tests have been updated to include a limited set of
+headers only. However, the work of eliminating unnecessary dependencies between
+implementation header files is still in progress and the final set of these
+"fine-grained" includes that might be officially documented and suggested for
+customers to use isn't determined yet. **Until then, code outside of this
+project must keep using `<sycl/sycl.hpp>` provided by the SYCL2020
+specification.**
 
 ### Compiling and executing tests on separate systems
 

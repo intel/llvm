@@ -5524,7 +5524,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                  JA.isDeviceOffloading(Action::OFK_Host));
   bool IsHostOffloadingAction =
       JA.isHostOffloading(Action::OFK_OpenMP) ||
-      JA.isHostOffloading(Action::OFK_SYCL) ||
       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver,
@@ -10928,23 +10927,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
               ",+SPV_INTEL_optnone"
               ",+SPV_KHR_non_semantic_info"
               ",+SPV_KHR_cooperative_matrix"
-              ",+SPV_EXT_shader_atomic_float16_add";
-  auto hasNoOffloadFP32PrecOption = [](const llvm::opt::ArgList &TCArgs) {
-    return !TCArgs.hasFlag(options::OPT_foffload_fp32_prec_sqrt,
-                           options::OPT_fno_offload_fp32_prec_sqrt, false) &&
-           !TCArgs.hasFlag(options::OPT_foffload_fp32_prec_div,
-                           options::OPT_fno_offload_fp32_prec_div, false);
-  };
-  auto shouldUseOffloadFP32PrecOption = [](const llvm::opt::ArgList &TCArgs) {
-    return (TCArgs.hasFlag(options::OPT_fno_offload_fp32_prec_sqrt,
-                           options::OPT_foffload_fp32_prec_sqrt, false) ||
-            TCArgs.hasFlag(options::OPT_fno_offload_fp32_prec_div,
-                           options::OPT_foffload_fp32_prec_div, false));
-  };
-  if ((IsCPU && hasNoOffloadFP32PrecOption(TCArgs)) ||
-      shouldUseOffloadFP32PrecOption(TCArgs)) {
-    ExtArg += ",+SPV_INTEL_fp_max_error";
-  }
+              ",+SPV_EXT_shader_atomic_float16_add"
+              ",+SPV_INTEL_fp_max_error";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }

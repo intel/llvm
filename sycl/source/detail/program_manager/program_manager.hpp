@@ -216,6 +216,7 @@ public:
                                                const ContextImplPtr Context);
 
   void addImages(sycl_device_binaries DeviceImages);
+  void removeImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr &Context);

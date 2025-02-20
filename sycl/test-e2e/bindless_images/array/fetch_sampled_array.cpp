@@ -1,4 +1,6 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_image_array
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: image array not currently supported on AMD
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
