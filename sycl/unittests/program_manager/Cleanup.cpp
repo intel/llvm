@@ -105,7 +105,7 @@ createVFPropertySet(const std::string &VFSets) {
   std::uninitialized_copy(VFSets.data(), VFSets.data() + PropSize,
                           Storage.data() + /* bytes for size */ 8);
   Storage.back() = '\0';
-  const std::string PropName = "virtual-functions-set";
+  const std::string PropName = "uses-virtual-functions-set";
   sycl::unittest::MockProperty Prop(PropName, Storage,
                                     SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
@@ -162,11 +162,38 @@ generateImage(const std::string& ImageId) {
   return Img;
 }
 
+sycl::unittest::MockDeviceImage
+generateImageKernelOnly(const std::string &ImageId) {
+  sycl::unittest::MockPropertySet PropSet;
+
+  std::initializer_list<std::string> KernelNames{
+      generateRefName(ImageId, "Kernel")};
+  std::vector<unsigned char> Bin{0};
+
+  std::vector<sycl::unittest::MockOffloadEntry> Entries =
+      sycl::unittest::makeEmptyKernels(KernelNames);
+
+  sycl::unittest::MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
+                                      "", // Compile options
+                                      "", // Link options
+                                      std::move(Bin),
+                                      std::move(Entries),
+                                      std::move(PropSet)};
+
+  return Img;
+}
+
 static std::array<sycl::unittest::MockDeviceImage, 2> ImagesToKeep = {
     generateImage("A"),
     generateImage("B")};
 static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToRemove = {
     generateImage("C")};
+
+static std::array<sycl::unittest::MockDeviceImage, 2> ImagesToKeepKernelOnly = {
+    generateImageKernelOnly("A"), generateImageKernelOnly("B")};
+static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToRemoveKernelOnly =
+    {generateImageKernelOnly("C")};
 
 template <size_t ImageCount>
 void convertAndAddImages(ProgramManagerExposed& PM, std::array<sycl::unittest::MockDeviceImage, ImageCount> Images, sycl_device_binary_struct* NativeImages, sycl_device_binaries_struct& AllBinaries)
@@ -191,36 +218,69 @@ void checkAllInvolvedContainers(ProgramManagerExposed& PM, size_t ExpectedCount,
     EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedCount) << Comment;
     EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedCount) << Comment;
     EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
-  
     EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
-
     EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
     EXPECT_EQ(PM.getDeviceImages().size(), ExpectedCount) << Comment;
-
-   // EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getNativePrograms().size(), 0u) << Comment;
+    EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
     EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedCount) << Comment;
-
     EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
     EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
 }
 
-TEST(ImageRemoval, Base) {
-    ProgramManagerExposed PM;
-    
-    sycl_device_binary_struct NativeImages[ImagesToKeep.size()];
-    sycl_device_binaries_struct AllBinaries;
-    convertAndAddImages(PM, ImagesToKeep, NativeImages, AllBinaries);
+TEST(ImageRemoval, BaseContainers) {
+  ProgramManagerExposed PM;
 
-    sycl_device_binary_struct NativeImagesForRemoval[ImagesToRemove.size()];
-    sycl_device_binaries_struct TestBinaries;
-    convertAndAddImages(PM, ImagesToRemove, NativeImagesForRemoval, TestBinaries);
+  sycl_device_binary_struct NativeImages[ImagesToKeep.size()];
+  sycl_device_binaries_struct AllBinaries;
+  convertAndAddImages(PM, ImagesToKeep, NativeImages, AllBinaries);
 
-    checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(), "Check failed before removal");
+  sycl_device_binary_struct NativeImagesForRemoval[ImagesToRemove.size()];
+  sycl_device_binaries_struct TestBinaries;
+  convertAndAddImages(PM, ImagesToRemove, NativeImagesForRemoval, TestBinaries);
 
-    PM.removeImages(&TestBinaries);
+  checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
+                             "Check failed before removal");
 
-    checkAllInvolvedContainers(PM, ImagesToKeep.size(), "Check failed after removal");
+  PM.removeImages(&TestBinaries);
+
+  checkAllInvolvedContainers(PM, ImagesToKeep.size(),
+                             "Check failed after removal");
+}
+
+TEST(ImageRemoval, NativePrograms) {
+  ProgramManagerExposed PM;
+
+  sycl_device_binary_struct NativeImages[ImagesToKeepKernelOnly.size()];
+  sycl_device_binaries_struct AllBinaries;
+  convertAndAddImages(PM, ImagesToKeepKernelOnly, NativeImages, AllBinaries);
+
+  sycl_device_binary_struct
+      NativeImagesForRemoval[ImagesToRemoveKernelOnly.size()];
+  sycl_device_binaries_struct TestBinaries;
+  convertAndAddImages(PM, ImagesToRemoveKernelOnly, NativeImagesForRemoval,
+                      TestBinaries);
+
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+  auto Ctx = Queue.get_context();
+  std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                     sycl::detail::getSyclObjImpl(Dev),
+                                     generateRefName("A", "Kernel"));
+  std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                     sycl::detail::getSyclObjImpl(Dev),
+                                     generateRefName("B", "Kernel"));
+  std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                     sycl::detail::getSyclObjImpl(Dev),
+                                     generateRefName("C", "Kernel"));
+
+  EXPECT_EQ(PM.getNativePrograms().size(),
+            ImagesToRemoveKernelOnly.size() + ImagesToKeepKernelOnly.size());
+
+  PM.removeImages(&TestBinaries);
+
+  EXPECT_EQ(PM.getNativePrograms().size(), ImagesToKeepKernelOnly.size());
 }
 
 } // anonymous namespace
