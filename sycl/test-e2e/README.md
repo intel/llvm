@@ -385,7 +385,6 @@ project must keep using `<sycl/sycl.hpp>` provided by the SYCL2020
 specification.**
 
 ### Compiling and executing tests on separate systems
-
 The execution of e2e tests can be separated into compilation and execution
 stages via the `test-mode` lit parameter. This allows us to reduce testing time
 by compiling tests on more powerful systems and reusing the binaries on other
@@ -393,25 +392,25 @@ machines. By default the `test-mode` parameter is set to `full`, indicating that
 both stages will run. This parameter can be set to `build-only`, or `run-only`,
 to only run the compilation stage, or the execution stage respectively.
 
-**NOTE:** This feature is a work-in-progress and current limitations are
-expected to be addressed in the near future.
+* `--param test-mode=run-only`
 
-The modes work as follow:
+  In this mode, tests will not be compiled, they will only run. To do this only
+  the `RUN:` lines that contain a "run" expansion will be executed (`%{run}`,
+  `%{run-unfiltered-devices}`, or `%{run-aux}`). Since tests are not compiled in
+  this mode, for any test to pass the test binaries should already be in the
+  `test_exec_root` directory, either by having ran `full` or `build-only` modes
+  previously on the system, or having transferred the test binaries into that
+  directory. To mark a test as expected to fail only at run-time we can either
+  use the `run-mode` feature, which is only available in `run-only` and `full`
+  modes, or we can mark the test as `XFAIL` for a device-specific feature.
 
-* `--param test-mode=full`
-
-  This is the default mode tests run in. Tests are marked as unsupported if no
-  device on the machine can fulfill the `REQUIRES`/`UNSUPPORTED` statements. In
-  this mode all `RUN:` lines are executed normally, and two extra features are
-  added: the `build-and-run-mode` and `run-mode`.
-
-  To make a test only run in `full` mode add a `REQUIRES: build-and-run-mode`
-  line.
+  `%{run-aux}` is an empty expansion and executes a line as is, without
+  expanding for each selected device and without using the run_launcher.
 
 * `--param test-mode=build-only`
 
   This mode can be used to compile all test binaries that can be built on the
-  system. To do this the `REQUIRES`/`UNSUPPORTED` statements are handled
+  system. To do this `REQUIRES`, and `UNSUPPORTED` statements are handled
   differently to accommodate for the fact that in `build-only` mode we do not
   have any devices, and as a result no device-specific features. Instead of
   considering these features as missing, we assign a third "unknown" boolean
@@ -419,39 +418,21 @@ The modes work as follow:
   value if its result could be changed by setting the unknown features to either
   true or false. i.e., `false || unknown = unknown` but `true || unknown = true`.
   If an expression's final value is unknown we consider it to have met the
-  requirements. The list of features that are not unknown in `build-only` is
-  found in the `E2EExpr.py` file.
+  requirements. The list of device-agnostic features that are not considered
+  unknown in `build-only` is found in the `E2EExpr.py`.
 
-  The triples to build for in this mode are selected by evaluating the
-  `REQUIRES`/`UNSUPPORTED` statements with a build-target feature added to the
-  list of available features. The triple for each corresponding passing
-  build-target will be built for. If no build-targets fulfilled the requirements
-  the test is reported as unsupported.
+  The triples to compile for in this mode are set via the `sycl_build_targets`
+  lit parameter. Valid build targets are: `spir`,`nvidia`, `amd`, `native_cpu`.
+  These correspond to `spir64`, `nvptx64-nvidia-cuda`, `amdgcn-amd-amdhsa`, and
+  `native_cpu` triples respectively. Each build target should be separated with
+  a semicolon. This parameter is set to just `spir` by default. A test can be
+  marked as requiring, or not supporting a particular triple via the `target-*`
+  features. Note that we test if each build target is supported separately from
+  each other so statements like `REQUIRES: target-spir && target-nvidia` will
+  never be met. Instead we can use `any-target-is-*` features in this case.
 
-  The set of build-targets that can be selected for tests is determined via the
-  `sycl_build_targets` parameter. Valid build targets are: `spir`,`nvidia`,
-  `amd`, `native_cpu`. Each build target should be separated with a semicolon.
-  This parameter is set to just `spir` by default.
-
-  Note: the `target-*` features should be used in place of the backend features
-  if the intent is to mark something as requiring, or expectedly failing at
-  the compilation stage. On the other hand, backend features should be used when
-  we are considering the run stage.
-
-  When executing the test in `build-only`, all `RUN:` lines are ran unless they
-  contain the following expansions: `%{run}`, `%{run-unfiltered-devices}`, or
-  `%if run-mode`.
-
-* `--param test-mode=run-only`
-
-  In this mode, tests will not be compiled, they will only run. To do this only
-  the `RUN:` lines that contain `%{run}`, `%{run-unfiltered-devices}` or `%if
-  run-mode` are executed. Tests are marked as unsupported in the same manner as
-  `full` mode. Since tests are not compiled in this mode, for any test to pass
-  the test binaries should already be in the `test_exec_root` directory, either
-  by having ran `full` or `build-only` modes previously on the system, or having
-  transferred the test binaries into that directory. The `run-mode` feature is
-  added when in this mode.
+  When executing the test in `build-only`, all `RUN:` lines that do not have a
+  run expansion will execute.
 
 #### Resolving common Issues with separate compilation and execution
 
@@ -465,45 +446,23 @@ system.
 
 * Two scenarios need to be considered for tests that expectedly fail:
   * Tests that are expected to fail on compilation, and thus also during
-  execution, need to be marked as `XFAIL` with a feature that is device
-  agnostic, or with `XFAIL: *`. Device agnostic features are those which are
-  added added through a method other than processing the output of sycl-ls, for
-  example the OS, a build target, or a library. This needs to be done because
-  in `build-only` we have no device-specific features.
+  execution, need to be marked as `XFAIL` for a device-agnostic feature, or
+  with `XFAIL: *`. This is due to the fact that there are no devices in
+  `build-only` mode. For example if a test cannot compile for a triple, then it
+  should be marked as `XFAIL` for the corresponding build target feature, rather
+  than a backend feature.
   * If the expected failure occurs during run-time we will need to mark the test
-  with `XFAIL` on a device specific feature (A feature that we add through
-  processing sycl-ls output), or if its expected to always fail on run-time we
-  can use `XFAIL: run-mode`. This is because otherwise the test would compile
-  and pass on `build-only` mode and be reported as an `XPASS`.
+  with `XFAIL` on a device specific feature. If it is expected to fail for any
+  device at run-time we can use `XFAIL: run-mode`, this is because otherwise the
+  test would compile and pass on `build-only` mode and be reported as an `XPASS`.
 
-* To separate compilation and execution of tests, we classify `RUN:` directives
-as being either build or run lines. If a line contains `%{run}`,
-`%{run-unfiltered-devices}` or `%if run-mode` it is classified as a run line,
-otherwise it is classified as a build line.
-  * All `RUN:` lines that execute test binaries should be marked with either
-  `%{run}` or `%{run-unfiltered-devices}`. Otherwise they will be incorrectly
-  marked as a build line, likely causing a failure at the `build-only` stage as
-  we try to execute the program without having the appropriate devices.
-  * The vast majority of `RUN:` lines that do not execute the test binaries are
-  needed to either set up files prior to compilation, or to compile the binary,
-  as such `RUN:` lines are by default considered as build lines. In the case
-  that we need to run a line on the `run-only` system, and it does not make
-  sense to mark them with `%{run}` or `%{run-unfiltered-devices}`, we can mark a
-  line with `%if run-mode` to specifically make the line a run line. This
-  situation usually appears when we need to run a command in response to the
-  execution of the test binary.
+* To separate compilation and execution of tests, `RUN:` lines are filtered in
+`build-only` and `run-only` mode based on the presence of "run" expansions.
+  * Any line that is meant to execute the test binary should be marked with
+  `%{run}` or `%{run-unfiltered-devices}` so that it is not ran in `build-only`.
+  * The `%{run-aux}` expansion can be used if a `RUN:` line that does not
+  execute a test binary needs to be ran in `run-only`.
 
-* CPU and FPGA AOT tests are currently expected to fail when compiling and
-executing on separate machines. These failures occur on the `run-only` side,
-because during compilation the host machine's CPU architecture is targeted,
-which may be different than that of the running machine. These tests are marked
-as `REQUIRES: build-and-run-mode` as a result, until they can be refactored to
-compile for the architectures that will be used on the run side.
-
-#### Falling back to `full` testing mode on `run-only`
-
-To not lose coverage of tests marked as `REQUIRES: build-and-run-mode` when
-using `run-only` mode, lit can be called using
-`--param fallback-to-build-if-requires-build-and-run=True`. When this option is
-enabled in `run-only` mode, tests marked as requiring `build-and-run-mode` will
-fallback to running on `full` mode, instead of being reported as unsupported.
+* Compiling for CPU AOT will target the ISA of the host CPU, thus compiling
+these tests on a different system will lead to failures if the build system and
+run system support different ISAs.
