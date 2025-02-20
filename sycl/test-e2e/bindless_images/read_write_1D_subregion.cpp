@@ -76,20 +76,19 @@ int main() {
 
     q.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<image_addition>(
-      sycl::nd_range<1>{{width}, {width}},
-          [=](sycl::nd_item<1> it) {
+          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
             size_t dim0 = it.get_local_id(0);
-        float sum = 0;
-        // Extension: fetch image data from handle
-        float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
-            imgHandle1, int(dim0));
-        float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
-            imgHandle2, int(dim0));
+            float sum = 0;
+            // Extension: fetch image data from handle
+            float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle1, int(dim0));
+            float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle2, int(dim0));
 
-        sum = px1 + px2;
-        sycl::ext::oneapi::experimental::write_image<float>(imgHandle3,
-                                                            int(dim0), sum);
-      });
+            sum = px1 + px2;
+            sycl::ext::oneapi::experimental::write_image<float>(imgHandle3,
+                                                                int(dim0), sum);
+          });
     });
 
     q.wait_and_throw();

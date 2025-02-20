@@ -6,15 +6,18 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
+// This tests that parallel_for with sycl::range works with image fetches
+// Currently this fails when
+// https://github.com/intel/llvm/commit/f9c8c01d38f8fbea81db99ab90b7d0f2bdcc8b4d
+// is cherry-picked. See https://github.com/intel/llvm/issues/16503
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
- #define VERBOSE_PRINT
-
-class image_addition;
+// #define VERBOSE_PRINT
 
 int main() {
 
@@ -61,9 +64,9 @@ int main() {
 
     sycl::ext::oneapi::experimental::unsampled_image_handle imgOut =
         sycl::ext::oneapi::experimental::create_image(imgMem2, desc, dev, ctxt);
-          sycl::range<1> r(1);
+
     q.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
+      cgh.parallel_for(width, [=](sycl::id<1> id) {
         float sum = 0;
         // Extension: fetch image data from handle
         sycl::float4 px1 =
@@ -77,8 +80,8 @@ int main() {
         // Extension: write to image with handle
         // Note this test passes with the upstream commit
         // https://github.com/intel/llvm/commit/f9c8c01d38f8fbea81db99ab90b7d0f2bdcc8b4d
-        // merged only if the output is made via a buffer/accessor instead of (or in
-        // addition to!) write_image
+        // merged only if the output is made via a buffer/accessor instead of
+        // (or in addition to!) write_image
         sycl::ext::oneapi::experimental::write_image<sycl::float4>(
             imgOut, int(id[0]), sycl::float4(sum));
       });

@@ -6,13 +6,18 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
+// This tests that sycl::buffer works with image fetches
+// Currently this fails when
+// https://github.com/intel/llvm/commit/f9c8c01d38f8fbea81db99ab90b7d0f2bdcc8b4d
+// is cherry-picked. See https://github.com/intel/llvm/issues/16503
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
- #define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 class image_addition;
 
@@ -61,29 +66,29 @@ int main() {
 
     sycl::ext::oneapi::experimental::unsampled_image_handle imgOut =
         sycl::ext::oneapi::experimental::create_image(imgMem2, desc, dev, ctxt);
-          sycl::range<1> r(1);
-sycl::buffer<sycl::ext::oneapi::experimental::unsampled_image_handle, 1> imgHandlesBuf{&imgIn1, r};
-sycl::buffer<sycl::float4, 1> buf(out.data(), sycl::range<1>{width});
+    sycl::range<1> r(1);
+    sycl::buffer<sycl::ext::oneapi::experimental::unsampled_image_handle, 1>
+        imgHandlesBuf{&imgIn1, r};
+    sycl::buffer<sycl::float4, 1> buf(out.data(), sycl::range<1>{width});
     q.submit([&](sycl::handler &cgh) {
-        sycl::accessor imgHandleAcc{imgHandlesBuf, cgh, sycl::read_only};
-        sycl::accessor outAcc{buf, cgh, sycl::write_only};
+      sycl::accessor imgHandleAcc{imgHandlesBuf, cgh, sycl::read_only};
+      sycl::accessor outAcc{buf, cgh, sycl::write_only};
       cgh.parallel_for<image_addition>(
-                    sycl::nd_range<1>{{width}, {width}},
-          [=](sycl::nd_item<1> it) {
+          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
             size_t dim0 = it.get_local_id(0);
-        float sum = 0;
-        // Extension: fetch image data from handle
-        sycl::float4 px1 =
-            sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
-                imgHandleAcc[0], int(dim0));
-        sycl::float4 px2 =
-            sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
-                imgIn2, int(dim0));
+            float sum = 0;
+            // Extension: fetch image data from handle
+            sycl::float4 px1 =
+                sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
+                    imgHandleAcc[0], int(dim0));
+            sycl::float4 px2 =
+                sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
+                    imgIn2, int(dim0));
 
-        sum = px1[0] + px2[0];
-        // Extension: write to image with handle
-        outAcc[dim0][0] = sum;
-      });
+            sum = px1[0] + px2[0];
+            // Extension: write to image with handle
+            outAcc[dim0][0] = sum;
+          });
     });
 
     q.wait_and_throw();
