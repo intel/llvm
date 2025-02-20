@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple dxil-pc-shadermodel6.2-library -Wconversion -Wno-implicit-float-size-conversion -verify %s
+// RUN: %clang_cc1 -triple dxil-pc-shadermodel6.2-library -Wconversion -verify %s
 
 void literal_assignments() {
   half h;
