@@ -248,23 +248,23 @@ private:
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
         MPropertySet(std::move(PropertySet)) {
-          MNativeHandle = {
-            MVersion,
-            MKind,
-            MFormat,
-            MDeviceTargetSpec.c_str(),
-            MCompileOptions.c_str(),
-            MLinkOptions.c_str(),
-            MManifest.empty() ? nullptr : &*MManifest.cbegin(),
-            MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
-            &*MBinary.begin(),
-            (&*MBinary.begin()) + MBinary.size(),
-            MOffloadEntries.begin(),
-            MOffloadEntries.end(),
-            MPropertySet.begin(),
-            MPropertySet.end(),
-        };
-        }
+    MNativeHandle = {
+        MVersion,
+        MKind,
+        MFormat,
+        MDeviceTargetSpec.c_str(),
+        MCompileOptions.c_str(),
+        MLinkOptions.c_str(),
+        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
+        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
+        &*MBinary.begin(),
+        (&*MBinary.begin()) + MBinary.size(),
+        MOffloadEntries.begin(),
+        MOffloadEntries.end(),
+        MPropertySet.begin(),
+        MPropertySet.end(),
+    };
+  }
 
 public:
   /// Constructs an arbitrary device image.
@@ -316,9 +316,7 @@ public:
   MockDeviceImage(std::vector<MockOffloadEntry> &&OffloadEntries)
       : MockDeviceImage(std::move(OffloadEntries), {}) {}
 
-  sycl_device_binary_struct convertToNativeType() {
-    return MNativeHandle;
-  }
+  sycl_device_binary_struct convertToNativeType() { return MNativeHandle; }
   const unsigned char *getBinaryPtr() { return &*MBinary.begin(); }
 
 private:

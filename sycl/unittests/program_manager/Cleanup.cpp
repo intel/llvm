@@ -1,78 +1,78 @@
 #include <sycl/sycl.hpp>
 
+#include <detail/device_binary_image.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <detail/device_binary_image.hpp>
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
-class ProgramManagerExposed : public sycl::detail::ProgramManager
-{
+class ProgramManagerExposed : public sycl::detail::ProgramManager {
 public:
-   std::unordered_multimap<sycl::kernel_id, sycl::detail::RTDeviceBinaryImage *>& getKernelID2BinImage()
-   {
+  std::unordered_multimap<sycl::kernel_id,
+                          sycl::detail::RTDeviceBinaryImage *> &
+  getKernelID2BinImage() {
     return m_KernelIDs2BinImage;
-   }
+  }
 
-   std::unordered_map<std::string, sycl::kernel_id>& getKernelName2KernelID()
-   {
+  std::unordered_map<std::string, sycl::kernel_id> &getKernelName2KernelID() {
     return m_KernelName2KernelIDs;
-   }
+  }
 
-    std::unordered_map<sycl::detail::RTDeviceBinaryImage *,
-      std::shared_ptr<std::vector<sycl::kernel_id>>>& getBinImage2KernelId()
-      {
-      return m_BinImg2KernelIDs;
-      }
+  std::unordered_map<sycl::detail::RTDeviceBinaryImage *,
+                     std::shared_ptr<std::vector<sycl::kernel_id>>> &
+  getBinImage2KernelId() {
+    return m_BinImg2KernelIDs;
+  }
 
-    std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *>& getServiceKernels()
-    {
-      return m_ServiceKernels;
-    }
+  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  getServiceKernels() {
+    return m_ServiceKernels;
+  }
 
-    std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *>& getExportedSymbolImages()
-    {
-      return m_ExportedSymbolImages;
-    }
-    
-    std::unordered_map<sycl_device_binary, std::unique_ptr<sycl::detail::RTDeviceBinaryImage> >& getDeviceImages()
-    {
-      return m_DeviceImages;
-    }
+  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  getExportedSymbolImages() {
+    return m_ExportedSymbolImages;
+  }
 
-    std::unordered_map<std::string, std::set<sycl::detail::RTDeviceBinaryImage *> >& getVFSet2BinImage()
-    {
-      return m_VFSet2BinImage;
-    }
+  std::unordered_map<sycl_device_binary,
+                     std::unique_ptr<sycl::detail::RTDeviceBinaryImage>> &
+  getDeviceImages() {
+    return m_DeviceImages;
+  }
 
-std::unordered_multimap<ur_program_handle_t, const sycl::detail::RTDeviceBinaryImage *>& getNativePrograms()
-{
-  return NativePrograms;
-}
+  std::unordered_map<std::string,
+                     std::set<sycl::detail::RTDeviceBinaryImage *>> &
+  getVFSet2BinImage() {
+    return m_VFSet2BinImage;
+  }
 
- std::unordered_map<const sycl::detail::RTDeviceBinaryImage *, std::unordered_map<std::string, sycl::detail::KernelArgMask> >& getEliminatedKernelArgMask()
- {
-  return m_EliminatedKernelArgMasks;
- }
+  std::unordered_multimap<ur_program_handle_t,
+                          const sycl::detail::RTDeviceBinaryImage *> &
+  getNativePrograms() {
+    return NativePrograms;
+  }
 
- std::set<std::string>& getKernelUsesAssert()
- {
-  return m_KernelUsesAssert;
- }
+  std::unordered_map<
+      const sycl::detail::RTDeviceBinaryImage *,
+      std::unordered_map<std::string, sycl::detail::KernelArgMask>> &
+  getEliminatedKernelArgMask() {
+    return m_EliminatedKernelArgMasks;
+  }
 
-std::unordered_map<std::string, int>& getKernelImplicitLocalArgPos()
-{
-  return m_KernelImplicitLocalArgPos;
-}
+  std::set<std::string> &getKernelUsesAssert() { return m_KernelUsesAssert; }
 
-std::unordered_map<std::string, std::map<std::vector<unsigned char>, ur_kernel_handle_t>>& getMaterializedKernels()
-{
-  return m_MaterializedKernels;
-}
+  std::unordered_map<std::string, int> &getKernelImplicitLocalArgPos() {
+    return m_KernelImplicitLocalArgPos;
+  }
 
+  std::unordered_map<std::string,
+                     std::map<std::vector<unsigned char>, ur_kernel_handle_t>> &
+  getMaterializedKernels() {
+    return m_MaterializedKernels;
+  }
 };
 
 namespace {
@@ -113,38 +113,43 @@ createVFPropertySet(const std::string &VFSets) {
   return Props;
 }
 
-std::string generateRefName(const std::string& ImageId, const std::string& FeatureName)
-{
+std::string generateRefName(const std::string &ImageId,
+                            const std::string &FeatureName) {
   return FeatureName + "_" + ImageId;
 }
 
-sycl::unittest::MockDeviceImage
-generateImage(const std::string& ImageId) {
+sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
   sycl::unittest::MockPropertySet PropSet;
 
-  std::initializer_list<std::string> KernelNames{ generateRefName(ImageId, "Kernel"), generateRefName(ImageId, "__sycl_service_kernel__") };
-  const std::vector<std::string> ExportedSymbols{generateRefName(ImageId, "Exported")};
-  const std::vector<std::string> ImportedSymbols{generateRefName(ImageId, "Imported")};
+  std::initializer_list<std::string> KernelNames{
+      generateRefName(ImageId, "Kernel"),
+      generateRefName(ImageId, "__sycl_service_kernel__")};
+  const std::vector<std::string> ExportedSymbols{
+      generateRefName(ImageId, "Exported")};
+  const std::vector<std::string> ImportedSymbols{
+      generateRefName(ImageId, "Imported")};
   const std::vector<std::string> ImplicitLocalArg{KernelNames.begin()[0]};
   const std::string &VirtualFunctions{generateRefName(ImageId, "VF")};
   std::vector<unsigned char> KernelEAM{0b0000001};
-  sycl::unittest::MockProperty EAMKernelPOI = sycl::unittest::makeKernelParamOptInfo(
-      KernelNames.begin()[0], 1, KernelEAM);
+  sycl::unittest::MockProperty EAMKernelPOI =
+      sycl::unittest::makeKernelParamOptInfo(KernelNames.begin()[0], 1,
+                                             KernelEAM);
   std::vector<sycl::unittest::MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
-                   createPropertySet(ExportedSymbols));
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
+                 createPropertySet(ExportedSymbols));
 
-    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
-                   createPropertySet(ImportedSymbols));
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
+                 createPropertySet(ImportedSymbols));
 
-    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
-                  createVFPropertySet(VirtualFunctions));
-    setKernelUsesAssert(std::vector<std::string>{KernelNames.begin()[0]}, PropSet);
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
+                 createVFPropertySet(VirtualFunctions));
+  setKernelUsesAssert(std::vector<std::string>{KernelNames.begin()[0]},
+                      PropSet);
 
-    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG,
-                   createPropertySet(ImplicitLocalArg));
-      PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG,
+                 createPropertySet(ImplicitLocalArg));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0};
 
@@ -185,8 +190,7 @@ generateImageKernelOnly(const std::string &ImageId) {
 }
 
 static std::array<sycl::unittest::MockDeviceImage, 2> ImagesToKeep = {
-    generateImage("A"),
-    generateImage("B")};
+    generateImage("A"), generateImage("B")};
 static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToRemove = {
     generateImage("C")};
 
@@ -196,35 +200,34 @@ static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToRemoveKernelOnly =
     {generateImageKernelOnly("C")};
 
 template <size_t ImageCount>
-void convertAndAddImages(ProgramManagerExposed& PM, std::array<sycl::unittest::MockDeviceImage, ImageCount> Images, sycl_device_binary_struct* NativeImages, sycl_device_binaries_struct& AllBinaries)
-{
-    constexpr auto ImageSize = Images.size();
-    for (size_t Idx = 0; Idx < ImageSize; ++Idx)
-      NativeImages[Idx] = Images[Idx].convertToNativeType();
+void convertAndAddImages(
+    ProgramManagerExposed &PM,
+    std::array<sycl::unittest::MockDeviceImage, ImageCount> Images,
+    sycl_device_binary_struct *NativeImages,
+    sycl_device_binaries_struct &AllBinaries) {
+  constexpr auto ImageSize = Images.size();
+  for (size_t Idx = 0; Idx < ImageSize; ++Idx)
+    NativeImages[Idx] = Images[Idx].convertToNativeType();
 
-    AllBinaries = sycl_device_binaries_struct{
-        SYCL_DEVICE_BINARIES_VERSION,
-        ImageSize,
-        NativeImages,
-        nullptr,
-        nullptr,
-    };
+  AllBinaries = sycl_device_binaries_struct{
+      SYCL_DEVICE_BINARIES_VERSION, ImageSize, NativeImages, nullptr, nullptr,
+  };
 
-    PM.addImages(&AllBinaries);
+  PM.addImages(&AllBinaries);
 }
 
-void checkAllInvolvedContainers(ProgramManagerExposed& PM, size_t ExpectedCount, const std::string& Comment)
-{
-    EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getDeviceImages().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
-    EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
+void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
+                                const std::string &Comment) {
+  EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getDeviceImages().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
+  EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
 }
 
 TEST(ImageRemoval, BaseContainers) {

@@ -3501,37 +3501,38 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
             ArchName == "intel_cpu_gnr")));
 }
 
-void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
-{
-    // No need in fair partial cleanup at shutdown
-  if (!GlobalHandler::instance().isOkToDefer() || !(DeviceBinaries && DeviceBinaries->NumDeviceBinaries))
+void ProgramManager::removeImages(const sycl_device_binaries &DeviceBinaries) {
+  // No need in fair partial cleanup at shutdown
+  if (!GlobalHandler::instance().isOkToDefer() ||
+      !(DeviceBinaries && DeviceBinaries->NumDeviceBinaries))
     return;
 
-  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr> DeviceImagesToCleanup;
+  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
+      DeviceImagesToCleanup;
   for (int I = 0; I < DeviceBinaries->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinaries->DeviceBinaries[I]);
     auto node = m_DeviceImages.extract(RawImg);
-    if (node.empty())
-    {
+    if (node.empty()) {
       if constexpr (DbgProgMgr > 0) {
-        std::cerr << "Attempt to remove device image that is not registered: RawImg = " << RawImg << std::endl;
+        std::cerr << "Attempt to remove device image that is not registered: "
+                     "RawImg = "
+                  << RawImg << std::endl;
       }
       continue;
     }
     DeviceImagesToCleanup.insert(std::move(node));
   }
 
-  for (auto& [DeviceBinary, DeviceImage] : DeviceImagesToCleanup)
-  {
+  for (auto &[DeviceBinary, DeviceImage] : DeviceImagesToCleanup) {
     auto It = m_BinImg2KernelIDs.find(DeviceImage.get());
-    assert((It != m_BinImg2KernelIDs.end()) && "Attempt to find device image that has never been registered");
-    //It->second is std::shared_ptr<std::vector<kernel_id>>>;
-    for (auto& KernelId : *It->second)
-    {
+    assert((It != m_BinImg2KernelIDs.end()) &&
+           "Attempt to find device image that has never been registered");
+    // It->second is std::shared_ptr<std::vector<kernel_id>>>;
+    for (auto &KernelId : *It->second) {
       auto KernelIdMapping = m_KernelIDs2BinImage.equal_range(KernelId);
       size_t MatchingImages = 0;
-      for (auto& Item = KernelIdMapping.first; Item != KernelIdMapping.second;)
-      {
+      for (auto &Item = KernelIdMapping.first;
+           Item != KernelIdMapping.second;) {
         if (Item->second == DeviceImage.get())
           Item = m_KernelIDs2BinImage.erase(Item);
         else
@@ -3539,30 +3540,32 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
         MatchingImages++;
       }
       // if kernel is represented by only 1 image
-      if (MatchingImages == 1)
-      {
-        auto KernelNameIt = std::find_if(m_KernelName2KernelIDs.begin(), m_KernelName2KernelIDs.end(), [&KernelId](const auto& NameToId) { return NameToId.second == KernelId; } );
-        assert((KernelNameIt != m_KernelName2KernelIDs.end()) && "Attempt to remove kernel that has never been registered");
+      if (MatchingImages == 1) {
+        auto KernelNameIt = std::find_if(m_KernelName2KernelIDs.begin(),
+                                         m_KernelName2KernelIDs.end(),
+                                         [&KernelId](const auto &NameToId) {
+                                           return NameToId.second == KernelId;
+                                         });
+        assert((KernelNameIt != m_KernelName2KernelIDs.end()) &&
+               "Attempt to remove kernel that has never been registered");
 
-        //remove Everything associated with this KernelName
+        // remove Everything associated with this KernelName
         m_KernelUsesAssert.erase(KernelNameIt->first);
         m_KernelImplicitLocalArgPos.erase(KernelNameIt->first);
         m_KernelName2KernelIDs.erase(KernelNameIt);
       }
     }
-    //C++20: to switch to erase_if
+    // C++20: to switch to erase_if
     auto ServiceKernelsIt = m_ServiceKernels.begin();
-    while (ServiceKernelsIt != m_ServiceKernels.end())
-    {
+    while (ServiceKernelsIt != m_ServiceKernels.end()) {
       if (ServiceKernelsIt->second == DeviceImage.get())
         ServiceKernelsIt = m_ServiceKernels.erase(ServiceKernelsIt);
       else
         ServiceKernelsIt++;
     }
-  
+
     auto ExportedSymbolsIt = m_ExportedSymbolImages.begin();
-    while (ExportedSymbolsIt != m_ExportedSymbolImages.end())
-    {
+    while (ExportedSymbolsIt != m_ExportedSymbolImages.end()) {
       if (ExportedSymbolsIt->second == DeviceImage.get())
         ExportedSymbolsIt = m_ExportedSymbolImages.erase(ExportedSymbolsIt);
       else
@@ -3588,17 +3591,17 @@ void ProgramManager::removeImages(const sycl_device_binaries& DeviceBinaries)
     //     NativeProgIt++;
     // }
 
+    // MUTEXES
+    // Complete the rest of containers, probably some of them I do not need to
+    // cleanup. Measure latency now + after redo TO DO: to check if I could do
+    // the same by extracting same data as on registration step - should be
+    // faster write test first to check algorithm and then compare after it is
+    // redone Questions & problems: what to do with multiple images for one
+    // program what to do when this program is used? how to track? very likely
+    // will leave it as it is and let it fail, state this case as undefined
+    // behavior. Check if it is already stated somewhere to refer to.
 
-  // MUTEXES
-  // Complete the rest of containers, probably some of them I do not need to cleanup.
-  // Measure latency now + after redo
-  // TO DO: to check if I could do the same by extracting same data as on registration step - should be faster
-  // write test first to check algorithm and then compare after it is redone
-  // Questions & problems:
-  // what to do with multiple images for one program
-  // what to do when this program is used? how to track? very likely will leave it as it is and let it fail, state this case as undefined behavior. Check if it is already stated somewhere to refer to.
-
-  // to add DbgProgMgr debug info
+    // to add DbgProgMgr debug info
 
     m_EliminatedKernelArgMasks.erase(DeviceImage.get());
 

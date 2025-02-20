@@ -216,7 +216,7 @@ public:
                                                const ContextImplPtr Context);
 
   void addImages(sycl_device_binaries DeviceImages);
-  void removeImages(const sycl_device_binaries& DeviceImages);
+  void removeImages(const sycl_device_binaries &DeviceImages);
 
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
@@ -376,8 +376,8 @@ private:
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);
-protected:
 
+protected:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
@@ -427,7 +427,8 @@ protected:
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
-  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr> m_DeviceImages;
+  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
+      m_DeviceImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
