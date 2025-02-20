@@ -1,4 +1,4 @@
-// REQUIRES: opencl, opencl_icd, aspect-usm_shared_allocations
+// REQUIRES: target-spir, opencl, opencl_icd, aspect-usm_shared_allocations
 // RUN: %{build} %opencl_lib -fno-sycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: accelerator
