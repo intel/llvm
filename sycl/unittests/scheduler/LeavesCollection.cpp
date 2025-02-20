@@ -54,7 +54,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
   std::vector<sycl::detail::Command *> ToEnqueue;
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
-      [&](Command *, Command *, MemObjRecord *,
+      [&](Command *, Command *, const MemObjRecord *,
           std::vector<sycl::detail::Command *> &) { ++TimesGenericWasFull; };
 
   // add only generic commands
@@ -121,7 +121,7 @@ TEST_F(LeavesCollectionTest, Remove) {
   std::vector<sycl::detail::Command *> ToEnqueue;
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
-      [](Command *, Command *Old, MemObjRecord *,
+      [](Command *, Command *Old, const MemObjRecord *,
          std::vector<sycl::detail::Command *> &) { --Old->MLeafCounter; };
 
   {
