@@ -256,18 +256,73 @@ void convertAndAddImages(
 void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
                                 const std::string &Comment) {
   EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedCount) << Comment;
-  EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedCount) << Comment;
+  {
+    EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(
+        PM.getKernelName2KernelID().count(generateRefName("A", "Kernel")) > 0)
+        << Comment;
+    EXPECT_TRUE(
+        PM.getKernelName2KernelID().count(generateRefName("B", "Kernel")) > 0)
+        << Comment;
+  }
   EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
-  EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
-  EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
+  {
+    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(PM.getServiceKernels().count(
+                    generateRefName("A", "__sycl_service_kernel__")) > 0)
+        << Comment;
+    EXPECT_TRUE(PM.getServiceKernels().count(
+                    generateRefName("B", "__sycl_service_kernel__")) > 0)
+        << Comment;
+  }
+  {
+    EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(PM.getExportedSymbolImages().count(
+                    generateRefName("A", "Exported")) > 0)
+        << Comment;
+    EXPECT_TRUE(PM.getExportedSymbolImages().count(
+                    generateRefName("B", "Exported")) > 0)
+        << Comment;
+  }
   EXPECT_EQ(PM.getDeviceImages().size(), ExpectedCount) << Comment;
-  EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
+  {
+    EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(PM.getVFSet2BinImage().count(generateRefName("A", "VF")) > 0)
+        << Comment;
+    EXPECT_TRUE(PM.getVFSet2BinImage().count(generateRefName("B", "VF")) > 0)
+        << Comment;
+  }
+
   EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedCount) << Comment;
-  EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
+  {
+    EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(PM.getKernelUsesAssert().count(generateRefName("A", "Kernel")) >
+                0)
+        << Comment;
+    EXPECT_TRUE(PM.getKernelUsesAssert().count(generateRefName("B", "Kernel")) >
+                0)
+        << Comment;
+  }
   EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
-  EXPECT_EQ(PM.getDeviceGlobals().size(), ExpectedCount) << Comment;
+
+  {
+    EXPECT_EQ(PM.getDeviceGlobals().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(
+        PM.getDeviceGlobals().count(generateRefName("A", "DeviceGlobal")) > 0)
+        << Comment;
+    EXPECT_TRUE(
+        PM.getDeviceGlobals().count(generateRefName("B", "DeviceGlobal")) > 0)
+        << Comment;
+  }
   EXPECT_EQ(PM.getPtrToDeviceGlobal().size(), ExpectedCount) << Comment;
-  EXPECT_EQ(PM.getHostPipes().size(), ExpectedCount) << Comment;
+
+  {
+    EXPECT_EQ(PM.getHostPipes().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(PM.getHostPipes().count(generateRefName("A", "HostPipe")) > 0)
+        << Comment;
+    EXPECT_TRUE(PM.getHostPipes().count(generateRefName("B", "HostPipe")) > 0)
+        << Comment;
+  }
   EXPECT_EQ(PM.getPtrToHostPipe().size(), ExpectedCount) << Comment;
 }
 
@@ -322,12 +377,12 @@ TEST(ImageRemoval, NativePrograms) {
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
   auto Ctx = Queue.get_context();
-  std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev),
-                                     generateRefName("A", "Kernel"));
-  std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev),
-                                     generateRefName("B", "Kernel"));
+  auto ProgramA = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                       sycl::detail::getSyclObjImpl(Dev),
+                                       generateRefName("A", "Kernel"));
+  auto ProgramB = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                       sycl::detail::getSyclObjImpl(Dev),
+                                       generateRefName("B", "Kernel"));
   std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
                                      sycl::detail::getSyclObjImpl(Dev),
                                      generateRefName("C", "Kernel"));
@@ -338,6 +393,7 @@ TEST(ImageRemoval, NativePrograms) {
   PM.removeImages(&TestBinaries);
 
   EXPECT_EQ(PM.getNativePrograms().size(), ImagesToKeepKernelOnly.size());
+  EXPECT_TRUE(PM.getNativePrograms().count(ProgramA) > 0);
+  EXPECT_TRUE(PM.getNativePrograms().count(ProgramB) > 0);
 }
-
 } // anonymous namespace

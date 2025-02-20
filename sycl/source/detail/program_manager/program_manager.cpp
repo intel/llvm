@@ -3554,14 +3554,13 @@ void ProgramManager::removeImages(const sycl_device_binaries &DeviceBinaries) {
         m_KernelIDs2BinImage.erase(KernelNameToIdIt->second);
       }
     }
- 
+
     for (const sycl_device_binary_property &VFProp :
-      DeviceImage->getVirtualFunctions()) {
-        //to make inline func for add and remove Images to avoid mismatches
-       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
-       for (const auto &SetName : detail::split_string(StrValue, ','))
-         m_VFSet2BinImage.erase(SetName);
-     }
+         DeviceImage->getVirtualFunctions()) {
+      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+      for (const auto &SetName : detail::split_string(StrValue, ','))
+        m_VFSet2BinImage.erase(SetName);
+    }
      // Exported symbols are present in entries handled above with kernels, adding this as guard if it changes.
      for (const sycl_device_binary_property &ESProp :
       DeviceImage->getExportedSymbols()) {
