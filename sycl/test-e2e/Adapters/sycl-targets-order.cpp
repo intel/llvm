@@ -7,7 +7,7 @@
 
 // REQUIRES: opencl, cuda
 // XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17108
 
 //==------- sycl-targets-order.cpp - SYCL -fsycl-targets order test --------==//
 //
