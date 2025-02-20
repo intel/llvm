@@ -11,13 +11,6 @@
 constexpr float value = 560.0f;
 constexpr float divider = 279.9f;
 
-int32_t ulp_distance(float lhs, float rhs) {
-  int32_t lhsInt = sycl::bit_cast<int32_t>(lhs);
-  int32_t rhsInt = sycl::bit_cast<int32_t>(rhs);
-
-  return std::abs(lhsInt - rhsInt);
-}
-
 void test_div() {
   sycl::queue q(sycl::default_selector_v);
   float *inValue = (float *)sycl::malloc_shared(sizeof(float), q);
@@ -33,7 +26,8 @@ void test_div() {
    }).wait();
 
   float hostRef = value / divider;
-  int ulpDist = ulp_distance(hostRef, *output);
+  int ulpDist = std::abs(sycl::bit_cast<int32_t>(hostRef) -
+                         sycl::bit_cast<int32_t>(*output));
   assert(ulpDist == 0 && "Division is not precise");
 }
 
@@ -50,7 +44,8 @@ void test_sqrt() {
    }).wait();
 
   float hostRef = std::sqrt(value);
-  int ulpDist = ulp_distance(hostRef, *output);
+  int ulpDist = std::abs(sycl::bit_cast<int32_t>(hostRef) -
+                         sycl::bit_cast<int32_t>(*output));
   assert(ulpDist == 0 && "Sqrt is not precise");
 }
 
