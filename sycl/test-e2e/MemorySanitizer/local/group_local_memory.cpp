@@ -1,19 +1,20 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// RUN: %{build} %device_msan_flags -g -O0 -o %t1.out
-// RUN: %{run} not %t1.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_msan_flags -g -O1 -o %t2.out
-// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -g -O2 -o %t3.out
-// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+// RUN: %{run} %t3.out 2>&1 | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
 constexpr std::size_t global_size = 16;
 constexpr std::size_t local_size = 8;
 
+///
+/// sycl::group_local_memory provides SLM initializer, so we can't detect UUM
+/// here.
+///
+
 __attribute__((noinline)) void check(int data) { (void)data; }
 
-void foo(sycl::nd_item<1> item) {
+__attribute__((noinline)) void foo(sycl::nd_item<1> &item) {
   auto ptr =
       sycl::ext::oneapi::group_local_memory<int[global_size]>(item.get_group());
   auto &ref = *ptr;
@@ -30,9 +31,14 @@ int main() {
               item.get_group());
           auto &ref = *ptr;
           check(ref[item.get_local_linear_id()]);
+
+          foo(item);
         });
   });
-
   Q.wait();
+
+  std::cout << "PASS" << std::endl;
   return 0;
 }
+// CHECK-NOT: DeviceSanitizer: use-of-uninitialized-value
+// CHECK: PASS

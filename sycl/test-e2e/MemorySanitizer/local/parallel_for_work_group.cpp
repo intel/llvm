@@ -31,10 +31,11 @@ int main() {
   Q.wait();
   // CHECK-NOT: [kernel]
   // CHECK: DeviceSanitizer: use-of-uninitialized-value
-  // CHECK: #0 {{.*}} {{.*parallel_for_wg.cpp}}:[[@LINE-6]]
+  // CHECK: #0 {{.*}} {{.*parallel_for_work_group.cpp}}:[[@LINE-6]]
   sycl::free(data, Q);
 
   std::cout << "PASS" << std::endl;
   return 0;
 }
 // DISABLE-CHECK-NOT: DeviceSanitizer: use-of-uninitialized-value
+// DISABLE-CHECK: PASS
