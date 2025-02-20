@@ -1091,7 +1091,8 @@ public:
     return (ForEH || getLangOpts().RTTI) && !getLangOpts().SYCLIsDevice &&
            !getLangOpts().CUDAIsDevice &&
            !(getLangOpts().OpenMP && getLangOpts().OpenMPIsTargetDevice &&
-             (getTriple().isNVPTX() || getTriple().isAMDGPU()));
+             (getTriple().isNVPTX() || getTriple().isAMDGPU() ||
+              getTriple().isSPIRV()));
   }
 
   /// Get the address of the RTTI descriptor for the given type.

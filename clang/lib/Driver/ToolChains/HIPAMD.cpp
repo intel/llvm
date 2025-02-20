@@ -429,7 +429,8 @@ HIPAMDToolChain::getDeviceLibs(
     const llvm::opt::ArgList &DriverArgs,
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  if (DriverArgs.hasArg(options::OPT_nogpulib) ||
+  if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
+                          true) ||
       getGPUArch(DriverArgs) == "amdgcnspirv")
     return {};
   ArgStringList LibraryPaths;

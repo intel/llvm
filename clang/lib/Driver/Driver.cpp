@@ -6288,7 +6288,7 @@ class OffloadingActionBuilder final {
       }
 
       // For NVPTX we also need to link with the CUDA libdevice
-      if (TC->getTriple().isNVPTX() && !Args.hasArg(options::OPT_nogpulib)) {
+      if (TC->getTriple().isNVPTX() && !Args.hasArg(options::OPT_offloadlib)) {
         const toolchains::CudaToolChain *CudaTC =
             static_cast<const toolchains::CudaToolChain *>(TC);
         std::string LibDeviceFile =
