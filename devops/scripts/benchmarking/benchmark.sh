@@ -161,7 +161,8 @@ process_benchmarks() {
             exit_status="$?"
             if [ "$exit_status" -eq 0 ] && [ -s "$output_csv" ]; then 
                 # Filter out header lines not in csv format:
-                tail +8 "$output_csv" > "$output_csv"
+                tail +8 "$output_csv" > .tmp_res
+                mv .tmp_res "$output_csv"
                 check_and_cache $output_csv_relpath
             else
                 echo "[ERROR] $testcase returned exit status $exit_status"
