@@ -344,7 +344,7 @@ function(add_libclc_builtin_set)
       OUTPUT ${output_file}
       EXTRA_OPTS -fno-builtin -nostdlib
         "${ARG_COMPILE_FLAGS}" -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
-      DEPENDENCIES generate_convert.cl clspv-generate_convert.cl
+      DEPENDENCIES generate_convert.cl
     )
     list( APPEND bytecode_files ${output_file} )
   endforeach()

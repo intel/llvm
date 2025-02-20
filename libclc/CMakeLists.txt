@@ -263,10 +263,8 @@ if( ENABLE_RUNTIME_SUBNORMAL )
 endif()
 
 find_package( Python3 REQUIRED COMPONENTS Interpreter )
-file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
-file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_core_convert.py core_script_loc )
-file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_convert.py spirv_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/lib/generic/gen_convert.py spirv_script_loc )
 add_custom_command(
   OUTPUT convert.cl
   COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
@@ -275,29 +273,34 @@ add_custom_target( "generate_convert.cl" DEPENDS convert.cl )
 set_target_properties( "generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 add_custom_command(
-  OUTPUT convert-core.cl
-  COMMAND ${Python3_EXECUTABLE} ${core_script_loc} > convert-core.cl
-  DEPENDS ${core_script_loc} )
-add_custom_target( "generate_convert_core.cl" DEPENDS convert-core.cl )
+  OUTPUT clc-convert.cl
+  COMMAND ${Python3_EXECUTABLE} ${script_loc} --clc > clc-convert.cl
+  DEPENDS ${script_loc} )
+add_custom_target( "clc-generate_convert.cl" DEPENDS clc-convert.cl )
+set_target_properties( "clc-generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 add_custom_command(
   OUTPUT convert-spirv.cl
   COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > convert-spirv.cl
   DEPENDS ${spirv_script_loc} )
 add_custom_target( "generate_convert_spirv.cl" DEPENDS convert-spirv.cl )
+set_target_properties( "generate_convert_spirv.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
-add_custom_command(
-  OUTPUT convert-clc.cl
-  COMMAND ${Python3_EXECUTABLE} ${clc_script_loc} > convert-clc.cl
-  DEPENDS ${clc_script_loc} )
-add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
+if ( clspv-- IN_LIST LIBCLC_TARGETS_TO_BUILD OR clspv64-- IN_LIST LIBCLC_TARGETS_TO_BUILD )
+  add_custom_command(
+    OUTPUT clspv-convert.cl
+    COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
+    DEPENDS ${script_loc} )
+  add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+  set_target_properties( "clspv-generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
-add_custom_command(
-  OUTPUT clspv-convert.cl
-  COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
-  DEPENDS ${script_loc} )
-add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
-set_target_properties( "clspv-generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
+  add_custom_command(
+    OUTPUT clc-clspv-convert.cl
+    COMMAND ${Python3_EXECUTABLE} ${script_loc} --clc --clspv > clc-clspv-convert.cl
+    DEPENDS ${script_loc} )
+  add_custom_target( "clc-clspv-generate_convert.cl" DEPENDS clc-clspv-convert.cl )
+  set_target_properties( "clc-clspv-generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
+endif()
 
 enable_testing()
 
@@ -358,6 +361,12 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   set( clc_lib_files )
   set( clc_dirs ${dirs} generic )
 
+  if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
+    set( clc_gen_files clc-clspv-convert.cl )
+  else()
+    set( clc_gen_files clc-convert.cl )
+  endif()
+
   libclc_configure_lib_source(
     clc_lib_files
     CLC_INTERNAL
@@ -372,7 +381,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
       list( APPEND opencl_gen_files clspv-convert.cl )
     elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
-      list( APPEND opencl_gen_files convert-clc.cl )
+      list( APPEND opencl_gen_files convert.cl )
       list( APPEND opencl_lib_files generic/lib/subnormal_use_default.ll )
     endif()
   endif()
@@ -389,7 +398,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
       list( APPEND libspirv_gen_files clspv-convert.cl )
     elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
-      list( APPEND libspirv_gen_files convert-spirv.cl convert-core.cl )
+      list( APPEND libspirv_gen_files convert-spirv.cl )
       list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
     endif()
   endif()
@@ -540,6 +549,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       COMPILE_FLAGS ${clc_build_flags}
       OPT_FLAGS ${opt_flags}
       LIB_FILES ${clc_lib_files}
+      GEN_FILES ${clc_gen_files}
     )
 
     set( spirv_build_flags ${build_flags} )

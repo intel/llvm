@@ -8,6 +8,9 @@
 
 #include <libspirv/spirv.h>
 
+#define HALF_MAX_SQRT 0x1.0p+8h
+#define HALF_MIN_SQRT 0x1.0p-8h
+
 #define _CLC_SPIRV_NORMALIZE_IMPL(FP_TYPE, FLOAT_MARK, INT_TYPE, VLEN,         \
                                   MAX_SQRT, MIN_SQRT)                          \
   _CLC_OVERLOAD _CLC_DEF FP_TYPE##VLEN __spirv_ocl_normalize(                  \
