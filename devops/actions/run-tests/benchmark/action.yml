@@ -81,12 +81,13 @@ runs:
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
       git pull
-      if [ -n "$(git diff)" ]; then
-        git add .
+      git add .
+      # Make sure changes have been made
+      if git diff --quiet && git diff --cached --quiet; then
+        echo "No new results added, skipping push."
+      else
         git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
-      else
-        echo "No new results added, skipping push."
       fi
   - name: Find benchmark result artifact here
     if: always()

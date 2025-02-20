@@ -70,12 +70,13 @@ runs:
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
       git pull
-      if [ -n "$(git diff)" ]; then
+      # Make sure changes have been made
+      if git diff --quiet && git diff --cached --quiet; then
+        echo "No changes to median, skipping push."
+      else
         git add .
         git commit -m "[GHA] Aggregate median data from $SANITIZED_TIMESTAMP to $(date +%Y%m%d_%H%M%S)"
         git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
-      else
-        echo "No changes to median, skipping push."
       fi
   - name: Find aggregated average results artifact here
     if: always()
