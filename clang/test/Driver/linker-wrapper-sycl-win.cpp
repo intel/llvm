@@ -128,5 +128,5 @@
 // RUN: clang-linker-wrapper -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t5.o -sycl-device-libraries=libsycl-crt.new.o -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
 // CHK-CMDS-DEVICE-LIB-DIR: "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}llvm-link.exe" {{.*}} --suppress-warnings
-// CHK-CMDS-DEVICE-LIB_DIR-NEXT: "{{.*}}llvm-link.exe" -only-needed {{.*}} --suppress-warnings
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}llvm-link.exe" -only-needed {{.*}} --suppress-warnings
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} --device-lib-dir={{.*}}/Inputs/SYCL/lib {{.*}} SYCL_POST_LINK_OPTIONS {{.*}}
