@@ -103,6 +103,8 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
 
   virtual size_t GetShadowSize() = 0;
 
+  virtual uptr GetStartAddress() { return 0; }
+
 private:
   ur_result_t EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
                                std::vector<ur_event_handle_t> &EventWaitList,
@@ -134,6 +136,8 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   uptr MemToShadow(uptr Ptr) override;
 
   size_t GetShadowSize() override { return 0x8000'0000'0000ULL; }
+
+  uptr GetStartAddress() override { return 0x100'0000'0000'0000ULL; }
 };
 
 /// Shadow Memory layout of GPU DG2 device
