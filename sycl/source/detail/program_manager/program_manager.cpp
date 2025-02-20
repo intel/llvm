@@ -3524,62 +3524,48 @@ void ProgramManager::removeImages(const sycl_device_binaries &DeviceBinaries) {
   }
 
   for (auto &[DeviceBinary, DeviceImage] : DeviceImagesToCleanup) {
-    auto It = m_BinImg2KernelIDs.find(DeviceImage.get());
-    assert((It != m_BinImg2KernelIDs.end()) &&
-           "Attempt to find device image that has never been registered");
-    // It->second is std::shared_ptr<std::vector<kernel_id>>>;
-    for (auto &KernelId : *It->second) {
-      auto KernelIdMapping = m_KernelIDs2BinImage.equal_range(KernelId);
-      size_t MatchingImages = 0;
-      for (auto &Item = KernelIdMapping.first;
-           Item != KernelIdMapping.second;) {
-        if (Item->second == DeviceImage.get())
-          Item = m_KernelIDs2BinImage.erase(Item);
-        else
-          Item++;
-        MatchingImages++;
-      }
-      // if kernel is represented by only 1 image
-      if (MatchingImages == 1) {
-        auto KernelNameIt = std::find_if(m_KernelName2KernelIDs.begin(),
-                                         m_KernelName2KernelIDs.end(),
-                                         [&KernelId](const auto &NameToId) {
-                                           return NameToId.second == KernelId;
-                                         });
-        assert((KernelNameIt != m_KernelName2KernelIDs.end()) &&
-               "Attempt to remove kernel that has never been registered");
+    std::ignore = m_BinImg2KernelIDs.erase(DeviceImage.get());
+    std::ignore = m_EliminatedKernelArgMasks.erase(DeviceImage.get());
 
-        // remove Everything associated with this KernelName
-        m_KernelUsesAssert.erase(KernelNameIt->first);
-        m_KernelImplicitLocalArgPos.erase(KernelNameIt->first);
-        m_KernelName2KernelIDs.erase(KernelNameIt);
+    const sycl_device_binary_struct &RawImg = DeviceImage->getRawData();
+    const sycl_offload_entry EntriesB = RawImg.EntriesBegin;
+    const sycl_offload_entry EntriesE = RawImg.EntriesEnd;
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         ++EntriesIt) {
+
+      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->name);
+        continue;
+      }
+
+      if (auto ExpSymbolIt = m_ExportedSymbolImages.find(EntriesIt->name); ExpSymbolIt !=
+          m_ExportedSymbolImages.end())
+      {
+        std::ignore = m_ExportedSymbolImages.erase(ExpSymbolIt);
+        continue;
+      }
+      // remove Everything associated with this KernelName
+      std::ignore = m_KernelUsesAssert.erase(EntriesIt->name);
+      std::ignore = m_KernelImplicitLocalArgPos.erase(EntriesIt->name);
+      if (auto KernelNameToIdIt = m_KernelName2KernelIDs.find(EntriesIt->name); KernelNameToIdIt != m_KernelName2KernelIDs.end())
+      {
+        m_KernelName2KernelIDs.erase(KernelNameToIdIt);
+        m_KernelIDs2BinImage.erase(KernelNameToIdIt->second);
       }
     }
-    // C++20: to switch to erase_if
-    auto ServiceKernelsIt = m_ServiceKernels.begin();
-    while (ServiceKernelsIt != m_ServiceKernels.end()) {
-      if (ServiceKernelsIt->second == DeviceImage.get())
-        ServiceKernelsIt = m_ServiceKernels.erase(ServiceKernelsIt);
-      else
-        ServiceKernelsIt++;
-    }
-
-    auto ExportedSymbolsIt = m_ExportedSymbolImages.begin();
-    while (ExportedSymbolsIt != m_ExportedSymbolImages.end()) {
-      if (ExportedSymbolsIt->second == DeviceImage.get())
-        ExportedSymbolsIt = m_ExportedSymbolImages.erase(ExportedSymbolsIt);
-      else
-        ExportedSymbolsIt++;
-    }
-
-    // auto VFIt = m_VFSet2BinImage.begin();
-    // while (VFIt != m_VFSet2BinImage.end())
-    // {
-    //   if (VFIt->second == DeviceImage.get())
-    //     VFIt = m_VFSet2BinImage.erase(VFIt);
-    //   else
-    //     VFIt++;
-    // }
+ 
+    for (const sycl_device_binary_property &VFProp :
+      DeviceImage->getVirtualFunctions()) {
+        //to make inline func for add and remove Images to avoid mismatches
+       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+       for (const auto &SetName : detail::split_string(StrValue, ','))
+         m_VFSet2BinImage.erase(SetName);
+     }
+     // Exported symbols are present in entries handled above with kernels, adding this as guard if it changes.
+     for (const sycl_device_binary_property &ESProp :
+      DeviceImage->getExportedSymbols()) {
+        m_ExportedSymbolImages.erase(ESProp->Name);
+      }
 
     // could be built with many images
     // auto NativeProgIt = NativePrograms.begin();
@@ -3592,20 +3578,10 @@ void ProgramManager::removeImages(const sycl_device_binaries &DeviceBinaries) {
     // }
 
     // MUTEXES
-    // Complete the rest of containers, probably some of them I do not need to
-    // cleanup. Measure latency now + after redo TO DO: to check if I could do
-    // the same by extracting same data as on registration step - should be
-    // faster write test first to check algorithm and then compare after it is
-    // redone Questions & problems: what to do with multiple images for one
+    // Questions & problems: what to do with multiple images for one
     // program what to do when this program is used? how to track? very likely
     // will leave it as it is and let it fail, state this case as undefined
     // behavior. Check if it is already stated somewhere to refer to.
-
-    // to add DbgProgMgr debug info
-
-    m_EliminatedKernelArgMasks.erase(DeviceImage.get());
-
-    std::ignore = m_BinImg2KernelIDs.erase(It);
   }
 }
 
