@@ -3,6 +3,7 @@
 
 // REQUIRES: zstd, opencl-aot, cpu, linux
 
+// CPU AOT targets host isa, so we compile everything on the system we execute tests on.
 //////////////////////  Compile device images
 // RUN: ${run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL1' -DENABLE_KERNEL1 -c %s -o %t_kernel1_aot.o
 // RUN: ${run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL2' -DENABLE_KERNEL2 -c %s -o %t_kernel2_aot.o

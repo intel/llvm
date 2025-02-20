@@ -3,6 +3,7 @@
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
+// CPU AOT targets host isa, so we compile on the system we execute tests on.
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %{mathflags} %S/cmath_test.cpp -o %t.cmath.out
 // RUN: %{run} %t.cmath.out
 

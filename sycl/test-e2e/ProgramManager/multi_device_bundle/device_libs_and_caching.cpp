@@ -20,7 +20,7 @@
 // RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
 
 // Test AOT next.
-// RUN: %{run-aux} %{build} -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device *" -o %t.out
+// RUN: %{build} -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device *" -o %t.out
 
 // Check the default case when in-memory caching is enabled.
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=4 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --check-prefixes=CHECK-AOT-TRACE

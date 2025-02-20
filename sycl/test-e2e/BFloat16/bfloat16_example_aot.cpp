@@ -8,9 +8,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen12lp" %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen12lp" %s -o %t.out
 // RUN: %{run} %t.out
 
+// CPU AOT targets host isa, so we compile this on the system we execute tests on.
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen12lp" %s -o %t.out
 // RUN: %{run} %t.out
 

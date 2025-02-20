@@ -3,6 +3,8 @@
 
 // REQUIRES: ocloc, opencl-aot, any-device-is-cpu
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
+
+// CPU AOT targets host isa, so we compile this on the system we execute tests on.
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 
