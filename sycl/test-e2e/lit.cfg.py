@@ -70,7 +70,7 @@ elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
     if not config.amd_arch:
-        config.amd_arch = "gfx1031"
+        config.amd_arch = "gfx1030"
 else:
     lit_config.error("Invalid argument for test-mode")
 

@@ -3,7 +3,7 @@
 // Test requires at least this version of the Intel GPU driver on Arc.
 // REQUIRES-INTEL-DRIVER: lin: 32370
 
-// UNSUPPORTED: hip || level_zero
+// UNSUPPORTED: target-amd || level_zero
 // UNSUPPORTED-INTENDED: Unimplemented in the HIP adapter yet.
 // Also, the feature is not fully implemented in the Level Zero stack.
 
