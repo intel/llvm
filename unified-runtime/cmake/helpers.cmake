@@ -157,11 +157,6 @@ function(add_ur_target_link_options name)
             if (UR_DEVELOPER_MODE)
                 target_link_options(${name} PRIVATE -Werror -Wextra)
             endif()
-            if (CMAKE_BUILD_TYPE STREQUAL "Release")
-                target_link_options(${name} PRIVATE
-                    $<$<CXX_COMPILER_ID:GNU>:-pie>
-                )
-            endif()
         endif()
     elseif(MSVC)
         target_link_options(${name} PRIVATE
@@ -176,7 +171,15 @@ function(add_ur_target_link_options name)
 endfunction()
 
 function(add_ur_target_exec_options name)
-    if(MSVC)
+    if(NOT MSVC)
+        if(NOT APPLE)
+            if(CMAKE_BUILD_TYPE STREQUAL "Release")
+                target_link_options(${name} PRIVATE
+                    $<$<CXX_COMPILER_ID:GNU>:-pie>
+                )
+            endif()
+        endif()
+    elseif(MSVC)
         target_link_options(${name} PRIVATE
             LINKER:/ALLOWISOLATION
         )

@@ -170,53 +170,6 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urCommandBufferAppendUSMFillExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, void *pMemory,
-    const void *pPattern, size_t patternSize, size_t size,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferAppendMemBufferFillExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
-    const void *pPattern, size_t patternSize, size_t offset, size_t size,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferAppendUSMPrefetchExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, const void *pMemory,
-    size_t size, ur_usm_migration_flags_t flags,
-    uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urCommandBufferAppendUSMAdviseExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, const void *pMemory,
-    size_t size, ur_usm_advice_flags_t advice, uint32_t numSyncPointsInWaitList,
-    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
-    ur_exp_command_buffer_command_handle_t *phCommand) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t hCommand,
     const ur_exp_command_buffer_update_kernel_launch_desc_t

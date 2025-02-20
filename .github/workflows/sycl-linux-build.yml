@@ -279,7 +279,7 @@ jobs:
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         cxx_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
-        extra_lit_opts: --param sycl_build_targets="spir;nvidia"
+        extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
 
     - name: Remove E2E tests before spirv-backend run
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
