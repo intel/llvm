@@ -2175,8 +2175,8 @@ typedef enum ur_device_info_t {
   /// [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
   /// memory fence scope capabilities
   UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 103,
-  /// [::ur_bool_t] support for bfloat16
-  UR_DEVICE_INFO_BFLOAT16 = 104,
+  /// [::ur_bool_t][deprecated-value] support for bfloat16
+  UR_DEVICE_INFO_BFLOAT16 [[deprecated]] = 104,
   /// [uint32_t] Returns 1 if the device doesn't have a notion of a
   /// queue index. Otherwise, returns the number of queue indices that are
   /// available for this device.

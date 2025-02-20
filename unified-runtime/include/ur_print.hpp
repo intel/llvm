@@ -2882,9 +2882,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     os << "UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES";
     break;
-  case UR_DEVICE_INFO_BFLOAT16:
-    os << "UR_DEVICE_INFO_BFLOAT16";
-    break;
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
     os << "UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES";
     break;
@@ -4375,19 +4372,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << (const void *)(tptr) << " (";
 
     ur::details::printFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
-
-    os << ")";
-  } break;
-  case UR_DEVICE_INFO_BFLOAT16: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
 
     os << ")";
   } break;
