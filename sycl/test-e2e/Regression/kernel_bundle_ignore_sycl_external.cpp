@@ -1,9 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: cuda
+// XFAIL: target-nvidia
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

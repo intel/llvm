@@ -48,7 +48,7 @@
 // RUN: clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl -target=spir64 -batch test_spv.table
 //
 // >> compile .bc to .o
-// RUN: %clangxx -Wno-error=override-module -c wrapper.bc -o wrapper.o
+// RUN: %clangxx -Wno-error=override-module -c wrapper.bc -o wrapper.o %if preview-mode %{-Wno-unused-command-line-argument%}
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options

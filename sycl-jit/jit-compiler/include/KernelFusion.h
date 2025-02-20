@@ -104,6 +104,8 @@ KF_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                        View<InMemoryFile> IncludeFiles,
                                        View<const char *> UserArgs);
 
+KF_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
+
 /// Clear all previously set options.
 KF_EXPORT_SYMBOL void resetJITConfiguration();
 

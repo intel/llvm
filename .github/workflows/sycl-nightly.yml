@@ -60,46 +60,68 @@ jobs:
             runner: '["Linux", "amdgpu"]'
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
-            tests_selector: e2e
 
-          - name: Intel L0 GPU
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+
+          - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
             reset_intel_gpu: true
-            tests_selector: e2e
 
-          - name: Intel OCL GPU
+          - name: Intel L0 Ponte Vecchio GPU
+            runner: '["Linux", "pvc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Battlemage GPU
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Arc A-Series GPU
+            runner: '["Linux", "arc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+            reset_intel_gpu: true
+
+          - name: Intel OCL Gen12 GPU
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: opencl:gpu
             reset_intel_gpu: true
-            tests_selector: e2e
 
           - name: OCL CPU (AMD)
-            runner: '["Linux", "amdgpu"]'
+            runner: '["Linux", "amdcpu"]'
             image_options: -u 1001
             target_devices: opencl:cpu
-            tests_selector: e2e
 
           - name: OCL CPU (Intel/GEN12)
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
-            tests_selector: e2e
 
           - name: OCL CPU (Intel/Arc)
             runner: '["Linux", "arc"]'
             image_options: -u 1001
             target_devices: opencl:cpu
-            tests_selector: e2e
+
+          - name: Preview mode on SPR/PVC
+            runner: '["Linux", "pvc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param test-preview-mode=True
+
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      tests_selector: ${{ matrix.tests_selector }}
+      tests_selector: e2e
       extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}

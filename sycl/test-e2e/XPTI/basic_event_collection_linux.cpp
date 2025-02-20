@@ -1,7 +1,7 @@
 // REQUIRES: xptifw, opencl, cpu, linux
-// RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib -shared -fPIC -std=c++17 -o %t_collector.so
+// RUN: %build_collector
 // RUN: %{build} -o %t.out
-// RUN: env UR_ENABLE_LAYERS=UR_LAYER_TRACING env XPTI_TRACE_ENABLE=1 env XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher env XPTI_SUBSCRIBERS=%t_collector.so %{run} %t.out | FileCheck %s
+// RUN: env UR_ENABLE_LAYERS=UR_LAYER_TRACING env XPTI_TRACE_ENABLE=1 env XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher env XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
 #include "basic_event_collection.inc"
 //
