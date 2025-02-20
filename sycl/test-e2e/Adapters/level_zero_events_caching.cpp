@@ -1,5 +1,8 @@
 // REQUIRES: gpu, level_zero
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
+
 // RUN: %{build}  -o %t.out
 
 // RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CACHING-ENABLED %s
