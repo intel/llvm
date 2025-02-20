@@ -1166,7 +1166,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   // We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
-  case UR_DEVICE_INFO_BFLOAT16:
   case UR_DEVICE_INFO_ASYNC_BARRIER: {
     return ReturnValue(false);
   }

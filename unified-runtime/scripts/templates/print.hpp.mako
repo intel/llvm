@@ -191,7 +191,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
     %else:
     inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value) {
         switch (value) {
-            %for n, item in enumerate(obj['etors']):
+            %for n, item in enumerate(th.get_etors(obj)):
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 %>case ${ename}:
@@ -216,50 +216,52 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         }
 
         switch (value) {
-            %for n, item in enumerate(obj['etors']):
-                <%
-                ename = th.make_etor_name(n, tags, obj['name'], item['name'])
-                vtype = th.etor_get_associated_type(n, tags, item)
-                %>case ${ename}: {
-                    %if th.value_traits.is_array(vtype):
-                    <% atype = th.value_traits.get_array_name(vtype) %>
-                    %if 'void' in atype:
-                    const ${atype} const *tptr = (const ${atype} const*)ptr;
-                    %else:
-                    const ${atype} *tptr = (const ${atype} *)ptr;
-                    %endif
-                        %if "char" in atype: ## print char* arrays as simple NULL-terminated strings
-                            printPtr(os, tptr);
+            %for n, item in enumerate(th.get_etors(obj)):
+                %if not th.etor_traits.is_deprecated_etor(item):
+                    <%
+                    ename = th.make_etor_name(n, tags, obj['name'], item['name'])
+                    vtype = th.etor_get_associated_type(n, tags, item)
+                    %>case ${ename}: {
+                        %if th.value_traits.is_array(vtype):
+                        <% atype = th.value_traits.get_array_name(vtype) %>
+                        %if 'void' in atype:
+                        const ${atype} const *tptr = (const ${atype} const*)ptr;
                         %else:
-                            os << "{";
-                            size_t nelems = size / sizeof(${atype});
-                            for (size_t i = 0; i < nelems; ++i) {
-                                if (i != 0) {
-                                    os << ", ";
-                                }
-                                <%call expr="member(tptr, atype, True)">
-                                    tptr[i]
-                                </%call>
-                            }
-                            os << "}";
+                        const ${atype} *tptr = (const ${atype} *)ptr;
                         %endif
-                    %else:
-                    %if 'void' in vtype:
-                    const ${vtype} const *tptr = (const ${vtype} const *)ptr;
-                    %else:
-                    const ${vtype} *tptr = (const ${vtype} *)ptr;
-                    %endif
-                    if (sizeof(${vtype}) > size) {
-                        os << "invalid size (is: " << size << ", expected: >=" << sizeof(${vtype}) << ")";
-                        return ${X}_RESULT_ERROR_INVALID_SIZE;
-                    }
-                    os << (const void *)(tptr) << " (";
-                    <%call expr="member(tptr, vtype, False)">
-                        *tptr
-                    </%call>
-                    os << ")";
-                    %endif
-                } break;
+                            %if "char" in atype: ## print char* arrays as simple NULL-terminated strings
+                                printPtr(os, tptr);
+                            %else:
+                                os << "{";
+                                size_t nelems = size / sizeof(${atype});
+                                for (size_t i = 0; i < nelems; ++i) {
+                                    if (i != 0) {
+                                        os << ", ";
+                                    }
+                                    <%call expr="member(tptr, atype, True)">
+                                        tptr[i]
+                                    </%call>
+                                }
+                                os << "}";
+                            %endif
+                        %else:
+                        %if 'void' in vtype:
+                        const ${vtype} const *tptr = (const ${vtype} const *)ptr;
+                        %else:
+                        const ${vtype} *tptr = (const ${vtype} *)ptr;
+                        %endif
+                        if (sizeof(${vtype}) > size) {
+                            os << "invalid size (is: " << size << ", expected: >=" << sizeof(${vtype}) << ")";
+                            return ${X}_RESULT_ERROR_INVALID_SIZE;
+                        }
+                        os << (const void *)(tptr) << " (";
+                        <%call expr="member(tptr, vtype, False)">
+                            *tptr
+                        </%call>
+                        os << ")";
+                        %endif
+                    } break;
+                %endif
             %endfor
                 default:
                     os << "unknown enumerator";
@@ -281,7 +283,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         ## structure type enum value must be first
         const enum ${th.make_enum_name(n, tags, obj)} *value = (const enum ${th.make_enum_name(n, tags, obj)} *)ptr;
         switch (*value) {
-            %for n, item in enumerate(obj['etors']):
+            %for n, item in enumerate(th.get_etors(obj)):
                 <%
                 ename = th.make_etor_name(n, tags, obj['name'], item['name'])
                 %>
@@ -307,7 +309,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
     inline ${x}_result_t printFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag) {
         uint32_t val = flag;
         bool first = true;
-        %for n, item in enumerate(obj['etors']):
+        %for n, item in enumerate(th.get_etors(obj)):
             <%
             ename = th.make_etor_name(n, tags, obj['name'], item['name'])
             %>

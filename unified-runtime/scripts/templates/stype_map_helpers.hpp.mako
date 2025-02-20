@@ -12,7 +12,7 @@ from templates import helper as th
 
 %for obj in th.extract_objs(specs, r"enum"):
  %if obj["name"] == '$x_structure_type_t':
-  %for etor in obj['etors']:
+  %for etor in th.get_etors(obj):
    %if 'UINT32' not in etor['name']:
 template <>
 struct stype_map<${x}_${etor['desc'][3:]}> : stype_map_impl<${X}_${etor['name'][3:]}> {};

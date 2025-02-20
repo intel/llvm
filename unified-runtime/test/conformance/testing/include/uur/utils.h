@@ -405,7 +405,6 @@ GetDeviceMemoryOrderCapabilities(ur_device_handle_t device,
 ur_result_t
 GetDeviceMemoryScopeCapabilities(ur_device_handle_t device,
                                  ur_memory_scope_capability_flags_t &flags);
-ur_result_t GetDeviceBFloat16Support(ur_device_handle_t device, bool &support);
 ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
                                             uint32_t &max_indices);
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
