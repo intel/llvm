@@ -275,7 +275,7 @@ jobs:
       runner: ${{ matrix.runner }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      tests_selector: benchmark
+      tests_selector: compute-benchmarks
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
