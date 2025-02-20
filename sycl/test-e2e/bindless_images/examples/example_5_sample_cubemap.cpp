@@ -1,6 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_cubemap
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
+// REQUIRES: target-nvidia, aspect-ext_oneapi_cubemap
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
