@@ -40,7 +40,7 @@ to signify the component changed, e.g.: `[UR]`, `[CUDA]`, `[Doc]`.
 ## Release notes
 
 You are encouraged (but it is not required) to record your change into
-[release notes](/sycl/ReleaseNotes.md) under "Release notes for an upcoming
+[release notes](../../ReleaseNotes.md) under "Release notes for an upcoming
 release" section.
 
 A change should be noted there when:
