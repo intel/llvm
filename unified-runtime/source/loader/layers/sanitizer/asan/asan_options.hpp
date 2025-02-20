@@ -28,6 +28,7 @@ struct AsanOptions {
   bool PrintStats = false;
   bool DetectKernelArguments = true;
   bool DetectLeaks = true;
+  bool HaltOnError = true;
 
   explicit AsanOptions();
 };

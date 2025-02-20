@@ -234,6 +234,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     return ReturnValue(static_cast<uint64_t>(hEvent->getStartTime()));
   case UR_PROFILING_INFO_COMMAND_END:
     return ReturnValue(static_cast<uint64_t>(hEvent->getEndTime()));
+  case UR_PROFILING_INFO_COMMAND_COMPLETE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }
