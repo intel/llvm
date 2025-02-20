@@ -10111,6 +10111,7 @@ typedef struct ur_exp_command_buffer_command_handle_t_
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pCommandBufferDesc`
 ///         + `NULL == phCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -10125,7 +10126,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext,
     /// [in] Handle of the device object.
     ur_device_handle_t hDevice,
-    /// [in][optional] command-buffer descriptor.
+    /// [in] Command-buffer descriptor.
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     /// [out][alloc] Pointer to command-Buffer handle.
     ur_exp_command_buffer_handle_t *phCommandBuffer);

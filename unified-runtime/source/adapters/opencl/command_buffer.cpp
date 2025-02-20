@@ -43,8 +43,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR));
 
-  const bool IsUpdatable =
-      pCommandBufferDesc ? pCommandBufferDesc->isUpdatable : false;
+  const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
 
   ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
   cl_device_id CLDevice = cl_adapter::cast<cl_device_id>(hDevice);

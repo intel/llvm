@@ -586,9 +586,7 @@ bool canBeInOrder(ur_context_handle_t Context,
   bool CompatibleDriver = Context->getPlatform()->isDriverVersionNewerOrSimilar(
       1, 3, L0_DRIVER_INORDER_MIN_VERSION);
   bool CanUseDriverInOrderLists = CompatibleDriver && DriverInOrderRequested;
-  return CanUseDriverInOrderLists
-             ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
-             : false;
+  return CanUseDriverInOrderLists ? CommandBufferDesc->isInOrder : false;
 }
 
 /**
@@ -624,9 +622,8 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
                          const ur_exp_command_buffer_desc_t *CommandBufferDesc,
                          ur_exp_command_buffer_handle_t *CommandBuffer) {
   bool IsInOrder = canBeInOrder(Context, CommandBufferDesc);
-  bool EnableProfiling =
-      CommandBufferDesc && CommandBufferDesc->enableProfiling && !IsInOrder;
-  bool IsUpdatable = CommandBufferDesc && CommandBufferDesc->isUpdatable;
+  bool EnableProfiling = CommandBufferDesc->enableProfiling && !IsInOrder;
+  bool IsUpdatable = CommandBufferDesc->isUpdatable;
   bool ImmediateAppendPath = checkImmediateAppendSupport(Context, Device);
   const bool WaitEventPath = !ImmediateAppendPath;
   bool UseCounterBasedEvents = checkCounterBasedEventsSupport(Device) &&
