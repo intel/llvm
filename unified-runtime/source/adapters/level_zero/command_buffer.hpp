@@ -172,8 +172,19 @@ struct kernel_command_handle : public ur_exp_command_buffer_command_handle_t_ {
 
   ~kernel_command_handle();
 
+  void setGlobalWorkSize(const size_t *GlobalWorkSizePtr) {
+    const size_t CopySize = sizeof(size_t) * WorkDim;
+    std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
+    if (WorkDim < 3) {
+      const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
+      std::memset(GlobalWorkSize + WorkDim, 0, ZeroSize);
+    }
+  }
+
   // Work-dimension the command was originally created with.
   uint32_t WorkDim;
+  // Global work size of the kernel
+  size_t GlobalWorkSize[3];
   // Set to true if the user set the local work size on command creation.
   bool UserDefinedLocalSize;
   // Currently active kernel handle
