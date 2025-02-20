@@ -11,8 +11,8 @@ inputs:
     required: true
   retention-days:
     required: false
-  sycl_cts_ref:
-    description: "Commit SHA or branch to checkout"
+  tests_ref:
+    description: "Commit SHA or branch to checkout tests"
     required: false
     default: "main"
 
@@ -25,7 +25,7 @@ runs:
     with:
       path: khronos_sycl_cts
       repository: 'KhronosGroup/SYCL-CTS'
-      ref: ${{ inputs.sycl_cts_ref }}
+      ref: ${{ inputs.tests_ref }}
       cache_path: "/__w/repo_cache/"
   - name: SYCL CTS GIT submodules init
     if: inputs.cts_testing_mode != 'run-only'

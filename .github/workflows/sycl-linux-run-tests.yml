@@ -45,11 +45,8 @@ on:
           By default we checkout the devops directory from "inputs.ref" branch.
           devops_ref may be specified to checkout the devops dir from different
           branch.
-          Note: it doesn't affect ./devops/actions/run-tests/* as these actions
-          call checkout again and therefore override the devops directory, so
-          configs/dependecies from input.ref are used.
-      sycl_cts_ref:
-        description: "Commit SHA or branch to checkout"
+      tests_ref:
+        description: "Commit SHA or branch to checkout tests"
         type: string
         default: "main"
         required: False
@@ -319,4 +316,4 @@ jobs:
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
-        sycl_cts_ref: ${{ inputs.sycl_cts_ref }}
+        tests_ref: ${{ inputs.tests_ref }}
