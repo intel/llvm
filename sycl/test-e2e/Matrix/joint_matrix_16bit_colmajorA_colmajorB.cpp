@@ -20,7 +20,7 @@
 // RUN: %{build} -o %t32.out -DSG_SZ=32
 // RUN: %{run} %t32.out
 
-// XFAIL: gpu && !igc-dev
+// XFAIL: gpu && !(igc-dev && arch-intel_gpu_pvc)
 // XFAIL-TRACKER: GSD-5768
 
 // Only transpose on half data type
