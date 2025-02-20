@@ -907,17 +907,18 @@ ur_result_t setKernelPendingArguments(
  * @param[in] CommandBuffer The CommandBuffer associated with the new command.
  * @param[in] Kernel  The Kernel associated with the new command.
  * @param[in] WorkDim Dimensions of the kernel associated with the new command.
+ * @param[in] GlobalWorkSize Global work size of the kernel associated with the
+ * new command.
  * @param[in] LocalWorkSize LocalWorkSize of the kernel associated with the new
  * command.
  * @param[out] Command The handle to the new command.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
-ur_result_t
-createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
-                    ur_kernel_handle_t Kernel, uint32_t WorkDim,
-                    const size_t *LocalWorkSize, uint32_t NumKernelAlternatives,
-                    ur_kernel_handle_t *KernelAlternatives,
-                    ur_exp_command_buffer_command_handle_t *Command) {
+ur_result_t createCommandHandle(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
+    uint32_t WorkDim, const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
+    ur_exp_command_buffer_command_handle_t *Command) {
 
   assert(CommandBuffer->IsUpdatable);
 
@@ -988,6 +989,8 @@ createCommandHandle(ur_exp_command_buffer_handle_t CommandBuffer,
     auto NewCommand = std::make_unique<kernel_command_handle>(
         CommandBuffer, Kernel, CommandId, WorkDim, LocalWorkSize != nullptr,
         NumKernelAlternatives, KernelAlternatives);
+
+    NewCommand->setGlobalWorkSize(GlobalWorkSize);
 
     *Command = NewCommand.get();
 
@@ -1063,9 +1066,9 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   }
 
   if (Command) {
-    UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, LocalWorkSize,
-                                NumKernelAlternatives, KernelAlternatives,
-                                Command));
+    UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, GlobalWorkSize,
+                                LocalWorkSize, NumKernelAlternatives,
+                                KernelAlternatives, Command));
   }
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
@@ -1919,10 +1922,16 @@ ur_result_t updateKernelCommand(
     Descs.push_back(std::move(MutableGroupSizeDesc));
   }
 
-  // Check if a new global size is provided and if we need to update the group
-  // count.
+  // Check if a new global or local size is provided and if so we need to update
+  // the group count.
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
-  if (NewGlobalWorkSize && Dim > 0) {
+  if ((NewGlobalWorkSize || NewLocalWorkSize) && Dim > 0) {
+    // If a new global work size is provided update that in the command,
+    // otherwise the previous work group size will be used
+    if (NewGlobalWorkSize) {
+      Command->WorkDim = Dim;
+      Command->setGlobalWorkSize(NewGlobalWorkSize);
+    }
     // If a new global work size is provided but a new local work size is not
     // then we still need to update local work size based on the size suggested
     // by the driver for the kernel.
@@ -1932,9 +1941,9 @@ ur_result_t updateKernelCommand(
     UR_CALL(getZeKernel(ZeDevice, Command->Kernel, &ZeKernel));
 
     uint32_t WG[3];
-    UR_CALL(calculateKernelWorkDimensions(ZeKernel, CommandBuffer->Device,
-                                          ZeThreadGroupDimensions, WG, Dim,
-                                          NewGlobalWorkSize, NewLocalWorkSize));
+    UR_CALL(calculateKernelWorkDimensions(
+        ZeKernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG, Dim,
+        Command->GlobalWorkSize, NewLocalWorkSize));
 
     auto MutableGroupCountDesc =
         std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();
