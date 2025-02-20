@@ -8,6 +8,8 @@
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_fixed_size_group
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: fixed_size_group aspect not available on amd
 
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64702

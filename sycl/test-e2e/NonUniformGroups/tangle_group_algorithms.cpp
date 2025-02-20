@@ -8,7 +8,9 @@
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_tangle_group
-// UNSUPPORTED: cuda || windows
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: tangle groups not available on amd
+// UNSUPPORTED: target-nvidia || windows
 // Tangle groups exhibit unpredictable behavior on Windows.
 // The test is disabled while we investigate the root cause.
 
