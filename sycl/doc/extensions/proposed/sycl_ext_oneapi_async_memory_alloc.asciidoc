@@ -76,19 +76,16 @@ immediately. The functions can take a memory pool object in order to allocate
 from that memory pool specifically, however, if no memory pool object is
 provided there is a default memory pool which will be used.
 
-The memory pool introduced is a dynamic memory pool, as such no memory is
-immediately allocated on construction, instead memory is allocated by the SYCL
-runtime or an existing memory allocation provided by the user, for the pool when
-allocations are made and are freed back to the SYCL runtime or the memory
-allocation provided by the user, when the queue which enqueued the malloc and
-free commands is synchronized with.
+The memory pool introduced is a dynamic memory pool, as such memory is allocated
+on demand. Alternatively a memory pool can be created with an existing USM
+memory allocation provided by the user.
 
-The immediate benefit of using the asynchronous malloc and free functions, as
-opposed to the existing synchronous malloc and free functions, is that they no
-longer block the calling thread. So applications which wish to allocate
-temporary USM memory, but not carry around the pointer, no longer have to
-synchronize with the execution of kernels accessing that memory and call the
-free function before continuing.
+The immediate benefit of using the asynchronous malloc and free commands, as
+opposed to the existing synchronous malloc and free functions, is that they are
+enqueued to a queue. So applications which wish to allocate temporary USM
+memory, but not carry around the pointer, no longer have to synchronize with the
+execution of kernels accessing that memory and call the free function before
+continuing.
 
 A further benefit comes from the use of a memory pool for allocations, as
 malloc and free commands are asynchronous, the runtime can opportunistically
@@ -250,7 +247,8 @@ int main(int argc, char *argv[])
   queue q(property::queue::in_order);
 
   syclex::memory_pool memPool
-    = q.get_context().ext_oneapi_get_default_memory_pool(usm::alloc::device);
+    = q.get_context().ext_oneapi_get_default_memory_pool(
+        q.get_device(), usm::alloc::device);
 
   memPool.set_new_threshold(1024);
   
@@ -314,37 +312,79 @@ supports.
 
 === Memory pool
 
-This extension introduces the `memory_pool` class, which provides a handle to a
-pool of memory managed by the SYCL runtime, and adheres to the SYCL common
-reference semantics.
+This extension introduces the memory pool, a dynamically allocated pool of
+memory, which can be allocated from and freed back to via asynchronous malloc
+and free commands. The `memory_pool` class provides an interface to a memory
+pool, and adheres to the SYCL common reference semantics.
 
-Memory pools have the following properties:
+A memory pool has a number of properties and state which dictate it's behavior:
 
-* A memory pool can allocate memory from two possible sources; either the SYCL
-  runtime or an existing USM memory allocation provided by the user. The default
-  source is the SYCL runtime.
-* A maximum allocation size (in bytes) is used to manage the total amount of
-  memory which can be allocated in the memory pool. If the maximum size is
-  exceeded an error is thrown. The default maximum size is
-  implementation-defined.
-* A deallocation threshold (in bytes) is used to determine how much memory the
-  SYCL runtime should aim to maintain in the memory pool, without releasing back
-  to the source. The default deallocation threshold is zero.
-* No memory is immediately allocated on construction, instead memory is
-  allocated from the source for the pool when requested via the asynchronous
-  malloc and free functions.
-* Memory is freed back to the source when the SYCL queue which enqueued the
-  respective allocations and frees is synchronized with, i.e. when `queue::wait`
-  or `queue::wait_and_throw` is called, unless the current total memory
-  allocated to the memory pool under the deallocation threshold, in which case
-  the memory may be retained by the pool, though this can vary depending on
-  implementation defined parameters.
-* Memory is allocated as USM memory, in one of the USM memory allocation kinds
-  enumerated in `usm::alloc`, this is specified on construction of the
-  `memory_pool` object.
-* They are associated with a specific context and one or more device(s),
-  depending on the allocation kind, this is specified on construction of the
-  `memory_pool` object.
+* A memory pool has an *allocation chunk size* (in bytes) which dictates the
+  minimum chunk of memory which can be allocated to the pool, such that all
+  allocations are a multiple of this value. The allocation chunk size is a
+  property of the device the memory pool is associated with and is static.
+* A memory pool has a *maximum size* (in bytes) which dictates the total amount
+  of memory which can be allocated to the pool, such that if an allocation would
+  exceed this value an error is thrown. The default maximum size is
+  implementation defined.
+* A memory pool has a *threshold size* (in bytes) which dictates an amount of
+  the user would like the SYCL runtime to maintain in the pool, even when not
+  allocated out to a USM pointer. The threshold size is a hint, and so an
+  implementation should try to maintain memory in the pool to this value, but it
+  is not required to do so. The default threshold size is `0`.
+* A memory pool has a *current size* (in bytes) which tracks the total memory
+  which is allocated to the pool.
+* A memory pool has a *free size* (in bytes) which tracks the amount of the
+  free memory; total memory which has not been allocated to a USM pointer, and
+  is still available to be allocated.
+* A memory pool has a *allocation kind* which is a value of `usm::alloc` which
+  dictates the type of USM memory that is allocated to the pool.
+* A memory pool is associated with a context and one or more device(s),
+  depending on the allocation kind.
+
+A memory pool and the asynchronous malloc and free commands which interact with
+them adhere to the following behaviors:
+
+* When an asynchronous malloc command is enqueued a valid USM pointer of the
+  allocation kind is returned immediately. The asynchronous malloc command may
+  execute any time between the command being enqueued and the command being
+  synchronized with. The pointer returned is not valid until the asynchronous
+  malloc command has completed.
+* When an asynchronous malloc command executes it will allocate USM memory of
+  the allocation kind from the memory pool.
+* When a USM pointer is being allocated from the memory pool, it may allocate
+  from free memory in the pool, including memory which was previously allocated
+  to a USM pointer and has been freed or it may opportunistically re-use memory
+  allocated to an existing USM pointer, for which an asynchronous free command
+  has been enqueued to free, and that the asynchronous malloc command is
+  dependent on.
+* Additional memory can be allocated to the memory pool when required for an
+  asynchronous malloc command or otherwise. Allocations to the pool must be in a
+  multiple of the allocation chunk size.
+* When an asynchronous free command is enqueued, the USM pointer to be freed is
+  immediately no longer valid. The asynchronous free command may execute any
+  time between the command being enqueued and the command being synchronized
+  with. Once the asynchronous free command is enqueued memory allocated to that
+  USM pointer is now free for the memory pool to re-allocate to another USM
+  pointer either once the command has completed, or if an asynchronous command
+  is dependent on this asynchronous free command.
+* The memory pool will not release memory in the pool that is currently
+  allocated to a USM pointer, however, it may release any free memory in the
+  pool. When the memory pool releases memory from the pool, this is done so in
+  multiples of the allocation chunk size.
+* The memory pool should try to maintain an amount of memory in the pool
+  set by the threshold size in order to better facilitate re-use of the memory
+  between subsequent asynchronous malloc commends, however, it is not required
+  to.
+* The amount of total and free memory reported by the memory pool is updated
+  immediately after returning from calls to enqueue asynchronous malloc and free
+  commands, even if the command does not execute immediately.
+* If the memory is not constructed from a user provided memory allocation, when
+  the threshold size of the memory pool is set, the value specified will round
+  down to the nearest multiple of the allocation chunk size and the memory pool
+  will immediately start using this new size.
+* When the maximum size of the memory pool is set, the value specified will
+  round up to the nearest multiple of the allocation chunk size.
 
 Memory pools are intended to be used for both in-order and out-of-order SYCL
 queues.
@@ -375,9 +415,15 @@ class memory_pool {
 
   usm::alloc get_alloc_kind() const;
 
+  size_t get_allocation_chunk_size() const;
+
   size_t get_max_size() const;
 
   size_t get_threshold() const;
+
+  size_t get_current_size() const;
+
+  size_t get_free_size() const;
 
   void set_new_threshold(size_t newThreshold);
 
@@ -480,6 +526,14 @@ _Returns_: The memory allocation kind of the memory pool.
 
 [source, c++]
 ----
+size_t get_allocation_chunk_size() const;
+----
+
+_Returns_: The allocation chunk size of the device associated with the memory
+pool.
+
+[source, c++]
+----
 size_t get_max_size() const;
 ----
 
@@ -494,11 +548,29 @@ _Returns_: The deallocation threshold of the memory pool.
 
 [source, c++]
 ----
+size_t get_current_size() const;
+----
+
+_Returns_: The total memory allocated to the pool at the point the function is
+called.
+
+[source, c++]
+----
+size_t get_free_size() const;
+----
+
+_Returns_: The total free memory in the pool at the point the function is
+called.
+
+[source, c++]
+----
 void set_new_threshold(size_t newThreshold);
 ----
 
 _Effects_: Sets the deallocation threshold of the memory pool if the value of
-`newThreshold` is larger than the current threshold.
+`newThreshold` is larger than the current threshold. If `newThreshold` is not a
+multiple of the allocation chunk size, the new threshold is rounded down to the
+nearest multiple.
 
 _Throws_: An exception with the `errc::invalid` error code if the value of
 `newThreshold` is lower than the current threshold or larger than the maximum
@@ -554,9 +626,10 @@ using zero_init_key = zero_init;
 |`maximum_size`
 |The `maximum_size` property specifies the maximum size of the memory pool,
  after which any allocation will result in an exception. If the value specified
- is larger than the implementation can support an exception with the
- `errc::memory_allocation` error code is thrown. If this property is not used
- the default value is implementation-defined.
+ is not a multiple of the allocation chunk size, the value is rounded up to the
+ nearest multiple. If the value specified is larger than the implementation can
+ support an exception with the `errc::memory_allocation` error code is thrown.
+ If this property is not used the default value is implementation-defined.
 
 |`read_only`
 |The `read_only` property is a performance hint which asserts that all memory
@@ -565,11 +638,10 @@ using zero_init_key = zero_init;
 
 |`zero_init`
 |The `zero_init` property adds the requirement that all memory allocated to the
- memory as it is allocated from the source to the memory pool will be
- initialised to zero. Note there is no guarantee that the memory allocation be
- re-initialized to zero when it is re-allocated from the pool, so users must
- re-initialize memory to zero if they wish for later allocations to have this
- behavior.
+ memory as it is allocated to the memory pool will be initialised to zero. Note
+ there is no guarantee that the memory allocation be re-initialized to zero when
+ it is re-allocated from the pool, so users must re-initialize memory to zero if
+ they wish for later allocations to have this behavior.
 
 |===
 
@@ -672,10 +744,10 @@ pool, otherwise if an allocation kind `kind` parameter is provided, this is the
 allocation kind which is used. If a memory pool `pool` is provided, this must be
 associated with the same SYCL context and device as `q` or the SYCL queue
 associated with `h`. Memory can either be allocated directly from the memory
-pool or allocated from the source to the memory pool to provide enough memory in
-the memory pool for the allocation. Accessing the memory at the address of the
-pointer returned by asynchronous malloc functions before the command has
-completed execution is undefined behavior.
+pool or allocated to the memory pool to provide enough memory in the memory pool
+for the allocation. Accessing the memory at the address of the pointer returned
+by asynchronous malloc functions before the command has completed execution is
+undefined behavior.
 
 _Returns_: A pointer to the address of a memory reservation if `size` is
 non-zero, otherwise returns `nullptr`.
@@ -694,41 +766,11 @@ void async_free(handler h, void *ptr);
 _Effects_: Enqueues a command to `q` or the SYCL queue associated with `h` which
 will asynchronously free the memory allocation at the address of `ptr`. Memory
 will be freed from the memory pool to be used by other asynchronous malloc
-commands which execute later, and will not free to the source until the SYCL
-queue associated with the asynchronous allocation command has been synchronized
-with. Accessing the memory at the address of `ptr` after the asynchronous free
-command has completed execution is undefined behavior. If `ptr` is not the
-address of a memory allocation allocated to a memory pool this is undefined
-behavior. 
-
-=== Memory pool lifetimes
-
-The lifetime of memory allocated via a memory pool is as follows.
-
-When an asynchronous malloc command is executed it will first look to the
-memory pool to opportunistically allocate memory already available there. The
-SYCL RT may also, when possible, look at all asynchronous malloc and free
-commands and their dependencies in order to more efficiently schedule memory
-allocations. If the memory pool does not have the requirement memory available
-to allocate for the asynchronous malloc command it will then look to allocate
-from the source to the memory pool to provide the required memory.
-
-When an asynchronous free command is executed it will free up memory in the 
-memory pool to be used for a later asynchonrous malloc command. Memory is not
-freed back to the source at this point.
-
-When a SYCL queue which enqueued asynchronous malloc commands is synchronized
-with, i.e. when `queue::wait` or `queue::wait_and_throw` is called, the SYCL RT
-will check the current total memory allocated to the memory pool against the
-memory pool's deallocation threshold. If the total memory allocated is larger
-than than the threshold then the memory will be freed back to the source,
-otherwise it will not.
-
-[_Note:_ An implementation should maintain memory allocated to a memory pool to
-the size specified by the deallocation threshold when possible, however, an
-implementation is permitted to release this memory back to the source if it is
-required by another memory pool or an application in another process.
-_{endnote}_]
+commands which execute later, and will not free until the SYCL queue associated
+with the asynchronous allocation command has been synchronized with. Accessing
+the memory at the address of `ptr` after the asynchronous free command has
+completed execution is undefined behavior. If `ptr` is not the address of a
+memory allocation allocated to a memory pool this is undefined behavior. 
 
 
 == Implementation notes
