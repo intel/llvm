@@ -434,6 +434,8 @@ to only run the compilation stage, or the execution stage respectively.
   When executing the test in `build-only`, all `RUN:` lines that do not have a
   run expansion will execute.
 
+  The `build-mode` feature is added when in this mode.
+
 #### Resolving common Issues with separate compilation and execution
 
 A number of extra considerations need to be taken to write tests that are able
