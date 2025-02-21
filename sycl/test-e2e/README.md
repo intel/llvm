@@ -12,10 +12,10 @@
   * [Marking tests as expected to fail](#marking-tests-as-expected-to-fail)
   * [Marking tests as unsupported](#marking-tests-as-unsupported)
 * [SYCL core header file](#sycl-core-header-file)
-* [Compiling and executing tests on separate systems](#separate-build-and-run)
+* [Compiling and executing tests on separate systems](#compiling-and-executing-tests-on-separate-systems)
   * [Run only mode](#run-only-mode)
   * [Build only mode](#build-only-mode)
-  * [Common Issues with separate build and run](#common-build-and-run-issues)
+  * [Common Issues with separate build and run](#common-issues-with-separate-build-and-run)
 
 ## Overview
 
