@@ -12,6 +12,10 @@ import os
 import re
 
 
+def parse_devices_names(devices):
+    return [device.replace("_v2", "") for device in devices]
+
+
 def parse_min_intel_driver_req(line_number, line, output):
     """
     Driver version looks like this for Intel devices:
@@ -149,8 +153,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
     def select_devices_for_test(self, test):
         devices = []
-        for d in test.config.sycl_devices:
-            features = test.config.sycl_dev_features[d]
+        for full_name in test.config.sycl_devices:
+            features = test.config.sycl_dev_features[full_name]
             if self.getMissingRequires(features, test.requires):
                 continue
 
@@ -162,15 +166,15 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 for fmt in ["lin", "win"]:
                     if (
                         fmt in test.intel_driver_req
-                        and fmt in test.config.intel_driver_ver[d]
-                        and test.config.intel_driver_ver[d][fmt]
+                        and fmt in test.config.intel_driver_ver[full_name]
+                        and test.config.intel_driver_ver[full_name][fmt]
                         < test.intel_driver_req[fmt]
                     ):
                         driver_ok = False
             if not driver_ok:
                 continue
 
-            devices.append(d)
+            devices.append(full_name)
 
         if len(devices) <= 1:
             return devices
@@ -216,7 +220,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     lit.Test.UNSUPPORTED, "No supported devices to run the test on"
                 )
 
-            for sycl_device in devices_for_test:
+            for sycl_device in parse_devices_names(devices_for_test):
                 (backend, _) = sycl_device.split(":")
                 build_targets.add(test.config.backend_to_target[backend])
 
@@ -288,7 +292,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             return extra_env
 
-        extra_env = get_extra_env(devices_for_test)
+        extra_env = get_extra_env(parse_devices_names(devices_for_test))
 
         run_unfiltered_substitution = ""
         if extra_env:
@@ -323,20 +327,26 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 new_script.append(directive)
                 continue
 
-            for sycl_device in devices_for_test:
+            for full_dev_name, parsed_dev_name in zip(
+                devices_for_test, parse_devices_names(devices_for_test)
+            ):
                 expanded = "env"
 
-                extra_env = get_extra_env([sycl_device])
+                extra_env = get_extra_env([parsed_dev_name])
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
+                dev_features = test.config.sycl_dev_features[full_dev_name]
+                if "adapter-v2" in dev_features:
+                    expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
+
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
-                    sycl_device, test.config.run_launcher
+                    parsed_dev_name, test.config.run_launcher
                 )
                 cmd = directive.command.replace("%{run}", expanded)
                 # Expand device-specific condtions (%if ... %{ ... %}).
                 tmp_script = [cmd]
-                conditions = {x: True for x in sycl_device.split(":")}
+                conditions = {x: True for x in parsed_dev_name.split(":")}
                 for cond_features in [
                     "linux",
                     "windows",
