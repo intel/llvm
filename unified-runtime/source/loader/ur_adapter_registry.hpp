@@ -66,7 +66,7 @@ struct FilterTerm {
       return true;
     }
     for (auto deviceString : devices) {
-      if (deviceString.front() == '*') {
+      if (deviceString.front() == '*' || deviceString.front() == '0') {
         return true;
       }
       auto deviceIter = deviceTypeMap.find(deviceString);
