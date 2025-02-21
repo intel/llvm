@@ -1994,16 +1994,11 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         }
       }
     }
-    m_DeviceImages.insert({RawImg, std::move(Img)});
+    m_DeviceImages.insert(std::move(Img));
   }
 }
 
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
-  // No need in fair partial cleanup at shutdown
-  if (!GlobalHandler::instance().isOkToDefer() ||
-      !(DeviceBinaries && DeviceBinaries->NumDeviceBinaries))
-    return;
-
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
@@ -2066,6 +2061,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       for (const auto &SetName : detail::split_string(StrValue, ','))
         m_VFSet2BinImage.erase(SetName);
     }
+
     {
       std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
       auto DeviceGlobals = Img->getDeviceGlobals();
@@ -2087,7 +2083,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     {
       std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-      auto HostPipes = DeviceImage->getHostPipes();
+      auto HostPipes = Img->getHostPipes();
       for (const sycl_device_binary_property &HostPipe : HostPipes) {
         if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
             HostPipesIt != m_HostPipes.end()) {
