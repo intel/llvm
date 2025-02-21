@@ -155,3 +155,87 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
   std::ignore = HostPtr;
   DIE_NO_IMPLEMENTATION;
 }
+
+ur_result_t UR_APICALL urUSMPoolCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_usm_pool_desc_t *PoolDesc, ///< [in] pointer to USM pool descriptor.
+                                  ///< Can be chained with
+                                  ///< ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_handle_t *pPool   ///< [out] pointer to USM memory pool
+) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = PoolDesc;
+  std::ignore = pPool;
+  DIE_NO_IMPLEMENTATION;
+}
+
+ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
+                                           ur_device_handle_t hDevice,
+                                           ur_usm_pool_handle_t hPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  DIE_NO_IMPLEMENTATION;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
+                                                ur_device_handle_t hDevice,
+                                                ur_usm_pool_handle_t hPool,
+                                                size_t newThreshold) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  std::ignore = newThreshold;
+  DIE_NO_IMPLEMENTATION;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_usm_pool_handle_t *pPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = pPool;
+  DIE_NO_IMPLEMENTATION;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
+                                           ur_usm_pool_info_t propName,
+                                           void *pPropValue,
+                                           size_t *pPropSizeRet) {
+  std::ignore = hPool;
+  std::ignore = propName;
+  std::ignore = pPropValue;
+  std::ignore = pPropSizeRet;
+  DIE_NO_IMPLEMENTATION;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t hContext,
+                                                 ur_device_handle_t hDevice,
+                                                 ur_usm_pool_handle_t *pPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = pPool;
+  DIE_NO_IMPLEMENTATION;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(ur_context_handle_t hContext,
+                                                 ur_device_handle_t hDevice,
+                                                 ur_usm_pool_handle_t hPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  DIE_NO_IMPLEMENTATION;
+}
+
+ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t hContext,
+                                          ur_device_handle_t hDevice,
+                                          ur_usm_pool_handle_t hPool,
+                                          size_t minBytesToKeep) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  std::ignore = minBytesToKeep;
+  DIE_NO_IMPLEMENTATION;
+}

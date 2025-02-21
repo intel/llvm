@@ -803,6 +803,210 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t Context, void *HostPtr) {
         Context->getPlatform()->ZeDriverHandleExpTranslated, HostPtr);
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urEnqueueUSMDeviceAllocExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,         ///< [in][optional] handle of the USM memory pool
+    const size_t size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_async_usm_alloc_properties_t
+        *pProperties, ///< [in][optional] pointer to the enqueue asynchronous
+                      ///< USM allocation properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    void **ppMem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t
+        *phEvent ///< [out][optional] return an event object that identifies the
+                 ///< asynchronous USM device allocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEnqueueUSMSharedAllocExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,         ///< [in][optional] handle of the USM memory pool
+    const size_t size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_async_usm_alloc_properties_t
+        *pProperties, ///< [in][optional] pointer to the enqueue asynchronous
+                      ///< USM allocation properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    void **ppMem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t
+        *phEvent ///< [out][optional] return an event object that identifies the
+                 ///< asynchronous USM shared allocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEnqueueUSMHostAllocExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,         ///< [in][optional] handle of the USM memory pool
+    const size_t size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_async_usm_alloc_properties_t
+        *pProperties, ///< [in][optional] pointer to the enqueue asynchronous
+                      ///< USM allocation properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    void **ppMem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t
+        *phEvent ///< [out][optional] return an event object that identifies the
+                 ///< asynchronous USM host allocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEnqueueUSMFreeExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,  ///< [in][optional] handle of the USM memory pooliptor
+    void *pMem, ///< [in] pointer to USM memory object
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
+                               ///< identifies the asynchronous USM deallocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = pMem;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_usm_pool_desc_t *PoolDesc, ///< [in] pointer to USM pool descriptor.
+                                  ///< Can be chained with
+                                  ///< ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_handle_t *pPool   ///< [out] pointer to USM memory pool
+) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = PoolDesc;
+  std::ignore = pPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
+                                           ur_device_handle_t hDevice,
+                                           ur_usm_pool_handle_t hPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
+                                                ur_device_handle_t hDevice,
+                                                ur_usm_pool_handle_t hPool,
+                                                size_t newThreshold) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  std::ignore = newThreshold;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_usm_pool_handle_t *pPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = pPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
+                                           ur_usm_pool_info_t propName,
+                                           void *pPropValue,
+                                           size_t *pPropSizeRet) {
+  std::ignore = hPool;
+  std::ignore = propName;
+  std::ignore = pPropValue;
+  std::ignore = pPropSizeRet;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t hContext,
+                                                 ur_device_handle_t hDevice,
+                                                 ur_usm_pool_handle_t *pPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = pPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(ur_context_handle_t hContext,
+                                                 ur_device_handle_t hDevice,
+                                                 ur_usm_pool_handle_t hPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t hContext,
+                                          ur_device_handle_t hDevice,
+                                          ur_usm_pool_handle_t hPool,
+                                          size_t minBytesToKeep) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  std::ignore = minBytesToKeep;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
 } // namespace ur::level_zero
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {

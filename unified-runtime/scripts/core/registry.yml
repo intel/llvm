@@ -601,6 +601,42 @@ etors:
 - name: PHYSICAL_MEM_GET_INFO
   desc: Enumerator for $xPhysicalMemGetInfo
   value: '249'
+- name: ENQUEUE_USM_DEVICE_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMDeviceAllocExp
+  value: '250'
+- name: ENQUEUE_USM_SHARED_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMSharedAllocExp
+  value: '251'
+- name: ENQUEUE_USM_HOST_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMHostAllocExp
+  value: '252'
+- name: ENQUEUE_USM_FREE_EXP
+  desc: Enumerator for $xEnqueueUSMFreeExp
+  value: '253'
+- name: USM_POOL_CREATE_EXP
+  desc: Enumerator for $xUSMPoolCreateExp
+  value: '254'
+- name: USM_POOL_DESTROY_EXP
+  desc: Enumerator for $xUSMPoolDestroyExp
+  value: '255'
+- name: USM_POOL_SET_THRESHOLD_EXP
+  desc: Enumerator for $xUSMPoolSetThresholdExp
+  value: '256'
+- name: USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP
+  desc: Enumerator for $xUSMPoolGetDefaultDevicePoolExp
+  value: '257'
+- name: USM_POOL_SET_DEVICE_POOL_EXP
+  desc: Enumerator for $xUSMPoolSetDevicePoolExp
+  value: '259'
+- name: USM_POOL_GET_DEVICE_POOL_EXP
+  desc: Enumerator for $xUSMPoolGetDevicePoolExp
+  value: '260'
+- name: USM_POOL_TRIM_TO_EXP
+  desc: Enumerator for $xUSMPoolTrimToExp
+  value: '261'
+- name: USM_POOL_GET_INFO_EXP
+  desc: Enumerator for $xUSMPoolGetInfoExp
+  value: '262'
 ---
 type: enum
 desc: Defines structure types
