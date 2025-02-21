@@ -63,7 +63,7 @@ we need to stop deferring any new buffer releases and clean up any memory
 whose release was deferred. 
 
 To this end, the shutdown occurs in two phases: early and late. The purpose
-for eary shutdown is primarily to stop any further deferring of memory release.
+for early shutdown is primarily to stop any further deferring of memory release.
 This is because the deferred memory release is based on threads and on Windows
 the threads will be abandoned. So as soon as possible we want to stop deferring
 memory and try to let go any that has been deferred.  The purpose for late 
@@ -109,7 +109,7 @@ This is not a normal occurrence, but it can happen if there is no call to queue.
 
 ### Linux
 
-On Linux, the "eary_shutdown()" is begun by the destruction of a static
+On Linux, the "early_shutdown()" is begun by the destruction of a static
 StaticVarShutdownHandler object, which is initialized by 
 platform::get_platforms().
 

@@ -62,10 +62,6 @@ public:
 
       LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
       MCounter--;
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
-      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
@@ -313,18 +309,6 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-#ifdef _WIN32
-// because of something not-yet-understood on Windows
-// threads may be shutdown once the end of main() is reached
-// making an orderly shutdown difficult. Fortunately, Windows
-// itself is very aggressive about reclaiming memory. Thus,
-// we focus solely on unloading the adapters, so as to not
-// accidentally retain device handles. etc
-void shutdown_win() {
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->unloadAdapters();
-}
-#else
 void shutdown_early() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
@@ -380,7 +364,6 @@ void shutdown_late() {
   delete Handler;
   Handler = nullptr;
 }
-#endif
 
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
@@ -404,7 +387,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     try {
       shutdown_early();
     } catch (std::exception &e) {
-      std::cout << "exception in DLL_PROCESS_DETACH" << e.what() << std::endl;
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DLL_PROCESS_DETACH", e);
       return FALSE;
     }
 
@@ -428,21 +411,21 @@ BOOL isLinkedStatically() {
   // Otherwise we are dynamically linked or loaded.
   HMODULE hModule = nullptr;
   auto LpModuleAddr = reinterpret_cast<LPCSTR>(&DllMain);
-  if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
-                         &hModule)) {
+  if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
+                          &hModule)) {
+    return true; // not retrievable, therefore statically linked
+  } else {
     char dllPath[MAX_PATH];
     if (GetModuleFileNameA(hModule, dllPath, MAX_PATH)) {
       char exePath[MAX_PATH];
       if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
         if (std::string(dllPath) == std::string(exePath)) {
-          return true;
+          return true; // paths identical, therefore statically linked
         }
       }
     }
-  } else {
-    return true;
   }
-  return false;
+  return false; // Otherwise dynamically linked or loaded
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global
