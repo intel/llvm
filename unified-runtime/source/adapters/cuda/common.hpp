@@ -12,6 +12,17 @@
 #include <cuda.h>
 #include <ur/ur.hpp>
 
+#include <umf/base.h>
+#include <umf/providers/provider_cuda.h>
+
+#define UMF_RETURN_UMF_ERROR(UmfResult)                                        \
+  do {                                                                         \
+    umf_result_t UmfResult_ = (UmfResult);                                     \
+    if (UmfResult_ != UMF_RESULT_SUCCESS) {                                    \
+      return UmfResult_;                                                       \
+    }                                                                          \
+  } while (0)
+
 ur_result_t mapErrorUR(CUresult Result);
 
 /// Converts CUDA error into UR error codes, and outputs error information
@@ -59,3 +70,30 @@ void assertion(bool Condition, const char *Message = nullptr);
 
 } // namespace ur
 } // namespace detail
+
+namespace umf {
+
+using cuda_params_unique_handle_t = std::unique_ptr<
+    umf_cuda_memory_provider_params_t,
+    std::function<umf_result_t(umf_cuda_memory_provider_params_handle_t)>>;
+
+inline umf_result_t setCUMemoryProviderParams(
+    umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams,
+    int cuDevice, void *cuContext, umf_usm_memory_type_t memType) {
+
+  umf_result_t UmfResult =
+      umfCUDAMemoryProviderParamsSetContext(CUMemoryProviderParams, cuContext);
+  UMF_RETURN_UMF_ERROR(UmfResult);
+
+  UmfResult =
+      umfCUDAMemoryProviderParamsSetDevice(CUMemoryProviderParams, cuDevice);
+  UMF_RETURN_UMF_ERROR(UmfResult);
+
+  UmfResult =
+      umfCUDAMemoryProviderParamsSetMemoryType(CUMemoryProviderParams, memType);
+  UMF_RETURN_UMF_ERROR(UmfResult);
+
+  return UMF_RESULT_SUCCESS;
+}
+
+} // namespace umf

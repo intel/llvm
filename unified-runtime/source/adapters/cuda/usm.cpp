@@ -102,54 +102,12 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMFreeImpl(ur_context_handle_t hContext, void *Pointer) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  try {
-    unsigned int IsManaged;
-    unsigned int Type;
-    unsigned int DeviceOrdinal;
-    const int NumAttributes = 3;
-    void *AttributeValues[NumAttributes] = {&IsManaged, &Type, &DeviceOrdinal};
-
-    CUpointer_attribute Attributes[NumAttributes] = {
-        CU_POINTER_ATTRIBUTE_IS_MANAGED, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
-        CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL};
-    UR_CHECK_ERROR(cuPointerGetAttributes(
-        NumAttributes, Attributes, AttributeValues, (CUdeviceptr)Pointer));
-    UR_ASSERT(Type == CU_MEMORYTYPE_DEVICE || Type == CU_MEMORYTYPE_HOST,
-              UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
-    std::vector<ur_device_handle_t> ContextDevices = hContext->getDevices();
-    ur_platform_handle_t Platform = ContextDevices[0]->getPlatform();
-    unsigned int NumDevices = Platform->Devices.size();
-    UR_ASSERT(DeviceOrdinal < NumDevices, UR_RESULT_ERROR_INVALID_DEVICE);
-
-    ur_device_handle_t Device = Platform->Devices[DeviceOrdinal].get();
-    umf_memory_provider_handle_t MemoryProvider;
-
-    if (IsManaged) {
-      MemoryProvider = Device->MemoryProviderShared;
-    } else if (Type == CU_MEMORYTYPE_DEVICE) {
-      MemoryProvider = Device->MemoryProviderDevice;
-    } else {
-      MemoryProvider = hContext->MemoryProviderHost;
-    }
-
-    UMF_CHECK_ERROR(umfMemoryProviderFree(MemoryProvider, Pointer,
-                                          0 /* size is unknown */));
-  } catch (ur_result_t Err) {
-    Result = Err;
-  }
-  return Result;
-}
-
 /// USM: Frees the given USM pointer associated with the context.
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
-  if (auto Pool = umfPoolByPtr(pMem))
-    return umf::umf2urResult(umfPoolFree(Pool, pMem));
-  return USMFreeImpl(hContext, pMem);
+  (void)hContext; // unused
+  return umf::umf2urResult(umfFree(pMem));
 }
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
@@ -158,8 +116,8 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
                                uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
-    UMF_CHECK_ERROR(umfMemoryProviderAlloc(Device->MemoryProviderDevice, Size,
-                                           Alignment, ResultPtr));
+    *ResultPtr = umfPoolMalloc(Device->MemoryPoolDevice, Size);
+    UMF_CHECK_PTR(*ResultPtr);
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -180,8 +138,8 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
                                uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
-    UMF_CHECK_ERROR(umfMemoryProviderAlloc(Device->MemoryProviderShared, Size,
-                                           Alignment, ResultPtr));
+    *ResultPtr = umfPoolMalloc(Device->MemoryPoolShared, Size);
+    UMF_CHECK_PTR(*ResultPtr);
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -199,8 +157,8 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
                              ur_usm_host_mem_flags_t, size_t Size,
                              uint32_t Alignment) {
   try {
-    UMF_CHECK_ERROR(umfMemoryProviderAlloc(hContext->MemoryProviderHost, Size,
-                                           Alignment, ResultPtr));
+    *ResultPtr = umfPoolMalloc(hContext->MemoryPoolHost, Size);
+    UMF_CHECK_PTR(*ResultPtr);
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -326,73 +284,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-umf_result_t USMMemoryProvider::initialize(ur_context_handle_t Ctx,
-                                           ur_device_handle_t Dev) {
-  Context = Ctx;
-  Device = Dev;
-  // There isn't a way to query this in cuda, and there isn't much info on
-  // cuda's approach to alignment or transfer granularity between host and
-  // device. Within UMF this is only used to influence alignment, and since we
-  // discard that in our alloc implementations it seems we can safely ignore
-  // this as well, for now.
-  MinPageSize = 0;
-
-  return UMF_RESULT_SUCCESS;
-}
-
-enum umf_result_t USMMemoryProvider::alloc(size_t Size, size_t Align,
-                                           void **Ptr) {
-  auto Res = allocateImpl(Ptr, Size, Align);
-  if (Res != UR_RESULT_SUCCESS) {
-    getLastStatusRef() = Res;
-    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
-  }
-
-  return UMF_RESULT_SUCCESS;
-}
-
-enum umf_result_t USMMemoryProvider::free(void *Ptr, size_t Size) {
-  (void)Size;
-
-  auto Res = USMFreeImpl(Context, Ptr);
-  if (Res != UR_RESULT_SUCCESS) {
-    getLastStatusRef() = Res;
-    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
-  }
-
-  return UMF_RESULT_SUCCESS;
-}
-
-void USMMemoryProvider::get_last_native_error(const char **ErrMsg,
-                                              int32_t *ErrCode) {
-  (void)ErrMsg;
-  *ErrCode = static_cast<int32_t>(getLastStatusRef());
-}
-
-umf_result_t USMMemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
-  (void)Ptr;
-  *PageSize = MinPageSize;
-
-  return UMF_RESULT_SUCCESS;
-}
-
-ur_result_t USMSharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                  uint32_t Alignment) {
-  return USMSharedAllocImpl(ResultPtr, Context, Device, /*host flags*/ 0,
-                            /*device flags*/ 0, Size, Alignment);
-}
-
-ur_result_t USMDeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                  uint32_t Alignment) {
-  return USMDeviceAllocImpl(ResultPtr, Context, Device, /* flags */ 0, Size,
-                            Alignment);
-}
-
-ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                uint32_t Alignment) {
-  return USMHostAllocImpl(ResultPtr, Context, /* flags */ 0, Size, Alignment);
-}
-
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
     : Context{Context} {
@@ -416,36 +307,28 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     pNext = BaseDesc->pNext;
   }
 
-  auto MemProvider =
-      umf::memoryProviderMakeUnique<USMHostMemoryProvider>(Context, nullptr)
-          .second;
-
   auto UmfHostParamsHandle = getUmfParamsHandle(
       DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host]);
-  HostMemPool =
-      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
-                                 UmfHostParamsHandle.get())
-          .second;
+  HostMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
+                    umfDisjointPoolOps(), Context->MemoryProviderHost,
+                    UmfHostParamsHandle.get())
+                    .second;
 
   for (const auto &Device : Context->getDevices()) {
-    MemProvider =
-        umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, Device)
-            .second;
     auto UmfDeviceParamsHandle = getUmfParamsHandle(
         DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Device]);
-    DeviceMemPool =
-        umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
-                                   UmfDeviceParamsHandle.get())
-            .second;
-    MemProvider =
-        umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(Context, Device)
-            .second;
+    DeviceMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
+                        umfDisjointPoolOps(), Device->MemoryProviderDevice,
+                        UmfDeviceParamsHandle.get())
+                        .second;
+
     auto UmfSharedParamsHandle = getUmfParamsHandle(
         DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Shared]);
-    SharedMemPool =
-        umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
-                                   UmfSharedParamsHandle.get())
-            .second;
+    SharedMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
+                        umfDisjointPoolOps(), Device->MemoryProviderShared,
+                        UmfSharedParamsHandle.get())
+                        .second;
+
     Context->addPool(this);
   }
 }
