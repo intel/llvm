@@ -53,7 +53,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
     if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
-      continue; // nothing to do
+      continue;
 
     EnqueueResultT Res;
     bool Enqueued =
@@ -69,7 +69,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
-      continue; // nothing to do
+      continue;
 
     EnqueueResultT Res;
     bool Enqueued =
