@@ -406,12 +406,12 @@ to only run the compilation stage, or the execution stage respectively.
   this mode, for any test to pass the test binaries should already be in the
   `test_exec_root` directory, either by having ran `full` or `build-only` modes
   previously on the system, or having transferred the test binaries into that
-  directory. To mark a test as expected to fail only at run-time we can either
-  use the `run-mode` feature, which is only available in `run-only` and `full`
-  modes, or we can mark the test as `XFAIL` for a device-specific feature.
+  directory. To mark a test as expected to fail at run-time the `XFAIL`
+  expression should use runtime features, such as `run-mode` or device-specific
+  features.
 
   `%{run-aux}` is an empty expansion and executes a line as is, without
-  expanding for each selected device and without using the run_launcher.
+  expanding for each selected device and without using the `run_launcher`.
 
 #### Build only mode
 
@@ -421,11 +421,11 @@ to only run the compilation stage, or the execution stage respectively.
   system. To do this `REQUIRES`, and `UNSUPPORTED` statements are handled
   differently to accommodate for the fact that in `build-only` mode we do not
   have any devices, and as a result no device-specific features. Instead of
-  considering these features as missing, we assign a third "unknown" boolean
-  value to them. When evaluating An expressions it will result in an unknown
-  value if its result could be changed by setting the unknown features to either
-  true or false. i.e., `false || unknown = unknown` but `true || unknown = true`.
-  If an expression's final value is unknown we consider it to have met the
+  considering these features as missing, we assign a third "unknown" value to 
+  them. When evaluating an expression it will result in an unknown value if its 
+  result could be changed by setting the unknown features to either true or 
+  false. i.e., `false || unknown = unknown` but `true || unknown = true`. If an 
+  expression's final value is unknown we consider it to have met the
   requirements. The list of device-agnostic features that are not considered
   unknown in `build-only` is found in the `E2EExpr.py`.
 
@@ -435,14 +435,35 @@ to only run the compilation stage, or the execution stage respectively.
   `native_cpu` triples respectively. Each build target should be separated with
   a semicolon. This parameter is set to just `spir` by default. A test can be
   marked as requiring, or not supporting a particular triple via the `target-*`
-  features. Note that we test if each build target is supported separately from
-  each other so statements like `REQUIRES: target-spir && target-nvidia` will
-  never be met. Instead we can use `any-target-is-*` features in this case.
+  features. Build targets are selected if they are able to pass the test's
+  requirements independent of the availability of other build targets. This is 
+  done to avoid having to deal with a boolean satisfiability problem. For
+  example, `REQUIRES: target-spir && target-nvidia` will always be marked as
+  unsupported since it requires multiple targets simultaneously. Instead we can
+  use `any-target-is-*` features in this case, to check if a target is available
+  in the current lit configuration.
 
   When executing the test in `build-only`, all `RUN:` lines that do not have a
   run expansion will execute.
 
   The `build-mode` feature is added when in this mode.
+
+  Some examples of `REQUIRES`/`UNSUPPORTED` in build-only. If `linux` and `zstd`
+  are available, and `sycl_build_targets` is set to `spir;amd;nvidia`
+  * `REQUIRES: linux && zstd`: This would be supported, this is treated normally
+  since both features are device-agnostic.
+  * `REQUIRES: linux && sg-32`: Despite the `sg-32` feature not being available,
+  this would be supported. Since the `sg-32` is a device-specific feature it is
+  evaluated as unknown in this expression.
+  * `REQUIRES: windows && sg-32`: This would be unsupported. `sg-32` would be
+  evaluated as unknown, and `windows` would evaluate as false. The fact that we
+  have an unknown value does not affect the end result, since the result of an
+  `&&` expression where one sub-expression is false is always false.
+  * `REQUIRES: windows || sg-32`: this would be supported. Here because the
+  result of the `||` expression would change if we considered `sg-32` to be
+  either true or false the overall expression evaluates to unknown.
+  * `UNSUPPORTED: !sg-32`: this would be supported. `sg-32` is evaluated as
+  unknown, and the negation of unknown is also unknown.
 
 #### Common Issues with separate build and run
 
@@ -462,17 +483,20 @@ system.
   should be marked as `XFAIL` for the corresponding build target feature, rather
   than a backend feature.
   * If the expected failure occurs during run-time we will need to mark the test
-  with `XFAIL` on a device specific feature. If it is expected to fail for any
-  device at run-time we can use `XFAIL: run-mode`, this is because otherwise the
-  test would compile and pass on `build-only` mode and be reported as an `XPASS`.
+  with `XFAIL` with an expression dependent on runtime features. If it is
+  expected to fail for any device at run-time we can use `XFAIL: run-mode`,
+  This must be done because otherwise the test would compile and pass on
+  `build-only` mode and be reported as an `XPASS`.
 
 * To separate compilation and execution of tests, `RUN:` lines are filtered in
 `build-only` and `run-only` mode based on the presence of "run" expansions.
   * Any line that is meant to execute the test binary should be marked with
-  `%{run}` or `%{run-unfiltered-devices}` so that it is not ran in `build-only`.
+  `%{run}` or `%{run-unfiltered-devices}` so that it is not ran in `build-only`,
+  and the `run_launcher` substitution is properly employed.
   * The `%{run-aux}` expansion can be used if a `RUN:` line that does not
   execute a test binary needs to be ran in `run-only`.
 
-* Compiling for CPU AOT will target the ISA of the host CPU, thus compiling
+* CPU AOT compilation will target the ISA of the host CPU, thus compiling
 these tests on a different system will lead to failures if the build system and
-run system support different ISAs.
+run system support different ISAs. To accommodate this, these compilations
+should be delayed to the "run" stage by using the `%{run-aux}` markup.
