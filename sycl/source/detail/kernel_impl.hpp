@@ -167,7 +167,7 @@ public:
   /// max_num_work_groups is the only valid descriptor for this function.
   ///
   /// \param Queue is a valid SYCL queue.
-  /// \param WG // update description
+  /// \param WG is a work group size
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(queue Queue,
@@ -178,7 +178,7 @@ public:
   /// max_num_work_groups is the only valid descriptor for this function.
   ///
   /// \param Queue is a valid SYCL queue.
-  /// \param WG // update description
+  /// \param WG is a work group size
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(queue Queue,
@@ -189,7 +189,7 @@ public:
   /// max_num_work_groups is the only valid descriptor for this function.
   ///
   /// \param Queue is a valid SYCL queue.
-  /// \param WG // update description
+  /// \param WG is a work group size
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(queue Queue,
