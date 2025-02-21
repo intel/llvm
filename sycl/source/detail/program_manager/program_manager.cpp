@@ -1999,10 +1999,6 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 }
 
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
-  // No need in fair partial cleanup at shutdown
-  if (!GlobalHandler::instance().isOkToDefer())
-    return;
-
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     auto DevImgIt = m_DeviceImages.find(RawImg);
@@ -3633,5 +3629,8 @@ extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
+  // No need in fair partial cleanup at shutdown
+  if (!sycl::detail::GlobalHandler::instance().isOkToDefer())
+    return;
   sycl::detail::ProgramManager::getInstance().removeImages(desc);
 }
