@@ -1401,6 +1401,16 @@ void exec_graph_impl::update(
   std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
   bool NeedScheduledUpdate = needsScheduledUpdate(Nodes, UpdateRequirements);
   if (NeedScheduledUpdate) {
+    // Clean up any execution events which have finished so we don't pass them
+    // to the scheduler.
+    for (auto It = MExecutionEvents.begin(); It != MExecutionEvents.end();) {
+      if ((*It)->isCompleted()) {
+        It = MExecutionEvents.erase(It);
+        continue;
+      }
+      ++It;
+    }
+
     auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
         sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
         sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
@@ -1416,11 +1426,12 @@ void exec_graph_impl::update(
   } else {
     // For each partition in the executable graph, call UR update on the
     // command-buffer with the nodes to update.
-    auto PartitionedNodes = getPartitionForNodes(Nodes);
+    auto PartitionedNodes = getURUpdatableNodes(Nodes);
     for (auto It = PartitionedNodes.begin(); It != PartitionedNodes.end();
          It++) {
-      auto CommandBuffer = It->first->MCommandBuffers[MDevice];
-      updateKernelsImpl(CommandBuffer, It->second);
+      auto &Partition = MPartitions[It->first];
+      auto CommandBuffer = Partition->MCommandBuffers[MDevice];
+      updateURImpl(CommandBuffer, It->second);
     }
   }
 
@@ -1475,16 +1486,6 @@ bool exec_graph_impl::needsScheduledUpdate(
     }
   }
 
-  // Clean up any execution events which have finished so we don't pass them to
-  // the scheduler.
-  for (auto It = MExecutionEvents.begin(); It != MExecutionEvents.end();) {
-    if ((*It)->isCompleted()) {
-      It = MExecutionEvents.erase(It);
-      continue;
-    }
-    ++It;
-  }
-
   // If we have previous execution events do the update through the scheduler to
   // ensure it is ordered correctly.
   NeedScheduledUpdate |= MExecutionEvents.size() > 0;
@@ -1499,7 +1500,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
     std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
     sycl::detail::NDRDescT &NDRDesc,
-    ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) {
+    ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
@@ -1656,56 +1657,52 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   auto ExecNode = MIDCache.find(Node->MID);
   assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
-  ur_exp_command_buffer_command_handle_t Command =
-      MCommandMap[ExecNode->second];
-  UpdateDesc.hCommand = Command;
+  auto Command = MCommandMap.find(ExecNode->second);
+  assert(Command != MCommandMap.end());
+  UpdateDesc.hCommand = Command->second;
 
   // Update ExecNode with new values from Node, in case we ever need to
   // rebuild the command buffers
   ExecNode->second->updateFromOtherNode(Node);
 }
 
-std::map<std::shared_ptr<partition>, std::vector<std::shared_ptr<node_impl>>>
-exec_graph_impl::getPartitionForNodes(
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) {
-  // Iterate over each partition in the executable graph, and find the nodes
-  // in "Nodes" that also exist in the partition.
-  std::map<std::shared_ptr<partition>, std::vector<std::shared_ptr<node_impl>>>
-      PartitionedNodes;
-  for (const auto &Partition : MPartitions) {
-    std::vector<std::shared_ptr<node_impl>> NodesForPartition;
-    const auto PartitionBegin = Partition->MSchedule.begin();
-    const auto PartitionEnd = Partition->MSchedule.end();
-    for (auto &Node : Nodes) {
-      auto ExecNode = MIDCache.find(Node->MID);
-      assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
+std::map<int, std::vector<std::shared_ptr<node_impl>>>
+exec_graph_impl::getURUpdatableNodes(
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+  // Iterate over the list of nodes, and for every node that can
+  // be updated through UR, add it to the list of nodes for
+  // that can be updated for the UR command-buffer partition.
+  std::map<int, std::vector<std::shared_ptr<node_impl>>> PartitionedNodes;
 
-      if (std::find_if(PartitionBegin, PartitionEnd,
-                       [ExecNode](const auto &PartitionNode) {
-                         return PartitionNode->MID == ExecNode->second->MID;
-                       }) != PartitionEnd) {
-        NodesForPartition.push_back(Node);
-      }
+  // Initialize vector for each partition
+  for (size_t i = 0; i < MPartitions.size(); i++) {
+    PartitionedNodes[i] = {};
+  }
+
+  for (auto &Node : Nodes) {
+    // Kernel node update is the only command type supported in UR for update.
+    if (Node->MCGType != sycl::detail::CGType::Kernel) {
+      continue;
     }
-    if (!NodesForPartition.empty()) {
-      PartitionedNodes.insert({Partition, NodesForPartition});
-    }
+
+    auto ExecNode = MIDCache.find(Node->MID);
+    assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
+    auto PartitionIndex = MPartitionNodes.find(ExecNode->second);
+    assert(PartitionIndex != MPartitionNodes.end());
+    PartitionedNodes[PartitionIndex->second].push_back(Node);
   }
 
   return PartitionedNodes;
 }
 
 void exec_graph_impl::updateHostTasksImpl(
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) {
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
   for (auto &Node : Nodes) {
     if (Node->MNodeType != node_type::host_task) {
       continue;
     }
     // Query the ID cache to find the equivalent exec node for the node passed
     // to this function.
-    // TODO: Handle subgraphs or any other cases where multiple nodes may be
-    // associated with a single key, once those node types are supported for
-    // update.
     auto ExecNode = MIDCache.find(Node->MID);
     assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
@@ -1713,40 +1710,31 @@ void exec_graph_impl::updateHostTasksImpl(
   }
 }
 
-void exec_graph_impl::updateKernelsImpl(
+void exec_graph_impl::updateURImpl(
     ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) {
-  // Kernel node update is the only command type supported in UR for update.
-  // Updating any other types of nodes, e.g. empty & barrier nodes is a no-op.
-  size_t NumKernelNodes = 0;
-  for (auto &N : Nodes) {
-    if (N->MCGType == sycl::detail::CGType::Kernel) {
-      NumKernelNodes++;
-    }
-  }
-
-  // Don't need to call through to UR if no kernel nodes to update
-  if (NumKernelNodes == 0) {
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+  const size_t NumUpdatableNodes = Nodes.size();
+  if (NumUpdatableNodes == 0) {
     return;
   }
 
   std::vector<std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>>
-      MemobjDescsList(NumKernelNodes);
+      MemobjDescsList(NumUpdatableNodes);
   std::vector<std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t>>
-      PtrDescsList(NumKernelNodes);
+      PtrDescsList(NumUpdatableNodes);
   std::vector<std::vector<ur_exp_command_buffer_update_value_arg_desc_t>>
-      ValueDescsList(NumKernelNodes);
-  std::vector<sycl::detail::NDRDescT> NDRDescList(NumKernelNodes);
+      ValueDescsList(NumUpdatableNodes);
+  std::vector<sycl::detail::NDRDescT> NDRDescList(NumUpdatableNodes);
   std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> UpdateDescList(
-      NumKernelNodes);
+      NumUpdatableNodes);
   std::vector<std::pair<ur_program_handle_t, ur_kernel_handle_t>>
-      KernelBundleObjList(NumKernelNodes);
+      KernelBundleObjList(NumUpdatableNodes);
 
   size_t StructListIndex = 0;
   for (auto &Node : Nodes) {
-    if (Node->MCGType != sycl::detail::CGType::Kernel) {
-      continue;
-    }
+    // This should be the case when getURUpdatableNodes() is used to
+    // create the list of nodes.
+    assert(Node->MCGType == sycl::detail::CGType::Kernel);
 
     auto &MemobjDescs = MemobjDescsList[StructListIndex];
     auto &KernelBundleObjs = KernelBundleObjList[StructListIndex];

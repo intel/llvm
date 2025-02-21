@@ -3744,12 +3744,15 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   }
 
   // Split list of nodes into nodes per UR command-buffer partition, then
-  // call UR update on each command-buffer partition
-  auto PartitionedNodes = MGraph->getPartitionForNodes(MNodes);
+  // call UR update on each command-buffer partition with those updatable
+  // nodes.
+  auto PartitionedNodes = MGraph->getURUpdatableNodes(MNodes);
   auto Device = MQueue->get_device();
+  auto &Partitions = MGraph->getPartitions();
   for (auto It = PartitionedNodes.begin(); It != PartitionedNodes.end(); It++) {
-    auto CommandBuffer = It->first->MCommandBuffers[Device];
-    MGraph->updateKernelsImpl(CommandBuffer, It->second);
+    const int PartitionIndex = It->first;
+    auto CommandBuffer = Partitions[PartitionIndex]->MCommandBuffers[Device];
+    MGraph->updateURImpl(CommandBuffer, It->second);
   }
 
   return UR_RESULT_SUCCESS;
