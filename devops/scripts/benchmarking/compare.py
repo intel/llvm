@@ -53,9 +53,7 @@ class Compare:
                         print(
                             f"  {metric}: {sample_value} -- Historic avg. {test_hist_avg[metric]} (max tolerance {threshold*100}%: {max_tolerated})\n"
                         )
-                        with open(
-                            "./artifact/benchmarks_failed.log", "a"
-                        ) as slow_log:
+                        with open("./artifact/benchmarks_failed.log", "a") as slow_log:
                             slow_log.write(
                                 f"-- {benchmark_name}::{test}\n"
                                 f"   {metric}: {sample_value} -- Historic avg. {test_hist_avg[metric]} (max tol. {threshold*100}%: {max_tolerated})\n"
