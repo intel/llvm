@@ -323,6 +323,15 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
 #endif
 }
 
+void SYCL_JIT_destroy([[maybe_unused]] sycl_device_binaries Binaries) {
+#if SYCL_EXT_JIT_ENABLE
+  sycl::detail::jit_compiler::get_instance().destroyDeviceBinaries(Binaries);
+#else
+  throw sycl::exception(sycl::errc::invalid,
+                        "kernel_compiler via sycl-jit is not available");
+#endif
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
