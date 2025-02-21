@@ -276,6 +276,15 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeDriverEuCountExtensionFound = true;
       }
     }
+    if (strncmp(extension.name,
+                ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME,
+                strlen(ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME) +
+                    1) == 0) {
+      if (extension.version ==
+          ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_VERSION_1_0) {
+        ZeCopyOffloadExtensionSupported = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
