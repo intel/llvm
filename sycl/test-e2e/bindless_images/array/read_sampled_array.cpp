@@ -1,11 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-
-// UNSUPPORTED: hip
-// UNSUPPORTED-INTENDED: Image arrays are unimplemented in the HIP adapter.
-
-// UNSUPPORTED: level_zero
-// UNSUPPORTED-INTENDED: Linear sampling rounds differently on Intel devices
-// compared to CUDA. This difference in rounding needs to be accounted for.
+// REQUIRES: aspect-ext_oneapi_image_array
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
