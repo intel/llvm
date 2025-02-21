@@ -11,6 +11,7 @@
 
 #include <ur/ur.hpp>
 
+#include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
 
 #include "common.hpp"
@@ -84,9 +85,17 @@ public:
 
     MemoryProviderDevice = nullptr;
     MemoryProviderShared = nullptr;
+    MemoryPoolDevice = nullptr;
+    MemoryPoolShared = nullptr;
   }
 
   ~ur_device_handle_t_() {
+    if (MemoryPoolDevice) {
+      umfPoolDestroy(MemoryPoolDevice);
+    }
+    if (MemoryPoolShared) {
+      umfPoolDestroy(MemoryPoolShared);
+    }
     if (MemoryProviderDevice) {
       umfMemoryProviderDestroy(MemoryProviderDevice);
     }
@@ -131,11 +140,15 @@ public:
   // bookkeeping for mipmappedArray leaks in Mapping external Memory
   std::map<CUarray, CUmipmappedArray> ChildCuarrayFromMipmapMap;
 
-  // UMF CUDA memory provider for the device memory (UMF_MEMORY_TYPE_DEVICE)
+  // UMF CUDA memory provider and pool for the device memory
+  // (UMF_MEMORY_TYPE_DEVICE)
   umf_memory_provider_handle_t MemoryProviderDevice;
+  umf_memory_pool_handle_t MemoryPoolDevice;
 
-  // UMF CUDA memory provider for the shared memory (UMF_MEMORY_TYPE_SHARED)
+  // UMF CUDA memory provider and pool for the shared memory
+  // (UMF_MEMORY_TYPE_SHARED)
   umf_memory_provider_handle_t MemoryProviderShared;
+  umf_memory_pool_handle_t MemoryPoolShared;
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
