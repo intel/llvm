@@ -8,6 +8,9 @@
 
 // REQUIRES: level_zero
 
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: CMPLRLLVM-44705
+
 // RUN: %{build} -o %t.out
 // RUN:  %{l0_leak_check} %{run} %t.out
 

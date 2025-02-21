@@ -269,7 +269,8 @@ public:
       // If loader is already closed, it'll return a not-initialized status
       // which the UR should convert to SUCCESS code. But that isn't always
       // working on Windows. This is a temporary workaround until that is fixed.
-      // TODO: Remove this workaround when UR is fixed.
+      // TODO: Remove this workaround when UR is fixed, and restore
+      // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
         __SYCL_CHECK_UR_CODE_NO_EXC(status);

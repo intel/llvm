@@ -109,7 +109,7 @@ This is not a normal occurrence, but it can happen if there is no call to queue.
 
 ### Linux
 
-On Linux, the "eary_shutdown()" is begun by the destruction of a static
+On Linux, the "early_shutdown()" is begun by the destruction of a static
 StaticVarShutdownHandler object, which is initialized by 
 platform::get_platforms().
 

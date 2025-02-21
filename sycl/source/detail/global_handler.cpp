@@ -258,8 +258,8 @@ struct StaticVarShutdownHandler {
       shutdown_early();
 #endif
     } catch (std::exception &e) {
-      std::cout << "exception in ~StaticVarShutdownHandler " << e.what()
-                << std::endl;
+      __SYCL_REPORT_EXCEPTION_TO_STREAM(
+          "exception in ~StaticVarShutdownHandler", e);
     }
   }
 };
@@ -387,7 +387,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     try {
       shutdown_early();
     } catch (std::exception &e) {
-      std::cout << "exception in DLL_PROCESS_DETACH" << e.what() << std::endl;
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DLL_PROCESS_DETACH", e);
       return FALSE;
     }
 
@@ -411,21 +411,21 @@ BOOL isLinkedStatically() {
   // Otherwise we are dynamically linked or loaded.
   HMODULE hModule = nullptr;
   auto LpModuleAddr = reinterpret_cast<LPCSTR>(&DllMain);
-  if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
-                         &hModule)) {
+  if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, LpModuleAddr,
+                          &hModule)) {
+    return true; // not retrievable, therefore statically linked
+  } else {
     char dllPath[MAX_PATH];
     if (GetModuleFileNameA(hModule, dllPath, MAX_PATH)) {
       char exePath[MAX_PATH];
       if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
         if (std::string(dllPath) == std::string(exePath)) {
-          return true;
+          return true; // paths identical, therefore statically linked
         }
       }
     }
-  } else {
-    return true;
   }
-  return false;
+  return false; // Otherwise dynamically linked or loaded
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global
