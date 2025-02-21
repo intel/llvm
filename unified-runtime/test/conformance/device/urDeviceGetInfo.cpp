@@ -107,7 +107,6 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
      sizeof(ur_memory_order_capability_flags_t)},
     {UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
      sizeof(ur_memory_scope_capability_flags_t)},
-    {UR_DEVICE_INFO_BFLOAT16, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES, sizeof(uint32_t)},
     {UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS, sizeof(ur_bool_t)},
@@ -235,7 +234,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
         UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,                     //
         UR_DEVICE_INFO_ATOMIC_64,                              //
         UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,       //
-        UR_DEVICE_INFO_BFLOAT16,                               //
         UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES,              //
         UR_DEVICE_INFO_MEMORY_BUS_WIDTH,                       //
         UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,                     //
