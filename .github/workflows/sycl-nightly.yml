@@ -259,13 +259,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Run compute-benchmarks on L0 Gen12
-            runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
-            reset_intel_gpu: true
           - name: Run compute-benchmarks on L0 PVC
-            runner: '["Linux", "pvc"]'
+            runner: '["PVC_PERF"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
             reset_intel_gpu: false
