@@ -11,7 +11,7 @@ import os
 
 class OneAPI:
     # random unique number for benchmark oneAPI installation
-    ONEAPI_BENCHMARK_INSTANCE_ID = 98765
+    ONEAPI_BENCHMARK_INSTANCE_ID = 987654
 
     def __init__(self):
         self.oneapi_dir = os.path.join(options.workdir, "oneapi")
