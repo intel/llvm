@@ -8,16 +8,18 @@
 
 #include "LinkGraphCommon.hpp"
 
+using namespace std::literals;
+
 TEST(LinkGraph1Unify1, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph1.Clone();
-  Graphs["Tag2"] = Graph1.Clone();
+  Graphs.emplace("Tag1"s, Graph1.Clone());
+  Graphs.emplace("Tag2"s, Graph1.Clone());
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{1});
 
-  std::vector<std::string> TagGroup{"Tag1", "Tag2"};
+  std::vector<std::string> TagGroup{"Tag1"s, "Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph{std::move(UnifiedGraphs[TagGroup])};
   UnifiedGraph.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph.AssertNodeAlive('B', {'A'}, {});
@@ -26,22 +28,22 @@ TEST(LinkGraph1Unify1, LinkGraphUnifyTest) {
 
 TEST(LinkGraph1Unify2, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph1.Clone();
-  Graphs["Tag2"] = Graph1.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'A'; });
+  Graphs.emplace("Tag1"s, Graph1.Clone());
+  Graphs.emplace("Tag2"s, Graph1.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'A'; });
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{2});
 
-  std::vector<std::string> TagGroup1{"Tag1"};
+  std::vector<std::string> TagGroup1{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph1.AssertNodeAlive('B', {'A'}, {});
   UnifiedGraph1.AssertAliveValues({'A', 'B'});
 
-  std::vector<std::string> TagGroup2{"Tag2"};
+  std::vector<std::string> TagGroup2{"Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph2{
       std::move(UnifiedGraphs[TagGroup2])};
   UnifiedGraph2.AssertNodeAlive('B', {}, {});
@@ -50,21 +52,21 @@ TEST(LinkGraph1Unify2, LinkGraphUnifyTest) {
 
 TEST(LinkGraph1Unify3, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph1.Clone();
-  Graphs["Tag1"].Poison([](const char &C) { return C == 'A'; });
-  Graphs["Tag2"] = Graph1.Clone();
+  Graphs.emplace("Tag1"s, Graph1.Clone());
+  Graphs["Tag1"s].Poison([](const char &C) { return C == 'A'; });
+  Graphs.emplace("Tag2"s, Graph1.Clone());
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{2});
 
-  std::vector<std::string> TagGroup1{"Tag1"};
+  std::vector<std::string> TagGroup1{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('B', {}, {});
   UnifiedGraph1.AssertAliveValues({'B'});
 
-  std::vector<std::string> TagGroup2{"Tag2"};
+  std::vector<std::string> TagGroup2{"Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph2{
       std::move(UnifiedGraphs[TagGroup2])};
   UnifiedGraph2.AssertNodeAlive('A', {}, {'B'});
@@ -74,15 +76,15 @@ TEST(LinkGraph1Unify3, LinkGraphUnifyTest) {
 
 TEST(LinkGraph1Unify4, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph1.Clone();
-  Graphs["Tag2"] = Graph1.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'B'; });
+  Graphs.emplace("Tag1"s, Graph1.Clone());
+  Graphs.emplace("Tag2"s, Graph1.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'B'; });
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{1});
 
-  std::vector<std::string> TagGroup1{"Tag1"};
+  std::vector<std::string> TagGroup1{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('A', {}, {'B'});
@@ -94,23 +96,23 @@ TEST(LinkGraph1Unify4, LinkGraphUnifyTest) {
 
 TEST(LinkGraph1Unify5, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph1.Clone();
-  Graphs["Tag2"] = Graph1.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'A'; });
-  Graphs["Tag3"] = Graph1.Clone();
+  Graphs.emplace("Tag1"s, Graph1.Clone());
+  Graphs.emplace("Tag2"s, Graph1.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'A'; });
+  Graphs.emplace("Tag3"s, Graph1.Clone());
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{2});
 
-  std::vector<std::string> TagGroup1{"Tag1", "Tag3"};
+  std::vector<std::string> TagGroup1{"Tag1"s, "Tag3"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph1.AssertNodeAlive('B', {'A'}, {});
   UnifiedGraph1.AssertAliveValues({'A', 'B'});
 
-  std::vector<std::string> TagGroup2{"Tag2"};
+  std::vector<std::string> TagGroup2{"Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph2{
       std::move(UnifiedGraphs[TagGroup2])};
   UnifiedGraph2.AssertNodeAlive('B', {}, {});
@@ -119,14 +121,14 @@ TEST(LinkGraph1Unify5, LinkGraphUnifyTest) {
 
 TEST(LinkGraph7Unify1, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph7.Clone();
-  Graphs["Tag2"] = Graph7.Clone();
+  Graphs.emplace("Tag1"s, Graph7.Clone());
+  Graphs.emplace("Tag2"s, Graph7.Clone());
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{1});
 
-  std::vector<std::string> TagGroup{"Tag1", "Tag2"};
+  std::vector<std::string> TagGroup{"Tag1"s, "Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph{std::move(UnifiedGraphs[TagGroup])};
   UnifiedGraph.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph.AssertNodeAlive('B', {'A', 'D'}, {'C'});
@@ -137,15 +139,15 @@ TEST(LinkGraph7Unify1, LinkGraphUnifyTest) {
 
 TEST(LinkGraph7Unify2, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph7.Clone();
-  Graphs["Tag2"] = Graph7.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'A'; });
+  Graphs.emplace("Tag1"s, Graph7.Clone());
+  Graphs.emplace("Tag2"s, Graph7.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'A'; });
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{2});
 
-  std::vector<std::string> TagGroup1{"Tag1"};
+  std::vector<std::string> TagGroup1{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('A', {}, {'B'});
@@ -154,7 +156,7 @@ TEST(LinkGraph7Unify2, LinkGraphUnifyTest) {
   UnifiedGraph1.AssertNodeAlive('D', {'C'}, {'B'});
   UnifiedGraph1.AssertAliveValues({'A', 'B', 'C', 'D'});
 
-  std::vector<std::string> TagGroup2{"Tag2"};
+  std::vector<std::string> TagGroup2{"Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph2{
       std::move(UnifiedGraphs[TagGroup2])};
   UnifiedGraph2.AssertNodeAlive('B', {'D'}, {'C'});
@@ -165,15 +167,15 @@ TEST(LinkGraph7Unify2, LinkGraphUnifyTest) {
 
 TEST(LinkGraph7Unify3, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph7.Clone();
-  Graphs["Tag1"].Poison([](const char &C) { return C == 'A'; });
-  Graphs["Tag2"] = Graph7.Clone();
+  Graphs.emplace("Tag1"s, Graph7.Clone());
+  Graphs["Tag1"s].Poison([](const char &C) { return C == 'A'; });
+  Graphs.emplace("Tag2"s, Graph7.Clone());
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{2});
 
-  std::vector<std::string> TagGroup1{"Tag1"};
+  std::vector<std::string> TagGroup1{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('B', {'D'}, {'C'});
@@ -181,7 +183,7 @@ TEST(LinkGraph7Unify3, LinkGraphUnifyTest) {
   UnifiedGraph1.AssertNodeAlive('D', {'C'}, {'B'});
   UnifiedGraph1.AssertAliveValues({'B', 'C', 'D'});
 
-  std::vector<std::string> TagGroup2{"Tag2"};
+  std::vector<std::string> TagGroup2{"Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph2{
       std::move(UnifiedGraphs[TagGroup2])};
   UnifiedGraph2.AssertNodeAlive('A', {}, {'B'});
@@ -193,16 +195,16 @@ TEST(LinkGraph7Unify3, LinkGraphUnifyTest) {
 
 TEST(LinkGraph7Unify4, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph7.Clone();
-  Graphs["Tag1"].Poison([](const char &C) { return C == 'B'; });
-  Graphs["Tag2"] = Graph7.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'A'; });
+  Graphs.emplace("Tag1"s, Graph7.Clone());
+  Graphs["Tag1"s].Poison([](const char &C) { return C == 'B'; });
+  Graphs.emplace("Tag2"s, Graph7.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'A'; });
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{1});
 
-  std::vector<std::string> TagGroup{"Tag2"};
+  std::vector<std::string> TagGroup{"Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph{std::move(UnifiedGraphs[TagGroup])};
   UnifiedGraph.AssertNodeAlive('B', {'D'}, {'C'});
   UnifiedGraph.AssertNodeAlive('C', {'B'}, {'D'});
@@ -212,15 +214,15 @@ TEST(LinkGraph7Unify4, LinkGraphUnifyTest) {
 
 TEST(LinkGraph7Unify5, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph7.Clone();
-  Graphs["Tag2"] = Graph7.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'B'; });
+  Graphs.emplace("Tag1"s, Graph7.Clone());
+  Graphs.emplace("Tag2"s, Graph7.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'B'; });
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{1});
 
-  std::vector<std::string> TagGroup{"Tag1"};
+  std::vector<std::string> TagGroup{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph{std::move(UnifiedGraphs[TagGroup])};
   UnifiedGraph.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph.AssertNodeAlive('B', {'A', 'D'}, {'C'});
@@ -231,14 +233,14 @@ TEST(LinkGraph7Unify5, LinkGraphUnifyTest) {
 
 TEST(LinkGraph9Unify1, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph9.Clone();
-  Graphs["Tag2"] = Graph9.Clone();
+  Graphs.emplace("Tag1"s, Graph9.Clone());
+  Graphs.emplace("Tag2"s, Graph9.Clone());
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{1});
 
-  std::vector<std::string> TagGroup{"Tag1", "Tag2"};
+  std::vector<std::string> TagGroup{"Tag1"s, "Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph{std::move(UnifiedGraphs[TagGroup])};
   UnifiedGraph.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph.AssertNodeAlive('B', {'A'}, {});
@@ -249,28 +251,28 @@ TEST(LinkGraph9Unify1, LinkGraphUnifyTest) {
 
 TEST(LinkGraph9Unify2, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph9.Clone();
-  Graphs["Tag2"] = Graph9.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'A'; });
+  Graphs.emplace("Tag1"s, Graph9.Clone());
+  Graphs.emplace("Tag2"s, Graph9.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'A'; });
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{3});
 
-  std::vector<std::string> TagGroup1{"Tag1"};
+  std::vector<std::string> TagGroup1{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph1.AssertNodeAlive('B', {'A'}, {});
   UnifiedGraph1.AssertAliveValues({'A', 'B'});
 
-  std::vector<std::string> TagGroup2{"Tag2"};
+  std::vector<std::string> TagGroup2{"Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph2{
       std::move(UnifiedGraphs[TagGroup2])};
   UnifiedGraph2.AssertNodeAlive('B', {}, {});
   UnifiedGraph2.AssertAliveValues({'B'});
 
-  std::vector<std::string> TagGroup3{"Tag1", "Tag2"};
+  std::vector<std::string> TagGroup3{"Tag1"s, "Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph3{
       std::move(UnifiedGraphs[TagGroup3])};
   UnifiedGraph3.AssertNodeAlive('C', {}, {'D'});
@@ -280,22 +282,22 @@ TEST(LinkGraph9Unify2, LinkGraphUnifyTest) {
 
 TEST(LinkGraph9Unify3, LinkGraphUnifyTest) {
   std::map<std::string, sycl::detail::LinkGraph<char>> Graphs;
-  Graphs["Tag1"] = Graph9.Clone();
-  Graphs["Tag2"] = Graph9.Clone();
-  Graphs["Tag2"].Poison([](const char &C) { return C == 'B'; });
+  Graphs.emplace("Tag1"s, Graph9.Clone());
+  Graphs.emplace("Tag2"s, Graph9.Clone());
+  Graphs["Tag2"s].Poison([](const char &C) { return C == 'B'; });
   std::map<std::vector<std::string>, sycl::detail::LinkGraph<char>>
       UnifiedGraphs = sycl::detail::UnifyGraphs(Graphs);
 
   ASSERT_EQ(UnifiedGraphs.size(), size_t{2});
 
-  std::vector<std::string> TagGroup1{"Tag1"};
+  std::vector<std::string> TagGroup1{"Tag1"s};
   IntrospectiveLinkGraph<char> UnifiedGraph1{
       std::move(UnifiedGraphs[TagGroup1])};
   UnifiedGraph1.AssertNodeAlive('A', {}, {'B'});
   UnifiedGraph1.AssertNodeAlive('B', {'A'}, {});
   UnifiedGraph1.AssertAliveValues({'A', 'B'});
 
-  std::vector<std::string> TagGroup2{"Tag1", "Tag2"};
+  std::vector<std::string> TagGroup2{"Tag1"s, "Tag2"s};
   IntrospectiveLinkGraph<char> UnifiedGraph2{
       std::move(UnifiedGraphs[TagGroup2])};
   UnifiedGraph2.AssertNodeAlive('C', {}, {'D'});

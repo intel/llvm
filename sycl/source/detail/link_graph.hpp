@@ -63,6 +63,7 @@ protected:
 
 public:
   LinkGraph() = default;
+  LinkGraph(LinkGraph &&Other) = default;
 
   LinkGraph(const std::vector<T> &Values,
             const std::vector<std::vector<size_t>> &Links) {
