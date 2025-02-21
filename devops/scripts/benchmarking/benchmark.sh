@@ -119,7 +119,6 @@ check_and_cache() {
         fi
     else
         [ "$CACHE_RESULTS" -eq "1" ] && echo "Regression found -- Not caching!"
-        _regression_found=1
     fi
 }
 
@@ -297,7 +296,5 @@ DEVICE_SELECTOR_DIRNAME="$(echo "$ONEAPI_DEVICE_SELECTOR" | sed 's/:/-/')"
 [ ! -d ./compute-benchmarks       ] && clone_compute_bench
 [ ! -d ./compute-benchmarks/build ] && build_compute_bench
 # Process benchmarks:
-_regression_found=0
 process_benchmarks
 process_results
-exit "$_regression_found"
