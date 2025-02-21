@@ -1303,18 +1303,30 @@ public:
   void update(std::shared_ptr<node_impl> Node);
   void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
 
-  /// Calls UR entry-point to update kernel nodes in command-buffer.
+  /// Calls UR entry-point to update nodes in command-buffer.
   /// @param CommandBuffer The UR command-buffer to update commands in.
-  /// @param Nodes List of nodes to update. May contain nodes of non-kernel
-  /// type, but only kernel nodes from the list will be used for update
-  void updateKernelsImpl(ur_exp_command_buffer_handle_t CommandBuffer,
-                         const std::vector<std::shared_ptr<node_impl>> &Nodes);
+  /// @param Nodes List of nodes to update. Only nodes which can be updated
+  /// through UR should be included in this list, currently this is only
+  /// nodes of kernel type.
+  void updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
+                    const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
 
-  /// Splits a list of nodes into separate lists depending on partition.
+  /// Update host-task nodes
+  /// @param Nodes List of nodes to update, any node that is not a host-task
+  /// will be ignored.
+  void updateHostTasksImpl(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+
+  /// Splits a list of nodes into separate lists of nodes for each
+  /// command-buffer partition.
+  ///
+  /// Only nodes that can be updated through the UR interface are included
+  /// in the list. Currently this is only kernel node types.
+  ///
   /// @param Nodes List of nodes to split
-  /// @return Map of partitions to nodes
-  std::map<std::shared_ptr<partition>, std::vector<std::shared_ptr<node_impl>>>
-  getPartitionForNodes(const std::vector<std::shared_ptr<node_impl>> &Nodes);
+  /// @return Map of partition indexes to nodes
+  std::map<int, std::vector<std::shared_ptr<node_impl>>> getURUpdatableNodes(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
 
   unsigned long long getID() const { return MID; }
 
@@ -1408,13 +1420,7 @@ private:
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
       std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
       sycl::detail::NDRDescT &NDRDesc,
-      ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc);
-
-  /// Updates host-task nodes in the graph
-  /// @param Nodes List of nodes to update, any node that is not a host-task
-  /// will be ignored.
-  void
-  updateHostTasksImpl(const std::vector<std::shared_ptr<node_impl>> &Nodes);
+      ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const;
 
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
