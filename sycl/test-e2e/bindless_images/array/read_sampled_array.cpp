@@ -1,5 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: aspect-ext_oneapi_image_array
+
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Image arrays are unimplemented in the HIP adapter.
 
 // UNSUPPORTED: level_zero
 // UNSUPPORTED-INTENDED: Linear sampling rounds differently on Intel devices
@@ -35,7 +37,8 @@ static void
 runNDimTestHost(sycl::range<NDims> globalSize, float offset,
                 syclexp::bindless_image_sampler &samp,
                 std::vector<sycl::vec<DType, NChannels>> &inputImage,
-                std::vector<sycl::vec<DType, NChannels>> &output) {
+                std::vector<sycl::vec<DType, NChannels>> &output,
+                sycl::backend backend) {
 
   using VecType = sycl::vec<DType, NChannels>;
   bool isNorm =
@@ -72,7 +75,7 @@ runNDimTestHost(sycl::range<NDims> globalSize, float offset,
             inputImage.begin() + arr_idx * globalSizeTwoComp.size(),
             inputImage.begin() + (arr_idx + 1) * globalSizeTwoComp.size());
         VecType result = sampling_helpers::read<NDims - 1, DType, NChannels>(
-            globalSizeTwoComp, coords, offset, samp, layer);
+            globalSizeTwoComp, coords, offset, samp, layer, backend);
 
         output[arr_idx * globalSizeTwoComp.size() + i + (globalSize[0] * j)] =
             result;
@@ -156,6 +159,8 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
+  sycl::backend backend = dev.get_backend();
+
   size_t numElems = dims.size();
   auto image_array_dims = bindless_helpers::ImageArrayDims<NDims>(dims);
 
@@ -169,7 +174,7 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   {
     sycl::range<NDims> globalSize = dims;
     runNDimTestHost<NDims, DType, NChannels>(globalSize, offset, samp, input,
-                                             expected);
+                                             expected, backend);
   }
 
   try {
@@ -324,8 +329,41 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
       syclexp::bindless_image_sampler samp(addrMode, normMode, filtMode);
 
 #if defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
-      util::printTestInfo(samp, offset);
+      sampling_helpers::printTestInfo(samp, offset);
 #endif
+
+      bindless_helpers::printTestName<NDims>("Running 1D int", dims, localSize);
+      failed |=
+          util::runTest<NDims, int, 1, sycl::image_channel_type::signed_int32,
+                        class int_1d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 1D int2", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, int, 2, sycl::image_channel_type::signed_int32,
+                        class int2_1d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 1D int4", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, int, 4, sycl::image_channel_type::signed_int32,
+                        class int4_1d>(dims, localSize, offset, samp, seed);
+
+      bindless_helpers::printTestName<NDims>("Running 1D uint", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, unsigned int, 1,
+                        sycl::image_channel_type::unsigned_int32,
+                        class uint_1d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 1D uint2", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, unsigned int, 2,
+                        sycl::image_channel_type::unsigned_int32,
+                        class uint2_1d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 1D uint4", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, int, 4, sycl::image_channel_type::signed_int32,
+                        class uint4_1d>(dims, localSize, offset, samp, seed);
 
       bindless_helpers::printTestName<NDims>("Running 1D short", dims,
                                              localSize);
@@ -473,8 +511,41 @@ bool runTests(sycl::range<3> dims, sycl::range<3> localSize, float offset,
       syclexp::bindless_image_sampler samp(addrMode, normMode, filtMode);
 
 #if defined(VERBOSE_LV2) || defined(VERBOSE_LV3)
-      util::printTestInfo(samp, offset);
+      sampling_helpers::printTestInfo(samp, offset);
 #endif
+
+      bindless_helpers::printTestName<NDims>("Running 2D int", dims, localSize);
+      failed |=
+          util::runTest<NDims, int, 1, sycl::image_channel_type::signed_int32,
+                        class int_2d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 2D int2", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, int, 2, sycl::image_channel_type::signed_int32,
+                        class int2_2d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 2D int4", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, int, 4, sycl::image_channel_type::signed_int32,
+                        class int4_2d>(dims, localSize, offset, samp, seed);
+
+      bindless_helpers::printTestName<NDims>("Running 2D uint", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, unsigned int, 1,
+                        sycl::image_channel_type::unsigned_int32,
+                        class uint_2d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 2D uint2", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, unsigned int, 2,
+                        sycl::image_channel_type::unsigned_int32,
+                        class uint2_2d>(dims, localSize, offset, samp, seed);
+      bindless_helpers::printTestName<NDims>("Running 2D uint4", dims,
+                                             localSize);
+      failed |=
+          util::runTest<NDims, int, 4, sycl::image_channel_type::signed_int32,
+                        class uint4_2d>(dims, localSize, offset, samp, seed);
 
       bindless_helpers::printTestName<NDims>("Running 2D short", dims,
                                              localSize);

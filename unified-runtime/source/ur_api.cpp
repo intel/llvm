@@ -4138,6 +4138,8 @@ ur_result_t UR_APICALL urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
 ur_result_t UR_APICALL urEventGetProfilingInfo(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,
@@ -6664,6 +6666,7 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pCommandBufferDesc`
 ///         + `NULL == phCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -6678,7 +6681,7 @@ ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext,
     /// [in] Handle of the device object.
     ur_device_handle_t hDevice,
-    /// [in][optional] command-buffer descriptor.
+    /// [in] Command-buffer descriptor.
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     /// [out][alloc] Pointer to command-Buffer handle.
     ur_exp_command_buffer_handle_t *phCommandBuffer) {

@@ -10,7 +10,7 @@ from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
 from .result import Result
 from options import options
-
+from enum import Enum
 
 class ComputeBench(Suite):
     def __init__(self, directory):
@@ -27,7 +27,7 @@ class ComputeBench(Suite):
             self.directory,
             "compute-benchmarks-repo",
             "https://github.com/intel/compute-benchmarks.git",
-            "578a7ac6f9bc48f6c2b408ef64a19a2ef9a216e7",
+            "9369275026229b182bc4a555b73c2ec995a9e2b7",
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 
@@ -80,10 +80,14 @@ class ComputeBench(Suite):
             MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
             MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
             MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
-            GraphApiSinKernelGraphSYCL(self, 0, 10),
-            GraphApiSinKernelGraphSYCL(self, 1, 10),
-            GraphApiSinKernelGraphSYCL(self, 0, 100),
-            GraphApiSinKernelGraphSYCL(self, 1, 100),
+            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 5),
+            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 5),
+            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 100),
+            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 100),
+            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 5),
+            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 5),
+            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 100),
+            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 100),
             # Submit
             GraphApiSubmitExecGraph(self, 0, 1, 10),
             GraphApiSubmitExecGraph(self, 1, 1, 10),
@@ -99,6 +103,10 @@ class ComputeBench(Suite):
                 SubmitKernelUR(self, 0, 0),
                 SubmitKernelUR(self, 1, 0),
                 SubmitKernelUR(self, 1, 1),
+                GraphApiSinKernelGraph(self, RUNTIMES.UR, 0, 5),
+                GraphApiSinKernelGraph(self, RUNTIMES.UR, 1, 5),
+                GraphApiSinKernelGraph(self, RUNTIMES.UR, 0, 100),
+                GraphApiSinKernelGraph(self, RUNTIMES.UR, 1, 100),
             ]
 
         return benches
@@ -420,23 +428,34 @@ class MemcpyExecute(ComputeBenchmark):
         ]
 
 
-class GraphApiSinKernelGraphSYCL(ComputeBenchmark):
-    def __init__(self, bench, withGraphs, numKernels):
+class RUNTIMES(Enum):
+    SYCL = "sycl"
+    LEVEL_ZERO = "l0"
+    UR = "ur"
+
+
+class GraphApiSinKernelGraph(ComputeBenchmark):
+    def __init__(self, bench, runtime: RUNTIMES, withGraphs, numKernels):
         self.withGraphs = withGraphs
         self.numKernels = numKernels
-        super().__init__(bench, "graph_api_benchmark_sycl", "SinKernelGraph")
+        self.runtime = runtime
+        super().__init__(
+            bench, f"graph_api_benchmark_{runtime.value}", "SinKernelGraph"
+        )
 
     def explicit_group(self):
-        return "SinKernelGraph"
+        return f"SinKernelGraph {self.numKernels}"
 
     def name(self):
-        return f"graph_api_benchmark_sycl SinKernelGraph graphs:{self.withGraphs}, numKernels:{self.numKernels}"
+        return f"graph_api_benchmark_{self.runtime.value} SinKernelGraph graphs:{self.withGraphs}, numKernels:{self.numKernels}"
 
     def bin_args(self) -> list[str]:
         return [
-            "--iterations=100",
+            "--iterations=10000",
             f"--numKernels={self.numKernels}",
             f"--withGraphs={self.withGraphs}",
+            "--withCopyOffload=1",
+            "--immediateAppendCmdList=0",
         ]
 
 

@@ -40,7 +40,10 @@ struct KernelCommandEventSyncTest
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, device_ptrs[1]));
 
     // Create second command-buffer
-    ASSERT_SUCCESS(urCommandBufferCreateExp(context, device, nullptr,
+    ur_exp_command_buffer_desc_t desc{
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, false, false, false,
+    };
+    ASSERT_SUCCESS(urCommandBufferCreateExp(context, device, &desc,
                                             &second_cmd_buf_handle));
     ASSERT_NE(second_cmd_buf_handle, nullptr);
   }
