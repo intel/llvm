@@ -53,7 +53,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
     if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
-      continue; // nothing to do
+      continue;
 
     EnqueueResultT Res;
     bool Enqueued =
@@ -69,7 +69,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
-      continue; // nothing to do
+      continue;
 
     EnqueueResultT Res;
     bool Enqueued =
@@ -283,13 +283,13 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
   // If we are shutting down on Windows it may not be
   // safe to wait on host threads, as the OS may
   // abandon them. But no worries, the memory WILL be reclaimed.
-  bool allowWait =
+  const bool allowWait =
       MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
   if (!allowWait) {
     StrictLock = false;
   }
 #else
-  bool allowWait = true;
+  const bool allowWait = true;
 #endif
 
   if (allowWait) {

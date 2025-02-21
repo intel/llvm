@@ -84,7 +84,7 @@ The deferred memory marshalling is built on a thread pool, but there is a
 challenge here in that on Windows, once the end of the users main() is reached
 and their app is shutting down, the Windows OS will abandon all remaining 
 in-flight threads. These threads can be .join() but they simply return instantly,
-the threads are not completed. Further any thread specific variables
+the threads are not completed. Furthermore, any thread specific variables
 (or thread_local static vars) will NOT have their destructors called.  Note
 that the standard while-loop-over-condition-var pattern will cause a hang - 
 we cannot "wait" on abandoned threads. 
@@ -133,7 +133,7 @@ DllMain(PROCESS_DETACH), unless statically linked.
 
 The "late_shutdown()" is begun by the destruction of a 
 static StaticVarShutdownHandler object, which is initialized by 
-platform::get_platforms().  ( On linux, this is when we do "early_shutdown()". 
+platform::get_platforms().  (On Linux, this is when we do "early_shutdown()". 
 Go figure.)  This is as late as we can manage, but it is later than any user 
 application global, static, or thread_local variable destruction.
 
