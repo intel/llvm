@@ -33,6 +33,10 @@ public:
   bool isInteropTask() const { return !!MInteropTask; }
 
   void call(HostProfilingInfo *HPI) {
+    if (!GlobalHandler::instance().isOkToDefer()) {
+      return;
+    }
+
     if (HPI)
       HPI->start();
     MHostTask();
@@ -41,6 +45,10 @@ public:
   }
 
   void call(HostProfilingInfo *HPI, interop_handle handle) {
+    if (!GlobalHandler::instance().isOkToDefer()) {
+      return;
+    }
+
     if (HPI)
       HPI->start();
     MInteropTask(handle);
