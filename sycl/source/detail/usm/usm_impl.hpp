@@ -19,9 +19,6 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
                            const context_impl *CtxImpl,
                            const device_impl *DevImpl, sycl::usm::alloc Kind,
                            const property_list &PropList = {});
-
-void freeInternal(void *Ptr, const context_impl *CtxImpl);
-
 } // namespace usm
 } // namespace detail
 } // namespace _V1

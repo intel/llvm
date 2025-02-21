@@ -32,17 +32,10 @@ template <typename T, int N> bool test(queue &Q) {
   std::cout << "  Running " << esimd_test::type_name<T>() << " test, N=" << N
             << "...\n";
 
-  struct Deleter {
-    queue Q;
-    void operator()(T *Ptr) {
-      if (Ptr) {
-        sycl::free(Ptr, Q);
-      }
-    }
-  };
+  using ext::oneapi::experimental::usm_deleter;
 
-  std::unique_ptr<T, Deleter> Ptr1(sycl::malloc_shared<T>(N, Q), Deleter{Q});
-  std::unique_ptr<T, Deleter> Ptr2(sycl::malloc_shared<T>(N, Q), Deleter{Q});
+  std::unique_ptr<T, usm_deleter> Ptr1(sycl::malloc_shared<T>(N, Q), {Q});
+  std::unique_ptr<T, usm_deleter> Ptr2(sycl::malloc_shared<T>(N, Q), {Q});
 
   T *Src = Ptr1.get();
   T *Dst = Ptr2.get();

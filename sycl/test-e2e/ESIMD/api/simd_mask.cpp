@@ -78,28 +78,17 @@ check_masks_equal(const simd_mask<N> &M1, const simd_mask<N> &M2,
 template <int N> struct sub_test {
   using value_type = typename simd_mask<N>::element_type;
 
-  // Used to automatically free USM memory allocated for input/output.
-  struct usm_deleter {
-    queue Q;
-
-    void operator()(value_type *Ptr) {
-      if (Ptr) {
-        sycl::free(Ptr, Q);
-      }
-    }
-  };
-
   queue Q;
   using ptr_type = std::unique_ptr<value_type, usm_deleter>;
-  ptr_type In;
-  ptr_type InvIn;
-  ptr_type Res;
+  ptr_type In{nullptr, {Q}};
+  ptr_type InvIn{nullptr, {Q}};
+  ptr_type Res{nullptr, {Q}};
   size_t Size = N * 7;
 
   sub_test(queue Q, bool Need2Inputs = false) : Q(Q) {
-    In = ptr_type{nullptr, usm_deleter{Q}};
-    InvIn = ptr_type{nullptr, usm_deleter{Q}};
-    Res = ptr_type{nullptr, usm_deleter{Q}};
+    In = ptr_type{nullptr, {Q}};
+    InvIn = ptr_type{nullptr, {Q}};
+    Res = ptr_type{nullptr, {Q}};
     init(Need2Inputs);
   }
 

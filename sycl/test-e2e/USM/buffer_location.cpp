@@ -20,6 +20,8 @@
 
 using namespace sycl;
 
+using ext::oneapi::experimental::usm_deleter;
+
 // Pointer wrapper allows custom deleter to clean up resources
 struct ptr_wrapper {
   sycl::context m_ctx;
@@ -40,28 +42,30 @@ int main() {
     return 0;
 
   int true_buf_loc = 3;
-  auto test_src_ptr_unq = std::unique_ptr<ptr_wrapper>(new ptr_wrapper(
-      ctxt, malloc_device<int>(
-                1, dev, ctxt,
-                property_list{
-                    ext::intel::experimental::property::usm::buffer_location(
-                        true_buf_loc)})));
+  std::unique_ptr<int, usm_deleter> test_src_ptr_unq{
+      malloc_device<int>(
+          1, q,
+          property_list{
+              ext::intel::experimental::property::usm::buffer_location(
+                  true_buf_loc)}),
+      {q}};
   if (test_src_ptr_unq == nullptr) {
     return -1;
   }
-  auto test_dst_ptr_unq = std::unique_ptr<ptr_wrapper>(new ptr_wrapper(
-      ctxt, malloc_device<int>(
-                1, dev, ctxt,
-                property_list{
-                    ext::intel::experimental::property::usm::buffer_location(
-                        true_buf_loc)})));
+  std::unique_ptr<int, usm_deleter> test_dst_ptr_unq{
+      malloc_device<int>(
+          1, q,
+          property_list{
+              ext::intel::experimental::property::usm::buffer_location(
+                  true_buf_loc)}),
+      {q}};
   if (test_dst_ptr_unq == nullptr) {
     return -1;
   }
   int src_val = 3;
   int dst_val = 4;
-  int *test_src_ptr = test_src_ptr_unq.get()->m_ptr;
-  int *test_dst_ptr = test_dst_ptr_unq.get()->m_ptr;
+  int *test_src_ptr = test_src_ptr_unq.get();
+  int *test_dst_ptr = test_dst_ptr_unq.get();
   event e0 = q.memcpy(test_src_ptr, &src_val, sizeof(int));
   e0.wait();
   event e1 = q.memcpy(test_dst_ptr, &dst_val, sizeof(int));

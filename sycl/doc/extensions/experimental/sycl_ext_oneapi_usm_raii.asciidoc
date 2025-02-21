@@ -1,0 +1,135 @@
+= sycl_ext_oneapi_usm_raii
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+SYCL 2020 provides very C-like interfaces for USM allocation/deallocations
+routines. With in-order queues/USM and
+link:./sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+as a future direction to write SYCL programs with as little overhead as possible
+we need usability improvements for the USM APIs that C++ programmers would
+expect.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_USM_RAII` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== USM Deleter
+
+This extension adds `usm_deleter` helper that can be used with `std::unique_ptr`
+or `std::shared_ptr` to manage deallocation of USM memory.
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+class usm_deleter {
+public:
+  usm_deleter(const context &Ctx);
+  usm_deleter(const queue &q);
+
+  template <typename T> void operator()(T *Ptr) const;
+};
+} // sycl::ext::oneapi::experimental
+----
+
+=== Example usage
+
+A simple example of using this extension is below.
+
+```c++
+{
+  sycl::queue q;
+  using sycl::ext::oneapi::experimental::usm_deleter;
+  std::unique_ptr<int, usm_deleter> p{sycl::malloc_shared<int>(1, q), {q}};
+  q.single_task([=, p = p.get()]() { *p = 42; }).wait();
+}
+```
+
+== Issues/open questions/implementation details
+
+* link:https://en.cppreference.com/w/cpp/memory/shared_ptr/allocate_shared[`allocate_shared(const Alloc& alloc, Args&&... args )`]
+  seems to work with existing `usm_allocator`. However, it uses single
+  allocation for both the allocated object and auxilary data for
+  `std::shared_ptr`. Having that auxilary data residing in the same USM memory
+  might have unintended consequences depending on particular HW when copies are
+  created on host when the same memory page is being accessed on a device.
+* Providing `make_unique`/`make_shared`-like interface would lead to API bloat,
+  so not explored in this revision.
+* How should `usm_deleter` store `context`/`device`? Should it be another copy
+  following SYCL's common reference semantics and, essentially, extending their
+  lifetime for the duration of the smart pointer lifetime? Or can we require
+  that the `usm_deleter` would only be called when the underlying
+  `context`/`device` is still alive and as such it can simply store a reference
+  to the underlying objects without having to pay the price of increasing
+  use-counters to follow C++ approach of zero-cost abstractions comparing to
+  manually calling `sycl::free`
