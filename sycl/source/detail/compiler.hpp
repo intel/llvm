@@ -76,13 +76,52 @@
 
 #define __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGE
 // Entry type, matches OpenMP for compatibility
-struct _sycl_offload_entry_struct {
+struct _sycl_offload_entry_struct_legacy {
   void *addr;
   char *name;
   size_t size;
   int32_t flags;
   int32_t reserved;
+};
+using sycl_offload_entry_legacy = _sycl_offload_entry_struct_legacy *;
+#endif
+
+// New entry type after
+// https://github.com/llvm/llvm-project/pull/124018
+struct _sycl_offload_entry_struct {
+  /// Reserved bytes used to detect an older version of the struct, always zero.
+  uint64_t Reserved;
+  /// The current version of the struct for runtime forward compatibility.
+  uint16_t Version;
+  /// The expected consumer of this entry, e.g. CUDA or OpenMP.
+  uint16_t Kind;
+  /// Flags associated with the global.
+  uint32_t Flags;
+  /// The address of the global to be registered by the runtime.
+  void *Address;
+  /// The name of the symbol in the device image.
+  char *SymbolName;
+  /// The number of bytes the symbol takes.
+  uint64_t Size;
+  /// Extra generic data used to register this entry.
+  uint64_t Data;
+  /// An extra pointer, usually null.
+  void *AuxAddr;
+
+  // Name is the only field that's used in SYCL.
+  inline char *GetName() {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGE
+    // Check if the first 64 bits of this struct are not zero, if so, this is an
+    // older version of the struct.
+    if (*(uint64_t *)(this)) {
+      // This is an older version of the struct, use the old name field.
+      return reinterpret_cast<_sycl_offload_entry_struct_legacy *>(this)->name;
+    }
+#endif
+    return SymbolName;
+  }
 };
 using sycl_offload_entry = _sycl_offload_entry_struct *;
 

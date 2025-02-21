@@ -14,17 +14,22 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-OffloadEntryContainer::OffloadEntryContainer(const std::string &Name,
-                                             void *Addr, size_t Size,
-                                             int32_t Flags, int32_t Reserved)
-    : KernelName{new char[Name.length() + 1]}, Address{Addr}, EntrySize{Size},
-      EntryFlags{Flags}, EntryReserved{Reserved} {
-  std::memcpy(KernelName.get(), Name.c_str(), Name.length() + 1);
+OffloadEntryContainer::OffloadEntryContainer(uint64_t _Reserved,
+                                             uint16_t _Version, uint16_t _Kind,
+                                             uint32_t _Flags, void *_Addr,
+                                             const std::string &_Name,
+                                             uint64_t _Size, uint64_t _Data,
+                                             void *_AuxAddr)
+    : Reserved{_Reserved}, Version{_Version}, Kind{_Kind}, EntryFlags{_Flags},
+      Address{_Addr}, KernelName{new char[_Name.length() + 1]},
+      EntrySize{_Size}, Data{_Data}, AuxAddr{_AuxAddr} {
+  std::memcpy(KernelName.get(), _Name.c_str(), _Name.length() + 1);
 }
 
 _sycl_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
-  return _sycl_offload_entry_struct{Address, KernelName.get(), EntrySize,
-                                    EntryFlags, EntryReserved};
+  return _sycl_offload_entry_struct{Reserved,   Version, Kind,
+                                    EntryFlags, Address, KernelName.get(),
+                                    EntrySize,  Data,    AuxAddr};
 }
 
 PropertyContainer::PropertyContainer(const std::string &Name, const void *Data,

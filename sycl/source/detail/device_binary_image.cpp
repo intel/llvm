@@ -122,7 +122,7 @@ void RTDeviceBinaryImage::print() const {
   std::cerr << "    Entries  : ";
   for (sycl_offload_entry EntriesIt = Bin->EntriesBegin;
        EntriesIt != Bin->EntriesEnd; ++EntriesIt)
-    std::cerr << EntriesIt->name << " ";
+    std::cerr << EntriesIt->GetName() << " ";
   std::cerr << "\n";
   std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"
             << Bin->PropertySetsEnd << "]:\n";
