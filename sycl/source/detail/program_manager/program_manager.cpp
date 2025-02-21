@@ -1994,25 +1994,27 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         }
       }
     }
-    m_DeviceImages.insert(std::move(Img));
+    m_DeviceImages.insert({RawImg, std::move(Img)});
   }
 }
 
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
+  // No need in fair partial cleanup at shutdown
+  if (!GlobalHandler::instance().isOkToDefer())
+    return;
+
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
+    auto DevImgIt = m_DeviceImages.find(RawImg);
+    if (DevImgIt == m_DeviceImages.end())
+      continue;
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
     if (EntriesB == EntriesE)
       continue;
 
-    // Retrieve RTDeviceBinaryImage by looking up the first offload entry
-    kernel_id FirstKernelID = getSYCLKernelID(RawImg->EntriesBegin->name);
-    auto RTDBImages = getRawDeviceImages({FirstKernelID});
-    assert(RTDBImages.size() == 1);
-
-    RTDeviceBinaryImage *Img = *RTDBImages.begin();
+    RTDeviceBinaryImage *Img = DevImgIt->second.get();
 
     // Drop the kernel argument mask map
     m_EliminatedKernelArgMasks.erase(Img);
@@ -2040,10 +2042,11 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       std::ignore = m_KernelUsesAssert.erase(EntriesIt->name);
       std::ignore = m_KernelImplicitLocalArgPos.erase(EntriesIt->name);
 
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
-      assert(It != m_KernelName2KernelIDs.end());
-      m_KernelName2KernelIDs.erase(It);
-      m_KernelIDs2BinImage.erase(It->second);
+      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+          It != m_KernelName2KernelIDs.end()) {
+        m_KernelName2KernelIDs.erase(It);
+        m_KernelIDs2BinImage.erase(It->second);
+      }
     }
 
     // Drop reverse mapping
@@ -2075,8 +2078,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
                 return Entry.second == DevGlobalIt->second.get();
               });
           if (findDevGlobalByValue != m_Ptr2DeviceGlobal.end())
-            std::ignore = m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
-          std::ignore = m_DeviceGlobals.erase(DevGlobalIt);
+            m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
+          m_DeviceGlobals.erase(DevGlobalIt);
         }
       }
     }
@@ -2094,8 +2097,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
                 return Entry.second == HostPipesIt->second.get();
               });
           if (findHostPipesByValue != m_Ptr2HostPipe.end())
-            std::ignore = m_Ptr2HostPipe.erase(findHostPipesByValue);
-          std::ignore = m_HostPipes.erase(HostPipesIt);
+            m_Ptr2HostPipe.erase(findHostPipesByValue);
+          m_HostPipes.erase(HostPipesIt);
         }
       }
     }
@@ -2113,12 +2116,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       }
     }
 
-    // Finally, destroy the image by erasing the associated unique ptr
-    auto It =
-        std::find_if(m_DeviceImages.begin(), m_DeviceImages.end(),
-                     [Img](const auto &UPtr) { return UPtr.get() == Img; });
-    assert(It != m_DeviceImages.end());
-    m_DeviceImages.erase(It);
+    m_DeviceImages.erase(DevImgIt);
   }
 }
 
