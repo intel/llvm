@@ -173,11 +173,14 @@ dependencies are satisfied.
 The SYCL command described above completes once all of the native asynchronous
 tasks it contains have completed.
 
-The call to `interopCallable` must not submit any synchronous tasks to the
-native backend object, and it must not block waiting for any tasks to complete.
-The call also must not add tasks to backend objects that underly any other
-queue, aside from the queue that is associated with this handler. If it does
-any of these things, the behavior is undefined.
+With the exception of calling synchronous APIs required to append commands to a
+native graph object, see
+link:../experimental/sycl_ext_oneapi_graph.asciidoc[sycl_ext_oneapi_graph],
+the call to `interopCallable` must not submit any
+synchronous tasks to the native backend object. The call must also not block
+waiting for any tasks to complete. Additionally, the call must not add tasks to
+backend objects that underly any other queue, aside from the queue that is
+associated with this handler. If it does any of these things, the behavior is undefined.
 
 == Example
 
@@ -206,12 +209,3 @@ q.submit([&](sycl::handler &cgh) {
   });
 q.wait();
 ```
-
-== Issues
-
-=== sycl_ext_oneapi_graph
-
-`ext_codeplay_enqueue_native_command`
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-

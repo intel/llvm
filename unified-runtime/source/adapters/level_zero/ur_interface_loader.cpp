@@ -127,6 +127,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       ur::level_zero::urCommandBufferAppendUSMPrefetchExp;
   pDdiTable->pfnAppendUSMAdviseExp =
       ur::level_zero::urCommandBufferAppendUSMAdviseExp;
+  pDdiTable->pfnAppendNativeCommandExp =
+      ur::level_zero::urCommandBufferAppendNativeCommandExp;
   pDdiTable->pfnEnqueueExp = ur::level_zero::urCommandBufferEnqueueExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
       ur::level_zero::urCommandBufferUpdateKernelLaunchExp;
@@ -135,6 +137,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnUpdateWaitEventsExp =
       ur::level_zero::urCommandBufferUpdateWaitEventsExp;
   pDdiTable->pfnGetInfoExp = ur::level_zero::urCommandBufferGetInfoExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur::level_zero::urCommandBufferGetNativeHandleExp;
 
   return result;
 }

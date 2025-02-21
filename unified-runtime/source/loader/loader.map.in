@@ -31,6 +31,7 @@
 		urCommandBufferAppendMemBufferReadRectExp;
 		urCommandBufferAppendMemBufferWriteExp;
 		urCommandBufferAppendMemBufferWriteRectExp;
+		urCommandBufferAppendNativeCommandExp;
 		urCommandBufferAppendUSMAdviseExp;
 		urCommandBufferAppendUSMFillExp;
 		urCommandBufferAppendUSMMemcpyExp;
@@ -39,6 +40,7 @@
 		urCommandBufferEnqueueExp;
 		urCommandBufferFinalizeExp;
 		urCommandBufferGetInfoExp;
+		urCommandBufferGetNativeHandleExp;
 		urCommandBufferReleaseExp;
 		urCommandBufferRetainExp;
 		urCommandBufferUpdateKernelLaunchExp;
@@ -209,6 +211,7 @@
 		urPrintCommandBufferAppendMemBufferReadRectExpParams;
 		urPrintCommandBufferAppendMemBufferWriteExpParams;
 		urPrintCommandBufferAppendMemBufferWriteRectExpParams;
+		urPrintCommandBufferAppendNativeCommandExpParams;
 		urPrintCommandBufferAppendUsmAdviseExpParams;
 		urPrintCommandBufferAppendUsmFillExpParams;
 		urPrintCommandBufferAppendUsmMemcpyExpParams;
@@ -217,6 +220,7 @@
 		urPrintCommandBufferEnqueueExpParams;
 		urPrintCommandBufferFinalizeExpParams;
 		urPrintCommandBufferGetInfoExpParams;
+		urPrintCommandBufferGetNativeHandleExpParams;
 		urPrintCommandBufferReleaseExpParams;
 		urPrintCommandBufferRetainExpParams;
 		urPrintCommandBufferUpdateKernelLaunchExpParams;

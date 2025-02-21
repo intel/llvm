@@ -1177,6 +1177,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
     os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
     break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP:
+    os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP";
+    break;
+  case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP:
+    os << "UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -18636,6 +18642,52 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_command_buffer_append_native_command_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_native_command_exp_params_t *params) {
+
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".pfnNativeCommand = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnNativeCommand));
+
+  os << ", ";
+  os << ".pData = ";
+
+  ur::details::printPtr(os, *(params->ppData));
+
+  os << ", ";
+  os << ".hChildCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phChildCommandBuffer));
+
+  os << ", ";
+  os << ".numSyncPointsInWaitList = ";
+
+  os << *(params->pnumSyncPointsInWaitList);
+
+  os << ", ";
+  os << ".pSyncPointWaitList = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPointWaitList));
+
+  os << ", ";
+  os << ".pSyncPoint = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPoint));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_command_buffer_enqueue_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -18793,6 +18845,27 @@ operator<<(std::ostream &os,
   os << ".pPropSizeRet = ";
 
   ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_command_buffer_get_native_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_get_native_handle_exp_params_t *params) {
+
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".phNativeCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->pphNativeCommandBuffer));
 
   return os;
 }
@@ -20064,6 +20137,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct ur_command_buffer_append_usm_advise_exp_params_t *)
             params;
   } break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP: {
+    os << (const struct ur_command_buffer_append_native_command_exp_params_t *)
+            params;
+  } break;
   case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP: {
     os << (const struct ur_command_buffer_enqueue_exp_params_t *)params;
   } break;
@@ -20081,6 +20158,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP: {
     os << (const struct ur_command_buffer_get_info_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP: {
+    os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP: {
     os << (const struct ur_usm_p2p_enable_peer_access_exp_params_t *)params;
