@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 8 specification.  All
+This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -59,10 +59,6 @@ or may be in a preliminary state.  The specification itself may also change in
 incompatible ways before it is finalized.  *Shipping software products should
 not rely on APIs defined in this specification.*
 
-
-== Backend support status
-
-This extension is not yet implemented in {dpcpp}.
 
 == Overview
 
@@ -325,8 +321,8 @@ A memory pool has a number of properties and state which dictate it's behavior:
   property of the device the memory pool is associated with and is static.
 * A memory pool has a *maximum size* (in bytes) which dictates the total amount
   of memory which can be allocated to the pool, such that if an allocation would
-  exceed this value an error is thrown. The default maximum size is
-  implementation defined.
+  exceed this value an error is thrown. The default maximum size is an
+  implementation defined non-zero value.
 * A memory pool has a *threshold size* (in bytes) which dictates an amount of
   the user would like the SYCL runtime to maintain in the pool, even when not
   allocated out to a USM pointer. The threshold size is a hint, and so an
@@ -453,7 +449,7 @@ and device `dev`, with the allocation kind `kind` and applying any properties in
 `props`.
 
 _Throws_: An exception with the `errc::invalid` error code if `kind` is
-`usm::alloc::host`.
+`usm::alloc::host` or `usm::alloc::unknown`.
 
 [source, c++]
 ----
@@ -466,6 +462,9 @@ device from the queue `q``, with the allocation kind `kind` and applying any
 properties in `props`. If `kind` is `usm::alloc::host` this is equivalent to
 calling `memory_pool(queue.get_context(), props)` otherwise this is equivalent
 to calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
+
+_Throws_: An exception with the `errc::invalid` error code if `kind` is
+`usm::alloc::unknown`.
 
 [source, c++]
 ----
@@ -687,8 +686,10 @@ memory_pool context::ext_oneapi_get_default_memory_pool(device dev,
 _Returns_: The default memory pool associated with the context and `dev` for
 allocating with the allocations of kind `kind`.
 
-_Throws_: An exception with the `errc::invalid` error code if `kind` is
-`usm::alloc::host`.
+_Throws_: An exception with the `errc::invalid` error code if `dev` is not one
+of the devices associated with the context. An exception with the
+`errc::invalid` error code if `kind` is `usm::alloc::host` or
+`usm::alloc::unknown`.
 
 
 === Asynchronous malloc & free
@@ -754,7 +755,8 @@ non-zero, otherwise returns `nullptr`.
 
 _Throws_: An exception with the `errc::memory_allocation` error code if the
 allocation brings the memory pool over the maximum size. This error must be
-thrown asynchronously.
+thrown asynchronously. An exception with the `errc::invalid` error code if
+`kind` is `usm::alloc::unknown`.
 
 [source, c++]
 ----
