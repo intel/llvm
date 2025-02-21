@@ -12,6 +12,10 @@
   * [Marking tests as expected to fail](#marking-tests-as-expected-to-fail)
   * [Marking tests as unsupported](#marking-tests-as-unsupported)
 * [SYCL core header file](#sycl-core-header-file)
+* [Compiling and executing tests on separate systems](#separate-build-and-run)
+  * [Run only mode](#run-only-mode)
+  * [Build only mode](#build-only-mode)
+  * [Common Issues with separate build and run](#common-build-and-run-issues)
 
 ## Overview
 
@@ -392,7 +396,9 @@ machines. By default the `test-mode` parameter is set to `full`, indicating that
 both stages will run. This parameter can be set to `build-only`, or `run-only`,
 to only run the compilation stage, or the execution stage respectively.
 
-* `--param test-mode=run-only`
+#### Run only mode
+  
+  Set with: `--param test-mode=run-only`
 
   In this mode, tests will not be compiled, they will only run. To do this only
   the `RUN:` lines that contain a "run" expansion will be executed (`%{run}`,
@@ -407,7 +413,9 @@ to only run the compilation stage, or the execution stage respectively.
   `%{run-aux}` is an empty expansion and executes a line as is, without
   expanding for each selected device and without using the run_launcher.
 
-* `--param test-mode=build-only`
+#### Build only mode
+
+  Set with: `--param test-mode=build-only`
 
   This mode can be used to compile all test binaries that can be built on the
   system. To do this `REQUIRES`, and `UNSUPPORTED` statements are handled
@@ -436,7 +444,7 @@ to only run the compilation stage, or the execution stage respectively.
 
   The `build-mode` feature is added when in this mode.
 
-#### Resolving common Issues with separate compilation and execution
+#### Common Issues with separate build and run
 
 A number of extra considerations need to be taken to write tests that are able
 to be compiled and executed on separate machines.
