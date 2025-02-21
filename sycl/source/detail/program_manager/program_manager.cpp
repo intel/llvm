@@ -1998,6 +1998,134 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   }
 }
 
+void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
+  // No need in fair partial cleanup at shutdown
+  if (!GlobalHandler::instance().isOkToDefer() ||
+      !(DeviceBinaries && DeviceBinaries->NumDeviceBinaries))
+    return;
+
+  for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
+    sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
+    const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
+    const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
+    // Treat the image as empty one
+    if (EntriesB == EntriesE)
+      continue;
+
+    // Retrieve RTDeviceBinaryImage by looking up the first offload entry
+    kernel_id FirstKernelID = getSYCLKernelID(RawImg->EntriesBegin->name);
+    auto RTDBImages = getRawDeviceImages({FirstKernelID});
+    assert(RTDBImages.size() == 1);
+
+    RTDeviceBinaryImage *Img = *RTDBImages.begin();
+
+    // Drop the kernel argument mask map
+    m_EliminatedKernelArgMasks.erase(Img);
+
+    // Acquire lock to modify maps for kernel bundles
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+    // Unmap the unique kernel IDs for the offload entries
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         ++EntriesIt) {
+
+      // Drop entry for service kernel
+      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->name);
+        continue;
+      }
+
+      // Exported device functions won't have a kernel ID
+      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
+          m_ExportedSymbolImages.end()) {
+        continue;
+      }
+
+      // remove Everything associated with this KernelName
+      std::ignore = m_KernelUsesAssert.erase(EntriesIt->name);
+      std::ignore = m_KernelImplicitLocalArgPos.erase(EntriesIt->name);
+
+      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      assert(It != m_KernelName2KernelIDs.end());
+      m_KernelName2KernelIDs.erase(It);
+      m_KernelIDs2BinImage.erase(It->second);
+    }
+
+    // Drop reverse mapping
+    m_BinImg2KernelIDs.erase(Img);
+
+    // Unregister exported symbols (needs to happen after the ID unmap loop)
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
+      m_ExportedSymbolImages.erase(ESProp->Name);
+    }
+
+    for (const sycl_device_binary_property &VFProp :
+         Img->getVirtualFunctions()) {
+      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+      for (const auto &SetName : detail::split_string(StrValue, ','))
+        m_VFSet2BinImage.erase(SetName);
+    }
+    {
+      std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+      auto DeviceGlobals = Img->getDeviceGlobals();
+      for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
+        if (auto DevGlobalIt = m_DeviceGlobals.find(DeviceGlobal->Name);
+            DevGlobalIt != m_DeviceGlobals.end()) {
+          auto findDevGlobalByValue = std::find_if(
+              m_Ptr2DeviceGlobal.begin(), m_Ptr2DeviceGlobal.end(),
+              [&DevGlobalIt](const std::pair<const void *,
+                                             DeviceGlobalMapEntry *> &Entry) {
+                return Entry.second == DevGlobalIt->second.get();
+              });
+          if (findDevGlobalByValue != m_Ptr2DeviceGlobal.end())
+            std::ignore = m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
+          std::ignore = m_DeviceGlobals.erase(DevGlobalIt);
+        }
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+      auto HostPipes = DeviceImage->getHostPipes();
+      for (const sycl_device_binary_property &HostPipe : HostPipes) {
+        if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
+            HostPipesIt != m_HostPipes.end()) {
+          auto findHostPipesByValue = std::find_if(
+              m_Ptr2HostPipe.begin(), m_Ptr2HostPipe.end(),
+              [&HostPipesIt](
+                  const std::pair<const void *, HostPipeMapEntry *> &Entry) {
+                return Entry.second == HostPipesIt->second.get();
+              });
+          if (findHostPipesByValue != m_Ptr2HostPipe.end())
+            std::ignore = m_Ptr2HostPipe.erase(findHostPipesByValue);
+          std::ignore = m_HostPipes.erase(HostPipesIt);
+        }
+      }
+    }
+
+    // Purge references to the image in native programs map
+    {
+      std::lock_guard<std::mutex> NativeProgramsGuard(MNativeProgramsMutex);
+
+      // The map does not keep references to program handles; we can erase the
+      // entry without calling UR release
+      for (auto It = NativePrograms.begin(); It != NativePrograms.end();) {
+        auto CurIt = It++;
+        if (CurIt->second == Img)
+          NativePrograms.erase(CurIt);
+      }
+    }
+
+    // Finally, destroy the image by erasing the associated unique ptr
+    auto It =
+        std::find_if(m_DeviceImages.begin(), m_DeviceImages.end(),
+                     [Img](const auto &UPtr) { return UPtr.get() == Img; });
+    assert(It != m_DeviceImages.end());
+    m_DeviceImages.erase(It);
+  }
+}
+
 void ProgramManager::debugPrintBinaryImages() const {
   for (const auto &ImgIt : m_BinImg2KernelIDs) {
     ImgIt.first->print();
@@ -3499,116 +3627,6 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
           (CompileTarget == "spir64_x86_64" &&
            (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
             ArchName == "intel_cpu_gnr")));
-}
-
-void ProgramManager::removeImages(const sycl_device_binaries &DeviceBinaries) {
-  // No need in fair partial cleanup at shutdown
-  if (!GlobalHandler::instance().isOkToDefer() ||
-      !(DeviceBinaries && DeviceBinaries->NumDeviceBinaries))
-    return;
-
-  // MUTEXES
-  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
-      DeviceImagesToCleanup;
-  for (int I = 0; I < DeviceBinaries->NumDeviceBinaries; I++) {
-    sycl_device_binary RawImg = &(DeviceBinaries->DeviceBinaries[I]);
-    auto node = m_DeviceImages.extract(RawImg);
-    if (node.empty()) {
-      if constexpr (DbgProgMgr > 0) {
-        std::cerr << "Attempt to remove device image that is not registered: "
-                     "RawImg = "
-                  << RawImg << std::endl;
-      }
-      continue;
-    }
-    DeviceImagesToCleanup.insert(std::move(node));
-  }
-
-  for (auto &[DeviceBinary, DeviceImage] : DeviceImagesToCleanup) {
-    std::ignore = m_BinImg2KernelIDs.erase(DeviceImage.get());
-    std::ignore = m_EliminatedKernelArgMasks.erase(DeviceImage.get());
-
-    const sycl_device_binary_struct &RawImg = DeviceImage->getRawData();
-    const sycl_offload_entry EntriesB = RawImg.EntriesBegin;
-    const sycl_offload_entry EntriesE = RawImg.EntriesEnd;
-    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
-
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->name);
-        continue;
-      }
-
-      if (auto ExpSymbolIt = m_ExportedSymbolImages.find(EntriesIt->name); ExpSymbolIt !=
-          m_ExportedSymbolImages.end())
-      {
-        std::ignore = m_ExportedSymbolImages.erase(ExpSymbolIt);
-        continue;
-      }
-      // remove Everything associated with this KernelName
-      std::ignore = m_KernelUsesAssert.erase(EntriesIt->name);
-      std::ignore = m_KernelImplicitLocalArgPos.erase(EntriesIt->name);
-      if (auto KernelNameToIdIt = m_KernelName2KernelIDs.find(EntriesIt->name); KernelNameToIdIt != m_KernelName2KernelIDs.end())
-      {
-        m_KernelName2KernelIDs.erase(KernelNameToIdIt);
-        m_KernelIDs2BinImage.erase(KernelNameToIdIt->second);
-      }
-    }
-
-    for (const sycl_device_binary_property &VFProp :
-         DeviceImage->getVirtualFunctions()) {
-      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
-      for (const auto &SetName : detail::split_string(StrValue, ','))
-        m_VFSet2BinImage.erase(SetName);
-    }
-     // Exported symbols are present in entries handled above with kernels, adding this as guard if it changes.
-     for (const sycl_device_binary_property &ESProp :
-      DeviceImage->getExportedSymbols()) {
-        m_ExportedSymbolImages.erase(ESProp->Name);
-      }
-
-      {
-        auto DeviceGlobals = DeviceImage->getDeviceGlobals();
-        for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
-          if (auto DevGlobalIt = m_DeviceGlobals.find(DeviceGlobal->Name);
-              DevGlobalIt != m_DeviceGlobals.end()) {
-            auto findDevGlobalByValue = std::find_if(
-                m_Ptr2DeviceGlobal.begin(), m_Ptr2DeviceGlobal.end(),
-                [&DevGlobalIt](const std::pair<const void *,
-                                               DeviceGlobalMapEntry *> &Entry) {
-                  return Entry.second == DevGlobalIt->second.get();
-                });
-            if (findDevGlobalByValue != m_Ptr2DeviceGlobal.end())
-              std::ignore = m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
-            std::ignore = m_DeviceGlobals.erase(DevGlobalIt);
-          }
-        }
-      }
-
-      auto HostPipes = DeviceImage->getHostPipes();
-      for (const sycl_device_binary_property &HostPipe : HostPipes) {
-        if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
-            HostPipesIt != m_HostPipes.end()) {
-          auto findHostPipesByValue = std::find_if(
-              m_Ptr2HostPipe.begin(), m_Ptr2HostPipe.end(),
-              [&HostPipesIt](
-                  const std::pair<const void *, HostPipeMapEntry *> &Entry) {
-                return Entry.second == HostPipesIt->second.get();
-              });
-          if (findHostPipesByValue != m_Ptr2HostPipe.end())
-            std::ignore = m_Ptr2HostPipe.erase(findHostPipesByValue);
-          std::ignore = m_HostPipes.erase(HostPipesIt);
-        }
-      }
-
-      auto NativeProgIt = NativePrograms.begin();
-      while (NativeProgIt != NativePrograms.end()) {
-        if (NativeProgIt->second == DeviceImage.get())
-          NativeProgIt = NativePrograms.erase(NativeProgIt);
-        else
-          NativeProgIt++;
-      }
-  }
 }
 
 } // namespace detail
