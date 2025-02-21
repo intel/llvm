@@ -200,10 +200,8 @@ public:
 
   threadpool_interface() : threadpool() {}
 
-  template <class T>
-  std::enable_if_t<!std::is_lvalue_reference_v<T>, std::future<void>>
-  schedule_task(T &&task) {
-    auto workerTask = std::packaged_task<void(size_t)>(std::move(task));
+  template <class T> std::future<void> schedule_task(T &&task) {
+    auto workerTask = std::packaged_task<void(size_t)>(std::forward<T>(task));
     auto ret = workerTask.get_future();
     threadpool.schedule(std::move(workerTask));
     return ret;
