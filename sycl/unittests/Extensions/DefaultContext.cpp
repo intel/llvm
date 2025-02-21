@@ -54,16 +54,6 @@ void test_default_context_disabled() {
 
   ASSERT_TRUE(catchException)
       << "ext_oneapi_get_default_context did not throw an exception";
-
-  catchException = false;
-  try {
-    (void)Plt.khr_get_default_context();
-  } catch (const std::exception &) {
-    catchException = true;
-  }
-
-  ASSERT_TRUE(catchException)
-      << "khr_get_default_context did not throw an exception";
 }
 
 TEST(DefaultContextTest, DefaultContextTest) {

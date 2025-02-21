@@ -87,10 +87,8 @@ platform::get_backend_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-context platform::khr_get_default_context() const {
-  if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
-    throw std::runtime_error("SYCL default contexts are not enabled");
-
+namespace detail {
+context get_default_context() {
   // Keeping the default context for platforms in the global cache to avoid
   // shared_ptr based circular dependency between platform and context classes
   std::unordered_map<detail::PlatformImplPtr, detail::ContextImplPtr>
@@ -108,9 +106,17 @@ context platform::khr_get_default_context() const {
 
   return detail::createSyclObjFromImpl<context>(It->second);
 }
+} // namespace detail
+
+context platform::khr_get_default_context() const {
+  return detail::get_default_context();
+}
 
 context platform::ext_oneapi_get_default_context() const {
-  return khr_get_default_context();
+  if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
+    throw std::runtime_error("SYCL default contexts are not enabled");
+
+  return detail::get_default_context();
 }
 
 std::vector<device> platform::ext_oneapi_get_composite_devices() const {
