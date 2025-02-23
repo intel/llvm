@@ -137,6 +137,8 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                              ur_usm_host_mem_flags_t Flags, size_t Size,
                              uint32_t Alignment);
 
+uint64_t maxUSMAllocationSize(const ur_device_handle_t &Device);
+
 bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc);
 
 bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr);
