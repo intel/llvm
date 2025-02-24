@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
+// REQUIRES: target-spir, level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
 
 // the ze_debug=4 memory check will fail on this test, since it itentionally
 // makes an 'unbalanced' create/destroy situation for the test.
@@ -14,7 +14,7 @@
 // If ownership is ::transfer then the ~image destructor will end up calling
 // zeImageDestroy
 // CHECK: test  ownership::transfer
-// CHECK: ZE ---> zeImageDestroy
+// CHECK: zeImageDestroy
 
 // With ownership ::keep it is must be called manually.
 // CHECK: test  ownership::keep

@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Two possible options: "e2e" and "cts".
+          Three possible options: "e2e", "cts", and "compute-benchmarks".
         type: string
         default: "e2e"
 
@@ -38,6 +38,16 @@ on:
       ref:
         type: string
         required: True
+      devops_ref:
+        type: string
+        required: False
+        description: |
+          By default we checkout the devops directory from "inputs.ref" branch.
+          devops_ref may be specified to checkout the devops dir from different
+          branch.
+          Note: it doesn't affect ./devops/actions/run-tests/* as these actions
+          call checkout again and therefore override the devops directory, so
+          configs/dependecies from input.ref are used.
 
       sycl_toolchain_artifact:
         type: string
@@ -142,6 +152,7 @@ on:
         options:
           - e2e
           - cts
+          - compute-benchmarks
 
       env:
         description: |
@@ -197,7 +208,7 @@ jobs:
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
     - uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.ref }}
+        ref: ${{ inputs.devops_ref || inputs.ref }}
         sparse-checkout: |
           devops
     - name: Register cleanup after job is finished
@@ -304,3 +315,12 @@ jobs:
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Run compute-benchmarks on SYCL
+      if: inputs.tests_selector == 'compute-benchmarks'
+      uses: ./devops/actions/run-tests/benchmark
+      with:
+        target_devices: ${{ inputs.target_devices }}
+      env:
+        RUNNER_TAG: ${{ inputs.runner }}
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

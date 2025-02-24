@@ -3,6 +3,9 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14387
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
+//
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: legacy image not supported on AMD
 
 #include <iostream>
 #include <sycl/accessor_image.hpp>
