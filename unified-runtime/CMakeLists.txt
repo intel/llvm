@@ -137,8 +137,16 @@ if(UR_ENABLE_TRACING)
     add_compile_definitions(UR_ENABLE_TRACING)
 
     if (UR_BUILD_XPTI_LIBS)
-        # fetch xpti proxy library for the tracing layer
-        FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "nightly-2024-10-22" "xpti")
+        set(UR_XPTI_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xpti")
+        cmake_path(NORMAL_PATH UR_XPTI_SOURCE_DIR
+            OUTPUT_VARIABLE UR_XPTI_SOURCE_DIR)
+        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+            FetchContent_Declare(xpti SOURCE_DIR "${UR_XPTI_SOURCE_DIR}")
+        else()
+            # fetch xpti proxy library for the tracing layer
+            FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "nightly-2024-10-22" "xpti")
+        endif()
+
         FetchContent_MakeAvailable(xpti)
 
         # set -fPIC for xpti since we are linking it with a shared library
@@ -150,7 +158,14 @@ if(UR_ENABLE_TRACING)
         set(XPTI_DIR ${xpti_SOURCE_DIR})
         set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
 
-        FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")
+        set(UR_XPTIFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xptifw")
+        cmake_path(NORMAL_PATH UR_XPTIFW_SOURCE_DIR
+            OUTPUT_VARIABLE UR_XPTIFW_SOURCE_DIR)
+        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+            FetchContent_Declare(xptifw SOURCE_DIR "${UR_XPTIFW_SOURCE_DIR}")
+        else()
+            FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")
+        endif()
 
         FetchContent_MakeAvailable(xptifw)
 
