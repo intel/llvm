@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string.h>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 int ur_getpid(void);
@@ -483,6 +484,27 @@ public:
     instance.release();
   }
 };
+
+// A type that will call your function on exit of the current scope. Useful for
+// avoiding leaks with C APIs.
+// e.g.
+//
+// {
+//    OnScopeExit _([]() { puts("out of scope"); };
+// }
+//
+// Decent compilers (and MSVC) will optimize the above to a simple call to puts
+template <class Callable> struct OnScopeExit {
+  const Callable Fn;
+  OnScopeExit(Callable Fn) : Fn(Fn) {}
+  // We don't want copies because this should only ever call the user function
+  // once and we don't know where we might end up if we allow copies
+  OnScopeExit(OnScopeExit &) = delete;
+  OnScopeExit(OnScopeExit &&) = delete;
+  ~OnScopeExit() { Fn(); }
+};
+// Silence a warning about unintended deduction
+template <class Callable> OnScopeExit(Callable) -> OnScopeExit<Callable>;
 
 template <typename Numeric>
 static inline std::string groupDigits(Numeric numeric) {
