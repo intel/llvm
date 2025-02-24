@@ -595,27 +595,39 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t Context, void *HostPtr) {
 }
 
 ur_result_t UR_APICALL urUSMPoolCreateExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_context_handle_t Context,  ///< [in] handle of the context object
+    ur_device_handle_t Device,    ///< [in] handle of the device object
     ur_usm_pool_desc_t *PoolDesc, ///< [in] pointer to USM pool descriptor.
                                   ///< Can be chained with
                                   ///< ::ur_usm_pool_limits_desc_t
-    ur_usm_pool_handle_t *pPool   ///< [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *Pool    ///< [out] pointer to USM memory pool
 ) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = PoolDesc;
-  std::ignore = pPool;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  try {
+    *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(Context, Device, PoolDesc));
+
+    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+    Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
+
+  } catch (const UsmAllocationException &Ex) {
+    return Ex.getError();
+  } catch (umf_result_t e) {
+    return umf::umf2urResult(e);
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
-                                           ur_device_handle_t hDevice,
-                                           ur_usm_pool_handle_t hPool) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hPool;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t Context,
+                                           ur_device_handle_t Device,
+                                           ur_usm_pool_handle_t Pool) {
+  std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+  Pool->Context->UsmPoolHandles.remove(Pool);
+  delete Pool;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
@@ -630,12 +642,15 @@ ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
 }
 
 ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_usm_pool_handle_t *pPool) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pPool;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_context_handle_t Context, ur_device_handle_t Device,
+    ur_usm_pool_handle_t *Pool) {
+  std::ignore = Device;
+
+  // Default async pool should contain an internal pool for all detected
+  // devices.
+  *Pool = &Context->AsyncPool;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
@@ -652,6 +667,7 @@ ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
 ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t hContext,
                                                  ur_device_handle_t hDevice,
                                                  ur_usm_pool_handle_t *pPool) {
+  // TODO: Store a mapping of devices to USM pools in context.
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = pPool;
@@ -661,6 +677,7 @@ ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t hContext,
 ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(ur_context_handle_t hContext,
                                                  ur_device_handle_t hDevice,
                                                  ur_usm_pool_handle_t hPool) {
+  // TODO: Store a mapping of devices to USM pools in context.
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = hPool;
@@ -985,6 +1002,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
   }
 
+  // Create a pool descriptor for every device detected
   auto [Ret, Descriptors] = usm::pool_descriptor::create(this, Context);
   if (Ret) {
     logger::error("urUSMPoolCreate: failed to create pool descriptors");
@@ -1002,6 +1020,57 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
 
     Ret = PoolManager.addPool(Desc, std::move(Pool));
+    if (Ret) {
+      logger::error("urUSMPoolCreate: failed to store UMF pool");
+      throw UsmAllocationException(Ret);
+    }
+  }
+}
+
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_device_handle_t Device,
+                                             ur_usm_pool_desc_t *PoolDesc)
+    : Context(Context) {
+  // TODO: handle zero-init flag 'UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK'
+  auto DisjointPoolConfigs = DisjointPoolConfigInstance;
+  if (auto Limits = find_stype_node<ur_usm_pool_limits_desc_t>(PoolDesc)) {
+    for (auto &Config : DisjointPoolConfigs.Configs) {
+      Config.MaxPoolableSize = Limits->maxPoolableSize;
+      Config.SlabMinSize = Limits->minDriverAllocSize;
+    }
+  }
+
+  // Create pool descriptor for single device provided
+  std::vector<usm::pool_descriptor> Descriptors;
+  {
+    auto &Desc = Descriptors.emplace_back();
+    Desc.poolHandle = this;
+    Desc.hContext = Context;
+    Desc.hDevice = Device;
+    Desc.type = UR_USM_TYPE_DEVICE;
+  }
+  {
+    auto &Desc = Descriptors.emplace_back();
+    Desc.poolHandle = this;
+    Desc.hContext = Context;
+    Desc.hDevice = Device;
+    Desc.type = UR_USM_TYPE_SHARED;
+    Desc.deviceReadOnly = false;
+  }
+  {
+    auto &Desc = Descriptors.emplace_back();
+    Desc.poolHandle = this;
+    Desc.hContext = Context;
+    Desc.hDevice = Device;
+    Desc.type = UR_USM_TYPE_SHARED;
+    Desc.deviceReadOnly = true;
+  }
+
+  for (auto &Desc : Descriptors) {
+    auto &PoolConfig =
+        DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
+    auto Pool = usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
+    auto Ret = PoolManager.addPool(Desc, std::move(Pool));
     if (Ret) {
       logger::error("urUSMPoolCreate: failed to store UMF pool");
       throw UsmAllocationException(Ret);

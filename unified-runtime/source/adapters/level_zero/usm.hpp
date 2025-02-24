@@ -19,6 +19,8 @@ usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 struct ur_usm_pool_handle_t_ : _ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc, bool IsProxy = false);
+  ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
+                        ur_usm_pool_desc_t *PoolDesc);
 
   ur_result_t allocate(ur_context_handle_t Context, ur_device_handle_t Device,
                        const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
