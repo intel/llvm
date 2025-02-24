@@ -282,7 +282,7 @@ params:
       desc: "[in] Handle of the device object."
     - type: "const $x_exp_command_buffer_desc_t*"
       name: pCommandBufferDesc
-      desc: "[in][optional] command-buffer descriptor."
+      desc: "[in] Command-buffer descriptor."
     - type: "$x_exp_command_buffer_handle_t*"
       name: phCommandBuffer
       desc: "[out][alloc] Pointer to command-Buffer handle."

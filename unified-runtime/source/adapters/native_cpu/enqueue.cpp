@@ -269,7 +269,7 @@ ur_result_t withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                             ur_event_handle_t *phEvent,
                             const std::function<ur_result_t()> &f) {
   urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_event_handle_t event;
+  ur_event_handle_t event = nullptr;
   if (phEvent) {
     event = new ur_event_handle_t_(hQueue, command_type);
     event->tick_start();

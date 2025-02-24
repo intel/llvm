@@ -7105,21 +7105,21 @@ typedef enum ur_event_info_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Profiling query information type
 typedef enum ur_profiling_info_t {
-  /// [uint64_t] A 64-bit value of current device counter in nanoseconds
-  /// when the event is enqueued
+  /// [uint64_t][optional-query] A 64-bit value of current device counter in
+  /// nanoseconds when the event is enqueued
   UR_PROFILING_INFO_COMMAND_QUEUED = 0,
-  /// [uint64_t] A 64-bit value of current device counter in nanoseconds
-  /// when the event is submitted
+  /// [uint64_t][optional-query] A 64-bit value of current device counter in
+  /// nanoseconds when the event is submitted
   UR_PROFILING_INFO_COMMAND_SUBMIT = 1,
-  /// [uint64_t] A 64-bit value of current device counter in nanoseconds
-  /// when the event starts execution
+  /// [uint64_t][optional-query] A 64-bit value of current device counter in
+  /// nanoseconds when the event starts execution
   UR_PROFILING_INFO_COMMAND_START = 2,
-  /// [uint64_t] A 64-bit value of current device counter in nanoseconds
-  /// when the event has finished execution
+  /// [uint64_t][optional-query] A 64-bit value of current device counter in
+  /// nanoseconds when the event has finished execution
   UR_PROFILING_INFO_COMMAND_END = 3,
-  /// [uint64_t] A 64-bit value of current device counter in nanoseconds
-  /// when the event and any child events enqueued by this event on the
-  /// device have finished execution
+  /// [uint64_t][optional-query] A 64-bit value of current device counter in
+  /// nanoseconds when the event and any child events enqueued by this event
+  /// on the device have finished execution
   UR_PROFILING_INFO_COMMAND_COMPLETE = 4,
   /// @cond
   UR_PROFILING_INFO_FORCE_UINT32 = 0x7fffffff
@@ -7193,6 +7193,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,
@@ -10111,6 +10113,7 @@ typedef struct ur_exp_command_buffer_command_handle_t_
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pCommandBufferDesc`
 ///         + `NULL == phCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -10125,7 +10128,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext,
     /// [in] Handle of the device object.
     ur_device_handle_t hDevice,
-    /// [in][optional] command-buffer descriptor.
+    /// [in] Command-buffer descriptor.
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     /// [out][alloc] Pointer to command-Buffer handle.
     ur_exp_command_buffer_handle_t *phCommandBuffer);

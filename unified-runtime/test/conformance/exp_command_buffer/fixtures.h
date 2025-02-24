@@ -60,8 +60,12 @@ struct urCommandBufferExpTest : uur::urContextTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
+
+    ur_exp_command_buffer_desc_t desc{
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, false, false, false,
+    };
     ASSERT_SUCCESS(
-        urCommandBufferCreateExp(context, device, nullptr, &cmd_buf_handle));
+        urCommandBufferCreateExp(context, device, &desc, &cmd_buf_handle));
     ASSERT_NE(cmd_buf_handle, nullptr);
   }
 
@@ -83,8 +87,11 @@ struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
-    ASSERT_SUCCESS(urCommandBufferCreateExp(this->context, this->device,
-                                            nullptr, &cmd_buf_handle));
+
+    ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                      nullptr, false, false, false};
+    ASSERT_SUCCESS(urCommandBufferCreateExp(this->context, this->device, &desc,
+                                            &cmd_buf_handle));
     ASSERT_NE(cmd_buf_handle, nullptr);
   }
 
@@ -105,8 +112,11 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
+
+    ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                      nullptr, false, false, false};
     ASSERT_SUCCESS(
-        urCommandBufferCreateExp(context, device, nullptr, &cmd_buf_handle));
+        urCommandBufferCreateExp(context, device, &desc, &cmd_buf_handle));
     ASSERT_NE(cmd_buf_handle, nullptr);
   }
 
@@ -333,15 +343,8 @@ struct urCommandEventSyncTest : urCommandBufferExpTest {
       ASSERT_NE(buffer, nullptr);
     }
 
-    // Create a command-buffer with update enabled.
-    ur_exp_command_buffer_desc_t desc{
-        /*.stype=*/UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
-        /*.pNext =*/nullptr,
-        /*.isUpdatable =*/false,
-        /*.isInOrder =*/false,
-        /*.enableProfiling =*/false,
-    };
-
+    ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                      nullptr, true, false, false};
     ASSERT_SUCCESS(urCommandBufferCreateExp(context, device, &desc,
                                             &second_cmd_buf_handle));
     ASSERT_NE(second_cmd_buf_handle, nullptr);

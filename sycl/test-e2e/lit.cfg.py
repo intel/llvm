@@ -330,29 +330,32 @@ if sp[0] == 0:
 else:
     config.substitutions.append(("%level_zero_options", ""))
 
-# Check for sycl-preview library
-check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
-with open_check_file(check_preview_breaking_changes_file) as fp:
-    print(
-        textwrap.dedent(
+if lit_config.params.get("test-preview-mode", False):
+    config.available_features.add("preview-mode")
+else:
+    # Check for sycl-preview library
+    check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
+    with open_check_file(check_preview_breaking_changes_file) as fp:
+        print(
+            textwrap.dedent(
+                """
+            #include <sycl/sycl.hpp>
+            namespace sycl { inline namespace _V1 { namespace detail {
+            extern void PreviewMajorReleaseMarker();
+            }}}
+            int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }
             """
-        #include <sycl/sycl.hpp>
-        namespace sycl { inline namespace _V1 { namespace detail {
-        extern void PreviewMajorReleaseMarker();
-        }}}
-        int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }
-        """
-        ),
-        file=fp,
-    )
+            ),
+            file=fp,
+        )
 
-sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler
-    + " -fsycl -fpreview-breaking-changes "
-    + check_preview_breaking_changes_file
-)
-if sp[0] == 0:
-    config.available_features.add("preview-breaking-changes-supported")
+    sp = subprocess.getstatusoutput(
+        config.dpcpp_compiler
+        + " -fsycl -fpreview-breaking-changes "
+        + check_preview_breaking_changes_file
+    )
+    if sp[0] == 0:
+        config.available_features.add("preview-breaking-changes-supported")
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
@@ -890,12 +893,17 @@ if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
-    config.substitutions.append(
-        ("%clangxx", " " + config.dpcpp_compiler + " " + config.cxx_flags)
-    )
-    config.substitutions.append(
-        ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
-    )
+    clangxx = " " + config.dpcpp_compiler + " "
+    if "preview-mode" in config.available_features:
+        # Technically, `-fpreview-breaking-changes` is reported as unused option
+        # if used without `-fsycl`. However, we have far less tests compiling
+        # pure C++ (without `-fsycl`) than we have tests doing `%clangxx -fsycl`
+        # and not relying on simple `%{build}`. As such, it's easier and less
+        # error prone to silence the warning in those instances than to risk not
+        # running some tests properly in the `test-preview-mode`.
+        clangxx += "-fpreview-breaking-changes "
+    clangxx += config.cxx_flags
+    config.substitutions.append(("%clangxx", clangxx))
 
 if lit_config.params.get("print_features", False):
     lit_config.note(
