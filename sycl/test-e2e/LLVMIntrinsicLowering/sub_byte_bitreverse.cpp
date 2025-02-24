@@ -7,7 +7,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/intel-graphics-compiler/issues/330
 
 // UNSUPPORTED: spirv-backend
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16318, CMPLRLLVM-62187
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16318, https://github.com/intel/intel-graphics-compiler/issues/330, CMPLRLLVM-62187
 
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
