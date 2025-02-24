@@ -2034,9 +2034,9 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         continue;
       }
 
-      // remove Everything associated with this KernelName
-      std::ignore = m_KernelUsesAssert.erase(EntriesIt->name);
-      std::ignore = m_KernelImplicitLocalArgPos.erase(EntriesIt->name);
+      // remove everything associated with this KernelName
+      m_KernelUsesAssert.erase(EntriesIt->name);
+      m_KernelImplicitLocalArgPos.erase(EntriesIt->name);
 
       if (auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
           It != m_KernelName2KernelIDs.end()) {
@@ -3629,7 +3629,7 @@ extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
-  // No need in fair partial cleanup at shutdown
+  // Partial cleanup is not necessary at shutdown
   if (!sycl::detail::GlobalHandler::instance().isOkToDefer())
     return;
   sycl::detail::ProgramManager::getInstance().removeImages(desc);
