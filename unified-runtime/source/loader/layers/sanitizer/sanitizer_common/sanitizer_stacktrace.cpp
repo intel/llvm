@@ -15,11 +15,9 @@
 #include "ur_sanitizer_layer.hpp"
 
 extern "C" {
-
-__attribute__((weak)) void SymbolizeCode(const char *ModuleName,
-                                         uint64_t ModuleOffset,
-                                         char *ResultString, size_t ResultSize,
-                                         size_t *RetSize);
+__attribute__((weak)) SymbolizeCodeFunction *TryLoadingSymbolizer() {
+  return nullptr;
+}
 }
 
 namespace ur_sanitizer_layer {
@@ -98,8 +96,8 @@ void StackTrace::print() const {
         Contains(BI, "libomptarget.so")) {
       continue;
     }
-
-    if (&SymbolizeCode != nullptr) {
+    static SymbolizeCodeFunction *SymbolizeCode = TryLoadingSymbolizer();
+    if (SymbolizeCode != nullptr) {
       std::string Result;
       std::string ModuleName;
       uptr Offset;

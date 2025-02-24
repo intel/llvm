@@ -1,0 +1,6 @@
+{
+	global:
+		SymbolizeCode;
+	local:
+		*;
+};

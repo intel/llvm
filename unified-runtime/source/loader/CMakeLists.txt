@@ -169,6 +169,7 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/backtrace.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/sanitizer_utils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/symbolizer_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_allocator.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_libdevice.hpp
@@ -182,14 +183,22 @@ if(UR_ENABLE_SANITIZER)
     )
 
     if(UR_ENABLE_SYMBOLIZER)
+        add_ur_library(ur_sanitizer_symbolizer SHARED)
+        install_ur_library(ur_sanitizer_symbolizer)
+        set_target_properties(ur_sanitizer_symbolizer PROPERTIES
+            LIBRARY_OUTPUT_NAME ur_sanitizer_symbolizer
+            RUNTIME_OUTPUT_NAME ur_sanitizer_symbolizer
+        )
+        target_link_options(ur_sanitizer_symbolizer PRIVATE "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/symbolizer/symbolizer.map")
+
         set(symbolizer_sources
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/symbolizer.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/symbolizer/symbolizer.cpp
         )
-        target_sources(ur_loader
-            PRIVATE ${symbolizer_sources}
-        )
-        target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
-        target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
+        target_sources(ur_sanitizer_symbolizer PRIVATE ${symbolizer_sources})
+
+        target_include_directories(ur_sanitizer_symbolizer PRIVATE ${LLVM_INCLUDE_DIRS})
+        target_link_libraries(ur_sanitizer_symbolizer PRIVATE LLVMSupport LLVMSymbolize)
+
         # In in-tree build, if LLVM is built with libc++, we also need to build
         # symbolizer.cpp with libc++ abi and link libc++ in.
         if(NOT UR_STANDALONE_BUILD AND LLVM_LIBCXX_USED)
@@ -208,9 +217,9 @@ if(UR_ENABLE_SANITIZER)
             if(NOT EXISTS ${LIBCXX_PATH} OR NOT EXISTS ${LIBCXX_ABI_PATH})
                 message(FATAL_ERROR "libc++ is required but can't find the libraries")
             endif()
-            # Link with gcc_s fisrt to avoid some symbols resolve to libc++/libc++abi/libunwind's one
-            target_link_libraries(ur_loader PRIVATE gcc_s ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
-        endif()
+            target_link_libraries(ur_sanitizer_symbolizer PRIVATE ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
+        endif() 
+        add_dependencies(ur_loader ur_sanitizer_symbolizer)
     endif()
 
     target_include_directories(ur_loader PRIVATE

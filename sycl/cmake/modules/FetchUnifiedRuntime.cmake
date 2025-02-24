@@ -249,6 +249,13 @@ if(TARGET UnifiedRuntimeLoader)
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
     RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
+  if(UR_ENABLE_SYMBOLIZER)
+    install(TARGETS ur_sanitizer_symbolizer
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
+    )
+  endif()
 endif()
 
 add_custom_target(UnifiedRuntimeAdapters)
