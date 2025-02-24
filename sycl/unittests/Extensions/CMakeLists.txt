@@ -17,6 +17,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   NoDeviceIPVersion.cpp
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
+  USMPrefetchExp.cpp
   BFloat16.cpp
   EventMode.cpp
 )
