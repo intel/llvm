@@ -473,7 +473,8 @@ to be compiled and executed on separate machines.
 * Tests that build and execute multiple binaries need to be written such that
 the output of each compilation has a different name. This way no files are
 overwritten, and all the necessary binaries can be transferred to the running
-system.
+system. For example, instead of setting the output of all compilation steps to
+a file named `%t.out`, we can number them `%t1.out`, `%t2.out`, and so on.
 
 * Two scenarios need to be considered for tests that expectedly fail:
   * Tests that are expected to fail on compilation, and thus also during
