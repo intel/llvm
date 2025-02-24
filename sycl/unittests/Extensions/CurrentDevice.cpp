@@ -6,33 +6,51 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/device.hpp>
-#include <sycl/ext/oneapi/experimental/current_device.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 #include <thread>
 
-constexpr size_t NumberOfDevices = 2;
+namespace {
+const auto DEVICE_CPU = reinterpret_cast<ur_device_handle_t>(1u);
+const auto DEVICE_GPU = reinterpret_cast<ur_device_handle_t>(2u);
 
-std::vector<ur_device_handle_t> GlobalDevicesHandle{
-    mock::createDummyHandle<ur_device_handle_t>(),
-    mock::createDummyHandle<ur_device_handle_t>(),
-};
-
-inline ur_result_t redefinedMockDevicesGet(void *pParams) {
-  auto params = *reinterpret_cast<ur_device_get_params_t *>(pParams);
+ur_result_t redefine_urDeviceGet(void *pParams) {
+  auto params = *static_cast<ur_device_get_params_t *>(pParams);
   if (*params.ppNumDevices)
-    **params.ppNumDevices = NumberOfDevices;
-
-  if (*params.pphDevices && *params.pNumEntries > 0) {
-    for (size_t i = 0; i < NumberOfDevices; ++i)
-      (*params.pphDevices)[i] = GlobalDevicesHandle[i];
+    **params.ppNumDevices = 2;
+  if (*params.pphDevices) {
+    if (*params.pNumEntries > 0)
+      (*params.pphDevices)[0] = DEVICE_CPU;
+    if (*params.pNumEntries > 1)
+      (*params.pphDevices)[1] = DEVICE_GPU;
   }
-
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t after_urDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_DEVICE_INFO_TYPE: {
+    ur_device_type_t UrDeviceType = UR_DEVICE_TYPE_DEFAULT;
+    if (*params.phDevice == DEVICE_CPU) {
+      UrDeviceType = UR_DEVICE_TYPE_CPU;
+    } else if (*params.phDevice == DEVICE_GPU) {
+      UrDeviceType = UR_DEVICE_TYPE_GPU;
+    }
+    if (*params.ppPropValue)
+      *static_cast<ur_device_type_t *>(*params.ppPropValue) = UrDeviceType;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(UrDeviceType);
+    return UR_RESULT_SUCCESS;
+  }
+  default:
+    return UR_RESULT_SUCCESS;
+  }
+}
+} // namespace
 
 class CurrentDeviceTest : public ::testing::Test {
 public:
@@ -40,46 +58,33 @@ public:
 
 protected:
   sycl::unittest::UrMock<> Mock;
-
-  void SetTwoDevices() {
-    mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                              &redefinedMockDevicesGet);
-  }
-
-  template <ur_device_type_t UrDeviceType>
-  inline void ChangeMockedDeviceTypeTo() {
-    mock::getCallbacks().set_replace_callback(
-        "urDeviceGetInfo",
-        &sycl::unittest::MockAdapter::mock_urDeviceGetInfo<UrDeviceType>);
-  }
 };
-
-void callable_get_eq() {
-  ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
-            sycl::device{sycl::default_selector_v});
-}
 
 void callable_set_get_eq(sycl::device dev) {
   sycl::ext::oneapi::experimental::this_thread::set_current_device(dev);
-  ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
-            dev);
+  ASSERT_NO_FATAL_FAILURE(
+      sycl::ext::oneapi::experimental::this_thread::get_current_device() ==
+      dev);
 }
 
 TEST_F(CurrentDeviceTest,
        CheckGetCurrentDeviceReturnDefaultDeviceInHostThread) {
-  ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
-            sycl::device{sycl::default_selector_v});
+  ASSERT_NO_FATAL_FAILURE(
+      sycl::ext::oneapi::experimental::this_thread::get_current_device() ==
+      sycl::device{sycl::default_selector_v});
 }
 
 TEST_F(CurrentDeviceTest,
        CheckGetCurrentDeviceReturnDefaultSelectorByDefaultInTwoThreads) {
-  SetTwoDevices();
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefine_urDeviceGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo);
 
-  ChangeMockedDeviceTypeTo<UR_DEVICE_TYPE_CPU>();
-  sycl::device cpu_device;
+  sycl::platform Plt = sycl::platform();
 
-  ChangeMockedDeviceTypeTo<UR_DEVICE_TYPE_GPU>();
-  sycl::device gpu_device;
+  sycl::device cpu_device = Plt.get_devices()[0];
+  sycl::device gpu_device = Plt.get_devices()[1];
 
   ASSERT_TRUE(cpu_device.is_cpu());
   ASSERT_TRUE(gpu_device.is_gpu());

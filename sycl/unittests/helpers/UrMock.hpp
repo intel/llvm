@@ -152,7 +152,6 @@ inline ur_result_t mock_urPlatformGetInfo(void *pParams) {
   }
 }
 
-template <ur_device_type_t UrDeviceType = UR_DEVICE_TYPE_GPU>
 inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   auto params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
   constexpr char MockDeviceName[] = "Mock device";
@@ -160,10 +159,13 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
       "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program ur_exp_command_buffer";
   switch (*params->ppropName) {
   case UR_DEVICE_INFO_TYPE: {
+    // Act like any device is a GPU.
+    // TODO: Should we mock more device types?
     if (*params->ppPropValue)
-      *static_cast<ur_device_type_t *>(*params->ppPropValue) = UrDeviceType;
+      *static_cast<ur_device_type_t *>(*params->ppPropValue) =
+          UR_DEVICE_TYPE_GPU;
     if (*params->ppPropSizeRet)
-      **params->ppPropSizeRet = sizeof(UrDeviceType);
+      **params->ppPropSizeRet = sizeof(UR_DEVICE_TYPE_GPU);
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_NAME: {

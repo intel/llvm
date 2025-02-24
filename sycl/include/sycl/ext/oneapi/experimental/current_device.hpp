@@ -15,7 +15,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::this_thread {
 
 namespace detail {
-thread_local sycl::device current_device =
+inline thread_local sycl::device current_device =
     sycl::device{sycl::default_selector_v};
 } // namespace detail
 
@@ -25,13 +25,13 @@ thread_local sycl::device current_device =
 ///
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
-sycl::device get_current_device() { return detail::current_device; }
+inline sycl::device get_current_device() { return detail::current_device; }
 
 /// @brief Sets the current default device to `dev` for the calling host thread.
 ///
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
-void set_current_device(sycl::device dev) { detail::current_device = dev; }
+inline void set_current_device(sycl::device dev) { detail::current_device = dev; }
 
 } // namespace ext::oneapi::experimental::this_thread
 } // namespace _V1
