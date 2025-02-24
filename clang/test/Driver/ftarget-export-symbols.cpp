@@ -22,8 +22,5 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:    -fsycl-targets=spir64_x86_64 -ftarget-export-symbols %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=UNUSED %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
-// RUN:    -fsycl-targets=spir64_fpga -ftarget-export-symbols %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=UNUSED %s
 
 // UNUSED: argument unused during compilation: '-ftarget-export-symbols'
