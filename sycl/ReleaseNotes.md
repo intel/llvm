@@ -2,7 +2,7 @@
 
 ## New Features
 
-- Added suport for ... intel/llvm#pr
+- Added support for ... intel/llvm#pr
 
 ## Improvements
 

@@ -39,7 +39,7 @@ to signify the component changed, e.g.: `[UR]`, `[CUDA]`, `[Doc]`.
 
 ## Release notes
 
-You are encouraged (but it is not required) to record your change into
+You are encouraged to record your change into
 [release notes](../../ReleaseNotes.md) under "Release notes for an upcoming
 release" section.
 
@@ -53,12 +53,12 @@ A change should be noted there when:
 
 A change should **not** be noted there when:
 
-- It has no functional and performance impact
+- It has no functional or performance impact
 - It is about our CI infrastructure, testing infrastructure, or tests
 
 There are no strict guidelines on how to structure release notes, but for
-consistency it is better to follow the existing structure without disrupting it
-much. The structure we have been using so far is split by change type (i.e. new
+consistency it is better to follow the existing structure minimal changes. The
+structure we have been using so far is split by change type (i.e. new
 features and bug fixes) and then sub-split by component (i.e. compiler,
 runtime). Please use past tense when describing your change.
 
