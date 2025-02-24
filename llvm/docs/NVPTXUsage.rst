@@ -1049,8 +1049,9 @@ The following sets the ftz flag to 1, and the precise sqrt flag to 1.
 
 .. code-block:: llvm
 
-    !llvm.module.flags = !{!0}
+    !llvm.module.flags = !{!0, !1}
     !0 = !{i32 4, !"nvvm-reflect-ftz", i32 1}
+    !1 = !{i32 4, !"nvvm-reflect-prec-sqrt", i32 1}
 
 (``i32 4`` indicates that the value set here overrides the value in another
 module we link with.  See the `LangRef <LangRef.html#module-flags-metadata>`

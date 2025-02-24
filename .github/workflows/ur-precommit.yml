@@ -1,0 +1,114 @@
+name: Unified Runtime Pre Commit
+# Note: this is the very first version of UR workflow.
+# It was pretty much copy-pasted from UR repository.
+# Over time it will be most likely integrated more into existing workflows.
+
+# Note: the trigger is copy-pasted from sycl-linux-precommit.yml - probably to be fine-tuned.
+on:
+  # We rely on "Fork pull request workflows from outside collaborators" -
+  # "Require approval for all outside collaborators" at
+  # https://github.com/intel/llvm/settings/actions for security.
+  pull_request:
+    branches:
+    - sycl
+    - sycl-rel-**
+    # Do not run builds if changes are only in the following locations
+    paths-ignore:
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/CODEOWNERS'
+    - 'sycl/doc/**'
+    - 'sycl/gdb/**'
+    - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
+    - '.github/workflows/sycl-windows-*.yml'
+    - '.github/workflows/sycl-macos-*.yml'
+    - '.github/workflows/sycl-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
+
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  detect_changes:
+    name: Detect Changes
+    uses: ./.github/workflows/sycl-detect-changes.yml
+
+  source_checks:
+    name: Source Checks
+    needs: [detect_changes]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    uses: ./.github/workflows/ur-source-checks.yml
+
+  adapters:
+    name: Adapters
+    needs: [detect_changes, source_checks]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    strategy:
+      matrix:
+        # Extra native CPU jobs are here to force the loader to be used.
+        # UR will not use the loader if there is only one target.
+        adapter: [
+          {name: L0, runner: UR_L0},
+          {name: L0_V2, runner: UR_L0},
+          {name: L0, runner: UR_L0, static: ON},
+          {name: OPENCL, runner: UR_OPENCL, platform: "Intel(R) OpenCL"},
+          {name: CUDA, runner: UR_CUDA},
+          {name: HIP, runner: UR_HIP},
+          {name: NATIVE_CPU, runner: UR_NATIVE_CPU},
+          {name: OPENCL, runner: UR_OPENCL, other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
+          {name: L0, runner: UR_L0, other_adapter: NATIVE_CPU},
+        ]
+    uses: ./.github/workflows/ur-build-hw.yml
+    with:
+      adapter_name: ${{ matrix.adapter.name }}
+      runner_name: ${{ matrix.adapter.runner }}
+      static_loader: ${{ matrix.adapter.static || 'OFF' }}
+      static_adapter: ${{ matrix.adapter.static || 'OFF' }}
+      platform: ${{ matrix.adapter.platform || '' }}
+      other_adapter_name: ${{ matrix.adapter.other_adapter || '' }}
+
+  macos:
+    name: MacOS build only
+    needs: [detect_changes, source_checks]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    strategy:
+      matrix:
+        os: ['macos-13']
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - name: Checkout LLVM
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+      with:
+        python-version: 3.9
+
+    - name: Install prerequisites
+      working-directory: ${{github.workspace}}/unified-runtime
+      run: python3 -m pip install -r third_party/requirements.txt
+
+    - name: Install hwloc
+      run: brew install hwloc
+
+    - name: Configure Unified Runtime project
+      working-directory: ${{github.workspace}}/unified-runtime
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DCMAKE_BUILD_TYPE=Release
+        -DUR_BUILD_TESTS=ON
+        -DUR_FORMAT_CPP_STYLE=ON
+        -DUMF_ENABLE_POOL_TRACKING=ON
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -j $(sysctl -n hw.logicalcpu)

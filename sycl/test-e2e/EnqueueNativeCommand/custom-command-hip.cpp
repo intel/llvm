@@ -1,6 +1,8 @@
 // FIXME: the rocm include path and link path are highly platform dependent,
 // we should set this with some variable instead.
-// RUN: %{build} -Wno-error=deprecated-pragma -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
+// https://github.com/intel/llvm/issues/17018
+
+// RUN: %{run-aux} %{build} -Wno-error=deprecated-pragma -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
 // RUN: %{run} %t.out
 // REQUIRES: target-amd
 

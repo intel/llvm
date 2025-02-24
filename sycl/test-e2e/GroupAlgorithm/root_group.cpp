@@ -5,7 +5,7 @@
 // TODO: Currently using the -Wno-deprecated-declarations flag due to issue
 // https://github.com/intel/llvm/issues/16451. Rewrite testRootGroup() amd
 // remove the flag once the issue is resolved.
-// RUN: %{build} -I . -o %t.out -Wno-deprecated-declarations %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
+// RUN: %{build} -I . -o %t.out -Wno-deprecated-declarations %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
 // Disabled temporarily while investigation into the failure is ongoing.

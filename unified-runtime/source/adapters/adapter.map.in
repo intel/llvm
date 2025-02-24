@@ -1,0 +1,26 @@
+@TARGET_LIBNAME@ {
+	global:
+		urGetGlobalProcAddrTable;
+		urGetBindlessImagesExpProcAddrTable;
+		urGetCommandBufferExpProcAddrTable;
+		urGetContextProcAddrTable;
+		urGetEnqueueProcAddrTable;
+		urGetEnqueueExpProcAddrTable;
+		urGetEventProcAddrTable;
+		urGetKernelProcAddrTable;
+		urGetKernelExpProcAddrTable;
+		urGetMemProcAddrTable;
+		urGetPhysicalMemProcAddrTable;
+		urGetPlatformProcAddrTable;
+		urGetProgramProcAddrTable;
+		urGetProgramExpProcAddrTable;
+		urGetQueueProcAddrTable;
+		urGetSamplerProcAddrTable;
+		urGetUSMProcAddrTable;
+		urGetUSMExpProcAddrTable;
+		urGetUsmP2PExpProcAddrTable;
+		urGetVirtualMemProcAddrTable;
+		urGetDeviceProcAddrTable;
+	local:
+		*;
+};
