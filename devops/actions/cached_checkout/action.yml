@@ -44,7 +44,7 @@ runs:
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
       path: ${{ inputs.path }}
-      fetch-depth: 0
+      fetch-depth: ${{ inputs.merge_ref == '' }}
   - name: Setup alternates
     shell: bash
     env:
