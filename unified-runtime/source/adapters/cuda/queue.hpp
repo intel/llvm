@@ -21,7 +21,7 @@ using ur_stream_guard_ = std::unique_lock<std::mutex>;
 
 /// UR queue mapping on to CUstream objects.
 ///
-struct ur_queue_handle_t_ {
+struct ur_queue_handle_t_ : ur_handle_t_ {
 
   using native_type = CUstream;
   static constexpr int DefaultNumComputeStreams = 128;
@@ -70,7 +70,7 @@ struct ur_queue_handle_t_ {
                      ur_context_handle_t_ *Context, ur_device_handle_t_ *Device,
                      unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
                      bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)},
+      : ur_handle_t_(), ComputeStreams{std::move(ComputeStreams)},
         TransferStreams{std::move(TransferStreams)},
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),

@@ -159,19 +159,10 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 
 [[noreturn]] void die(const char *Message);
 
-template <class To, class From> To cast(From Value) {
-
-  if constexpr (std::is_pointer_v<From>) {
-    static_assert(std::is_pointer_v<From> == std::is_pointer_v<To>,
-                  "Cast failed pointer check");
-    return reinterpret_cast<To>(Value);
-  } else {
-    static_assert(sizeof(From) == sizeof(To), "Cast failed size check");
-    static_assert(std::is_signed_v<From> == std::is_signed_v<To>,
-                  "Cast failed sign check");
-    return static_cast<To>(Value);
-  }
-}
+struct ddi_getter {
+  const static ur_dditable_t *value();
+};
+using ur_handle_t_ = ur_handle_base_t_<cl_adapter::ddi_getter>;
 } // namespace cl_adapter
 
 namespace cl_ext {
