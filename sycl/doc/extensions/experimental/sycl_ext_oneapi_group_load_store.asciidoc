@@ -101,11 +101,13 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
+_Mandates_: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
+
 _Effects_: Loads single element from `in_iter` to `out` by using the `g` group
 object to identify memory location as `in_iter` + `g.get_local_linear_id()`.
 
-Properties may provide xref:optimization_properties[assertions] which can
-enable better optimizations.
+Properties may provide xref:optimization_properties[assertions] or the `alignment` property
+which can enable better optimizations.
 
 ==== `sycl::vec` Overload
 
@@ -132,6 +134,8 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
+_Mandates_: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
+
 _Effects_: Loads `N` elements from `in_iter` to `out`
 using the `g` group object.
 Properties may specify xref:data_placement[data placement].
@@ -140,8 +144,9 @@ Default data placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `N`.
-Properties may also provide xref:optimization_properties[assertions] which can
-enable better optimizations.
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
+which can enable better optimizations.
+
 
 ==== Fixed-size Array Overload
 
@@ -169,6 +174,8 @@ work-group or sub-group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
+_Mandates_: If `Properties` contains the `alignment` property, `InputIteratorT` must be a pointer.
+
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_iter` to `out`
 using the `g` group object.
 Properties may specify xref:data_placement[data placement].
@@ -177,8 +184,9 @@ Default placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `ElementsPerWorkItem`.
-Properties may also provide xref:optimization_properties[assertions] which can
-enable better optimizations.
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
+which can enable better optimizations.
+
 
 
 === Store API
@@ -209,11 +217,13 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
+_Mandates_: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
+
 _Effects_: Stores single element `in` to `out_iter` by using the `g` group
 object to identify memory location as `out_iter` + `g.get_local_linear_id()`
 
-Properties may provide xref:optimization_properties[assertions] which can
-enable better optimizations.
+Properties may provide xref:optimization_properties[assertions] or the `alignment` property
+which can enable better optimizations.
 
 
 ==== `sycl::vec` Overload
@@ -241,6 +251,8 @@ in the group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
+_Mandates_: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
+
 _Effects_: Stores `N` elements from `in` vec to `out_iter`
 using the `g` group object.
 Properties may specify xref:data_placement[data placement].
@@ -249,8 +261,8 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `N`.
-Properties may also provide xref:optimization_properties[assertions] which can
-enable better optimizations.
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
+which can enable better optimizations.
 
 
 ==== Fixed-size Array Overload
@@ -280,6 +292,8 @@ work-group or sub-group.
  and default constructible.
 * `Properties` is an instance of `sycl::ext::oneapi::experimental::properties`
 
+_Mandates_: If `Properties` contains the `alignment` property, `OutputIteratorT` must be a pointer.
+
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_iter`
 using the `g` group object.
 
@@ -289,8 +303,9 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
-Properties may also provide xref:optimization_properties[assertions] which can
-enable better optimizations.
+Properties may also provide xref:optimization_properties[assertions] or the `alignment` property
+which can enable better optimizations.
+
 
 === Data Placement
 
@@ -442,6 +457,23 @@ so the implementation can rely on `get_max_local_range()` range size:
 
 If partition is uneven the behavior is undefined.
 
+== Alignment
+
+If `InputIteratorT`/`OutputIteratorT` is a pointer then the following property can be used
+to provide an alignment of the pointer. It can allow to avoid dynamic alignment check.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+struct alignment_key {
+  template <int K>
+  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
+};
+
+template<int K>
+inline constexpr alignment_key::value_t<K> alignment;
+} // namespace sycl::ext::oneapi::experimental
+```
+
 == Usage Example
 
 Example shows the simplest case without local memory usage of blocked load
@@ -458,8 +490,8 @@ constexpr std::size_t block_count = 2;
 constexpr std::size_t size = block_count * block_size * items_per_thread;
 
 sycl::queue q;
-T* input = sycl::malloc_device<T>(size, q);
-T* output = sycl::malloc_device<T>(size, q);
+T* input = sycl::aligned_alloc_device<T>(16, size, q);
+T* output = sycl::aligned_alloc_device<T>(16, size, q);
 
 q.submit([&](sycl::handler& cgh) {
     cgh.parallel_for(
@@ -472,7 +504,7 @@ q.submit([&](sycl::handler& cgh) {
             auto offset = g.get_group_id(0) * g.get_local_range(0) *
                                        items_per_thread;
 
-            auto props = sycl_exp::properties{sycl_exp::contiguous_memory};
+            auto props = sycl_exp::properties{sycl_exp::contiguous_memory, sycl_exp::alignment<16>};
 
             sycl_exp::group_load(g, input + offset, sycl::span{ data }, props);
 

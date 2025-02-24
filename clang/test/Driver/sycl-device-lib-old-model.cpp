@@ -355,3 +355,26 @@
 // SYCL_DEVICE_MSAN_MACRO-SAME: "USE_SYCL_DEVICE_MSAN"
 // SYCL_DEVICE_MSAN_MACRO: llvm-link{{.*}} "-only-needed"
 // SYCL_DEVICE_MSAN_MACRO-SAME: "{{.*}}libsycl-msan.bc"
+
+/// ###########################################################################
+/// test behavior of linking libsycl-msan-pvc for PVC target AOT compilation when msan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device 12.60.7" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// SYCL_DEVICE_LIB_MSAN_PVC: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_MSAN_PVC-SAME: "{{.*}}libsycl-msan-pvc.bc"
+
+
+/// ###########################################################################
+/// test behavior of linking libsycl-msan-cpu for CPU target AOT compilation when msan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_CPU
+// SYCL_DEVICE_LIB_MSAN_CPU: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_MSAN_CPU-SAME: "{{.*}}libsycl-msan-cpu.bc"
