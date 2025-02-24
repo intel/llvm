@@ -432,11 +432,10 @@ public:
 
   template <typename KeyT, typename ValT>
   void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
-
+    ur_program_handle_t Program = std::get<3>(CacheVal);
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
 
-      ur_program_handle_t Program = std::get<3>(CacheVal);
       // Save kernel in fast cache only if the corresponding program is also
       // in the cache.
       auto LockedCache = acquireCachedPrograms();
@@ -444,13 +443,11 @@ public:
       if (ProgCache.ProgramSizeMap.find(Program) ==
           ProgCache.ProgramSizeMap.end())
         return;
-
-      // Save reference between the program and the fast cache key.
-      std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
-      MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
     }
-
+    // Save reference between the program and the fast cache key.
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+    MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
+
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", CacheKey.second, true);
@@ -741,7 +738,7 @@ public:
 
     if (auto It = std::find_if(ProgCache.KeyMap.begin(), ProgCache.KeyMap.end(),
                                [&ImageId](const auto &Entry) {
-                                 return ImageId != Entry.first.first;
+                                 return ImageId == Entry.first.first;
                                });
         It != ProgCache.KeyMap.end()) {
       removeProgramByKey(It->second, ProgCache);

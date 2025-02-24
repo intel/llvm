@@ -2108,9 +2108,10 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       for (auto It = NativePrograms.begin(); It != NativePrograms.end();) {
         auto CurIt = It++;
         if (CurIt->second.second == Img) {
-          if (auto ContextImpl = CurIt->second.first.lock())
+          if (auto ContextImpl = CurIt->second.first.lock()) {
             ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
                 Img->getImageID());
+          }
           NativePrograms.erase(CurIt);
         }
       }
