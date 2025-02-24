@@ -525,8 +525,13 @@ sycl_ls = FindTool("sycl-ls").resolve(llvm_config, config.llvm_tools_dir)
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
-if len(config.sycl_build_targets) == 1 and next(iter(config.sycl_build_targets)) == "target-all":
-    config.sycl_build_targets = set([config.backend_to_target[be] for be in config.enabled_backends])
+if (
+    len(config.sycl_build_targets) == 1
+    and next(iter(config.sycl_build_targets)) == "target-all"
+):
+    config.sycl_build_targets = set(
+        [config.backend_to_target[be] for be in config.enabled_backends]
+    )
 
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     devices = set()
