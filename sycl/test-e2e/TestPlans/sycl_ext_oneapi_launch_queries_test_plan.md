@@ -59,5 +59,7 @@ if the work-group size `r` is 0.
 Verify that if kernel submission to a queue does not throw then
 the return value of each query on the queue with the given kernel 
 is strictly greater than 0.
+Likewise, verify that if at least one query returns 0, then queue
+submission throws.
 
 [spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_launch_queries.asciidoc
