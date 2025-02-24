@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName)
+    if (UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)

@@ -1015,7 +1015,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VERSION:
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
-  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
+  case UR_DEVICE_INFO_EXTENSIONS: {
     /* We can just use the OpenCL outputs because the sizes of OpenCL types
      * are the same as UR.
      * | CL                 | UR                     | Size |
@@ -1124,22 +1125,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
                                                      SubGroupSizes.size());
   }
-  case UR_DEVICE_INFO_EXTENSIONS: {
-    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
-    size_t ExtSize = 0;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
-
-    std::string ExtStr(ExtSize, '\0');
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, ExtSize,
-                                         ExtStr.data(), nullptr));
-
-    std::string SupportedExtensions(ExtStr.c_str());
-    if (ExtStr.find("cl_khr_command_buffer") != std::string::npos) {
-      SupportedExtensions += " ur_exp_command_buffer";
-    }
-    return ReturnValue(SupportedExtensions.c_str());
-  }
 
   case UR_DEVICE_INFO_UUID: {
     // Use the cl_khr_device_uuid extension, if available.
@@ -1226,6 +1211,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

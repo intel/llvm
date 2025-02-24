@@ -22,21 +22,10 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchCustomTest);
 TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  size_t returned_size;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-                                 &returned_size));
-
-  std::unique_ptr<char[]> returned_extensions(new char[returned_size]);
-
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS,
-                                 returned_size, returned_extensions.get(),
-                                 nullptr));
-
-  std::string_view extensions_string(returned_extensions.get());
-  const bool launch_properties_support =
-      extensions_string.find(UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP) !=
-      std::string::npos;
-
+  ur_bool_t launch_properties_support = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(
+      device, UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP,
+      sizeof(launch_properties_support), &launch_properties_support, nullptr));
   if (!launch_properties_support) {
     GTEST_SKIP() << "EXP launch properties feature is not supported.";
   }
@@ -44,6 +33,7 @@ TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
   std::vector<ur_exp_launch_property_t> props(1);
   props[0].id = UR_EXP_LAUNCH_PROPERTY_ID_IGNORE;
 
+  size_t returned_size = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_PROFILE, 0, nullptr,
                                  &returned_size));
 
