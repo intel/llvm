@@ -12,11 +12,18 @@ have.
 Each query is templated on a single template type argument `Param`
 with some queries being template overloads of each other.
 Each query has a restriction on the value of `Param` defined
-in the relevant section of the spec. Param can only be one of
-`max_work_item_sizes<1>`, `max_work_item_sizes<2>`, `max_work_item_sizes<3>`,
-`max_work_group_size`, `max_num_work_groups`, `max_sub_group_size`, and
-`num_sub_groups` which are defined in the namespace 
-`sycl::ext::oneapi::experimental::info::kernel`. 
+in the relevant section of the spec. 
+
+Param must be one of the following types defined in 
+`sycl::ext::oneapi::experiemntal::info::kernel` namespace:
+- `max_work_item_sizes<1>`
+- `max_work_item_sizes<2>`
+- `max_work_item_sizes<3>`,
+- `max_work_group_size` 
+- `max_num_work_groups` -
+- `max_sub_group_size`, and
+- `num_sub_groups`
+
 The tests should cover all of these types.
 
 ## Tests
