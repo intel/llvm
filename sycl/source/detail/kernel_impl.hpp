@@ -435,13 +435,13 @@ inline typename syclex::info::kernel_queue_specific::max_work_group_size::
 
 template <int Dimensions>
 inline sycl::id<Dimensions>
-generate_id(const sycl::range<Dimensions> &DevMAxWorkItemSizes,
+generate_id(const sycl::range<Dimensions> &DevMaxWorkItemSizes,
             const size_t DevWgSize) {
   sycl::id<Dimensions> Ret;
   for (int i = 0; i < Dimensions; i++) {
-    // DevMAxWorkItemSizes values are reverted, see
+    // DevMaxWorkItemSizes values are reverted, see
     // sycl/source/detail/device_info.hpp:582
-    Ret[i] = std::min(DevMAxWorkItemSizes[i], DevWgSize);
+    Ret[i] = std::min(DevMaxWorkItemSizes[i], DevWgSize);
   }
   return Ret;
 }
