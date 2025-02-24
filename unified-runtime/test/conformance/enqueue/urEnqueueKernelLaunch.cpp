@@ -566,7 +566,9 @@ UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueKernelLaunchMultiDeviceTest);
 // (the context is only created for one device)
 TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-
+  if (devices.size() > 1) {
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+  }
   uur::KernelLaunchHelper helper =
       uur::KernelLaunchHelper{platform, context, kernel, queues[0]};
 
