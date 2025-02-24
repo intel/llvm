@@ -438,17 +438,17 @@ function and lambdas:
 using namespace sycl;
 namespace sycl_ext = sycl::ext::oneapi::experimental;
 
-queue Queue;
-sycl_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+queue myQueue;
+sycl_ext::command_graph myGraph{myQueue.get_context(), myQueue.get_device()};
 
-const size_t Size = 1024;
-int *ptrX = malloc_shared<int>(Size, Queue);
-int *ptrY = malloc_shared<int>(Size, Queue);
+const size_t size = 1024;
+int *ptrX = malloc_shared<int>(size, myQueue);
+int *ptrY = malloc_shared<int>(size, myQueue);
 
 sycl_ext::dynamic_parameter dynParam(myGraph, ptrX);
 
 sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
-    CGH.parallel_for(range<1>(Size), [=](item<1> Id) {
+    cgh.parallel_for(range<1>(size), [=](item<1> Id) {
       // Get the USM pointer to use in the kernel.
       auto Ptr = dynParam.get();
 
@@ -458,7 +458,7 @@ sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
 });
 
 auto execGraph = myGraph.finalize({sycl_ext::property::graph::updatable});
-Queue.ext_oneapi_graph(execGraph);
+myQueue.ext_oneapi_graph(execGraph);
 
 // Change ptrX argument to ptrY.
 dynParam.update(ptrY);
@@ -467,8 +467,8 @@ dynParam.update(ptrY);
 execGraph.update(kernelNode);
 
 // Execute the graph again.
-Queue.ext_oneapi_graph(execGraph);
-Queue.wait();
+myQueue.ext_oneapi_graph(execGraph);
+myQueue.wait();
 
 sycl::free(ptrX, myQueue);
 sycl::free(ptrY, myQueue);
