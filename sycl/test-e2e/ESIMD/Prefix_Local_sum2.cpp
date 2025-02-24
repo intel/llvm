@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 20
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17075
 
 #include "esimd_test_utils.hpp"
 

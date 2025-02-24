@@ -406,6 +406,10 @@ if (WIN32)
   add_dependencies(sycl-toolchain ur_win_proxy_loader)
 endif()
 
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_dependencies(sycl-toolchain clang-nvlink-wrapper)
+endif()
+
 # Enable new IN_LIST operator.
 cmake_policy(SET CMP0057 NEW)
 
