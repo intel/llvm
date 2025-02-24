@@ -764,7 +764,7 @@ ur_result_t urKernelGetInfo(
         Spills.push_back(spillMemSize);
       }
       return ReturnValue(static_cast<const uint32_t *>(Spills.data()),
-                       Spills.size());
+                         Spills.size());
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     } catch (...) {
