@@ -36,15 +36,12 @@ target_include_directories(ur_common PUBLIC
 
 message(STATUS "Download Unified Memory Framework from github.com")
 if (NOT DEFINED UMF_REPO)
-    set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
+    set(UMF_REPO "https://github.com/PatKamin/unified-memory-framework.git")
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 5a515c56c92be75944c8246535c408cee7711114
-    # Author: Lukasz Dorau <lukasz.dorau@intel.com>
-    # Date:   Mon Feb 17 10:56:05 2025 +0100
-    # Merge pull request #1086 from vinser52/svinogra_l0_linking
-    set(UMF_TAG 5a515c56c92be75944c8246535c408cee7711114)
+    # hwloc fix for Unix Makefiles generator
+    set(UMF_TAG ab731c046d782ad0c1ed7872bca9f1ae64cc9e33)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -127,5 +124,4 @@ add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
 target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
-    umf::disjoint_pool
 )
