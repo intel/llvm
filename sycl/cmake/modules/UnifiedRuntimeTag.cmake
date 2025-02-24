@@ -1,5 +1,7 @@
-# commit 064d3560cbcc24a40380b57adb3690b2bc256d6e
-# Merge: 739d8a75 e1bbdad9
+# commit d03f19a88e42cb98be9604ff24b61190d1e48727
+# Merge: 3ce6fcc9 84454b0e
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-set(UNIFIED_RUNTIME_REPO "https://github.com/konradkusiak97/unified-runtime.git")
-set(UNIFIED_RUNTIME_TAG addInOrderCopyEngineSupport)
+# Date:   Thu Feb 13 11:43:34 2025 +0000
+#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
+#     Do not fetch cudart from gitlab for UMF
+set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)
