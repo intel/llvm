@@ -18,10 +18,10 @@ Param must be one of the following types defined in
 `sycl::ext::oneapi::experiemntal::info::kernel` namespace:
 - `max_work_item_sizes<1>`
 - `max_work_item_sizes<2>`
-- `max_work_item_sizes<3>`,
-- `max_work_group_size` 
-- `max_num_work_groups` -
-- `max_sub_group_size`, and
+- `max_work_item_sizes<3>`
+- `max_work_group_size`
+- `max_num_work_groups`
+- `max_sub_group_size`
 - `num_sub_groups`
 
 The tests should cover all of these types.
