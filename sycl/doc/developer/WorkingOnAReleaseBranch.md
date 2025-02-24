@@ -18,16 +18,16 @@ release branches.
 ### Only cherry-picks are allowed
 
 It is assumed, that everything you do on a release branch, should also be
-repeated on the main branch to ensure that it is automatically included into
-future releases.
+repeated on the default `sycl` branch to ensure that it is automatically
+included into future releases.
 
 Therefore, when submitting a PR to a release branch, its description should
-contain a link to the corresponding PR in the main `sycl` branch.
+contain a link to the corresponding PR in the default `sycl` branch.
 
 Note that it is not acceptable to first merge something into a
-release branch and then apply it to the main `sycl` branch. The flow goes in
-the opposite direction where you first land a patch to the main branch and then
-backport it to a release branch.
+release branch and then apply it to the default `sycl` branch. The flow goes in
+the opposite direction where you first land a patch to the default `sycl` branch
+and then backport it to a release branch.
 
 ### No new features are allowed
 
