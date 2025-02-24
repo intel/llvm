@@ -50,10 +50,6 @@ if(NOT SYCL_TEST_E2E_TARGETS)
   set(SYCL_TEST_E2E_TARGETS "all")
 endif()
 
-if(NOT SYCL_TEST_E2E_BUILD_TARGETS)
-  set(SYCL_TEST_E2E_BUILD_TARGETS "all")
-endif()
-
 if(MSVC AND NOT SYCL_TEST_E2E_STANDALONE)
   # We're trying to pass MSVC flags to Clang, which doesn't work by default
   separate_arguments(cxx_flags NATIVE_COMMAND "${CMAKE_CXX_FLAGS}")
