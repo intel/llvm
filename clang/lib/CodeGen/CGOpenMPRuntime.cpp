@@ -7449,7 +7449,7 @@ private:
           // Update info about the lowest and highest elements for this struct
           if (!PartialStruct.Base.isValid()) {
             PartialStruct.LowestElem = {FieldIndex, LowestElem};
-            if (IsFinalArraySection) {
+            if (IsFinalArraySection && OASE) {
               Address HB =
                   CGF.EmitArraySectionExpr(OASE, /*IsLowerBound=*/false)
                       .getAddress();
@@ -7462,7 +7462,7 @@ private:
           } else if (FieldIndex < PartialStruct.LowestElem.first) {
             PartialStruct.LowestElem = {FieldIndex, LowestElem};
           } else if (FieldIndex > PartialStruct.HighestElem.first) {
-            if (IsFinalArraySection) {
+            if (IsFinalArraySection && OASE) {
               Address HB =
                   CGF.EmitArraySectionExpr(OASE, /*IsLowerBound=*/false)
                       .getAddress();
