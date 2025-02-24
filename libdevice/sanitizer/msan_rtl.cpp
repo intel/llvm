@@ -20,6 +20,8 @@ constexpr int MSAN_REPORT_NONE = 0;
 constexpr int MSAN_REPORT_START = 1;
 constexpr int MSAN_REPORT_FINISH = 2;
 
+constexpr uptr DEVICE_USM_MASK = 0xFF00'0000'0000'0000ULL;
+
 static const __SYCL_CONSTANT__ char __msan_print_warning_return[] =
     "[kernel] !!! msan warning return\n";
 
@@ -146,7 +148,7 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   }
 
   // Device USM only
-  if (as == ADDRESS_SPACE_GLOBAL && (addr & 0xFF00000000000000)) {
+  if (as == ADDRESS_SPACE_GLOBAL && (addr & DEVICE_USM_MASK)) {
     auto shadow_begin = GetMsanLaunchInfo->GlobalShadowOffset;
     auto shadow_end = GetMsanLaunchInfo->GlobalShadowOffsetEnd;
     if (addr < shadow_begin) {
@@ -205,6 +207,8 @@ __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
   __devicelib_exit();
 }
 
+// For mapping detail, ref to
+// "unified-runtime/source/loader/layers/sanitizer/msan/msan_shadow.hpp"
 DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   // Return clean shadow (0s) by default
   uptr shadow_ptr = GetMsanLaunchInfo->CleanShadow;
