@@ -624,17 +624,6 @@ __CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRjjDF16_,
 #undef __CLC_ADD
 #undef __CLC_MUL
 
-long __clc__get_linear_local_id() {
-  size_t id_x = __spirv_LocalInvocationId_x();
-  size_t id_y = __spirv_LocalInvocationId_y();
-  size_t id_z = __spirv_LocalInvocationId_z();
-  size_t size_x = __spirv_WorkgroupSize_x();
-  size_t size_y = __spirv_WorkgroupSize_y();
-  size_t size_z = __spirv_WorkgroupSize_z();
-  uint sg_size = __spirv_SubgroupMaxSize();
-  return (id_z * size_y * size_x + id_y * size_x + id_x);
-}
-
 long __clc__2d_to_linear_local_id(ulong2 id) {
   size_t size_x = __spirv_WorkgroupSize_x();
   size_t size_y = __spirv_WorkgroupSize_y();
@@ -654,7 +643,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     if (scope == Subgroup) {                                                   \
       return __clc__SubgroupShuffle(x, local_id);                              \
     }                                                                          \
-    bool source = (__clc__get_linear_local_id() == local_id);                  \
+    bool source = (__spirv_LocalInvocationIndex() == local_id);                \
     __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();   \
     if (source) {                                                              \
       *scratch = x;                                                            \

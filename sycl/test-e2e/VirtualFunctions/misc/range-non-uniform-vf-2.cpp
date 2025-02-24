@@ -4,7 +4,10 @@
 // kernels when different work-items perform calls to different virtual
 // functions using the same object.
 //
-// RUN: %{build} -o %t.out %helper-includes
+// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
+// https://github.com/intel/llvm/issues/16839. Remove the flag as well as the
+// variable 'props' once the issue is resolved.
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations %helper-includes
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -44,6 +47,25 @@ public:
   virtual int bar(int V) { return V / 2; }
 };
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mDeviceStorage;
+  T2 mDataAcc;
+  KernelFunctor(T1 DeviceStorage, T2 DataAcc)
+      : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
+
+  template <typename T> void operator()(T It) const {
+    // Select method that corresponds to this work-item
+    auto *Ptr = mDeviceStorage->template getAs<BaseOp>();
+    if (It % 2)
+      mDataAcc[It] = Ptr->foo(mDataAcc[It]);
+    else
+      mDataAcc[It] = Ptr->bar(mDataAcc[It]);
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
+
 int main() try {
   using storage_t = obj_storage_t<OpA, OpB>;
 
@@ -69,14 +91,7 @@ int main() try {
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.parallel_for(R, props, [=](auto It) {
-        // Select method that corresponds to this work-item
-        auto *Ptr = DeviceStorage->template getAs<BaseOp>();
-        if (It % 2)
-          DataAcc[It] = Ptr->foo(DataAcc[It]);
-        else
-          DataAcc[It] = Ptr->bar(DataAcc[It]);
-      });
+      CGH.parallel_for(R, props, KernelFunctor(DeviceStorage, DataAcc));
     });
 
     BaseOp *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);
