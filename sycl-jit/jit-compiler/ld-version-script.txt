@@ -4,6 +4,7 @@
     fuseKernels;
     materializeSpecConstants;
     compileSYCL;
+    destroyBinary;
     resetJITConfiguration;
     addToJITConfiguration;
 

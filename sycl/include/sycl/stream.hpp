@@ -18,17 +18,17 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
-#include <sycl/group.hpp>                     // for group
-#include <sycl/h_item.hpp>                    // for h_item
-#include <sycl/half_type.hpp>                 // for half, operator-, operator<
-#include <sycl/handler.hpp>                   // for handler
-#include <sycl/item.hpp>                      // for item
-#include <sycl/nd_item.hpp>                   // for nd_item
-#include <sycl/nd_range.hpp>                  // for nd_range
-#include <sycl/property_list.hpp>             // for property_list
-#include <sycl/range.hpp>                     // for range
-#include <sycl/vector.hpp>                    // for vec, SwizzleOp
+#include <sycl/detail/type_traits/vec_marray_traits.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
+#include <sycl/group.hpp>               // for group
+#include <sycl/h_item.hpp>              // for h_item
+#include <sycl/half_type.hpp>           // for half, operator-, operator<
+#include <sycl/handler.hpp>             // for handler
+#include <sycl/item.hpp>                // for item
+#include <sycl/nd_item.hpp>             // for nd_item
+#include <sycl/nd_range.hpp>            // for nd_range
+#include <sycl/property_list.hpp>       // for property_list
+#include <sycl/range.hpp>               // for range
 
 #include <cstddef>     // for size_t, byte
 #include <memory>      // for hash, shared_ptr
@@ -745,23 +745,6 @@ inline void writeHItem(GlobalBufAccessorT &GlobalFlushBuf,
   Len += append(Buf + Len, "\n)");
   write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
-
-template <typename> struct IsSwizzleOp : std::false_type {};
-
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct IsSwizzleOp<sycl::detail::SwizzleOp<
-    VecT, OperationLeftT, OperationRightT, OperationCurrentT, Indexes...>>
-    : std::true_type {
-  using T = typename VecT::element_type;
-  using Type = typename sycl::vec<T, (sizeof...(Indexes))>;
-};
-
-template <typename T>
-using EnableIfSwizzleVec =
-    typename std::enable_if_t<IsSwizzleOp<T>::value,
-                              typename IsSwizzleOp<T>::Type>;
-
 } // namespace detail
 
 enum class stream_manipulator {
@@ -1310,7 +1293,9 @@ inline const stream &operator<<(const stream &Out,
   return Out;
 }
 
-template <typename T, typename RT = detail::EnableIfSwizzleVec<T>>
+template <typename T,
+          typename RT = std::enable_if_t<detail::is_swizzle_v<T>,
+                                         detail::simplify_if_swizzle_t<T>>>
 inline const stream &operator<<(const stream &Out, const T &RHS) {
   RT V = RHS;
   Out << V;

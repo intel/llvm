@@ -51,6 +51,11 @@ def NoArgumentUnused : OptionFlag;
 // lines that use it.
 def Unsupported : OptionFlag;
 
+// UnsupportedRemoved - The option is unsupported and recently removed. Allows
+// for special diagnostic handling, and the driver will reject command
+// lines that use it.
+def UnsupportedRemoved : OptionFlag;
+
 // Ignored - The option is unsupported, and the driver will silently ignore it.
 def Ignored : OptionFlag;
 
@@ -1169,17 +1174,17 @@ defm cx_fortran_rules: BoolOptionWithoutMarshalling<"f", "cx-fortran-rules",
 
  defm offload_fp32_prec_div: BoolOption<"f", "offload-fp32-prec-div",
    LangOpts<"OffloadFP32PrecDiv">, DefaultTrue,
-   PosFlag<SetTrue, [], [ClangOption, CC1Option], "fdiv operations in offload device "
+   PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option], "fdiv operations in offload device "
    "code are required to return correctly rounded results.">,
-   NegFlag<SetFalse, [], [ClangOption, CC1Option], "fdiv operations in offload device "
+   NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option], "fdiv operations in offload device "
    "code are not required to return correctly rounded results.">>,
    Group<f_Group>;
 
  defm offload_fp32_prec_sqrt: BoolOption<"f", "offload-fp32-prec-sqrt",
    LangOpts<"OffloadFP32PrecSqrt">, DefaultTrue,
-   PosFlag<SetTrue, [], [ClangOption, CC1Option], "sqrt operations in offload device "
+   PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option], "sqrt operations in offload device "
    "code are required to return correctly rounded results.">,
-   NegFlag<SetFalse, [], [ClangOption, CC1Option], "sqrt operations in offload device "
+   NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option], "sqrt operations in offload device "
    "code are not required to return correctly rounded results.">>,
    Group<f_Group>;
 
@@ -6982,8 +6987,8 @@ defm : FlangIgnoredDiagOpt<"target-lifetime">;
 
 // C++ SYCL options
 let Group = sycl_Group in {
-def reuse_exe_EQ : Joined<["-"], "reuse-exe=">, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
+def reuse_exe_EQ : Joined<["-"], "reuse-exe=">,
+  Visibility<[ClangOption, CLOption, DXCOption]>, Flags<[UnsupportedRemoved]>,
   MetaVarName<"<exe>">;
 def fsycl : Flag<["-"], "fsycl">,
   HelpText<"Enable SYCL C++ extensions">;
@@ -7031,10 +7036,9 @@ def fsycl_default_sub_group_size
 def fsycl_default_sub_group_size_EQ
     : Joined<["-"], "fsycl-default-sub-group-size=">,
       Alias<fsycl_default_sub_group_size>, Visibility<[ClangOption, CC1Option]>;
-def fintelfpga : Flag<["-"], "fintelfpga">,
+def fintelfpga : Flag<["-"], "fintelfpga">, Flags<[UnsupportedRemoved]>,
   Visibility<[ClangOption, CLOption, CC1Option]>,
-  MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
-  HelpText<"Perform ahead-of-time compilation for FPGA">;
+  MarshallingInfoFlag<LangOpts<"IntelFPGA">>;
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
@@ -7131,11 +7135,9 @@ def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
   Alias<fsycl_device_obj_EQ>, AliasArgs<["spirv"]>, Flags<[Deprecated]>,
   HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects (deprecated)">;
-def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
-  HelpText<"Generate partially linked device and host object to be used at "
-           "various stages of compilation">, Values<"image,early">;
+def fsycl_link_EQ : Joined<["-"], "fsycl-link=">;
 def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
-  AliasArgs<["early"]>, HelpText<"Generate partially linked device object to "
+  AliasArgs<["default"]>, HelpText<"Generate partially linked device object to "
   "be used with the host link">;
 defm sycl_unnamed_lambda
     : BoolFOption<

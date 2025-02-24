@@ -9,5 +9,5 @@
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_bitselect(__CLC_GENTYPE x,
                                                            __CLC_GENTYPE y,
                                                            __CLC_GENTYPE z) {
-  return ((x) ^ ((z) & ((y) ^ (x))));
+  return __clc_bitselect(x, y, z);
 }
