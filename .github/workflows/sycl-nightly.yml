@@ -243,6 +243,46 @@ jobs:
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
       sycl_cts_artifact: sycl_cts_bin
 
+  aggregate_benchmark_results:
+    if: always() && !cancelled()
+    name: Aggregate benchmark results and produce historical averages
+    uses: ./.github/workflows/sycl-benchmark-aggregate.yml
+    secrets:
+      LLVM_SYCL_BENCHMARK_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
+    with:
+      lookback_days: 100
+      
+  run-sycl-benchmarks:
+    needs: [ubuntu2204_build, aggregate_benchmark_results]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Run compute-benchmarks on L0 Gen12
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+            reset_intel_gpu: true
+          - name: Run compute-benchmarks on L0 PVC
+            runner: '["Linux", "pvc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+            reset_intel_gpu: false
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    secrets: inherit
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: compute-benchmarks
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
+      ref: ${{ github.sha }}
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
   nightly_build_upload:
     name: Nightly Build Upload
     if: ${{ github.ref_name == 'sycl' }}
