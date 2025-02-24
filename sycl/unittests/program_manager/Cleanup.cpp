@@ -49,8 +49,10 @@ public:
     return m_VFSet2BinImage;
   }
 
-  std::unordered_multimap<ur_program_handle_t,
-                          const sycl::detail::RTDeviceBinaryImage *> &
+  std::unordered_multimap<
+      ur_program_handle_t,
+      std::pair<std::weak_ptr<sycl::detail::context_impl>,
+                const sycl::detail::RTDeviceBinaryImage *>> &
   getNativePrograms() {
     return NativePrograms;
   }

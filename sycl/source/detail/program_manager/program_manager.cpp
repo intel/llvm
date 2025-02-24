@@ -246,7 +246,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the UR program with the image it was created for
-    NativePrograms.insert({Res, &Img});
+    NativePrograms.insert({Res, {Ctx, &Img}});
   }
 
   Ctx->addDeviceGlobalInitializer(Res, Devices, &Img);
@@ -928,7 +928,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       // removal of map entries with same handle (obviously invalid entries).
       std::ignore = NativePrograms.erase(BuiltProgram.get());
       for (const RTDeviceBinaryImage *Img : ImgWithDeps) {
-        NativePrograms.insert({BuiltProgram.get(), Img});
+        NativePrograms.insert({BuiltProgram.get(), {ContextImpl, Img}});
       }
     }
 
@@ -2107,8 +2107,12 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       // entry without calling UR release
       for (auto It = NativePrograms.begin(); It != NativePrograms.end();) {
         auto CurIt = It++;
-        if (CurIt->second == Img)
+        if (CurIt->second.second == Img) {
+          if (auto ContextImpl = CurIt->second.first.lock())
+            ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
+                Img->getImageID());
           NativePrograms.erase(CurIt);
+        }
       }
     }
 
@@ -2170,7 +2174,7 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     auto Range = NativePrograms.equal_range(NativePrg);
     for (auto ImgIt = Range.first; ImgIt != Range.second; ++ImgIt) {
-      auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second);
+      auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second.second);
       if (MapIt == m_EliminatedKernelArgMasks.end())
         continue;
       auto ArgMaskMapIt = MapIt->second.find(KernelName);
@@ -2859,7 +2863,8 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
     std::ignore = NativePrograms.erase(LinkedProg);
     for (const device_image_plain &Img : ImgWithDeps) {
       NativePrograms.insert(
-          {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
+          {LinkedProg,
+           {ContextImpl, getSyclObjImpl(Img)->get_bin_image_ref()}});
     }
   }
 
