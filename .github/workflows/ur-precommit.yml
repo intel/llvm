@@ -37,35 +37,19 @@ permissions: read-all
 
 jobs:
   detect_changes:
+    name: Detect Changes
     uses: ./.github/workflows/sycl-detect-changes.yml
-
-  # TODO: If UR is merged into llvm it will require changes:
-  # - 'detect_changes' should be required for all UR jobs
-  # - 'if' condition should be used, for all UR jobs, to check if UR is affected
-  #     (see example test_job's if)
-  # - test_job should be removed
-  #
-  test_job:
-    # this is a temporary test job, to show how the 'if' should be used for all UR jobs
-    name: UR test job
-    needs: [detect_changes]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check if UR is affected
-        run: |
-          echo "UR affected"
-          echo 'Filters set: ${{needs.detect_changes.outputs.filters}}'
 
   source_checks:
     name: Source Checks
     needs: [detect_changes]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     uses: ./.github/workflows/ur-source-checks.yml
 
   adapters:
     name: Adapters
-    needs: [source_checks]
+    needs: [detect_changes, source_checks]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
         # Extra native CPU jobs are here to force the loader to be used.
@@ -92,27 +76,16 @@ jobs:
 
   macos:
     name: MacOS build only
-    needs: [source_checks]
+    needs: [detect_changes, source_checks]
+    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
         os: ['macos-13']
     runs-on: ${{matrix.os}}
 
     steps:
-    # TODO: If UR is merged into llvm it will require changes:
-    # - checkout only llvm repo
-    # - configure UR project from local tree
-    #
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-
-    - name: Checkout UR
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      with:
-        repository: 'oneapi-src/unified-runtime'
-        path: unified-runtime
-        ref: main
-        fetch-depth: 1
 
     - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
@@ -125,7 +98,7 @@ jobs:
     - name: Install hwloc
       run: brew install hwloc
 
-    - name: Configure CMake
+    - name: Configure Unified Runtime project
       working-directory: ${{github.workspace}}/unified-runtime
       run: >
         cmake

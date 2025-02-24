@@ -311,9 +311,12 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Enqueue) {
     }
 
     // Create command-buffer
+    ur_exp_command_buffer_desc_t desc{
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, false, false, false,
+    };
     uur::raii::CommandBuffer cmd_buf_handle;
-    ASSERT_SUCCESS(urCommandBufferCreateExp(context, device, nullptr,
-                                            cmd_buf_handle.ptr()));
+    ASSERT_SUCCESS(
+        urCommandBufferCreateExp(context, device, &desc, cmd_buf_handle.ptr()));
 
     // Append kernel command to command-buffer and close command-buffer
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
