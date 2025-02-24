@@ -24,13 +24,27 @@ template <typename T = void> using bit_xor = std::bit_xor<T>;
 // std:logical_and/std::logical_or with a non-void type returns bool,
 // sycl requires returning T.
 template <typename T = void> struct logical_and {
-  T operator()(const T &lhs, const T &rhs) const { return lhs && rhs; }
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool
+#else
+  T
+#endif
+  operator()(const T &lhs, const T &rhs) const {
+    return lhs && rhs;
+  }
 };
 
 template <> struct logical_and<void> : std::logical_and<void> {};
 
 template <typename T = void> struct logical_or {
-  T operator()(const T &lhs, const T &rhs) const { return lhs || rhs; }
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool
+#else
+  T
+#endif
+  operator()(const T &lhs, const T &rhs) const {
+    return lhs || rhs;
+  }
 };
 
 template <> struct logical_or<void> : std::logical_or<void> {};
