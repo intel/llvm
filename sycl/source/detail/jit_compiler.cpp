@@ -1081,7 +1081,10 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   // Create an offload entry for the fused kernel.
   // It seems to be OK to set zero for most of the information here, at least
   // that is the case for compiled SPIR-V binaries.
-  OffloadEntryContainer Entry{FusedKernelName, nullptr, 0, 0, 0};
+  OffloadEntryContainer Entry{
+      0 /*Reserved*/, 0 /*Version*/,       0 /*Kind*/,
+      0 /*Flags*/,    nullptr /*Address*/, FusedKernelName /*Name*/,
+      0 /*Size*/,     0 /*Data*/,          nullptr /*AuxAddr*/};
   Binary.addOffloadEntry(std::move(Entry));
 
   // Create a property entry for the argument usage mask for the fused kernel.
@@ -1154,8 +1157,10 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
       // It seems to be OK to set zero for most of the information here, at
       // least that is the case for compiled SPIR-V binaries.
       std::string PrefixedName = OffloadEntryPrefix + Symbol.c_str();
-      OffloadEntryContainer Entry{PrefixedName, /*Addr=*/nullptr, /*Size=*/0,
-                                  /*Flags=*/0, /*Reserved=*/0};
+      OffloadEntryContainer Entry{
+          0 /*Reserved*/, 0 /*Version*/,       0 /*Kind*/,
+          0 /*Flags*/,    nullptr /*Address*/, PrefixedName /*Name*/,
+          0 /*Size*/,     0 /*Data*/,          nullptr /*AuxAddr*/};
       Binary.addOffloadEntry(std::move(Entry));
     }
 

@@ -1869,31 +1869,32 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          ++EntriesIt) {
 
+      auto name = EntriesIt->GetName();
+
       // Skip creating unique kernel ID if it is a service kernel.
       // SYCL service kernels are identified by having
       // __sycl_service_kernel__ in the mangled name, primarily as part of
       // the namespace of the name type.
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
+      if (std::strstr(name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.insert(std::make_pair(name, Img.get()));
         continue;
       }
 
       // Skip creating unique kernel ID if it is an exported device
       // function. Exported device functions appear in the offload entries
       // among kernels, but are identifiable by being listed in properties.
-      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
-          m_ExportedSymbolImages.end())
+      if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
         continue;
 
       // ... and create a unique kernel ID for the entry
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      auto It = m_KernelName2KernelIDs.find(name);
       if (It == m_KernelName2KernelIDs.end()) {
         std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+            std::make_shared<detail::kernel_id_impl>(name);
         sycl::kernel_id KernelID =
             detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
 
-        It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name, KernelID);
+        It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
@@ -2008,7 +2009,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       continue;
 
     // Retrieve RTDeviceBinaryImage by looking up the first offload entry
-    kernel_id FirstKernelID = getSYCLKernelID(RawImg->EntriesBegin->name);
+    kernel_id FirstKernelID = getSYCLKernelID(RawImg->EntriesBegin->GetName());
     auto RTDBImages = getRawDeviceImages({FirstKernelID});
     assert(RTDBImages.size() == 1);
 
@@ -2025,18 +2026,18 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
          ++EntriesIt) {
 
       // Drop entry for service kernel
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->name);
+      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->GetName());
         continue;
       }
 
       // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
+      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
           m_ExportedSymbolImages.end()) {
         continue;
       }
 
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
       assert(It != m_KernelName2KernelIDs.end());
       m_KernelName2KernelIDs.erase(It);
       m_KernelIDs2BinImage.erase(It->second);
