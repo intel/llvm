@@ -38,18 +38,17 @@ on:
       ref:
         type: string
         required: True
+        description: |
+          Commit SHA or branch to checkout the intel/llvm repo.
       devops_ref:
         type: string
         required: False
         description: |
-          By default we checkout the devops directory from "inputs.ref" branch.
-          devops_ref may be specified to checkout the devops dir from different
-          branch.
+          Commit SHA or branch to checkout the devops directory.
       tests_ref:
-        description: "Commit SHA or branch to checkout tests"
         type: string
-        default: "main"
         required: False
+        description: Commit SHA or branch to checkout e2e/cts tests.
 
       sycl_toolchain_artifact:
         type: string
@@ -311,7 +310,7 @@ jobs:
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/cts
       with:
-        ref: ${{ inputs.tests_ref }}
+        ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
