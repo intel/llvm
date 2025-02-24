@@ -1442,20 +1442,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported platform info
 typedef enum ur_platform_info_t {
-  /// [char[]] The string denoting name of the platform. The size of the
-  /// info needs to be dynamically queried.
+  /// [char[]] The null-terminated string denoting name of the platform. The
+  /// size of the info needs to be dynamically queried.
   UR_PLATFORM_INFO_NAME = 1,
-  /// [char[]] The string denoting name of the vendor of the platform. The
-  /// size of the info needs to be dynamically queried.
+  /// [char[]] The null-terminated string denoting name of the vendor of the
+  /// platform. The size of the info needs to be dynamically queried.
   UR_PLATFORM_INFO_VENDOR_NAME = 2,
-  /// [char[]] The string denoting the version of the platform. The size of
-  /// the info needs to be dynamically queried.
+  /// [char[]] The null-terminated string denoting the version of the
+  /// platform. The size of the info needs to be dynamically queried.
   UR_PLATFORM_INFO_VERSION = 3,
-  /// [char[]] The string denoting extensions supported by the platform. The
-  /// size of the info needs to be dynamically queried.
+  /// [char[]] The null-terminated string denoting extensions supported by
+  /// the platform. The size of the info needs to be dynamically queried.
   UR_PLATFORM_INFO_EXTENSIONS = 4,
-  /// [char[]] The string denoting profile of the platform. The size of the
-  /// info needs to be dynamically queried.
+  /// [char[]] The null-terminated string denoting profile of the platform.
+  /// The size of the info needs to be dynamically queried.
   UR_PLATFORM_INFO_PROFILE = 5,
   /// [::ur_platform_backend_t] The backend of the platform. Identifies the
   /// native backend adapter implementing this platform.
@@ -2037,7 +2037,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 60,
   /// [::ur_queue_flags_t] host queue property bit-field
   UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = 61,
-  /// [char[]] a semi-colon separated list of built-in kernels
+  /// [char[]] a null-terminated semi-colon separated list of built-in
+  /// kernels
   UR_DEVICE_INFO_BUILT_IN_KERNELS = 62,
   /// [::ur_platform_handle_t] the platform associated with the device
   UR_DEVICE_INFO_PLATFORM = 63,
@@ -2046,21 +2047,22 @@ typedef enum ur_device_info_t {
   /// It is unsuitable for general use in applications. This feature is
   /// provided for identifying memory leaks.
   UR_DEVICE_INFO_REFERENCE_COUNT = 64,
-  /// [char[]] IL version
+  /// [char[]] null-terminated IL version
   UR_DEVICE_INFO_IL_VERSION = 65,
-  /// [char[]] Device name
+  /// [char[]] null-terminated device name
   UR_DEVICE_INFO_NAME = 66,
-  /// [char[]] Device vendor
+  /// [char[]] null-terminated device vendor
   UR_DEVICE_INFO_VENDOR = 67,
-  /// [char[]] Driver version
+  /// [char[]] null-terminated driver version
   UR_DEVICE_INFO_DRIVER_VERSION = 68,
-  /// [char[]] Device profile
+  /// [char[]] null-terminated device profile
   UR_DEVICE_INFO_PROFILE = 69,
-  /// [char[]] Device version
+  /// [char[]] null-terminated device version
   UR_DEVICE_INFO_VERSION = 70,
-  /// [char[]] Version of backend runtime
+  /// [char[]] null-terminated version of backend runtime
   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,
-  /// [char[]] Return a space separated list of extension names
+  /// [char[]] Return a null-terminated space separated list of extension
+  /// names
   UR_DEVICE_INFO_EXTENSIONS = 72,
   /// [size_t] Maximum size in bytes of internal printf buffer
   UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,
@@ -2080,9 +2082,8 @@ typedef enum ur_device_info_t {
   /// If the device does not support any affinity domains, then 0 will be
   /// returned.
   UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,
-  /// [::ur_device_partition_property_t[]] return an array of
-  /// ::ur_device_partition_property_t for properties specified in
-  /// ::urDevicePartition
+  /// [::ur_device_partition_property_t[]] returns an array of properties
+  /// specified in ::urDevicePartition
   UR_DEVICE_INFO_PARTITION_TYPE = 79,
   /// [uint32_t] max number of sub groups
   UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,
@@ -2107,7 +2108,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,
   /// [uint8_t[]][optional-query] return device UUID
   UR_DEVICE_INFO_UUID = 88,
-  /// [char[]][optional-query] return device PCI address
+  /// [char[]][optional-query] return null-terminated device PCI address
   UR_DEVICE_INFO_PCI_ADDRESS = 89,
   /// [uint32_t][optional-query] return Intel GPU EU count
   UR_DEVICE_INFO_GPU_EU_COUNT = 90,
@@ -2253,20 +2254,20 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports sampling cubemapped
   /// images across face boundaries
   UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,
-  /// [::ur_bool_t] returns true if the device is capable of fetching USM
-  /// backed 1D sampled image data.
+  /// [::ur_bool_t] returns true if the device supports fetching USM backed
+  /// 1D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP = 0x2012,
-  /// [::ur_bool_t] returns true if the device is capable of fetching
-  /// non-USM backed 1D sampled image data.
+  /// [::ur_bool_t] returns true if the device supports fetching non-USM
+  /// backed 1D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP = 0x2013,
-  /// [::ur_bool_t] returns true if the device is capable of fetching USM
-  /// backed 2D sampled image data.
+  /// [::ur_bool_t] returns true if the device supports fetching USM backed
+  /// 2D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP = 0x2014,
-  /// [::ur_bool_t] returns true if the device is capable of fetching
-  /// non-USM backed 2D sampled image data.
+  /// [::ur_bool_t] returns true if the device supports fetching non-USM
+  /// backed 2D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,
-  /// [::ur_bool_t] returns true if the device is capable of fetching
-  /// non-USM backed 3D sampled image data.
+  /// [::ur_bool_t] returns true if the device supports fetching non-USM
+  /// backed 3D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,
   /// [::ur_bool_t] returns true if the device supports timestamp recording
   UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,
@@ -2276,11 +2277,11 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports unique addressing
   /// per dimension.
   UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,
-  /// [::ur_bool_t] returns true if the device is capable of sampling USM
-  /// backed 1D sampled image data.
+  /// [::ur_bool_t] returns true if the device supports sampling USM backed
+  /// 1D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,
-  /// [::ur_bool_t] returns true if the device is capable of sampling USM
-  /// backed 2D sampled image data.
+  /// [::ur_bool_t] returns true if the device supports sampling USM backed
+  /// 2D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
@@ -5572,12 +5573,12 @@ typedef enum ur_program_info_t {
   UR_PROGRAM_INFO_DEVICES = 3,
   /// [char[]] Return program IL if the program was created with
   /// ::urProgramCreateWithIL, otherwise return size will be set to 0 and
-  /// nothing will be returned.
+  /// nothing will be returned. This is not null-terminated.
   UR_PROGRAM_INFO_IL = 4,
   /// [size_t[]] Return program binary sizes for each device.
   UR_PROGRAM_INFO_BINARY_SIZES = 5,
   /// [unsigned char[]] Return program binaries for all devices for this
-  /// Program.
+  /// Program. These are not null-terminated.
   UR_PROGRAM_INFO_BINARIES = 6,
   /// [size_t][optional-query] Number of kernels in Program, return type
   /// size_t.
