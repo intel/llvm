@@ -1,8 +1,3 @@
-// TODO: Despite using a supported required subgroup size compile_sub_group_size
-// reports as 0 on cuda and hip
-// XFAIL: target-nvidia || target-amd
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14357
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//

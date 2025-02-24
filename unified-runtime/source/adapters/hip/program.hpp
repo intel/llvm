@@ -39,6 +39,7 @@ struct ur_program_handle_t_ {
   std::unordered_map<std::string, std::string> GlobalIDMD;
   std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
       KernelReqdWorkGroupSizeMD;
+  std::unordered_map<std::string, uint32_t> KernelReqdSubGroupSizeMD;
 
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
