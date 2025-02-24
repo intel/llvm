@@ -404,9 +404,13 @@ int test_device_libraries() {
   });
   q.wait_and_throw();
 
-  // Check (only) that the kernel was executed.
-  for (int i = 0; i < nElem; ++i)
+  // Check that the kernel was executed. Given the {1.0, 1.0, 1.0, 1.0} input,
+  // the expected result is approximately {0.84, 1.41, 0.0, 1.41}.
+  for (unsigned i = 0; i < nElem; ++i) {
+    std::cout << ptr[i] << ' ';
     assert(ptr[i] != 1.0f);
+  }
+  std::cout << std::endl;
 
   sycl::free(ptr, q);
 
