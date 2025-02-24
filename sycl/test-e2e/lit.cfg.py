@@ -529,9 +529,12 @@ if (
     len(config.sycl_build_targets) == 1
     and next(iter(config.sycl_build_targets)) == "target-all"
 ):
-    config.sycl_build_targets = set(
-        [config.backend_to_target[be] for be in config.enabled_backends]
-    )
+    config.sycl_build_targets = {"target-spir"}
+    sp = subprocess.getstatusoutput(config.dpcpp_compiler + " --print-targets")
+    if "nvptx64" in sp[1]:
+        config.sycl_build_targets.add("target-nvidia")
+    if "amdgcn" in sp[1]:
+        config.sycl_build_targets.add("target-amd")
 
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     devices = set()

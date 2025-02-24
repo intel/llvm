@@ -32,7 +32,6 @@ config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARG
 
 config.sycl_build_targets = set("target-" + t for t in lit_config.params.get(
     "sycl_build_targets", "@SYCL_TEST_E2E_BUILD_TARGETS@").split(';'))
-config.enabled_backends = "@SYCL_ENABLE_BACKENDS@".split(';')
 
 config.amd_arch = lit_config.params.get("amd_arch", "@AMD_ARCH@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
