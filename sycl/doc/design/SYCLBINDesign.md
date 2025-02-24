@@ -5,6 +5,7 @@ device binaries to be loaded dynamically by the SYCL runtime. It also details
 how the toolchain produces, links and packages these binaries, as well as how
 the SYCL runtime library handles files of this format.
 
+
 ## SYCLBIN binary format
 
 The files produced by the new compilation path will follow the format described
@@ -15,54 +16,60 @@ The content of the SYCLBIN may be contained as an entry in the offloading binary
 format produced by the clang-offload-packager, as described in
 [ClangOffloadPackager.rst](https://github.com/intel/llvm/blob/sycl/clang/docs/ClangOffloadPackager.rst).
 
-The following illustration gives an overview of how the file format is
-structured.
+The format of these files consist of a [file header](#file-header), containing
+general information about the file, followed by three lists of headers: The
+[abstract module header](#abstract-module-header) list, the
+[IR module header](#ir-module-header) list and
+[native device code image header](#native-device-code-image-header) list,
+containing information about the [abstract modules](#abstract-module),
+[IR modules](#ir-module) and
+[native device code images](#native-device-code-image) respectively.
 
-![SYCLBIN binary file format illustration](SYCLBIN_file_format_illustration.svg)
+|                                                                       |
+| --------------------------------------------------------------------- |
+| [File header](#file-header)                                           |
+| [Abstract module header](#abstract-module-header) 1                   |
+| ...                                                                   |
+| [Abstract module header](#abstract-module-header) N                   |
+| [IR module header](#ir-module-header) 1                               |
+| ...                                                                   |
+| [IR module header](#ir-module-header) M                               |
+| [Native device code image header](#native-device-code-image-header) 1 |
+| ...                                                                   |
+| [Native device code image header](#native-device-code-image-header) L |
+| Byte table                                                            |
 
-### Header
 
-The header segment appears as the first part of the SYCLBIN file. Like many
+### File header
+
+The file header segment appears as the first part of the SYCLBIN file. Like many
 other file-formats, it defines a magic number to help identify the format, which
 is 0x53594249 (or "SYBI".) Immediately following the magic number is the version
 number, which is used by SYCLBIN consumers when parsing data in the rest of the
 file.
 
-| Type       | Description                                                        | Value variable |
-| ---------- | ------------------------------------------------------------------ | -------------- |
-| `uint32_t` | Magic number. (0x53594249)                                         |                |
-| `uint32_t` | SYCLBIN version number.                                            |                |
+| Type       | Description                                            |
+| ---------- | ------------------------------------------------------ |
+| `uint32_t` | Magic number. (0x53594249)                             |
+| `uint32_t` | SYCLBIN version number.                                |
+| `uint32_t` | Number of abstract modules.                            |
+| `uint32_t` | Number of IR modules.                                  |
+| `uint32_t` | Number of native device code images.                   |
+| `uint64_t` | Byte size of the byte table.                           |
+| `uint64_t` | Byte offset of the global metadata in the byte table.  |
+| `uint64_t` | Byte size of the global metadata in the byte table.    |
+
+__Alignment:__ 64 bits.
+
 
 #### Global metadata
 
-Immediately after the header is the global metadata segment of the SYCLBIN,
-containing information about the contained SYCLBIN file.
-
-| Type       | Description                                                        | Value variable |
-| ---------- | ------------------------------------------------------------------ | -------------- |
-| `uint8_t`  | `sycl::bundle_state` corresponding to the contents of the SYCLBIN. |                |
-
-The `sycl::bundle_state` is an integer with the values as follows:
-
-| `sycl::bundle_state` | Value |
-| -------------------- | ----- |
-| `input`              | 0     |
-| `object`             | 1     |
-| `executable`         | 2     |
+The global metadata entry contains a single property set with the identifying
+name "SYCLBIN/global metadata", as described in the
+[PropertySets.md](PropertySets.md#syclbinglobal-metadata) design document.
 
 
-### Body
-
-Following the global metadata is the body of the SYCLBIN file. The body consists
-of a list of abstract modules.
-
-| Type         | Description                                | Value variable |
-| ------------ | ------------------------------------------ | -------------- |
-| `uint64_t`   | Byte size of the list of abstract modules. | `B`            |
-| `uint8_t[B]` | List of abstract modules.                  |                |
-
-
-#### Abstract module
+### Abstract module
 
 An abstract module is a collection of device binaries that share properties,
 including, but not limited to: kernel names, imported symbols, exported symbols,
@@ -75,83 +82,97 @@ images can be an architecture-specific binary format. There is no requirement
 that all device binaries in an abstract module are usable on the same device or
 are specific to a single vendor.
 
-| Type          | Description                                     | Value variable |
-| ------------- | ----------------------------------------------- | -------------- |
-| `uint64_t`    | Byte size of the list of the metadata.          | `M`            |
-| `uint8_t[M]`  | Module metadata.                                |                |
-| `uint64_t`    | Byte size of list of IR modules.                | `IR`           |
-| `uint8_t[IR]` | List of IR modules.                             |                |
-| `uint64_t`    | Byte size of list of native device code images. | `ND`           |
-| `uint8_t[ND]` | List of native device code images.              |                |
+
+#### Abstract module header
+
+A abstract module header contains the following fields in the stated order:
+
+| Type       | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `uint64_t` | Byte offset of the metadata in the byte table.        |
+| `uint64_t` | Byte size of the metadata in the byte table.          |
+| `uint32_t` | Number of IR modules.                                 |
+| `uint32_t` | Offset of the first IR module header.                 |
+| `uint32_t` | Number of native device code images.                  |
+| `uint32_t` | Offset of the first native device code images header. |
+
+__Alignment:__ 64 bits.
+
+#### Abstract module metadata
+
+An abstract module metadata entry contains any number of property sets, as
+described in [PropertySets.md](PropertySets.md), excluding:
+
+* ["SYCLBIN/global metadata"](PropertySets.md#syclbinglobal-metadata)
+* ["SYCLBIN/ir module metadata"](PropertySets.md#syclbinir-module-metadata)
+* ["SYCLBIN/native device code image module metadata"](PropertySets.md#syclbinnative-device-code-image-metadata)
 
 
-##### Module metadata
-
-The module metadata contains the following information about the contents of the
-module.
-
-| Type         | Description                                                    | Value variable |
-| ------------ | -------------------------------------------------------------- | -------------- |
-| `uint32_t`   | Byte size of the list of kernel names.                         | `K`            |
-| `uint8_t[K]` | List of kernel names. (String list)                            |                |
-| `uint32_t`   | Byte size of property set data.                                | `P`            |
-| `uint8_t[P]` | Property set data.                                             |                |
-
-
-*NOTE:* Optional features used is embedded in the property set data.
-*TODO:* Consolidate and/or document the property set data in this document.
-
-
-##### IR module
+#### IR module
 
 An IR module contains the binary data for the corresponding module compiled to a
 given IR representation, identified by the IR type field.
 
-| Type          | Description                    | Value variable |
-| ------------- | ------------------------------ | -------------- |
-| `uint8_t`     | IR type.                       |                |
-| `uint32_t`    | Byte size of the raw IR bytes. | `IB`           |
-| `uint8_t[IB]` | Raw IR bytes.                  |                |
 
-*TODO:* Do we need a target-specific blob inside this structure? E.g. for CUDA
-        we may want to embed the SM version.
+##### IR module header
 
+A IR module header contains the following fields in the stated order:
 
-##### String list
+| Type       | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `uint64_t` | Byte offset of the metadata in the byte table.        |
+| `uint64_t` | Byte size of the metadata in the byte table.          |
+| `uint64_t` | Byte offset of the raw IR bytes in the byte table.    |
+| `uint64_t` | Byte size of the raw IR bytes in the byte table.      |
 
-A string list in this binary format consists of a `uint32_t` at the beginning
-containing the number of elements in the list, followed by that number of
-entries with the format:
-
-| Type         | Description              | Value variable |
-| ------------ | ------------------------ | -------------- |
-| `uint32_t`   | Byte size of the string. | `S`            |
-| `uint8_t[S]` | String bytes.            |                |
+__Alignment:__ 64 bits.
 
 
-##### IR types
+##### IR module metadata
 
-The IR types must be one of the following values:
-
-| IR type | Value |
-| ------- | ----- |
-| SPIR-V  | 0     |
-| PTX     | 1     |
-| AMDGCN  | 2     |
+An IR module metadata entry contains a single property set with the identifying
+name "SYCLBIN/ir module metadata", as described in the
+[PropertySets.md](PropertySets.md#syclbinir-module-metadata) design document.
 
 
-##### Native device code image
+#### Native device code image
 
 An native device code image contains the binary data for the corresponding
 module AOT compiled for a specific device, identified by the architecture
 string.
 
-| Type          | Description                                      | Value variable |
-| ------------- | ------------------------------------------------ | -------------- |
-| `uint32_t`    | Byte size of the architecture string.            | `A`            |
-| `uint8_t[A]`  | Architecture string.                             |                |
-| `uint32_t`    | Byte size of the native device code image bytes. | `NB`           |
-| `uint8_t[NB]` | Native device code image bytes.                  |                |
+
+##### Native device code image header
+
+A native device code image header contains the following fields in the stated
+order:
+
+| Type       | Description                                                   |
+| ---------- | ------------------------------------------------------------- |
+| `uint64_t` | Byte offset of the metadata in the byte table.                |
+| `uint64_t` | Byte size of the metadata in the byte table.                  |
+| `uint64_t` | Byte offset of the device code image bytes in the byte table. |
+| `uint64_t` | Byte size of the device code image bytes in the byte table.   |
+
+__Alignment:__ 64 bits.
+
+
+##### Native device code image metadata
+
+A native device code image metadata entry contains a single property set with
+the identifying name "SYCLBIN/native device code image module metadata", as
+described in the
+[PropertySets.md](PropertySets.md#syclbinnative-device-code-image-metadata)
+design document.
+
+
+### Byte table
+
+The byte table contains dynamic data, such as metadata and binary blobs. The
+contents of it is generally referenced by an offset specified in the headers.
+
+__Alignment:__ 64 bits. This alignment guarantee does not apply to the
+structures contained in the table.
 
 
 ### SYCLBIN version changelog
@@ -159,6 +180,7 @@ string.
 The SYCLBIN format is subject to change, but any such changes must come with an
 increment to the version number in the header and a subsection to this section
 describing the change.
+
 
 #### Version 1
 
