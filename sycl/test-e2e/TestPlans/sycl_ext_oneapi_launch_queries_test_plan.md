@@ -16,7 +16,7 @@ in the relevant section of the spec. Param can only be one of
 `max_work_item_sizes<1>`, `max_work_item_sizes<2>`, `max_work_item_sizes<3>`,
 `max_work_group_size`, `max_num_work_groups`, `max_sub_group_size`, and
 `num_sub_groups` which are defined in the namespace 
-`ext::oneapi::experimental::info::kernel`. 
+`sycl::ext::oneapi::experimental::info::kernel`. 
 The tests should cover all of these types.
 
 ## Tests
