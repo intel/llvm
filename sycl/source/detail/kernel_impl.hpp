@@ -439,7 +439,7 @@ generate_id(const sycl::range<Dimensions> &DevMaxWorkItemSizes,
             const size_t DevWgSize) {
   sycl::id<Dimensions> Ret;
   for (int i = 0; i < Dimensions; i++) {
-    // DevMaxWorkItemSizes values are reverted, see
+    // DevMaxWorkItemSizes values are inverted, see
     // sycl/source/detail/device_info.hpp:582
     Ret[i] = std::min(DevMaxWorkItemSizes[i], DevWgSize);
   }
@@ -475,7 +475,7 @@ ADD_TEMPLATE_METHOD_SPEC(3)
       queue Queue, const range<Num> &WG) const {                               \
     if (WG.size() == 0)                                                        \
       throw exception(sycl::make_error_code(errc::invalid),                    \
-                      "The max work-group size cannot be zero.");              \
+                      "The work-group size cannot be zero.");              \
     const auto &Adapter = getAdapter();                                        \
     const auto DeviceNativeHandle =                                            \
         getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
