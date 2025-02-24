@@ -15,7 +15,9 @@ Each query has a restriction on the value of `Param` defined
 in the relevant section of the spec. Param can only be one of
 `max_work_item_sizes<1>`, `max_work_item_sizes<2>`, `max_work_item_sizes<3>`,
 `max_work_group_size`, `max_num_work_groups`, `max_sub_group_size`, and
-`num_sub_groups`. The tests should cover all of these types.
+`num_sub_groups` which are defined in the namespace 
+`ext::oneapi::experimental::info::kernel`. 
+The tests should cover all of these types.
 
 ## Tests
 
@@ -55,6 +57,7 @@ if the work-group size `r` is 0.
 #### Check return value of queries depending on queue submission status
 
 Verify that if kernel submission to a queue does not throw then
-the return value of each query on the queue is strictly greater than 0.
+the return value of each query on the queue with the given kernel 
+is strictly greater than 0.
 
 [spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_launch_queries.asciidoc
