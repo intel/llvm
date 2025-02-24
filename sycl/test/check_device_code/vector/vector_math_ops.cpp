@@ -32,13 +32,13 @@ using namespace sycl;
 SYCL_EXTERNAL auto TestAdd(vec<int, 2> a, vec<int, 2> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecIfLi3EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.1") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.1") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.1") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META21:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.33") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.33") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.33") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META21:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META22:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META25:![0-9]+]])
-// CHECK-NEXT:    [[LOADVEC4_I_I_I:%.*]] = load <4 x float>, ptr [[A]], align 16, !noalias [[META28:![0-9]+]]
-// CHECK-NEXT:    [[LOADVEC4_I6_I_I:%.*]] = load <4 x float>, ptr [[B]], align 16, !noalias [[META28]]
-// CHECK-NEXT:    [[TMP0:%.*]] = fadd <4 x float> [[LOADVEC4_I_I_I]], [[LOADVEC4_I6_I_I]]
+// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x float>, ptr [[A]], align 16, !noalias [[META28:![0-9]+]]
+// CHECK-NEXT:    [[LOADVECN_I6_I_I:%.*]] = load <4 x float>, ptr [[B]], align 16, !noalias [[META28]]
+// CHECK-NEXT:    [[TMP0:%.*]] = fadd <4 x float> [[LOADVECN_I_I_I]], [[LOADVECN_I6_I_I]]
 // CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <4 x float> [[TMP0]], <4 x float> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x float> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META28]]
 // CHECK-NEXT:    ret void
@@ -46,7 +46,7 @@ SYCL_EXTERNAL auto TestAdd(vec<int, 2> a, vec<int, 2> b) { return a + b; }
 SYCL_EXTERNAL auto TestAdd(vec<float, 3> a, vec<float, 3> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecIcLi16EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.9") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.9") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.9") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META29:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.74") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.74") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.74") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META29:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META30:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META33:![0-9]+]])
@@ -60,7 +60,7 @@ SYCL_EXTERNAL auto TestAdd(vec<char, 16> a, vec<char, 16> b) { return a + b; }
 
 // std::byte does not support '+'. Therefore, using bitwise XOR as a substitute.
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestXorN4sycl3_V13vecISt4byteLi8EEES3_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.17") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.17") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.17") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META37:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.115") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.115") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.115") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META37:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META38:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META41:![0-9]+]])
@@ -75,7 +75,7 @@ SYCL_EXTERNAL auto TestXor(vec<std::byte, 8> a, vec<std::byte, 8> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecIbLi4EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.25") align 4 initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.25") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.25") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META48:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.126") align 4 initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.126") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.126") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META48:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META49:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META52:![0-9]+]])
@@ -90,13 +90,13 @@ SYCL_EXTERNAL auto TestXor(vec<std::byte, 8> a, vec<std::byte, 8> b) {
 SYCL_EXTERNAL auto TestAdd(vec<bool, 4> a, vec<bool, 4> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecINS0_6detail9half_impl4halfELi3EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.33") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.33") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.33") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META59:![0-9]+]] !sycl_used_aspects [[META60:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.167") align 8 initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.167") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.167") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META59:![0-9]+]] !sycl_used_aspects [[META60:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META62:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META65:![0-9]+]])
-// CHECK-NEXT:    [[LOADVEC4_I_I_I:%.*]] = load <4 x half>, ptr [[A]], align 8, !noalias [[META68:![0-9]+]]
-// CHECK-NEXT:    [[LOADVEC4_I6_I_I:%.*]] = load <4 x half>, ptr [[B]], align 8, !noalias [[META68]]
-// CHECK-NEXT:    [[TMP0:%.*]] = fadd <4 x half> [[LOADVEC4_I_I_I]], [[LOADVEC4_I6_I_I]]
+// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x half>, ptr [[A]], align 8, !noalias [[META68:![0-9]+]]
+// CHECK-NEXT:    [[LOADVECN_I6_I_I:%.*]] = load <4 x half>, ptr [[B]], align 8, !noalias [[META68]]
+// CHECK-NEXT:    [[TMP0:%.*]] = fadd <4 x half> [[LOADVECN_I_I_I]], [[LOADVECN_I6_I_I]]
 // CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <4 x half> [[TMP0]], <4 x half> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x half> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META69:![0-9]+]]
 // CHECK-NEXT:    ret void
@@ -104,10 +104,10 @@ SYCL_EXTERNAL auto TestAdd(vec<bool, 4> a, vec<bool, 4> b) { return a + b; }
 SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.41") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.41") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.41") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] !srcloc [[META72:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.208") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.208") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.208") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] !srcloc [[META72:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[REF_TMP_I_I_I_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.41", align 8
+// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.208", align 8
 // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
 // CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META73:![0-9]+]])
@@ -119,7 +119,7 @@ SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLINS0_3EXT6ONEAPI8BFLOAT16EEENS0_3VECIS5_LI3EEERKS7_S9__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIX24IS_OP_AVAILABLE_FOR_TYPEIST4PLUSIVET_EENS0_3VECIS5_LI3EEEE4TYPEERKSB_SF__EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I_I]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I12_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I_I]]
@@ -134,7 +134,7 @@ SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 // CHECK-NEXT:    store i16 [[CALL_I_I3_I_I_I_I]], ptr [[ARRAYIDX_I_I_I14_I_I]], align 2, !tbaa [[TBAA88:![0-9]+]], !noalias [[META79]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP90:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailplINS0_3ext6oneapi8bfloat16EEENS0_3vecIS5_Li3EEERKS7_S9_.exit:
+// CHECK:       _ZN4sycl3_V16detailplINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIX24is_op_available_for_typeISt4plusIvET_EENS0_3vecIS5_Li3EEEE4typeERKSB_SF_.exit:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[RES_I_I]], align 8, !noalias [[META79]]
 // CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META79]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[RES_I_I]]), !noalias [[META73]]
@@ -148,7 +148,7 @@ SYCL_EXTERNAL auto TestAdd(vec<ext::oneapi::bfloat16, 3> a,
 /***************** Binary Logical Ops *******************/
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecIiLi16EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.47") align 64 initializes((0, 64)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.47") align 64 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.47") align 64 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META92:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.247") align 64 initializes((0, 64)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.247") align 64 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.247") align 64 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META92:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META93:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META96:![0-9]+]])
@@ -164,11 +164,11 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<int, 16> a, vec<int, 16> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func noundef range(i8 -1, 1) <3 x i8> @_Z15TestGreaterThanN4sycl3_V13vecISt4byteLi3EEES3_(
-// CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.56") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.56") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] !srcloc [[META100:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.289") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.289") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] !srcloc [[META100:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x i8>, ptr [[A]], align 1
-// CHECK-NEXT:    [[LOADVEC4_I_I2:%.*]] = load <4 x i8>, ptr [[B]], align 1
-// CHECK-NEXT:    [[TMP0:%.*]] = icmp ugt <4 x i8> [[LOADVEC4_I_I]], [[LOADVEC4_I_I2]]
+// CHECK-NEXT:    [[LOADVECN_I_I:%.*]] = load <4 x i8>, ptr [[A]], align 1
+// CHECK-NEXT:    [[LOADVECN_I_I2:%.*]] = load <4 x i8>, ptr [[B]], align 1
+// CHECK-NEXT:    [[TMP0:%.*]] = icmp ugt <4 x i8> [[LOADVECN_I_I]], [[LOADVECN_I_I2]]
 // CHECK-NEXT:    [[CMP:%.*]] = shufflevector <4 x i1> [[TMP0]], <4 x i1> poison, <3 x i32> <i32 0, i32 1, i32 2>
 // CHECK-NEXT:    [[SEXT:%.*]] = sext <3 x i1> [[CMP]] to <3 x i8>
 // CHECK-NEXT:    ret <3 x i8> [[SEXT]]
@@ -178,7 +178,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<std::byte, 3> a, vec<std::byte, 3> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecIbLi2EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.62") align 2 initializes((0, 2)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.68") align 2 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.68") align 2 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META101:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.298") align 2 initializes((0, 2)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.337") align 2 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.337") align 2 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META101:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META102:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META105:![0-9]+]])
@@ -194,7 +194,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<bool, 2> a, vec<bool, 2> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.78") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.84") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.84") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META112:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.380") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.419") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.419") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META112:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META113:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META116:![0-9]+]])
@@ -210,9 +210,9 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi4EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.94") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.100") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.100") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META120:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.462") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.501") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.501") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META120:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.94", align 8
+// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.462", align 8
 // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
 // CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META121:![0-9]+]])
@@ -223,7 +223,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILGTINS0_3EXT6ONEAPI8BFLOAT16EEENS0_3VECISLI4EEERKNS6_IS5_LI4EEESA__EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILGTINS0_3EXT6ONEAPI8BFLOAT16EEENST9ENABLE_IFIX24IS_OP_AVAILABLE_FOR_TYPEIST7GREATERIVET_EENS0_3VECISLI4EEEE4TYPEERKNSA_IS5_LI4EEESG__EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I_I]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I14_I_I:%.*]] = getelementptr inbounds nuw [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I_I]]
@@ -235,7 +235,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 // CHECK-NEXT:    store i16 [[CONV6_I_I]], ptr [[ARRAYIDX_I_I_I16_I_I]], align 2, !tbaa [[TBAA88]], !noalias [[META127]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP128:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailgtINS0_3ext6oneapi8bfloat16EEENS0_3vecIsLi4EEERKNS6_IS5_Li4EEESA_.exit:
+// CHECK:       _ZN4sycl3_V16detailgtINS0_3ext6oneapi8bfloat16EEENSt9enable_ifIX24is_op_available_for_typeISt7greaterIvET_EENS0_3vecIsLi4EEEE4typeERKNSA_IS5_Li4EEESG_.exit:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[RES_I_I]], align 8, !noalias [[META127]]
 // CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META127]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[RES_I_I]]), !noalias [[META121]]
@@ -249,12 +249,12 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<ext::oneapi::bfloat16, 4> a,
 /********************** Unary Ops **********************/
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecIiLi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.105") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.105") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META129:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.539") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.539") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META129:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META130:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META133:![0-9]+]])
-// CHECK-NEXT:    [[LOADVEC4_I_I_I:%.*]] = load <4 x i32>, ptr [[A]], align 16, !noalias [[META136:![0-9]+]]
-// CHECK-NEXT:    [[EXTRACTVEC_I_I_I:%.*]] = shufflevector <4 x i32> [[LOADVEC4_I_I_I]], <4 x i32> poison, <3 x i32> <i32 0, i32 1, i32 2>
+// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x i32>, ptr [[A]], align 16, !noalias [[META136:![0-9]+]]
+// CHECK-NEXT:    [[EXTRACTVEC_I_I_I:%.*]] = shufflevector <4 x i32> [[LOADVECN_I_I_I]], <4 x i32> poison, <3 x i32> <i32 0, i32 1, i32 2>
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = icmp eq <3 x i32> [[EXTRACTVEC_I_I_I]], zeroinitializer
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <3 x i1> [[CMP_I_I_I_I]] to <3 x i32>
 // CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <3 x i32> [[SEXT_I_I_I_I]], <3 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
@@ -264,7 +264,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<ext::oneapi::bfloat16, 4> a,
 SYCL_EXTERNAL auto TestNegation(vec<int, 3> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecIiLi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.112") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.112") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META137:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.579") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.579") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META137:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META138:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META141:![0-9]+]])
@@ -277,7 +277,7 @@ SYCL_EXTERNAL auto TestMinus(vec<int, 4> a) { return -a; }
 
 // Negation is not valid for std::byte. Therefore, using bitwise negation.
 // CHECK-LABEL: define dso_local spir_func void @_Z19TestBitwiseNegationN4sycl3_V13vecISt4byteLi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.118") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.118") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META145:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.618") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.618") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META145:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META146:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META149:![0-9]+]])
@@ -289,7 +289,7 @@ SYCL_EXTERNAL auto TestMinus(vec<int, 4> a) { return -a; }
 SYCL_EXTERNAL auto TestBitwiseNegation(vec<std::byte, 16> a) { return ~a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecIbLi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.125") align 4 initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.25") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META153:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.628") align 4 initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.126") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META153:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META154:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META157:![0-9]+]])
@@ -302,7 +302,7 @@ SYCL_EXTERNAL auto TestBitwiseNegation(vec<std::byte, 16> a) { return ~a; }
 SYCL_EXTERNAL auto TestNegation(vec<bool, 4> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_6detail9half_impl4halfELi2EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.132") align 4 initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.138") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META164:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.668") align 4 initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.707") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META164:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META165:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META168:![0-9]+]])
@@ -315,7 +315,7 @@ SYCL_EXTERNAL auto TestNegation(vec<bool, 4> a) { return !a; }
 SYCL_EXTERNAL auto TestNegation(vec<half, 2> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.84") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.84") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META175:![0-9]+]] !sycl_used_aspects [[META60]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.419") align 16 initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.419") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META175:![0-9]+]] !sycl_used_aspects [[META60]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META176:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META179:![0-9]+]])
@@ -327,9 +327,9 @@ SYCL_EXTERNAL auto TestNegation(vec<half, 2> a) { return !a; }
 SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.146") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.41") align 8 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META183:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.748") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.208") align 8 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META183:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.146", align 8
+// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.748", align 8
 // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META184:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META187:![0-9]+]])
@@ -358,10 +358,10 @@ SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 SYCL_EXTERNAL auto TestNegation(vec<ext::oneapi::bfloat16, 3> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.151") align 32 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.151") align 32 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META192:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.786") align 32 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.786") align 32 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META192:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[REF_TMP_I_I_I_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.151", align 32
+// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.786", align 32
 // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 32, ptr nonnull [[RES_I_I]]), !noalias [[META193:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr align 32 [[RES_I_I]], i8 0, i64 32, i1 false), !noalias [[META196:![0-9]+]]

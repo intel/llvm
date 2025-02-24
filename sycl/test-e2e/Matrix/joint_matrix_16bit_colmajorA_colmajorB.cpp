@@ -9,6 +9,10 @@
 // This tests support of col major layout for matrix B which does transpose and
 // then VNNI transform. This is currently only available on AMX
 
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
+// other triples
+
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
@@ -18,6 +22,10 @@
 
 // XFAIL: gpu
 // XFAIL-TRACKER: GSD-5768
+
+// Only transpose on half data type
+// XFAIL: arch-intel_cpu_gnr
+// XFAIL-TRACKER: CMPLRLLVM-65499
 
 #include "common.hpp"
 
