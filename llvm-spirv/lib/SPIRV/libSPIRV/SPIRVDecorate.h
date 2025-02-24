@@ -84,6 +84,7 @@ public:
       return getCapability(BI);
     }
     case DecorationUniform:
+    case DecorationUniformId:
       if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
         return getVec(CapabilityUniformDecoration);
       return getVec(CapabilityShader);
