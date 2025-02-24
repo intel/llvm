@@ -475,7 +475,7 @@ ADD_TEMPLATE_METHOD_SPEC(3)
       queue Queue, const range<Num> &WG) const {                               \
     if (WG.size() == 0)                                                        \
       throw exception(sycl::make_error_code(errc::invalid),                    \
-                      "The work-group size cannot be zero.");              \
+                      "The work-group size cannot be zero.");                  \
     const auto &Adapter = getAdapter();                                        \
     const auto DeviceNativeHandle =                                            \
         getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
