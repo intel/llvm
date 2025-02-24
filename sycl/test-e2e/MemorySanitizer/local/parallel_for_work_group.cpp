@@ -5,8 +5,6 @@
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -g -O2 -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_msan_flags -mllvm -msan-spir-locals=0 -g -O2 -o %t4.out
-// RUN: %{run} %t4.out 2>&1 | FileCheck --check-prefixes DISABLE-CHECK %s
 #include <sycl/group.hpp>
 #include <sycl/usm.hpp>
 

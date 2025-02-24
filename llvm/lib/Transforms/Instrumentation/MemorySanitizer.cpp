@@ -387,6 +387,11 @@ static cl::opt<bool> ClSpirOffloadLocals("msan-spir-locals",
                                          cl::desc("instrument local pointer"),
                                          cl::Hidden, cl::init(true));
 
+static cl::opt<bool>
+    ClSpirOffloadPrivates("msan-spir-privates",
+                          cl::desc("instrument private pointer"), cl::Hidden,
+                          cl::init(false));
+
 const char kMsanModuleCtorName[] = "msan.module_ctor";
 const char kMsanInitName[] = "__msan_init";
 
@@ -803,6 +808,7 @@ private:
 
   FunctionCallee MsanSetShadowStaticLocalFunc;
   FunctionCallee MsanUnpoisonShadowStaticLocalFunc;
+  FunctionCallee MsanBarrierFunc;
 };
 
 } // end anonymous namespace
@@ -819,6 +825,8 @@ static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
     return true;
   // Skip instrumenting on "__MsanKernelMetadata" etc.
   if (G->getName().starts_with("__Msan"))
+    return true;
+  if (G->getName().starts_with("__msan_"))
     return true;
   if (G->getName().starts_with("__spirv_BuiltIn"))
     return true;
@@ -865,6 +873,9 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   MsanUnpoisonShadowStaticLocalFunc =
       M.getOrInsertFunction("__msan_unpoison_shadow_static_local",
                             IRB.getVoidTy(), IntptrTy, IntptrTy);
+
+  // __msan_barrier()
+  MsanBarrierFunc = M.getOrInsertFunction("__msan_barrier", IRB.getVoidTy());
 }
 
 // Handle global variables:
@@ -885,6 +896,9 @@ void MemorySanitizerOnSpirv::instrumentGlobalVariables() {
           Inst->setNoSanitizeMetadata();
       continue;
     }
+
+    if (G.getAddressSpace() == kSpirOffloadLocalAS)
+      continue;
 
     DeviceGlobalMetadata.push_back(ConstantStruct::get(
         StructTy,
@@ -937,10 +951,16 @@ void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
   if (!ClSpirOffloadLocals)
     return;
 
-  auto Instrument = [this](GlobalVariable *G, Function *F) {
+  DenseMap<Function *, bool> InsertBarrier;
+
+  auto Instrument = [this, &InsertBarrier](GlobalVariable *G, Function *F) {
     const uint64_t SizeInBytes = DL.getTypeAllocSize(G->getValueType());
 
     // Poison shadow of static local memory
+    if (!InsertBarrier[F]) {
+      IRBuilder<> Builder(&F->getEntryBlock().front());
+      Builder.CreateCall(MsanBarrierFunc);
+    }
     IRBuilder<> Builder(&F->getEntryBlock().front());
     Builder.CreateCall(MsanSetShadowStaticLocalFunc,
                        {Builder.CreatePointerCast(G, IntptrTy),
@@ -950,10 +970,14 @@ void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
     initializeRetVecMap(F);
     for (auto *RI : KernelToRetVecMap[F]) {
       IRBuilder<> Builder(RI);
+      if (!InsertBarrier[F])
+        Builder.CreateCall(MsanBarrierFunc);
       Builder.CreateCall(MsanUnpoisonShadowStaticLocalFunc,
                          {Builder.CreatePointerCast(G, IntptrTy),
                           ConstantInt::get(IntptrTy, SizeInBytes)});
     }
+
+    InsertBarrier[F] = true;
   };
 
   // We only instrument on spir_kernel, because local variables are
@@ -986,7 +1010,10 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
   // following structure:
   //  uptr unmangled_kernel_name
   //  uptr unmangled_kernel_name_size
-  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+  //  uptr check_local_memory
+  //  uptr check_private_memory
+  StructType *StructTy =
+      StructType::get(IntptrTy, IntptrTy, IntptrTy, IntptrTy);
   for (Function &F : M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
@@ -1000,7 +1027,9 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
                                                  kSpirOffloadConstantAS);
     SpirKernelsMetadata.emplace_back(ConstantStruct::get(
         StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-        ConstantInt::get(IntptrTy, KernelName.size())));
+        ConstantInt::get(IntptrTy, KernelName.size()),
+        ConstantInt::get(IntptrTy, ClSpirOffloadLocals),
+        ConstantInt::get(IntptrTy, ClSpirOffloadPrivates)));
   }
 
   // Create global variable to record spirv kernels' information
@@ -1556,7 +1585,7 @@ static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
   case kSpirOffloadPrivateAS:
-    return true;
+    return !ClSpirOffloadPrivates;
   case kSpirOffloadLocalAS:
     return !ClSpirOffloadLocals;
   case kSpirOffloadGenericAS:
@@ -3443,6 +3472,15 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                              ->getMetadata(LLVMContext::MD_nosanitize))))
       return;
 
+    if (SpirOrSpirv && !ClSpirOffloadLocals &&
+        (I.getSourceAddressSpace() == kSpirOffloadLocalAS ||
+         I.getDestAddressSpace() == kSpirOffloadLocalAS))
+      return;
+    if (SpirOrSpirv && !ClSpirOffloadPrivates &&
+        (I.getSourceAddressSpace() == kSpirOffloadPrivateAS ||
+         I.getDestAddressSpace() == kSpirOffloadPrivateAS))
+      return;
+
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
     IRB.CreateCall(SpirOrSpirv ? MS.MemmoveOffloadFn[I.getDestAddressSpace()]
@@ -3476,6 +3514,15 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                              ->getMetadata(LLVMContext::MD_nosanitize))))
       return;
 
+    if (SpirOrSpirv && !ClSpirOffloadLocals &&
+        (I.getSourceAddressSpace() == kSpirOffloadLocalAS ||
+         I.getDestAddressSpace() == kSpirOffloadLocalAS))
+      return;
+    if (SpirOrSpirv && !ClSpirOffloadPrivates &&
+        (I.getSourceAddressSpace() == kSpirOffloadPrivateAS ||
+         I.getDestAddressSpace() == kSpirOffloadPrivateAS))
+      return;
+
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
     IRB.CreateCall(SpirOrSpirv ? MS.MemcpyOffloadFn[I.getDestAddressSpace()]
@@ -3491,6 +3538,13 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (SpirOrSpirv && isa<Instruction>(I.getArgOperand(0)) &&
         cast<Instruction>(I.getArgOperand(0))
             ->getMetadata(LLVMContext::MD_nosanitize))
+      return;
+
+    if (SpirOrSpirv && !ClSpirOffloadLocals &&
+        I.getDestAddressSpace() == kSpirOffloadLocalAS)
+      return;
+    if (SpirOrSpirv && !ClSpirOffloadPrivates &&
+        I.getDestAddressSpace() == kSpirOffloadPrivateAS)
       return;
 
     IRBuilder<> IRB(&I);

@@ -225,13 +225,16 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
 
-      getContext()->logger.info("SpirKernel(name='{}', isInstrumented={})",
-                                KernelName, true);
+      getContext()->logger.info("SpirKernel(name='{}', isInstrumented={}, "
+                                "checkLocals={}, checkPrivates={})",
+                                KernelName, true, (bool)SKI.CheckLocals,
+                                (bool)SKI.CheckPrivates);
 
-      PI->InstrumentedKernels.insert(std::move(KernelName));
+      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
+          (bool)SKI.CheckLocals, (bool)SKI.CheckPrivates};
     }
     getContext()->logger.info("Number of sanitized kernel: {}",
-                              PI->InstrumentedKernels.size());
+                              PI->KernelMetadataMap.size());
   }
 
   return UR_RESULT_SUCCESS;
@@ -277,7 +280,8 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
       const auto &GVInfo = GVInfos[i];
 
       // Only support device global USM
-      if ((DeviceInfo->Type == DeviceType::GPU_PVC &&
+      if (DeviceInfo->Type == DeviceType::CPU ||
+          (DeviceInfo->Type == DeviceType::GPU_PVC &&
            MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
            MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
@@ -375,13 +379,18 @@ KernelInfo &MsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
   }
 
   // Create new KernelInfo
-  auto Program = GetProgram(Kernel);
-  auto PI = getProgramInfo(Program);
-  bool IsInstrumented = PI->isKernelInstrumented(Kernel);
+  auto PI = getProgramInfo(GetProgram(Kernel));
+  auto KI = std::make_unique<KernelInfo>(Kernel);
+
+  KI->IsInstrumented = PI->isKernelInstrumented(Kernel);
+  if (KI->IsInstrumented) {
+    auto &KM = PI->getKernelMetadata(Kernel);
+    KI->IsCheckLocals = KM.CheckLocals;
+    KI->IsCheckPrivates = KM.CheckPrivates;
+  }
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-  m_KernelMap.emplace(Kernel,
-                      std::make_unique<KernelInfo>(Kernel, IsInstrumented));
+  m_KernelMap.emplace(Kernel, std::move(KI));
   return *m_KernelMap[Kernel].get();
 }
 
@@ -437,6 +446,12 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Set membuffer arguments
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+  getContext()->logger.info("KernelInfo {} (Name=<{}>, IsInstrumented={}, "
+                            "IsCheckLocals={}, IsCheckPrivates={})",
+                            (void *)Kernel, GetKernelName(Kernel),
+                            KernelInfo.IsInstrumented, KernelInfo.IsCheckLocals,
+                            KernelInfo.IsCheckPrivates);
+
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
   for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
@@ -474,7 +489,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
   }
 
   // Write shadow memory offset for local memory
-  {
+  if (KernelInfo.IsCheckLocals) {
     if (DeviceInfo->Shadow->AllocLocalShadow(
             Queue, NumWG, LaunchInfo.Data->LocalShadowOffset,
             LaunchInfo.Data->LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
@@ -556,7 +571,14 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
 
 bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
-  return InstrumentedKernels.find(Name) != InstrumentedKernels.end();
+  return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
+}
+
+const ProgramInfo::KernelMetada &
+ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
+  const auto Name = GetKernelName(Kernel);
+  assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());
+  return KernelMetadataMap.at(Name);
 }
 
 ContextInfo::~ContextInfo() {
