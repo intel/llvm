@@ -166,7 +166,7 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // This initializes a function-local variable whose destructor is invoked as
   // the SYCL shared library is first being unloaded.
-  GlobalHandler::registerEarlyShutdownHandler();
+  GlobalHandler::registerStaticVarShutdownHandler();
 
   return Platforms;
 }
