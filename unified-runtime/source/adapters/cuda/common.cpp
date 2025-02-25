@@ -47,8 +47,7 @@ void checkErrorUR(CUresult Result, const char *Function, int Line,
   cuGetErrorName(Result, &ErrorName);
   cuGetErrorString(Result, &ErrorString);
   std::stringstream SS;
-  SS << "\nUR CUDA ERROR:"
-     << "\n\tValue:           " << Result
+  SS << "\nUR CUDA ERROR:" << "\n\tValue:           " << Result
      << "\n\tName:            " << ErrorName
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
@@ -70,9 +69,9 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
   }
 
   std::stringstream SS;
-  SS << "\nUR ERROR:"
-     << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
-     << "\n\tSource Location: " << File << ":" << Line << "\n";
+  SS << "\nUR ERROR:" << "\n\tValue:           " << Result
+     << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+     << ":" << Line << "\n";
   logger::error("{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {

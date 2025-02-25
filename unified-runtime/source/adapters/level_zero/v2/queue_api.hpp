@@ -128,6 +128,24 @@ struct ur_queue_t_ {
                                            bool, void *, size_t, uint32_t,
                                            const ur_event_handle_t *,
                                            ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueUSMDeviceAllocExp(ur_usm_pool_handle_t, const size_t,
+                           const ur_exp_enqueue_usm_alloc_properties_t *,
+                           uint32_t, const ur_event_handle_t *, void **,
+                           ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueUSMSharedAllocExp(ur_usm_pool_handle_t, const size_t,
+                           const ur_exp_enqueue_usm_alloc_properties_t *,
+                           uint32_t, const ur_event_handle_t *, void **,
+                           ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueUSMHostAllocExp(ur_usm_pool_handle_t, const size_t,
+                         const ur_exp_enqueue_usm_alloc_properties_t *,
+                         uint32_t, const ur_event_handle_t *, void **,
+                         ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueUSMFreeExp(ur_usm_pool_handle_t, void *, uint32_t,
+                                        const ur_event_handle_t *,
+                                        ur_event_handle_t *) = 0;
   virtual ur_result_t bindlessImagesImageCopyExp(
       const void *, void *, const ur_image_desc_t *, const ur_image_desc_t *,
       const ur_image_format_t *, const ur_image_format_t *,
