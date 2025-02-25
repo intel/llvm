@@ -25,8 +25,8 @@ int main() {
   // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
   // CHECK: {{READ of size 1 at kernel <.*Test> LID\(0, 0, 0\) GID\(0, 0, 0\)}}
   // CHECK: {{  #0 .* .*options-redzone.cpp:}}[[@LINE-7]]
-  // CHECK-MIN: Trying to set redzone size to a value less than 16 is ignored
-  // CHECK-MAX: Trying to set max redzone size to a value greater than 2048 is ignored
+  // CHECK-MIN: The valid range of "redzone" is [16, 2048]. Setting to the minimum value 16.
+  // CHECK-MAX: The valid range of "max_redzone" is [16, 2048]. Setting to the maximum value 2048.
 
   sycl::free(array, q);
   return 0;

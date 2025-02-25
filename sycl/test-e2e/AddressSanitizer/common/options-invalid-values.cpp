@@ -13,14 +13,14 @@
 
 // Invalid quarantine_size_mb
 // RUN: env UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:-1 %{run} not --crash %t 2>&1 | FileCheck %s  --check-prefixes INVALID-QUARANTINE
-// RUN: env UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:4294967296 %{run} not --crash %t 2>&1 | FileCheck %s  --check-prefixes INVALID-QUARANTINE
-// INVALID-QUARANTINE: <SANITIZER>[ERROR]: "quarantine_size_mb" should be an integer in range[0, 4294967295].
+// RUN: env UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:4294967296 %{run} %t 2>&1 | FileCheck %s  --check-prefixes INVALID-QUARANTINE
+// INVALID-QUARANTINE: <SANITIZER>[{{(WARNING)|(ERROR)}}]: The valid range of "quarantine_size_mb" is [0, 4294967295].
 
 // Invalid redzone and max_redzone
 // RUN: env UR_LAYER_ASAN_OPTIONS=redzone:abc %{run} not --crash %t 2>&1 | FileCheck %s  --check-prefixes INVALID-REDZONE
-// INVALID-REDZONE: <SANITIZER>[ERROR]: "redzone" should be an integer in range[0, 16].
+// INVALID-REDZONE: <SANITIZER>[ERROR]: The valid range of "redzone" is [16, 2048].
 // RUN: env UR_LAYER_ASAN_OPTIONS=max_redzone:abc %{run} not --crash %t 2>&1 | FileCheck %s  --check-prefixes INVALID-MAXREDZONE
-// INVALID-MAXREDZONE: <SANITIZER>[ERROR]: "max_redzone" should be an integer in range[0, 2048].
+// INVALID-MAXREDZONE: <SANITIZER>[ERROR]: The valid range of "max_redzone" is [16, 2048].
 // clang-format on
 
 #include <sycl/usm.hpp>
