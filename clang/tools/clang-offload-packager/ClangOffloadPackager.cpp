@@ -93,10 +93,9 @@ static DenseMap<StringRef, StringRef> getImageArguments(StringRef Image,
     auto [Key, Value] = Arg.split("=");
     if (Key == "file" && Value[0] == '@')
       Value = expandResponseFileImageArguments(Value, Saver);
-    if (Args.count(Key))
-      Args[Key] = Saver.save(Args[Key] + "," + Value);
-    else
-      Args[Key] = Value;
+    auto [It, Inserted] = Args.try_emplace(Key, Value);
+    if (!Inserted)
+      It->second = Saver.save(It->second + "," + Value);
   }
 
   return Args;
