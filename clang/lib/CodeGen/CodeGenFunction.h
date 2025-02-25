@@ -3033,6 +3033,10 @@ public:
   /// otherwise create one.
   RValue getOrCreateOpaqueRValueMapping(const OpaqueValueExpr *e);
 
+  /// isOpaqueValueEmitted - Return true if the opaque value expression has
+  /// already been emitted.
+  bool isOpaqueValueEmitted(const OpaqueValueExpr *E);
+
   /// Get the index of the current ArrayInitLoopExpr, if any.
   llvm::Value *getArrayInitIndex() { return ArrayInitIndex; }
 
