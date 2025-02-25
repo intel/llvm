@@ -86,7 +86,13 @@ implementation supports.
 === USM Deleter
 
 This extension adds `usm_deleter` helper that can be used with `std::unique_ptr`
-or `std::shared_ptr` to manage deallocation of USM memory.
+or `std::shared_ptr` to manage deallocation of USM memory. Unlike
+`usm_allocator` that doesn't work with `device` USM memory and can have
+unexpected implications when used through APIs like
+`std::make_shared`/`std::allocate_shared`, this new `usm_deleter` helper is
+generally applicable and doesn't cause surprises like unexpected concurrent
+access of the same memory page from both host/decive that could happen when
+using `usm_allocator` with shared pointers.
 
 [source, c++]
 ----
@@ -115,6 +121,33 @@ A simple example of using this extension is below.
 }
 ```
 
+=== Non-normative notes
+
+This helper doesn't introduce any synchronization points so the following would
+result in a race condition:
+
+```c++
+{
+  sycl::queue q;
+  using sycl::ext::oneapi::experimental::usm_deleter;
+  std::unique_ptr<int, usm_deleter> p{sycl::malloc_shared<int>(1, q), {q}};
+  q.single_task([=, p = p.get()]() { *p = 42; });
+  // No wait, memory might be free'ed before the kernel has finished execution.
+}
+```
+
+This isn't different from using smart pointers in multi-threaded environment
+outside SYCL though:
+
+```c++
+{
+  auto p = std::make_unique<...>();
+  std::thread t{[p = p.get()]() { use(p); }};
+  // No `t.join()`
+  // UB, memory is `delete`'ed before `t` finishes.
+}
+```
+
 == Issues/open questions/implementation details
 
 * link:https://en.cppreference.com/w/cpp/memory/shared_ptr/allocate_shared[`allocate_shared(const Alloc& alloc, Args&&... args )`]
@@ -123,8 +156,9 @@ A simple example of using this extension is below.
   `std::shared_ptr`. Having that auxilary data residing in the same USM memory
   might have unintended consequences depending on particular HW when copies are
   created on host when the same memory page is being accessed on a device.
-* Providing `make_unique`/`make_shared`-like interface would lead to API bloat,
-  so not explored in this revision.
+* Providing `make_unique`/`make_shared`-like interface would require adding huge
+  number of APIs with unclear readability (e.g. "shared" USM vs "shared" smart
+  pointer), so not explored in this revision.
 * How should `usm_deleter` store `context`/`device`? Should it be another copy
   following SYCL's common reference semantics and, essentially, extending their
   lifetime for the duration of the smart pointer lifetime? Or can we require
